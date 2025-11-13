@@ -776,18 +776,38 @@ public sealed class ProgressReviewService : IProgressReviewService
     {
         var rows = new Dictionary<int, ProjectProgressRowVm>();
 
-        foreach (var stageChange in frontRunners)
+        foreach (var projectStages in frontRunners
+                     .GroupBy(stageChange => stageChange.ProjectId))
         {
-            rows[stageChange.ProjectId] = new ProjectProgressRowVm(
-                stageChange.ProjectId,
-                stageChange.ProjectName,
+            var orderedStages = projectStages
+                .OrderByDescending(stage => stage.ChangeDate)
+                .ToList();
+
+            if (!orderedStages.Any())
+            {
+                continue;
+            }
+
+            var latestStage = orderedStages.First();
+            var stageMovements = orderedStages
+                .Select(stage => new ProjectStageMovementVm(
+                    stage.StageName,
+                    stage.FromStatus,
+                    stage.ToStatus,
+                    stage.ChangeDate))
+                .ToList();
+
+            rows[latestStage.ProjectId] = new ProjectProgressRowVm(
+                latestStage.ProjectId,
+                latestStage.ProjectName,
                 ProjectActivityType.StageMovement,
-                stageChange.StageName,
-                stageChange.FromStatus,
-                stageChange.ToStatus,
-                stageChange.ChangeDate,
+                latestStage.StageName,
+                latestStage.FromStatus,
+                latestStage.ToStatus,
+                latestStage.ChangeDate,
                 null,
-                stageChange.RemarkSummary);
+                latestStage.RemarkSummary,
+                stageMovements);
         }
 
         foreach (var remark in remarkOnly)
@@ -811,7 +831,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                 null,
                 remark.LatestRemarkDate,
                 null,
-                remark.RemarkSummary);
+                remark.RemarkSummary,
+                Array.Empty<ProjectStageMovementVm>());
         }
 
         foreach (var idle in nonMovers)
@@ -830,7 +851,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                 null,
                 null,
                 idle.DaysSinceActivity,
-                null);
+                null,
+                Array.Empty<ProjectStageMovementVm>());
         }
 
         return rows.Values

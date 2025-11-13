@@ -72,7 +72,15 @@ public sealed record ProjectProgressRowVm(
     string? ToStatus,
     DateOnly? ActivityDate,
     int? DaysSinceActivity,
-    string? RemarkSummary
+    string? RemarkSummary,
+    IReadOnlyList<ProjectStageMovementVm> StageMovements
+);
+
+public sealed record ProjectStageMovementVm(
+    string StageName,
+    string? FromStatus,
+    string? ToStatus,
+    DateOnly ChangeDate
 );
 
 public enum ProjectActivityType

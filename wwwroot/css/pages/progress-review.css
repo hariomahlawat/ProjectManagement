@@ -127,6 +127,54 @@
     font-size: 0.75rem;
 }
 
+.progress-review__stage-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.35rem 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.progress-review__stage-list-item {
+    background: #f8f9fc;
+    border: 1px solid #ecf1f8;
+    border-radius: 0.85rem;
+    padding: 0.6rem 0.75rem;
+}
+
+.progress-review__stage-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    margin-bottom: 0.35rem;
+}
+
+.progress-review__stage-statuses {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+}
+
+.progress-review__stage-status {
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.progress-review__stage-status--from {
+    background: #e8f1ff;
+    color: #0d47a1;
+}
+
+.progress-review__stage-status--to {
+    background: #e6f7ed;
+    color: #0f5132;
+}
+
 /* =========================================================
    SECTION: Lists & cards
    ========================================================= */
