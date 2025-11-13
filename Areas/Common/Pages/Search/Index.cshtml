@@ -4,53 +4,41 @@
     ViewData["Title"] = "Global Search";
     var hasQuery = !string.IsNullOrWhiteSpace(Model.Q);
 
-    // helpers to build querystring links for “tabs”
-    string BuildUrl(string? q, IEnumerable<string>? sources)
+    // Build a query string for exactly one source (Google-style single select)
+    string BuildUrl(string? q, string? source)
     {
         var qp = System.Web.HttpUtility.ParseQueryString(string.Empty);
         if (!string.IsNullOrWhiteSpace(q)) qp["q"] = q;
-
-        if (sources != null)
-        {
-            foreach (var s in sources)
-                qp.Add("Source", s);
-        }
-
+        if (!string.IsNullOrWhiteSpace(source)) qp["Source"] = source;
         return $"?{qp}";
     }
 
-    // work with distinct, case-insensitive sources
+    // Sources
     var allSources = Model.AvailableSources
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToList();
 
+    // Whatever arrived in querystring; we allow only zero or one active tab
     var selectedSources = (Model.Source ?? Array.Empty<string>())
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToList();
 
-    bool IsSelected(string s) => selectedSources.Contains(s, StringComparer.OrdinalIgnoreCase);
+    // Active = exactly one selection and it matches this source
+    bool IsActive(string s) =>
+        selectedSources.Count == 1 &&
+        selectedSources.Contains(s, StringComparer.OrdinalIgnoreCase);
 }
-
-@* 
-// ==============================
-// HERO (no query)
-// ==============================
-*@
 
 @if (!hasQuery)
 {
+    <!-- HERO (no query) -->
     <section class="pm-gs-hero">
         <div class="pm-gs-hero__logo">Project<span>Management</span></div>
         <div class="pm-gs-hero__tag">Search across documents, projects, FFC/IPR, and trackers.</div>
 
-        <form method="get" asp-area="Common" asp-page="/Search/Index" class="pm-gs-search">
+        <form method="get" asp-area="Common" asp-page="/Search/Index" class="pm-gs-search" role="search" aria-label="Global search">
             <i class="bi bi-search pm-gs-search__icon" aria-hidden="true"></i>
-            <input type="text"
-                   name="q"
-                   value="@Model.Q"
-                   class="pm-gs-search__input"
-                   placeholder="Search anything…"
-                   autocomplete="off" />
+            <input type="text" name="q" value="@Model.Q" class="pm-gs-search__input" placeholder="Search anything…" autocomplete="off" />
             <button class="pm-gs-search__clear" type="reset" aria-label="Clear">×</button>
             <button class="pm-gs-search__btn" type="submit">Search</button>
         </form>
@@ -58,19 +46,13 @@
 }
 else
 {
-    // ==============================
-    // TOP BAR (edge-to-edge)
-    // ==============================
+    <!-- TOP BAR (edge-to-edge, like Google) -->
     <header class="pm-gs-top">
         <div class="pm-gs-top__inner">
-            <form method="get" asp-area="Common" asp-page="/Search/Index" class="pm-gs-top__form">
+            <form method="get" asp-area="Common" asp-page="/Search/Index" class="pm-gs-top__form" role="search" aria-label="Global search">
                 <div class="pm-gs-top__search">
                     <i class="bi bi-search pm-gs-top__icon" aria-hidden="true"></i>
-                    <input type="text"
-                           name="q"
-                           value="@Model.Q"
-                           class="pm-gs-top__input"
-                           placeholder="Search anything…" />
+                    <input type="text" name="q" value="@Model.Q" class="pm-gs-top__input" placeholder="Search anything…" />
                     <button class="pm-gs-top__clear" type="reset" aria-label="Clear">×</button>
                 </div>
                 <button class="pm-gs-top__button" type="submit">Search</button>
@@ -79,20 +61,16 @@ else
             @if (allSources.Count > 0)
             {
                 <nav class="pm-gs-tabs" aria-label="Result sources">
+                    <!-- All = no Source -->
                     <a class="pm-gs-tab @(selectedSources.Count == 0 ? "is-active" : "")"
-                       href="@BuildUrl(Model.Q, Enumerable.Empty<string>())">
+                       href="@BuildUrl(Model.Q, null)">
                         All
                     </a>
 
                     @foreach (var s in allSources)
                     {
-                        var active = IsSelected(s);
-                        var newSelection = active
-                        ? selectedSources.Where(x => !string.Equals(x, s, StringComparison.OrdinalIgnoreCase))
-                        : selectedSources.Append(s);
-
-                        <a class="pm-gs-tab @(active ? "is-active" : "")"
-                           href="@BuildUrl(Model.Q, newSelection)">
+                        <a class="pm-gs-tab @(IsActive(s) ? "is-active" : "")"
+                           href="@BuildUrl(Model.Q, s)">
                             @s
                         </a>
                     }
@@ -101,9 +79,7 @@ else
         </div>
     </header>
 
-    // ==============================
-    // RESULTS
-    // ==============================
+    <!-- RESULTS -->
     <main class="pm-gs-body" role="main">
         <div class="pm-gs-body__inner">
             <div class="pm-gs-meta">@Model.Results.Count result@(Model.Results.Count == 1 ? "" : "s")</div>
@@ -159,7 +135,7 @@ else
                         <ul class="pm-gs-nores__tips">
                             <li>Check spelling.</li>
                             <li>Try fewer or different keywords.</li>
-                            <li>Switch or clear source tabs above.</li>
+                            <li>Use the source tabs above.</li>
                         </ul>
                     </div>
                 </section>
