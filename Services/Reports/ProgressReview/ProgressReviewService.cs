@@ -192,12 +192,22 @@ public sealed class ProgressReviewService : IProgressReviewService
             return new Dictionary<int, string?>();
         }
 
-        return await _db.Remarks
+        var remarkRows = await _db.Remarks
             .AsNoTracking()
             .Where(r => projectIds.Contains(r.ProjectId))
             .Where(r => !r.IsDeleted)
             .Where(r => r.Scope == RemarkScope.General)
             .Where(r => r.EventDate >= from && r.EventDate <= to)
+            .Select(r => new
+            {
+                r.ProjectId,
+                r.EventDate,
+                r.CreatedAtUtc,
+                r.Body
+            })
+            .ToListAsync(cancellationToken);
+
+        return remarkRows
             .GroupBy(r => r.ProjectId)
             .Select(g => new
             {
@@ -208,7 +218,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                     .Select(x => Truncate(x.Body, 220))
                     .FirstOrDefault()
             })
-            .ToDictionaryAsync(x => x.ProjectId, x => x.Summary, cancellationToken);
+            .ToDictionary(x => x.ProjectId, x => x.Summary);
     }
 
     private async Task<IReadOnlyList<ProjectRemarkOnlyVm>> LoadProjectRemarksOnlyAsync(
@@ -217,7 +227,7 @@ public sealed class ProgressReviewService : IProgressReviewService
         HashSet<int> excludedProjectIds,
         CancellationToken cancellationToken)
     {
-        var rows = await _db.Remarks
+        var remarkRows = await _db.Remarks
             .AsNoTracking()
             .Where(r => r.Scope == RemarkScope.General)
             .Where(r => !r.IsDeleted)
@@ -225,19 +235,28 @@ public sealed class ProgressReviewService : IProgressReviewService
             .Where(r => r.Project != null && r.Project.LifecycleStatus == ProjectLifecycleStatus.Active)
             .Where(r => r.Project != null && !r.Project.IsArchived && !r.Project.IsDeleted)
             .Where(r => !excludedProjectIds.Contains(r.ProjectId))
-            .GroupBy(r => new { r.ProjectId, r.Project!.Name })
+            .Select(r => new
+            {
+                r.ProjectId,
+                ProjectName = r.Project!.Name,
+                r.EventDate,
+                r.CreatedAtUtc,
+                r.Body
+            })
+            .ToListAsync(cancellationToken);
+
+        return remarkRows
+            .GroupBy(r => new { r.ProjectId, r.ProjectName })
             .Select(g => new ProjectRemarkOnlyVm(
                 g.Key.ProjectId,
-                g.Key.Name,
+                g.Key.ProjectName,
                 g.Max(x => x.EventDate),
                 g.OrderByDescending(x => x.EventDate)
                     .ThenByDescending(x => x.CreatedAtUtc)
                     .Select(x => Truncate(x.Body, 220))
                     .FirstOrDefault()))
             .OrderBy(x => x.ProjectName)
-            .ToListAsync(cancellationToken);
-
-        return rows;
+            .ToList();
     }
 
     private async Task<IReadOnlyList<ProjectNonMoverVm>> LoadProjectNonMoversAsync(
@@ -359,37 +378,60 @@ public sealed class ProgressReviewService : IProgressReviewService
     // -----------------------------------------------------------------
     private async Task<VisitSectionVm> LoadVisitsAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken)
     {
-        var items = await _db.Visits
+        var visitRows = await _db.Visits
             .AsNoTracking()
             .Where(v => v.DateOfVisit >= from && v.DateOfVisit <= to)
             .OrderByDescending(v => v.DateOfVisit)
             .ThenBy(v => v.VisitorName)
+            .Select(v => new
+            {
+                v.Id,
+                v.DateOfVisit,
+                v.VisitorName,
+                VisitTypeName = v.VisitType != null ? v.VisitType.Name : string.Empty,
+                v.Strength,
+                v.Remarks
+            })
+            .ToListAsync(cancellationToken);
+
+        var items = visitRows
             .Select(v => new VisitSummaryVm(
                 v.Id,
                 v.DateOfVisit,
                 v.VisitorName,
-                v.VisitType != null ? v.VisitType.Name : string.Empty,
+                v.VisitTypeName,
                 v.Strength,
                 Truncate(v.Remarks, 240)))
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         return new VisitSectionVm(items, items.Count);
     }
 
     private async Task<SocialMediaSectionVm> LoadSocialMediaAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken)
     {
-        var posts = await _db.SocialMediaEvents
+        var postRows = await _db.SocialMediaEvents
             .AsNoTracking()
             .Where(e => e.DateOfEvent >= from && e.DateOfEvent <= to)
             .OrderByDescending(e => e.DateOfEvent)
             .ThenBy(e => e.Title)
+            .Select(e => new
+            {
+                e.Id,
+                e.DateOfEvent,
+                e.Title,
+                PlatformName = e.SocialMediaPlatform != null ? e.SocialMediaPlatform.Name : string.Empty,
+                e.Description
+            })
+            .ToListAsync(cancellationToken);
+
+        var posts = postRows
             .Select(e => new SocialMediaPostVm(
                 e.Id,
                 e.DateOfEvent,
                 e.Title,
-                e.SocialMediaPlatform != null ? e.SocialMediaPlatform.Name : string.Empty,
+                e.PlatformName,
                 Truncate(e.Description, 240)))
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         return new SocialMediaSectionVm(posts, posts.Count);
     }
@@ -419,20 +461,30 @@ public sealed class ProgressReviewService : IProgressReviewService
         DateOnly to,
         CancellationToken cancellationToken)
     {
-        var remarks = await _db.Remarks
+        var remarkRows = await _db.Remarks
             .AsNoTracking()
             .Where(r => r.Scope == RemarkScope.TransferOfTechnology)
             .Where(r => !r.IsDeleted)
             .Where(r => r.EventDate >= from && r.EventDate <= to)
             .Where(r => r.Project != null && r.Project.LifecycleStatus == ProjectLifecycleStatus.Active)
+            .Select(r => new
+            {
+                r.ProjectId,
+                ProjectName = r.Project!.Name,
+                r.EventDate,
+                r.Body
+            })
+            .ToListAsync(cancellationToken);
+
+        var remarks = remarkRows
             .Select(r => new TotRemarkVm(
                 r.ProjectId,
-                r.Project!.Name,
+                r.ProjectName,
                 r.EventDate,
                 Truncate(r.Body, 220)))
             .OrderByDescending(r => r.Date)
             .ThenBy(r => r.ProjectName)
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         return remarks;
     }
