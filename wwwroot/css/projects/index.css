@@ -536,3 +536,63 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* ===========================
+   Remark preview – styled mentions
+   =========================== */
+
+.projects-card__remark-text {
+    /* keep the preview tidy */
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+    /* Render in-remark @mentions as pills */
+    .projects-card__remark-text .remark-mention {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        padding: 0 .35rem;
+        height: 1.25rem;
+        line-height: 1.25rem;
+        border-radius: 999px;
+        background: rgba(45,108,223,.12); /* fallback if tokens absent */
+        color: #1f3a93;
+        font-weight: 600;
+        font-size: .82em; /* a bit smaller than body */
+        vertical-align: baseline;
+        text-decoration: none;
+        border: 1px solid rgba(45,108,223,.18);
+    }
+
+        /* Add a subtle @ automatically */
+        .projects-card__remark-text .remark-mention::before {
+            content: "@";
+            opacity: .9;
+        }
+
+        /* Hover/focus feedback */
+        .projects-card__remark-text .remark-mention:hover,
+        .projects-card__remark-text .remark-mention:focus {
+            background: rgba(45,108,223,.18);
+            border-color: rgba(45,108,223,.28);
+        }
+
+/* Optional dark-mode safety (if you switch themes) */
+@media (prefers-color-scheme: dark) {
+    .projects-card__remark-text .remark-mention {
+        background: rgba(99,139,255,.18);
+        color: #dfe7ff;
+        border-color: rgba(99,139,255,.32);
+    }
+}
+
+/* Keep the author meta visually distinct and quieter */
+.projects-card__remark-meta {
+    margin-top: .25rem;
+    font-size: .85rem;
+    color: #6b7280;
+}
+
