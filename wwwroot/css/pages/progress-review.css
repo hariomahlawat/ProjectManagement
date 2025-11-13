@@ -22,6 +22,12 @@
     font-size: 1.05rem;
 }
 
+.progress-review__quick-actions [data-action="copy-link"].is-copied {
+    background-color: #198754;
+    border-color: #198754;
+    color: #ffffff;
+}
+
 .progress-review__filter-grid .form-control {
     min-height: 3rem;
 }
