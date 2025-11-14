@@ -459,6 +459,8 @@ namespace ProjectManagement.Data
                 e.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
                 e.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
                 e.Property(x => x.Caption).HasMaxLength(512);
+                // SECTION: Photo quality metadata defaults
+                e.Property(x => x.IsLowResolution).HasDefaultValue(false);
                 e.Property(x => x.TotId).IsRequired(false);
                 e.Property(x => x.Version).HasDefaultValue(1).IsConcurrencyToken();
                 e.Property(x => x.Ordinal).HasDefaultValue(1);

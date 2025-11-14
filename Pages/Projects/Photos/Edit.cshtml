@@ -44,7 +44,7 @@
         <label asp-for="Input.File" class="form-label">Replace image (optional)</label>
         <input asp-for="Input.File" class="form-control" type="file" accept="image/*" />
         <span asp-validation-for="Input.File" class="text-danger"></span>
-        <div class="form-text">Select a new file to replace the photo. Minimum size @(coverOptions.Width)×@(coverOptions.Height).</div>
+        <div class="form-text">Select a new file to replace the photo. For best results, use a clear 4:3 image; smaller uploads are accepted but may appear softer when enlarged.</div>
     </div>
 
     <div class="mb-3">
