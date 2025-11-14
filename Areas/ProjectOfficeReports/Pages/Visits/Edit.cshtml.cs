@@ -131,6 +131,9 @@ public class EditModel : PageModel
             return Forbid();
         }
 
+        // SECTION: Upload validation bootstrap
+        ClearInputValidationErrors();
+
         var visitId = ResolveVisitId(id);
         if (visitId == Guid.Empty)
         {
@@ -138,27 +141,7 @@ public class EditModel : PageModel
             return RedirectToPage("Index");
         }
 
-        var uploads = new List<IFormFile>();
-
-        if (Upload is not null)
-        {
-            uploads.Add(Upload);
-        }
-
-        if (Uploads != null)
-        {
-            foreach (var file in Uploads)
-            {
-                if (file != null)
-                {
-                    uploads.Add(file);
-                }
-            }
-        }
-        if (uploads.Count == 0)
-        {
-            AppendRequestFiles(uploads);
-        }
+        var uploads = CollectUploadFiles();
 
         if (uploads.Count == 0)
         {
@@ -170,14 +153,6 @@ public class EditModel : PageModel
         if (uploads.Any(file => file.Length == 0))
         {
             ModelState.AddModelError(nameof(Uploads), "One or more selected photos were empty. Please choose valid images.");
-            await LoadAsync(visitId, cancellationToken);
-            return Page();
-        }
-
-        ClearInputValidationErrors();
-
-        if (!ModelState.IsValid)
-        {
             await LoadAsync(visitId, cancellationToken);
             return Page();
         }
@@ -441,6 +416,34 @@ public class EditModel : PageModel
     }
 
     // SECTION: Upload helpers
+    private List<IFormFile> CollectUploadFiles()
+    {
+        var uploads = new List<IFormFile>();
+
+        if (Upload is not null)
+        {
+            uploads.Add(Upload);
+        }
+
+        if (Uploads != null)
+        {
+            foreach (var file in Uploads)
+            {
+                if (file != null)
+                {
+                    uploads.Add(file);
+                }
+            }
+        }
+
+        if (uploads.Count == 0)
+        {
+            AppendRequestFiles(uploads);
+        }
+
+        return uploads;
+    }
+
     private void AppendRequestFiles(List<IFormFile> uploads)
     {
         if (uploads.Count > 0)
@@ -456,10 +459,15 @@ public class EditModel : PageModel
 
         foreach (var file in formFiles)
         {
-            if (file != null)
+            if (file != null && IsImageFile(file))
             {
                 uploads.Add(file);
             }
         }
+    }
+
+    private static bool IsImageFile(IFormFile file)
+    {
+        return file.ContentType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true;
     }
 }
