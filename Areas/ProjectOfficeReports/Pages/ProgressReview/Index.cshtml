@@ -119,38 +119,34 @@
 
 <div class="container-xxl py-4 progress-review" data-page-id="progress-review">
     @* SECTION: Header & filters *@
-    <section class="progress-review__controls mb-4">
+    <section class="progress-review__controls mb-2">
         <form id="progress-review-filter" method="get">
             <div class="progress-review__controls-head">
-                <div>
-                    <p class="text-uppercase text-muted small fw-semibold mb-1">Project office report</p>
-                    <h1 class="h3 mb-1">Progress Review</h1>
-                    @if (vm is not null)
-                    {
-                        <p class="text-muted mb-0 small">
-                            Range: @vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")
-                        </p>
-                    }
+                <div class="d-lg-flex align-items-baseline gap-2">
+                    <p class="text-uppercase text-muted small fw-semibold mb-0">Project office report</p>
+                    <h1 class="h5 mb-0">Progress Review</h1>
                 </div>
+
                 <div class="progress-review__actions">
-                    <button class="btn btn-outline-primary" type="button" data-action="print">
+                    <button class="btn btn-outline-primary btn-sm" type="button" data-action="export-pdf" aria-label="Print report">
                         <i class="bi bi-printer me-1"></i>
-                        Print
+                        <span class="d-none d-md-inline">Print</span>
                     </button>
                 </div>
             </div>
-            <div class="row gy-3 gx-3 align-items-end progress-review__filter-grid">
-                <div class="col-12 col-sm-6 col-md-3">
+
+            <div class="row gy-2 gx-2 align-items-end progress-review__filter-grid">
+                <div class="col-12 col-sm-auto">
                     <label class="form-label form-label-sm text-muted" for="from">From</label>
                     <input class="form-control" id="from" name="from" type="date" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
                 </div>
-                <div class="col-12 col-sm-6 col-md-3">
+                <div class="col-12 col-sm-auto">
                     <label class="form-label form-label-sm text-muted" for="to">To</label>
                     <input class="form-control" id="to" name="to" type="date" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
                 </div>
-                <div class="col-12 col-sm-6 col-md-auto">
+                <div class="col-12 col-sm-auto">
                     <label class="form-label form-label-sm text-muted d-block">&nbsp;</label>
-                    <button class="btn btn-primary w-100" type="submit">Show report</button>
+                    <button class="btn btn-primary btn-sm w-100" type="submit">Show report</button>
                 </div>
             </div>
         </form>
@@ -164,9 +160,9 @@
     {
         <article class="progress-review__document">
             <header class="progress-review__document-header">
-                <div>
-                    <p class="text-uppercase text-muted small fw-semibold mb-1">Reporting period</p>
-                    <h2 class="h4 mb-0">@vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")</h2>
+                <div class="d-lg-flex align-items-baseline gap-2">
+                    <p class="text-uppercase text-muted small fw-semibold mb-0">Reporting period</p>
+                    <h2 class="h6 mb-0">@vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")</h2>
                 </div>
             </header>
 

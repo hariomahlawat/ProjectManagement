@@ -53,7 +53,7 @@
   // SECTION: Quick action bindings
   // =========================================================
   const bindPrintButton = () => {
-    const button = document.querySelector('[data-action="print"]');
+    const button = document.querySelector('[data-action="export-pdf"], [data-action="print"]');
     if (!button) {
       return;
     }
