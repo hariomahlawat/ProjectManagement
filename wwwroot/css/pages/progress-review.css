@@ -348,7 +348,7 @@
 
 @media print {
     .progress-review {
-        background: #ffffff;
+        background: var(--pr-card);
         padding: 0;
     }
 
