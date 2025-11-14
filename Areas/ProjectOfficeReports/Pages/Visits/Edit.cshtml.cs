@@ -157,6 +157,11 @@ public class EditModel : PageModel
         }
         if (uploads.Count == 0)
         {
+            AppendRequestFiles(uploads);
+        }
+
+        if (uploads.Count == 0)
+        {
             ModelState.AddModelError(nameof(Uploads), "Please select at least one photo to upload.");
             await LoadAsync(visitId, cancellationToken);
             return Page();
@@ -433,5 +438,28 @@ public class EditModel : PageModel
 
         [StringLength(2000)]
         public string? Remarks { get; set; }
+    }
+
+    // SECTION: Upload helpers
+    private void AppendRequestFiles(List<IFormFile> uploads)
+    {
+        if (uploads.Count > 0)
+        {
+            return;
+        }
+
+        var formFiles = Request?.Form.Files;
+        if (formFiles == null || formFiles.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var file in formFiles)
+        {
+            if (file != null)
+            {
+                uploads.Add(file);
+            }
+        }
     }
 }
