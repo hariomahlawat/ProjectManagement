@@ -1,6 +1,7 @@
 @page
 @using System
 @using System.Net
+@using System.Globalization
 @using System.Text.RegularExpressions
 @using ProjectManagement.Services.Reports.ProgressReview
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.ProgressReview.IndexModel
@@ -18,14 +19,17 @@
         var encoded = WebUtility.HtmlEncode(text)
             .Replace("\r\n", "<br>")
             .Replace("\n", "<br>");
-
-        const string mentionPattern = "&lt;span class=&quot;remark-mention&quot;[^&]*&gt;(.*?)&lt;/span&gt;";
+        // Match any encoded <span class="remark-mention" ...>...</span> regardless of extra attributes.
+        const string mentionPattern =
+            "&lt;span\\s+class=&quot;remark-mention&quot;.*?&gt;(.*?)&lt;/span&gt;";
         return Regex.Replace(
             encoded,
             mentionPattern,
             match => $"<span class=\"badge remark-pill\">{match.Groups[1].Value}</span>",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     }
+
+    string FormatDateIso(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     string GetActivityBadgeClass(ProjectActivityType type) => type switch
     {
@@ -141,7 +145,7 @@
                     }
                 </div>
                 <div class="progress-review__actions">
-                    <button class="btn btn-outline-primary" type="button" data-action="export-pdf">
+                    <button class="btn btn-outline-primary" type="button" data-action="print">
                         <i class="bi bi-printer me-1"></i>
                         Print
                     </button>
@@ -211,7 +215,7 @@
                                 var projectDetailsUrl = Url.Page("/Projects/Overview", new { id = row.ProjectId });
 
                                 <tr>
-                                    <td>
+                                    <th scope="row">
                                         <div class="progress-review__project-name">
                                             <a class="progress-review__link" href="@projectDetailsUrl">@row.ProjectName</a>
                                         </div>
@@ -219,7 +223,7 @@
                                             <i class="bi @badgeIcon" aria-hidden="true"></i>
                                             <span>@badgeLabel</span>
                                         </span>
-                                    </td>
+                                    </th>
                                     <td>
                                         <div class="fw-semibold">@stageHeading</div>
                                         @if (hasStageTimeline)
@@ -230,7 +234,9 @@
                                                     var stageName = string.IsNullOrWhiteSpace(movement.StageName) ? "Stage update" : movement.StageName!;
                                                     <li>
                                                         <span class="progress-review__stage-history-name">@stageName</span>
-                                                        <span class="progress-review__stage-history-date">@FormatDay(movement.ChangeDate)</span>
+                                                        <span class="progress-review__stage-history-date">
+                                                            <time datetime="@FormatDateIso(movement.ChangeDate)">@FormatDay(movement.ChangeDate)</time>
+                                                        </span>
                                                     </li>
                                                 }
                                             </ul>
@@ -245,7 +251,16 @@
                                         }
                                     </td>
                                     <td>
-                                        <div class="fw-semibold">@timelinePrimary</div>
+                                        <div class="fw-semibold">
+                                            @if (row.ActivityDate.HasValue)
+                                            {
+                                                <time datetime="@FormatDateIso(row.ActivityDate.Value)">@timelinePrimary</time>
+                                            }
+                                            else
+                                            {
+                                                @timelinePrimary
+                                            }
+                                        </div>
                                         @if (!string.IsNullOrWhiteSpace(timelineSecondary))
                                         {
                                             <div class="text-muted small">@timelineSecondary</div>
@@ -255,7 +270,7 @@
                                         @if (hasRemark)
                                         {
                                             var tooltip = WebUtility.HtmlEncode(row.RemarkSummary);
-                                            <div class="progress-review__remark" title="@Html.Raw(tooltip)">@Html.Raw(remarkHtml)</div>
+                                            <div class="progress-review__remark" title="@tooltip">@Html.Raw(remarkHtml)</div>
                                         }
                                         else
                                         {
@@ -306,13 +321,13 @@
                                         @if (!string.IsNullOrWhiteSpace(visitPhotoUrl))
                                         {
                                             <div class="progress-review__media-thumb">
-                                                <img src="@visitPhotoUrl" alt="@visitPhotoAlt" loading="lazy" width="72" height="72" />
+                                                <img role="img" src="@visitPhotoUrl" alt="@visitPhotoAlt" loading="lazy" width="72" height="72" />
                                             </div>
                                         }
                                         <div class="progress-review__media-body">
                                             <a class="progress-review__link progress-review__link--block" href="@visitDetailsUrl">
                                                 <div class="fw-semibold">@visit.VisitorName <span class="text-muted fw-normal">(@visit.VisitType)</span></div>
-                                                <div class="small text-muted">@FormatDay(visit.Date) · Strength @visit.Strength</div>
+                                                <div class="small text-muted"><time datetime="@FormatDateIso(visit.Date)">@FormatDay(visit.Date)</time> · Strength @visit.Strength</div>
                                                 @if (!string.IsNullOrWhiteSpace(visit.Remarks))
                                                 {
                                                     <div class="text-muted small">@visit.Remarks</div>
@@ -351,13 +366,13 @@
                                         @if (!string.IsNullOrWhiteSpace(postPhotoUrl))
                                         {
                                             <div class="progress-review__media-thumb">
-                                                <img src="@postPhotoUrl" alt="@postPhotoAlt" loading="lazy" width="72" height="72" />
+                                                <img role="img" src="@postPhotoUrl" alt="@postPhotoAlt" loading="lazy" width="72" height="72" />
                                             </div>
                                         }
                                         <div class="progress-review__media-body">
                                             <a class="progress-review__link progress-review__link--block" href="@postDetailsUrl">
                                                 <div class="fw-semibold">@post.Title</div>
-                                                <div class="small text-muted">@FormatDay(post.Date) · @post.Platform</div>
+                                                <div class="small text-muted"><time datetime="@FormatDateIso(post.Date)">@FormatDay(post.Date)</time> · @post.Platform</div>
                                                 @if (!string.IsNullOrWhiteSpace(post.Description))
                                                 {
                                                     <div class="text-muted small">@post.Description</div>
@@ -394,7 +409,7 @@
                                     var projectLink = Url.Page("/Projects/Overview", new { id = entry.ProjectId });
                                     <li>
                                         <strong><a class="progress-review__link" href="@projectLink">@entry.ProjectName</a></strong>
-                                        <span class="text-muted">(@FormatDay(entry.ChangeDate))</span>
+                                        <span class="text-muted">(<time datetime="@FormatDateIso(entry.ChangeDate)">@FormatDay(entry.ChangeDate)</time>)</span>
                                         <div>@entry.StageName: @entry.FromStatus → @entry.ToStatus</div>
                                     </li>
                                 }
@@ -412,7 +427,7 @@
                                     var projectLink = Url.Page("/Projects/Overview", new { id = entry.ProjectId });
                                     <li>
                                         <strong><a class="progress-review__link" href="@projectLink">@entry.ProjectName</a></strong>
-                                        <span class="text-muted">(@FormatDay(entry.Date))</span>
+                                        <span class="text-muted">(<time datetime="@FormatDateIso(entry.Date)">@FormatDay(entry.Date)</time>)</span>
                                         <div>@entry.Summary</div>
                                     </li>
                                 }
@@ -432,10 +447,10 @@
                                 {
                                     var iprRecordUrl = Url.Page(
                                         "/ProjectOfficeReports/Ipr/Manage",
-                                        new { area = "ProjectOfficeReports", EditId = entry.IprId });
+                                        new { area = "ProjectOfficeReports", EditId = entry.Id });
                                     <li>
                                         <strong><a class="progress-review__link" href="@iprRecordUrl">@entry.Title</a></strong>
-                                        <span class="text-muted">(@FormatDay(entry.EventDate))</span>
+                                        <span class="text-muted">(<time datetime="@FormatDateIso(entry.EventDate)">@FormatDay(entry.EventDate)</time>)</span>
                                         <div>@entry.Status — @entry.Notes</div>
                                     </li>
                                 }
@@ -452,10 +467,10 @@
                                 {
                                     var iprRecordUrl = Url.Page(
                                         "/ProjectOfficeReports/Ipr/Manage",
-                                        new { area = "ProjectOfficeReports", EditId = entry.IprId });
+                                        new { area = "ProjectOfficeReports", EditId = entry.Id });
                                     <li>
                                         <strong><a class="progress-review__link" href="@iprRecordUrl">@entry.Title</a></strong>
-                                        <span class="text-muted">(@FormatDay(entry.EventDate))</span>
+                                        <span class="text-muted">(<time datetime="@FormatDateIso(entry.EventDate)">@FormatDay(entry.EventDate)</time>)</span>
                                         <div>@entry.Summary</div>
                                     </li>
                                 }
@@ -493,7 +508,7 @@
                                     @foreach (var row in vm.Training.Simulator.Rows.Take(8))
                                     {
                                         <tr>
-                                            <td>@FormatDay(row.Date)</td>
+                                            <td><time datetime="@FormatDateIso(row.Date)">@FormatDay(row.Date)</time></td>
                                             <td>@row.Title</td>
                                             <td>@row.UnitOrOrg</td>
                                             <td>@row.Persons</td>
@@ -525,7 +540,7 @@
                                     @foreach (var row in vm.Training.Drone.Rows.Take(8))
                                     {
                                         <tr>
-                                            <td>@FormatDay(row.Date)</td>
+                                            <td><time datetime="@FormatDateIso(row.Date)">@FormatDay(row.Date)</time></td>
                                             <td>@row.Title</td>
                                             <td>@row.UnitOrOrg</td>
                                             <td>@row.Persons</td>
@@ -570,7 +585,7 @@
                                     {
                                         var projectLink = Url.Page("/Projects/Overview", new { id = row.ProjectId });
                                         <tr>
-                                            <td>@FormatDay(row.Date)</td>
+                                            <td><time datetime="@FormatDateIso(row.Date)">@FormatDay(row.Date)</time></td>
                                             <td><a class="progress-review__link" href="@projectLink">@row.ProjectName</a></td>
                                             <td>@row.UnitOrCountry</td>
                                             <td>@row.Quantity</td>
@@ -600,7 +615,7 @@
                                 {
                                     <li>
                                         <strong>@row.Country</strong> — @row.Milestone
-                                        <span class="text-muted">(@FormatDay(row.Date))</span>
+                                        <span class="text-muted">(<time datetime="@FormatDateIso(row.Date)">@FormatDay(row.Date)</time>)</span>
                                         <div class="text-muted">@row.Remarks</div>
                                     </li>
                                 }
@@ -633,9 +648,9 @@
                                         var activityPhotoAlt = string.IsNullOrWhiteSpace(activity.Title)
                                             ? "Activity photo"
                                             : $"{activity.Title} photo";
-                                        <img class="progress-review__activity-photo" src="@activity.PhotoUrl" alt="@activityPhotoAlt" loading="lazy" />
+                                        <img role="img" class="progress-review__activity-photo" src="@activity.PhotoUrl" alt="@activityPhotoAlt" loading="lazy" />
                                     }
-                                    <p class="text-muted small mb-1">@FormatDay(activity.Date) · @activity.Location</p>
+                                    <p class="text-muted small mb-1"><time datetime="@FormatDateIso(activity.Date)">@FormatDay(activity.Date)</time> · @activity.Location</p>
                                     <h3 class="h6">@activity.Title</h3>
                                     @if (!string.IsNullOrWhiteSpace(activity.Summary))
                                     {
