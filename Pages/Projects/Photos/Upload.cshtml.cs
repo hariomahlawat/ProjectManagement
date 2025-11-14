@@ -189,7 +189,8 @@ public class UploadModel : PageModel
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading photo for project {ProjectId}", id);
-            ModelState.AddModelError(string.Empty, ex.Message);
+            // SECTION: Error handling feedback
+            ModelState.AddModelError(string.Empty, "There was a problem uploading the photo. Please try again, or contact the Project Office if the problem persists.");
             return Page();
         }
     }

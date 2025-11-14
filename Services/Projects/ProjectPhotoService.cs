@@ -33,6 +33,10 @@ namespace ProjectManagement.Services.Projects
         private readonly IVirusScanner? _virusScanner;
         private readonly IUploadRootProvider _uploadRootProvider;
 
+        // SECTION: Quality thresholds
+        private const int LowResolutionWidthThreshold = 400;
+        private const int LowResolutionHeightThreshold = 300;
+
         private static readonly object SemaphoreSync = new();
         private static SemaphoreSlim? _processingSemaphore;
         private static SemaphoreSlim? _encodingSemaphore;
@@ -443,6 +447,7 @@ namespace ProjectManagement.Services.Projects
                 Caption = captionValue,
                 TotId = totId,
                 IsCover = false,
+                IsLowResolution = validation.IsLowResolution,
                 CreatedUtc = now,
                 UpdatedUtc = now,
                 Version = 1
@@ -520,6 +525,7 @@ namespace ProjectManagement.Services.Projects
             photo.ContentType = validation.FallbackContentType;
             photo.Width = validation.CroppedWidth;
             photo.Height = validation.CroppedHeight;
+            photo.IsLowResolution = validation.IsLowResolution;
             photo.Version += 1;
             photo.UpdatedUtc = now;
 
@@ -577,11 +583,6 @@ namespace ProjectManagement.Services.Projects
                 image.Metadata.IptcProfile = null;
                 image.Metadata.XmpProfile = null;
 
-                if (image.Width < _options.MinWidth || image.Height < _options.MinHeight)
-                {
-                    throw new InvalidOperationException($"Images must be at least {_options.MinWidth}x{_options.MinHeight}.");
-                }
-
                 var cropRectangle = crop.HasValue
                     ? ValidateCrop(image.Width, image.Height, crop.Value)
                     : CalculateDefaultCrop(image.Width, image.Height);
@@ -590,6 +591,8 @@ namespace ProjectManagement.Services.Projects
 
                 var hasTransparency = DetectTransparency(image);
                 var fallbackContentType = hasTransparency ? "image/png" : "image/jpeg";
+                var isLowResolution = image.Width < LowResolutionWidthThreshold ||
+                                      image.Height < LowResolutionHeightThreshold;
 
                 var derivativeFiles = await GenerateDerivativesAsync(image, hasTransparency, cancellationToken);
 
@@ -598,7 +601,8 @@ namespace ProjectManagement.Services.Projects
                     FallbackContentType = fallbackContentType,
                     DerivativeFiles = derivativeFiles,
                     CroppedWidth = image.Width,
-                    CroppedHeight = image.Height
+                    CroppedHeight = image.Height,
+                    IsLowResolution = isLowResolution
                 };
 
                 return result;
@@ -625,7 +629,8 @@ namespace ProjectManagement.Services.Projects
                 {
                     using var clone = image.Clone(ctx => ctx.Resize(new ResizeOptions
                     {
-                        Mode = ResizeMode.Max,
+                        // SECTION: Derivative scaling
+                        Mode = ResizeMode.Stretch,
                         Size = new Size(derivative.Width, derivative.Height),
                         Sampler = KnownResamplers.Lanczos3
                     }));
@@ -890,6 +895,9 @@ namespace ProjectManagement.Services.Projects
             public int CroppedWidth { get; init; }
 
             public int CroppedHeight { get; init; }
+
+            // SECTION: Validation metadata
+            public bool IsLowResolution { get; init; }
         }
 
         private sealed record DerivativeSet(InMemoryFile Webp, InMemoryFile Fallback)

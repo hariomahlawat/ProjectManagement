@@ -4274,6 +4274,11 @@ namespace ProjectManagement.Migrations
                     b.Property<bool>("IsCover")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsLowResolution")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<int>("Ordinal")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")

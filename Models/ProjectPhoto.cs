@@ -37,7 +37,11 @@ namespace ProjectManagement.Models
 
         public ProjectTot? Tot { get; set; }
 
+        // SECTION: Display flags
         public bool IsCover { get; set; }
+
+        // SECTION: Quality metadata
+        public bool IsLowResolution { get; set; }
 
         public int Version { get; set; } = 1;
 

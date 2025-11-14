@@ -86,36 +86,6 @@ public sealed class ProjectPhotoServiceTests
     }
 
     [Fact]
-    public async Task AddAsync_ThrowsWhenImageTooSmall()
-    {
-        await using var db = CreateContext();
-        await SeedProjectAsync(db, 7);
-
-        await using var stream = await CreateImageStreamAsync(320, 240);
-
-        var options = CreateOptions();
-        options.MinWidth = 720;
-        options.MinHeight = 540;
-
-        var root = CreateTempRoot();
-        SetUploadRoot(root);
-        try
-        {
-            var service = CreateService(db, options);
-
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                service.AddAsync(7, stream, "small.png", "image/png", "editor", false, null, null, CancellationToken.None));
-
-            Assert.Contains("at least", ex.Message, StringComparison.OrdinalIgnoreCase);
-        }
-        finally
-        {
-            ResetUploadRoot();
-            CleanupTempRoot(root);
-        }
-    }
-
-    [Fact]
     public async Task AddAsync_WithCropGeneratesDerivativesAndSetsCover()
     {
         await using var db = CreateContext();
@@ -137,6 +107,7 @@ public sealed class ProjectPhotoServiceTests
             Assert.Equal(900, photo.Height);
             Assert.Equal("image/jpeg", photo.ContentType);
             Assert.True(photo.IsCover);
+            Assert.False(photo.IsLowResolution);
 
             Assert.True(options.Derivatives.ContainsKey("xs"));
 
@@ -151,6 +122,34 @@ public sealed class ProjectPhotoServiceTests
             Assert.All(webpPaths, path => Assert.EndsWith(".webp", path, StringComparison.OrdinalIgnoreCase));
             Assert.All(fallbackPaths, path => Assert.True(File.Exists(path)));
             Assert.All(fallbackPaths, path => Assert.EndsWith(".jpg", path, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            ResetUploadRoot();
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task AddAsync_AllowsSmallImageAndFlagsLowResolution()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 17);
+
+        await using var stream = await CreateImageStreamAsync(360, 270);
+
+        var root = CreateTempRoot();
+        SetUploadRoot(root);
+        try
+        {
+            var options = CreateOptions();
+            var service = CreateService(db, options);
+
+            var photo = await service.AddAsync(17, stream, "small.png", "image/png", "auditor", false, null, null, CancellationToken.None);
+
+            Assert.True(photo.IsLowResolution);
+            Assert.Equal(360, photo.Width);
+            Assert.Equal(270, photo.Height);
         }
         finally
         {
