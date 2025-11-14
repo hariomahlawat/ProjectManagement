@@ -171,7 +171,13 @@ else
                         <h2 class="visit-form-card__title">Upload additional photos</h2>
                         <p class="visit-form-card__subtitle">Drop in multiple images at once. Captions will apply to the entire batch.</p>
                     </div>
-                    <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" asp-route-id="@Model.PhotoGallery.VisitId" class="visit-form" data-visits-disable-on-submit>
+                    <form method="post"
+                          enctype="multipart/form-data"
+                          asp-page-handler="Upload"
+                          asp-route-id="@Model.PhotoGallery.VisitId"
+                          class="visit-form"
+                          data-visits-disable-on-submit>
+                        @Html.AntiForgeryToken()
                         <input type="hidden" name="id" value="@Model.PhotoGallery.VisitId" />
                         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
                         <div class="visit-form-grid visit-form-grid--single">
