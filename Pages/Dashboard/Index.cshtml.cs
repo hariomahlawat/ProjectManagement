@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 
 namespace ProjectManagement.Pages.Dashboard
 {
@@ -34,6 +35,11 @@ namespace ProjectManagement.Pages.Dashboard
         public List<UpcomingEventVM> UpcomingEvents { get; set; } = new();
         public List<MyProjectsSection> MyProjectSections { get; private set; } = new();
         public bool HasMyProjects => MyProjectSections.Any(section => section.Items.Count > 0);
+
+        // SECTION: My Projects widget state
+        public bool ShowMyProjectsWidget { get; private set; }
+        public bool ShowEmptyMyProjectsMessage { get; private set; }
+        // END SECTION
 
         public class UpcomingEventVM
         {
@@ -161,60 +167,96 @@ namespace ProjectManagement.Pages.Dashboard
                 UpcomingEvents.Add(new UpcomingEventVM { Id = item.Id, Title = item.Title, When = when, IsHoliday = item.IsHoliday });
             }
 
-            if (uid != null)
+            var isProjectOfficer = User.IsInRole(RoleNames.ProjectOfficer);
+            var isHod = User.IsInRole(RoleNames.HoD);
+            var isComdt = User.IsInRole(RoleNames.Comdt);
+            var isMco = User.IsInRole(RoleNames.Mco);
+
+            ShowMyProjectsWidget = isProjectOfficer || isHod || isComdt || isMco;
+            ShowEmptyMyProjectsMessage = isProjectOfficer || isHod;
+
+            if (uid != null && ShowMyProjectsWidget)
             {
-                await LoadMyProjectsAsync(uid);
+                await LoadMyProjectsAsync(uid, isProjectOfficer, isHod, isComdt || isMco);
             }
         }
 
-        private async Task LoadMyProjectsAsync(string userId)
+        private async Task LoadMyProjectsAsync(string userId, bool includeOfficerSection, bool includeHodSection, bool includeAllOngoingSection)
         {
             var sections = new List<MyProjectsSection>();
 
-            var officerProjects = await _db.Projects
-                .AsNoTracking()
-                .Where(p => !p.IsDeleted && p.LeadPoUserId == userId)
-                .OrderBy(p => p.Name)
-                .Select(p => new ProjectAssignmentSummary
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Category = p.Category != null ? p.Category.Name : null,
-                    CoverPhotoId = p.CoverPhotoId,
-                    CoverPhotoVersion = p.CoverPhotoVersion
-                })
-                .ToListAsync();
-
-            if (officerProjects.Count > 0)
+            if (includeOfficerSection)
             {
-                sections.Add(new MyProjectsSection
+                var officerProjects = await OnlyOngoing(_db.Projects.AsNoTracking())
+                    .Where(p => p.LeadPoUserId == userId)
+                    .OrderBy(p => p.Name)
+                    .Select(p => new ProjectAssignmentSummary
+                    {
+                        Id = p.Id,
+                        Name = p.Name,
+                        Category = p.Category != null ? p.Category.Name : null,
+                        CoverPhotoId = p.CoverPhotoId,
+                        CoverPhotoVersion = p.CoverPhotoVersion
+                    })
+                    .ToListAsync();
+
+                if (officerProjects.Count > 0)
                 {
-                    Title = "Project Officer",
-                    Items = officerProjects.Select(CreateProjectItem).ToList()
-                });
+                    sections.Add(new MyProjectsSection
+                    {
+                        Title = "Project Officer",
+                        Items = officerProjects.Select(CreateProjectItem).ToList()
+                    });
+                }
             }
 
-            var hodProjects = await _db.Projects
-                .AsNoTracking()
-                .Where(p => !p.IsDeleted && p.HodUserId == userId)
-                .OrderBy(p => p.Name)
-                .Select(p => new ProjectAssignmentSummary
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Category = p.Category != null ? p.Category.Name : null,
-                    CoverPhotoId = p.CoverPhotoId,
-                    CoverPhotoVersion = p.CoverPhotoVersion
-                })
-                .ToListAsync();
-
-            if (hodProjects.Count > 0)
+            if (includeHodSection)
             {
-                sections.Add(new MyProjectsSection
+                var hodProjects = await OnlyOngoing(_db.Projects.AsNoTracking())
+                    .Where(p => p.HodUserId == userId)
+                    .OrderBy(p => p.Name)
+                    .Select(p => new ProjectAssignmentSummary
+                    {
+                        Id = p.Id,
+                        Name = p.Name,
+                        Category = p.Category != null ? p.Category.Name : null,
+                        CoverPhotoId = p.CoverPhotoId,
+                        CoverPhotoVersion = p.CoverPhotoVersion
+                    })
+                    .ToListAsync();
+
+                if (hodProjects.Count > 0)
                 {
-                    Title = "Head of Department",
-                    Items = hodProjects.Select(CreateProjectItem).ToList()
-                });
+                    sections.Add(new MyProjectsSection
+                    {
+                        Title = "Head of Department",
+                        Items = hodProjects.Select(CreateProjectItem).ToList()
+                    });
+                }
+            }
+
+            if (includeAllOngoingSection)
+            {
+                var allOngoingProjects = await OnlyOngoing(_db.Projects.AsNoTracking())
+                    .OrderBy(p => p.Name)
+                    .Select(p => new ProjectAssignmentSummary
+                    {
+                        Id = p.Id,
+                        Name = p.Name,
+                        Category = p.Category != null ? p.Category.Name : null,
+                        CoverPhotoId = p.CoverPhotoId,
+                        CoverPhotoVersion = p.CoverPhotoVersion
+                    })
+                    .ToListAsync();
+
+                if (allOngoingProjects.Count > 0)
+                {
+                    sections.Add(new MyProjectsSection
+                    {
+                        Title = "All ongoing projects",
+                        Items = allOngoingProjects.Select(CreateProjectItem).ToList()
+                    });
+                }
             }
 
             MyProjectSections = sections;
@@ -240,6 +282,16 @@ namespace ProjectManagement.Pages.Dashboard
                 };
             }
         }
+
+        // SECTION: My Projects helpers
+        private static IQueryable<Project> OnlyOngoing(IQueryable<Project> query)
+        {
+            return query.Where(p => !p.IsDeleted
+                && !p.IsArchived
+                && p.LifecycleStatus != ProjectLifecycleStatus.Completed
+                && p.LifecycleStatus != ProjectLifecycleStatus.Cancelled);
+        }
+        // END SECTION
 
         public sealed class MyProjectsSection
         {

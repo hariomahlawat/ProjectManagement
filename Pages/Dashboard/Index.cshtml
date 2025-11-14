@@ -39,69 +39,78 @@
   </div>
 }
 
+@{
+  var dashboardMainColumnClass = Model.ShowMyProjectsWidget ? "col-12 col-lg-8 col-xl-8" : "col-12";
+}
+
 <div class="row g-3 dashboard mt-1">
   <div class="col-lg-9">
     <div class="row g-3">
-      <div class="col-12 col-lg-4 col-xl-4">
-        <section class="dashboard-my-projects" aria-labelledby="dashboard-my-projects-title">
-          <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
-            <h2 id="dashboard-my-projects-title" class="h5 fw-semibold mb-0">My Projects</h2>
-          </div>
-          @if (Model.HasMyProjects)
-          {
-            @foreach (var projectSection in Model.MyProjectSections)
+      @* SECTION: My Projects widget *@
+      @if (Model.ShowMyProjectsWidget)
+      {
+        <div class="col-12 col-lg-4 col-xl-4">
+          <section class="dashboard-my-projects" aria-labelledby="dashboard-my-projects-title">
+            <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+              <h2 id="dashboard-my-projects-title" class="h5 fw-semibold mb-0">My Projects</h2>
+            </div>
+            @if (Model.HasMyProjects)
             {
-              <div class="dashboard-my-projects__section">
-                <h3 class="dashboard-my-projects__section-title text-uppercase text-secondary fw-semibold small mb-2">
-                  @projectSection.Title
-                </h3>
-                <div class="dashboard-my-projects__list" role="list">
-                  @foreach (var project in projectSection.Items)
-                  {
-                    <a
-                      asp-page="/Projects/Overview"
-                      asp-route-id="@project.ProjectId"
-                      class="dashboard-project-card"
-                      role="listitem"
-                    >
-                      <div class="dashboard-project-card__cover" aria-hidden="true">
-                        @if (!string.IsNullOrEmpty(project.CoverImageUrl))
-                        {
-                          <img
-                            src="@project.CoverImageUrl"
-                            alt=""
-                            loading="lazy"
-                          />
-                        }
-                        else
-                        {
-                          <span class="dashboard-project-card__cover-placeholder">No cover</span>
-                        }
-                      </div>
-                      <div class="dashboard-project-card__content">
-                        <div class="dashboard-project-card__title text-truncate" title="@project.Name">
-                          @project.Name
+              @foreach (var projectSection in Model.MyProjectSections)
+              {
+                <div class="dashboard-my-projects__section">
+                  <h3 class="dashboard-my-projects__section-title text-uppercase text-secondary fw-semibold small mb-2">
+                    @projectSection.Title
+                  </h3>
+                  <div class="dashboard-my-projects__list" role="list">
+                    @foreach (var project in projectSection.Items)
+                    {
+                      <a
+                        asp-page="/Projects/Overview"
+                        asp-route-id="@project.ProjectId"
+                        class="dashboard-project-card"
+                        role="listitem"
+                      >
+                        <div class="dashboard-project-card__cover" aria-hidden="true">
+                          @if (!string.IsNullOrEmpty(project.CoverImageUrl))
+                          {
+                            <img
+                              src="@project.CoverImageUrl"
+                              alt=""
+                              loading="lazy"
+                            />
+                          }
+                          else
+                          {
+                            <span class="dashboard-project-card__cover-placeholder">No cover</span>
+                          }
                         </div>
-                        <div class="dashboard-project-card__meta text-truncate">
-                          @(string.IsNullOrWhiteSpace(project.Category) ? "No category" : project.Category)
+                        <div class="dashboard-project-card__content">
+                          <div class="dashboard-project-card__title text-truncate" title="@project.Name">
+                            @project.Name
+                          </div>
+                          <div class="dashboard-project-card__meta text-truncate">
+                            @(string.IsNullOrWhiteSpace(project.Category) ? "No category" : project.Category)
+                          </div>
                         </div>
-                      </div>
-                      <span class="dashboard-project-card__chevron" aria-hidden="true">
-                        <i class="bi bi-arrow-right-short"></i>
-                      </span>
-                    </a>
-                  }
+                        <span class="dashboard-project-card__chevron" aria-hidden="true">
+                          <i class="bi bi-arrow-right-short"></i>
+                        </span>
+                      </a>
+                    }
+                  </div>
                 </div>
-              </div>
+              }
             }
-          }
-          else
-          {
-            <p class="text-secondary small mb-0">You are not currently assigned to any projects.</p>
-          }
-        </section>
-      </div>
-      <div class="col-12 col-lg-8 col-xl-8">
+            else if (Model.ShowEmptyMyProjectsMessage)
+            {
+              <p class="text-secondary small mb-0">You are not currently assigned to any projects.</p>
+            }
+          </section>
+        </div>
+      }
+      @* END SECTION *@
+      <div class="@dashboardMainColumnClass">
         <div class="dashboard-main-content h-100">
           <h2 class="h5 fw-semibold mb-2">Dashboard</h2>
           <p class="text-secondary">This is a placeholder. Add role-specific widgets here.</p>
