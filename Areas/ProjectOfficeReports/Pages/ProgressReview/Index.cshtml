@@ -98,7 +98,6 @@
         _ => string.Empty
     };
 
-    string FormatStageStatus(string? status) => string.IsNullOrWhiteSpace(status) ? "–" : status!;
 
     string? BuildVisitPhotoUrl(Guid visitId, Guid? photoId)
     {
@@ -447,7 +446,7 @@
                                 {
                                     var iprRecordUrl = Url.Page(
                                         "/ProjectOfficeReports/Ipr/Manage",
-                                        new { area = "ProjectOfficeReports", EditId = entry.Id });
+                                        new { area = "ProjectOfficeReports", EditId = entry.IprId });
                                     <li>
                                         <strong><a class="progress-review__link" href="@iprRecordUrl">@entry.Title</a></strong>
                                         <span class="text-muted">(<time datetime="@FormatDateIso(entry.EventDate)">@FormatDay(entry.EventDate)</time>)</span>
@@ -467,7 +466,7 @@
                                 {
                                     var iprRecordUrl = Url.Page(
                                         "/ProjectOfficeReports/Ipr/Manage",
-                                        new { area = "ProjectOfficeReports", EditId = entry.Id });
+                                        new { area = "ProjectOfficeReports", EditId = entry.IprId });
                                     <li>
                                         <strong><a class="progress-review__link" href="@iprRecordUrl">@entry.Title</a></strong>
                                         <span class="text-muted">(<time datetime="@FormatDateIso(entry.EventDate)">@FormatDay(entry.EventDate)</time>)</span>
