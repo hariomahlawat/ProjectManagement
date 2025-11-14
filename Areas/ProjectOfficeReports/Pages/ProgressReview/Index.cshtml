@@ -168,46 +168,7 @@
             <header class="progress-review__document-header">
                 <div>
                     <p class="text-uppercase text-muted small fw-semibold mb-1">Reporting period</p>
-                    <h2 class="h4 mb-2">@vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")</h2>
-                    <p class="progress-review__lead">
-                        During this period, <strong>@vm.Totals.ProjectsMoved</strong> projects progressed to new stages while
-                        <strong>@vm.Totals.NonMovers</strong> awaited further action. Teams recorded
-                        <strong>@vm.Totals.ProjectsWithRemarks</strong> remarks and conducted
-                        <strong>@vm.Totals.VisitsCount</strong> field visits.
-                    </p>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-sm mb-0 progress-review__summary-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Indicator</th>
-                                <th scope="col" class="text-end">Value</th>
-                                <th scope="col">Observation</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Projects moved</td>
-                                <td class="text-end fw-semibold">@vm.Totals.ProjectsMoved</td>
-                                <td>Progressed to subsequent stages.</td>
-                            </tr>
-                            <tr>
-                                <td>Projects with remarks</td>
-                                <td class="text-end fw-semibold">@vm.Totals.ProjectsWithRemarks</td>
-                                <td>Leadership attention and field notes.</td>
-                            </tr>
-                            <tr>
-                                <td>Non-movers</td>
-                                <td class="text-end fw-semibold">@vm.Totals.NonMovers</td>
-                                <td>Awaiting milestones or inputs.</td>
-                            </tr>
-                            <tr>
-                                <td>Visits recorded</td>
-                                <td class="text-end fw-semibold">@vm.Totals.VisitsCount</td>
-                                <td>Stakeholder and site interactions.</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <h2 class="h4 mb-0">@vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")</h2>
                 </div>
             </header>
 
@@ -239,9 +200,8 @@
                                 var stageHeading = GetStageHeading(row);
                                 var timelinePrimary = GetTimelinePrimary(row);
                                 var timelineSecondary = GetTimelineSecondary(row);
-                                var hasStageTransition = row.ActivityType == ProjectActivityType.StageMovement;
                                 var stageMovements = row.StageMovements ?? Array.Empty<ProjectStageMovementVm>();
-                                var hasStageTimeline = hasStageTransition && stageMovements.Any();
+                                var hasStageTimeline = stageMovements.Any();
 
                                 <tr>
                                     <td>
@@ -255,19 +215,13 @@
                                         <div class="fw-semibold">@stageHeading</div>
                                         @if (hasStageTimeline)
                                         {
-                                            <ul class="progress-review__stage-list">
+                                            <ul class="progress-review__stage-history">
                                                 @foreach (var movement in stageMovements)
                                                 {
-                                                    <li class="progress-review__stage-list-item">
-                                                        <div class="progress-review__stage-list-header">
-                                                            <span class="fw-semibold">@movement.StageName</span>
-                                                            <span class="text-muted small">@movement.ChangeDate.ToString("dd MMM")</span>
-                                                        </div>
-                                                        <div class="progress-review__stage-statuses">
-                                                            <span class="progress-review__stage-status progress-review__stage-status--from">@FormatStageStatus(movement.FromStatus)</span>
-                                                            <span class="text-muted small">→</span>
-                                                            <span class="progress-review__stage-status progress-review__stage-status--to">@FormatStageStatus(movement.ToStatus)</span>
-                                                        </div>
+                                                    var stageName = string.IsNullOrWhiteSpace(movement.StageName) ? "Stage update" : movement.StageName!;
+                                                    <li>
+                                                        <span class="progress-review__stage-history-name">@stageName</span>
+                                                        <span class="progress-review__stage-history-date">@movement.ChangeDate.ToString("dd MMM")</span>
                                                     </li>
                                                 }
                                             </ul>
