@@ -15,22 +15,16 @@
             return string.Empty;
         }
 
-        const string mentionPattern = "<span class=\"remark-mention\"[^>]*>(.*?)</span>";
-        var replaced = Regex.Replace(
-            text,
+        var encoded = WebUtility.HtmlEncode(text)
+            .Replace("\r\n", "<br>")
+            .Replace("\n", "<br>");
+
+        const string mentionPattern = "&lt;span class=&quot;remark-mention&quot;[^&]*&gt;(.*?)&lt;/span&gt;";
+        return Regex.Replace(
+            encoded,
             mentionPattern,
             match => $"<span class=\"badge remark-pill\">{match.Groups[1].Value}</span>",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-
-        var looksHtml = replaced.Contains("<span", StringComparison.OrdinalIgnoreCase)
-                        || replaced.Contains("<mark", StringComparison.OrdinalIgnoreCase)
-                        || replaced.Contains("<a ", StringComparison.OrdinalIgnoreCase);
-
-        return looksHtml
-            ? replaced
-            : WebUtility.HtmlEncode(replaced)
-                .Replace("\r\n", "<br>")
-                .Replace("\n", "<br>");
     }
 
     string GetActivityBadgeClass(ProjectActivityType type) => type switch
@@ -72,11 +66,23 @@
         _ => string.Empty
     };
 
+    string FormatDay(DateOnly d)
+    {
+        if (vm is null)
+        {
+            return d.ToString("dd MMM yyyy");
+        }
+
+        return d.Year == vm.Range.To.Year
+            ? d.ToString("dd MMM")
+            : d.ToString("dd MMM yyyy");
+    }
+
     string GetTimelinePrimary(ProjectProgressRowVm row) => row.ActivityType switch
     {
         ProjectActivityType.NoRecentActivity when row.DaysSinceActivity.HasValue => $"{row.DaysSinceActivity.Value} days",
         ProjectActivityType.NoRecentActivity => "N/A",
-        _ when row.ActivityDate.HasValue => row.ActivityDate.Value.ToString("dd MMM"),
+        _ when row.ActivityDate.HasValue => FormatDay(row.ActivityDate.Value),
         _ => "Date N/A"
     };
 
@@ -137,7 +143,7 @@
                 <div class="progress-review__actions">
                     <button class="btn btn-outline-primary" type="button" data-action="export-pdf">
                         <i class="bi bi-printer me-1"></i>
-                        Export / Print
+                        Print
                     </button>
                 </div>
             </div>
@@ -175,7 +181,7 @@
             @* SECTION: Project progress buckets *@
             <section class="progress-review__section" id="project-progress">
                 <header class="progress-review__section-header">
-                    <span class="progress-review__section-label">Section 01</span>
+                    <span class="progress-review__section-label" aria-hidden="true">Section 01</span>
                     <h2 class="progress-review__section-title">Project progress review</h2>
                     <p class="progress-review__section-subtitle">Movement, remarks, and idle projects consolidated per project.</p>
                 </header>
@@ -202,10 +208,13 @@
                                 var timelineSecondary = GetTimelineSecondary(row);
                                 var stageMovements = row.StageMovements ?? Array.Empty<ProjectStageMovementVm>();
                                 var hasStageTimeline = stageMovements.Any();
+                                var projectDetailsUrl = Url.Page("/Projects/Overview", new { id = row.ProjectId });
 
                                 <tr>
                                     <td>
-                                        <div class="progress-review__project-name">@row.ProjectName</div>
+                                        <div class="progress-review__project-name">
+                                            <a class="progress-review__link" href="@projectDetailsUrl">@row.ProjectName</a>
+                                        </div>
                                         <span class="progress-review__activity-pill @badgeClass">
                                             <i class="bi @badgeIcon" aria-hidden="true"></i>
                                             <span>@badgeLabel</span>
@@ -221,7 +230,7 @@
                                                     var stageName = string.IsNullOrWhiteSpace(movement.StageName) ? "Stage update" : movement.StageName!;
                                                     <li>
                                                         <span class="progress-review__stage-history-name">@stageName</span>
-                                                        <span class="progress-review__stage-history-date">@movement.ChangeDate.ToString("dd MMM")</span>
+                                                        <span class="progress-review__stage-history-date">@FormatDay(movement.ChangeDate)</span>
                                                     </li>
                                                 }
                                             </ul>
@@ -245,7 +254,8 @@
                                     <td class="progress-review__cell-truncate">
                                         @if (hasRemark)
                                         {
-                                            <div class="progress-review__remark">@Html.Raw(remarkHtml)</div>
+                                            var tooltip = WebUtility.HtmlEncode(row.RemarkSummary);
+                                            <div class="progress-review__remark" title="@Html.Raw(tooltip)">@Html.Raw(remarkHtml)</div>
                                         }
                                         else
                                         {
@@ -268,7 +278,7 @@
             @* SECTION: Field engagement & outreach *@
             <section class="progress-review__section" id="field-engagement">
                 <header class="progress-review__section-header">
-                    <span class="progress-review__section-label">Section 02</span>
+                    <span class="progress-review__section-label" aria-hidden="true">Section 02</span>
                     <h2 class="progress-review__section-title">Field engagement & outreach</h2>
                     <p class="progress-review__section-subtitle">Site visits and social narratives captured for documentation.</p>
                 </header>
@@ -286,24 +296,32 @@
                                 @foreach (var visit in vm.Visits.Items.Take(6))
                                 {
                                     var visitPhotoUrl = BuildVisitPhotoUrl(visit.Id, visit.CoverPhotoId);
+                                    var visitDetailsUrl = Url.Page(
+                                        "/ProjectOfficeReports/Visits/Details",
+                                        new { area = "ProjectOfficeReports", id = visit.Id });
+                                    var visitPhotoAlt = string.IsNullOrWhiteSpace(visit.VisitorName)
+                                        ? "Visit photo"
+                                        : $"{visit.VisitorName} visit photo";
                                     <li class="progress-review__media-item">
                                         @if (!string.IsNullOrWhiteSpace(visitPhotoUrl))
                                         {
                                             <div class="progress-review__media-thumb">
-                                                <img src="@visitPhotoUrl" alt="@($"{visit.VisitorName} visit photo")" loading="lazy" width="72" height="72" />
+                                                <img src="@visitPhotoUrl" alt="@visitPhotoAlt" loading="lazy" width="72" height="72" />
                                             </div>
                                         }
                                         <div class="progress-review__media-body">
-                                            <div class="fw-semibold">@visit.VisitorName <span class="text-muted fw-normal">(@visit.VisitType)</span></div>
-                                            <div class="small text-muted">@visit.Date.ToString("dd MMM") · Strength @visit.Strength</div>
-                                            @if (!string.IsNullOrWhiteSpace(visit.Remarks))
-                                            {
-                                                <div class="text-muted small">@visit.Remarks</div>
-                                            }
-                                            else
-                                            {
-                                                <div class="text-muted small">No remarks shared.</div>
-                                            }
+                                            <a class="progress-review__link progress-review__link--block" href="@visitDetailsUrl">
+                                                <div class="fw-semibold">@visit.VisitorName <span class="text-muted fw-normal">(@visit.VisitType)</span></div>
+                                                <div class="small text-muted">@FormatDay(visit.Date) · Strength @visit.Strength</div>
+                                                @if (!string.IsNullOrWhiteSpace(visit.Remarks))
+                                                {
+                                                    <div class="text-muted small">@visit.Remarks</div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="text-muted small">No remarks shared.</div>
+                                                }
+                                            </a>
                                         </div>
                                     </li>
                                 }
@@ -323,24 +341,32 @@
                                 @foreach (var post in vm.SocialMedia.Items.Take(6))
                                 {
                                     var postPhotoUrl = BuildSocialPhotoUrl(post.Id, post.CoverPhotoId);
+                                    var postDetailsUrl = Url.Page(
+                                        "/ProjectOfficeReports/SocialMedia/Details",
+                                        new { area = "ProjectOfficeReports", id = post.Id });
+                                    var postPhotoAlt = string.IsNullOrWhiteSpace(post.Title)
+                                        ? "Social post photo"
+                                        : $"{post.Title} social post";
                                     <li class="progress-review__media-item">
                                         @if (!string.IsNullOrWhiteSpace(postPhotoUrl))
                                         {
                                             <div class="progress-review__media-thumb">
-                                                <img src="@postPhotoUrl" alt="@($"{post.Title} social post")" loading="lazy" width="72" height="72" />
+                                                <img src="@postPhotoUrl" alt="@postPhotoAlt" loading="lazy" width="72" height="72" />
                                             </div>
                                         }
                                         <div class="progress-review__media-body">
-                                            <div class="fw-semibold">@post.Title</div>
-                                            <div class="small text-muted">@post.Date.ToString("dd MMM") · @post.Platform</div>
-                                            @if (!string.IsNullOrWhiteSpace(post.Description))
-                                            {
-                                                <div class="text-muted small">@post.Description</div>
-                                            }
-                                            else
-                                            {
-                                                <div class="text-muted small">No caption provided.</div>
-                                            }
+                                            <a class="progress-review__link progress-review__link--block" href="@postDetailsUrl">
+                                                <div class="fw-semibold">@post.Title</div>
+                                                <div class="small text-muted">@FormatDay(post.Date) · @post.Platform</div>
+                                                @if (!string.IsNullOrWhiteSpace(post.Description))
+                                                {
+                                                    <div class="text-muted small">@post.Description</div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="text-muted small">No caption provided.</div>
+                                                }
+                                            </a>
                                         </div>
                                     </li>
                                 }
@@ -353,7 +379,7 @@
             @* SECTION: Technology transfer & IPR *@
             <section class="progress-review__section" id="tech-transfer">
                 <header class="progress-review__section-header">
-                    <span class="progress-review__section-label">Section 03</span>
+                    <span class="progress-review__section-label" aria-hidden="true">Section 03</span>
                     <h2 class="progress-review__section-title">Technology transfer & IPR</h2>
                     <p class="progress-review__section-subtitle">Stage transitions, agreements, and legal highlights.</p>
                 </header>
@@ -365,9 +391,10 @@
                             <ul class="list-unstyled small progress-review__list">
                                 @foreach (var entry in vm.Tot.StageChanges.Take(8))
                                 {
+                                    var projectLink = Url.Page("/Projects/Overview", new { id = entry.ProjectId });
                                     <li>
-                                        <strong>@entry.ProjectName</strong>
-                                        <span class="text-muted">(@entry.ChangeDate.ToString("dd MMM"))</span>
+                                        <strong><a class="progress-review__link" href="@projectLink">@entry.ProjectName</a></strong>
+                                        <span class="text-muted">(@FormatDay(entry.ChangeDate))</span>
                                         <div>@entry.StageName: @entry.FromStatus → @entry.ToStatus</div>
                                     </li>
                                 }
@@ -382,9 +409,10 @@
                             <ul class="list-unstyled small progress-review__list">
                                 @foreach (var entry in vm.Tot.Remarks.Take(8))
                                 {
+                                    var projectLink = Url.Page("/Projects/Overview", new { id = entry.ProjectId });
                                     <li>
-                                        <strong>@entry.ProjectName</strong>
-                                        <span class="text-muted">(@entry.Date.ToString("dd MMM"))</span>
+                                        <strong><a class="progress-review__link" href="@projectLink">@entry.ProjectName</a></strong>
+                                        <span class="text-muted">(@FormatDay(entry.Date))</span>
                                         <div>@entry.Summary</div>
                                     </li>
                                 }
@@ -402,9 +430,12 @@
                             <ul class="list-unstyled small progress-review__list">
                                 @foreach (var entry in vm.Ipr.StatusChanges.Take(8))
                                 {
+                                    var iprRecordUrl = Url.Page(
+                                        "/ProjectOfficeReports/Ipr/Manage",
+                                        new { area = "ProjectOfficeReports", EditId = entry.IprId });
                                     <li>
-                                        <strong>@entry.Title</strong>
-                                        <span class="text-muted">(@entry.EventDate.ToString("dd MMM"))</span>
+                                        <strong><a class="progress-review__link" href="@iprRecordUrl">@entry.Title</a></strong>
+                                        <span class="text-muted">(@FormatDay(entry.EventDate))</span>
                                         <div>@entry.Status — @entry.Notes</div>
                                     </li>
                                 }
@@ -419,9 +450,12 @@
                             <ul class="list-unstyled small progress-review__list">
                                 @foreach (var entry in vm.Ipr.Remarks.Take(8))
                                 {
+                                    var iprRecordUrl = Url.Page(
+                                        "/ProjectOfficeReports/Ipr/Manage",
+                                        new { area = "ProjectOfficeReports", EditId = entry.IprId });
                                     <li>
-                                        <strong>@entry.Title</strong>
-                                        <span class="text-muted">(@entry.EventDate.ToString("dd MMM"))</span>
+                                        <strong><a class="progress-review__link" href="@iprRecordUrl">@entry.Title</a></strong>
+                                        <span class="text-muted">(@FormatDay(entry.EventDate))</span>
                                         <div>@entry.Summary</div>
                                     </li>
                                 }
@@ -438,7 +472,7 @@
             @* SECTION: Training *@
             <section class="progress-review__section" id="training">
                 <header class="progress-review__section-header">
-                    <span class="progress-review__section-label">Section 04</span>
+                    <span class="progress-review__section-label" aria-hidden="true">Section 04</span>
                     <h2 class="progress-review__section-title">Training & capability building</h2>
                     <p class="progress-review__section-subtitle">Simulator and drone training efforts for the period.</p>
                 </header>
@@ -459,7 +493,7 @@
                                     @foreach (var row in vm.Training.Simulator.Rows.Take(8))
                                     {
                                         <tr>
-                                            <td>@row.Date.ToString("dd MMM")</td>
+                                            <td>@FormatDay(row.Date)</td>
                                             <td>@row.Title</td>
                                             <td>@row.UnitOrOrg</td>
                                             <td>@row.Persons</td>
@@ -491,7 +525,7 @@
                                     @foreach (var row in vm.Training.Drone.Rows.Take(8))
                                     {
                                         <tr>
-                                            <td>@row.Date.ToString("dd MMM")</td>
+                                            <td>@FormatDay(row.Date)</td>
                                             <td>@row.Title</td>
                                             <td>@row.UnitOrOrg</td>
                                             <td>@row.Persons</td>
@@ -513,7 +547,7 @@
             @* SECTION: Proliferation & FFC *@
             <section class="progress-review__section" id="proliferation">
                 <header class="progress-review__section-header">
-                    <span class="progress-review__section-label">Section 05</span>
+                    <span class="progress-review__section-label" aria-hidden="true">Section 05</span>
                     <h2 class="progress-review__section-title">Proliferation & FFC simulators</h2>
                     <p class="progress-review__section-subtitle">Distribution events and FFC milestones captured for record.</p>
                 </header>
@@ -534,9 +568,10 @@
                                 <tbody>
                                     @foreach (var row in vm.Proliferation.Rows.Take(10))
                                     {
+                                        var projectLink = Url.Page("/Projects/Overview", new { id = row.ProjectId });
                                         <tr>
-                                            <td>@row.Date.ToString("dd MMM")</td>
-                                            <td>@row.ProjectName</td>
+                                            <td>@FormatDay(row.Date)</td>
+                                            <td><a class="progress-review__link" href="@projectLink">@row.ProjectName</a></td>
                                             <td>@row.UnitOrCountry</td>
                                             <td>@row.Quantity</td>
                                             <td>@row.Source</td>
@@ -565,7 +600,7 @@
                                 {
                                     <li>
                                         <strong>@row.Country</strong> — @row.Milestone
-                                        <span class="text-muted">(@row.Date.ToString("dd MMM"))</span>
+                                        <span class="text-muted">(@FormatDay(row.Date))</span>
                                         <div class="text-muted">@row.Remarks</div>
                                     </li>
                                 }
@@ -578,7 +613,7 @@
             @* SECTION: Miscellaneous activities *@
             <section class="progress-review__section" id="miscellaneous">
                 <header class="progress-review__section-header">
-                    <span class="progress-review__section-label">Section 06</span>
+                    <span class="progress-review__section-label" aria-hidden="true">Section 06</span>
                     <h2 class="progress-review__section-title">Miscellaneous activities</h2>
                     <p class="progress-review__section-subtitle">Additional highlights requiring documentation.</p>
                 </header>
@@ -595,9 +630,12 @@
                                 <article class="progress-review__activity-card h-100">
                                     @if (!string.IsNullOrWhiteSpace(activity.PhotoUrl))
                                     {
-                                        <img class="progress-review__activity-photo" src="@activity.PhotoUrl" alt="@($"{activity.Title} photo")" loading="lazy" />
+                                        var activityPhotoAlt = string.IsNullOrWhiteSpace(activity.Title)
+                                            ? "Activity photo"
+                                            : $"{activity.Title} photo";
+                                        <img class="progress-review__activity-photo" src="@activity.PhotoUrl" alt="@activityPhotoAlt" loading="lazy" />
                                     }
-                                    <p class="text-muted small mb-1">@activity.Date.ToString("dd MMM") · @activity.Location</p>
+                                    <p class="text-muted small mb-1">@FormatDay(activity.Date) · @activity.Location</p>
                                     <h3 class="h6">@activity.Title</h3>
                                     @if (!string.IsNullOrWhiteSpace(activity.Summary))
                                     {
