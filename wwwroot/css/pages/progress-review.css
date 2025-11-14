@@ -1,17 +1,49 @@
 /* =========================================================
+   SECTION: Local tokens
+   ========================================================= */
+:root {
+    --pr-bg: #eef1f7;
+    --pr-card: #ffffff;
+    --pr-surface: #fdfdff;
+    --pr-surface-muted: #f2f5fa;
+    --pr-border: #e6ebf3;
+    --pr-border-light: #edf0f4;
+    --pr-border-lighter: #edf1f7;
+    --pr-border-dashed: #e1e6ef;
+    --pr-photo-border: #eef2f7;
+    --pr-text-heading: #1f2a3e;
+    --pr-text-body: #293548;
+    --pr-text-subheading: #5f6c82;
+    --pr-text-muted: #6f7a8f;
+    --pr-text-muted-light: #8a94a8;
+    --pr-text-secondary: #6c7687;
+    --pr-pill-neutral-bg: #eef2f8;
+    --pr-pill-neutral-text: #2b3648;
+    --pr-pill-movement-bg: #e8f2ff;
+    --pr-pill-movement-text: #0b5ed7;
+    --pr-pill-remark-bg: #f6ecff;
+    --pr-pill-remark-text: #6f42c1;
+    --pr-pill-idle-bg: #fff4e5;
+    --pr-pill-idle-text: #b45309;
+    --pr-shadow-controls: 0 18px 45px rgba(34, 56, 82, 0.08);
+    --pr-shadow-document: 0 25px 60px rgba(20, 38, 63, 0.12);
+    --pr-shadow-inset: inset 0 0 0 1px rgba(64, 80, 102, 0.03);
+}
+
+/* =========================================================
    SECTION: Layout shell
    ========================================================= */
 .progress-review {
-    background: #eef1f7;
+    background: var(--pr-bg);
     padding: 2rem 0 4rem;
 }
 
 .progress-review__controls {
-    background: #ffffff;
+    background: var(--pr-card);
     border-radius: 1.25rem;
     padding: 1.25rem 1.5rem;
-    box-shadow: 0 18px 45px rgba(34, 56, 82, 0.08);
-    border-left: 6px solid #0d6efd;
+    box-shadow: var(--pr-shadow-controls);
+    border-left: 6px solid var(--bs-primary, #0d6efd);
 }
 
 .progress-review__controls-head {
@@ -41,12 +73,12 @@
    SECTION: Document shell
    ========================================================= */
 .progress-review__document {
-    background: #ffffff;
+    background: var(--pr-card);
     max-width: 960px;
     margin: 0 auto;
     padding: 2rem 2.25rem;
     border-radius: 1.5rem;
-    box-shadow: 0 25px 60px rgba(20, 38, 63, 0.12);
+    box-shadow: var(--pr-shadow-document);
 }
 
 .progress-review__document-header {
@@ -54,7 +86,7 @@
     flex-direction: column;
     gap: 0.75rem;
     margin-bottom: 1.75rem;
-    border-bottom: 2px solid #edf1f7;
+    border-bottom: 2px solid var(--pr-border-lighter);
     padding-bottom: 1rem;
 }
 
@@ -73,7 +105,7 @@
     font-size: 0.75rem;
     letter-spacing: 0.25em;
     text-transform: uppercase;
-    color: #8a94a8;
+    color: var(--pr-text-muted-light);
     display: inline-block;
     margin-bottom: 0.5rem;
 }
@@ -81,11 +113,11 @@
 .progress-review__section-title {
     margin-bottom: 0.25rem;
     font-size: 1.35rem;
-    color: #1f2a3e;
+    color: var(--pr-text-heading);
 }
 
 .progress-review__section-subtitle {
-    color: #5f6c82;
+    color: var(--pr-text-subheading);
     margin-bottom: 0;
 }
 
@@ -93,7 +125,7 @@
     font-size: 1rem;
     font-weight: 600;
     margin-bottom: 0.35rem;
-    color: #27354a;
+    color: var(--pr-text-heading);
 }
 
 .progress-review__mini-section + .progress-review__mini-section {
@@ -104,7 +136,7 @@
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #6f7a8f;
+    color: var(--pr-text-muted);
     margin-bottom: 0.35rem;
 }
 
@@ -114,12 +146,12 @@
 .progress-review__table thead th {
     text-transform: uppercase;
     font-size: 0.75rem;
-    color: #6c757d;
-    border-bottom: 2px solid #ebeff5;
+    color: var(--pr-text-muted);
+    border-bottom: 2px solid var(--pr-border-light);
 }
 
 .progress-review__table tbody tr + tr {
-    border-top: 1px solid #edf0f4;
+    border-top: 1px solid var(--pr-border-light);
 }
 
 .progress-review__table td {
@@ -137,6 +169,20 @@
     margin-bottom: 0.35rem;
 }
 
+.progress-review__link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.progress-review__link:hover,
+.progress-review__link:focus-visible {
+    text-decoration: underline;
+}
+
+.progress-review__link--block {
+    display: block;
+}
+
 .progress-review__activity-pill {
     display: inline-flex;
     align-items: center;
@@ -145,8 +191,8 @@
     border-radius: 999px;
     font-size: 0.75rem;
     font-weight: 600;
-    background: #eef2f8;
-    color: #2b3648;
+    background: var(--pr-pill-neutral-bg);
+    color: var(--pr-pill-neutral-text);
 }
 
 .progress-review__activity-pill i {
@@ -154,23 +200,27 @@
 }
 
 .progress-review__activity-pill--movement {
-    background: #e8f2ff;
-    color: #0b5ed7;
+    background: var(--pr-pill-movement-bg);
+    color: var(--pr-pill-movement-text);
 }
 
 .progress-review__activity-pill--remark {
-    background: #f6ecff;
-    color: #6f42c1;
+    background: var(--pr-pill-remark-bg);
+    color: var(--pr-pill-remark-text);
 }
 
 .progress-review__activity-pill--idle {
-    background: #fff4e5;
-    color: #b45309;
+    background: var(--pr-pill-idle-bg);
+    color: var(--pr-pill-idle-text);
 }
 
 .progress-review__remark {
     line-height: 1.4;
-    color: #293548;
+    color: var(--pr-text-body);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .progress-review__remark .remark-pill {
@@ -192,7 +242,7 @@
     justify-content: space-between;
     align-items: center;
     font-size: 0.85rem;
-    border-bottom: 1px dashed #e1e6ef;
+    border-bottom: 1px dashed var(--pr-border-dashed);
     padding-bottom: 0.2rem;
 }
 
@@ -202,11 +252,11 @@
 
 .progress-review__stage-history-name {
     font-weight: 600;
-    color: #1f2a3e;
+    color: var(--pr-text-heading);
 }
 
 .progress-review__stage-history-date {
-    color: #6c7687;
+    color: var(--pr-text-secondary);
     font-size: 0.8rem;
 }
 
@@ -219,7 +269,7 @@
 
 .progress-review__list li {
     padding: 0.4rem 0;
-    border-bottom: 1px dashed #e1e6ef;
+    border-bottom: 1px dashed var(--pr-border-dashed);
 }
 
 .progress-review__list li:last-child {
@@ -234,7 +284,7 @@
     display: flex;
     gap: 0.85rem;
     padding: 0.75rem 0;
-    border-bottom: 1px solid #edf1f7;
+    border-bottom: 1px solid var(--pr-border-lighter);
 }
 
 .progress-review__media-item:last-child {
@@ -246,7 +296,7 @@
     height: 72px;
     border-radius: 0.75rem;
     overflow: hidden;
-    background: #f2f5fa;
+    background: var(--pr-surface-muted);
     flex-shrink: 0;
 }
 
@@ -262,11 +312,11 @@
 }
 
 .progress-review__activity-card {
-    background: #fdfdff;
-    border: 1px solid #e6ebf3;
+    background: var(--pr-surface);
+    border: 1px solid var(--pr-border);
     border-radius: 1rem;
     padding: 1.25rem;
-    box-shadow: inset 0 0 0 1px rgba(64, 80, 102, 0.03);
+    box-shadow: var(--pr-shadow-inset);
 }
 
 .progress-review__activity-photo {
@@ -275,7 +325,7 @@
     object-fit: cover;
     border-radius: 0.85rem;
     margin-bottom: 0.75rem;
-    border: 1px solid #eef2f7;
+    border: 1px solid var(--pr-photo-border);
 }
 
 /* =========================================================
@@ -312,9 +362,28 @@
         border-radius: 0;
         padding: 0;
         max-width: none;
+        border: none;
     }
 
     .progress-review__section + .progress-review__section {
+        page-break-inside: avoid;
+    }
+
+    table {
+        page-break-inside: auto;
+    }
+
+    thead {
+        display: table-header-group;
+    }
+
+    tfoot {
+        display: table-footer-group;
+    }
+
+    tr,
+    td,
+    th {
         page-break-inside: avoid;
     }
 }
