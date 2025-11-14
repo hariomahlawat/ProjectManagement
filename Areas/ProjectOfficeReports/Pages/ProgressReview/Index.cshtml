@@ -122,10 +122,22 @@
     <section class="progress-review__controls mb-2">
         <form id="progress-review-filter" method="get">
             <div class="progress-review__controls-head">
-                <div class="d-lg-flex align-items-baseline gap-2">
-                    <p class="text-uppercase text-muted small fw-semibold mb-0">Project office report</p>
-                    <h1 class="h5 mb-0">Progress Review</h1>
-                </div>
+                
+                    <div class="row gy-2 gx-2 align-items-end progress-review__filter-grid">
+                        <div class="col-12 col-sm-auto">
+                            <label class="form-label form-label-sm text-muted" for="from">From</label>
+                            <input class="form-control" id="from" name="from" type="date" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                        <div class="col-12 col-sm-auto">
+                            <label class="form-label form-label-sm text-muted" for="to">To</label>
+                            <input class="form-control" id="to" name="to" type="date" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                        <div class="col-12 col-sm-auto">
+                            <label class="form-label form-label-sm text-muted d-block">&nbsp;</label>
+                            <button class="btn btn-primary btn-sm w-100" type="submit">Show report</button>
+                        </div>
+                    </div>
+               
 
                 <div class="progress-review__actions">
                     <button class="btn btn-outline-primary btn-sm" type="button" data-action="export-pdf" aria-label="Print report">
@@ -135,20 +147,7 @@
                 </div>
             </div>
 
-            <div class="row gy-2 gx-2 align-items-end progress-review__filter-grid">
-                <div class="col-12 col-sm-auto">
-                    <label class="form-label form-label-sm text-muted" for="from">From</label>
-                    <input class="form-control" id="from" name="from" type="date" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
-                </div>
-                <div class="col-12 col-sm-auto">
-                    <label class="form-label form-label-sm text-muted" for="to">To</label>
-                    <input class="form-control" id="to" name="to" type="date" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
-                </div>
-                <div class="col-12 col-sm-auto">
-                    <label class="form-label form-label-sm text-muted d-block">&nbsp;</label>
-                    <button class="btn btn-primary btn-sm w-100" type="submit">Show report</button>
-                </div>
-            </div>
+            
         </form>
     </section>
 
