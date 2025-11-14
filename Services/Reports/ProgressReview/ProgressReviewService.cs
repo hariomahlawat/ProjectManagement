@@ -124,7 +124,7 @@ public sealed class ProgressReviewService : IProgressReviewService
     // -----------------------------------------------------------------
     // SECTION: Projects (front runners, remarks only, non-movers)
     // -----------------------------------------------------------------
-    private async Task<IReadOnlyList<ProjectStageChangeVm>> LoadFrontRunnerProjectsAsync(
+    private Task<IReadOnlyList<ProjectStageChangeVm>> LoadFrontRunnerProjectsAsync(
         IReadOnlyList<StageChangeLogRow> stageChanges,
         DateOnly from,
         DateOnly to,
@@ -132,10 +132,10 @@ public sealed class ProgressReviewService : IProgressReviewService
     {
         if (stageChanges.Count == 0)
         {
-            return Array.Empty<ProjectStageChangeVm>();
+            return Task.FromResult<IReadOnlyList<ProjectStageChangeVm>>(Array.Empty<ProjectStageChangeVm>());
         }
 
-        return stageChanges
+        var rows = stageChanges
             .OrderByDescending(x => x.ChangeDate)
             .ThenBy(x => x.ProjectName)
             .Select(x => new ProjectStageChangeVm(
@@ -149,6 +149,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                 x.ToActualStart,
                 x.ToCompletedOn))
             .ToList();
+
+        return Task.FromResult<IReadOnlyList<ProjectStageChangeVm>>(rows);
     }
 
     private async Task<IReadOnlyList<StageChangeLogRow>> LoadStageChangeRowsAsync(
@@ -271,7 +273,7 @@ public sealed class ProgressReviewService : IProgressReviewService
     }
 
     private static ProjectRemarkSummaryVm BuildRemarkSummary(
-        IEnumerable<(DateOnly EventDate, DateTime CreatedAtUtc, string? Body, RemarkActorRole AuthorRole)> remarks)
+        IEnumerable<(DateOnly EventDate, DateTime CreatedAtUtc, string Body, RemarkActorRole AuthorRole)> remarks)
     {
         var ordered = remarks
             .OrderByDescending(x => x.EventDate)

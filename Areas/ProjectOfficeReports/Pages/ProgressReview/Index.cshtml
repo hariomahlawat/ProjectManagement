@@ -45,7 +45,7 @@
             : d.ToString("dd MMM yyyy");
     }
 
-    string FormatRemarkRole(RemarkActorRole? role) => role switch
+    string? FormatRemarkRole(RemarkActorRole? role) => role switch
     {
         RemarkActorRole.ProjectOfficer => "PO",
         RemarkActorRole.HeadOfDepartment => "HoD",
@@ -200,16 +200,16 @@
                                     </th>
                                     <td>
                                         <div class="progress-review__stage-summary">
-                                            @{ 
-                                                var stageName = string.IsNullOrWhiteSpace(row.PresentStage.CurrentStageName)
-                                                    ? "Stage pending"
-                                                    : row.PresentStage.CurrentStageName;
-                                                var ageText = row.PresentStage.DaysSinceStartOrLastCompletion.HasValue
-                                                    ? $"{row.PresentStage.DaysSinceStartOrLastCompletion.Value} days passed"
-                                                    : "N/A";
-                                            }
-                                            <div class="progress-review__stage-headline">
-                                                Present stage — <span class="fw-semibold">@stageName</span> —
+                                @{
+                                    var presentStageName = string.IsNullOrWhiteSpace(row.PresentStage.CurrentStageName)
+                                        ? "Stage pending"
+                                        : row.PresentStage.CurrentStageName;
+                                    var ageText = row.PresentStage.DaysSinceStartOrLastCompletion.HasValue
+                                        ? $"{row.PresentStage.DaysSinceStartOrLastCompletion.Value} days passed"
+                                        : "N/A";
+                                }
+                                <div class="progress-review__stage-headline">
+                                    Present stage — <span class="fw-semibold">@presentStageName</span> —
                                                 <span class="text-muted">@ageText</span>
                                             </div>
                                         </div>
