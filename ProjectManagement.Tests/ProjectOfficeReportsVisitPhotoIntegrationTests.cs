@@ -124,7 +124,7 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
             var redirect = Assert.IsType<RedirectToPageResult>(result);
             Assert.NotNull(redirect.RouteValues);
             Assert.Equal(visit.Id, redirect.RouteValues!["id"]);
-            Assert.Equal("Photo uploaded.", page.TempData["ToastMessage"]);
+            Assert.Equal("1 photo uploaded.", page.TempData["ToastMessage"]);
             Assert.False(page.TempData.ContainsKey("ToastError"));
             Assert.True(page.ModelState.IsValid);
 
