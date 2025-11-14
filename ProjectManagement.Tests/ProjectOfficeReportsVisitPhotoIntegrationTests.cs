@@ -18,6 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits;
@@ -236,6 +237,99 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
 
             var persistedVisit = await db.Visits.Include(x => x.Photos).SingleAsync(x => x.Id == visit.Id);
             Assert.Equal(2, persistedVisit.Photos.Count);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task UploadingPhotoFromEditPageFallsBackToRequestFiles()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var now = new DateTimeOffset(2024, 8, 20, 14, 0, 0, TimeSpan.Zero);
+        var visitType = new VisitType
+        {
+            Id = Guid.NewGuid(),
+            Name = "Protocol Visit",
+            CreatedAtUtc = now,
+            CreatedByUserId = "creator",
+            IsActive = true
+        };
+
+        var visit = new Visit
+        {
+            Id = Guid.NewGuid(),
+            VisitTypeId = visitType.Id,
+            DateOfVisit = new DateOnly(2024, 8, 19),
+            VisitorName = "Fallback Tester",
+            Strength = 3,
+            CreatedAtUtc = now,
+            CreatedByUserId = "creator",
+            LastModifiedAtUtc = now,
+            LastModifiedByUserId = "creator"
+        };
+
+        db.VisitTypes.Add(visitType);
+        db.Visits.Add(visit);
+        await db.SaveChangesAsync();
+
+        var tempRoot = Path.Combine(Path.GetTempPath(), "pm-visit-photos-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var photoOptions = Options.Create(new VisitPhotoOptions
+            {
+                Derivatives = new Dictionary<string, VisitPhotoDerivativeOptions>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["sm"] = new VisitPhotoDerivativeOptions { Width = 800, Height = 600, Quality = 80 }
+                }
+            });
+
+            var uploadRoot = new TestUploadRootProvider(tempRoot);
+            var clock = new TestClock(now.AddMinutes(10));
+            var audit = new RecordingAudit();
+            var photoService = new VisitPhotoService(db, clock, audit, photoOptions, uploadRoot, NullLogger<VisitPhotoService>.Instance);
+            var userManager = CreateUserManager(db);
+            var page = new EditModel(null!, null!, photoService, userManager);
+
+            ConfigurePageContext(page, CreatePrincipal("creator", "Admin"));
+
+            await using var imageStream = await CreateImageStreamAsync(1024, 768);
+            var fallbackFile = new FormFile(imageStream, 0, imageStream.Length, "Uploads", "fallback-photo.jpg")
+            {
+                Headers = new HeaderDictionary(),
+                ContentType = "image/jpeg"
+            };
+
+            var files = new FormFileCollection { fallbackFile };
+            var formData = new Dictionary<string, StringValues>
+            {
+                ["id"] = visit.Id.ToString()
+            };
+
+            page.PageContext.HttpContext.Request.Form = new FormCollection(formData, files);
+
+            page.Upload = null;
+            page.Uploads = new List<IFormFile>();
+            page.UploadCaption = "Fallback caption";
+
+            var result = await page.OnPostUploadAsync(visit.Id, CancellationToken.None);
+            Assert.IsType<RedirectToPageResult>(result);
+
+            var persistedVisit = await db.Visits.Include(x => x.Photos).SingleAsync(x => x.Id == visit.Id);
+            Assert.Single(persistedVisit.Photos);
+            Assert.Equal("Fallback caption", persistedVisit.Photos.Single().Caption);
         }
         finally
         {
