@@ -160,13 +160,45 @@
 }
 
 .progress-review__cell-truncate {
-    max-width: 320px;
+    max-width: 520px;
     word-break: break-word;
 }
 
 .progress-review__project-name {
     font-weight: 600;
     margin-bottom: 0.35rem;
+}
+
+.progress-review__stage-summary {
+    margin-bottom: 0.5rem;
+}
+
+.progress-review__stage-headline {
+    font-size: 0.95rem;
+    color: var(--pr-text-heading);
+}
+
+.progress-review__history-list {
+    list-style: none;
+    padding: 0;
+    margin: 0.35rem 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.progress-review__history-list li {
+    border-bottom: 1px dashed var(--pr-border-dashed);
+    padding-bottom: 0.2rem;
+}
+
+.progress-review__history-list li:last-child {
+    border-bottom: none;
+}
+
+.progress-review__history-text {
+    font-size: 0.9rem;
+    color: var(--pr-text-secondary);
 }
 
 .progress-review__link {
@@ -183,39 +215,20 @@
     display: block;
 }
 
-.progress-review__activity-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.25rem 0.9rem;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    background: var(--pr-pill-neutral-bg);
-    color: var(--pr-pill-neutral-text);
-}
-
-.progress-review__activity-pill i {
-    font-size: 0.85rem;
-}
-
-.progress-review__activity-pill--movement {
-    background: var(--pr-pill-movement-bg);
-    color: var(--pr-pill-movement-text);
-}
-
-.progress-review__activity-pill--remark {
-    background: var(--pr-pill-remark-bg);
-    color: var(--pr-pill-remark-text);
-}
-
-.progress-review__activity-pill--idle {
-    background: var(--pr-pill-idle-bg);
-    color: var(--pr-pill-idle-text);
-}
 
 .progress-review__remark {
     line-height: 1.4;
+    color: var(--pr-text-body);
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+}
+
+.progress-review__remark-divider {
+    color: var(--pr-text-muted);
+}
+
+.progress-review__remark-text {
     color: var(--pr-text-body);
     display: -webkit-box;
     -webkit-line-clamp: 3;
@@ -226,38 +239,6 @@
 .progress-review__remark .remark-pill {
     margin-right: 0.25rem;
     font-size: 0.75rem;
-}
-
-.progress-review__stage-history {
-    list-style: none;
-    padding: 0;
-    margin: 0.35rem 0 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-}
-
-.progress-review__stage-history li {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.85rem;
-    border-bottom: 1px dashed var(--pr-border-dashed);
-    padding-bottom: 0.2rem;
-}
-
-.progress-review__stage-history li:last-child {
-    border-bottom: none;
-}
-
-.progress-review__stage-history-name {
-    font-weight: 600;
-    color: var(--pr-text-heading);
-}
-
-.progress-review__stage-history-date {
-    color: var(--pr-text-secondary);
-    font-size: 0.8rem;
 }
 
 /* =========================================================

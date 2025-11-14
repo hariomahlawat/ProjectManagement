@@ -12,6 +12,7 @@ using ProjectManagement.Models.Activities;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.Reports.ProgressReview;
 
@@ -49,15 +50,27 @@ public sealed class ProgressReviewService : IProgressReviewService
         }
 
         var projectNonMovers = await LoadProjectNonMoversAsync(from, to, projectsWithMovement, cancellationToken);
-        var projectSummaryRows = BuildProjectSummaryRows(projectFrontRunners, projectRemarksOnly, projectNonMovers);
-        var projectsWithAnyRemarks = new HashSet<int>(projectRemarksOnly.Select(p => p.ProjectId));
-        foreach (var runner in projectFrontRunners)
+
+        var summaryProjectIds = new HashSet<int>(projectsWithMovement);
+        foreach (var idle in projectNonMovers)
         {
-            if (!string.IsNullOrWhiteSpace(runner.RemarkSummary))
-            {
-                projectsWithAnyRemarks.Add(runner.ProjectId);
-            }
+            summaryProjectIds.Add(idle.ProjectId);
         }
+
+        var presentStageLookup = await BuildPresentStageLookupAsync(summaryProjectIds, cancellationToken);
+        var remarkLookup = await BuildRemarkSummaryLookupAsync(summaryProjectIds, from, to, cancellationToken);
+        var projectSummaryRows = BuildProjectSummaryRows(
+            projectFrontRunners,
+            projectRemarksOnly,
+            projectNonMovers,
+            presentStageLookup,
+            remarkLookup,
+            from,
+            to);
+        var projectsWithAnyRemarks = remarkLookup
+            .Where(pair => !string.IsNullOrWhiteSpace(pair.Value.LatestRemarkSummary))
+            .Select(pair => pair.Key)
+            .ToHashSet();
 
         // SECTION: Visits & social media
         var visits = await LoadVisitsAsync(from, to, cancellationToken);
@@ -122,9 +135,6 @@ public sealed class ProgressReviewService : IProgressReviewService
             return Array.Empty<ProjectStageChangeVm>();
         }
 
-        var projectIds = stageChanges.Select(x => x.ProjectId).Distinct().ToArray();
-        var remarkLookup = await BuildRemarkSummaryLookupAsync(projectIds, from, to, cancellationToken);
-
         return stageChanges
             .OrderByDescending(x => x.ChangeDate)
             .ThenBy(x => x.ProjectName)
@@ -136,9 +146,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                 x.FromStatus,
                 x.ToStatus,
                 x.ChangeDate,
-                remarkLookup.TryGetValue(x.ProjectId, out var remark)
-                    ? remark
-                    : null))
+                x.ToActualStart,
+                x.ToCompletedOn))
             .ToList();
     }
 
@@ -186,11 +195,13 @@ public sealed class ProgressReviewService : IProgressReviewService
                 row.FromStatus,
                 row.ToStatus,
                 ResolveChangeDate(row),
+                row.ToActualStart,
+                row.ToCompletedOn,
                 row.Note))
             .ToList();
     }
 
-    private async Task<Dictionary<int, string?>> BuildRemarkSummaryLookupAsync(
+    private async Task<Dictionary<int, ProjectRemarkSummaryVm>> BuildRemarkSummaryLookupAsync(
         IReadOnlyCollection<int> projectIds,
         DateOnly from,
         DateOnly to,
@@ -198,7 +209,7 @@ public sealed class ProgressReviewService : IProgressReviewService
     {
         if (projectIds.Count == 0)
         {
-            return new Dictionary<int, string?>();
+            return new Dictionary<int, ProjectRemarkSummaryVm>();
         }
 
         var remarkRows = await _db.Remarks
@@ -212,22 +223,16 @@ public sealed class ProgressReviewService : IProgressReviewService
                 r.ProjectId,
                 r.EventDate,
                 r.CreatedAtUtc,
-                r.Body
+                r.Body,
+                r.AuthorRole
             })
             .ToListAsync(cancellationToken);
 
         return remarkRows
             .GroupBy(r => r.ProjectId)
-            .Select(g => new
-            {
-                ProjectId = g.Key,
-                Summary = g
-                    .OrderByDescending(x => x.EventDate)
-                    .ThenByDescending(x => x.CreatedAtUtc)
-                    .Select(x => Truncate(x.Body, 220))
-                    .FirstOrDefault()
-            })
-            .ToDictionary(x => x.ProjectId, x => x.Summary);
+            .ToDictionary(
+                g => g.Key,
+                g => BuildRemarkSummary(g.Select(x => (x.EventDate, x.CreatedAtUtc, x.Body, x.AuthorRole))));
     }
 
     private async Task<IReadOnlyList<ProjectRemarkOnlyVm>> LoadProjectRemarksOnlyAsync(
@@ -250,7 +255,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                 ProjectName = r.Project!.Name,
                 r.EventDate,
                 r.CreatedAtUtc,
-                r.Body
+                r.Body,
+                r.AuthorRole
             })
             .ToListAsync(cancellationToken);
 
@@ -259,13 +265,30 @@ public sealed class ProgressReviewService : IProgressReviewService
             .Select(g => new ProjectRemarkOnlyVm(
                 g.Key.ProjectId,
                 g.Key.ProjectName,
-                g.Max(x => x.EventDate),
-                g.OrderByDescending(x => x.EventDate)
-                    .ThenByDescending(x => x.CreatedAtUtc)
-                    .Select(x => Truncate(x.Body, 220))
-                    .FirstOrDefault()))
+                BuildRemarkSummary(g.Select(x => (x.EventDate, x.CreatedAtUtc, x.Body, x.AuthorRole)))))
             .OrderBy(x => x.ProjectName)
             .ToList();
+    }
+
+    private static ProjectRemarkSummaryVm BuildRemarkSummary(
+        IEnumerable<(DateOnly EventDate, DateTime CreatedAtUtc, string? Body, RemarkActorRole AuthorRole)> remarks)
+    {
+        var ordered = remarks
+            .OrderByDescending(x => x.EventDate)
+            .ThenByDescending(x => x.CreatedAtUtc)
+            .ToList();
+
+        if (ordered.Count == 0)
+        {
+            return ProjectRemarkSummaryVm.Empty;
+        }
+
+        var latest = ordered[0];
+        return new ProjectRemarkSummaryVm(
+            latest.EventDate,
+            Truncate(latest.Body, 220),
+            latest.AuthorRole,
+            Math.Max(0, ordered.Count - 1));
     }
 
     private async Task<IReadOnlyList<ProjectNonMoverVm>> LoadProjectNonMoversAsync(
@@ -806,49 +829,43 @@ public sealed class ProgressReviewService : IProgressReviewService
     private static IReadOnlyList<ProjectProgressRowVm> BuildProjectSummaryRows(
         IReadOnlyList<ProjectStageChangeVm> frontRunners,
         IReadOnlyList<ProjectRemarkOnlyVm> remarkOnly,
-        IReadOnlyList<ProjectNonMoverVm> nonMovers)
+        IReadOnlyList<ProjectNonMoverVm> nonMovers,
+        IReadOnlyDictionary<int, PresentStageSnapshot> presentStageLookup,
+        IReadOnlyDictionary<int, ProjectRemarkSummaryVm> remarkLookup,
+        DateOnly rangeFrom,
+        DateOnly rangeTo)
     {
         var rows = new Dictionary<int, ProjectProgressRowVm>();
+        var stageHistoryLookup = BuildStageMovementLookup(frontRunners, presentStageLookup, rangeFrom, rangeTo);
 
-        foreach (var projectStages in frontRunners
-                     .GroupBy(stageChange => stageChange.ProjectId))
+        foreach (var projectStages in frontRunners.GroupBy(stageChange => stageChange.ProjectId))
         {
-            var orderedStages = projectStages
-                .OrderByDescending(stage => stage.ChangeDate)
-                .ToList();
+            var projectId = projectStages.Key;
+            var stageHistory = stageHistoryLookup.TryGetValue(projectId, out var history)
+                ? history
+                : new List<ProjectStageMovementVm>();
+            var trimmed = TrimHistory(stageHistory);
+            var presentStage = presentStageLookup.TryGetValue(projectId, out var snapshot)
+                ? snapshot
+                : PresentStageSnapshot.Empty;
+            var remarkSummary = remarkLookup.TryGetValue(projectId, out var summary)
+                ? summary
+                : ProjectRemarkSummaryVm.Empty;
 
-            if (!orderedStages.Any())
-            {
-                continue;
-            }
-
-            var latestStage = orderedStages.First();
-            var stageMovements = orderedStages
-                .Select(stage => new ProjectStageMovementVm(
-                    stage.StageName,
-                    stage.FromStatus,
-                    stage.ToStatus,
-                    stage.ChangeDate))
-                .ToList();
-
-            rows[latestStage.ProjectId] = new ProjectProgressRowVm(
-                latestStage.ProjectId,
-                latestStage.ProjectName,
-                ProjectActivityType.StageMovement,
-                latestStage.StageName,
-                latestStage.FromStatus,
-                latestStage.ToStatus,
-                latestStage.ChangeDate,
-                null,
-                latestStage.RemarkSummary,
-                stageMovements);
+            rows[projectId] = new ProjectProgressRowVm(
+                projectId,
+                projectStages.First().ProjectName,
+                presentStage,
+                trimmed.Display,
+                trimmed.Overflow,
+                remarkSummary);
         }
 
         foreach (var remark in remarkOnly)
         {
             if (rows.TryGetValue(remark.ProjectId, out var existing))
             {
-                if (string.IsNullOrWhiteSpace(existing.RemarkSummary) && !string.IsNullOrWhiteSpace(remark.RemarkSummary))
+                if (existing.RemarkSummary == ProjectRemarkSummaryVm.Empty && remark.RemarkSummary != ProjectRemarkSummaryVm.Empty)
                 {
                     rows[remark.ProjectId] = existing with { RemarkSummary = remark.RemarkSummary };
                 }
@@ -856,17 +873,21 @@ public sealed class ProgressReviewService : IProgressReviewService
                 continue;
             }
 
+            var stageHistory = stageHistoryLookup.TryGetValue(remark.ProjectId, out var history)
+                ? history
+                : new List<ProjectStageMovementVm>();
+            var trimmed = TrimHistory(stageHistory);
+            var presentStage = presentStageLookup.TryGetValue(remark.ProjectId, out var snapshot)
+                ? snapshot
+                : PresentStageSnapshot.Empty;
+
             rows[remark.ProjectId] = new ProjectProgressRowVm(
                 remark.ProjectId,
                 remark.ProjectName,
-                ProjectActivityType.RemarkOnly,
-                null,
-                null,
-                null,
-                remark.LatestRemarkDate,
-                null,
-                remark.RemarkSummary,
-                Array.Empty<ProjectStageMovementVm>());
+                presentStage,
+                trimmed.Display,
+                trimmed.Overflow,
+                remark.RemarkSummary);
         }
 
         foreach (var idle in nonMovers)
@@ -876,23 +897,140 @@ public sealed class ProgressReviewService : IProgressReviewService
                 continue;
             }
 
+            var stageHistory = stageHistoryLookup.TryGetValue(idle.ProjectId, out var history)
+                ? history
+                : new List<ProjectStageMovementVm>();
+            var trimmed = TrimHistory(stageHistory);
+            var presentStage = presentStageLookup.TryGetValue(idle.ProjectId, out var snapshot)
+                ? snapshot
+                : PresentStageSnapshot.Empty;
+            var remarkSummary = remarkLookup.TryGetValue(idle.ProjectId, out var summary)
+                ? summary
+                : ProjectRemarkSummaryVm.Empty;
+
             rows[idle.ProjectId] = new ProjectProgressRowVm(
                 idle.ProjectId,
                 idle.ProjectName,
-                ProjectActivityType.NoRecentActivity,
-                idle.StageName,
-                null,
-                null,
-                null,
-                idle.DaysSinceActivity,
-                null,
-                Array.Empty<ProjectStageMovementVm>());
+                presentStage,
+                trimmed.Display,
+                trimmed.Overflow,
+                remarkSummary);
         }
 
         return rows.Values
             .OrderBy(r => r.ProjectName)
-            .ThenBy(r => r.ActivityType)
             .ToList();
+    }
+
+    private async Task<IReadOnlyDictionary<int, PresentStageSnapshot>> BuildPresentStageLookupAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Count == 0)
+        {
+            return new Dictionary<int, PresentStageSnapshot>();
+        }
+
+        var stageRows = await _db.ProjectStages
+            .AsNoTracking()
+            .Where(stage => projectIds.Contains(stage.ProjectId))
+            .Select(stage => new
+            {
+                stage.ProjectId,
+                stage.StageCode,
+                stage.Status,
+                stage.SortOrder,
+                stage.ActualStart,
+                stage.CompletedOn
+            })
+            .ToListAsync(cancellationToken);
+
+        return stageRows
+            .GroupBy(stage => stage.ProjectId)
+            .ToDictionary(
+                g => g.Key,
+                g => PresentStageHelper.ComputePresentStageAndAge(
+                    g.Select(stage => new ProjectStageStatusSnapshot(
+                        stage.StageCode,
+                        stage.Status,
+                        stage.SortOrder,
+                        stage.ActualStart,
+                        stage.CompletedOn)).ToList()));
+    }
+
+    private static Dictionary<int, List<ProjectStageMovementVm>> BuildStageMovementLookup(
+        IReadOnlyList<ProjectStageChangeVm> frontRunners,
+        IReadOnlyDictionary<int, PresentStageSnapshot> presentStageLookup,
+        DateOnly rangeFrom,
+        DateOnly rangeTo)
+    {
+        var lookup = new Dictionary<int, List<ProjectStageMovementVm>>();
+
+        foreach (var change in frontRunners)
+        {
+            if (change.ToCompletedOn.HasValue && change.ToCompletedOn.Value >= rangeFrom && change.ToCompletedOn.Value <= rangeTo)
+            {
+                AppendMovement(change.ProjectId, new ProjectStageMovementVm(
+                    change.StageName,
+                    false,
+                    null,
+                    change.ToCompletedOn));
+            }
+        }
+
+        foreach (var (projectId, snapshot) in presentStageLookup)
+        {
+            if (!snapshot.IsCurrentStageInProgress || !snapshot.CurrentStageStartDate.HasValue)
+            {
+                continue;
+            }
+
+            var startDate = snapshot.CurrentStageStartDate.Value;
+            if (startDate < rangeFrom || startDate > rangeTo)
+            {
+                continue;
+            }
+
+            AppendMovement(projectId, new ProjectStageMovementVm(
+                snapshot.CurrentStageName ?? "Stage update",
+                true,
+                snapshot.CurrentStageStartDate,
+                null));
+        }
+
+        foreach (var entry in lookup.Values)
+        {
+            entry.Sort((a, b) =>
+            {
+                var aDate = a.IsOngoing ? a.StartedOn : a.CompletedOn;
+                var bDate = b.IsOngoing ? b.StartedOn : b.CompletedOn;
+                return Nullable.Compare(bDate, aDate);
+            });
+        }
+
+        return lookup;
+
+        void AppendMovement(int projectId, ProjectStageMovementVm movement)
+        {
+            if (!lookup.TryGetValue(projectId, out var list))
+            {
+                list = new List<ProjectStageMovementVm>();
+                lookup[projectId] = list;
+            }
+
+            list.Add(movement);
+        }
+    }
+
+    private static (List<ProjectStageMovementVm> Display, int Overflow) TrimHistory(List<ProjectStageMovementVm> history)
+    {
+        if (history.Count <= 3)
+        {
+            return (history.ToList(), 0);
+        }
+
+        var display = history.Take(3).ToList();
+        return (display, history.Count - display.Count);
     }
 
     private static string? BuildAttachmentUrl(string? storageKey)
@@ -1052,6 +1190,8 @@ public sealed class ProgressReviewService : IProgressReviewService
         string? FromStatus,
         string? ToStatus,
         DateOnly ChangeDate,
+        DateOnly? ToActualStart,
+        DateOnly? ToCompletedOn,
         string? Note);
 
     private sealed record StageSnapshot(
