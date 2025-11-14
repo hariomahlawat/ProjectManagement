@@ -18,6 +18,21 @@
             ? "upcoming"
             : "today";
 
+    var hasAttentionState = overdueCount > 0 || dueTodayCount > 0;
+    var attentionClass = overdueCount > 0
+        ? " todo-widget--attention todo-widget--attention-overdue"
+        : dueTodayCount > 0
+            ? " todo-widget--attention todo-widget--attention-today"
+            : string.Empty;
+
+    var attentionHeading = overdueCount > 0 ? "Overdue tasks" : "Due today";
+    var attentionMessage = overdueCount > 0
+        ? $"You have {overdueCount} task{(overdueCount == 1 ? string.Empty : "s")} waiting for action."
+        : dueTodayCount > 0
+            ? $"You have {dueTodayCount} task{(dueTodayCount == 1 ? string.Empty : "s")} scheduled for today."
+            : string.Empty;
+    var attentionIcon = overdueCount > 0 ? "bi-exclamation-octagon-fill" : "bi-exclamation-circle-fill";
+
     var routeValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     foreach (var queryParameter in ViewContext.HttpContext.Request.Query)
     {
@@ -27,7 +42,7 @@
     routeValues["tab"] = defaultTab;
 }
 
-<div class="card shadow-sm todo-widget">
+<div class="card shadow-sm todo-widget@attentionClass">
     <div class="card-header mission-panel__header d-flex flex-wrap align-items-center justify-content-between gap-3 py-2">
         <div class="d-flex flex-wrap align-items-center gap-3">
             <span class="mission-panel__title fw-semibold">To-Do</span>
@@ -52,6 +67,19 @@
     </div>
 
     <div class="card-body">
+        @if (hasAttentionState && !string.IsNullOrEmpty(attentionMessage))
+        {
+            <div class="todo-widget__attention-line" role="status">
+                <span class="todo-widget__attention-icon" aria-hidden="true">
+                    <i class="bi @attentionIcon"></i>
+                </span>
+                <div class="todo-widget__attention-copy">
+                    <p class="todo-widget__attention-heading small mb-0 fw-semibold">@attentionHeading</p>
+                    <p class="todo-widget__attention-text small mb-0">@attentionMessage</p>
+                </div>
+            </div>
+        }
+
         <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Add" class="mb-2">
             @Html.AntiForgeryToken()
             <input name="NewTitle" class="form-control form-control-sm" placeholder="Add a task…" maxlength="160" required aria-label="Task title" />
