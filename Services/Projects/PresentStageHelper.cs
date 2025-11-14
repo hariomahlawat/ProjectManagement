@@ -24,13 +24,27 @@ public static class PresentStageHelper
             .OrderBy(stage => stage.SortOrder)
             .ToList();
 
-        var current = orderedStages.FirstOrDefault(stage => stage.Status == StageStatus.InProgress)
-                      ?? orderedStages.FirstOrDefault(stage => stage.Status != StageStatus.Completed && stage.Status != StageStatus.Skipped)
-                      ?? orderedStages.Last();
+        // -----------------------------------------------------------------------------
+        // Determine the current stage in a null-safe way for the struct snapshot.
+        // -----------------------------------------------------------------------------
+        var current = orderedStages.FirstOrDefault(stage => stage.Status == StageStatus.InProgress);
+        if (current == default)
+        {
+            current = orderedStages.FirstOrDefault(stage => stage.Status != StageStatus.Completed && stage.Status != StageStatus.Skipped);
+        }
 
-        var lastCompleted = orderedStages
+        if (current == default)
+        {
+            current = orderedStages.Last();
+        }
+
+        // -----------------------------------------------------------------------------
+        // Capture the last completed stage as a nullable struct to allow null checks.
+        // -----------------------------------------------------------------------------
+        ProjectStageStatusSnapshot? lastCompleted = orderedStages
             .Where(stage => stage.Status == StageStatus.Completed && stage.CompletedOn.HasValue)
             .OrderByDescending(stage => stage.CompletedOn)
+            .Select(stage => (ProjectStageStatusSnapshot?)stage)
             .FirstOrDefault();
 
         var today = referenceDate ?? DateOnly.FromDateTime(DateTime.UtcNow.Date);
