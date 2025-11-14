@@ -6,6 +6,7 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Projects;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Projects;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -121,6 +122,7 @@ namespace ProjectManagement.Services.Projects
                     stagesForProject.TryGetValue(code, out var stageRow);
 
                     var status = StageStatus.NotStarted;
+                    DateOnly? actualStart = null;
                     DateOnly? actualCompleted = null;
                     DateOnly? plannedDue = null;
                     var isDataMissing = false;
@@ -128,6 +130,7 @@ namespace ProjectManagement.Services.Projects
                     if (stageRow != null)
                     {
                         status = stageRow.Status;
+                        actualStart = stageRow.ActualStart;
                         actualCompleted = stageRow.CompletedOn;
                         plannedDue = stageRow.PlannedDue;
                     }
@@ -151,6 +154,7 @@ namespace ProjectManagement.Services.Projects
                         Code = code,
                         Name = code, // no display-name helper, keep code
                         Status = status,
+                        ActualStart = actualStart,
                         ActualCompletedOn = actualCompleted,
                         PlannedDue = plannedDue,
                         IsDataMissing = isDataMissing,
@@ -174,6 +178,17 @@ namespace ProjectManagement.Services.Projects
                 }
 
                 stageDtos[currentIndex].IsCurrent = true;
+
+                var stageSnapshots = stageDtos
+                    .Select((stage, idx) => new ProjectStageStatusSnapshot(
+                        stage.Code,
+                        stage.Status,
+                        idx,
+                        stage.ActualStart,
+                        stage.ActualCompletedOn))
+                    .ToList();
+
+                var presentStage = PresentStageHelper.ComputePresentStageAndAge(stageSnapshots);
 
                 string? lastCompletedName = null;
                 DateOnly? lastCompletedDate = null;
@@ -222,6 +237,7 @@ namespace ProjectManagement.Services.Projects
                     CurrentStageName = stageDtos[currentIndex].Name,
                     LastCompletedStageName = lastCompletedName,
                     LastCompletedStageDate = lastCompletedDate,
+                    PresentStage = presentStage,
                     Stages = stageDtos,
                     RecentInternalRemarks = recentInternal,
                     LatestExternalRemark = latestExternal
@@ -288,6 +304,8 @@ namespace ProjectManagement.Services.Projects
         public string? LastCompletedStageName { get; init; }
         public DateOnly? LastCompletedStageDate { get; init; }
 
+        public PresentStageSnapshot PresentStage { get; init; } = PresentStageSnapshot.Empty;
+
         public IReadOnlyList<OngoingProjectStageDto> Stages { get; init; } = Array.Empty<OngoingProjectStageDto>();
 
         public IReadOnlyList<OngoingProjectRemarkDto> RecentInternalRemarks { get; init; } = Array.Empty<OngoingProjectRemarkDto>();
@@ -299,6 +317,7 @@ namespace ProjectManagement.Services.Projects
         public string Code { get; init; } = "";
         public string Name { get; init; } = "";
         public StageStatus Status { get; init; }
+        public DateOnly? ActualStart { get; init; }
         public DateOnly? ActualCompletedOn { get; init; }
         public DateOnly? PlannedDue { get; init; }
         public bool IsDataMissing { get; init; }

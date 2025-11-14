@@ -132,19 +132,7 @@ else
                         <div class="ongoing-card__info">
                             @{
                                 var cur = item.Stages[currentIdx];
-
-                                // 1. days spent in current stage = today - last completed date
-                                int? daysInCurrent = null;
-                                if (item.LastCompletedStageDate.HasValue)
-                                {
-                                    daysInCurrent = (today.ToDateTime(TimeOnly.MinValue) -
-                                    item.LastCompletedStageDate.Value.ToDateTime(TimeOnly.MinValue)).Days;
-                                    if (daysInCurrent < 0)
-                                    {
-                                        // defensive – if data is weird, don't show negative
-                                        daysInCurrent = 0;
-                                    }
-                                }
+                                var presentStage = item.PresentStage;
 
                                 // 2. days to PDC / overdue
                                 int? daysToPdc = null;
@@ -189,8 +177,9 @@ else
 
                                 @* extra line for stage age *@
                                 <span class="ms-2 text-muted" style="font-size:.7rem;">
-                                    @if (daysInCurrent.HasValue)
+                                    @if (presentStage.DaysSinceStartOrLastCompletion.HasValue)
                                     {
+                                        var daysInCurrent = presentStage.DaysSinceStartOrLastCompletion.Value;
                                         @: • @daysInCurrent day@(daysInCurrent == 1 ? "" : "s") in this stage
                                     }
                                 </span>

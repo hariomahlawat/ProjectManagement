@@ -1,8 +1,10 @@
 @page
 @using System
+@using System.Collections.Generic
 @using System.Net
 @using System.Globalization
 @using System.Text.RegularExpressions
+@using ProjectManagement.Models.Remarks
 @using ProjectManagement.Services.Reports.ProgressReview
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.ProgressReview.IndexModel
 @{
@@ -31,45 +33,6 @@
 
     string FormatDateIso(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-    string GetActivityBadgeClass(ProjectActivityType type) => type switch
-    {
-        ProjectActivityType.StageMovement => "progress-review__activity-pill--movement",
-        ProjectActivityType.RemarkOnly => "progress-review__activity-pill--remark",
-        ProjectActivityType.NoRecentActivity => "progress-review__activity-pill--idle",
-        _ => string.Empty
-    };
-
-    string GetActivityBadgeIcon(ProjectActivityType type) => type switch
-    {
-        ProjectActivityType.StageMovement => "bi-lightning-charge",
-        ProjectActivityType.RemarkOnly => "bi-chat-text",
-        ProjectActivityType.NoRecentActivity => "bi-pause-circle",
-        _ => "bi-dot"
-    };
-
-    string GetActivityBadgeLabel(ProjectActivityType type) => type switch
-    {
-        ProjectActivityType.StageMovement => "Stage movement",
-        ProjectActivityType.RemarkOnly => "Remark logged",
-        ProjectActivityType.NoRecentActivity => "No recent activity",
-        _ => "Update"
-    };
-
-    string GetStageHeading(ProjectProgressRowVm row) => row.ActivityType switch
-    {
-        ProjectActivityType.StageMovement => row.StageName ?? "Stage update",
-        ProjectActivityType.RemarkOnly => string.IsNullOrWhiteSpace(row.StageName) ? "Latest remark" : row.StageName!,
-        ProjectActivityType.NoRecentActivity => row.StageName ?? "Stage pending",
-        _ => "Update"
-    };
-
-    string GetStageDescription(ProjectProgressRowVm row) => row.ActivityType switch
-    {
-        ProjectActivityType.RemarkOnly => "No stage change recorded in this period.",
-        ProjectActivityType.NoRecentActivity => "Awaiting next milestone.",
-        _ => string.Empty
-    };
-
     string FormatDay(DateOnly d)
     {
         if (vm is null)
@@ -82,21 +45,47 @@
             : d.ToString("dd MMM yyyy");
     }
 
-    string GetTimelinePrimary(ProjectProgressRowVm row) => row.ActivityType switch
+    string FormatRemarkRole(RemarkActorRole? role) => role switch
     {
-        ProjectActivityType.NoRecentActivity when row.DaysSinceActivity.HasValue => $"{row.DaysSinceActivity.Value} days",
-        ProjectActivityType.NoRecentActivity => "N/A",
-        _ when row.ActivityDate.HasValue => FormatDay(row.ActivityDate.Value),
-        _ => "Date N/A"
+        RemarkActorRole.ProjectOfficer => "PO",
+        RemarkActorRole.HeadOfDepartment => "HoD",
+        RemarkActorRole.Commandant => "Comdt",
+        RemarkActorRole.Administrator => "Admin",
+        RemarkActorRole.Mco => "MCO",
+        RemarkActorRole.ProjectOffice => "Project Office",
+        RemarkActorRole.MainOffice => "Main Office",
+        RemarkActorRole.Ta => "TA",
+        _ => null
     };
 
-    string GetTimelineSecondary(ProjectProgressRowVm row) => row.ActivityType switch
+    string? BuildRemarkTooltip(ProjectRemarkSummaryVm summary)
     {
-        ProjectActivityType.StageMovement => "Stage updated",
-        ProjectActivityType.RemarkOnly => "Remark logged",
-        ProjectActivityType.NoRecentActivity => "since last activity",
-        _ => string.Empty
-    };
+        if (!summary.LatestRemarkDate.HasValue && string.IsNullOrWhiteSpace(summary.LatestRemarkSummary))
+        {
+            return null;
+        }
+
+        var parts = new List<string>();
+        if (summary.LatestRemarkDate.HasValue)
+        {
+            parts.Add(summary.LatestRemarkDate.Value.ToString("dd MMM yyyy"));
+        }
+
+        var roleLabel = FormatRemarkRole(summary.LatestRemarkAuthorRole);
+        if (!string.IsNullOrWhiteSpace(roleLabel))
+        {
+            parts.Add(roleLabel!);
+        }
+
+        if (!string.IsNullOrWhiteSpace(summary.LatestRemarkSummary))
+        {
+            parts.Add(summary.LatestRemarkSummary!);
+        }
+
+        return parts.Count == 0 ? null : WebUtility.HtmlEncode(string.Join(" — ", parts));
+    }
+
+    DateOnly? GetMovementDate(ProjectStageMovementVm movement) => movement.IsOngoing ? movement.StartedOn : movement.CompletedOn;
 
 
     string? BuildVisitPhotoUrl(Guid visitId, Guid? photoId)
@@ -194,23 +183,13 @@
                             <tr>
                                 <th scope="col">Project</th>
                                 <th scope="col">Stage / status</th>
-                                <th scope="col">Last update</th>
                                 <th scope="col">Remarks</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach (var row in vm.Projects.SummaryRows)
                             {
-                                var remarkHtml = RenderRemarkHtml(row.RemarkSummary);
-                                var hasRemark = !string.IsNullOrWhiteSpace(row.RemarkSummary);
-                                var badgeClass = GetActivityBadgeClass(row.ActivityType);
-                                var badgeIcon = GetActivityBadgeIcon(row.ActivityType);
-                                var badgeLabel = GetActivityBadgeLabel(row.ActivityType);
-                                var stageHeading = GetStageHeading(row);
-                                var timelinePrimary = GetTimelinePrimary(row);
-                                var timelineSecondary = GetTimelineSecondary(row);
                                 var stageMovements = row.StageMovements ?? Array.Empty<ProjectStageMovementVm>();
-                                var hasStageTimeline = stageMovements.Any();
                                 var projectDetailsUrl = Url.Page("/Projects/Overview", new { id = row.ProjectId });
 
                                 <tr>
@@ -218,58 +197,76 @@
                                         <div class="progress-review__project-name">
                                             <a class="progress-review__link" href="@projectDetailsUrl">@row.ProjectName</a>
                                         </div>
-                                        <span class="progress-review__activity-pill @badgeClass">
-                                            <i class="bi @badgeIcon" aria-hidden="true"></i>
-                                            <span>@badgeLabel</span>
-                                        </span>
                                     </th>
                                     <td>
-                                        <div class="fw-semibold">@stageHeading</div>
-                                        @if (hasStageTimeline)
+                                        <div class="progress-review__stage-summary">
+                                            @{ 
+                                                var stageName = string.IsNullOrWhiteSpace(row.PresentStage.CurrentStageName)
+                                                    ? "Stage pending"
+                                                    : row.PresentStage.CurrentStageName;
+                                                var ageText = row.PresentStage.DaysSinceStartOrLastCompletion.HasValue
+                                                    ? $"{row.PresentStage.DaysSinceStartOrLastCompletion.Value} days passed"
+                                                    : "N/A";
+                                            }
+                                            <div class="progress-review__stage-headline">
+                                                Present stage — <span class="fw-semibold">@stageName</span> —
+                                                <span class="text-muted">@ageText</span>
+                                            </div>
+                                        </div>
+                                        @if (stageMovements.Any())
                                         {
-                                            <ul class="progress-review__stage-history">
+                                            <ul class="progress-review__history-list">
                                                 @foreach (var movement in stageMovements)
                                                 {
                                                     var stageName = string.IsNullOrWhiteSpace(movement.StageName) ? "Stage update" : movement.StageName!;
+                                                    var movementDate = GetMovementDate(movement);
+                                                    var actionText = movement.IsOngoing ? "started on" : "completed on";
                                                     <li>
-                                                        <span class="progress-review__stage-history-name">@stageName</span>
-                                                        <span class="progress-review__stage-history-date">
-                                                            <time datetime="@FormatDateIso(movement.ChangeDate)">@FormatDay(movement.ChangeDate)</time>
+                                                        <span class="progress-review__history-text">
+                                                            <strong>@stageName</strong> @actionText
+                                                            @if (movementDate.HasValue)
+                                                            {
+                                                                <time datetime="@FormatDateIso(movementDate.Value)">@FormatDay(movementDate.Value)</time>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>date N/A</span>
+                                                            }
                                                         </span>
                                                     </li>
                                                 }
                                             </ul>
+                                            @if (row.StageMovementOverflowCount > 0)
+                                            {
+                                                <div class="text-muted small">+ @row.StageMovementOverflowCount more in range</div>
+                                            }
                                         }
                                         else
                                         {
-                                            var stageDescription = GetStageDescription(row);
-                                            if (!string.IsNullOrWhiteSpace(stageDescription))
-                                            {
-                                                <div class="text-muted small mt-1">@stageDescription</div>
-                                            }
-                                        }
-                                    </td>
-                                    <td>
-                                        <div class="fw-semibold">
-                                            @if (row.ActivityDate.HasValue)
-                                            {
-                                                <time datetime="@FormatDateIso(row.ActivityDate.Value)">@timelinePrimary</time>
-                                            }
-                                            else
-                                            {
-                                                @timelinePrimary
-                                            }
-                                        </div>
-                                        @if (!string.IsNullOrWhiteSpace(timelineSecondary))
-                                        {
-                                            <div class="text-muted small">@timelineSecondary</div>
+                                            <div class="text-muted small mt-1">No stage movements recorded in this range.</div>
                                         }
                                     </td>
                                     <td class="progress-review__cell-truncate">
-                                        @if (hasRemark)
+                                        @if (!string.IsNullOrWhiteSpace(row.RemarkSummary.LatestRemarkSummary))
                                         {
-                                            var tooltip = WebUtility.HtmlEncode(row.RemarkSummary);
-                                            <div class="progress-review__remark" title="@tooltip">@Html.Raw(remarkHtml)</div>
+                                            var remarkHtml = RenderRemarkHtml(row.RemarkSummary.LatestRemarkSummary);
+                                            var tooltip = BuildRemarkTooltip(row.RemarkSummary);
+                                            <div class="progress-review__remark" title="@tooltip">
+                                                @if (row.RemarkSummary.LatestRemarkDate.HasValue)
+                                                {
+                                                    <span class="text-muted">@FormatDay(row.RemarkSummary.LatestRemarkDate.Value)</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">Date N/A</span>
+                                                }
+                                                <span class="progress-review__remark-divider"> — </span>
+                                                <span class="progress-review__remark-text">@Html.Raw(remarkHtml)</span>
+                                            </div>
+                                            @if (row.RemarkSummary.MoreRemarkCount > 0)
+                                            {
+                                                <div class="text-muted small">+ @row.RemarkSummary.MoreRemarkCount more remarks in range</div>
+                                            }
                                         }
                                         else
                                         {
@@ -281,7 +278,7 @@
                             @if (!vm.Projects.SummaryRows.Any())
                             {
                                 <tr>
-                                    <td colspan="4" class="text-muted text-center small">No qualifying projects for the selected range.</td>
+                                    <td colspan="3" class="text-muted text-center small">No qualifying projects for the selected range.</td>
                                 </tr>
                             }
                         </tbody>

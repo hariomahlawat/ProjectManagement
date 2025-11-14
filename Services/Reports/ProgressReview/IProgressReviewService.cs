@@ -4,6 +4,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Infrastructure.Data;
+using ProjectManagement.Models.Remarks;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.Reports.ProgressReview;
 
@@ -45,14 +47,14 @@ public sealed record ProjectStageChangeVm(
     string? FromStatus,
     string? ToStatus,
     DateOnly ChangeDate,
-    string? RemarkSummary
+    DateOnly? ToActualStart,
+    DateOnly? ToCompletedOn
 );
 
 public sealed record ProjectRemarkOnlyVm(
     int ProjectId,
     string ProjectName,
-    DateOnly LatestRemarkDate,
-    string? RemarkSummary
+    ProjectRemarkSummaryVm RemarkSummary
 );
 
 public sealed record ProjectNonMoverVm(
@@ -66,28 +68,26 @@ public sealed record ProjectNonMoverVm(
 public sealed record ProjectProgressRowVm(
     int ProjectId,
     string ProjectName,
-    ProjectActivityType ActivityType,
-    string? StageName,
-    string? FromStatus,
-    string? ToStatus,
-    DateOnly? ActivityDate,
-    int? DaysSinceActivity,
-    string? RemarkSummary,
-    IReadOnlyList<ProjectStageMovementVm> StageMovements
+    PresentStageSnapshot PresentStage,
+    IReadOnlyList<ProjectStageMovementVm> StageMovements,
+    int StageMovementOverflowCount,
+    ProjectRemarkSummaryVm RemarkSummary
 );
 
 public sealed record ProjectStageMovementVm(
     string StageName,
-    string? FromStatus,
-    string? ToStatus,
-    DateOnly ChangeDate
+    bool IsOngoing,
+    DateOnly? StartedOn,
+    DateOnly? CompletedOn
 );
 
-public enum ProjectActivityType
+public sealed record ProjectRemarkSummaryVm(
+    DateOnly? LatestRemarkDate,
+    string? LatestRemarkSummary,
+    RemarkActorRole? LatestRemarkAuthorRole,
+    int MoreRemarkCount)
 {
-    StageMovement,
-    RemarkOnly,
-    NoRecentActivity
+    public static ProjectRemarkSummaryVm Empty { get; } = new(null, null, null, 0);
 }
 
 public sealed record VisitSectionVm(IReadOnlyList<VisitSummaryVm> Items, int TotalCount);
