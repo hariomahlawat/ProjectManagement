@@ -174,7 +174,7 @@ public class EditModel : PageModel
             return Page();
         }
 
-        ClearInputValidationErrors();
+        ClearUploadValidationErrors();
 
         if (!ModelState.IsValid)
         {
@@ -379,15 +379,28 @@ public class EditModel : PageModel
         return User.IsInRole("Project Office") || User.IsInRole("ProjectOffice");
     }
 
-    private void ClearInputValidationErrors()
+    private void ClearUploadValidationErrors()
     {
-        var prefix = nameof(Input);
+        var uploadKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            nameof(Upload),
+            nameof(Uploads),
+            nameof(UploadCaption)
+        };
+
         var keysToRemove = new List<string>();
 
         foreach (var entry in ModelState)
         {
-            if (entry.Key.Equals(prefix, StringComparison.Ordinal) ||
-                entry.Key.StartsWith(prefix + '.', StringComparison.Ordinal))
+            if (!uploadKeys.Contains(entry.Key) &&
+                !(entry.Key.StartsWith(nameof(Input) + '.', StringComparison.Ordinal) ||
+                  entry.Key.Equals(nameof(Input), StringComparison.Ordinal)))
+            {
+                keysToRemove.Add(entry.Key);
+            }
+
+            if (entry.Key.StartsWith(nameof(Input) + '.', StringComparison.Ordinal) ||
+                entry.Key.Equals(nameof(Input), StringComparison.Ordinal))
             {
                 keysToRemove.Add(entry.Key);
             }
@@ -398,7 +411,11 @@ public class EditModel : PageModel
             ModelState.Remove(key);
         }
 
-        ModelState.ClearValidationState(prefix);
+        foreach (var key in uploadKeys)
+        {
+            ModelState.ClearValidationState(key);
+        }
+
         ModelState.ClearValidationState(string.Empty);
     }
 
