@@ -121,48 +121,42 @@
 
 <div class="container-xxl py-4 progress-review" data-page-id="progress-review">
     @* SECTION: Header & filters *@
-    <div class="card shadow-sm border-0 mb-4 progress-review__filter-card">
-        <div class="card-body">
-            <form id="progress-review-filter" method="get">
-                <div class="d-flex flex-column flex-lg-row gap-3 align-items-lg-center justify-content-between mb-3">
-                    <div>
-                        <p class="text-uppercase text-muted small fw-semibold mb-1">Project office report</p>
-                        <h1 class="h3 mb-1">Progress Review</h1>
-                        @if (vm is not null)
-                        {
-                            <p class="text-muted mb-0 small">
-                                Range: @vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")
-                            </p>
-                        }
-                    </div>
-                    <div class="d-flex flex-wrap gap-2 progress-review__quick-actions">
-                        <button class="btn btn-outline-secondary" type="button" data-action="copy-link">
-                            <i class="bi bi-link-45deg me-1"></i>
-                            Copy link
-                        </button>
-                        <button class="btn btn-outline-primary" type="button" data-action="export-pdf">
-                            <i class="bi bi-printer me-1"></i>
-                            Export / Print
-                        </button>
-                    </div>
+    <section class="progress-review__controls mb-4">
+        <form id="progress-review-filter" method="get">
+            <div class="progress-review__controls-head">
+                <div>
+                    <p class="text-uppercase text-muted small fw-semibold mb-1">Project office report</p>
+                    <h1 class="h3 mb-1">Progress Review</h1>
+                    @if (vm is not null)
+                    {
+                        <p class="text-muted mb-0 small">
+                            Range: @vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")
+                        </p>
+                    }
                 </div>
-                <div class="row gy-3 gx-3 align-items-end progress-review__filter-grid">
-                    <div class="col-12 col-sm-6 col-md-3">
-                        <label class="form-label form-label-sm text-muted" for="from">From</label>
-                        <input class="form-control" id="from" name="from" type="date" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
-                    </div>
-                    <div class="col-12 col-sm-6 col-md-3">
-                        <label class="form-label form-label-sm text-muted" for="to">To</label>
-                        <input class="form-control" id="to" name="to" type="date" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
-                    </div>
-                    <div class="col-12 col-sm-6 col-md-auto">
-                        <label class="form-label form-label-sm text-muted d-block">&nbsp;</label>
-                        <button class="btn btn-primary w-100" type="submit">Show report</button>
-                    </div>
+                <div class="progress-review__actions">
+                    <button class="btn btn-outline-primary" type="button" data-action="export-pdf">
+                        <i class="bi bi-printer me-1"></i>
+                        Export / Print
+                    </button>
                 </div>
-            </form>
-        </div>
-    </div>
+            </div>
+            <div class="row gy-3 gx-3 align-items-end progress-review__filter-grid">
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label form-label-sm text-muted" for="from">From</label>
+                    <input class="form-control" id="from" name="from" type="date" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label form-label-sm text-muted" for="to">To</label>
+                    <input class="form-control" id="to" name="to" type="date" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
+                </div>
+                <div class="col-12 col-sm-6 col-md-auto">
+                    <label class="form-label form-label-sm text-muted d-block">&nbsp;</label>
+                    <button class="btn btn-primary w-100" type="submit">Show report</button>
+                </div>
+            </div>
+        </form>
+    </section>
 
     @if (vm is null)
     {
@@ -170,69 +164,60 @@
     }
     else
     {
-        @* SECTION: KPI deck *@
-        <div class="row g-3 mb-4">
-            <div class="col-6 col-md-3">
-                <div class="card shadow-sm h-100 border-0 progress-review__stat">
-                    <div class="card-body d-flex align-items-center gap-3">
-                        <span class="progress-review__stat-icon text-primary bg-primary-subtle">
-                            <i class="bi bi-arrows-move"></i>
-                        </span>
-                        <div>
-                            <p class="text-muted text-uppercase small mb-1">Projects moved</p>
-                            <p class="fs-3 fw-semibold mb-0">@vm.Totals.ProjectsMoved</p>
-                        </div>
-                    </div>
+        <article class="progress-review__document">
+            <header class="progress-review__document-header">
+                <div>
+                    <p class="text-uppercase text-muted small fw-semibold mb-1">Reporting period</p>
+                    <h2 class="h4 mb-2">@vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")</h2>
+                    <p class="progress-review__lead">
+                        During this period, <strong>@vm.Totals.ProjectsMoved</strong> projects progressed to new stages while
+                        <strong>@vm.Totals.NonMovers</strong> awaited further action. Teams recorded
+                        <strong>@vm.Totals.ProjectsWithRemarks</strong> remarks and conducted
+                        <strong>@vm.Totals.VisitsCount</strong> field visits.
+                    </p>
                 </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="card shadow-sm h-100 border-0 progress-review__stat">
-                    <div class="card-body d-flex align-items-center gap-3">
-                        <span class="progress-review__stat-icon text-info bg-info-subtle">
-                            <i class="bi bi-chat-dots"></i>
-                        </span>
-                        <div>
-                            <p class="text-muted text-uppercase small mb-1">Remarks logged</p>
-                            <p class="fs-3 fw-semibold mb-0">@vm.Totals.ProjectsWithRemarks</p>
-                        </div>
-                    </div>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 progress-review__summary-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Indicator</th>
+                                <th scope="col" class="text-end">Value</th>
+                                <th scope="col">Observation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Projects moved</td>
+                                <td class="text-end fw-semibold">@vm.Totals.ProjectsMoved</td>
+                                <td>Progressed to subsequent stages.</td>
+                            </tr>
+                            <tr>
+                                <td>Projects with remarks</td>
+                                <td class="text-end fw-semibold">@vm.Totals.ProjectsWithRemarks</td>
+                                <td>Leadership attention and field notes.</td>
+                            </tr>
+                            <tr>
+                                <td>Non-movers</td>
+                                <td class="text-end fw-semibold">@vm.Totals.NonMovers</td>
+                                <td>Awaiting milestones or inputs.</td>
+                            </tr>
+                            <tr>
+                                <td>Visits recorded</td>
+                                <td class="text-end fw-semibold">@vm.Totals.VisitsCount</td>
+                                <td>Stakeholder and site interactions.</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="card shadow-sm h-100 border-0 progress-review__stat">
-                    <div class="card-body d-flex align-items-center gap-3">
-                        <span class="progress-review__stat-icon text-warning bg-warning-subtle">
-                            <i class="bi bi-slash-circle"></i>
-                        </span>
-                        <div>
-                            <p class="text-muted text-uppercase small mb-1">Non-movers</p>
-                            <p class="fs-3 fw-semibold mb-0">@vm.Totals.NonMovers</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="card shadow-sm h-100 border-0 progress-review__stat">
-                    <div class="card-body d-flex align-items-center gap-3">
-                        <span class="progress-review__stat-icon text-success bg-success-subtle">
-                            <i class="bi bi-geo-alt"></i>
-                        </span>
-                        <div>
-                            <p class="text-muted text-uppercase small mb-1">Visits</p>
-                            <p class="fs-3 fw-semibold mb-0">@vm.Totals.VisitsCount</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+            </header>
 
-        @* SECTION: Project progress buckets *@
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-white border-0">
-                <h2 class="h5 mb-0">Project progress review</h2>
-                <p class="text-muted small mb-0">Movement, remarks, and idle projects consolidated per project.</p>
-            </div>
-            <div class="card-body pt-0">
+            @* SECTION: Project progress buckets *@
+            <section class="progress-review__section" id="project-progress">
+                <header class="progress-review__section-header">
+                    <span class="progress-review__section-label">Section 01</span>
+                    <h2 class="progress-review__section-title">Project progress review</h2>
+                    <p class="progress-review__section-subtitle">Movement, remarks, and idle projects consolidated per project.</p>
+                </header>
                 <div class="table-responsive">
                     <table class="table table-sm align-middle progress-review__table">
                         <thead class="table-light">
@@ -304,14 +289,14 @@
                                         }
                                     </td>
                                     <td class="progress-review__cell-truncate">
-                                    @if (hasRemark)
-                                    {
-                                        <div class="progress-review__remark">@Html.Raw(remarkHtml)</div>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted small">No remarks captured.</span>
-                                    }
+                                        @if (hasRemark)
+                                        {
+                                            <div class="progress-review__remark">@Html.Raw(remarkHtml)</div>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">No remarks captured.</span>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -324,20 +309,19 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
-        </div>
+            </section>
 
-        @* SECTION: Visits & social media *@
-        <div class="row g-3 mb-4">
-            <div class="col-lg-6">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
-                        <div>
-                            <h3 class="h6 mb-0 progress-review__section-title">Visits</h3>
-                            <p class="text-muted small mb-0">@vm.Visits.TotalCount entries</p>
-                        </div>
-                    </div>
-                    <div class="card-body">
+            @* SECTION: Field engagement & outreach *@
+            <section class="progress-review__section" id="field-engagement">
+                <header class="progress-review__section-header">
+                    <span class="progress-review__section-label">Section 02</span>
+                    <h2 class="progress-review__section-title">Field engagement & outreach</h2>
+                    <p class="progress-review__section-subtitle">Site visits and social narratives captured for documentation.</p>
+                </header>
+                <div class="row g-4 progress-review__split">
+                    <div class="col-lg-6">
+                        <h3 class="progress-review__subheading">Visits log</h3>
+                        <p class="text-muted small mb-3">@vm.Visits.TotalCount entries reviewed.</p>
                         @if (!vm.Visits.Items.Any())
                         {
                             <p class="text-muted mb-0">No visits recorded in this range.</p>
@@ -372,17 +356,9 @@
                             </ul>
                         }
                     </div>
-                </div>
-            </div>
-            <div class="col-lg-6">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
-                        <div>
-                            <h3 class="h6 mb-0 progress-review__section-title">Social media</h3>
-                            <p class="text-muted small mb-0">@vm.SocialMedia.TotalCount posts</p>
-                        </div>
-                    </div>
-                    <div class="card-body">
+                    <div class="col-lg-6">
+                        <h3 class="progress-review__subheading">Social media</h3>
+                        <p class="text-muted small mb-3">@vm.SocialMedia.TotalCount posts amplified.</p>
                         @if (!vm.SocialMedia.Items.Any())
                         {
                             <p class="text-muted mb-0">No social media updates in this range.</p>
@@ -418,104 +394,103 @@
                         }
                     </div>
                 </div>
-            </div>
-        </div>
+            </section>
 
-        @* SECTION: TOT & IPR *@
-        <div class="row g-3 mb-4">
-            <div class="col-lg-6">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-header bg-white border-0">
-                        <h3 class="h6 mb-0 progress-review__section-title">Transfer of Technology</h3>
-                        <p class="text-muted small mb-0">Stage changes and remarks</p>
-                    </div>
-                    <div class="card-body">
-                        <h4 class="text-uppercase text-muted fw-semibold small">Stage changes</h4>
-                        <ul class="list-unstyled small progress-review__list">
-                            @foreach (var entry in vm.Tot.StageChanges.Take(8))
-                            {
-                                <li class="mb-2">
-                                    <strong>@entry.ProjectName</strong>
-                                    <span class="text-muted">(@entry.ChangeDate.ToString("dd MMM"))</span>
-                                    <div>@entry.StageName: @entry.FromStatus → @entry.ToStatus</div>
-                                </li>
-                            }
-                            @if (!vm.Tot.StageChanges.Any())
-                            {
-                                <li class="text-muted">No stage changes recorded.</li>
-                            }
-                        </ul>
-                        <h4 class="text-uppercase text-muted fw-semibold small mt-3">Remarks</h4>
-                        <ul class="list-unstyled small progress-review__list">
-                            @foreach (var entry in vm.Tot.Remarks.Take(8))
-                            {
-                                <li class="mb-2">
-                                    <strong>@entry.ProjectName</strong>
-                                    <span class="text-muted">(@entry.Date.ToString("dd MMM"))</span>
-                                    <div>@entry.Summary</div>
-                                </li>
-                            }
-                            @if (!vm.Tot.Remarks.Any())
-                            {
-                                <li class="text-muted">No remarks captured.</li>
-                            }
-                        </ul>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-6">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-header bg-white border-0">
-                        <h3 class="h6 mb-0 progress-review__section-title">IPR updates</h3>
-                        <p class="text-muted small mb-0">Status changes and highlights</p>
-                    </div>
-                    <div class="card-body">
-                        <h4 class="text-uppercase text-muted fw-semibold small">Status changes</h4>
-                        <ul class="list-unstyled small progress-review__list">
-                            @foreach (var entry in vm.Ipr.StatusChanges.Take(8))
-                            {
-                                <li class="mb-2">
-                                    <strong>@entry.Title</strong>
-                                    <span class="text-muted">(@entry.EventDate.ToString("dd MMM"))</span>
-                                    <div>@entry.Status — @entry.Notes</div>
-                                </li>
-                            }
-                            @if (!vm.Ipr.StatusChanges.Any())
-                            {
-                                <li class="text-muted">No status transitions this period.</li>
-                            }
-                        </ul>
-                        <h4 class="text-uppercase text-muted fw-semibold small mt-3">Remarks</h4>
-                        <ul class="list-unstyled small progress-review__list">
-                            @foreach (var entry in vm.Ipr.Remarks.Take(8))
-                            {
-                                <li class="mb-2">
-                                    <strong>@entry.Title</strong>
-                                    <span class="text-muted">(@entry.EventDate.ToString("dd MMM"))</span>
-                                    <div>@entry.Summary</div>
-                                </li>
-                            }
-                            @if (!vm.Ipr.Remarks.Any())
-                            {
-                                <li class="text-muted">No remarks captured.</li>
-                            }
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        @* SECTION: Training *@
-        <div class="row g-3 mb-4">
-            <div class="col-lg-6">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-header bg-white border-0 d-flex justify-content-between">
-                        <div>
-                            <h3 class="h6 mb-0 progress-review__section-title">Simulator training</h3>
-                            <p class="text-muted small mb-0">@vm.Training.Simulator.TotalPersons trainees</p>
+            @* SECTION: Technology transfer & IPR *@
+            <section class="progress-review__section" id="tech-transfer">
+                <header class="progress-review__section-header">
+                    <span class="progress-review__section-label">Section 03</span>
+                    <h2 class="progress-review__section-title">Technology transfer & IPR</h2>
+                    <p class="progress-review__section-subtitle">Stage transitions, agreements, and legal highlights.</p>
+                </header>
+                <div class="row g-4 progress-review__split">
+                    <div class="col-lg-6">
+                        <h3 class="progress-review__subheading">Transfer of Technology</h3>
+                        <div class="progress-review__mini-section">
+                            <h4 class="progress-review__mini-heading">Stage changes</h4>
+                            <ul class="list-unstyled small progress-review__list">
+                                @foreach (var entry in vm.Tot.StageChanges.Take(8))
+                                {
+                                    <li>
+                                        <strong>@entry.ProjectName</strong>
+                                        <span class="text-muted">(@entry.ChangeDate.ToString("dd MMM"))</span>
+                                        <div>@entry.StageName: @entry.FromStatus → @entry.ToStatus</div>
+                                    </li>
+                                }
+                                @if (!vm.Tot.StageChanges.Any())
+                                {
+                                    <li class="text-muted">No stage changes recorded.</li>
+                                }
+                            </ul>
+                        </div>
+                        <div class="progress-review__mini-section">
+                            <h4 class="progress-review__mini-heading">Remarks</h4>
+                            <ul class="list-unstyled small progress-review__list">
+                                @foreach (var entry in vm.Tot.Remarks.Take(8))
+                                {
+                                    <li>
+                                        <strong>@entry.ProjectName</strong>
+                                        <span class="text-muted">(@entry.Date.ToString("dd MMM"))</span>
+                                        <div>@entry.Summary</div>
+                                    </li>
+                                }
+                                @if (!vm.Tot.Remarks.Any())
+                                {
+                                    <li class="text-muted">No remarks captured.</li>
+                                }
+                            </ul>
                         </div>
                     </div>
-                    <div class="card-body">
+                    <div class="col-lg-6">
+                        <h3 class="progress-review__subheading">IPR updates</h3>
+                        <div class="progress-review__mini-section">
+                            <h4 class="progress-review__mini-heading">Status changes</h4>
+                            <ul class="list-unstyled small progress-review__list">
+                                @foreach (var entry in vm.Ipr.StatusChanges.Take(8))
+                                {
+                                    <li>
+                                        <strong>@entry.Title</strong>
+                                        <span class="text-muted">(@entry.EventDate.ToString("dd MMM"))</span>
+                                        <div>@entry.Status — @entry.Notes</div>
+                                    </li>
+                                }
+                                @if (!vm.Ipr.StatusChanges.Any())
+                                {
+                                    <li class="text-muted">No status transitions this period.</li>
+                                }
+                            </ul>
+                        </div>
+                        <div class="progress-review__mini-section">
+                            <h4 class="progress-review__mini-heading">Remarks</h4>
+                            <ul class="list-unstyled small progress-review__list">
+                                @foreach (var entry in vm.Ipr.Remarks.Take(8))
+                                {
+                                    <li>
+                                        <strong>@entry.Title</strong>
+                                        <span class="text-muted">(@entry.EventDate.ToString("dd MMM"))</span>
+                                        <div>@entry.Summary</div>
+                                    </li>
+                                }
+                                @if (!vm.Ipr.Remarks.Any())
+                                {
+                                    <li class="text-muted">No remarks captured.</li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            @* SECTION: Training *@
+            <section class="progress-review__section" id="training">
+                <header class="progress-review__section-header">
+                    <span class="progress-review__section-label">Section 04</span>
+                    <h2 class="progress-review__section-title">Training & capability building</h2>
+                    <p class="progress-review__section-subtitle">Simulator and drone training efforts for the period.</p>
+                </header>
+                <div class="row g-4 progress-review__split">
+                    <div class="col-lg-6">
+                        <h3 class="progress-review__subheading">Simulator training (@vm.Training.Simulator.TotalPersons participants)</h3>
                         <div class="table-responsive">
                             <table class="table table-sm mb-0 progress-review__table">
                                 <thead class="table-light">
@@ -546,17 +521,8 @@
                             </table>
                         </div>
                     </div>
-                </div>
-            </div>
-            <div class="col-lg-6">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-header bg-white border-0 d-flex justify-content-between">
-                        <div>
-                            <h3 class="h6 mb-0 progress-review__section-title">Drone training</h3>
-                            <p class="text-muted small mb-0">@vm.Training.Drone.TotalPersons trainees</p>
-                        </div>
-                    </div>
-                    <div class="card-body">
+                    <div class="col-lg-6">
+                        <h3 class="progress-review__subheading">Drone training (@vm.Training.Drone.TotalPersons participants)</h3>
                         <div class="table-responsive">
                             <table class="table table-sm mb-0 progress-review__table">
                                 <thead class="table-light">
@@ -588,18 +554,18 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
+            </section>
 
-        @* SECTION: Proliferation & FFC *@
-        <div class="row g-3 mb-4">
-            <div class="col-lg-7">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-header bg-white border-0">
-                        <h3 class="h6 mb-0 progress-review__section-title">Proliferation</h3>
-                        <p class="text-muted small mb-0">@vm.Proliferation.Rows.Count records</p>
-                    </div>
-                    <div class="card-body">
+            @* SECTION: Proliferation & FFC *@
+            <section class="progress-review__section" id="proliferation">
+                <header class="progress-review__section-header">
+                    <span class="progress-review__section-label">Section 05</span>
+                    <h2 class="progress-review__section-title">Proliferation & FFC simulators</h2>
+                    <p class="progress-review__section-subtitle">Distribution events and FFC milestones captured for record.</p>
+                </header>
+                <div class="row g-4 progress-review__split">
+                    <div class="col-lg-7">
+                        <h3 class="progress-review__subheading">Proliferation (@vm.Proliferation.Rows.Count records)</h3>
                         <div class="table-responsive">
                             <table class="table table-sm mb-0 progress-review__table">
                                 <thead class="table-light">
@@ -632,15 +598,8 @@
                             </table>
                         </div>
                     </div>
-                </div>
-            </div>
-            <div class="col-lg-5">
-                <div class="card shadow-sm border-0 h-100">
-                    <div class="card-header bg-white border-0">
-                        <h3 class="h6 mb-0 progress-review__section-title">FFC simulators</h3>
-                        <p class="text-muted small mb-0">@vm.Ffc.Rows.Count milestones</p>
-                    </div>
-                    <div class="card-body">
+                    <div class="col-lg-5">
+                        <h3 class="progress-review__subheading">FFC simulators (@vm.Ffc.Rows.Count milestones)</h3>
                         @if (!vm.Ffc.Rows.Any())
                         {
                             <p class="text-muted mb-0">No milestones in this range.</p>
@@ -650,7 +609,7 @@
                             <ul class="list-unstyled small mb-0 progress-review__list">
                                 @foreach (var row in vm.Ffc.Rows.Take(10))
                                 {
-                                    <li class="mb-2">
+                                    <li>
                                         <strong>@row.Country</strong> — @row.Milestone
                                         <span class="text-muted">(@row.Date.ToString("dd MMM"))</span>
                                         <div class="text-muted">@row.Remarks</div>
@@ -660,48 +619,47 @@
                         }
                     </div>
                 </div>
-            </div>
-        </div>
+            </section>
 
-        @* SECTION: Miscellaneous activities *@
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-white border-0">
-                <h3 class="h6 mb-0 progress-review__section-title">Miscellaneous activities</h3>
-                <p class="text-muted small mb-0">@vm.Misc.Rows.Count highlights</p>
-            </div>
-            <div class="card-body">
+            @* SECTION: Miscellaneous activities *@
+            <section class="progress-review__section" id="miscellaneous">
+                <header class="progress-review__section-header">
+                    <span class="progress-review__section-label">Section 06</span>
+                    <h2 class="progress-review__section-title">Miscellaneous activities</h2>
+                    <p class="progress-review__section-subtitle">Additional highlights requiring documentation.</p>
+                </header>
                 @if (!vm.Misc.Rows.Any())
                 {
                     <p class="text-muted mb-0">No activities captured in this range.</p>
                 }
                 else
                 {
-                    <div class="row g-3">
+                    <div class="row g-4 progress-review__split">
                         @foreach (var activity in vm.Misc.Rows.Take(10))
                         {
                             <div class="col-md-6">
-                                <div class="border rounded p-3 h-100 progress-review__activity-card">
+                                <article class="progress-review__activity-card h-100">
                                     @if (!string.IsNullOrWhiteSpace(activity.PhotoUrl))
                                     {
                                         <img class="progress-review__activity-photo" src="@activity.PhotoUrl" alt="@($"{activity.Title} photo")" loading="lazy" />
                                     }
-                                    <div class="text-muted small">@activity.Date.ToString("dd MMM") · @activity.Location</div>
-                                    <div class="fw-semibold">@activity.Title</div>
+                                    <p class="text-muted small mb-1">@activity.Date.ToString("dd MMM") · @activity.Location</p>
+                                    <h3 class="h6">@activity.Title</h3>
                                     @if (!string.IsNullOrWhiteSpace(activity.Summary))
                                     {
-                                        <div class="text-muted small">@activity.Summary</div>
+                                        <p class="text-muted small mb-0">@activity.Summary</p>
                                     }
                                     else
                                     {
-                                        <div class="text-muted small">No description available.</div>
+                                        <p class="text-muted small mb-0">No description available.</p>
                                     }
-                                </div>
+                                </article>
                             </div>
                         }
                     </div>
                 }
-            </div>
-        </div>
+            </section>
+        </article>
     }
 </div>
 
