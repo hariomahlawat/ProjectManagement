@@ -51,13 +51,15 @@ public sealed class ProjectPulseService
             .Where(p => !p.IsDeleted)
             .CountAsync(cancellationToken);
 
-        var completedQuery = _db.Projects
+        var completedDates = await _db.Projects
             .AsNoTracking()
-            .Where(p => !p.IsDeleted && p.LifecycleStatus == ProjectLifecycleStatus.Completed);
+            .Where(p => !p.IsDeleted && p.LifecycleStatus == ProjectLifecycleStatus.Completed)
+            .Select(p => p.CompletedOn)
+            .ToListAsync(cancellationToken);
 
-        var completedCount = await completedQuery.CountAsync(cancellationToken);
+        var completedCount = completedDates.Count;
 
-        var completedMonths = await LoadCompletedSeriesAsync(completedQuery, today, cancellationToken);
+        var completedMonths = BuildCompletedSeries(completedDates, today);
 
         var ongoingProjects = await LoadOngoingProjectsAsync(cancellationToken);
 
@@ -87,16 +89,12 @@ public sealed class ProjectPulseService
     }
 
     // SECTION: Completed helpers
-    private static async Task<IReadOnlyList<Point>> LoadCompletedSeriesAsync(IQueryable<Project> completedQuery, DateOnly today, CancellationToken cancellationToken)
+    private static IReadOnlyList<Point> BuildCompletedSeries(IReadOnlyCollection<DateOnly?> completionDates, DateOnly today)
     {
         var startMonth = new DateOnly(today.Year, today.Month, 1).AddMonths(-11);
-        var completions = await completedQuery
-            .Where(p => p.CompletedOn != null && p.CompletedOn >= startMonth)
-            .Select(p => p.CompletedOn)
-            .ToListAsync(cancellationToken);
 
-        var perMonth = completions
-            .Where(d => d.HasValue)
+        var perMonth = completionDates
+            .Where(d => d.HasValue && d.Value >= startMonth)
             .GroupBy(d => new { d.Value.Year, d.Value.Month })
             .ToDictionary(g => (g.Key.Year, g.Key.Month), g => g.Count());
 
