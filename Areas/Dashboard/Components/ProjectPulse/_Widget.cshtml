@@ -1,96 +1,93 @@
 @model ProjectManagement.Areas.Dashboard.Components.ProjectPulse.ProjectPulseVm
-@using ProjectManagement.Areas.Dashboard.Components.ProjectPulse
-@{
-    var serializerOptions = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
-}
 
-<section class="ppulse" data-ppulse>
-  @* SECTION: Header chips *@
-  <header class="ppulse__head">
-    <h2 class="ppulse__title">Project pulse</h2>
-    <ul class="ppulse__chips">
+<section class="pm-pulse" aria-labelledby="pm-pulse-title">
+  @* SECTION: Header summary *@
+  <header class="pm-pulse__header">
+    <h2 id="pm-pulse-title" class="pm-pulse__title">Project pulse</h2>
+    <ul class="pm-pulse__summary" role="list">
       <li>
-        <span class="ppulse-chip__label">Total</span>
-        <span class="ppulse-chip__val">@Model.Total</span>
+        <span class="pm-pulse__k">Total</span>
+        <span class="pm-pulse__v">@Model.Total</span>
       </li>
       <li>
-        <span class="ppulse-chip__label">Completed</span>
-        <span class="ppulse-chip__val">@Model.Completed</span>
+        <span class="pm-pulse__k">Completed</span>
+        <span class="pm-pulse__v">@Model.Completed</span>
       </li>
       <li>
-        <span class="ppulse-chip__label">Ongoing</span>
-        <span class="ppulse-chip__val">@Model.Ongoing</span>
+        <span class="pm-pulse__k">Ongoing</span>
+        <span class="pm-pulse__v">@Model.Ongoing</span>
+      </li>
+      <li>
+        <span class="pm-pulse__k">Idle</span>
+        <span class="pm-pulse__v">@Model.Idle</span>
       </li>
     </ul>
   </header>
   @* END SECTION *@
 
-  @* SECTION: Card grid *@
-  <div class="ppulse__grid">
-    @* All projects *@
-    <article class="ppcard" data-pp-all
-             data-weekly='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.All.WeeklyBuckets ?? Array.Empty<StatusBucket>(), serializerOptions))'
-             data-link="@Model.All.RepositoryUrl">
-      <div class="ppcard__meta">
-        <h3 class="ppcard__title">All projects</h3>
-        <div class="ppcard__count">@Model.Total</div>
+  @* SECTION: Widget grid *@
+  <div class="pm-pulse__grid">
+    <article class="pm-pulse__card">
+      <div class="pm-pulse__meta">
+        <span class="pm-pulse__label">Completed</span>
+        <span class="pm-pulse__number">@Model.Completed</span>
       </div>
-      <div class="ppcard__chart">
-        <canvas width="240" height="56" data-chart="stackedbar"></canvas>
+      <div class="pm-pulse__spark">
+        <canvas
+          width="220"
+          height="40"
+          data-spark="line"
+          data-points="@string.Join(',', Model.CompletedByMonth)"></canvas>
       </div>
-      <a class="ppcard__cta" href="@Model.All.RepositoryUrl" aria-label="Explore repository">
-        Explore repository <i class="bi bi-arrow-right-short" aria-hidden="true"></i>
-      </a>
+      <footer class="pm-pulse__footer">
+        <a class="pm-pulse__link" href="@Model.CompletedUrl" aria-label="View completed projects">View completed</a>
+      </footer>
     </article>
 
-    @* Completed *@
-    <article class="ppcard" data-pp-done
-             data-series='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Done.WeeklyCompletions ?? Array.Empty<int>(), serializerOptions))'
-             data-link="@Model.Done.Link">
-      <div class="ppcard__meta">
-        <h3 class="ppcard__title">Completed</h3>
-        <div class="ppcard__count">@Model.Completed</div>
+    <article class="pm-pulse__card">
+      <div class="pm-pulse__meta">
+        <span class="pm-pulse__label">Ongoing</span>
+        <span class="pm-pulse__number">@Model.Ongoing</span>
       </div>
-      <div class="ppcard__chart">
-        <canvas width="240" height="56" data-chart="sparkline"></canvas>
+      <div class="pm-pulse__spark">
+        <canvas
+          width="220"
+          height="40"
+          data-spark="bar"
+          data-points="@string.Join(',', Model.OngoingByMonth)"></canvas>
       </div>
-      <a class="ppcard__cta" href="@Model.Done.Link">
-        View completed <i class="bi bi-arrow-right-short" aria-hidden="true"></i>
-      </a>
+      <footer class="pm-pulse__footer">
+        <a class="pm-pulse__link" href="@Model.OngoingUrl" aria-label="View ongoing projects">View ongoing</a>
+      </footer>
     </article>
 
-    @* Ongoing *@
-    <article class="ppcard" data-pp-doing
-             data-series='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Doing.WeeklyActive ?? Array.Empty<int>(), serializerOptions))'
-             data-link="@Model.Doing.Link">
-      <div class="ppcard__meta">
-        <h3 class="ppcard__title">Ongoing</h3>
-        <div class="ppcard__count">
-          @Model.Ongoing
-          @if (Model.Doing.Overdue > 0)
-          {
-            <span class="ppbadge--danger">@Model.Doing.Overdue overdue</span>
-          }
-        </div>
+    <article class="pm-pulse__card">
+      <div class="pm-pulse__meta">
+        <span class="pm-pulse__label">All projects</span>
+        <span class="pm-pulse__number">@Model.Total</span>
       </div>
-      <div class="ppcard__chart">
-        <canvas width="240" height="56" data-chart="sparkline"></canvas>
+      <div class="pm-pulse__spark">
+        <canvas
+          width="220"
+          height="40"
+          data-spark="area"
+          data-points="@string.Join(',', Model.NewByMonth)"></canvas>
       </div>
-      <a class="ppcard__cta" href="@Model.Doing.Link">
-        View ongoing <i class="bi bi-arrow-right-short" aria-hidden="true"></i>
-      </a>
+      <footer class="pm-pulse__footer">
+        <a class="pm-pulse__link" href="@Model.RepositoryUrl" aria-label="Explore repository">Explore repository</a>
+      </footer>
     </article>
 
-    @* Analytics *@
-    <article class="ppcard ppcard--promo" data-pp-analytics data-link="@Model.Analytics.CtaUrl">
-      <div class="pppromo">
-        <div class="pppromo__title">Deep dive</div>
-        <div class="pppromo__copy">Trends, drill-downs, and downloads.</div>
-        <a class="btn btn-primary btn-sm" href="@Model.Analytics.CtaUrl">
-          Open analytics
-        </a>
+    <aside class="pm-pulse__cta" aria-label="Project analytics deep dive">
+      <div class="pm-pulse__cta-body">
+        <h3 class="pm-pulse__cta-title">Deep dive</h3>
+        <p class="pm-pulse__cta-copy">Trends, drill-downs and downloads.</p>
       </div>
-    </article>
+      <a class="btn btn-primary pm-pulse__cta-btn" href="@Model.AnalyticsUrl">Open analytics</a>
+    </aside>
   </div>
   @* END SECTION *@
 </section>
+
+<link rel="stylesheet" href="~/css/widgets/project-pulse.css" asp-append-version="true" />
+<script type="module" src="~/js/widgets/project-pulse.js" asp-append-version="true"></script>

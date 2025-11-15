@@ -24,10 +24,10 @@ namespace ProjectManagement.Pages.Dashboard
         private readonly ITodoService _todo;
         private readonly UserManager<ApplicationUser> _users;
         private readonly Data.ApplicationDbContext _db;
-        private readonly ProjectPulseService _projectPulse;
+        private readonly IProjectPulseService _projectPulse;
         private static readonly TimeZoneInfo IST = IstClock.TimeZone;
 
-        public IndexModel(ITodoService todo, UserManager<ApplicationUser> users, Data.ApplicationDbContext db, ProjectPulseService projectPulse)
+        public IndexModel(ITodoService todo, UserManager<ApplicationUser> users, Data.ApplicationDbContext db, IProjectPulseService projectPulse)
         {
             _todo = todo;
             _users = users;
