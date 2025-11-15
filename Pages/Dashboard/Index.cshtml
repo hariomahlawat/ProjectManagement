@@ -17,100 +17,29 @@
   <div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle-fill me-2"></i>@err</div>
 }
 
-@{ 
-  var dashboardMainColumnClass = Model.ShowMyProjectsWidget ? "col-12 col-lg-8 col-xl-8" : "col-12";
-}
-
 <div class="row g-3 dashboard mt-1">
-  <div class="col-lg-9">
-    <div class="row g-3">
-      @* SECTION: My Projects widget *@
-      @if (Model.ShowMyProjectsWidget)
+  @* SECTION: Primary dashboard content (Project pulse + sidebar) *@
+  <div class="col-12 col-lg-9">
+    <div class="dashboard-main-content h-100">
+      <h2 class="h5 fw-semibold mb-2">Dashboard</h2>
+      @* SECTION: Project Pulse widget *@
+      @if (Model.ProjectPulse is not null)
       {
-        <div class="col-12 col-lg-4 col-xl-4">
-          <section class="dashboard-my-projects" aria-labelledby="dashboard-my-projects-title">
-            <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
-              <h2 id="dashboard-my-projects-title" class="h5 fw-semibold mb-0">My Projects</h2>
-            </div>
-            @if (Model.HasMyProjects)
-            {
-              @foreach (var projectSection in Model.MyProjectSections)
-              {
-                <div class="dashboard-my-projects__section">
-                  <h3 class="dashboard-my-projects__section-title text-uppercase text-secondary fw-semibold small mb-2">
-                    @projectSection.Title
-                  </h3>
-                  <div class="dashboard-my-projects__list" role="list">
-                    @foreach (var project in projectSection.Items)
-                    {
-                      <a
-                        asp-page="/Projects/Overview"
-                        asp-route-id="@project.ProjectId"
-                        class="dashboard-project-card"
-                        role="listitem"
-                      >
-                        <div class="dashboard-project-card__cover" aria-hidden="true">
-                          @if (!string.IsNullOrEmpty(project.CoverImageUrl))
-                          {
-                            <img
-                              src="@project.CoverImageUrl"
-                              alt=""
-                              loading="lazy"
-                            />
-                          }
-                          else
-                          {
-                            <span class="dashboard-project-card__cover-placeholder">No cover</span>
-                          }
-                        </div>
-                        <div class="dashboard-project-card__content">
-                          <div class="dashboard-project-card__title text-truncate" title="@project.Name">
-                            @project.Name
-                          </div>
-                          <div class="dashboard-project-card__meta text-truncate">
-                            @(string.IsNullOrWhiteSpace(project.Category) ? "No category" : project.Category)
-                          </div>
-                        </div>
-                        <span class="dashboard-project-card__chevron" aria-hidden="true">
-                          <i class="bi bi-arrow-right-short"></i>
-                        </span>
-                      </a>
-                    }
-                  </div>
-                </div>
-              }
-            }
-            else if (Model.ShowEmptyMyProjectsMessage)
-            {
-              <p class="text-secondary small mb-0">You are not currently assigned to any projects.</p>
-            }
-          </section>
-        </div>
+        @* SECTION: Project Pulse widget partial *@
+        @await Html.PartialAsync(
+          "~/Areas/Dashboard/Components/ProjectPulse/_Widget.cshtml",
+          Model.ProjectPulse
+        )
+        @* END SECTION *@
+      }
+      else
+      {
+        <p class="text-secondary">Project pulse data is not available right now.</p>
       }
       @* END SECTION *@
-      <div class="@dashboardMainColumnClass">
-        <div class="dashboard-main-content h-100">
-          <h2 class="h5 fw-semibold mb-2">Dashboard</h2>
-          @* SECTION: Project Pulse widget *@
-          @if (Model.ProjectPulse is not null)
-          {
-            @* SECTION: Project Pulse widget partial *@
-            @await Html.PartialAsync(
-              "~/Areas/Dashboard/Components/ProjectPulse/_Widget.cshtml",
-              Model.ProjectPulse
-            )
-            @* END SECTION *@
-          }
-          else
-          {
-            <p class="text-secondary">Project pulse data is not available right now.</p>
-          }
-          @* END SECTION *@
-        </div>
-      </div>
     </div>
   </div>
-  <div class="col-lg-3 dashboard-sidebar">
+  <div class="col-12 col-lg-3 dashboard-sidebar">
     <partial name="_TodoWidget" model="Model.TodoWidget" />
     <button
       type="button"
@@ -135,6 +64,70 @@
       </div>
     </button>
   </div>
+  @* SECTION: My Projects widget (full-width row) *@
+  @if (Model.ShowMyProjectsWidget)
+  {
+    <div class="col-12">
+      <section class="dashboard-my-projects" aria-labelledby="dashboard-my-projects-title">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+          <h2 id="dashboard-my-projects-title" class="h5 fw-semibold mb-0">My Projects</h2>
+        </div>
+        @if (Model.HasMyProjects)
+        {
+          @foreach (var projectSection in Model.MyProjectSections)
+          {
+            <div class="dashboard-my-projects__section">
+              <h3 class="dashboard-my-projects__section-title text-uppercase text-secondary fw-semibold small mb-2">
+                @projectSection.Title
+              </h3>
+              <div class="dashboard-my-projects__list" role="list">
+                @foreach (var project in projectSection.Items)
+                {
+                  <a
+                    asp-page="/Projects/Overview"
+                    asp-route-id="@project.ProjectId"
+                    class="dashboard-project-card"
+                    role="listitem"
+                  >
+                    <div class="dashboard-project-card__cover" aria-hidden="true">
+                      @if (!string.IsNullOrEmpty(project.CoverImageUrl))
+                      {
+                        <img
+                          src="@project.CoverImageUrl"
+                          alt=""
+                          loading="lazy"
+                        />
+                      }
+                      else
+                      {
+                        <span class="dashboard-project-card__cover-placeholder">No cover</span>
+                      }
+                    </div>
+                    <div class="dashboard-project-card__content">
+                      <div class="dashboard-project-card__title text-truncate" title="@project.Name">
+                        @project.Name
+                      </div>
+                      <div class="dashboard-project-card__meta text-truncate">
+                        @(string.IsNullOrWhiteSpace(project.Category) ? "No category" : project.Category)
+                      </div>
+                    </div>
+                    <span class="dashboard-project-card__chevron" aria-hidden="true">
+                      <i class="bi bi-arrow-right-short"></i>
+                    </span>
+                  </a>
+                }
+              </div>
+            </div>
+          }
+        }
+        else if (Model.ShowEmptyMyProjectsMessage)
+        {
+          <p class="text-secondary small mb-0">You are not currently assigned to any projects.</p>
+        }
+      </section>
+    </div>
+  }
+  @* END SECTION *@
 </div>
 
 <div
