@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Areas.Dashboard.Components.OpsSignals;
 using ProjectManagement.Areas.Dashboard.Components.ProjectPulse;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
@@ -10,6 +11,7 @@ using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Helpers;
 using System;
 using System.Globalization;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,21 +27,31 @@ namespace ProjectManagement.Pages.Dashboard
         private readonly UserManager<ApplicationUser> _users;
         private readonly Data.ApplicationDbContext _db;
         private readonly IProjectPulseService _projectPulse;
+        private readonly IOpsSignalsService _opsSignalsService;
         private static readonly TimeZoneInfo IST = IstClock.TimeZone;
 
-        public IndexModel(ITodoService todo, UserManager<ApplicationUser> users, Data.ApplicationDbContext db, IProjectPulseService projectPulse)
+        public IndexModel(
+            ITodoService todo,
+            UserManager<ApplicationUser> users,
+            Data.ApplicationDbContext db,
+            IProjectPulseService projectPulse,
+            IOpsSignalsService opsSignalsService)
         {
             _todo = todo;
             _users = users;
             _db = db;
             _projectPulse = projectPulse;
+            _opsSignalsService = opsSignalsService;
         }
 
         public TodoWidgetResult? TodoWidget { get; set; }
         public List<UpcomingEventVM> UpcomingEvents { get; set; } = new();
         public List<MyProjectsSection> MyProjectSections { get; private set; } = new();
         public bool HasMyProjects => MyProjectSections.Any(section => section.Items.Count > 0);
+        // SECTION: Dashboard KPI widgets
         public ProjectPulseVm? ProjectPulse { get; private set; }
+        public OpsSignalsVm OpsSignals { get; private set; } = new() { Tiles = Array.Empty<OpsTileVm>() };
+        // END SECTION
 
         // SECTION: My Projects widget state
         public bool ShowMyProjectsWidget { get; private set; }
@@ -57,7 +69,7 @@ namespace ProjectManagement.Pages.Dashboard
         [BindProperty]
         public string? NewTitle { get; set; }
 
-        public async Task OnGetAsync()
+        public async Task OnGetAsync(CancellationToken cancellationToken)
         {
             var uid = _users.GetUserId(User);
             if (uid != null)
@@ -185,7 +197,12 @@ namespace ProjectManagement.Pages.Dashboard
                 await LoadMyProjectsAsync(uid, isProjectOfficer, isHod, isComdt || isMco);
             }
 
-            ProjectPulse = await _projectPulse.GetAsync();
+            ProjectPulse = await _projectPulse.GetAsync(cancellationToken);
+            OpsSignals = await _opsSignalsService.GetAsync(
+                from: null,
+                to: null,
+                userId: uid ?? string.Empty,
+                cancellationToken);
         }
 
         private async Task LoadMyProjectsAsync(string userId, bool includeOfficerSection, bool includeHodSection, bool includeAllOngoingSection)

@@ -1,0 +1,46 @@
+@* SECTION: OpsSignals widget markup *@
+@using System.Collections.Generic
+@model ProjectManagement.Areas.Dashboard.Components.OpsSignals.OpsSignalsVm
+
+<section class="ops-signals" aria-label="Activity snapshot">
+  <div class="ops-signals__grid">
+    @foreach (var t in Model.Tiles)
+    {
+      <a class="ops-signals__tile" href="@t.LinkUrl">
+        <div class="ops-signals__head">
+          <i class="bi @t.Icon ops-signals__icon" aria-hidden="true"></i>
+          <span class="ops-signals__label">@t.Label</span>
+        </div>
+
+        <div class="ops-signals__value">
+          <span class="ops-signals__num">@t.Value</span>
+          @if (!string.IsNullOrWhiteSpace(t.Unit))
+          {
+            <span class="ops-signals__unit">@t.Unit</span>
+          }
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(t.Caption))
+        {
+          <div class="ops-signals__caption">@t.Caption</div>
+        }
+
+        <div class="ops-signals__spark" data-ops-spark
+             data-values='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(t.Sparkline ?? new List<int>()))'
+             data-labels='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(t.SparklineLabels ?? new List<string>()))'>
+          <canvas></canvas>
+        </div>
+
+        @if (t.DeltaPct is not null)
+        {
+          var up = t.DeltaPct >= 0;
+          <div class="ops-signals__delta @(up ? "ops-signals__delta--up" : "ops-signals__delta--down")">
+            <i class="bi @(up ? "bi-arrow-up" : "bi-arrow-down")" aria-hidden="true"></i>
+            <span>@string.Format("{0:+0;-0;0}%", Math.Round((t.DeltaPct ?? 0) * 100))</span>
+          </div>
+        }
+      </a>
+    }
+  </div>
+</section>
+@* END SECTION *@

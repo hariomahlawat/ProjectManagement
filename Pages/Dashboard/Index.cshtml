@@ -9,6 +9,7 @@
 
 @section Styles {
   <link rel="stylesheet" href="~/css/widgets/project-pulse.css" asp-append-version="true" />
+  <link rel="stylesheet" href="~/css/widgets/ops-signals.css" asp-append-version="true" />
   <link rel="stylesheet" href="~/css/todo-widget.css" asp-append-version="true" />
 }
 
@@ -35,6 +36,13 @@
       {
         <p class="text-secondary">Project pulse data is not available right now.</p>
       }
+      @* END SECTION *@
+
+      @* SECTION: OpsSignals widget *@
+      @await Html.PartialAsync(
+        "~/Areas/Dashboard/Components/OpsSignals/_Widget.cshtml",
+        Model.OpsSignals
+      )
       @* END SECTION *@
     </div>
   </div>
@@ -160,5 +168,6 @@
 @section Scripts {
   <script src="~/lib/chart.js/chart.umd.js" asp-append-version="true" defer></script>
   <script type="module" src="~/js/widgets/project-pulse.js" asp-append-version="true"></script>
+  <script type="module" src="~/js/widgets/ops-signals.js" asp-append-version="true"></script>
   <script src="~/js/todo-widget.js" asp-append-version="true" defer></script>
 }
