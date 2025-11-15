@@ -143,33 +143,56 @@
     }
 
     var charts = [];
-    queryAll('.ppulse__chart', host).forEach(function (zone) {
-      var kind = zone.getAttribute('data-chart');
-      var raw = zone.getAttribute('data-series') || '[]';
-      var series;
-      try {
-        series = JSON.parse(raw);
-      } catch (err) {
-        series = [];
+
+    // SECTION: Chart lifecycle helpers
+    function destroyCharts() {
+      if (!charts.length) {
+        return;
       }
 
-      var canvas = zone.querySelector('canvas');
-      if (canvas && series.length > 0) {
-        var chart = buildChart(canvas, kind, series, {
-          xAxisTitle: zone.getAttribute('data-x-axis-title') || '',
-          hideXTickLabels: zone.getAttribute('data-x-axis-hide-labels') === 'true'
-        });
-        if (chart) {
-          charts.push(chart);
+      charts.forEach(function (chart) { return chart.destroy(); });
+      charts = [];
+    }
+
+    function buildCharts() {
+      destroyCharts();
+
+      queryAll('.ppulse__chart', host).forEach(function (zone) {
+        var kind = zone.getAttribute('data-chart');
+        var raw = zone.getAttribute('data-series') || '[]';
+        var series;
+        try {
+          series = JSON.parse(raw);
+        } catch (err) {
+          series = [];
         }
-      }
-    });
+
+        var canvas = zone.querySelector('canvas');
+        if (canvas && series.length > 0) {
+          var chart = buildChart(canvas, kind, series, {
+            xAxisTitle: zone.getAttribute('data-x-axis-title') || '',
+            hideXTickLabels: zone.getAttribute('data-x-axis-hide-labels') === 'true'
+          });
+          if (chart) {
+            charts.push(chart);
+          }
+        }
+      });
+    }
+    // END SECTION
+
+    buildCharts();
 
     document.addEventListener('visibilitychange', function handleVisibility() {
       if (document.hidden) {
-        charts.forEach(function (chart) { return chart.destroy(); });
+        destroyCharts();
+        return;
       }
-    }, { once: true });
+
+      if (!charts.length) {
+        requestAnimationFrame(buildCharts);
+      }
+    });
   }
   // END SECTION
 
