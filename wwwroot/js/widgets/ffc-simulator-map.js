@@ -90,11 +90,13 @@
 
   function createPin(count) {
     var safeCount = typeof count === 'number' && !Number.isNaN(count) ? count : 0;
+    var digitCount = String(Math.abs(safeCount)).length;
+    var size = 28 + Math.min(Math.max(digitCount - 1, 0) * 4, 8);
     return L.divIcon({
       html: '<div class="ffc-simulator-map__pin"><span>' + safeCount + '</span></div>',
       className: '',
-      iconSize: [40, 40],
-      iconAnchor: [20, 20]
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2]
     });
   }
   // END SECTION
