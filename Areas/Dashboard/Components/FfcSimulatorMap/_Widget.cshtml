@@ -6,6 +6,7 @@
     var payload = JsonSerializer.Serialize(Model.Countries, jsonOptions);
     var geoUrl = Url.Content("~/ffc/maps/world_india_view.geojson");
     var focusBounds = "37,-20|-35,55";
+    var fullMapUrl = Url.Page("/FFC/Map", values: new { area = "ProjectOfficeReports" });
 }
 <section class="ffc-simulator-map-widget pm-card pm-shadow" aria-labelledby="ffc-simulator-map-title">
     <div class="pm-card-body">
@@ -29,7 +30,7 @@
                     <strong>@Model.TotalProjects</strong>
                 </div>
             </div>
-            <a asp-area="ProjectOfficeReports" asp-page="/FFC/Map" class="btn btn-outline-primary btn-sm">View full map</a>
+            <a href="@fullMapUrl" class="btn btn-outline-primary btn-sm">View full map</a>
         </div>
         @if (Model.HasData)
         {
