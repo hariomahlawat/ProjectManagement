@@ -1,31 +1,40 @@
-using System;
 using System.Collections.Generic;
 
 namespace ProjectManagement.Areas.Dashboard.Components.ProjectPulse;
 
-// SECTION: Widget view model
+// SECTION: Widget view model contract
 public sealed class ProjectPulseVm
 {
-    // SECTION: Header KPIs
-    public int TotalProjects { get; init; }
-    public int CompletedCount { get; init; }
-    public int OngoingCount { get; init; }
-    public int IdleCount { get; init; }
-    public int AvailableForProliferationCount { get; init; }
+    // SECTION: Header
+    public required int ProliferationEligible { get; init; }
+    public required string AnalyticsUrl { get; init; }
     // END SECTION
 
-    // SECTION: Chart data
-    public IReadOnlyList<LabelValue> CompletedByProjectCategory { get; init; } = Array.Empty<LabelValue>();
-    public IReadOnlyList<LabelValue> OngoingByStage { get; init; } = Array.Empty<LabelValue>();
-    public IReadOnlyList<LabelValue> AllByTechnicalCategory { get; init; } = Array.Empty<LabelValue>();
+    // SECTION: Counts
+    public required int CompletedCount { get; init; }
+    public required int OngoingCount { get; init; }
+    public required int TotalProjects { get; init; }
     // END SECTION
 
-    // SECTION: View flags
-    public bool Condensed { get; init; }
+    // SECTION: Chart series
+    public required IReadOnlyList<CategorySlice> CompletedByProjectCategory { get; init; }
+    public required IReadOnlyList<StagePoint> OngoingByStageOrdered { get; init; }
+    public required IReadOnlyList<CategorySlice> AllByTechnicalCategoryTop { get; init; }
+    public required int RemainingTechCategories { get; init; }
+    // END SECTION
+
+    // SECTION: Links
+    public required string CompletedUrl { get; init; }
+    public required string OngoingUrl { get; init; }
+    public required string RepositoryUrl { get; init; }
     // END SECTION
 }
 // END SECTION
 
-// SECTION: Shared chart label/value pair
-public sealed record LabelValue(string Label, int Value);
+// SECTION: Category slice contract
+public sealed record CategorySlice(string Label, int Count);
+// END SECTION
+
+// SECTION: Stage point contract
+public sealed record StagePoint(string Stage, int Count);
 // END SECTION
