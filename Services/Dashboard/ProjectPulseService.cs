@@ -46,7 +46,7 @@ public sealed class ProjectPulseService
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
-        var totalProjectsTask = _db.Projects
+        var totalProjects = await _db.Projects
             .AsNoTracking()
             .Where(p => !p.IsDeleted)
             .CountAsync(cancellationToken);
@@ -55,19 +55,13 @@ public sealed class ProjectPulseService
             .AsNoTracking()
             .Where(p => !p.IsDeleted && p.LifecycleStatus == ProjectLifecycleStatus.Completed);
 
-        var completedCountTask = completedQuery.CountAsync(cancellationToken);
+        var completedCount = await completedQuery.CountAsync(cancellationToken);
 
-        var completedMonthsTask = LoadCompletedSeriesAsync(completedQuery, today, cancellationToken);
+        var completedMonths = await LoadCompletedSeriesAsync(completedQuery, today, cancellationToken);
 
-        var ongoingProjectsTask = LoadOngoingProjectsAsync(cancellationToken);
+        var ongoingProjects = await LoadOngoingProjectsAsync(cancellationToken);
 
-        var repositoryBreakdownTask = LoadRepositoryBreakdownAsync(cancellationToken);
-
-        await Task.WhenAll(totalProjectsTask, completedCountTask, completedMonthsTask, ongoingProjectsTask, repositoryBreakdownTask);
-
-        var totalProjects = totalProjectsTask.Result;
-        var completedCount = completedCountTask.Result;
-        var ongoingProjects = ongoingProjectsTask.Result;
+        var repositoryBreakdown = await LoadRepositoryBreakdownAsync(cancellationToken);
         var ongoingCount = ongoingProjects.Count;
 
         var summary = new SummaryBlock(
@@ -78,13 +72,13 @@ public sealed class ProjectPulseService
 
         var completed = new CompletedBlock(
             TotalCompleted: completedCount,
-            CompletionsByMonth: completedMonthsTask.Result,
+            CompletionsByMonth: completedMonths,
             Link: CompletedLink);
 
         var ongoingBlock = await BuildOngoingBlockAsync(ongoingProjects, today, cancellationToken);
 
         var repository = new RepositoryBlock(
-            CategoryBreakdown: repositoryBreakdownTask.Result,
+            CategoryBreakdown: repositoryBreakdown,
             Link: RepositoryLink);
 
         var analytics = new AnalyticsBlock(AnalyticsLink);
@@ -141,16 +135,24 @@ public sealed class ProjectPulseService
 
         var projectIds = ongoingProjects.Select(p => p.Id).ToArray();
 
-        var stagesTask = _db.ProjectStages
-            .AsNoTracking()
-            .Where(s => projectIds.Contains(s.ProjectId))
-            .Select(s => new StageRow(s.ProjectId, s.StageCode, s.Status, s.SortOrder, s.ActualStart, s.CompletedOn))
-            .ToListAsync(cancellationToken);
-
-        Task<List<StageDurationRow>> durationsTask;
+        List<StageRow> stages;
         if (projectIds.Length > 0)
         {
-            durationsTask = _db.ProjectPlanDurations
+            stages = await _db.ProjectStages
+                .AsNoTracking()
+                .Where(s => projectIds.Contains(s.ProjectId))
+                .Select(s => new StageRow(s.ProjectId, s.StageCode, s.Status, s.SortOrder, s.ActualStart, s.CompletedOn))
+                .ToListAsync(cancellationToken);
+        }
+        else
+        {
+            stages = new List<StageRow>();
+        }
+
+        List<StageDurationRow> durations;
+        if (projectIds.Length > 0)
+        {
+            durations = await _db.ProjectPlanDurations
                 .AsNoTracking()
                 .Where(d => projectIds.Contains(d.ProjectId))
                 .Select(d => new StageDurationRow(d.ProjectId, d.StageCode, d.DurationDays))
@@ -158,16 +160,14 @@ public sealed class ProjectPulseService
         }
         else
         {
-            durationsTask = Task.FromResult(new List<StageDurationRow>());
+            durations = new List<StageDurationRow>();
         }
 
-        await Task.WhenAll(stagesTask, durationsTask);
-
-        var stageLookup = stagesTask.Result
+        var stageLookup = stages
             .GroupBy(s => s.ProjectId)
             .ToDictionary(g => g.Key, g => g.ToDictionary(x => x.StageCode, x => x, StringComparer.OrdinalIgnoreCase));
 
-        var durationLookup = durationsTask.Result
+        var durationLookup = durations
             .GroupBy(d => d.ProjectId)
             .ToDictionary(g => g.Key, g => g.ToDictionary(x => x.StageCode, x => x.DurationDays, StringComparer.OrdinalIgnoreCase));
 
