@@ -91,13 +91,166 @@
   function createPin(count) {
     var safeCount = typeof count === 'number' && !Number.isNaN(count) ? count : 0;
     var digitCount = String(Math.abs(safeCount)).length;
-    var size = 28 + Math.min(Math.max(digitCount - 1, 0) * 4, 8);
+    var size = 38 + Math.min(Math.max(digitCount - 1, 0) * 6, 12);
+    var html = '' +
+      '<div class="ffc-simulator-map__pin" style="--pin-size:' + size + 'px">' +
+      '  <span class="ffc-simulator-map__pin-count">' + safeCount + '</span>' +
+      '</div>';
     return L.divIcon({
-      html: '<div class="ffc-simulator-map__pin"><span>' + safeCount + '</span></div>',
+      html: html,
       className: '',
-      iconSize: [size, size],
-      iconAnchor: [size / 2, size / 2]
+      iconSize: [size, size + 14],
+      iconAnchor: [size / 2, size + 10]
     });
+  }
+
+  function createOverlay(host) {
+    var overlay = document.createElement('div');
+    overlay.className = 'ffc-simulator-map__overlay';
+
+    var leaderLayer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    leaderLayer.setAttribute('class', 'ffc-simulator-map__leader-layer');
+    leaderLayer.setAttribute('width', '100%');
+    leaderLayer.setAttribute('height', '100%');
+
+    var calloutsLayer = document.createElement('div');
+    calloutsLayer.className = 'ffc-simulator-map__callouts';
+
+    overlay.appendChild(leaderLayer);
+    overlay.appendChild(calloutsLayer);
+    host.appendChild(overlay);
+
+    return { overlay: overlay, leaderLayer: leaderLayer, calloutsLayer: calloutsLayer };
+  }
+
+  function buildCalloutContent(country, installed, delivered, planned) {
+    var safeName = country.name || country.Name || 'Untitled';
+    var total = installed + delivered;
+    return '' +
+      '<p class="ffc-simulator-map__callout-title">' + safeName + '</p>' +
+      '<dl class="ffc-simulator-map__callout-stats">' +
+      '  <div><dt>Installed</dt><dd>' + installed + '</dd></div>' +
+      '  <div><dt>Delivered</dt><dd>' + delivered + '</dd></div>' +
+      '  <div><dt>Total</dt><dd>' + total + '</dd></div>' +
+      (planned > 0 ? '<div><dt>Planned</dt><dd>' + planned + '</dd></div>' : '') +
+      '</dl>';
+  }
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(value, max));
+  }
+
+  function buildCalloutEntry(options) {
+    var callout = document.createElement('div');
+    callout.className = 'ffc-simulator-map__callout';
+    callout.innerHTML = options.content;
+
+    var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('class', 'ffc-simulator-map__leader-line');
+    options.leaderLayer.appendChild(line);
+    options.calloutsLayer.appendChild(callout);
+
+    return {
+      callout: callout,
+      line: line,
+      latLng: options.latLng,
+      delta: { x: 24, y: -36 },
+      position: { x: 0, y: 0 }
+    };
+  }
+
+  function syncDelta(entry, map) {
+    var anchor = map.latLngToContainerPoint(entry.latLng);
+    entry.delta.x = entry.position.x - anchor.x;
+    entry.delta.y = entry.position.y - anchor.y;
+  }
+
+  function updateLine(entry, anchor, overlay, width, height) {
+    var line = entry.line;
+    var calloutX = entry.position.x;
+    var calloutY = entry.position.y;
+    var calloutMidY = calloutY + height / 2;
+    var connectLeft = anchor.x <= calloutX + width / 2;
+    var connectX = connectLeft ? calloutX : calloutX + width;
+    line.setAttribute('x1', anchor.x);
+    line.setAttribute('y1', anchor.y);
+    line.setAttribute('x2', clamp(connectX, 0, overlay.clientWidth));
+    line.setAttribute('y2', clamp(calloutMidY, 0, overlay.clientHeight));
+  }
+
+  function applyCalloutPosition(entry, map, overlay, override) {
+    var anchor = map.latLngToContainerPoint(entry.latLng);
+    var baseX = typeof override === 'object' && typeof override.x === 'number'
+      ? override.x
+      : anchor.x + entry.delta.x;
+    var baseY = typeof override === 'object' && typeof override.y === 'number'
+      ? override.y
+      : anchor.y + entry.delta.y;
+
+    var callout = entry.callout;
+    var width = callout.offsetWidth || 200;
+    var height = callout.offsetHeight || 100;
+    var maxX = Math.max(overlay.clientWidth - width, 0);
+    var maxY = Math.max(overlay.clientHeight - height, 0);
+    var clampedX = clamp(baseX, 0, maxX);
+    var clampedY = clamp(baseY, 0, maxY);
+
+    entry.position.x = clampedX;
+    entry.position.y = clampedY;
+    callout.style.left = clampedX + 'px';
+    callout.style.top = clampedY + 'px';
+
+    updateLine(entry, anchor, overlay, width, height);
+  }
+
+  function enableCalloutDrag(entry, map, overlay) {
+    var callout = entry.callout;
+    var dragging = false;
+    var pointerId = null;
+    var origin = { x: 0, y: 0 };
+    var startPosition = { x: 0, y: 0 };
+
+    function onPointerDown(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      dragging = true;
+      pointerId = event.pointerId;
+      callout.setPointerCapture(pointerId);
+      callout.classList.add('is-dragging');
+      origin.x = event.clientX;
+      origin.y = event.clientY;
+      startPosition.x = entry.position.x;
+      startPosition.y = entry.position.y;
+    }
+
+    function onPointerMove(event) {
+      if (!dragging || event.pointerId !== pointerId) {
+        return;
+      }
+      var deltaX = event.clientX - origin.x;
+      var deltaY = event.clientY - origin.y;
+      applyCalloutPosition(entry, map, overlay, {
+        x: startPosition.x + deltaX,
+        y: startPosition.y + deltaY
+      });
+    }
+
+    function stopDragging(event) {
+      if (!dragging || event.pointerId !== pointerId) {
+        return;
+      }
+      dragging = false;
+      if (typeof callout.hasPointerCapture === 'function' && callout.hasPointerCapture(pointerId)) {
+        callout.releasePointerCapture(pointerId);
+      }
+      callout.classList.remove('is-dragging');
+      syncDelta(entry, map);
+    }
+
+    callout.addEventListener('pointerdown', onPointerDown);
+    callout.addEventListener('pointermove', onPointerMove);
+    callout.addEventListener('pointerup', stopDragging);
+    callout.addEventListener('pointercancel', stopDragging);
   }
   // END SECTION
 
@@ -118,6 +271,8 @@
     }
 
     var lookup = buildLookup(countries);
+    var overlayElements = createOverlay(host);
+    var calloutEntries = [];
     var maxCompleted = countries.reduce(function (max, country) {
       return Math.max(max, completedValue(country));
     }, 0);
@@ -180,6 +335,12 @@
           }
         }).addTo(map);
 
+        function refreshCallouts() {
+          calloutEntries.forEach(function (entry) {
+            applyCalloutPosition(entry, map, overlayElements.overlay);
+          });
+        }
+
         shapes.eachLayer(function (layer) {
           var country = lookup[getIso(layer.feature)];
           if (!country) {
@@ -190,7 +351,23 @@
           var displayCount = delivered > 0 ? delivered : installed;
           var center = layer.getBounds().getCenter();
           L.marker(center, { icon: createPin(displayCount) }).addTo(map);
+
+          var planned = valueOrZero(country, 'planned');
+          var entry = buildCalloutEntry({
+            content: buildCalloutContent(country, installed, delivered, planned),
+            leaderLayer: overlayElements.leaderLayer,
+            calloutsLayer: overlayElements.calloutsLayer,
+            latLng: center
+          });
+          calloutEntries.push(entry);
+          applyCalloutPosition(entry, map, overlayElements.overlay);
+          syncDelta(entry, map);
+          enableCalloutDrag(entry, map, overlayElements.overlay);
         });
+
+        map.on('move zoom', refreshCallouts);
+        map.on('resize', refreshCallouts);
+        window.addEventListener('resize', refreshCallouts, { passive: true });
 
         host.classList.add('ffc-simulator-map--ready');
         var status = host.querySelector('[data-map-status]');
