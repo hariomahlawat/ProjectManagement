@@ -85,7 +85,10 @@
     });
   }
 
-  function buildBar(ctx, series) {
+  function buildBar(ctx, series, axisLabels) {
+    axisLabels = axisLabels || {};
+    var xLabel = axisLabels.x || axisLabels.X || '';
+    var yLabel = axisLabels.y || axisLabels.Y || '';
     var labels = series.map(function (s) { return s && (s.label || s.Label) ? (s.label || s.Label) : ''; });
     var data = series.map(function (s) {
       var value = s && (typeof s.count !== 'undefined' ? s.count : (typeof s.Count !== 'undefined' ? s.Count : 0));
@@ -112,9 +115,13 @@
           x: {
             grid: { display: false },
             ticks: { display: false },
-            title: { display: true, text: 'Technical category' }
+            title: { display: Boolean(xLabel), text: xLabel }
           },
-          y: { beginAtZero: true, ticks: { precision: 0 } }
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0 },
+            title: { display: Boolean(yLabel), text: yLabel }
+          }
         }
       }
     });
@@ -146,7 +153,10 @@
       } else if (kind === 'line') {
         chart = buildLine(canvas.getContext('2d'), series);
       } else if (kind === 'bar') {
-        chart = buildBar(canvas.getContext('2d'), series);
+        chart = buildBar(canvas.getContext('2d'), series, {
+          x: host.getAttribute('data-x-label') || '',
+          y: host.getAttribute('data-y-label') || ''
+        });
       }
       if (chart) {
         charts.push(chart);
