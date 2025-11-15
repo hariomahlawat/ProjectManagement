@@ -6,90 +6,84 @@
 @{
     var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
     string Serialize<T>(IReadOnlyList<T> source) => JsonSerializer.Serialize(source, jsonOptions);
-    var widgetClass = Model.Condensed ? "ppulse ppulse--condensed" : "ppulse";
 }
 @* END SECTION *@
 
-<section class="@widgetClass" data-project-pulse>
+<section class="ppulse" data-project-pulse>
   @* SECTION: Header *@
-  <header class="ppulse__head">
+  <div class="ppulse__head">
     <div class="ppulse__title">
-      <i class="bi bi-activity" aria-hidden="true"></i>
-      <h2 class="h5 mb-0">Project pulse</h2>
+      <span class="ppulse__pulse" aria-hidden="true"></span>
+      <h2 class="ppulse__h">Project pulse</h2>
     </div>
-    <ul class="ppulse__kpis" aria-label="Project metrics">
-      <li
-        class="ppulse__pill ppulse__pill--accent"
-        title="Completed and eligible, not yet proliferated"
+    <div class="ppulse__actions">
+      <span class="ppulse__pill" title="Projects eligible for proliferation">
+        Available for proliferation <strong>@Model.ProliferationEligible</strong>
+      </span>
+      <a
+        class="btn btn-primary btn-sm ppulse__analytics"
+        href="@Model.AnalyticsUrl"
+        aria-label="Open analytics dashboard"
       >
-        <span class="ppulse__pill-label">Available for proliferation</span>
-        <span class="ppulse__pill-value">@Model.AvailableForProliferationCount</span>
-      </li>
-    </ul>
-  </header>
+        Open analytics
+      </a>
+    </div>
+  </div>
   @* END SECTION *@
 
-  @* SECTION: Cards *@
+  @* SECTION: Content cards *@
   <div class="ppulse__grid">
-    <article class="ppulse__card" aria-labelledby="ppulse-card-completed">
-      <div class="ppulse__card-head">
-        <h3 id="ppulse-card-completed">Completed <small>@Model.CompletedCount</small></h3>
-      </div>
-      <div
-        class="ppulse__chart"
-        data-chart="pie"
-        data-series='@Html.Raw(Serialize(Model.CompletedByProjectCategory))'
-      >
-        <canvas aria-hidden="true"></canvas>
-      </div>
-      <div class="ppulse__card-foot">
-        <a class="ppulse__link" asp-page="/Projects/CompletedSummary/Index">View completed →</a>
-      </div>
+    <article class="ppulse__card">
+      <a class="ppulse__link" href="@Model.CompletedUrl">
+        <header class="ppulse__card-head">
+          <h3>Completed <small>@Model.CompletedCount</small></h3>
+        </header>
+        <div
+          class="ppulse__chart"
+          data-chart="donut"
+          data-series='@Html.Raw(Serialize(Model.CompletedByProjectCategory))'
+        >
+          <canvas aria-hidden="true"></canvas>
+        </div>
+        <footer class="ppulse__foot">View completed →</footer>
+      </a>
     </article>
 
-    <article class="ppulse__card" aria-labelledby="ppulse-card-ongoing">
-      <div class="ppulse__card-head">
-        <h3 id="ppulse-card-ongoing">Ongoing <small>@Model.OngoingCount</small></h3>
-      </div>
-      <div
-        class="ppulse__chart"
-        data-chart="line"
-        data-series='@Html.Raw(Serialize(Model.OngoingByStage))'
-        data-x-axis-title="Stages"
-        data-x-axis-hide-labels="true"
-      >
-        <canvas aria-hidden="true"></canvas>
-      </div>
-      <div class="ppulse__card-foot">
-        <a class="ppulse__link" asp-page="/Projects/Ongoing/Index">View ongoing →</a>
-      </div>
+    <article class="ppulse__card">
+      <a class="ppulse__link" href="@Model.OngoingUrl">
+        <header class="ppulse__card-head">
+          <h3>Ongoing <small>@Model.OngoingCount</small></h3>
+        </header>
+        <div
+          class="ppulse__chart"
+          data-chart="line"
+          data-series='@Html.Raw(Serialize(Model.OngoingByStageOrdered))'
+        >
+          <canvas aria-hidden="true"></canvas>
+        </div>
+        <footer class="ppulse__foot">View ongoing →</footer>
+      </a>
     </article>
 
-    <article class="ppulse__card" aria-labelledby="ppulse-card-all">
-      <div class="ppulse__card-head">
-        <h3 id="ppulse-card-all">All projects <small>@Model.TotalProjects</small></h3>
-      </div>
-      <div
-        class="ppulse__chart"
-        data-chart="bar"
-        data-series='@Html.Raw(Serialize(Model.AllByTechnicalCategory))'
-        data-x-axis-title="Technical category"
-        data-x-axis-hide-labels="true"
-      >
-        <canvas aria-hidden="true"></canvas>
-      </div>
-      <div class="ppulse__card-foot">
-        <a class="ppulse__link" asp-page="/Projects/Index">Explore repository →</a>
-      </div>
+    <article class="ppulse__card">
+      <a class="ppulse__link" href="@Model.RepositoryUrl">
+        <header class="ppulse__card-head">
+          <h3>All projects <small>@Model.TotalProjects</small></h3>
+        </header>
+        <div
+          class="ppulse__chart"
+          data-chart="bar"
+          data-series='@Html.Raw(Serialize(Model.AllByTechnicalCategoryTop))'
+        >
+          <canvas aria-hidden="true"></canvas>
+        </div>
+        @if (Model.RemainingTechCategories > 0)
+        {
+          <div class="ppulse__hint">+@Model.RemainingTechCategories more categories</div>
+        }
+        <footer class="ppulse__foot">Explore repository →</footer>
+      </a>
     </article>
-
-    <aside class="ppulse__cta" aria-labelledby="ppulse-card-cta">
-      <div class="ppulse__cta-body">
-        <h3 id="ppulse-card-cta">Deep dive</h3>
-        <p>Trends, drill-downs, and downloads.</p>
-        <a class="btn btn-primary" asp-page="/Analytics/Index">Open analytics</a>
-      </div>
-    </aside>
   </div>
   @* END SECTION *@
 </section>
