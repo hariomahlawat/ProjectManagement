@@ -1,93 +1,107 @@
 @model ProjectManagement.Areas.Dashboard.Components.ProjectPulse.ProjectPulseVm
+@using System.Collections.Generic
+@using System.Text.Json
 
-<section class="pm-pulse" aria-labelledby="pm-pulse-title">
-  @* SECTION: Header summary *@
-  <header class="pm-pulse__header">
-    <h2 id="pm-pulse-title" class="pm-pulse__title">Project pulse</h2>
-    <ul class="pm-pulse__summary" role="list">
-      <li>
-        <span class="pm-pulse__k">Total</span>
-        <span class="pm-pulse__v">@Model.Total</span>
+@* SECTION: Serialization helpers *@
+@{
+    var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    string Serialize<T>(IReadOnlyList<T> source) => JsonSerializer.Serialize(source, jsonOptions);
+    var widgetClass = Model.Condensed ? "ppulse ppulse--condensed" : "ppulse";
+}
+@* END SECTION *@
+
+<section class="@widgetClass" data-project-pulse>
+  @* SECTION: Header *@
+  <header class="ppulse__head">
+    <div class="ppulse__title">
+      <i class="bi bi-activity" aria-hidden="true"></i>
+      <h2 class="h5 mb-0">Project pulse</h2>
+    </div>
+    <ul class="ppulse__kpis" aria-label="Project metrics">
+      <li class="ppulse__pill">
+        <span class="ppulse__pill-label">Total</span>
+        <span class="ppulse__pill-value">@Model.TotalProjects</span>
       </li>
-      <li>
-        <span class="pm-pulse__k">Completed</span>
-        <span class="pm-pulse__v">@Model.Completed</span>
+      <li class="ppulse__pill">
+        <span class="ppulse__pill-label">Completed</span>
+        <span class="ppulse__pill-value">@Model.CompletedCount</span>
       </li>
-      <li>
-        <span class="pm-pulse__k">Ongoing</span>
-        <span class="pm-pulse__v">@Model.Ongoing</span>
+      <li class="ppulse__pill">
+        <span class="ppulse__pill-label">Ongoing</span>
+        <span class="ppulse__pill-value">@Model.OngoingCount</span>
       </li>
-      <li>
-        <span class="pm-pulse__k">Idle</span>
-        <span class="pm-pulse__v">@Model.Idle</span>
+      <li class="ppulse__pill">
+        <span class="ppulse__pill-label">Idle</span>
+        <span class="ppulse__pill-value">@Model.IdleCount</span>
+      </li>
+      <li
+        class="ppulse__pill ppulse__pill--accent"
+        title="Completed and eligible, not yet proliferated"
+      >
+        <span class="ppulse__pill-label">Available for proliferation</span>
+        <span class="ppulse__pill-value">@Model.AvailableForProliferationCount</span>
       </li>
     </ul>
   </header>
   @* END SECTION *@
 
-  @* SECTION: Widget grid *@
-  <div class="pm-pulse__grid">
-    <article class="pm-pulse__card">
-      <div class="pm-pulse__meta">
-        <span class="pm-pulse__label">Completed</span>
-        <span class="pm-pulse__number">@Model.Completed</span>
+  @* SECTION: Cards *@
+  <div class="ppulse__grid">
+    <article class="ppulse__card" aria-labelledby="ppulse-card-completed">
+      <div class="ppulse__card-head">
+        <h3 id="ppulse-card-completed">Completed <small>@Model.CompletedCount</small></h3>
       </div>
-      <div class="pm-pulse__spark">
-        <canvas
-          width="220"
-          height="40"
-          data-spark="line"
-          data-points="@string.Join(',', Model.CompletedByMonth)"></canvas>
+      <div
+        class="ppulse__chart"
+        data-chart="pie"
+        data-series='@Html.Raw(Serialize(Model.CompletedByProjectCategory))'
+      >
+        <canvas aria-hidden="true"></canvas>
       </div>
-      <footer class="pm-pulse__footer">
-        <a class="pm-pulse__link" href="@Model.CompletedUrl" aria-label="View completed projects">View completed</a>
-      </footer>
+      <div class="ppulse__card-foot">
+        <a class="ppulse__link" asp-page="/Projects/CompletedSummary/Index">View completed →</a>
+      </div>
     </article>
 
-    <article class="pm-pulse__card">
-      <div class="pm-pulse__meta">
-        <span class="pm-pulse__label">Ongoing</span>
-        <span class="pm-pulse__number">@Model.Ongoing</span>
+    <article class="ppulse__card" aria-labelledby="ppulse-card-ongoing">
+      <div class="ppulse__card-head">
+        <h3 id="ppulse-card-ongoing">Ongoing <small>@Model.OngoingCount</small></h3>
       </div>
-      <div class="pm-pulse__spark">
-        <canvas
-          width="220"
-          height="40"
-          data-spark="bar"
-          data-points="@string.Join(',', Model.OngoingByMonth)"></canvas>
+      <div
+        class="ppulse__chart"
+        data-chart="line"
+        data-series='@Html.Raw(Serialize(Model.OngoingByStage))'
+      >
+        <canvas aria-hidden="true"></canvas>
       </div>
-      <footer class="pm-pulse__footer">
-        <a class="pm-pulse__link" href="@Model.OngoingUrl" aria-label="View ongoing projects">View ongoing</a>
-      </footer>
+      <div class="ppulse__card-foot">
+        <a class="ppulse__link" asp-page="/Projects/Ongoing/Index">View ongoing →</a>
+      </div>
     </article>
 
-    <article class="pm-pulse__card">
-      <div class="pm-pulse__meta">
-        <span class="pm-pulse__label">All projects</span>
-        <span class="pm-pulse__number">@Model.Total</span>
+    <article class="ppulse__card" aria-labelledby="ppulse-card-all">
+      <div class="ppulse__card-head">
+        <h3 id="ppulse-card-all">All projects <small>@Model.TotalProjects</small></h3>
       </div>
-      <div class="pm-pulse__spark">
-        <canvas
-          width="220"
-          height="40"
-          data-spark="area"
-          data-points="@string.Join(',', Model.NewByMonth)"></canvas>
+      <div
+        class="ppulse__chart"
+        data-chart="bar"
+        data-series='@Html.Raw(Serialize(Model.AllByTechnicalCategory))'
+      >
+        <canvas aria-hidden="true"></canvas>
       </div>
-      <footer class="pm-pulse__footer">
-        <a class="pm-pulse__link" href="@Model.RepositoryUrl" aria-label="Explore repository">Explore repository</a>
-      </footer>
+      <div class="ppulse__card-foot">
+        <a class="ppulse__link" asp-page="/Projects/Index">Explore repository →</a>
+      </div>
     </article>
 
-    <aside class="pm-pulse__cta" aria-label="Project analytics deep dive">
-      <div class="pm-pulse__cta-body">
-        <h3 class="pm-pulse__cta-title">Deep dive</h3>
-        <p class="pm-pulse__cta-copy">Trends, drill-downs and downloads.</p>
+    <aside class="ppulse__cta" aria-labelledby="ppulse-card-cta">
+      <div class="ppulse__cta-body">
+        <h3 id="ppulse-card-cta">Deep dive</h3>
+        <p>Trends, drill-downs, and downloads.</p>
+        <a class="btn btn-primary" asp-page="/Analytics/Index">Open analytics</a>
       </div>
-      <a class="btn btn-primary pm-pulse__cta-btn" href="@Model.AnalyticsUrl">Open analytics</a>
     </aside>
   </div>
   @* END SECTION *@
 </section>
-
-<link rel="stylesheet" href="~/css/widgets/project-pulse.css" asp-append-version="true" />
-<script type="module" src="~/js/widgets/project-pulse.js" asp-append-version="true"></script>

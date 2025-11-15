@@ -1,95 +1,163 @@
-// SECTION: Project pulse micro-charts
-(() => {
-  const ready = () => document.readyState === 'loading'
-    ? new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once: true }))
-    : Promise.resolve();
+// SECTION: Project pulse chart bootstrap
+(function () {
+  'use strict';
 
-  const parsePoints = (element) => {
-    const raw = element.getAttribute('data-points') ?? '';
-    return raw
-      .split(',')
-      .map((token) => Number.parseInt(token.trim(), 10))
-      .filter((value) => Number.isFinite(value));
-  };
+  // SECTION: DOM helpers
+  function ready(fn) {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', fn, { once: true });
+    } else {
+      fn();
+    }
+  }
 
-  const dataset = (type, points) => {
-    if (type === 'bar') {
+  function queryAll(selector, root) {
+    return Array.prototype.slice.call((root || document).querySelectorAll(selector));
+  }
+  // END SECTION
+
+  // SECTION: Data helpers
+  function toLabelsValues(series) {
+    if (!Array.isArray(series)) {
+      return { labels: [], values: [] };
+    }
+
+    var labels = series.map(function (entry) {
+      if (entry && typeof entry.label === 'string') {
+        return entry.label;
+      }
+      if (entry && typeof entry.Label === 'string') {
+        return entry.Label;
+      }
+      return '';
+    });
+
+    var values = series.map(function (entry) {
+      var raw = entry && typeof entry.value !== 'undefined'
+        ? entry.value
+        : (entry && typeof entry.Value !== 'undefined' ? entry.Value : 0);
+      var numeric = Number(raw);
+      return Number.isFinite ? (Number.isFinite(numeric) ? numeric : 0) : (isFinite(numeric) ? numeric : 0);
+    });
+
+    return { labels: labels, values: values };
+  }
+
+  var palette = [
+    '#2d6cdf', '#0ea5e9', '#22c55e', '#f97316',
+    '#a855f7', '#ef4444', '#14b8a6', '#f59e0b'
+  ];
+  // END SECTION
+
+  // SECTION: Chart builders
+  function baseDataset(kind, labels, values) {
+    if (kind === 'pie') {
       return [{
-        data: points,
-        backgroundColor: 'rgba(45, 108, 223, 0.25)',
-        borderRadius: 3,
-        maxBarThickness: 10
+        data: values,
+        backgroundColor: labels.map(function (_, idx) { return palette[idx % palette.length]; })
       }];
     }
 
-    if (type === 'area') {
+    if (kind === 'line') {
       return [{
-        data: points,
-        type: 'line',
-        borderColor: 'rgba(45, 108, 223, 1)',
-        borderWidth: 1.5,
-        fill: true,
-        backgroundColor: 'rgba(45, 108, 223, 0.12)',
+        data: values,
+        borderColor: palette[0],
+        backgroundColor: 'rgba(45, 108, 223, 0.08)',
+        borderWidth: 2,
+        pointRadius: 2,
         tension: 0.35,
-        pointRadius: 0
+        fill: true
       }];
     }
 
     return [{
-      data: points,
-      type: 'line',
-      borderColor: 'rgba(15, 23, 42, 0.9)',
-      borderWidth: 1.5,
-      tension: 0.35,
-      pointRadius: 0
+      data: values,
+      backgroundColor: 'rgba(45, 108, 223, 0.35)',
+      borderRadius: 6,
+      maxBarThickness: 26
     }];
-  };
+  }
 
-  const sparkOptions = () => ({
-    responsive: false,
-    maintainAspectRatio: false,
-    animation: false,
-    elements: { point: { radius: 0 } },
-    scales: {
-      x: { display: false },
-      y: { display: false, beginAtZero: true }
-    },
-    plugins: {
-      legend: { display: false },
-      tooltip: { enabled: false }
-    }
-  });
-
-  const renderSpark = (canvas) => {
-    const Chart = window.Chart;
-    if (!Chart) {
-      return;
+  function buildChart(canvas, kind, series) {
+    var ChartCtor = window.Chart;
+    if (!ChartCtor) {
+      return null;
     }
 
-    const type = canvas.getAttribute('data-spark') ?? 'line';
-    const points = parsePoints(canvas);
-    if (points.length === 0) {
-      return;
+    var parsed = toLabelsValues(series);
+    if (parsed.labels.length === 0 || parsed.values.length === 0) {
+      return null;
     }
 
-    const labels = Array.from({ length: points.length }, (_, index) => index + 1);
-    const config = {
-      type: type === 'bar' ? 'bar' : 'line',
+    var config = {
+      type: kind === 'pie' ? 'pie' : (kind === 'line' ? 'line' : 'bar'),
       data: {
-        labels,
-        datasets: dataset(type, points)
+        labels: parsed.labels,
+        datasets: baseDataset(kind, parsed.labels, parsed.values)
       },
-      options: sparkOptions(type)
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: kind === 'pie' },
+          tooltip: { mode: 'index', intersect: false }
+        },
+        scales: kind === 'pie' ? {} : {
+          x: {
+            grid: { display: false },
+            ticks: { autoSkip: true, maxRotation: 0 }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0 }
+          }
+        }
+      }
     };
 
-    new Chart(canvas.getContext('2d'), config);
-  };
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      config.options.animation = false;
+    }
 
-  const init = () => {
-    document
-      .querySelectorAll('canvas[data-spark]')
-      .forEach((canvas) => renderSpark(canvas));
-  };
+    return new ChartCtor(canvas.getContext('2d'), config);
+  }
+  // END SECTION
 
-  ready().then(init);
+  // SECTION: Initializer
+  function init() {
+    var host = document.querySelector('[data-project-pulse]');
+    if (!host) {
+      return;
+    }
+
+    var charts = [];
+    queryAll('.ppulse__chart', host).forEach(function (zone) {
+      var kind = zone.getAttribute('data-chart');
+      var raw = zone.getAttribute('data-series') || '[]';
+      var series;
+      try {
+        series = JSON.parse(raw);
+      } catch (err) {
+        series = [];
+      }
+
+      var canvas = zone.querySelector('canvas');
+      if (canvas && series.length > 0) {
+        var chart = buildChart(canvas, kind, series);
+        if (chart) {
+          charts.push(chart);
+        }
+      }
+    });
+
+    document.addEventListener('visibilitychange', function handleVisibility() {
+      if (document.hidden) {
+        charts.forEach(function (chart) { return chart.destroy(); });
+      }
+    }, { once: true });
+  }
+  // END SECTION
+
+  ready(init);
 })();
+// END SECTION
