@@ -2,8 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Areas.Dashboard.Components.OpsSignals;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
+using ProjectManagement.Models;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -24,13 +27,20 @@ public sealed class OpsSignalsService : IOpsSignalsService
     private readonly ApplicationDbContext _db;
     private readonly ILogger<OpsSignalsService> _log;
     private readonly IMemoryCache _cache;
+    private readonly IProliferationSummaryReadService _proliferationSummaryService;
     // END SECTION
 
-    public OpsSignalsService(ApplicationDbContext db, ILogger<OpsSignalsService> log, IMemoryCache cache)
+    public OpsSignalsService(
+        ApplicationDbContext db,
+        ILogger<OpsSignalsService> log,
+        IMemoryCache cache,
+        IProliferationSummaryReadService proliferationSummaryService)
     {
         _db = db;
         _log = log;
         _cache = cache;
+        _proliferationSummaryService = proliferationSummaryService
+            ?? throw new ArgumentNullException(nameof(proliferationSummaryService));
     }
 
     public async Task<OpsSignalsVm> GetAsync(DateOnly? from, DateOnly? to, string userId, CancellationToken ct)
@@ -142,17 +152,26 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 ct);
             // END SECTION
 
-            // SECTION: ToT aggregation
-            var totByMonth = await _db.ProjectTotRequests
-                .Where(r => r.SubmittedOnUtc >= startOfDay && r.SubmittedOnUtc <= endOfDay)
-                .GroupBy(r => new { r.SubmittedOnUtc.Year, r.SubmittedOnUtc.Month })
+            // SECTION: ToT aggregation (completed projects)
+            var totCompletedQuery = _db.Projects
+                .AsNoTracking()
+                .Where(p =>
+                    p.LifecycleStatus == ProjectLifecycleStatus.Completed
+                    && p.Tot != null
+                    && p.Tot.Status == ProjectTotStatus.Completed);
+
+            var totByMonth = await totCompletedQuery
+                .Where(p => p.Tot!.CompletedOn.HasValue
+                    && p.Tot.CompletedOn.Value >= start
+                    && p.Tot.CompletedOn.Value <= end)
+                .GroupBy(p => new { p.Tot!.CompletedOn!.Value.Year, p.Tot.CompletedOn.Value.Month })
                 .Select(g => new { g.Key.Year, g.Key.Month, Value = g.Count() })
                 .ToListAsync(ct);
             var totSpark = months.Select(m =>
                 totByMonth.Where(x => (int)x.Year == m.Year && (int)x.Month == m.Month)
                           .Select(x => (int)x.Value).FirstOrDefault()
             ).ToList();
-            var totTotal = await _db.ProjectTotRequests.LongCountAsync(ct);
+            var totTotal = await totCompletedQuery.CountAsync(ct);
             // END SECTION
 
             // SECTION: IPR aggregation
@@ -182,6 +201,8 @@ public sealed class OpsSignalsService : IOpsSignalsService
                              .Select(x => (int)x.Value).FirstOrDefault()
             ).ToList();
             var prolifTotal = await _db.ProliferationGranularEntries.LongCountAsync(ct);
+            var prolifSummary = await _proliferationSummaryService.GetSummaryAsync(ct);
+            var prolifGrandTotal = CalculateProliferationGrandTotal(prolifSummary);
             // END SECTION
 
             // SECTION: Delta helper
@@ -238,7 +259,7 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 new()
                 {
                     Key = "outreach",
-                    Label = "Social media outreach",
+                    Label = "Social media",
                     Value = outreachTotal,
                     Sparkline = outreachSpark,
                     SparklineLabels = labels,
@@ -269,32 +290,31 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     SparklineLabels = labels,
                     DeltaPct = totPct,
                     DeltaLabel = totLabel,
-                    LinkUrl = "/ProjectOfficeReports/Tot",
+                    LinkUrl = "/ProjectOfficeReports/Tot/Summary",
                     Icon = "bi-arrow-left-right"
                 },
                 new()
                 {
                     Key = "ipr",
                     Label = "Patents",
-                    Value = iprTotal,
-                    Caption = $"{iprGranted} granted",
+                    Value = iprGranted,
                     Sparkline = iprSpark,
                     SparklineLabels = labels,
                     DeltaPct = iprPct,
                     DeltaLabel = iprLabel,
-                    LinkUrl = "/Ipr",
+                    LinkUrl = "/ProjectOfficeReports/Ipr",
                     Icon = "bi-file-lock"
                 },
                 new()
                 {
                     Key = "proliferation",
                     Label = "Proliferation",
-                    Value = prolifTotal,
+                    Value = prolifGrandTotal > 0 ? prolifGrandTotal : prolifTotal,
                     Sparkline = prolifSpark,
                     SparklineLabels = labels,
                     DeltaPct = prPct,
                     DeltaLabel = prLabel,
-                    LinkUrl = "/ProjectOfficeReports/Proliferation",
+                    LinkUrl = "/ProjectOfficeReports/Proliferation/Summary",
                     Icon = "bi-globe2"
                 }
             };
@@ -320,5 +340,30 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 RangeEnd = end
             };
         }
+    }
+
+    private static int CalculateProliferationGrandTotal(ProliferationSummaryViewModel? summary)
+    {
+        if (summary is null)
+        {
+            return 0;
+        }
+
+        if (summary.ByProject.Count > 0)
+        {
+            return summary.ByProject.Sum(row => row.Totals.Total);
+        }
+
+        if (summary.ByYear.Count > 0)
+        {
+            return summary.ByYear.Sum(row => row.Totals.Total);
+        }
+
+        if (summary.ByProjectYear.Count > 0)
+        {
+            return summary.ByProjectYear.Sum(row => row.Totals.Total);
+        }
+
+        return 0;
     }
 }
