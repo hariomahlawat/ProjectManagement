@@ -2243,9 +2243,9 @@ summary::marker {
 }
 
 .dashboard-my-projects__list {
-    display: flex;
-    flex-direction: column;
-    gap: .75rem;
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 1rem;
 }
 
 .dashboard-project-card {
@@ -2260,6 +2260,7 @@ summary::marker {
     text-decoration: none;
     box-shadow: 0 16px 24px -26px rgba(15, 23, 42, .35);
     transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    height: 100%;
 }
 
 .dashboard-project-card:hover,
@@ -2329,6 +2330,18 @@ summary::marker {
 
 .dashboard-my-projects__section-title {
     letter-spacing: .4px;
+}
+
+@media (min-width: 768px) {
+    .dashboard-my-projects__list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1200px) {
+    .dashboard-my-projects__list {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
 }
 
 @media (min-width: 992px) {
