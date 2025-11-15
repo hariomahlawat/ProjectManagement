@@ -20,16 +20,17 @@
         return $"{heading}: {details}";
     }
 
-    string DescribeStages(IReadOnlyList<StagePoint> stages)
+    string DescribeYearlyCounts(string heading, IReadOnlyList<BarPoint> points)
     {
-        if (stages.Count == 0)
+        if (points.Count == 0)
         {
-            return "Ongoing projects by stage data is not available";
+            return $"{heading} data is not available";
         }
 
-        var details = string.Join(", ", stages.Select(stage => $"{stage.Stage} {stage.Count}"));
-        return $"Ongoing projects by stage: {details}";
+        var details = string.Join(", ", points.Select(point => $"{point.Label} {point.Count}"));
+        return $"{heading}: {details}";
     }
+
 }
 @* END SECTION *@
 
@@ -73,10 +74,12 @@
         </header>
         <div
           class="ppulse__chart"
-          data-chart="donut"
-          data-series='@Html.Raw(Serialize(Model.CompletedByProjectCategory))'
+          data-chart="bar"
+          data-x-label="Year"
+          data-y-label="Projects completed"
+          data-series='@Html.Raw(Serialize(Model.CompletedByYear))'
           role="img"
-          aria-label='@DescribeCategories("Completed projects by category", Model.CompletedByProjectCategory)'
+          aria-label='@DescribeYearlyCounts("Completed projects by year", Model.CompletedByYear)'
         >
           <canvas aria-hidden="true"></canvas>
         </div>
@@ -91,10 +94,10 @@
         </header>
         <div
           class="ppulse__chart"
-          data-chart="line"
-          data-series='@Html.Raw(Serialize(Model.OngoingByStageOrdered))'
+          data-chart="donut"
+          data-series='@Html.Raw(Serialize(Model.OngoingByProjectCategory))'
           role="img"
-          aria-label='@DescribeStages(Model.OngoingByStageOrdered)'
+          aria-label='@DescribeCategories("Ongoing projects by category", Model.OngoingByProjectCategory)'
         >
           <canvas aria-hidden="true"></canvas>
         </div>
@@ -110,6 +113,8 @@
         <div
           class="ppulse__chart"
           data-chart="bar"
+          data-x-label="Technical category"
+          data-y-label="Projects"
           data-series='@Html.Raw(Serialize(Model.AllByTechnicalCategoryTop))'
           role="img"
           aria-label='@DescribeCategories("Top technical categories", Model.AllByTechnicalCategoryTop)'

@@ -17,8 +17,8 @@ public sealed class ProjectPulseVm
     // END SECTION
 
     // SECTION: Chart series
-    public required IReadOnlyList<CategorySlice> CompletedByProjectCategory { get; init; }
-    public required IReadOnlyList<StagePoint> OngoingByStageOrdered { get; init; }
+    public required IReadOnlyList<BarPoint> CompletedByYear { get; init; }
+    public required IReadOnlyList<CategorySlice> OngoingByProjectCategory { get; init; }
     public required IReadOnlyList<CategorySlice> AllByTechnicalCategoryTop { get; init; }
     public required int RemainingTechCategories { get; init; }
     // END SECTION
@@ -35,6 +35,7 @@ public sealed class ProjectPulseVm
 public sealed record CategorySlice(string Label, int Count);
 // END SECTION
 
-// SECTION: Stage point contract
-public sealed record StagePoint(string Stage, int Count);
+// SECTION: Bar point contract
+public sealed record BarPoint(string Label, int Count);
 // END SECTION
+

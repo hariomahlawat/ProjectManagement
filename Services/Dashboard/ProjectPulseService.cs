@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,8 +9,6 @@ using Microsoft.Extensions.Caching.Memory;
 using ProjectManagement.Areas.Dashboard.Components.ProjectPulse;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
-using ProjectManagement.Models.Execution;
-using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Services.Dashboard;
 
@@ -27,7 +26,6 @@ public sealed class ProjectPulseService : IProjectPulseService
     private const string RepositoryPage = "/Projects/Index";
     private const string AnalyticsPage = "/Analytics/Index";
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(60);
-    private static readonly string[] StageOrder = StageCodes.All;
 
     private readonly ApplicationDbContext _db;
     private readonly IMemoryCache _cache;
@@ -65,8 +63,8 @@ public sealed class ProjectPulseService : IProjectPulseService
             .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Active && !p.IsArchived)
             .CountAsync(cancellationToken);
 
-        var completedByCategory = await BuildCompletedByCategoryAsync(cancellationToken);
-        var ongoingByStage = await BuildOngoingByStageAsync(cancellationToken);
+        var completedByYear = await BuildCompletedByYearAsync(cancellationToken);
+        var ongoingByCategory = await BuildOngoingByCategoryAsync(cancellationToken);
         var (technicalTop, remainingTechnical) = await BuildTechnicalCategorySeriesAsync(cancellationToken);
         var availableForProliferation = await CountProliferationEligibleAsync(cancellationToken);
 
@@ -77,8 +75,8 @@ public sealed class ProjectPulseService : IProjectPulseService
             CompletedCount = completed,
             OngoingCount = ongoing,
             TotalProjects = total,
-            CompletedByProjectCategory = completedByCategory,
-            OngoingByStageOrdered = ongoingByStage,
+            CompletedByYear = completedByYear,
+            OngoingByProjectCategory = ongoingByCategory,
             AllByTechnicalCategoryTop = technicalTop,
             RemainingTechCategories = remainingTechnical,
             CompletedUrl = CompletedPage,
@@ -89,21 +87,39 @@ public sealed class ProjectPulseService : IProjectPulseService
     // END SECTION
 
     // SECTION: Series builders
-    private async Task<IReadOnlyList<CategorySlice>> BuildCompletedByCategoryAsync(CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<BarPoint>> BuildCompletedByYearAsync(CancellationToken cancellationToken)
     {
         var completedSeries = await _db.Projects
             .AsNoTracking()
-            .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed)
-            .GroupBy(p => p.Category != null ? p.Category.Name : "Uncategorized")
-            .Select(g => new CategorySlice(g.Key, g.Count()))
+            .Where(p => !p.IsDeleted
+                && !p.IsArchived
+                && p.LifecycleStatus == ProjectLifecycleStatus.Completed
+                && p.CompletedOn.HasValue)
+            .GroupBy(p => p.CompletedOn!.Value.Year)
+            .Select(g => new { Year = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Year)
+            .Take(5)
             .ToListAsync(cancellationToken);
 
-        var ordered = completedSeries
-            .OrderByDescending(x => x.Count)
-            .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        if (completedSeries.Count == 0)
+        {
+            var fallbackCount = await _db.Projects
+                .AsNoTracking()
+                .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed)
+                .CountAsync(cancellationToken);
 
-        return CapCompletedCategories(ordered);
+            if (fallbackCount > 0)
+            {
+                return new[] { new BarPoint("Unknown", fallbackCount) };
+            }
+
+            return Array.Empty<BarPoint>();
+        }
+
+        return completedSeries
+            .OrderBy(x => x.Year)
+            .Select(x => new BarPoint(x.Year.ToString(CultureInfo.InvariantCulture), x.Count))
+            .ToList();
     }
 
     private async Task<(IReadOnlyList<CategorySlice> TopSeries, int RemainingCount)> BuildTechnicalCategorySeriesAsync(CancellationToken cancellationToken)
@@ -126,37 +142,18 @@ public sealed class ProjectPulseService : IProjectPulseService
         return (top, remaining);
     }
 
-    private async Task<IReadOnlyList<StagePoint>> BuildOngoingByStageAsync(CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<CategorySlice>> BuildOngoingByCategoryAsync(CancellationToken cancellationToken)
     {
-        var snapshots = await _db.Projects
+        var ongoingSeries = await _db.Projects
             .AsNoTracking()
             .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active)
-            .Select(p => new StageProjectSnapshot(
-                p.Id,
-                p.ProjectStages
-                    .OrderBy(s => s.SortOrder)
-                    .ThenBy(s => s.StageCode)
-                    .Select(s => new StageState(s.StageCode, s.Status, s.SortOrder, s.CompletedOn))
-                    .ToList()))
+            .GroupBy(p => p.Category != null ? p.Category.Name : "Uncategorized")
+            .Select(g => new CategorySlice(g.Key, g.Count()))
             .ToListAsync(cancellationToken);
 
-        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        foreach (var project in snapshots)
-        {
-            var stage = DetermineCurrentStage(project);
-            if (stage is null || string.IsNullOrWhiteSpace(stage.StageCode))
-            {
-                continue;
-            }
-
-            counts.TryGetValue(stage.StageCode, out var existing);
-            counts[stage.StageCode] = existing + 1;
-        }
-
-        return StageOrder
-            .Select(code => new StagePoint(
-                StageCodes.DisplayNameOf(code),
-                counts.TryGetValue(code, out var value) ? value : 0))
+        return ongoingSeries
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
     // END SECTION
@@ -178,63 +175,5 @@ public sealed class ProjectPulseService : IProjectPulseService
     }
     // END SECTION
 
-    // SECTION: Stage helpers
-    private static StageState? DetermineCurrentStage(StageProjectSnapshot snapshot)
-    {
-        if (snapshot.Stages.Count == 0)
-        {
-            return null;
-        }
-
-        var inProgress = snapshot.Stages
-            .Where(s => s.Status == StageStatus.InProgress)
-            .OrderBy(s => s.SortOrder)
-            .ThenBy(s => s.StageCode)
-            .FirstOrDefault();
-        if (inProgress != null)
-        {
-            return inProgress;
-        }
-
-        var notStarted = snapshot.Stages
-            .Where(s => s.Status == StageStatus.NotStarted)
-            .OrderBy(s => s.SortOrder)
-            .ThenBy(s => s.StageCode)
-            .FirstOrDefault();
-        if (notStarted != null)
-        {
-            return notStarted;
-        }
-
-        var completed = snapshot.Stages
-            .Where(s => s.Status == StageStatus.Completed)
-            .OrderByDescending(s => s.CompletedOn ?? DateOnly.MinValue)
-            .ThenByDescending(s => s.SortOrder)
-            .FirstOrDefault();
-        if (completed != null)
-        {
-            return completed;
-        }
-
-        return snapshot.Stages[0];
-    }
-
-    private static IReadOnlyList<CategorySlice> CapCompletedCategories(IReadOnlyList<CategorySlice> ordered)
-    {
-        const int MaxSlices = 6;
-        if (ordered.Count <= MaxSlices)
-        {
-            return ordered;
-        }
-
-        var slices = ordered.Take(MaxSlices - 1).ToList();
-        var otherCount = ordered.Skip(MaxSlices - 1).Sum(slice => slice.Count);
-        slices.Add(new CategorySlice("Other", otherCount));
-        return slices;
-    }
-
-    private sealed record StageProjectSnapshot(int ProjectId, IReadOnlyList<StageState> Stages);
-
-    private sealed record StageState(string StageCode, StageStatus Status, int SortOrder, DateOnly? CompletedOn);
     // END SECTION
 }
