@@ -64,7 +64,8 @@ public sealed class ProjectPulseService : IProjectPulseService
         var snapshots = rows.Select(r => new ProjectPulseSnapshot(
             DateOnly.FromDateTime(r.CreatedAt.Date),
             r.CompletedOn,
-            r.IsArchived)).ToList();
+            r.IsArchived,
+            r.Status)).ToList();
 
         return new ProjectPulseVm
         {
@@ -109,6 +110,7 @@ public sealed class ProjectPulseService : IProjectPulseService
         foreach (var month in months)
         {
             var active = snapshots.Count(p =>
+                p.Status != ProjectLifecycleStatus.Cancelled &&
                 !p.IsArchived &&
                 p.CreatedOn < month.EndExclusive &&
                 (!p.CompletedOn.HasValue || p.CompletedOn.Value >= month.EndExclusive));
@@ -165,7 +167,8 @@ public sealed class ProjectPulseService : IProjectPulseService
     private sealed record ProjectPulseSnapshot(
         DateOnly CreatedOn,
         DateOnly? CompletedOn,
-        bool IsArchived);
+        bool IsArchived,
+        ProjectLifecycleStatus Status);
 
     private sealed record MonthWindow(DateOnly Start, DateOnly EndExclusive);
     // END SECTION
