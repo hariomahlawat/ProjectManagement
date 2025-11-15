@@ -2,12 +2,40 @@
 (function () {
   'use strict';
 
-  if (typeof window === 'undefined' || typeof window.Chart === 'undefined') {
+  if (typeof window === 'undefined') {
     return;
   }
 
-  // SECTION: Utilities
-  var ChartCtor = window.Chart;
+  function waitForChart(onReady) {
+    if (typeof window.Chart !== 'undefined') {
+      onReady();
+      return;
+    }
+
+    var attempts = 0;
+    var maxAttempts = 80; // ~4 seconds @ 50ms intervals
+    var timer = window.setInterval(function () {
+      if (typeof window.Chart !== 'undefined') {
+        window.clearInterval(timer);
+        onReady();
+        return;
+      }
+
+      attempts += 1;
+      if (attempts >= maxAttempts) {
+        window.clearInterval(timer);
+        console.warn('Project pulse widget: Chart.js did not load, charts disabled.'); // eslint-disable-line no-console
+      }
+    }, 50);
+  }
+
+  function bootstrap() {
+    if (typeof window.Chart === 'undefined') {
+      return;
+    }
+
+    // SECTION: Utilities
+    var ChartCtor = window.Chart;
   var palette = ['#2d6cdf', '#0ea5e9', '#22c55e', '#f97316', '#a855f7', '#ef4444'];
 
   function safeParse(el, attr) {
@@ -149,7 +177,10 @@
   }
   // END SECTION
 
-  document.addEventListener('DOMContentLoaded', function () {
-    document.querySelectorAll('[data-project-pulse]').forEach(init);
-  });
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('[data-project-pulse]').forEach(init);
+    });
+  }
+
+  waitForChart(bootstrap);
 })();
