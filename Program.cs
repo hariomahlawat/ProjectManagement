@@ -600,6 +600,9 @@ app.Use(async (ctx, next) =>
         ctx.Request.Path.StartsWithSegments("/files", StringComparison.OrdinalIgnoreCase);
 
     var isDocumentPreviewContext = isDocumentViewer || isDocumentPreview || isAttachmentResponse;
+    var isDashboardFfcMap = ctx.Request.Path.StartsWithSegments(
+        "/ProjectOfficeReports/FFC/Map",
+        StringComparison.OrdinalIgnoreCase);
 
     if (isDocumentPreviewContext)
     {
@@ -620,10 +623,12 @@ app.Use(async (ctx, next) =>
             : string.Empty;
         var styleUnsafeInline = app.Environment.IsDevelopment() ? " 'unsafe-inline'" : string.Empty;
 
+        var frameAncestorsDirective = isDashboardFfcMap ? "frame-ancestors 'self'; " : "frame-ancestors 'none'; ";
+
         h["Content-Security-Policy"] =
             "default-src 'self'; " +
             "base-uri 'self'; " +
-            "frame-ancestors 'none'; " +
+            frameAncestorsDirective +
             $"frame-src 'self' data: blob:{devSourcesSuffix}; " +
             $"img-src 'self' data: blob:{devSourcesSuffix}; " +
             $"script-src 'self'{devSourcesSuffix}; " +
