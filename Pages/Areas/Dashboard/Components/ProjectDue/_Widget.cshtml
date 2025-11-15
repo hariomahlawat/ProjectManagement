@@ -1,7 +1,8 @@
 @model ProjectManagement.Areas.Dashboard.Components.ProjectPulse.ProjectPulseVm
 
-@* SECTION: Compatibility bridge *@
+@* SECTION: Legacy compatibility shim *@
 @await Html.PartialAsync(
     "~/Areas/Dashboard/Components/ProjectPulse/_Widget",
     Model
 )
+@* END SECTION *@
