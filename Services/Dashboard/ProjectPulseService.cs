@@ -93,9 +93,15 @@ public sealed class ProjectPulseService : IProjectPulseService
             .AsNoTracking()
             .Where(p => !p.IsDeleted
                 && !p.IsArchived
-                && p.LifecycleStatus == ProjectLifecycleStatus.Completed
-                && p.CompletedOn.HasValue)
-            .GroupBy(p => p.CompletedOn!.Value.Year)
+                && p.LifecycleStatus == ProjectLifecycleStatus.Completed)
+            .Select(p => new
+            {
+                Year = p.CompletedOn.HasValue
+                    ? (int?)p.CompletedOn.Value.Year
+                    : p.CompletedYear
+            })
+            .Where(p => p.Year.HasValue)
+            .GroupBy(p => p.Year!.Value)
             .Select(g => new { Year = g.Key, Count = g.Count() })
             .OrderByDescending(x => x.Year)
             .Take(5)
