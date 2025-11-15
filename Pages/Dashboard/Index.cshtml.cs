@@ -2,8 +2,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Areas.Dashboard.Components.FfcSimulatorMap;
 using ProjectManagement.Areas.Dashboard.Components.OpsSignals;
 using ProjectManagement.Areas.Dashboard.Components.ProjectPulse;
+using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
@@ -51,6 +53,7 @@ namespace ProjectManagement.Pages.Dashboard
         // SECTION: Dashboard KPI widgets
         public ProjectPulseVm? ProjectPulse { get; private set; }
         public OpsSignalsVm OpsSignals { get; private set; } = new() { Tiles = Array.Empty<OpsTileVm>() };
+        public FfcSimulatorMapVm FfcSimulatorMap { get; private set; } = new();
         // END SECTION
 
         // SECTION: My Projects widget state
@@ -203,6 +206,29 @@ namespace ProjectManagement.Pages.Dashboard
                 to: null,
                 userId: uid ?? string.Empty,
                 cancellationToken);
+
+            var ffcRows = await FfcCountryRollupDataSource.LoadAsync(_db, cancellationToken);
+            var ffcCountries = ffcRows
+                .Where(row => row.Installed + row.Delivered > 0)
+                .Select(row => new FfcSimulatorCountryVm
+                {
+                    CountryId = row.CountryId,
+                    Iso3 = row.Iso3,
+                    Name = row.Name,
+                    Installed = row.Installed,
+                    Delivered = row.Delivered,
+                    Planned = row.Planned,
+                    Total = row.Total
+                })
+                .ToList();
+
+            FfcSimulatorMap = new FfcSimulatorMapVm
+            {
+                Countries = ffcCountries,
+                TotalInstalled = ffcCountries.Sum(country => country.Installed),
+                TotalDelivered = ffcCountries.Sum(country => country.Delivered),
+                TotalProjects = ffcCountries.Sum(country => country.Total)
+            };
         }
 
         private async Task LoadMyProjectsAsync(string userId, bool includeOfficerSection, bool includeHodSection, bool includeAllOngoingSection)

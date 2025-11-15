@@ -1,0 +1,116 @@
+/* SECTION: FFC simulator map widget layout */
+.ffc-simulator-map-widget {
+  border: 0;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 55%, #ede9fe 100%);
+}
+
+.ffc-simulator-map-widget .pm-card-body {
+  padding: 1.75rem;
+}
+
+.ffc-simulator-map-widget__header {
+  display: grid;
+  gap: 1rem;
+  align-items: flex-start;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 992px) {
+  .ffc-simulator-map-widget__header {
+    grid-template-columns: minmax(0, 2fr) auto auto;
+    align-items: center;
+  }
+}
+
+.ffc-simulator-map-widget__eyebrow {
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.ffc-simulator-map-widget__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.ffc-simulator-map-widget__stat strong {
+  display: block;
+  font-size: 1.4rem;
+  color: #1e1b4b;
+  line-height: 1.2;
+}
+
+.ffc-simulator-map {
+  position: relative;
+  margin-top: 1.5rem;
+  background: #f8fafc;
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.05);
+  min-height: 320px;
+}
+
+.ffc-simulator-map__canvas {
+  height: 100%;
+  min-height: 320px;
+}
+
+.ffc-simulator-map__status {
+  position: absolute;
+  inset: 0.75rem auto auto 0.75rem;
+  background: rgba(23, 23, 23, 0.7);
+  color: #fff;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.ffc-simulator-map--ready .ffc-simulator-map__status,
+.ffc-simulator-map--error .ffc-simulator-map__status {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.ffc-simulator-map--error::after {
+  content: 'Map data could not be loaded right now.';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  color: #475569;
+  padding: 1rem;
+  text-align: center;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.95), rgba(248, 250, 252, 0.95));
+}
+
+.ffc-simulator-map__pin {
+  background: #5b21b6;
+  color: #fff;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(91, 33, 182, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.ffc-simulator-map__pin span {
+  display: block;
+  font-size: 0.85rem;
+}
+
+.leaflet-container .leaflet-pane .leaflet-interactive {
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.ffc-simulator-map-widget :is(.leaflet-control, .leaflet-bar) {
+  display: none;
+}
+/* END SECTION */

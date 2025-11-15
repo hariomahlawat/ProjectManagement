@@ -1,0 +1,59 @@
+@* SECTION: FFC simulator map widget markup *@
+@using System.Text.Json
+@model ProjectManagement.Areas.Dashboard.Components.FfcSimulatorMap.FfcSimulatorMapVm
+@{
+    var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    var payload = JsonSerializer.Serialize(Model.Countries, jsonOptions);
+    var geoUrl = Url.Content("~/ffc/maps/world_india_view.geojson");
+    var focusBounds = "37,-20|-35,55";
+}
+<section class="ffc-simulator-map-widget pm-card pm-shadow" aria-labelledby="ffc-simulator-map-title">
+    <div class="pm-card-body">
+        <div class="ffc-simulator-map-widget__header">
+            <div>
+                <p class="ffc-simulator-map-widget__eyebrow text-uppercase mb-1">FFC simulators</p>
+                <h2 id="ffc-simulator-map-title" class="h5 mb-1">Installed & delivered footprint</h2>
+                <p class="text-secondary small mb-0">Countries with completed deliveries are highlighted with live counts.</p>
+            </div>
+            <div class="ffc-simulator-map-widget__stats" aria-label="FFC delivery totals">
+                <div class="ffc-simulator-map-widget__stat">
+                    <span class="label">Installed</span>
+                    <strong>@Model.TotalInstalled</strong>
+                </div>
+                <div class="ffc-simulator-map-widget__stat">
+                    <span class="label">Delivered</span>
+                    <strong>@Model.TotalDelivered</strong>
+                </div>
+                <div class="ffc-simulator-map-widget__stat">
+                    <span class="label">Total</span>
+                    <strong>@Model.TotalProjects</strong>
+                </div>
+            </div>
+            <a asp-area="ProjectOfficeReports" asp-page="/FFC/Map" class="btn btn-outline-primary btn-sm">View full map</a>
+        </div>
+        @if (Model.HasData)
+        {
+            <div
+                class="ffc-simulator-map"
+                data-widget="ffc-simulator-map"
+                data-countries='@Html.Raw(payload)'
+                data-geo-url="@geoUrl"
+                data-focus-bounds="@focusBounds"
+                data-highlight-color="#5b21b6"
+                aria-live="polite"
+            >
+                <div
+                    class="ffc-simulator-map__canvas"
+                    role="img"
+                    aria-label="World map highlighting African FFC simulator deliveries"
+                ></div>
+                <div class="ffc-simulator-map__status" data-map-status>Loading delivery footprint…</div>
+            </div>
+        }
+        else
+        {
+            <p class="text-secondary small mb-0 mt-3">FFC simulator delivery data is not available right now.</p>
+        }
+    </div>
+</section>
+@* END SECTION *@
