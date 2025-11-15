@@ -1,213 +1,98 @@
 @model ProjectManagement.Areas.Dashboard.Components.ProjectPulse.ProjectPulseVm
-@using System
-@using System.Text.Json
+@using ProjectManagement.Areas.Dashboard.Components.ProjectPulse
 @{
-    var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-    var completedListId = $"pulse-completed-{Guid.NewGuid():N}";
-    var ongoingListId = $"pulse-ongoing-{Guid.NewGuid():N}";
-    var repositoryListId = $"pulse-repo-{Guid.NewGuid():N}";
-    var hasCompletedSeries = Model.Completed.CompletionsByMonth.Any(point => point.Value > 0);
-    var hasStageSeries = Model.Ongoing.StageDistribution.Any();
-    var hasRepositorySeries = Model.Repository.CategoryBreakdown.Any();
-    var completedSeries = JsonSerializer.Serialize(new
-    {
-        labels = Model.Completed.CompletionsByMonth.Select(p => p.Label),
-        values = Model.Completed.CompletionsByMonth.Select(p => p.Value)
-    }, jsonOptions);
-    var stageSeries = JsonSerializer.Serialize(new
-    {
-        labels = Model.Ongoing.StageDistribution.Select(p => p.Label),
-        values = Model.Ongoing.StageDistribution.Select(p => p.Value)
-    }, jsonOptions);
-    var repositorySeries = JsonSerializer.Serialize(new
-    {
-        labels = Model.Repository.CategoryBreakdown.Select(p => p.Label),
-        values = Model.Repository.CategoryBreakdown.Select(p => p.Value)
-    }, jsonOptions);
+    var serializerOptions = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
 }
 
-<section class="project-pulse" data-project-pulse>
-  @* SECTION: Header & summary *@
-  <header class="project-pulse__header">
-    <div>
-      <p class="project-pulse__eyebrow">Project Pulse</p>
-      <h3 class="project-pulse__title">All projects</h3>
-    </div>
-    <div class="project-pulse__summary" aria-label="Project snapshot">
-      <div class="project-pulse__summary-item">
-        <span class="project-pulse__summary-label">Total</span>
-        <strong class="project-pulse__summary-value">@Model.Summary.Total</strong>
-      </div>
-      <div class="project-pulse__summary-item">
-        <span class="project-pulse__summary-label">Completed</span>
-        <strong class="project-pulse__summary-value">@Model.Summary.Completed</strong>
-      </div>
-      <div class="project-pulse__summary-item">
-        <span class="project-pulse__summary-label">Ongoing</span>
-        <strong class="project-pulse__summary-value">@Model.Summary.Ongoing</strong>
-      </div>
-      <div class="project-pulse__summary-item">
-        <span class="project-pulse__summary-label">Idle</span>
-        <strong class="project-pulse__summary-value">@Model.Summary.Idle</strong>
-      </div>
-    </div>
+<section class="ppulse" data-ppulse>
+  @* SECTION: Header chips *@
+  <header class="ppulse__head">
+    <h2 class="ppulse__title">Project pulse</h2>
+    <ul class="ppulse__chips">
+      <li>
+        <span class="ppulse-chip__label">Total</span>
+        <span class="ppulse-chip__val">@Model.Total</span>
+      </li>
+      <li>
+        <span class="ppulse-chip__label">Completed</span>
+        <span class="ppulse-chip__val">@Model.Completed</span>
+      </li>
+      <li>
+        <span class="ppulse-chip__label">Ongoing</span>
+        <span class="ppulse-chip__val">@Model.Ongoing</span>
+      </li>
+      <li>
+        <span class="ppulse-chip__label">Idle</span>
+        <span class="ppulse-chip__val">@Model.Idle</span>
+      </li>
+    </ul>
   </header>
   @* END SECTION *@
 
-  @* SECTION: Tiles grid *@
-  <div class="project-pulse__grid">
-    @* Completed tile *@
-    <article class="project-pulse__tile">
-      <div class="pulse-card">
-        <div class="pulse-card__accent"></div>
-        <div class="pulse-card__body">
-          <div class="pulse-card__head">
-            <div>
-              <p class="pulse-card__label">Completed</p>
-              <h4 class="pulse-card__value">@Model.Completed.TotalCompleted</h4>
-            </div>
-            <div class="pulse-card__kpi">@Model.Completed.TotalCompleted total</div>
-          </div>
-          <div class="pulse-card__chart">
-            @if (hasCompletedSeries)
-            {
-              <div class="pulse-chart" data-chart-type="completed">
-                <canvas aria-hidden="true" data-series='@Html.Raw(completedSeries)'></canvas>
-              </div>
-            }
-            else
-            {
-              <p class="pulse-card__empty">No data yet</p>
-            }
-            <div class="visually-hidden" id="@completedListId">
-              <p>Monthly completions in the last year.</p>
-              <ul>
-                @foreach (var point in Model.Completed.CompletionsByMonth)
-                {
-                  <li>@point.Label: @point.Value</li>
-                }
-              </ul>
-            </div>
-          </div>
-          <div class="pulse-card__footer">
-            <a class="pulse-card__link" href="@Model.Completed.Link" aria-describedby="@completedListId" data-pulse-telemetry="project_pulse.view_completed">
-              View completed
-              <i class="bi bi-arrow-right"></i>
-            </a>
-          </div>
-        </div>
+  @* SECTION: Card grid *@
+  <div class="ppulse__grid">
+    @* All projects *@
+    <article class="ppcard" data-pp-all
+             data-weekly='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.All.WeeklyBuckets ?? Array.Empty<StatusBucket>(), serializerOptions))'
+             data-link="@Model.All.RepositoryUrl">
+      <div class="ppcard__meta">
+        <h3 class="ppcard__title">All projects</h3>
+        <div class="ppcard__count">@Model.Total</div>
       </div>
+      <div class="ppcard__chart">
+        <canvas width="240" height="56" data-chart="stackedbar"></canvas>
+      </div>
+      <a class="ppcard__cta" href="@Model.All.RepositoryUrl" aria-label="Explore repository">
+        Explore repository <i class="bi bi-arrow-right-short" aria-hidden="true"></i>
+      </a>
     </article>
 
-    @* Ongoing tile *@
-    <article class="project-pulse__tile">
-      <div class="pulse-card">
-        <div class="pulse-card__accent"></div>
-        <div class="pulse-card__body">
-          <div class="pulse-card__head">
-            <div>
-              <p class="pulse-card__label">Ongoing</p>
-              <h4 class="pulse-card__value">@Model.Ongoing.TotalOngoing</h4>
-            </div>
-            <div class="pulse-card__kpi-stack">
-              <span class="pulse-card__kpi">@Model.Ongoing.TotalOngoing active</span>
-              <span class="pulse-card__kpi text-danger">@Model.Ongoing.OverdueCount overdue</span>
-            </div>
-          </div>
-          <div class="pulse-card__chart">
-            @if (hasStageSeries)
-            {
-              <div class="pulse-chart" data-chart-type="stages">
-                <canvas aria-hidden="true" data-series='@Html.Raw(stageSeries)'></canvas>
-              </div>
-            }
-            else
-            {
-              <p class="pulse-card__empty">No data yet</p>
-            }
-            <div class="visually-hidden" id="@ongoingListId">
-              <p>Stage mix for ongoing projects.</p>
-              <ul>
-                @foreach (var kv in Model.Ongoing.StageDistribution)
-                {
-                  <li>@kv.Label: @kv.Value</li>
-                }
-              </ul>
-            </div>
-          </div>
-          <div class="pulse-card__footer">
-            <a class="pulse-card__link" href="@Model.Ongoing.Link" aria-describedby="@ongoingListId" data-pulse-telemetry="project_pulse.view_ongoing">
-              View ongoing
-              <i class="bi bi-arrow-right"></i>
-            </a>
-          </div>
-        </div>
+    @* Completed *@
+    <article class="ppcard" data-pp-done
+             data-series='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Done.WeeklyCompletions ?? Array.Empty<int>(), serializerOptions))'
+             data-link="@Model.Done.Link">
+      <div class="ppcard__meta">
+        <h3 class="ppcard__title">Completed</h3>
+        <div class="ppcard__count">@Model.Completed</div>
       </div>
+      <div class="ppcard__chart">
+        <canvas width="240" height="56" data-chart="sparkline"></canvas>
+      </div>
+      <a class="ppcard__cta" href="@Model.Done.Link">
+        View completed <i class="bi bi-arrow-right-short" aria-hidden="true"></i>
+      </a>
     </article>
 
-    @* Repository tile *@
-    <article class="project-pulse__tile">
-      <div class="pulse-card">
-        <div class="pulse-card__accent"></div>
-        <div class="pulse-card__body">
-          <div class="pulse-card__head">
-            <div>
-              <p class="pulse-card__label">All projects</p>
-              <h4 class="pulse-card__value">@Model.Summary.Total</h4>
-            </div>
-            <div class="pulse-card__kpi-stack">
-              <span class="pulse-card__kpi">@Model.Summary.Total in repo</span>
-              <span class="pulse-card__kpi">@Model.Summary.Completed completed</span>
-            </div>
-          </div>
-          <div class="pulse-card__chart">
-            @if (hasRepositorySeries)
-            {
-              <div class="pulse-chart" data-chart-type="repository">
-                <canvas aria-hidden="true" data-series='@Html.Raw(repositorySeries)'></canvas>
-              </div>
-            }
-            else
-            {
-              <p class="pulse-card__empty">No data yet</p>
-            }
-            <div class="visually-hidden" id="@repositoryListId">
-              <p>Technical category mix.</p>
-              <ul>
-                @foreach (var kv in Model.Repository.CategoryBreakdown)
-                {
-                  <li>@kv.Label: @kv.Value</li>
-                }
-              </ul>
-            </div>
-          </div>
-          <div class="pulse-card__footer">
-            <a class="pulse-card__link" href="@Model.Repository.Link" aria-describedby="@repositoryListId" data-pulse-telemetry="project_pulse.view_repository">
-              Explore repository
-              <i class="bi bi-arrow-right"></i>
-            </a>
-          </div>
+    @* Ongoing *@
+    <article class="ppcard" data-pp-doing
+             data-series='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Doing.WeeklyActive ?? Array.Empty<int>(), serializerOptions))'
+             data-link="@Model.Doing.Link">
+      <div class="ppcard__meta">
+        <h3 class="ppcard__title">Ongoing</h3>
+        <div class="ppcard__count">
+          @Model.Ongoing
+          @if (Model.Doing.Overdue > 0)
+          {
+            <span class="ppbadge--danger">@Model.Doing.Overdue overdue</span>
+          }
         </div>
       </div>
+      <div class="ppcard__chart">
+        <canvas width="240" height="56" data-chart="sparkline"></canvas>
+      </div>
+      <a class="ppcard__cta" href="@Model.Doing.Link">
+        View ongoing <i class="bi bi-arrow-right-short" aria-hidden="true"></i>
+      </a>
     </article>
 
-    @* Analytics tile *@
-    <article class="project-pulse__tile">
-      <div class="pulse-card pulse-cta">
-        <div class="pulse-card__accent"></div>
-        <div class="pulse-card__body">
-          <div class="pulse-card__head">
-            <div>
-              <p class="pulse-card__label">Analytics</p>
-              <h4 class="pulse-card__value">Deep dive</h4>
-            </div>
-            <div class="pulse-card__kpi">Trends, slip and throughput</div>
-          </div>
-          <p class="pulse-card__description">Unlock drill-down insights, download charts and monitor risks in one click.</p>
-          <div class="pulse-card__footer">
-            <a class="btn btn-primary" href="@Model.Analytics.Link" data-pulse-telemetry="project_pulse.view_analytics">Open analytics</a>
-          </div>
-        </div>
+    @* Analytics *@
+    <article class="ppcard ppcard--promo" data-pp-analytics data-link="@Model.Analytics.CtaUrl">
+      <div class="pppromo">
+        <div class="pppromo__title">Deep dive</div>
+        <div class="pppromo__copy">Trends, drill-downs, and downloads.</div>
+        <a class="btn btn-primary btn-sm" href="@Model.Analytics.CtaUrl">
+          Open analytics
+        </a>
       </div>
     </article>
   </div>
