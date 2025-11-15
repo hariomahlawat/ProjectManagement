@@ -76,7 +76,7 @@
           data-chart="donut"
           data-series='@Html.Raw(Serialize(Model.CompletedByProjectCategory))'
           role="img"
-          aria-label="@DescribeCategories(\"Completed projects by category\", Model.CompletedByProjectCategory)"
+          aria-label='@DescribeCategories("Completed projects by category", Model.CompletedByProjectCategory)'
         >
           <canvas aria-hidden="true"></canvas>
         </div>
@@ -94,7 +94,7 @@
           data-chart="line"
           data-series='@Html.Raw(Serialize(Model.OngoingByStageOrdered))'
           role="img"
-          aria-label="@DescribeStages(Model.OngoingByStageOrdered)"
+          aria-label='@DescribeStages(Model.OngoingByStageOrdered)'
         >
           <canvas aria-hidden="true"></canvas>
         </div>
@@ -112,7 +112,7 @@
           data-chart="bar"
           data-series='@Html.Raw(Serialize(Model.AllByTechnicalCategoryTop))'
           role="img"
-          aria-label="@DescribeCategories(\"Top technical categories\", Model.AllByTechnicalCategoryTop)"
+          aria-label='@DescribeCategories("Top technical categories", Model.AllByTechnicalCategoryTop)'
         >
           <canvas aria-hidden="true"></canvas>
         </div>
