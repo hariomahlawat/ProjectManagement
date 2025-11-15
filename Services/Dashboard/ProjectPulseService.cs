@@ -8,6 +8,8 @@ using Microsoft.Extensions.Caching.Memory;
 using ProjectManagement.Areas.Dashboard.Components.ProjectPulse;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Services.Dashboard;
 
@@ -18,9 +20,11 @@ public interface IProjectPulseService
 
 public sealed class ProjectPulseService : IProjectPulseService
 {
-    // SECTION: Constants & fields
+    // SECTION: Constants & dependencies
     private const string CacheKey = "Dashboard:ProjectPulse";
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(60);
+    private static readonly string[] StageOrder = StageCodes.All;
+
     private readonly ApplicationDbContext _db;
     private readonly IMemoryCache _cache;
     // END SECTION
@@ -31,7 +35,7 @@ public sealed class ProjectPulseService : IProjectPulseService
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
     }
 
-    // SECTION: Entry point
+    // SECTION: Public API
     public Task<ProjectPulseVm> GetAsync(CancellationToken cancellationToken = default)
     {
         return _cache.GetOrCreateAsync(CacheKey, entry =>
@@ -42,131 +46,163 @@ public sealed class ProjectPulseService : IProjectPulseService
     }
     // END SECTION
 
-    // SECTION: Aggregation pipeline
+    // SECTION: Aggregation
     private async Task<ProjectPulseVm> BuildAsync(CancellationToken cancellationToken)
     {
-        var rows = await _db.Projects
+        var baseQuery = _db.Projects
             .AsNoTracking()
-            .Where(p => !p.IsDeleted)
-            .Select(p => new ProjectPulseRow(
-                p.LifecycleStatus,
-                p.IsArchived,
-                p.CreatedAt,
-                p.CompletedOn))
-            .ToListAsync(cancellationToken);
+            .Where(p => !p.IsDeleted);
 
-        var total = rows.Count;
-        var completed = rows.Count(p => p.Status == ProjectLifecycleStatus.Completed);
-        var ongoing = rows.Count(p => p.Status == ProjectLifecycleStatus.Active && !p.IsArchived);
+        var total = await baseQuery.CountAsync(cancellationToken);
+        var completed = await baseQuery
+            .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed)
+            .CountAsync(cancellationToken);
+        var ongoing = await baseQuery
+            .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Active && !p.IsArchived)
+            .CountAsync(cancellationToken);
         var idle = Math.Max(0, total - completed - ongoing);
 
-        var months = BuildMonthWindows();
-        var snapshots = rows.Select(r => new ProjectPulseSnapshot(
-            DateOnly.FromDateTime(r.CreatedAt.Date),
-            r.CompletedOn,
-            r.IsArchived)).ToList();
+        var completedByCategory = await BuildCompletedByCategoryAsync(cancellationToken);
+        var ongoingByStage = await BuildOngoingByStageAsync(cancellationToken);
+        var technicalCategorySeries = await BuildTechnicalCategorySeriesAsync(cancellationToken);
+        var availableForProliferation = await CountProliferationEligibleAsync(cancellationToken);
 
         return new ProjectPulseVm
         {
-            Total = total,
-            Completed = completed,
-            Ongoing = ongoing,
-            Idle = idle,
-            CompletedByMonth = BuildCompletedSeries(snapshots, months),
-            OngoingByMonth = BuildOngoingSeries(snapshots, months),
-            NewByMonth = BuildNewSeries(snapshots, months),
-            RepositoryUrl = RepositoryLink,
-            CompletedUrl = CompletedLink,
-            OngoingUrl = OngoingLink,
-            AnalyticsUrl = AnalyticsLink
+            TotalProjects = total,
+            CompletedCount = completed,
+            OngoingCount = ongoing,
+            IdleCount = idle,
+            AvailableForProliferationCount = availableForProliferation,
+            CompletedByProjectCategory = completedByCategory,
+            OngoingByStage = ongoingByStage,
+            AllByTechnicalCategory = technicalCategorySeries
         };
     }
     // END SECTION
 
     // SECTION: Series builders
-    private static IReadOnlyList<int> BuildCompletedSeries(
-        IReadOnlyList<ProjectPulseSnapshot> snapshots,
-        IReadOnlyList<MonthWindow> months)
+    private async Task<IReadOnlyList<LabelValue>> BuildCompletedByCategoryAsync(CancellationToken cancellationToken)
     {
-        var series = new List<int>(months.Count);
-        foreach (var month in months)
-        {
-            var count = snapshots.Count(p =>
-                p.CompletedOn.HasValue &&
-                p.CompletedOn.Value >= month.Start &&
-                p.CompletedOn.Value < month.EndExclusive);
-            series.Add(count);
-        }
+        var completedSeries = await _db.Projects
+            .AsNoTracking()
+            .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed)
+            .GroupBy(p => p.Category != null ? p.Category.Name : "Uncategorized")
+            .Select(g => new LabelValue(g.Key, g.Count()))
+            .OrderByDescending(x => x.Value)
+            .ThenBy(x => x.Label)
+            .ToListAsync(cancellationToken);
 
-        return series;
+        return completedSeries;
     }
 
-    private static IReadOnlyList<int> BuildOngoingSeries(
-        IReadOnlyList<ProjectPulseSnapshot> snapshots,
-        IReadOnlyList<MonthWindow> months)
+    private async Task<IReadOnlyList<LabelValue>> BuildTechnicalCategorySeriesAsync(CancellationToken cancellationToken)
     {
-        var series = new List<int>(months.Count);
-        foreach (var month in months)
-        {
-            var active = snapshots.Count(p =>
-                !p.IsArchived &&
-                p.CreatedOn < month.EndExclusive &&
-                (!p.CompletedOn.HasValue || p.CompletedOn.Value >= month.EndExclusive));
-            series.Add(active);
-        }
+        var technicalSeries = await _db.Projects
+            .AsNoTracking()
+            .Where(p => !p.IsDeleted && !p.IsArchived)
+            .GroupBy(p => p.TechnicalCategory != null ? p.TechnicalCategory.Name : "Unclassified")
+            .Select(g => new LabelValue(g.Key, g.Count()))
+            .OrderByDescending(x => x.Value)
+            .ThenBy(x => x.Label)
+            .ToListAsync(cancellationToken);
 
-        return series;
+        return technicalSeries;
     }
 
-    private static IReadOnlyList<int> BuildNewSeries(
-        IReadOnlyList<ProjectPulseSnapshot> snapshots,
-        IReadOnlyList<MonthWindow> months)
+    private async Task<IReadOnlyList<LabelValue>> BuildOngoingByStageAsync(CancellationToken cancellationToken)
     {
-        var series = new List<int>(months.Count);
-        foreach (var month in months)
+        var snapshots = await _db.Projects
+            .AsNoTracking()
+            .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active)
+            .Select(p => new StageProjectSnapshot(
+                p.Id,
+                p.ProjectStages
+                    .OrderBy(s => s.SortOrder)
+                    .ThenBy(s => s.StageCode)
+                    .Select(s => new StageState(s.StageCode, s.Status, s.SortOrder, s.CompletedOn))
+                    .ToList()))
+            .ToListAsync(cancellationToken);
+
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var project in snapshots)
         {
-            var count = snapshots.Count(p =>
-                p.CreatedOn >= month.Start &&
-                p.CreatedOn < month.EndExclusive);
-            series.Add(count);
+            var stage = DetermineCurrentStage(project);
+            if (stage is null || string.IsNullOrWhiteSpace(stage.StageCode))
+            {
+                continue;
+            }
+
+            counts.TryGetValue(stage.StageCode, out var existing);
+            counts[stage.StageCode] = existing + 1;
         }
 
-        return series;
-    }
-    // END SECTION
-
-    // SECTION: Month helpers
-    private static IReadOnlyList<MonthWindow> BuildMonthWindows()
-    {
-        var current = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
-        var months = new List<MonthWindow>(6);
-        for (var i = 5; i >= 0; i--)
-        {
-            var start = current.AddMonths(-i);
-            months.Add(new MonthWindow(start, start.AddMonths(1)));
-        }
-
-        return months;
+        return StageOrder
+            .Select(code => new LabelValue(StageCodes.DisplayNameOf(code), counts.TryGetValue(code, out var value) ? value : 0))
+            .ToList();
     }
     // END SECTION
 
-    // SECTION: Links & DTOs
-    private const string CompletedLink = "/Projects?status=Completed";
-    private const string OngoingLink = "/Projects?status=Ongoing";
-    private const string RepositoryLink = "/Projects";
-    private const string AnalyticsLink = "/Reports/Projects/Analytics";
+    // SECTION: Proliferation counts
+    private async Task<int> CountProliferationEligibleAsync(CancellationToken cancellationToken)
+    {
+        var count = await _db.ProjectTechStatuses
+            .AsNoTracking()
+            .Where(ts => ts.AvailableForProliferation
+                && ts.Project != null
+                && ts.Project.LifecycleStatus == ProjectLifecycleStatus.Completed
+                && !ts.Project.IsDeleted
+                && !ts.Project.IsArchived
+                && (ts.Project.Tot == null || ts.Project.Tot.Status != ProjectTotStatus.InProgress))
+            .CountAsync(cancellationToken);
 
-    private sealed record ProjectPulseRow(
-        ProjectLifecycleStatus Status,
-        bool IsArchived,
-        DateTime CreatedAt,
-        DateOnly? CompletedOn);
+        return count;
+    }
+    // END SECTION
 
-    private sealed record ProjectPulseSnapshot(
-        DateOnly CreatedOn,
-        DateOnly? CompletedOn,
-        bool IsArchived);
+    // SECTION: Stage helpers
+    private static StageState? DetermineCurrentStage(StageProjectSnapshot snapshot)
+    {
+        if (snapshot.Stages.Count == 0)
+        {
+            return null;
+        }
 
-    private sealed record MonthWindow(DateOnly Start, DateOnly EndExclusive);
+        var inProgress = snapshot.Stages
+            .Where(s => s.Status == StageStatus.InProgress)
+            .OrderBy(s => s.SortOrder)
+            .ThenBy(s => s.StageCode)
+            .FirstOrDefault();
+        if (inProgress != null)
+        {
+            return inProgress;
+        }
+
+        var notStarted = snapshot.Stages
+            .Where(s => s.Status == StageStatus.NotStarted)
+            .OrderBy(s => s.SortOrder)
+            .ThenBy(s => s.StageCode)
+            .FirstOrDefault();
+        if (notStarted != null)
+        {
+            return notStarted;
+        }
+
+        var completed = snapshot.Stages
+            .Where(s => s.Status == StageStatus.Completed)
+            .OrderByDescending(s => s.CompletedOn ?? DateOnly.MinValue)
+            .ThenByDescending(s => s.SortOrder)
+            .FirstOrDefault();
+        if (completed != null)
+        {
+            return completed;
+        }
+
+        return snapshot.Stages[0];
+    }
+
+    private sealed record StageProjectSnapshot(int ProjectId, IReadOnlyList<StageState> Stages);
+
+    private sealed record StageState(string StageCode, StageStatus Status, int SortOrder, DateOnly? CompletedOn);
     // END SECTION
 }

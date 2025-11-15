@@ -6,23 +6,26 @@ namespace ProjectManagement.Areas.Dashboard.Components.ProjectPulse;
 // SECTION: Widget view model
 public sealed class ProjectPulseVm
 {
-    // SECTION: KPI tiles
-    public int Total { get; init; }
-    public int Completed { get; init; }
-    public int Ongoing { get; init; }
-    public int Idle { get; init; }
+    // SECTION: Header KPIs
+    public int TotalProjects { get; init; }
+    public int CompletedCount { get; init; }
+    public int OngoingCount { get; init; }
+    public int IdleCount { get; init; }
+    public int AvailableForProliferationCount { get; init; }
     // END SECTION
 
-    // SECTION: Trend micro-charts
-    public IReadOnlyList<int> CompletedByMonth { get; init; } = Array.Empty<int>();
-    public IReadOnlyList<int> OngoingByMonth { get; init; } = Array.Empty<int>();
-    public IReadOnlyList<int> NewByMonth { get; init; } = Array.Empty<int>();
+    // SECTION: Chart data
+    public IReadOnlyList<LabelValue> CompletedByProjectCategory { get; init; } = Array.Empty<LabelValue>();
+    public IReadOnlyList<LabelValue> OngoingByStage { get; init; } = Array.Empty<LabelValue>();
+    public IReadOnlyList<LabelValue> AllByTechnicalCategory { get; init; } = Array.Empty<LabelValue>();
     // END SECTION
 
-    // SECTION: Deep links
-    public string RepositoryUrl { get; init; } = "/Projects";
-    public string CompletedUrl { get; init; } = "/Projects?status=Completed";
-    public string OngoingUrl { get; init; } = "/Projects?status=Ongoing";
-    public string AnalyticsUrl { get; init; } = "/Reports/Projects/Analytics";
+    // SECTION: View flags
+    public bool Condensed { get; init; }
     // END SECTION
 }
+// END SECTION
+
+// SECTION: Shared chart label/value pair
+public sealed record LabelValue(string Label, int Value);
+// END SECTION
