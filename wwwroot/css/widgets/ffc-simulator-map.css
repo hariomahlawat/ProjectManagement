@@ -92,18 +92,26 @@
 }
 
 .ffc-simulator-map__pin {
-  background: #5b21b6;
+  background: linear-gradient(135deg, #6d28d9, #4c1d95);
   color: #fff;
   font-weight: 600;
-  padding: 0.2rem 0.55rem;
+  padding: 0.15rem 0.55rem;
   border-radius: 999px;
-  box-shadow: 0 8px 20px rgba(91, 33, 182, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 6px 15px rgba(76, 29, 149, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .ffc-simulator-map__pin span {
   display: block;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.01em;
 }
 
 .leaflet-container .leaflet-pane .leaflet-interactive {
