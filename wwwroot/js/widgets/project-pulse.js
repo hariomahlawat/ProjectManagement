@@ -43,7 +43,6 @@
     const labels = buckets.map((_, index) => index + 1);
     const completed = buckets.map((bucket) => bucket.completed ?? bucket.Completed ?? 0);
     const ongoing = buckets.map((bucket) => bucket.ongoing ?? bucket.Ongoing ?? 0);
-    const idle = buckets.map((bucket) => bucket.idle ?? bucket.Idle ?? 0);
     const ctx = canvas.getContext('2d');
 
     new Chart(ctx, {
@@ -52,8 +51,7 @@
         labels,
         datasets: [
           { data: completed, borderWidth: 0, backgroundColor: '#16a34a', stack: 'ppulse' },
-          { data: ongoing, borderWidth: 0, backgroundColor: '#2563eb', stack: 'ppulse' },
-          { data: idle, borderWidth: 0, backgroundColor: '#9ca3af', stack: 'ppulse' }
+          { data: ongoing, borderWidth: 0, backgroundColor: '#2563eb', stack: 'ppulse' }
         ]
       },
       options: {

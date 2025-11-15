@@ -49,8 +49,6 @@ public sealed class ProjectPulseService
         var total = projects.Count;
         var completed = projects.Count(p => p.Status == ProjectLifecycleStatus.Completed);
         var ongoing = projects.Count(p => p.Status != ProjectLifecycleStatus.Completed && !p.IsArchived);
-        var idle = Math.Max(0, total - (completed + ongoing));
-
         var weeklyBuckets = BuildStatusBuckets(projects, weekWindows);
         var completedSeries = BuildCompletedSeries(projects, weekWindows);
         var activeSeries = BuildActiveSeries(projects, weekWindows);
@@ -67,7 +65,6 @@ public sealed class ProjectPulseService
             Total = total,
             Completed = completed,
             Ongoing = ongoing,
-            Idle = idle,
             All = new AllProjectsCard(total, weeklyBuckets, RepositoryLink),
             Done = new CompletedCard(completed, completedSeries, CompletedLink),
             Doing = new OngoingCard(ongoing, overdue, activeSeries, OngoingLink),
@@ -116,8 +113,7 @@ public sealed class ProjectPulseService
                 p.CreatedOn < endExclusive &&
                 (p.CompletedOn == null || p.CompletedOn.Value >= endExclusive) &&
                 !p.IsArchived);
-            var idle = Math.Max(0, totalToWeek - (completedToWeek + ongoingToWeek));
-            buckets.Add(new StatusBucket(completedToWeek, ongoingToWeek, idle));
+            buckets.Add(new StatusBucket(completedToWeek, ongoingToWeek));
         }
 
         return buckets;

@@ -11,8 +11,6 @@ public sealed class ProjectPulseVm
 
     public int Ongoing { get; init; }
 
-    public int Idle { get; init; }
-
     public AllProjectsCard All { get; init; } = new();
 
     public CompletedCard Done { get; init; } = new();
@@ -41,4 +39,4 @@ public sealed record OngoingCard(
 public sealed record AnalyticsCard(
     string CtaUrl = "/Reports/Projects/Analytics");
 
-public sealed record StatusBucket(int Completed, int Ongoing, int Idle);
+public sealed record StatusBucket(int Completed, int Ongoing);
