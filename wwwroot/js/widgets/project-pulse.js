@@ -1,119 +1,95 @@
 // SECTION: Project pulse micro-charts
-(function () {
-  if (typeof Chart === 'undefined') {
-    return;
-  }
+(() => {
+  const ready = () => document.readyState === 'loading'
+    ? new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once: true }))
+    : Promise.resolve();
 
-  const selectAll = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+  const parsePoints = (element) => {
+    const raw = element.getAttribute('data-points') ?? '';
+    return raw
+      .split(',')
+      .map((token) => Number.parseInt(token.trim(), 10))
+      .filter((value) => Number.isFinite(value));
+  };
 
-  function sparkline(canvas, series) {
-    const ctx = canvas.getContext('2d');
-    new Chart(ctx, {
+  const dataset = (type, points) => {
+    if (type === 'bar') {
+      return [{
+        data: points,
+        backgroundColor: 'rgba(45, 108, 223, 0.25)',
+        borderRadius: 3,
+        maxBarThickness: 10
+      }];
+    }
+
+    if (type === 'area') {
+      return [{
+        data: points,
+        type: 'line',
+        borderColor: 'rgba(45, 108, 223, 1)',
+        borderWidth: 1.5,
+        fill: true,
+        backgroundColor: 'rgba(45, 108, 223, 0.12)',
+        tension: 0.35,
+        pointRadius: 0
+      }];
+    }
+
+    return [{
+      data: points,
       type: 'line',
-      data: {
-        labels: series.map((_, index) => index + 1),
-        datasets: [
-          {
-            data: series,
-            borderWidth: 2,
-            borderColor: '#2563eb',
-            backgroundColor: 'rgba(37, 99, 235, 0.15)',
-            fill: true,
-            tension: 0.3,
-            pointRadius: 0
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: { enabled: false }
-        },
-        scales: {
-          x: { display: false },
-          y: { display: false }
-        }
-      }
-    });
-  }
+      borderColor: 'rgba(15, 23, 42, 0.9)',
+      borderWidth: 1.5,
+      tension: 0.35,
+      pointRadius: 0
+    }];
+  };
 
-  function stackedBar(canvas, buckets) {
-    const labels = buckets.map((_, index) => index + 1);
-    const completed = buckets.map((bucket) => bucket.completed ?? bucket.Completed ?? 0);
-    const ongoing = buckets.map((bucket) => bucket.ongoing ?? bucket.Ongoing ?? 0);
-    const ctx = canvas.getContext('2d');
+  const sparkOptions = () => ({
+    responsive: false,
+    maintainAspectRatio: false,
+    animation: false,
+    elements: { point: { radius: 0 } },
+    scales: {
+      x: { display: false },
+      y: { display: false, beginAtZero: true }
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: { enabled: false }
+    }
+  });
 
-    new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [
-          { data: completed, borderWidth: 0, backgroundColor: '#16a34a', stack: 'ppulse' },
-          { data: ongoing, borderWidth: 0, backgroundColor: '#2563eb', stack: 'ppulse' }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: { enabled: false }
-        },
-        scales: {
-          x: { display: false, stacked: true },
-          y: { display: false, stacked: true }
-        }
-      }
-    });
-  }
-
-  function initCard(selector, type) {
-    selectAll(selector).forEach((card) => {
-      const canvas = card.querySelector('canvas[data-chart]');
-      if (!canvas) {
-        return;
-      }
-
-      const attr = type === 'stackedbar' ? card.getAttribute('data-weekly') : card.getAttribute('data-series');
-      if (!attr) {
-        return;
-      }
-
-      let payload;
-      try {
-        payload = JSON.parse(attr);
-      } catch {
-        payload = null;
-      }
-
-      if (!payload || (Array.isArray(payload) && payload.length === 0)) {
-        return;
-      }
-
-      if (type === 'stackedbar') {
-        stackedBar(canvas, Array.isArray(payload) ? payload : []);
-      } else {
-        sparkline(canvas, Array.isArray(payload) ? payload : []);
-      }
-    });
-  }
-
-  function init() {
-    const root = document.querySelector('[data-ppulse]');
-    if (!root) {
+  const renderSpark = (canvas) => {
+    const Chart = window.Chart;
+    if (!Chart) {
       return;
     }
 
-    initCard('[data-pp-all]', 'stackedbar');
-    initCard('[data-pp-done]', 'sparkline');
-    initCard('[data-pp-doing]', 'sparkline');
-  }
+    const type = canvas.getAttribute('data-spark') ?? 'line';
+    const points = parsePoints(canvas);
+    if (points.length === 0) {
+      return;
+    }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init, { once: true });
-  } else {
-    init();
-  }
+    const labels = Array.from({ length: points.length }, (_, index) => index + 1);
+    const config = {
+      type: type === 'bar' ? 'bar' : 'line',
+      data: {
+        labels,
+        datasets: dataset(type, points)
+      },
+      options: sparkOptions(type)
+    };
+
+    new Chart(canvas.getContext('2d'), config);
+  };
+
+  const init = () => {
+    document
+      .querySelectorAll('canvas[data-spark]')
+      .forEach((canvas) => renderSpark(canvas));
+  };
+
+  ready().then(init);
 })();

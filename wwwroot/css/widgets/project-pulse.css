@@ -1,174 +1,140 @@
 /* SECTION: Widget shell */
-.ppulse {
-  background: var(--pm-card, #fff);
-  border-radius: 1rem;
-  padding: 1rem 1.25rem;
-  box-shadow: var(--pm-shadow, 0 12px 32px rgba(8, 15, 52, 0.08));
-  border: 1px solid rgba(15, 23, 42, 0.06);
+.pm-pulse {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+  padding: 14px;
 }
 
-.ppulse__head {
+.pm-pulse__header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 10px;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
+  gap: 10px;
 }
 
-.ppulse__title {
+.pm-pulse__title {
   font-size: 1rem;
-  font-weight: 700;
   margin: 0;
-  color: var(--pm-text, #0b1220);
+  color: #0b1220;
 }
 
-/* SECTION: Summary chips */
-.ppulse__chips {
+.pm-pulse__summary {
   display: flex;
-  gap: 0.5rem;
+  gap: 14px;
   margin: 0;
   padding: 0;
   list-style: none;
   flex-wrap: wrap;
 }
 
-.ppulse__chips li {
-  background: #f6f8fc;
-  border: 1px solid #eef1f6;
-  border-radius: 0.6rem;
-  padding: 0.35rem 0.6rem;
-  display: flex;
-  gap: 0.4rem;
-  align-items: baseline;
-}
-
-.ppulse-chip__label {
+.pm-pulse__k {
   font-size: 0.72rem;
   color: #6b7280;
+  margin-right: 6px;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
 }
 
-.ppulse-chip__val {
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: #0b1220;
+.pm-pulse__v {
+  font-weight: 600;
+  color: #111827;
 }
 
-/* SECTION: Card grid */
-.ppulse__grid {
+/* SECTION: Grid */
+.pm-pulse__grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 12px;
 }
 
-@media (max-width: 1199.98px) {
-  .ppulse__grid {
+@media (max-width: 1200px) {
+  .pm-pulse__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 639.98px) {
-  .ppulse__grid {
+@media (max-width: 700px) {
+  .pm-pulse__grid {
     grid-template-columns: 1fr;
   }
 }
 
 /* SECTION: Cards */
-.ppcard {
-  background: #fff;
-  border: 1px solid #eef1f6;
-  border-radius: 0.9rem;
-  padding: 0.75rem 0.85rem;
+.pm-pulse__card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  min-height: 0;
+  gap: 8px;
+  min-height: 120px;
+  background-color: #fff;
 }
 
-.ppcard__meta {
+.pm-pulse__meta {
   display: flex;
-  justify-content: space-between;
   align-items: baseline;
-  gap: 0.5rem;
+  justify-content: space-between;
 }
 
-.ppcard__title {
-  font-size: 0.9rem;
-  font-weight: 600;
-  margin: 0;
-  color: #111827;
+.pm-pulse__label {
+  font-size: 0.78rem;
+  color: #6b7280;
 }
 
-.ppcard__count {
-  font-size: 1.35rem;
+.pm-pulse__number {
+  font-size: 1.25rem;
   font-weight: 700;
+  letter-spacing: 0.01em;
   color: #0b1220;
+}
+
+.pm-pulse__spark {
+  height: 40px;
+}
+
+.pm-pulse__footer {
   display: flex;
-  gap: 0.4rem;
-  align-items: center;
+  justify-content: flex-end;
 }
 
-.ppbadge--danger {
-  background: #fee2e2;
-  color: #b91c1c;
-  font-size: 0.72rem;
-  padding: 0.1rem 0.45rem;
-  border-radius: 0.55rem;
-}
-
-.ppcard__chart {
-  height: 56px;
-}
-
-.ppcard__chart canvas {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-.ppcard__cta {
-  align-self: flex-end;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.82rem;
-  color: #2558c6;
+.pm-pulse__link {
+  font-size: 0.85rem;
   text-decoration: none;
+  color: #2563eb;
 }
 
-.ppcard__cta:hover,
-.ppcard__cta:focus-visible {
+.pm-pulse__link:hover,
+.pm-pulse__link:focus-visible {
   text-decoration: underline;
 }
 
-/* SECTION: Promo card */
-.ppcard--promo {
-  background: linear-gradient(180deg, #eaf2ff 0%, #f4f8ff 100%);
-  border-color: #dbe7ff;
-}
-
-.pppromo {
+/* SECTION: CTA */
+.pm-pulse__cta {
+  border: 1px dashed #dbe3f8;
+  background: linear-gradient(180deg, #f5f8ff, #eef2ff);
+  border-radius: 12px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  justify-content: space-between;
 }
 
-.pppromo__title {
-  font-size: 1.05rem;
-  font-weight: 700;
-  margin: 0;
-  color: #183b8f;
+.pm-pulse__cta-title {
+  margin: 0 0 4px 0;
+  font-size: 1.1rem;
+  color: #0f172a;
 }
 
-.pppromo__copy {
-  font-size: 0.85rem;
-  color: #354764;
-  margin: 0;
+.pm-pulse__cta-copy {
+  margin: 0 0 10px 0;
+  color: #4b5563;
+  font-size: 0.9rem;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .ppcard__cta {
-    transition: none;
-  }
+.pm-pulse__cta-btn {
+  align-self: flex-start;
 }

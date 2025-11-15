@@ -1,42 +1,28 @@
+using System;
 using System.Collections.Generic;
 
 namespace ProjectManagement.Areas.Dashboard.Components.ProjectPulse;
 
-// SECTION: Widget view models
+// SECTION: Widget view model
 public sealed class ProjectPulseVm
 {
+    // SECTION: KPI tiles
     public int Total { get; init; }
-
     public int Completed { get; init; }
-
     public int Ongoing { get; init; }
+    public int Idle { get; init; }
+    // END SECTION
 
-    public AllProjectsCard All { get; init; } = new();
+    // SECTION: Trend micro-charts
+    public IReadOnlyList<int> CompletedByMonth { get; init; } = Array.Empty<int>();
+    public IReadOnlyList<int> OngoingByMonth { get; init; } = Array.Empty<int>();
+    public IReadOnlyList<int> NewByMonth { get; init; } = Array.Empty<int>();
+    // END SECTION
 
-    public CompletedCard Done { get; init; } = new();
-
-    public OngoingCard Doing { get; init; } = new();
-
-    public AnalyticsCard Analytics { get; init; } = new();
+    // SECTION: Deep links
+    public string RepositoryUrl { get; init; } = "/Projects";
+    public string CompletedUrl { get; init; } = "/Projects?status=Completed";
+    public string OngoingUrl { get; init; } = "/Projects?status=Ongoing";
+    public string AnalyticsUrl { get; init; } = "/Reports/Projects/Analytics";
+    // END SECTION
 }
-
-public sealed record AllProjectsCard(
-    int Total = 0,
-    IReadOnlyList<StatusBucket>? WeeklyBuckets = null,
-    string RepositoryUrl = "/Projects");
-
-public sealed record CompletedCard(
-    int Count = 0,
-    IReadOnlyList<int>? WeeklyCompletions = null,
-    string Link = "/Projects?status=Completed");
-
-public sealed record OngoingCard(
-    int Count = 0,
-    int Overdue = 0,
-    IReadOnlyList<int>? WeeklyActive = null,
-    string Link = "/Projects?status=Ongoing");
-
-public sealed record AnalyticsCard(
-    string CtaUrl = "/Reports/Projects/Analytics");
-
-public sealed record StatusBucket(int Completed, int Ongoing);

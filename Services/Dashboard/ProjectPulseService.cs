@@ -8,19 +8,22 @@ using Microsoft.Extensions.Caching.Memory;
 using ProjectManagement.Areas.Dashboard.Components.ProjectPulse;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
-using ProjectManagement.Models.Execution;
-using ProjectManagement.Models.Stages;
-using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.Dashboard;
 
-public sealed class ProjectPulseService
+public interface IProjectPulseService
+{
+    Task<ProjectPulseVm> GetAsync(CancellationToken cancellationToken = default);
+}
+
+public sealed class ProjectPulseService : IProjectPulseService
 {
     // SECTION: Constants & fields
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(60);
     private const string CacheKey = "Dashboard:ProjectPulse";
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(60);
     private readonly ApplicationDbContext _db;
     private readonly IMemoryCache _cache;
+    // END SECTION
 
     public ProjectPulseService(ApplicationDbContext db, IMemoryCache cache)
     {
@@ -37,263 +40,133 @@ public sealed class ProjectPulseService
             return BuildAsync(cancellationToken);
         })!;
     }
+    // END SECTION
 
-    // SECTION: Core aggregation
+    // SECTION: Aggregation pipeline
     private async Task<ProjectPulseVm> BuildAsync(CancellationToken cancellationToken)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-        var weekStart = GetWeekStart(today);
-        var weekWindows = BuildWeekWindows(weekStart);
+        var rows = await _db.Projects
+            .AsNoTracking()
+            .Where(p => !p.IsDeleted)
+            .Select(p => new ProjectPulseRow(
+                p.LifecycleStatus,
+                p.IsArchived,
+                p.CreatedAt,
+                p.CompletedOn))
+            .ToListAsync(cancellationToken);
 
-        var projects = await LoadProjectSnapshotsAsync(cancellationToken);
-        var total = projects.Count;
-        var completed = projects.Count(p => p.Status == ProjectLifecycleStatus.Completed);
-        var ongoing = projects.Count(p => p.Status != ProjectLifecycleStatus.Completed && !p.IsArchived);
-        var weeklyBuckets = BuildStatusBuckets(projects, weekWindows);
-        var completedSeries = BuildCompletedSeries(projects, weekWindows);
-        var activeSeries = BuildActiveSeries(projects, weekWindows);
+        var total = rows.Count;
+        var completed = rows.Count(p => p.Status == ProjectLifecycleStatus.Completed);
+        var ongoing = rows.Count(p => p.Status == ProjectLifecycleStatus.Active && !p.IsArchived);
+        var idle = Math.Max(0, total - completed - ongoing);
 
-        var ongoingIds = projects
-            .Where(p => p.Status != ProjectLifecycleStatus.Completed && !p.IsArchived)
-            .Select(p => p.Id)
-            .ToArray();
-
-        var overdue = await CountOverdueProjectsAsync(ongoingIds, today, cancellationToken);
+        var months = BuildMonthWindows();
+        var snapshots = rows.Select(r => new ProjectPulseSnapshot(
+            DateOnly.FromDateTime(r.CreatedAt.Date),
+            r.CompletedOn,
+            r.IsArchived)).ToList();
 
         return new ProjectPulseVm
         {
             Total = total,
             Completed = completed,
             Ongoing = ongoing,
-            All = new AllProjectsCard(total, weeklyBuckets, RepositoryLink),
-            Done = new CompletedCard(completed, completedSeries, CompletedLink),
-            Doing = new OngoingCard(ongoing, overdue, activeSeries, OngoingLink),
-            Analytics = new AnalyticsCard(AnalyticsLink)
+            Idle = idle,
+            CompletedByMonth = BuildCompletedSeries(snapshots, months),
+            OngoingByMonth = BuildOngoingSeries(snapshots, months),
+            NewByMonth = BuildNewSeries(snapshots, months),
+            RepositoryUrl = RepositoryLink,
+            CompletedUrl = CompletedLink,
+            OngoingUrl = OngoingLink,
+            AnalyticsUrl = AnalyticsLink
         };
     }
+    // END SECTION
 
-    // SECTION: Data loaders
-    private async Task<List<ProjectSnapshot>> LoadProjectSnapshotsAsync(CancellationToken cancellationToken)
-    {
-        var rows = await _db.Projects
-            .AsNoTracking()
-            .Where(p => !p.IsDeleted)
-            .Select(p => new
-            {
-                p.Id,
-                p.CreatedAt,
-                p.CompletedOn,
-                p.LifecycleStatus,
-                p.IsArchived
-            })
-            .ToListAsync(cancellationToken);
-
-        return rows
-            .Select(p => new ProjectSnapshot(
-                p.Id,
-                DateOnly.FromDateTime(p.CreatedAt),
-                p.CompletedOn,
-                p.LifecycleStatus,
-                p.IsArchived))
-            .ToList();
-    }
-
-    // SECTION: Weekly series helpers
-    private static IReadOnlyList<StatusBucket> BuildStatusBuckets(
-        IReadOnlyList<ProjectSnapshot> projects,
-        IReadOnlyList<WeekWindow> weeks)
-    {
-        var buckets = new List<StatusBucket>(weeks.Count);
-        foreach (var week in weeks)
-        {
-            var endExclusive = week.EndExclusive;
-            var totalToWeek = projects.Count(p => p.CreatedOn < endExclusive);
-            var completedToWeek = projects.Count(p => p.CompletedOn.HasValue && p.CompletedOn.Value < endExclusive);
-            var ongoingToWeek = projects.Count(p =>
-                p.CreatedOn < endExclusive &&
-                (p.CompletedOn == null || p.CompletedOn.Value >= endExclusive) &&
-                !p.IsArchived);
-            buckets.Add(new StatusBucket(completedToWeek, ongoingToWeek));
-        }
-
-        return buckets;
-    }
-
+    // SECTION: Series builders
     private static IReadOnlyList<int> BuildCompletedSeries(
-        IReadOnlyList<ProjectSnapshot> projects,
-        IReadOnlyList<WeekWindow> weeks)
+        IReadOnlyList<ProjectPulseSnapshot> snapshots,
+        IReadOnlyList<MonthWindow> months)
     {
-        var series = new List<int>(weeks.Count);
-        foreach (var week in weeks)
+        var series = new List<int>(months.Count);
+        foreach (var month in months)
         {
-            var count = projects.Count(p =>
+            var count = snapshots.Count(p =>
                 p.CompletedOn.HasValue &&
-                p.CompletedOn.Value >= week.Start &&
-                p.CompletedOn.Value < week.EndExclusive);
+                p.CompletedOn.Value >= month.Start &&
+                p.CompletedOn.Value < month.EndExclusive);
             series.Add(count);
         }
 
         return series;
     }
 
-    private static IReadOnlyList<int> BuildActiveSeries(
-        IReadOnlyList<ProjectSnapshot> projects,
-        IReadOnlyList<WeekWindow> weeks)
+    private static IReadOnlyList<int> BuildOngoingSeries(
+        IReadOnlyList<ProjectPulseSnapshot> snapshots,
+        IReadOnlyList<MonthWindow> months)
     {
-        var series = new List<int>(weeks.Count);
-        foreach (var week in weeks)
+        var series = new List<int>(months.Count);
+        foreach (var month in months)
         {
-            var endExclusive = week.EndExclusive;
-            var active = projects.Count(p =>
-                p.CreatedOn < endExclusive &&
-                (p.CompletedOn == null || p.CompletedOn.Value >= endExclusive) &&
-                !p.IsArchived);
+            var active = snapshots.Count(p =>
+                !p.IsArchived &&
+                p.CreatedOn < month.EndExclusive &&
+                (!p.CompletedOn.HasValue || p.CompletedOn.Value >= month.EndExclusive));
             series.Add(active);
         }
 
         return series;
     }
 
-    private static IReadOnlyList<WeekWindow> BuildWeekWindows(DateOnly currentWeekStart)
+    private static IReadOnlyList<int> BuildNewSeries(
+        IReadOnlyList<ProjectPulseSnapshot> snapshots,
+        IReadOnlyList<MonthWindow> months)
     {
-        var weeks = new List<WeekWindow>(8);
-        for (var i = 7; i >= 0; i--)
+        var series = new List<int>(months.Count);
+        foreach (var month in months)
         {
-            var start = currentWeekStart.AddDays(-7 * i);
-            var endExclusive = start.AddDays(7);
-            weeks.Add(new WeekWindow(start, endExclusive));
+            var count = snapshots.Count(p =>
+                p.CreatedOn >= month.Start &&
+                p.CreatedOn < month.EndExclusive);
+            series.Add(count);
         }
 
-        return weeks;
+        return series;
     }
+    // END SECTION
 
-    private static DateOnly GetWeekStart(DateOnly date)
+    // SECTION: Month helpers
+    private static IReadOnlyList<MonthWindow> BuildMonthWindows()
     {
-        var dayOfWeek = (int)date.DayOfWeek;
-        var offset = dayOfWeek == 0 ? 6 : dayOfWeek - 1; // ISO weeks (Monday start)
-        return date.AddDays(-offset);
+        var current = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+        var months = new List<MonthWindow>(6);
+        for (var i = 5; i >= 0; i--)
+        {
+            var start = current.AddMonths(-i);
+            months.Add(new MonthWindow(start, start.AddMonths(1)));
+        }
+
+        return months;
     }
+    // END SECTION
 
-    // SECTION: Overdue calculation
-    private async Task<int> CountOverdueProjectsAsync(
-        IReadOnlyList<int> projectIds,
-        DateOnly today,
-        CancellationToken cancellationToken)
-    {
-        if (projectIds.Count == 0)
-        {
-            return 0;
-        }
+    // SECTION: Links & DTOs
+    private const string CompletedLink = "/Projects?status=Completed";
+    private const string OngoingLink = "/Projects?status=Ongoing";
+    private const string RepositoryLink = "/Projects";
+    private const string AnalyticsLink = "/Reports/Projects/Analytics";
 
-        var stagesTask = _db.ProjectStages
-            .AsNoTracking()
-            .Where(s => projectIds.Contains(s.ProjectId))
-            .Select(s => new StageRow(s.ProjectId, s.StageCode, s.Status, s.SortOrder, s.ActualStart, s.CompletedOn))
-            .ToListAsync(cancellationToken);
-
-        Task<List<StageDurationRow>> durationsTask;
-        if (projectIds.Count > 0)
-        {
-            durationsTask = _db.ProjectPlanDurations
-                .AsNoTracking()
-                .Where(d => projectIds.Contains(d.ProjectId))
-                .Select(d => new StageDurationRow(d.ProjectId, d.StageCode, d.DurationDays))
-                .ToListAsync(cancellationToken);
-        }
-        else
-        {
-            durationsTask = Task.FromResult(new List<StageDurationRow>());
-        }
-
-        await Task.WhenAll(stagesTask, durationsTask);
-
-        var stageLookup = stagesTask.Result
-            .GroupBy(s => s.ProjectId)
-            .ToDictionary(g => g.Key, g => g.ToDictionary(x => x.StageCode, x => x, StringComparer.OrdinalIgnoreCase));
-
-        var durationLookup = durationsTask.Result
-            .GroupBy(d => d.ProjectId)
-            .ToDictionary(g => g.Key, g => g.ToDictionary(x => x.StageCode, x => x.DurationDays, StringComparer.OrdinalIgnoreCase));
-
-        var overdueCount = 0;
-        foreach (var projectId in projectIds)
-        {
-            var stageRows = stageLookup.TryGetValue(projectId, out var rows)
-                ? rows
-                : new Dictionary<string, StageRow>(StringComparer.OrdinalIgnoreCase);
-
-            var snapshots = BuildStageSnapshots(stageRows);
-            var present = PresentStageHelper.ComputePresentStageAndAge(snapshots, today);
-            var stageCode = present.CurrentStageCode ?? StageCodes.FS;
-
-            if (present.CurrentStageStartDate is { } startedOn)
-            {
-                var ageDays = Math.Max(0, today.DayNumber - startedOn.DayNumber);
-                var duration = TryGetStageSlaDays(projectId, stageCode, durationLookup);
-                if (duration.HasValue && duration.Value > 0 && ageDays > duration.Value)
-                {
-                    overdueCount++;
-                }
-            }
-        }
-
-        return overdueCount;
-    }
-
-    private static IReadOnlyList<ProjectStageStatusSnapshot> BuildStageSnapshots(IReadOnlyDictionary<string, StageRow> stageRows)
-    {
-        var snapshots = new List<ProjectStageStatusSnapshot>(StageCodes.All.Length);
-        for (var i = 0; i < StageCodes.All.Length; i++)
-        {
-            var code = StageCodes.All[i];
-            stageRows.TryGetValue(code, out var stageRow);
-            snapshots.Add(new ProjectStageStatusSnapshot(
-                code,
-                stageRow?.Status ?? StageStatus.NotStarted,
-                i,
-                stageRow?.ActualStart,
-                stageRow?.CompletedOn));
-        }
-
-        return snapshots;
-    }
-
-    private static int? TryGetStageSlaDays(
-        int projectId,
-        string stageCode,
-        IReadOnlyDictionary<int, Dictionary<string, int?>> durationLookup)
-    {
-        if (!durationLookup.TryGetValue(projectId, out var stageDurations))
-        {
-            return null;
-        }
-
-        return stageDurations.TryGetValue(stageCode, out var days) ? days : null;
-    }
-
-    // SECTION: Links
-    private const string CompletedLink = "/Projects/Completed";
-    private const string OngoingLink = "/Projects/Ongoing";
-    private const string RepositoryLink = "/Projects/Repository";
-    private const string AnalyticsLink = "/ProjectOfficeReports/Analytics";
-
-    // SECTION: DTOs
-    private sealed record ProjectSnapshot(
-        int Id,
-        DateOnly CreatedOn,
-        DateOnly? CompletedOn,
+    private sealed record ProjectPulseRow(
         ProjectLifecycleStatus Status,
-        bool IsArchived);
-
-    private sealed record WeekWindow(DateOnly Start, DateOnly EndExclusive);
-
-    private sealed record StageRow(
-        int ProjectId,
-        string StageCode,
-        StageStatus Status,
-        int SortOrder,
-        DateOnly? ActualStart,
+        bool IsArchived,
+        DateTime CreatedAt,
         DateOnly? CompletedOn);
 
-    private sealed record StageDurationRow(int ProjectId, string StageCode, int? DurationDays);
+    private sealed record ProjectPulseSnapshot(
+        DateOnly CreatedOn,
+        DateOnly? CompletedOn,
+        bool IsArchived);
+
+    private sealed record MonthWindow(DateOnly Start, DateOnly EndExclusive);
+    // END SECTION
 }

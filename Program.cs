@@ -320,7 +320,7 @@ builder.Services.AddScoped<ITodoService, TodoService>();
 builder.Services.Configure<TodoOptions>(
     builder.Configuration.GetSection("Todo"));
 builder.Services.AddScoped<ILoginAnalyticsService, LoginAnalyticsService>();
-builder.Services.AddScoped<ProjectPulseService>();
+builder.Services.AddScoped<IProjectPulseService, ProjectPulseService>();
 builder.Services.AddHostedService<LoginAggregationWorker>();
 builder.Services.AddHostedService<TodoPurgeWorker>();
 builder.Services.AddHostedService<ProjectRetentionWorker>();
