@@ -1,12 +1,40 @@
 @* SECTION: OpsSignals widget markup *@
+@using System
 @using System.Collections.Generic
+@using System.Linq
+@using System.Text.Json
 @model ProjectManagement.Areas.Dashboard.Components.OpsSignals.OpsSignalsVm
+
+@{
+    string SerializeList<T>(IEnumerable<T>? data) => JsonSerializer.Serialize(data ?? Array.Empty<T>());
+}
 
 <section class="ops-signals" aria-label="Activity snapshot">
   <div class="ops-signals__grid">
     @foreach (var t in Model.Tiles)
     {
-      <a class="ops-signals__tile" href="@t.LinkUrl">
+      var hasCaption = !string.IsNullOrWhiteSpace(t.Caption);
+      var captionId = hasCaption ? $"ops-caption-{t.Key}" : null;
+      var trendId = $"ops-trend-{t.Key}";
+      var describeParts = new List<string>();
+      if (!string.IsNullOrEmpty(captionId))
+      {
+          describeParts.Add(captionId);
+      }
+      describeParts.Add(trendId);
+      var describedBy = describeParts.Count > 0 ? string.Join(" ", describeParts) : null;
+      var sparkValues = t.Sparkline ?? Array.Empty<int>();
+      var sparkLabels = t.SparklineLabels ?? Array.Empty<string>();
+      var sparkSegments = sparkValues.Select((value, index) =>
+      {
+          var label = index < sparkLabels.Count ? sparkLabels[index] : $"P{index + 1}";
+          return $"{label} {value}";
+      });
+      var sparkNarrative = sparkSegments.Any()
+          ? $"{t.Label} trend: {string.Join(", ", sparkSegments)}"
+          : $"{t.Label} trend data is not available";
+
+      <a class="ops-signals__tile" href="@t.LinkUrl" aria-describedby="@describedBy">
         <div class="ops-signals__head">
           <i class="bi @t.Icon ops-signals__icon" aria-hidden="true"></i>
           <span class="ops-signals__label">@t.Label</span>
@@ -20,16 +48,19 @@
           }
         </div>
 
-        @if (!string.IsNullOrWhiteSpace(t.Caption))
+        @if (hasCaption)
         {
-          <div class="ops-signals__caption">@t.Caption</div>
+          <div class="ops-signals__caption" id="@captionId">@t.Caption</div>
         }
 
         <div class="ops-signals__spark" data-ops-spark
-             data-values='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(t.Sparkline ?? new List<int>()))'
-             data-labels='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(t.SparklineLabels ?? new List<string>()))'>
+             data-values='@Html.Raw(SerializeList(sparkValues))'
+             data-labels='@Html.Raw(SerializeList(sparkLabels))'
+             aria-hidden="true">
           <canvas></canvas>
         </div>
+
+        <span class="visually-hidden" id="@trendId">@sparkNarrative</span>
 
         @if (t.DeltaPct is not null)
         {
@@ -38,6 +69,10 @@
             <i class="bi @(up ? "bi-arrow-up" : "bi-arrow-down")" aria-hidden="true"></i>
             <span>@string.Format("{0:+0;-0;0}%", Math.Round((t.DeltaPct ?? 0) * 100))</span>
           </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(t.DeltaLabel))
+        {
+          <div class="ops-signals__delta ops-signals__delta--muted">@t.DeltaLabel</div>
         }
       </a>
     }

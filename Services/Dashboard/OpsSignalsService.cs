@@ -185,25 +185,36 @@ public sealed class OpsSignalsService : IOpsSignalsService
             // END SECTION
 
             // SECTION: Delta helper
-            static (int cur, int prev, double? pct) Delta(IReadOnlyList<int> values)
+            static (int cur, int prev, double? pct, string? label) Delta(IReadOnlyList<int> values)
             {
                 if (values.Count < 6)
                 {
-                    return (0, 0, null);
+                    return (0, 0, null, null);
                 }
 
                 var cur = values.Skip(Math.Max(0, values.Count - 3)).Sum();
                 var prev = values.Skip(Math.Max(0, values.Count - 6)).Take(3).Sum();
-                double? pct = prev == 0 ? (cur == 0 ? null : 1.0) : (cur - prev) / (double)prev;
-                return (cur, prev, pct);
+                if (cur == 0 && prev == 0)
+                {
+                    return (cur, prev, null, null);
+                }
+
+                if (cur == 0 || prev == 0)
+                {
+                    var noBaselineLabel = prev == 0 && cur > 0 ? "—" : null;
+                    return (cur, prev, null, noBaselineLabel);
+                }
+
+                double? pct = (cur - prev) / (double)prev;
+                return (cur, prev, pct, null);
             }
 
-            var (vCur, vPrev, vPct) = Delta(visitsSpark);
-            var (_, _, outPct) = Delta(outreachSpark);
-            var (_, _, trPct) = Delta(trainingSpark);
-            var (_, _, totPct) = Delta(totSpark);
-            var (_, _, iprPct) = Delta(iprSpark);
-            var (_, _, prPct) = Delta(prolifSpark);
+            var (vCur, vPrev, vPct, vLabel) = Delta(visitsSpark);
+            var (_, _, outPct, outLabel) = Delta(outreachSpark);
+            var (_, _, trPct, trLabel) = Delta(trainingSpark);
+            var (_, _, totPct, totLabel) = Delta(totSpark);
+            var (_, _, iprPct, iprLabel) = Delta(iprSpark);
+            var (_, _, prPct, prLabel) = Delta(prolifSpark);
             // END SECTION
 
             // SECTION: Tile assembly
@@ -213,13 +224,14 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 new()
                 {
                     Key = "visits",
-                    Label = "Visits (people)",
+                    Label = "Visits",
                     Value = visitsTotal,
-                    Unit = string.Empty,
+                    Unit = "people",
                     Sparkline = visitsSpark,
                     SparklineLabels = labels,
                     DeltaAbs = vCur - vPrev,
                     DeltaPct = vPct,
+                    DeltaLabel = vLabel,
                     LinkUrl = "/ProjectOfficeReports/Visits?range=last12m",
                     Icon = "bi-people"
                 },
@@ -231,18 +243,20 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     Sparkline = outreachSpark,
                     SparklineLabels = labels,
                     DeltaPct = outPct,
+                    DeltaLabel = outLabel,
                     LinkUrl = "/ProjectOfficeReports/SocialMedia?range=last12m",
                     Icon = "bi-megaphone"
                 },
                 new()
                 {
                     Key = "training",
-                    Label = "Training (people)",
+                    Label = "Training",
                     Value = trainingTotal,
                     Unit = "people",
                     Sparkline = trainingSpark,
                     SparklineLabels = labels,
                     DeltaPct = trPct,
+                    DeltaLabel = trLabel,
                     LinkUrl = "/ProjectOfficeReports/Training?range=last12m",
                     Icon = "bi-mortarboard"
                 },
@@ -254,6 +268,7 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     Sparkline = totSpark,
                     SparklineLabels = labels,
                     DeltaPct = totPct,
+                    DeltaLabel = totLabel,
                     LinkUrl = "/ProjectOfficeReports/Tot",
                     Icon = "bi-arrow-left-right"
                 },
@@ -266,6 +281,7 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     Sparkline = iprSpark,
                     SparklineLabels = labels,
                     DeltaPct = iprPct,
+                    DeltaLabel = iprLabel,
                     LinkUrl = "/Ipr",
                     Icon = "bi-file-lock"
                 },
@@ -277,6 +293,7 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     Sparkline = prolifSpark,
                     SparklineLabels = labels,
                     DeltaPct = prPct,
+                    DeltaLabel = prLabel,
                     LinkUrl = "/ProjectOfficeReports/Proliferation",
                     Icon = "bi-globe2"
                 }
