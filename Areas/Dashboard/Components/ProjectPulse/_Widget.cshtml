@@ -71,6 +71,8 @@
         class="ppulse__chart"
         data-chart="line"
         data-series='@Html.Raw(Serialize(Model.OngoingByStage))'
+        data-x-axis-title="Stages"
+        data-x-axis-hide-labels="true"
       >
         <canvas aria-hidden="true"></canvas>
       </div>
@@ -87,6 +89,8 @@
         class="ppulse__chart"
         data-chart="bar"
         data-series='@Html.Raw(Serialize(Model.AllByTechnicalCategory))'
+        data-x-axis-title="Technical category"
+        data-x-axis-hide-labels="true"
       >
         <canvas aria-hidden="true"></canvas>
       </div>

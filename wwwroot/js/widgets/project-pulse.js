@@ -78,7 +78,7 @@
     }];
   }
 
-  function buildChart(canvas, kind, series) {
+  function buildChart(canvas, kind, series, customOptions) {
     var ChartCtor = window.Chart;
     if (!ChartCtor) {
       return null;
@@ -88,6 +88,9 @@
     if (parsed.labels.length === 0 || parsed.values.length === 0) {
       return null;
     }
+
+    var hideXTickLabels = !!(customOptions && customOptions.hideXTickLabels);
+    var xAxisTitle = customOptions && customOptions.xAxisTitle;
 
     var config = {
       type: kind === 'pie' ? 'pie' : (kind === 'line' ? 'line' : 'bar'),
@@ -105,7 +108,16 @@
         scales: kind === 'pie' ? {} : {
           x: {
             grid: { display: false },
-            ticks: { autoSkip: true, maxRotation: 0 }
+            ticks: {
+              autoSkip: true,
+              maxRotation: 0,
+              display: !hideXTickLabels
+            },
+            title: xAxisTitle ? {
+              display: true,
+              text: xAxisTitle,
+              font: { weight: '600' }
+            } : { display: false }
           },
           y: {
             beginAtZero: true,
@@ -143,7 +155,10 @@
 
       var canvas = zone.querySelector('canvas');
       if (canvas && series.length > 0) {
-        var chart = buildChart(canvas, kind, series);
+        var chart = buildChart(canvas, kind, series, {
+          xAxisTitle: zone.getAttribute('data-x-axis-title') || '',
+          hideXTickLabels: zone.getAttribute('data-x-axis-hide-labels') === 'true'
+        });
         if (chart) {
           charts.push(chart);
         }
