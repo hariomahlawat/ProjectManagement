@@ -8,6 +8,7 @@
 }
 
 @section Styles {
+  <link rel="stylesheet" href="~/css/widgets/project-pulse.css" asp-append-version="true" />
   <link rel="stylesheet" href="~/css/todo-widget.css" asp-append-version="true" />
 }
 
@@ -90,7 +91,16 @@
       <div class="@dashboardMainColumnClass">
         <div class="dashboard-main-content h-100">
           <h2 class="h5 fw-semibold mb-2">Dashboard</h2>
-          <p class="text-secondary">This is a placeholder. Add role-specific widgets here.</p>
+          @* SECTION: Project Pulse widget *@
+          @if (Model.ProjectPulse is not null)
+          {
+            @await Html.PartialAsync("Areas/Dashboard/Components/ProjectPulse/_Widget", Model.ProjectPulse)
+          }
+          else
+          {
+            <p class="text-secondary">Project pulse data is not available right now.</p>
+          }
+          @* END SECTION *@
         </div>
       </div>
     </div>
@@ -151,5 +161,6 @@
 </div>
 
 @section Scripts {
+  <script type="module" src="~/js/widgets/project-pulse.js" asp-append-version="true"></script>
   <script src="~/js/todo-widget.js" asp-append-version="true" defer></script>
 }
