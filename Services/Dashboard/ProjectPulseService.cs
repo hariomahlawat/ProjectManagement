@@ -88,9 +88,14 @@ public sealed class ProjectPulseService : IProjectPulseService
             .AsNoTracking()
             .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed)
             .GroupBy(p => p.Category != null ? p.Category.Name : "Uncategorized")
-            .Select(g => new LabelValue(g.Key, g.Count()))
-            .OrderByDescending(x => x.Value)
+            .Select(g => new
+            {
+                Label = g.Key,
+                Count = g.Count()
+            })
+            .OrderByDescending(x => x.Count)
             .ThenBy(x => x.Label)
+            .Select(x => new LabelValue(x.Label, x.Count))
             .ToListAsync(cancellationToken);
 
         return completedSeries;
@@ -102,9 +107,14 @@ public sealed class ProjectPulseService : IProjectPulseService
             .AsNoTracking()
             .Where(p => !p.IsDeleted && !p.IsArchived)
             .GroupBy(p => p.TechnicalCategory != null ? p.TechnicalCategory.Name : "Unclassified")
-            .Select(g => new LabelValue(g.Key, g.Count()))
-            .OrderByDescending(x => x.Value)
+            .Select(g => new
+            {
+                Label = g.Key,
+                Count = g.Count()
+            })
+            .OrderByDescending(x => x.Count)
             .ThenBy(x => x.Label)
+            .Select(x => new LabelValue(x.Label, x.Count))
             .ToListAsync(cancellationToken);
 
         return technicalSeries;
