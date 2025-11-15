@@ -94,7 +94,12 @@
           @* SECTION: Project Pulse widget *@
           @if (Model.ProjectPulse is not null)
           {
-            @await Html.PartialAsync("Areas/Dashboard/Components/ProjectPulse/_Widget", Model.ProjectPulse)
+            @* SECTION: Project Pulse widget partial *@
+            @await Html.PartialAsync(
+              "~/Areas/Dashboard/Components/ProjectPulse/_Widget",
+              Model.ProjectPulse
+            )
+            @* END SECTION *@
           }
           else
           {
