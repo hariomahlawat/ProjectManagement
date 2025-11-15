@@ -38,6 +38,12 @@ public sealed class OpsSignalsService : IOpsSignalsService
         // SECTION: Range + cache setup
         var end = to ?? DateOnly.FromDateTime(DateTime.UtcNow.Date);
         var start = from ?? end.AddMonths(-11).AddDays(1 - end.Day);
+        var startMonthIndex = start.Year * 12 + start.Month;
+        var endMonthIndex = end.Year * 12 + end.Month;
+        var startOfDay = start.ToDateTime(TimeOnly.MinValue);
+        var endOfDay = end.ToDateTime(TimeOnly.MaxValue);
+        var startOfDayOffset = new DateTimeOffset(startOfDay, TimeSpan.Zero);
+        var endOfDayOffset = new DateTimeOffset(endOfDay, TimeSpan.Zero);
         var cacheKey = $"ops-signals:{start}:{end}";
         if (_cache.TryGetValue(cacheKey, out OpsSignalsVm? cached) && cached is not null)
         {
@@ -59,7 +65,7 @@ public sealed class OpsSignalsService : IOpsSignalsService
             // SECTION: Visits aggregation
             var visitsByMonth = await _db.Visits
                 .Where(v => v.DateOfVisit >= start && v.DateOfVisit <= end)
-                .GroupBy(v => new { v.DateOfVisit!.Value.Year, v.DateOfVisit.Value.Month })
+                .GroupBy(v => new { v.DateOfVisit.Year, v.DateOfVisit.Month })
                 .Select(g => new { g.Key.Year, g.Key.Month, Value = g.Sum(x => x.Strength) })
                 .ToListAsync(ct);
 
@@ -72,8 +78,8 @@ public sealed class OpsSignalsService : IOpsSignalsService
 
             // SECTION: Social media outreach aggregation
             var outreachByMonth = await _db.SocialMediaEvents
-                .Where(e => e.Date >= start && e.Date <= end)
-                .GroupBy(e => new { e.Date!.Value.Year, e.Date.Value.Month })
+                .Where(e => e.DateOfEvent >= start && e.DateOfEvent <= end)
+                .GroupBy(e => new { e.DateOfEvent.Year, e.DateOfEvent.Month })
                 .Select(g => new { g.Key.Year, g.Key.Month, Value = g.Count() })
                 .ToListAsync(ct);
             var outreachSpark = months.Select(m =>
@@ -84,35 +90,77 @@ public sealed class OpsSignalsService : IOpsSignalsService
             // END SECTION
 
             // SECTION: Training aggregation
-            var trainingByMonth = await _db.TrainingSessions
-                .Where(t => t.Date >= start && t.Date <= end)
-                .GroupBy(t => new { t.Date!.Value.Year, t.Date.Value.Month })
-                .Select(g => new { g.Key.Year, g.Key.Month, Value = g.Sum(x => x.OfficerCount + x.JcoCount + x.OrCount) })
+            var trainingCandidates = await _db.Trainings
+                .AsNoTracking()
+                .Where(t =>
+                    (t.StartDate.HasValue && t.StartDate.Value >= start && t.StartDate.Value <= end)
+                    || (t.EndDate.HasValue && t.EndDate.Value >= start && t.EndDate.Value <= end)
+                    || (!t.StartDate.HasValue && !t.EndDate.HasValue
+                        && t.TrainingYear.HasValue && t.TrainingMonth.HasValue
+                        && (t.TrainingYear.Value * 12 + t.TrainingMonth.Value) >= startMonthIndex
+                        && (t.TrainingYear.Value * 12 + t.TrainingMonth.Value) <= endMonthIndex))
+                .Select(t => new
+                {
+                    t.StartDate,
+                    t.EndDate,
+                    t.TrainingYear,
+                    t.TrainingMonth,
+                    Total = t.Counters != null
+                        ? t.Counters.Total
+                        : t.LegacyOfficerCount + t.LegacyJcoCount + t.LegacyOrCount
+                })
                 .ToListAsync(ct);
+
+            var trainingByMonth = trainingCandidates
+                .Select(candidate =>
+                {
+                    var referenceDate = candidate.StartDate
+                        ?? candidate.EndDate
+                        ?? (candidate.TrainingYear.HasValue && candidate.TrainingMonth.HasValue
+                            ? new DateOnly(candidate.TrainingYear.Value, candidate.TrainingMonth.Value, 1)
+                            : (DateOnly?)null);
+
+                    return referenceDate is { } reference && reference >= start && reference <= end
+                        ? new { Date = reference, candidate.Total }
+                        : null;
+                })
+                .Where(x => x is not null)
+                .Select(x => x!)
+                .GroupBy(x => new { x.Date.Year, x.Date.Month })
+                .Select(g => new { g.Key.Year, g.Key.Month, Value = g.Sum(x => x.Total) })
+                .ToList();
+
             var trainingSpark = months.Select(m =>
                 trainingByMonth.Where(x => (int)x.Year == m.Year && (int)x.Month == m.Month)
                                .Select(x => (int)x.Value).FirstOrDefault()
             ).ToList();
-            var trainingTotal = await _db.TrainingSessions.SumAsync(t => (long)(t.OfficerCount + t.JcoCount + t.OrCount), ct);
+
+            var trainingTotal = await _db.Trainings.SumAsync(
+                t => (long)(t.Counters != null
+                    ? t.Counters.Total
+                    : t.LegacyOfficerCount + t.LegacyJcoCount + t.LegacyOrCount),
+                ct);
             // END SECTION
 
             // SECTION: ToT aggregation
-            var totByMonth = await _db.TotRecords
-                .Where(r => r.Date >= start && r.Date <= end)
-                .GroupBy(r => new { r.Date!.Value.Year, r.Date.Value.Month })
+            var totByMonth = await _db.ProjectTotRequests
+                .Where(r => r.SubmittedOnUtc >= startOfDay && r.SubmittedOnUtc <= endOfDay)
+                .GroupBy(r => new { r.SubmittedOnUtc.Year, r.SubmittedOnUtc.Month })
                 .Select(g => new { g.Key.Year, g.Key.Month, Value = g.Count() })
                 .ToListAsync(ct);
             var totSpark = months.Select(m =>
                 totByMonth.Where(x => (int)x.Year == m.Year && (int)x.Month == m.Month)
                           .Select(x => (int)x.Value).FirstOrDefault()
             ).ToList();
-            var totTotal = await _db.TotRecords.LongCountAsync(ct);
+            var totTotal = await _db.ProjectTotRequests.LongCountAsync(ct);
             // END SECTION
 
             // SECTION: IPR aggregation
             var iprByMonth = await _db.IprRecords
-                .Where(r => r.FiledOn >= start && r.FiledOn <= end)
-                .GroupBy(r => new { r.FiledOn!.Value.Year, r.FiledOn.Value.Month })
+                .Where(r => r.FiledAtUtc.HasValue
+                            && r.FiledAtUtc.Value >= startOfDayOffset
+                            && r.FiledAtUtc.Value <= endOfDayOffset)
+                .GroupBy(r => new { r.FiledAtUtc!.Value.Year, r.FiledAtUtc.Value.Month })
                 .Select(g => new { g.Key.Year, g.Key.Month, Value = g.Count() })
                 .ToListAsync(ct);
             var iprSpark = months.Select(m =>
@@ -124,16 +172,16 @@ public sealed class OpsSignalsService : IOpsSignalsService
             // END SECTION
 
             // SECTION: Proliferation aggregation
-            var prolifByMonth = await _db.ProliferationRecords
-                .Where(p => p.Date >= start && p.Date <= end)
-                .GroupBy(p => new { p.Date!.Value.Year, p.Date.Value.Month })
+            var prolifByMonth = await _db.ProliferationGranularEntries
+                .Where(p => p.ProliferationDate >= start && p.ProliferationDate <= end)
+                .GroupBy(p => new { p.ProliferationDate.Year, p.ProliferationDate.Month })
                 .Select(g => new { g.Key.Year, g.Key.Month, Value = g.Count() })
                 .ToListAsync(ct);
             var prolifSpark = months.Select(m =>
                 prolifByMonth.Where(x => (int)x.Year == m.Year && (int)x.Month == m.Month)
                              .Select(x => (int)x.Value).FirstOrDefault()
             ).ToList();
-            var prolifTotal = await _db.ProliferationRecords.LongCountAsync(ct);
+            var prolifTotal = await _db.ProliferationGranularEntries.LongCountAsync(ct);
             // END SECTION
 
             // SECTION: Delta helper
