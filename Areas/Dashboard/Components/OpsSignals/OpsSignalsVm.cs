@@ -32,6 +32,7 @@ public sealed class OpsTileVm
     // SECTION: Delta indicators
     public int? DeltaAbs { get; init; }
     public double? DeltaPct { get; init; }
+    public string? DeltaLabel { get; init; }
     // END SECTION
 
     // SECTION: Navigation + icon

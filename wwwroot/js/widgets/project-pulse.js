@@ -8,7 +8,8 @@
 
   // SECTION: Utilities
   var ChartCtor = window.Chart;
-  var palette = ['#2d6cdf', '#0ea5e9', '#22c55e', '#f97316', '#a855f7', '#ef4444'];
+  var palette = ['#475569', '#94a3b8', '#cbd5f5', '#d4d4d8', '#e2e8f0', '#c4b5fd'];
+  var accent = '#2d6cdf';
 
   function safeParse(el, attr) {
     try {
@@ -34,6 +35,7 @@
         datasets: [{
           data: data,
           backgroundColor: labels.map(function (_, idx) { return palette[idx % palette.length]; }),
+          hoverBackgroundColor: labels.map(function () { return accent; }),
           cutout: '60%'
         }]
       },
@@ -54,7 +56,18 @@
     });
     return new ChartCtor(ctx, {
       type: 'line',
-      data: { labels: labels, datasets: [{ data: data, tension: 0.35, pointRadius: 2, fill: false, borderColor: palette[0] }] },
+      data: {
+        labels: labels,
+        datasets: [{
+          data: data,
+          tension: 0.35,
+          pointRadius: 2,
+          pointBackgroundColor: accent,
+          pointHoverRadius: 4,
+          fill: false,
+          borderColor: palette[0]
+        }]
+      },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -80,7 +93,16 @@
     });
     return new ChartCtor(ctx, {
       type: 'bar',
-      data: { labels: labels, datasets: [{ data: data, borderRadius: 6, maxBarThickness: 22, backgroundColor: palette[1] }] },
+      data: {
+        labels: labels,
+        datasets: [{
+          data: data,
+          borderRadius: 6,
+          maxBarThickness: 22,
+          backgroundColor: palette[1],
+          hoverBackgroundColor: accent
+        }]
+      },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -106,19 +128,7 @@
     }
 
     var charts = [];
-    var observer = 'IntersectionObserver' in window
-      ? new IntersectionObserver(onIntersect, { rootMargin: '80px' })
-      : null;
-
-    function onIntersect(entries) {
-      entries.forEach(function (entry) {
-        if (!entry.isIntersecting) {
-          return;
-        }
-        observer && observer.unobserve(entry.target);
-        hydrateChart(entry.target);
-      });
-    }
+    var hosts = Array.prototype.slice.call(root.querySelectorAll('.ppulse__chart'));
 
     function hydrateChart(host) {
       var canvas = host.querySelector('canvas');
@@ -144,16 +154,24 @@
     }
 
     function hydrateAll() {
-      root.querySelectorAll('.ppulse__chart').forEach(function (chartHost) {
-        if (observer) {
-          observer.observe(chartHost);
-        } else {
-          hydrateChart(chartHost);
-        }
-      });
+      hosts.forEach(hydrateChart);
+      hosts = [];
     }
 
-    hydrateAll();
+    if ('IntersectionObserver' in window) {
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) {
+            return;
+          }
+          observer.unobserve(entry.target);
+          hydrateAll();
+        });
+      }, { rootMargin: '80px' });
+      observer.observe(root);
+    } else {
+      hydrateAll();
+    }
   }
   // END SECTION
 
