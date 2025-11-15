@@ -3,11 +3,12 @@
   --pp-gap-xs: 8px;
   --pp-gap-sm: 12px;
   --pp-gap-md: 16px;
+  --pp-gap-lg: 24px;
   --pp-border: var(--pm-border, #e5e7eb);
   background: #fff;
   border-radius: 14px;
   box-shadow: var(--pm-shadow, 0 8px 30px rgba(15, 23, 42, 0.08));
-  padding: var(--pp-gap-md);
+  padding: clamp(var(--pp-gap-md), 3vw, var(--pp-gap-lg));
   border: 1px solid var(--pp-border);
 }
 /* END SECTION */
@@ -104,6 +105,7 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--pp-gap-sm);
+  margin-top: var(--pp-gap-sm);
 }
 
 @media (max-width: 1099px) {
