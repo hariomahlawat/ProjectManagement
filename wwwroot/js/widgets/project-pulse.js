@@ -61,7 +61,11 @@
         animation: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { grid: { display: false } },
+          x: {
+            grid: { display: false },
+            ticks: { display: false },
+            title: { display: true, text: 'Stages' }
+          },
           y: { beginAtZero: true, ticks: { precision: 0 } }
         }
       }
@@ -83,7 +87,11 @@
         animation: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { grid: { display: false } },
+          x: {
+            grid: { display: false },
+            ticks: { display: false },
+            title: { display: true, text: 'Technical category' }
+          },
           y: { beginAtZero: true, ticks: { precision: 0 } }
         }
       }
