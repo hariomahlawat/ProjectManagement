@@ -1,156 +1,121 @@
-const palette = [
-  'rgba(13, 110, 253, 0.85)',
-  'rgba(25, 135, 84, 0.9)',
-  'rgba(255, 193, 7, 0.85)',
-  'rgba(220, 53, 69, 0.8)',
-  'rgba(13, 202, 240, 0.85)',
-  'rgba(111, 66, 193, 0.8)'
-];
-
-function parseSeries(dataset) {
-  if (!dataset) return null;
-  try {
-    const parsed = JSON.parse(dataset);
-    if (!parsed || !Array.isArray(parsed.labels) || !Array.isArray(parsed.values)) {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
+// SECTION: Project pulse micro-charts
+(function () {
+  if (typeof Chart === 'undefined') {
+    return;
   }
-}
 
-function createCompletedChart(ChartCtor, canvas, data) {
-  const cfg = {
-    type: 'bar',
-    data: {
-      labels: data.labels,
-      datasets: [
-        {
-          data: data.values,
-          backgroundColor: 'rgba(13, 110, 253, 0.5)',
-          borderRadius: 4,
-          maxBarThickness: 12
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { intersect: false } },
-      scales: {
-        x: { ticks: { maxRotation: 0, minRotation: 0 }, grid: { display: false } },
-        y: { beginAtZero: true, ticks: { precision: 0 }, grid: { display: false } }
-      }
-    }
-  };
-  return new ChartCtor(canvas, cfg);
-}
+  const selectAll = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 
-function createStageChart(ChartCtor, canvas, data) {
-  const colors = data.labels.map((_, idx) => palette[idx % palette.length]);
-  const cfg = {
-    type: 'bar',
-    data: {
-      labels: data.labels,
-      datasets: [
-        {
-          data: data.values,
-          backgroundColor: colors,
-          borderRadius: 6
-        }
-      ]
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { intersect: false } },
-      scales: {
-        x: { beginAtZero: true, ticks: { precision: 0 }, grid: { display: false } },
-        y: { grid: { display: false } }
-      }
-    }
-  };
-  return new ChartCtor(canvas, cfg);
-}
-
-function createRepositoryChart(ChartCtor, canvas, data) {
-  const colors = data.labels.map((_, idx) => palette[idx % palette.length]);
-  const cfg = {
-    type: 'doughnut',
-    data: {
-      labels: data.labels,
-      datasets: [
-        {
-          data: data.values,
-          backgroundColor: colors,
-          borderWidth: 0
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      cutout: '55%',
-      plugins: { legend: { display: false }, tooltip: { intersect: false } }
-    }
-  };
-  return new ChartCtor(canvas, cfg);
-}
-
-function wireTelemetry(root) {
-  if (!root) return;
-  root.querySelectorAll('[data-pulse-telemetry]').forEach((el) => {
-    el.addEventListener('click', () => {
-      const evt = el.dataset.pulseTelemetry;
-      if (!evt) return;
-      const telemetry = window.pmTelemetry;
-      if (telemetry && typeof telemetry.emit === 'function') {
-        try {
-          telemetry.emit(evt);
-        } catch {
-          /* no-op */
+  function sparkline(canvas, series) {
+    const ctx = canvas.getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: series.map((_, index) => index + 1),
+        datasets: [
+          {
+            data: series,
+            borderWidth: 2,
+            borderColor: '#2563eb',
+            backgroundColor: 'rgba(37, 99, 235, 0.15)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false }
+        },
+        scales: {
+          x: { display: false },
+          y: { display: false }
         }
       }
     });
-  });
-}
-
-export function initProjectPulse(root = document) {
-  const host = root?.querySelector('[data-project-pulse]');
-  if (!host) {
-    return;
   }
 
-  const ChartCtor = window.Chart;
-  if (!ChartCtor) {
-    wireTelemetry(host);
-    return;
+  function stackedBar(canvas, buckets) {
+    const labels = buckets.map((_, index) => index + 1);
+    const completed = buckets.map((bucket) => bucket.completed ?? bucket.Completed ?? 0);
+    const ongoing = buckets.map((bucket) => bucket.ongoing ?? bucket.Ongoing ?? 0);
+    const idle = buckets.map((bucket) => bucket.idle ?? bucket.Idle ?? 0);
+    const ctx = canvas.getContext('2d');
+
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { data: completed, borderWidth: 0, backgroundColor: '#16a34a', stack: 'ppulse' },
+          { data: ongoing, borderWidth: 0, backgroundColor: '#2563eb', stack: 'ppulse' },
+          { data: idle, borderWidth: 0, backgroundColor: '#9ca3af', stack: 'ppulse' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false }
+        },
+        scales: {
+          x: { display: false, stacked: true },
+          y: { display: false, stacked: true }
+        }
+      }
+    });
   }
 
-  host.querySelectorAll('.pulse-chart').forEach((wrapper) => {
-    const type = wrapper.dataset.chartType;
-    const canvas = wrapper.querySelector('canvas[data-series]');
-    const series = parseSeries(canvas?.dataset.series);
-    if (!canvas || !series) {
+  function initCard(selector, type) {
+    selectAll(selector).forEach((card) => {
+      const canvas = card.querySelector('canvas[data-chart]');
+      if (!canvas) {
+        return;
+      }
+
+      const attr = type === 'stackedbar' ? card.getAttribute('data-weekly') : card.getAttribute('data-series');
+      if (!attr) {
+        return;
+      }
+
+      let payload;
+      try {
+        payload = JSON.parse(attr);
+      } catch {
+        payload = null;
+      }
+
+      if (!payload || (Array.isArray(payload) && payload.length === 0)) {
+        return;
+      }
+
+      if (type === 'stackedbar') {
+        stackedBar(canvas, Array.isArray(payload) ? payload : []);
+      } else {
+        sparkline(canvas, Array.isArray(payload) ? payload : []);
+      }
+    });
+  }
+
+  function init() {
+    const root = document.querySelector('[data-ppulse]');
+    if (!root) {
       return;
     }
 
-    if (type === 'stages') {
-      createStageChart(ChartCtor, canvas, series);
-    } else if (type === 'repository') {
-      createRepositoryChart(ChartCtor, canvas, series);
-    } else {
-      createCompletedChart(ChartCtor, canvas, series);
-    }
-  });
+    initCard('[data-pp-all]', 'stackedbar');
+    initCard('[data-pp-done]', 'sparkline');
+    initCard('[data-pp-doing]', 'sparkline');
+  }
 
-  wireTelemetry(host);
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => initProjectPulse(document));
-} else {
-  initProjectPulse(document);
-}
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
+})();

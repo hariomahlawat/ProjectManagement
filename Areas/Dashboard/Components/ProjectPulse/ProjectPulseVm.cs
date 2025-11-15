@@ -2,32 +2,43 @@ using System.Collections.Generic;
 
 namespace ProjectManagement.Areas.Dashboard.Components.ProjectPulse;
 
-// SECTION: View model contracts
-public sealed record ProjectPulseVm(
-    SummaryBlock Summary,
-    CompletedBlock Completed,
-    OngoingBlock Ongoing,
-    RepositoryBlock Repository,
-    AnalyticsBlock Analytics);
+// SECTION: Widget view models
+public sealed class ProjectPulseVm
+{
+    public int Total { get; init; }
 
-public sealed record SummaryBlock(int Total, int Completed, int Ongoing, int Idle);
+    public int Completed { get; init; }
 
-public sealed record CompletedBlock(
-    int TotalCompleted,
-    IReadOnlyList<Point> CompletionsByMonth,
-    string Link);
+    public int Ongoing { get; init; }
 
-public sealed record OngoingBlock(
-    int TotalOngoing,
-    int OverdueCount,
-    IReadOnlyList<Kv> StageDistribution,
-    string Link);
+    public int Idle { get; init; }
 
-public sealed record RepositoryBlock(
-    IReadOnlyList<Kv> CategoryBreakdown,
-    string Link);
+    public AllProjectsCard All { get; init; } = new();
 
-public sealed record AnalyticsBlock(string Link);
+    public CompletedCard Done { get; init; } = new();
 
-public sealed record Point(string Label, int Value);
-public sealed record Kv(string Label, int Value);
+    public OngoingCard Doing { get; init; } = new();
+
+    public AnalyticsCard Analytics { get; init; } = new();
+}
+
+public sealed record AllProjectsCard(
+    int Total = 0,
+    IReadOnlyList<StatusBucket>? WeeklyBuckets = null,
+    string RepositoryUrl = "/Projects");
+
+public sealed record CompletedCard(
+    int Count = 0,
+    IReadOnlyList<int>? WeeklyCompletions = null,
+    string Link = "/Projects?status=Completed");
+
+public sealed record OngoingCard(
+    int Count = 0,
+    int Overdue = 0,
+    IReadOnlyList<int>? WeeklyActive = null,
+    string Link = "/Projects?status=Ongoing");
+
+public sealed record AnalyticsCard(
+    string CtaUrl = "/Reports/Projects/Analytics");
+
+public sealed record StatusBucket(int Completed, int Ongoing, int Idle);
