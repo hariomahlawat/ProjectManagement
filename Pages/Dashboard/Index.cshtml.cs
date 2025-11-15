@@ -2,9 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Areas.Dashboard.Components.ProjectPulse;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Helpers;
 using System;
 using System.Globalization;
@@ -22,19 +24,22 @@ namespace ProjectManagement.Pages.Dashboard
         private readonly ITodoService _todo;
         private readonly UserManager<ApplicationUser> _users;
         private readonly Data.ApplicationDbContext _db;
+        private readonly ProjectPulseService _projectPulse;
         private static readonly TimeZoneInfo IST = IstClock.TimeZone;
 
-        public IndexModel(ITodoService todo, UserManager<ApplicationUser> users, Data.ApplicationDbContext db)
+        public IndexModel(ITodoService todo, UserManager<ApplicationUser> users, Data.ApplicationDbContext db, ProjectPulseService projectPulse)
         {
             _todo = todo;
             _users = users;
             _db = db;
+            _projectPulse = projectPulse;
         }
 
         public TodoWidgetResult? TodoWidget { get; set; }
         public List<UpcomingEventVM> UpcomingEvents { get; set; } = new();
         public List<MyProjectsSection> MyProjectSections { get; private set; } = new();
         public bool HasMyProjects => MyProjectSections.Any(section => section.Items.Count > 0);
+        public ProjectPulseVm? ProjectPulse { get; private set; }
 
         // SECTION: My Projects widget state
         public bool ShowMyProjectsWidget { get; private set; }
@@ -179,6 +184,8 @@ namespace ProjectManagement.Pages.Dashboard
             {
                 await LoadMyProjectsAsync(uid, isProjectOfficer, isHod, isComdt || isMco);
             }
+
+            ProjectPulse = await _projectPulse.GetAsync();
         }
 
         private async Task LoadMyProjectsAsync(string userId, bool includeOfficerSection, bool includeHodSection, bool includeAllOngoingSection)

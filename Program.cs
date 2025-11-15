@@ -45,6 +45,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Activities;
 using ProjectManagement.Services.Analytics;
+using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Documents;
 using ProjectManagement.Services.Navigation;
@@ -319,6 +320,7 @@ builder.Services.AddScoped<ITodoService, TodoService>();
 builder.Services.Configure<TodoOptions>(
     builder.Configuration.GetSection("Todo"));
 builder.Services.AddScoped<ILoginAnalyticsService, LoginAnalyticsService>();
+builder.Services.AddScoped<ProjectPulseService>();
 builder.Services.AddHostedService<LoginAggregationWorker>();
 builder.Services.AddHostedService<TodoPurgeWorker>();
 builder.Services.AddHostedService<ProjectRetentionWorker>();
