@@ -20,19 +20,6 @@ public interface IProjectAnalyticsService
         int? technicalCategoryId,
         CancellationToken cancellationToken = default);
 
-    Task<LifecycleBreakdownResult> GetLifecycleBreakdownAsync(
-        int? categoryId,
-        int? technicalCategoryId,
-        CancellationToken cancellationToken = default);
-
-    Task<MonthlyStageCompletionsResult> GetMonthlyStageCompletionsAsync(
-        ProjectLifecycleFilter lifecycle,
-        int? categoryId,
-        int? technicalCategoryId,
-        DateOnly startMonth,
-        DateOnly endMonth,
-        CancellationToken cancellationToken = default);
-
     Task<SlipBucketResult> GetSlipBucketsAsync(
         ProjectLifecycleFilter lifecycle,
         int? categoryId,

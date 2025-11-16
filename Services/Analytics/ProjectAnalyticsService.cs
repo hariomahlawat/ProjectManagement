@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -169,160 +168,6 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
             .ToList();
 
         return new StageDistributionResult(ordered, lifecycle);
-    }
-
-    public async Task<LifecycleBreakdownResult> GetLifecycleBreakdownAsync(
-        int? categoryId,
-        int? technicalCategoryId,
-        CancellationToken cancellationToken = default)
-    {
-        var query = _db.Projects
-            .AsNoTracking()
-            .Where(p => !p.IsDeleted && !p.IsArchived);
-
-        if (categoryId.HasValue)
-        {
-            var categoryIds = await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
-            query = query.Where(p => p.CategoryId.HasValue && categoryIds.Contains(p.CategoryId.Value));
-        }
-
-        if (technicalCategoryId.HasValue)
-        {
-            query = query.Where(p => p.TechnicalCategoryId == technicalCategoryId.Value);
-        }
-
-        var raw = await query
-            .GroupBy(p => p.LifecycleStatus)
-            .Select(g => new LifecycleBreakdownItem(g.Key, g.Count()))
-            .ToListAsync(cancellationToken);
-
-        var result = Enum.GetValues<ProjectLifecycleStatus>()
-            .Select(status =>
-                raw.FirstOrDefault(r => r.Status == status) ?? new LifecycleBreakdownItem(status, 0))
-            .ToList();
-
-        return new LifecycleBreakdownResult(result);
-    }
-
-    public async Task<MonthlyStageCompletionsResult> GetMonthlyStageCompletionsAsync(
-        ProjectLifecycleFilter lifecycle,
-        int? categoryId,
-        int? technicalCategoryId,
-        DateOnly fromMonth,
-        DateOnly toMonth,
-        CancellationToken cancellationToken = default)
-    {
-        if (toMonth < fromMonth)
-        {
-            (fromMonth, toMonth) = (toMonth, fromMonth);
-        }
-
-        var months = new List<DateOnly>();
-        var cursor = new DateOnly(fromMonth.Year, fromMonth.Month, 1);
-        var limit = new DateOnly(toMonth.Year, toMonth.Month, 1);
-        while (cursor <= limit)
-        {
-            months.Add(cursor);
-            cursor = cursor.AddMonths(1);
-        }
-
-        var nextLimitExclusive = limit.AddMonths(1);
-
-        var query = _db.ProjectStages
-            .AsNoTracking()
-            .Where(s => s.CompletedOn != null)
-            .Where(s => s.Project != null && !s.Project.IsDeleted && !s.Project.IsArchived)
-            .Where(s => s.CompletedOn!.Value >= fromMonth && s.CompletedOn!.Value < nextLimitExclusive);
-
-        if (categoryId.HasValue)
-        {
-            var categoryIds = await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
-            query = query.Where(s => s.Project!.CategoryId.HasValue && categoryIds.Contains(s.Project!.CategoryId.Value));
-        }
-
-        if (technicalCategoryId.HasValue)
-        {
-            query = query.Where(s => s.Project!.TechnicalCategoryId == technicalCategoryId.Value);
-        }
-
-        query = ApplyLifecycleFilter(query, lifecycle);
-
-        var rows = await query
-            .Select(s => new StageCompletionRow(
-                s.StageCode,
-                s.CompletedOn!.Value,
-                s.ProjectId))
-            .ToListAsync(cancellationToken);
-
-        var monthIndex = months
-            .Select((m, idx) => (m, idx))
-            .ToDictionary(x => x.m, x => x.idx);
-
-        var seriesMap = StageOrder
-            .ToDictionary(code => code, _ => new int[months.Count], StringComparer.OrdinalIgnoreCase);
-
-        foreach (var row in rows)
-        {
-            var key = new DateOnly(row.CompletedOn.Year, row.CompletedOn.Month, 1);
-            if (!monthIndex.TryGetValue(key, out var idx))
-            {
-                continue;
-            }
-
-            if (!seriesMap.TryGetValue(row.StageCode, out var arr))
-            {
-                arr = new int[months.Count];
-                seriesMap[row.StageCode] = arr;
-            }
-
-            arr[idx] += 1;
-        }
-
-        var series = seriesMap
-            .Where(pair => pair.Value.Any(v => v > 0))
-            .OrderBy(pair => Array.IndexOf(StageOrder, pair.Key) is var order && order >= 0 ? order : int.MaxValue)
-            .ThenBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(pair => new MonthlyStageSeries(
-                pair.Key,
-                StageCodes.DisplayNameOf(pair.Key),
-                Array.AsReadOnly(pair.Value)))
-            .ToList();
-
-        var nowIst = TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst());
-        var thisMonth = new DateOnly(nowIst.Year, nowIst.Month, 1);
-        var nextMonth = thisMonth.AddMonths(1);
-
-        var filteredThisMonth = rows
-            .Where(r => r.CompletedOn >= thisMonth && r.CompletedOn < nextMonth)
-            .ToList();
-
-        var totalThisMonth = filteredThisMonth.Count;
-        var projectsAdvancing = filteredThisMonth
-            .GroupBy(r => r.ProjectId)
-            .Count(g => g.Count() >= 2);
-
-        var topStage = filteredThisMonth
-            .GroupBy(r => r.StageCode, StringComparer.OrdinalIgnoreCase)
-            .Select(g => new { Stage = g.Key, Count = g.Count() })
-            .OrderByDescending(g => g.Count)
-            .ThenBy(g => g.Stage, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
-
-        var monthsInfo = months
-            .Select(m => new MonthlyStageBucket(
-                m.ToString("yyyy-MM", CultureInfo.InvariantCulture),
-                m.ToString("MMM yyyy", CultureInfo.InvariantCulture),
-                m))
-            .ToList();
-
-        var kpis = new StageCompletionKpis(
-            totalThisMonth,
-            projectsAdvancing,
-            topStage?.Stage,
-            topStage?.Stage is string code ? StageCodes.DisplayNameOf(code) : null,
-            topStage?.Count ?? 0);
-
-        return new MonthlyStageCompletionsResult(monthsInfo, series, kpis);
     }
 
     public async Task<SlipBucketResult> GetSlipBucketsAsync(
@@ -601,11 +446,6 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         });
     }
 
-    private sealed record StageCompletionRow(
-        string StageCode,
-        DateOnly CompletedOn,
-        int ProjectId);
-
     private sealed record SlipBucketDefinition(string Key, string Label, int MinInclusive, int? MaxInclusive)
     {
         public int Count { get; set; }
@@ -645,26 +485,6 @@ public sealed record CategoryShareSlice(
 public sealed record StageDistributionResult(IReadOnlyList<StageDistributionItem> Items, ProjectLifecycleFilter Lifecycle);
 
 public sealed record StageDistributionItem(string StageCode, string StageName, int Count);
-
-public sealed record LifecycleBreakdownResult(IReadOnlyList<LifecycleBreakdownItem> Items);
-
-public sealed record LifecycleBreakdownItem(ProjectLifecycleStatus Status, int Count);
-
-public sealed record MonthlyStageCompletionsResult(
-    IReadOnlyList<MonthlyStageBucket> Months,
-    IReadOnlyList<MonthlyStageSeries> Series,
-    StageCompletionKpis Kpis);
-
-public sealed record MonthlyStageBucket(string Key, string Label, DateOnly Start);
-
-public sealed record MonthlyStageSeries(string StageCode, string StageName, IReadOnlyList<int> Counts);
-
-public sealed record StageCompletionKpis(
-    int TotalCompletionsThisMonth,
-    int ProjectsAdvancedTwoOrMoreStages,
-    string? TopStageCode,
-    string? TopStageName,
-    int TopStageCount);
 
 public sealed record SlipBucketResult(IReadOnlyList<SlipBucketItem> Buckets);
 

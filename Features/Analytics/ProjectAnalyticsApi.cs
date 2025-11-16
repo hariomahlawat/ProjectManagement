@@ -5,10 +5,8 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using ProjectManagement.Services;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Projects;
-using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Features.Analytics;
 
@@ -43,50 +41,6 @@ internal static class ProjectAnalyticsApi
                 lifecycle,
                 categoryId,
                 technicalCategoryId,
-                cancellationToken);
-            return Results.Ok(result);
-        });
-
-        group.MapGet("/lifecycle-breakdown", async (
-            HttpContext context,
-            IProjectAnalyticsService service,
-            CancellationToken cancellationToken) =>
-        {
-            var (_, categoryId, technicalCategoryId) = ParseFilterQuery(context.Request);
-            var result = await service.GetLifecycleBreakdownAsync(categoryId, technicalCategoryId, cancellationToken);
-            return Results.Ok(result);
-        });
-
-        group.MapGet("/monthly-stage-completions", async (
-            HttpContext context,
-            IProjectAnalyticsService service,
-            IClock clock,
-            CancellationToken cancellationToken) =>
-        {
-            var request = context.Request;
-            var ist = TimeZoneHelper.GetIst();
-            var todayIst = TimeZoneInfo.ConvertTimeFromUtc(clock.UtcNow.UtcDateTime, ist);
-            var defaultEnd = new DateOnly(todayIst.Year, todayIst.Month, 1);
-            var defaultStart = defaultEnd.AddMonths(-5);
-
-            var fromMonth = request.Query.TryGetValue("fromMonth", out var fromValues)
-                ? fromValues.ToString()
-                : null;
-            var toMonth = request.Query.TryGetValue("toMonth", out var toValues)
-                ? toValues.ToString()
-                : null;
-
-            var (lifecycle, categoryId, technicalCategoryId) = ParseFilterQuery(request);
-
-            var startMonth = ParseMonthOrDefault(fromMonth, defaultStart);
-            var endMonth = ParseMonthOrDefault(toMonth, defaultEnd);
-
-            var result = await service.GetMonthlyStageCompletionsAsync(
-                lifecycle,
-                categoryId,
-                technicalCategoryId,
-                startMonth,
-                endMonth,
                 cancellationToken);
             return Results.Ok(result);
         });
@@ -161,14 +115,4 @@ internal static class ProjectAnalyticsApi
         };
     }
 
-    private static DateOnly ParseMonthOrDefault(string? input, DateOnly fallback)
-    {
-        if (!string.IsNullOrWhiteSpace(input) &&
-            DateOnly.TryParseExact(input, "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
-        {
-            return new DateOnly(parsed.Year, parsed.Month, 1);
-        }
-
-        return fallback;
-    }
 }
