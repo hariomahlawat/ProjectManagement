@@ -1,8 +1,9 @@
 @page
 @model ProjectManagement.Pages.Analytics.IndexModel
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
-@using ProjectManagement.Services.Projects
+@using ProjectManagement.Models.Analytics
 @using ProjectManagement.Pages.Analytics
+@using ProjectManagement.Services.Projects
 @{
     ViewData["Title"] = "Analytics";
     ViewData["UseFullWidth"] = true;
@@ -15,6 +16,8 @@
     };
     var categories = Model.Categories ?? Array.Empty<ProjectManagement.Pages.Analytics.IndexModel.CategoryOption>();
     var technicalCategories = Model.TechnicalCategories ?? Array.Empty<ProjectManagement.Pages.Analytics.IndexModel.TechnicalCategoryOption>();
+    ViewData["AnalyticsCategories"] = categories;
+    ViewData["AnalyticsTechnicalCategories"] = technicalCategories;
     var categoryCount = categories.Count;
     var technicalCount = technicalCategories.Count;
 }
@@ -58,7 +61,7 @@
           <a
             asp-page="./Index"
             asp-route-tab="Completed"
-            class="analytics-left-nav__item @(Model.ActiveTab == IndexModel.AnalyticsViewTab.Completed ? "is-active" : null)"
+            class="analytics-left-nav__item @(Model.ActiveTab == AnalyticsTab.Completed ? "is-active" : null)"
           >
             <div class="analytics-left-nav__title">Completed projects</div>
             <div class="analytics-left-nav__meta">@Model.CompletedCount projects</div>
@@ -67,7 +70,7 @@
           <a
             asp-page="./Index"
             asp-route-tab="Ongoing"
-            class="analytics-left-nav__item @(Model.ActiveTab == IndexModel.AnalyticsViewTab.Ongoing ? "is-active" : null)"
+            class="analytics-left-nav__item @(Model.ActiveTab == AnalyticsTab.Ongoing ? "is-active" : null)"
           >
             <div class="analytics-left-nav__title">Ongoing projects</div>
             <div class="analytics-left-nav__meta">@Model.OngoingCount projects</div>
@@ -76,7 +79,7 @@
           <a
             asp-page="./Index"
             asp-route-tab="Coe"
-            class="analytics-left-nav__item @(Model.ActiveTab == IndexModel.AnalyticsViewTab.Coe ? "is-active" : null)"
+            class="analytics-left-nav__item @(Model.ActiveTab == AnalyticsTab.Coe ? "is-active" : null)"
           >
             <div class="analytics-left-nav__title">CoE projects</div>
             <div class="analytics-left-nav__meta">@Model.CoeCount projects</div>
@@ -85,21 +88,24 @@
       </aside>
 
       <div class="analytics-main" data-role="analytics-main">
-        <!-- Analytics content panel -->
+        <!-- SECTION: Analytics content panel -->
         <div class="analytics-main-panel">
-          @if (Model.ActiveTab == IndexModel.AnalyticsViewTab.Completed)
+          @switch (Model.ActiveTab)
           {
-            @await Html.PartialAsync("_CompletedProjectsAnalytics", Model)
-          }
-          else if (Model.ActiveTab == IndexModel.AnalyticsViewTab.Ongoing)
-          {
-            @await Html.PartialAsync("_OngoingProjectsAnalytics", Model)
-          }
-          else if (Model.ActiveTab == IndexModel.AnalyticsViewTab.Coe)
-          {
-            @await Html.PartialAsync("_CoeProjectsAnalytics", Model)
+            case AnalyticsTab.Completed:
+              @await Html.PartialAsync("Partials/_CompletedAnalytics", Model.Completed!)
+              break;
+
+            case AnalyticsTab.Ongoing:
+              @await Html.PartialAsync("Partials/_OngoingAnalytics", Model.Ongoing!)
+              break;
+
+            case AnalyticsTab.Coe:
+              @await Html.PartialAsync("Partials/_CoeAnalytics", Model.Coe!)
+              break;
           }
         </div>
+        <!-- END SECTION -->
       </div>
     </section>
   </div>
