@@ -12,6 +12,8 @@
         .OrderByDescending(country => country.Total)
         .ThenBy(country => country.Name)
         .ToList();
+    var topCountries = sortedCountries.Take(5).ToList();
+    var remainingCount = sortedCountries.Count - topCountries.Count;
 }
 <section class="ffc-simulator-map-widget pm-card pm-shadow" aria-labelledby="ffc-simulator-map-title">
     <div class="pm-card-body">
@@ -55,29 +57,35 @@
                 ></div>
                 <div class="ffc-simulator-map__status" data-map-status>Loading delivery footprint…</div>
             </div>
-            @* SECTION: Below-map country list *@
-            <div class="ffc-simulator-map__list" aria-label="FFC simulator activity by country">
-                <table class="table mb-0 align-middle">
-                    <thead>
-                        <tr>
-                            <th scope="col" class="text-uppercase small fw-semibold text-secondary">Country</th>
-                            <th scope="col" class="text-uppercase small fw-semibold text-secondary text-end">Installed</th>
-                            <th scope="col" class="text-uppercase small fw-semibold text-secondary text-end">Delivered</th>
-                            <th scope="col" class="text-uppercase small fw-semibold text-secondary text-end">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var country in sortedCountries)
+            @* SECTION: Below-map country chip strip *@
+            <div class="ffc-simulator-map__country-strip" aria-label="FFC simulator activity by country">
+                <div class="ffc-country-strip" role="list">
+                    @for (var index = 0; index < topCountries.Count; index++)
+                    {
+                        var country = topCountries[index];
+                        if (index > 0)
                         {
-                            <tr data-country-row="@country.Iso3" tabindex="0">
-                                <td class="text-truncate" title="@country.Name">@country.Name</td>
-                                <td class="text-end">@country.Installed</td>
-                                <td class="text-end">@country.Delivered</td>
-                                <td class="text-end fw-semibold">@country.Total</td>
-                            </tr>
+                            <span class="ffc-country-sep" aria-hidden="true">·</span>
                         }
-                    </tbody>
-                </table>
+                        <button
+                            type="button"
+                            class="ffc-country-chip"
+                            data-country-chip="@country.Iso3"
+                            title="@country.Name"
+                            role="listitem"
+                        >
+                            <span class="ffc-country-chip__name">@country.Name</span>
+                            <span class="ffc-country-chip__total">(<strong>@country.Total</strong>)</span>
+                        </button>
+                    }
+                    @if (remainingCount > 0)
+                    {
+                        <span class="ffc-country-sep" aria-hidden="true">·</span>
+                        <a class="ffc-country-chip ffc-country-chip--more" href="@fullMapUrl">
+                            … and @remainingCount more
+                        </a>
+                    }
+                </div>
             </div>
         }
         else
