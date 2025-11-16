@@ -68,18 +68,29 @@
     <div class="col-12 col-lg-3 dashboard-sidebar">
         <partial name="_TodoWidget" model="Model.TodoWidget" />
 
-        <button type="button"
-                class="dashboard-events-card dashboard-events-card--floating pm-shadow mt-3 mt-lg-0"
-                data-drawer-toggle
-                data-drawer-target="dashboard-events"
-                aria-controls="dashboard-events"
-                aria-haspopup="dialog"
-                aria-label="View upcoming events">
-            <span class="visually-hidden">View upcoming events</span>
-            <span class="dashboard-events-card__icon" aria-hidden="true">
-                <i class="bi bi-calendar-event"></i>
-            </span>
-        </button>
+        <div class="dashboard-floating-actions mt-3 mt-lg-0">
+            <button type="button"
+                    class="dashboard-events-card pm-shadow"
+                    data-drawer-toggle
+                    data-drawer-target="dashboard-events"
+                    aria-controls="dashboard-events"
+                    aria-haspopup="dialog"
+                    aria-label="View upcoming events">
+                <span class="visually-hidden">View upcoming events</span>
+                <span class="dashboard-events-card__icon" aria-hidden="true">
+                    <i class="bi bi-calendar-event"></i>
+                </span>
+            </button>
+            <a asp-area="Common"
+               asp-page="/Search/Index"
+               class="dashboard-events-card pm-shadow"
+               aria-label="Open global search">
+                <span class="visually-hidden">Open global search</span>
+                <span class="dashboard-events-card__icon" aria-hidden="true">
+                    <i class="bi bi-search"></i>
+                </span>
+            </a>
+        </div>
     </div>
 
     @* SECTION: My Projects widget (full-width row) *@
