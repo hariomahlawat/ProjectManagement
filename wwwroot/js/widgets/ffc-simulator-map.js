@@ -91,16 +91,19 @@
   function createPin(count) {
     var safeCount = typeof count === 'number' && !Number.isNaN(count) ? count : 0;
     var digitCount = String(Math.abs(safeCount)).length;
-    var size = 38 + Math.min(Math.max(digitCount - 1, 0) * 6, 12);
+    var size = 34 + Math.min(Math.max(digitCount - 1, 0) * 6, 12);
+    var height = Math.round(size * 1.35);
     var html = '' +
       '<div class="ffc-simulator-map__pin" style="--pin-size:' + size + 'px">' +
-      '  <span class="ffc-simulator-map__pin-count">' + safeCount + '</span>' +
+      '  <div class="ffc-simulator-map__pin-head">' +
+      '    <span class="ffc-simulator-map__pin-count">' + safeCount + '</span>' +
+      '  </div>' +
       '</div>';
     return L.divIcon({
       html: html,
       className: '',
-      iconSize: [size, size + 14],
-      iconAnchor: [size / 2, size + 10]
+      iconSize: [size, height],
+      iconAnchor: [size / 2, height - 4]
     });
   }
 
