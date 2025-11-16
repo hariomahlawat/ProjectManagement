@@ -93,37 +93,52 @@
 
 .ffc-simulator-map__pin {
   --pin-size: 40px;
-  width: var(--pin-size);
-  height: var(--pin-size);
-  border-radius: var(--pin-size);
-  background: radial-gradient(circle at 35% 35%, #ede9fe, #8b5cf6);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
+  --pin-fill: #fef9c3;
+  --pin-border: #f59e0b;
+  --pin-text: #1f2937;
+  --pin-shadow: 0 10px 22px rgba(217, 119, 6, 0.25);
   position: relative;
-  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.65);
+  width: var(--pin-size);
+  height: calc(var(--pin-size) * 1.35);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  filter: drop-shadow(var(--pin-shadow));
 }
 
 .ffc-simulator-map__pin::after {
   content: '';
   position: absolute;
-  bottom: calc(var(--pin-size) * -0.2);
+  bottom: calc(var(--pin-size) * 0.08);
   left: 50%;
-  width: calc(var(--pin-size) * 0.35);
-  height: calc(var(--pin-size) * 0.35);
+  width: calc(var(--pin-size) * 0.42);
+  height: calc(var(--pin-size) * 0.42);
+  background: var(--pin-fill);
+  border: 2px solid var(--pin-border);
   transform: translateX(-50%) rotate(45deg);
-  background: inherit;
+  border-top-color: transparent;
+  border-left-color: transparent;
   border-bottom-left-radius: 999px;
   border-bottom-right-radius: 999px;
-  box-shadow: inherit;
+}
+
+.ffc-simulator-map__pin-head {
+  width: 100%;
+  height: calc(var(--pin-size) * 0.9);
+  background: radial-gradient(circle at 35% 35%, #fff7d6, var(--pin-fill));
+  border: 2px solid var(--pin-border);
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pin-text);
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
 }
 
 .ffc-simulator-map__pin-count {
   display: inline-block;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   letter-spacing: 0.01em;
 }
 
