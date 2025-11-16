@@ -15,17 +15,37 @@ namespace ProjectManagement.Pages.Analytics
     {
         private readonly ApplicationDbContext _db;
 
+        public enum AnalyticsViewTab
+        {
+            Completed = 0,
+            Ongoing = 1,
+            Coe = 2
+        }
+
         public IndexModel(ApplicationDbContext db)
         {
             _db = db;
         }
 
+        public AnalyticsViewTab ActiveTab { get; private set; } = AnalyticsViewTab.Completed;
+
         public IReadOnlyList<CategoryOption> Categories { get; private set; } = Array.Empty<CategoryOption>();
         public IReadOnlyList<TechnicalCategoryOption> TechnicalCategories { get; private set; } = Array.Empty<TechnicalCategoryOption>();
 
+        public int CompletedCount { get; private set; } = 47;
+        public int OngoingCount { get; private set; } = 14;
+        public int CoeCount { get; private set; } = 12;
+
         public ProjectLifecycleFilter DefaultLifecycle => ProjectLifecycleFilter.Active;
 
-        public async Task OnGetAsync()
+        public async Task OnGetAsync(AnalyticsViewTab? tab)
+        {
+            ActiveTab = tab ?? AnalyticsViewTab.Completed;
+
+            await LoadAnalyticsAsync();
+        }
+
+        private async Task LoadAnalyticsAsync()
         {
             Categories = await _db.ProjectCategories
                 .AsNoTracking()
