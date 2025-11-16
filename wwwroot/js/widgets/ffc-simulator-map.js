@@ -339,23 +339,23 @@
           });
         });
 
-        var listRows = host.querySelectorAll('[data-country-row]');
-        if (listRows.length) {
-          listRows.forEach(function (row) {
-            var iso = row.getAttribute('data-country-row');
-            row.addEventListener('mouseenter', function () {
+        var listItems = host.querySelectorAll('[data-country-chip]');
+        if (listItems.length) {
+          listItems.forEach(function (itemEl) {
+            var iso = itemEl.getAttribute('data-country-chip');
+            itemEl.addEventListener('mouseenter', function () {
               showCountryTooltip(iso);
             });
-            row.addEventListener('focus', function () {
+            itemEl.addEventListener('focus', function () {
               showCountryTooltip(iso);
             });
-            row.addEventListener('mouseleave', function () {
+            itemEl.addEventListener('mouseleave', function () {
               scheduleHideTooltip();
             });
-            row.addEventListener('blur', function () {
+            itemEl.addEventListener('blur', function () {
               scheduleHideTooltip();
             });
-            row.addEventListener('click', function (e) {
+            itemEl.addEventListener('click', function (e) {
               e.preventDefault();
               var item = state[iso];
               if (!item) {
