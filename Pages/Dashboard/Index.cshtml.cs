@@ -19,6 +19,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
+using ProjectManagement.Models.Stages;
+using ProjectManagement.Models.Execution;
 
 namespace ProjectManagement.Pages.Dashboard
 {
@@ -197,7 +199,7 @@ namespace ProjectManagement.Pages.Dashboard
 
             if (uid != null && ShowMyProjectsWidget)
             {
-                await LoadMyProjectsAsync(uid, isProjectOfficer, isHod, isComdt || isMco);
+                await LoadMyProjectsAsync(uid, isProjectOfficer, isHod, isComdt || isMco, cancellationToken);
             }
 
             ProjectPulse = await _projectPulse.GetAsync(cancellationToken);
@@ -231,7 +233,12 @@ namespace ProjectManagement.Pages.Dashboard
             };
         }
 
-        private async Task LoadMyProjectsAsync(string userId, bool includeOfficerSection, bool includeHodSection, bool includeAllOngoingSection)
+        private async Task LoadMyProjectsAsync(
+            string userId,
+            bool includeOfficerSection,
+            bool includeHodSection,
+            bool includeAllOngoingSection,
+            CancellationToken cancellationToken)
         {
             var sections = new List<MyProjectsSection>();
 
@@ -248,7 +255,7 @@ namespace ProjectManagement.Pages.Dashboard
                         CoverPhotoId = p.CoverPhotoId,
                         CoverPhotoVersion = p.CoverPhotoVersion
                     })
-                    .ToListAsync();
+                    .ToListAsync(cancellationToken);
 
                 if (officerProjects.Count > 0)
                 {
@@ -273,7 +280,7 @@ namespace ProjectManagement.Pages.Dashboard
                         CoverPhotoId = p.CoverPhotoId,
                         CoverPhotoVersion = p.CoverPhotoVersion
                     })
-                    .ToListAsync();
+                    .ToListAsync(cancellationToken);
 
                 if (hodProjects.Count > 0)
                 {
@@ -297,7 +304,7 @@ namespace ProjectManagement.Pages.Dashboard
                         CoverPhotoId = p.CoverPhotoId,
                         CoverPhotoVersion = p.CoverPhotoVersion
                     })
-                    .ToListAsync();
+                    .ToListAsync(cancellationToken);
 
                 if (allOngoingProjects.Count > 0)
                 {
@@ -310,6 +317,7 @@ namespace ProjectManagement.Pages.Dashboard
             }
 
             MyProjectSections = sections;
+            await AttachStageSummariesAsync(MyProjectSections, cancellationToken);
 
             MyProjectItem CreateProjectItem(ProjectAssignmentSummary summary)
             {
@@ -331,6 +339,105 @@ namespace ProjectManagement.Pages.Dashboard
                     CoverImageUrl = coverImageUrl
                 };
             }
+        }
+
+        private async Task AttachStageSummariesAsync(List<MyProjectsSection> sections, CancellationToken cancellationToken)
+        {
+            var projectIds = sections
+                .SelectMany(section => section.Items)
+                .Select(item => item.ProjectId)
+                .Distinct()
+                .ToArray();
+
+            if (projectIds.Length == 0)
+            {
+                return;
+            }
+
+            var stageRows = await _db.ProjectStages
+                .AsNoTracking()
+                .Where(stage => projectIds.Contains(stage.ProjectId))
+                .ToListAsync(cancellationToken);
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+            foreach (var item in sections.SelectMany(section => section.Items))
+            {
+                var summary = BuildStageSummary(item.ProjectId, stageRows, today);
+                if (summary is not null)
+                {
+                    item.StageSummary = summary;
+                }
+            }
+        }
+
+        private static MyProjectStageSummary? BuildStageSummary(int projectId, List<ProjectStage> allStages, DateOnly today)
+        {
+            if (StageCodes.All.Length == 0)
+            {
+                return null;
+            }
+
+            var stagesForProject = allStages
+                .Where(stage => stage.ProjectId == projectId)
+                .ToDictionary(stage => stage.StageCode, stage => stage, StringComparer.OrdinalIgnoreCase);
+
+            int? inProgressIndex = null;
+            int lastCompletedIndex = -1;
+
+            for (var i = 0; i < StageCodes.All.Length; i++)
+            {
+                var code = StageCodes.All[i];
+                stagesForProject.TryGetValue(code, out var stageRow);
+
+                var status = stageRow?.Status ?? StageStatus.NotStarted;
+
+                if (status == StageStatus.InProgress && inProgressIndex == null)
+                {
+                    inProgressIndex = i;
+                }
+
+                if (status == StageStatus.Completed)
+                {
+                    lastCompletedIndex = i;
+                }
+            }
+
+            var currentIndex = inProgressIndex ?? (lastCompletedIndex >= 0 && lastCompletedIndex + 1 < StageCodes.All.Length
+                ? lastCompletedIndex + 1
+                : 0);
+
+            var currentStageCode = StageCodes.All[currentIndex];
+            stagesForProject.TryGetValue(currentStageCode, out var currentStageRow);
+            var plannedDue = currentStageRow?.PlannedDue;
+            var currentStatus = currentStageRow?.Status ?? StageStatus.NotStarted;
+
+            int? daysToPdc = null;
+            var isOverdue = false;
+
+            if (plannedDue.HasValue)
+            {
+                var diffDays = (plannedDue.Value.ToDateTime(TimeOnly.MinValue) - today.ToDateTime(TimeOnly.MinValue)).Days;
+                if (diffDays < 0)
+                {
+                    isOverdue = true;
+                    daysToPdc = Math.Abs(diffDays);
+                }
+                else
+                {
+                    daysToPdc = diffDays;
+                }
+            }
+
+            return new MyProjectStageSummary
+            {
+                StageCode = currentStageCode,
+                StageName = StageCodes.DisplayNameOf(currentStageCode),
+                PlannedDue = plannedDue,
+                Status = currentStatus,
+                IsOverdue = isOverdue,
+                DaysToPdc = daysToPdc
+            };
         }
 
         // SECTION: My Projects helpers
@@ -355,6 +462,17 @@ namespace ProjectManagement.Pages.Dashboard
             public string Name { get; init; } = string.Empty;
             public string? Category { get; init; }
             public string? CoverImageUrl { get; init; }
+            public MyProjectStageSummary? StageSummary { get; set; }
+        }
+
+        public sealed class MyProjectStageSummary
+        {
+            public string StageCode { get; init; } = string.Empty;
+            public string StageName { get; init; } = string.Empty;
+            public DateOnly? PlannedDue { get; init; }
+            public StageStatus Status { get; init; }
+            public bool IsOverdue { get; init; }
+            public int? DaysToPdc { get; init; }
         }
 
         private sealed class ProjectAssignmentSummary
