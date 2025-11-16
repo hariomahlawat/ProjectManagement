@@ -71,15 +71,38 @@
 }
 
 /* SECTION: Dashboard quick actions (floating buttons) */
+.dashboard-sidebar {
+    position: relative;
+}
+
+/* Wrapper for all floating actions on the sidebar */
 .dashboard-floating-actions {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
     gap: .75rem;
     z-index: 5;
-    margin-left: auto;
     margin-right: -90px;
 }
+
+/* Desktop: float the actions slightly outside the sidebar */
+@media (min-width: 992px) {
+    .dashboard-floating-actions {
+        position: absolute;
+        top: .5rem; /* align with top of To-Do card */
+        right: -90px; /* pull out by ~90px; tweak as needed */
+    }
+}
+
+/* Mobile / tablet: keep the button in normal flow under To-Do */
+@media (max-width: 991.98px) {
+    .dashboard-floating-actions {
+        position: static;
+        margin-left: auto;
+        margin-right: 0;
+    }
+}
+
 
 .dashboard-events-card:hover {
     transform: translateY(-2px);
