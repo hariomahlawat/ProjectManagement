@@ -2233,6 +2233,46 @@ summary::marker {
     width: 100%;
 }
 
+/* SECTION: Dashboard layout refinements */
+.dashboard-main-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.dashboard-sidebar {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.dashboard-events-card--floating {
+    position: static;
+    top: auto;
+    right: auto;
+    width: 100%;
+}
+
+.dashboard-events-card .pm-card-body {
+    align-items: center;
+    border: 1px solid var(--pm-border);
+    border-radius: 1rem;
+    background: var(--pm-card);
+}
+
+.dashboard-widget-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--pm-text, #0f172a);
+}
+
+.dashboard-widget-subtitle {
+    font-size: 0.9rem;
+    color: var(--pm-text-secondary, #64748b);
+}
+
 /* SECTION: Dashboard - My projects */
 .dashboard-my-projects {
     display: flex;
@@ -2481,21 +2521,6 @@ summary::marker {
 @media (max-width: 767.98px) {
     .dashboard-my-projects__list {
         grid-template-columns: 1fr;
-    }
-}
-
-@media (min-width: 992px) {
-    .dashboard-events-card--floating {
-        position: absolute;
-        top: 0;
-        right: calc(-1 * (100% + 1.5rem));
-        width: 18rem;
-    }
-}
-
-@media (min-width: 1200px) {
-    .dashboard-events-card--floating {
-        right: calc(-1 * (100% + 2.5rem));
     }
 }
 

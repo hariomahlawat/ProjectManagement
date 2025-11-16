@@ -2,7 +2,38 @@
 .ops-signals {
   --ops-gap-xs: 8px;
   --ops-gap-sm: 12px;
-  margin-top: var(--ops-gap-sm);
+  --ops-card-radius: 14px;
+  padding: 1.25rem 1.5rem;
+  background: var(--pm-card, #fff);
+  border: 1px solid var(--pm-border, #e5e7eb);
+  border-radius: var(--ops-card-radius);
+  box-shadow: var(--pm-shadow, 0 8px 30px rgba(15, 23, 42, 0.08));
+}
+
+.ops-signals__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.ops-signals__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ops-signals__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--pm-primary, #2d6cdf) 12%, #eef2ff);
+  color: var(--pm-primary, #2d6cdf);
+  font-size: 1.25rem;
 }
 
 .ops-signals__grid {

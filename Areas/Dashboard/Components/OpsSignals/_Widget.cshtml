@@ -9,7 +9,21 @@
     string SerializeList<T>(IEnumerable<T>? data) => JsonSerializer.Serialize(data ?? Array.Empty<T>());
 }
 
-<section class="ops-signals" aria-label="Activity snapshot">
+<section class="ops-signals pm-card pm-shadow" aria-label="Activity snapshot">
+  @* SECTION: Header *@
+  <header class="ops-signals__header">
+    <div class="ops-signals__title">
+      <span class="ops-signals__badge" aria-hidden="true">
+        <i class="bi bi-graph-up"></i>
+      </span>
+      <div>
+        <h2 class="dashboard-widget-title mb-1">Ops signals</h2>
+        <p class="dashboard-widget-subtitle mb-0">Live operational metrics</p>
+      </div>
+    </div>
+  </header>
+  @* END SECTION *@
+
   <div class="ops-signals__grid">
     @foreach (var t in Model.Tiles)
     {
