@@ -58,7 +58,7 @@
           <a
             asp-page="./Index"
             asp-route-tab="Completed"
-            class="analytics-left-nav__item @(Model.ActiveTab == AnalyticsViewTab.Completed ? "is-active" : null)"
+            class="analytics-left-nav__item @(Model.ActiveTab == IndexModel.AnalyticsViewTab.Completed ? "is-active" : null)"
           >
             <div class="analytics-left-nav__title">Completed projects</div>
             <div class="analytics-left-nav__meta">@Model.CompletedCount projects</div>
@@ -67,7 +67,7 @@
           <a
             asp-page="./Index"
             asp-route-tab="Ongoing"
-            class="analytics-left-nav__item @(Model.ActiveTab == AnalyticsViewTab.Ongoing ? "is-active" : null)"
+            class="analytics-left-nav__item @(Model.ActiveTab == IndexModel.AnalyticsViewTab.Ongoing ? "is-active" : null)"
           >
             <div class="analytics-left-nav__title">Ongoing projects</div>
             <div class="analytics-left-nav__meta">@Model.OngoingCount projects</div>
@@ -76,7 +76,7 @@
           <a
             asp-page="./Index"
             asp-route-tab="Coe"
-            class="analytics-left-nav__item @(Model.ActiveTab == AnalyticsViewTab.Coe ? "is-active" : null)"
+            class="analytics-left-nav__item @(Model.ActiveTab == IndexModel.AnalyticsViewTab.Coe ? "is-active" : null)"
           >
             <div class="analytics-left-nav__title">CoE projects</div>
             <div class="analytics-left-nav__meta">@Model.CoeCount projects</div>
@@ -87,15 +87,15 @@
       <div class="analytics-main" data-role="analytics-main">
         <!-- Analytics content panel -->
         <div class="analytics-main-panel">
-          @if (Model.ActiveTab == AnalyticsViewTab.Completed)
+          @if (Model.ActiveTab == IndexModel.AnalyticsViewTab.Completed)
           {
             @await Html.PartialAsync("_CompletedProjectsAnalytics", Model)
           }
-          else if (Model.ActiveTab == AnalyticsViewTab.Ongoing)
+          else if (Model.ActiveTab == IndexModel.AnalyticsViewTab.Ongoing)
           {
             @await Html.PartialAsync("_OngoingProjectsAnalytics", Model)
           }
-          else if (Model.ActiveTab == AnalyticsViewTab.Coe)
+          else if (Model.ActiveTab == IndexModel.AnalyticsViewTab.Coe)
           {
             @await Html.PartialAsync("_CoeProjectsAnalytics", Model)
           }
