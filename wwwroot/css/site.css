@@ -2233,9 +2233,21 @@ summary::marker {
     width: 100%;
 }
 
+/* SECTION: Dashboard - My projects */
 .dashboard-my-projects {
     display: flex;
     flex-direction: column;
+}
+
+.dashboard-my-projects__layout {
+    align-items: stretch;
+}
+
+.dashboard-my-projects__projects {
+    border: 1px solid var(--pm-border);
+    border-radius: 1rem;
+    background-color: var(--pm-card);
+    padding: 1rem 1.25rem;
 }
 
 .dashboard-my-projects__section + .dashboard-my-projects__section {
@@ -2244,8 +2256,26 @@ summary::marker {
 
 .dashboard-my-projects__list {
     display: grid;
-    grid-template-columns: repeat(1, minmax(0, 1fr));
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(15.5rem, 1fr);
     gap: 1rem;
+    overflow-x: auto;
+    padding-bottom: .35rem;
+    scrollbar-width: thin;
+}
+
+.dashboard-my-projects__list::-webkit-scrollbar {
+    height: 8px;
+}
+
+.dashboard-my-projects__list::-webkit-scrollbar-thumb {
+    background-color: rgba(15, 23, 42, .15);
+    border-radius: 999px;
+}
+
+.dashboard-my-projects__list::-webkit-scrollbar-track {
+    background-color: rgba(15, 23, 42, .06);
+    border-radius: 999px;
 }
 
 .dashboard-project-card {
@@ -2328,19 +2358,50 @@ summary::marker {
     flex-shrink: 0;
 }
 
+.dashboard-my-projects__pdc-card {
+    border: 1px solid var(--pm-border);
+    border-radius: 1rem;
+    background-color: var(--pm-card);
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+}
+
+.dashboard-my-projects__pdc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: .5rem;
+}
+
+.dashboard-my-projects__pdc-item {
+    padding-bottom: .75rem;
+    border-bottom: 1px solid var(--pm-border);
+}
+
+.dashboard-my-projects__pdc-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.dashboard-my-projects__pdc-meta {
+    margin-top: .35rem;
+}
+
 .dashboard-my-projects__section-title {
     letter-spacing: .4px;
 }
 
-@media (min-width: 768px) {
+@media (max-width: 1199.98px) {
     .dashboard-my-projects__list {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-columns: minmax(14rem, 75%);
     }
 }
 
 @media (min-width: 1200px) {
     .dashboard-my-projects__list {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-auto-columns: minmax(16rem, 1fr);
     }
 }
 
