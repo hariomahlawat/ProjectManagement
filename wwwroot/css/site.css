@@ -2402,22 +2402,54 @@ summary::marker {
 }
 
 .myproj-stage-widget__header {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: baseline;
-    margin-bottom: .75rem;
-    font-size: var(--pm-font-size-sm);
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    color: var(--pm-muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.myproj-stage-widget__heading {
+    display: inline-flex;
+    align-items: center;
+    gap: .75rem;
+    min-width: 0;
+}
+
+.myproj-stage-widget__icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: color-mix(in oklab, var(--pm-primary, #2d6cdf) 12%, white);
+    color: var(--pm-primary, #2d6cdf);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    box-shadow: 0 12px 22px -16px rgba(45, 108, 223, 0.38);
 }
 
 .myproj-stage-widget__title {
-    justify-self: flex-start;
+    margin: 0;
+    font-size: 1.05rem;
+    letter-spacing: .01em;
+    color: var(--pm-body, #0f172a);
+    font-weight: 700;
 }
 
-.myproj-stage-widget__subtitle {
-    justify-self: flex-end;
+.myproj-stage-widget__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .35rem .75rem;
+    border-radius: 999px;
+    font-size: .85rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    background: color-mix(in oklab, var(--pm-primary, #2d6cdf) 12%, white);
+    color: var(--pm-primary, #2d6cdf);
+    border: 1px solid color-mix(in oklab, var(--pm-primary, #2d6cdf) 35%, transparent);
+    white-space: nowrap;
 }
 
 .myproj-stage-widget__body {
@@ -2463,6 +2495,17 @@ summary::marker {
 
     .myproj-stage-widget__divider {
         display: none;
+    }
+}
+
+@media (max-width: 576px) {
+    .myproj-stage-widget__header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .myproj-stage-widget__badge {
+        align-self: flex-start;
     }
 }
 
