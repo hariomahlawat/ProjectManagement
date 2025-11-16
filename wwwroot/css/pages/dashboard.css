@@ -19,14 +19,20 @@
 
 /* SECTION: Dashboard events & sidebar */
 .dashboard-events-card {
-    display: block;
-    padding: 0;
-    border: 0;
-    background: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: .75rem;
+    border: 1px solid var(--pm-border);
+    border-radius: 999px;
+    background-color: var(--pm-card);
     text-align: left;
     color: inherit;
     cursor: pointer;
-    transition: transform .2s ease, box-shadow .2s ease;
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    width: 3.25rem;
+    height: 3.25rem;
+    margin-left: auto;
 }
 
 .dashboard-sidebar {
@@ -54,9 +60,14 @@
 .dashboard-events-card:active {
     transform: translateY(0);
 }
-
-.dashboard-events-card .pm-card-body {
+.dashboard-events-card__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
+    height: 100%;
+    color: var(--pm-primary);
+    font-size: 1.3rem;
 }
 /* END SECTION */
 
@@ -358,15 +369,14 @@
 @media (min-width: 992px) {
     .dashboard-events-card--floating {
         position: absolute;
-        top: 0;
-        right: calc(-1 * (100% + 1.5rem));
-        width: 18rem;
+        top: .25rem;
+        right: .5rem;
     }
 }
 
 @media (min-width: 1200px) {
     .dashboard-events-card--floating {
-        right: calc(-1 * (100% + 2.5rem));
+        right: 1rem;
     }
 }
 /* END SECTION */
