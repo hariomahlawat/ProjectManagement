@@ -56,12 +56,17 @@
     margin-left: auto;
 }
 
+/* SECTION: Dashboard sidebar alignment helpers */
 .dashboard-sidebar {
     position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 .dashboard-events-card--floating {
     z-index: 5;
+    align-self: flex-end;
+    margin-left: 0;
 }
 
 .dashboard-events-card:hover {
@@ -391,8 +396,8 @@
 @media (min-width: 992px) {
     .dashboard-events-card--floating {
         position: absolute;
-        top: .25rem;
-        right: .5rem;
+        top: .5rem;
+        right: 0;
     }
 }
 
