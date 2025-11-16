@@ -69,39 +69,6 @@ public class ProjectAnalyticsApiTests
     }
 
     [Fact]
-    public async Task LifecycleBreakdown_ParsesQueryParameters()
-    {
-        using var factory = new AnalyticsApiFactory();
-        using var client = CreateAuthenticatedClient(factory);
-
-        var response = await client.GetAsync("/api/analytics/projects/lifecycle-breakdown?categoryId=3&technicalCategoryId=7");
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var spy = factory.Services.GetRequiredService<SpyProjectAnalyticsService>();
-        var call = Assert.Single(spy.LifecycleBreakdownRequests);
-        Assert.Equal(3, call.CategoryId);
-        Assert.Equal(7, call.TechnicalCategoryId);
-    }
-
-    [Fact]
-    public async Task MonthlyStageCompletions_ParsesQueryParameters()
-    {
-        using var factory = new AnalyticsApiFactory();
-        using var client = CreateAuthenticatedClient(factory);
-
-        var response = await client.GetAsync("/api/analytics/projects/monthly-stage-completions?lifecycle=cancelled&categoryId=4&technicalCategoryId=11&fromMonth=2024-01&toMonth=2024-06");
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var spy = factory.Services.GetRequiredService<SpyProjectAnalyticsService>();
-        var call = Assert.Single(spy.MonthlyStageCompletionRequests);
-        Assert.Equal(ProjectLifecycleFilter.Cancelled, call.Lifecycle);
-        Assert.Equal(4, call.CategoryId);
-        Assert.Equal(11, call.TechnicalCategoryId);
-        Assert.Equal(new DateOnly(2024, 1, 1), call.StartMonth);
-        Assert.Equal(new DateOnly(2024, 6, 1), call.EndMonth);
-    }
-
-    [Fact]
     public async Task SlipBuckets_ParsesQueryParameters()
     {
         using var factory = new AnalyticsApiFactory();
@@ -197,10 +164,6 @@ public class ProjectAnalyticsApiTests
 
         public List<(ProjectLifecycleFilter Lifecycle, int? CategoryId, int? TechnicalCategoryId)> StageDistributionRequests { get; } = new();
 
-        public List<(int? CategoryId, int? TechnicalCategoryId)> LifecycleBreakdownRequests { get; } = new();
-
-        public List<(ProjectLifecycleFilter Lifecycle, int? CategoryId, int? TechnicalCategoryId, DateOnly StartMonth, DateOnly EndMonth)> MonthlyStageCompletionRequests { get; } = new();
-
         public List<(ProjectLifecycleFilter Lifecycle, int? CategoryId, int? TechnicalCategoryId)> SlipBucketRequests { get; } = new();
 
         public List<(ProjectLifecycleFilter Lifecycle, int? CategoryId, int? TechnicalCategoryId, int Take)> TopOverdueRequests { get; } = new();
@@ -215,20 +178,6 @@ public class ProjectAnalyticsApiTests
         {
             StageDistributionRequests.Add((lifecycle, categoryId, technicalCategoryId));
             return Task.FromResult(new StageDistributionResult(Array.Empty<StageDistributionItem>(), lifecycle));
-        }
-
-        public Task<LifecycleBreakdownResult> GetLifecycleBreakdownAsync(int? categoryId, int? technicalCategoryId, CancellationToken cancellationToken = default)
-        {
-            LifecycleBreakdownRequests.Add((categoryId, technicalCategoryId));
-            return Task.FromResult(new LifecycleBreakdownResult(Array.Empty<LifecycleBreakdownItem>()));
-        }
-
-        public Task<MonthlyStageCompletionsResult> GetMonthlyStageCompletionsAsync(ProjectLifecycleFilter lifecycle, int? categoryId, int? technicalCategoryId, DateOnly startMonth, DateOnly endMonth, CancellationToken cancellationToken = default)
-        {
-            MonthlyStageCompletionRequests.Add((lifecycle, categoryId, technicalCategoryId, startMonth, endMonth));
-            var kpis = new StageCompletionKpis(0, 0, null, null, 0);
-            var bucket = new MonthlyStageBucket(startMonth.ToString("yyyy-MM"), startMonth.ToString("MMM yyyy"), startMonth);
-            return Task.FromResult(new MonthlyStageCompletionsResult(new[] { bucket }, Array.Empty<MonthlyStageSeries>(), kpis));
         }
 
         public Task<SlipBucketResult> GetSlipBucketsAsync(ProjectLifecycleFilter lifecycle, int? categoryId, int? technicalCategoryId, CancellationToken cancellationToken = default)

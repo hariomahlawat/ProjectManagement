@@ -45,32 +45,6 @@ if (root) {
     link.remove();
   }
 
-  const monthInputDefaults = (() => {
-    const now = new Date();
-    now.setDate(1);
-    const end = new Date(now);
-    const start = new Date(now);
-    start.setMonth(start.getMonth() - 5);
-    return { start, end };
-  })();
-
-  function formatMonthValue(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}`;
-  }
-
-  function setInitialMonthInputs(card) {
-    const fromInput = card.querySelector('input[data-filter="from-month"]');
-    const toInput = card.querySelector('input[data-filter="to-month"]');
-    if (fromInput && !fromInput.value) {
-      fromInput.value = formatMonthValue(monthInputDefaults.start);
-    }
-    if (toInput && !toInput.value) {
-      toInput.value = formatMonthValue(monthInputDefaults.end);
-    }
-  }
-
   function buildUrl(base, params) {
     const url = new URL(base, window.location.origin);
     Object.entries(params).forEach(([key, value]) => {
@@ -113,14 +87,6 @@ if (root) {
     const technicalCategorySelect = card.querySelector('select[data-filter="technical-category"]');
     filters.technicalCategoryId = technicalCategorySelect ? technicalCategorySelect.value : '';
 
-    const fromInput = card.querySelector('input[data-filter="from-month"]');
-    if (fromInput) {
-      filters.fromMonth = fromInput.value;
-    }
-    const toInput = card.querySelector('input[data-filter="to-month"]');
-    if (toInput) {
-      filters.toMonth = toInput.value;
-    }
     return filters;
   }
 
@@ -343,189 +309,6 @@ if (root) {
     }
   }
 
-  async function loadLifecycleStatus(card) {
-    const canvas = card.querySelector('canvas[data-chart="lifecycle-status"]');
-    if (!canvas) return;
-    const existingChart = getChart(card, canvas);
-    const hadChart = Boolean(existingChart);
-    const controller = beginCardRequest(card);
-    const filters = getFilters(card);
-    try {
-      const url = buildUrl('/api/analytics/projects/lifecycle-breakdown', {
-        categoryId: filters.categoryId,
-        technicalCategoryId: filters.technicalCategoryId
-      });
-      const data = await fetchJson(url, { signal: controller.signal });
-      if (!isActiveRequest(card, controller)) {
-        return;
-      }
-      const labels = data.items.map((item) => item.status);
-      const values = data.items.map((item) => item.count);
-      const colors = ['#1a73e8', '#34a853', '#ea4335'];
-      let chart = existingChart;
-      const dataset = {
-        label: 'Projects',
-        data: values,
-        backgroundColor: labels.map((_, idx) => colors[idx % colors.length]),
-        borderRadius: 4
-      };
-      if (chart) {
-        chart.data.labels = labels;
-        chart.data.datasets = [dataset];
-        chart.update();
-        setDownloadReady(card, true);
-      } else {
-        const newChart = new window.Chart(canvas.getContext('2d'), {
-          type: 'bar',
-          data: {
-            labels,
-            datasets: [dataset]
-          },
-          options: {
-            responsive: true,
-            plugins: {
-              legend: { display: false }
-            },
-            scales: {
-              y: { beginAtZero: true }
-            }
-          }
-        });
-        canvas.onclick = (evt) => {
-          const activeFilters = getFilters(card);
-          const points = newChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
-          if (points.length === 0) return;
-          const point = points[0];
-          const status = newChart.data.labels[point.index];
-          const params = {
-            Lifecycle: status,
-            CategoryId: activeFilters.categoryId || undefined,
-            TechnicalCategoryId: activeFilters.technicalCategoryId || undefined
-          };
-          navigateToProjects(params);
-        };
-        setChart(card, canvas, newChart);
-      }
-    } catch (err) {
-      if (!isAbortError(err)) {
-        console.error(err);
-      }
-      if (hadChart) {
-        setDownloadReady(card, true);
-      }
-    } finally {
-      endCardRequest(card, controller);
-    }
-  }
-
-  function renderStageCompletionKpis(card, kpis) {
-    const container = card.querySelector('[data-kpis]');
-    if (!container) return;
-    const total = container.querySelector('[data-kpi="total"]');
-    const adv = container.querySelector('[data-kpi="advancements"]');
-    const top = container.querySelector('[data-kpi="top-stage"]');
-    if (total) total.textContent = kpis.totalCompletionsThisMonth ?? '0';
-    if (adv) adv.textContent = kpis.projectsAdvancedTwoOrMoreStages ?? '0';
-    if (top) {
-      if (kpis.topStageName) {
-        top.textContent = `${kpis.topStageName} (${kpis.topStageCount})`;
-      } else {
-        top.textContent = '—';
-      }
-    }
-  }
-
-  async function loadStageCompletions(card) {
-    const canvas = card.querySelector('canvas[data-chart="stage-completions"]');
-    if (!canvas) return;
-    setInitialMonthInputs(card);
-    const existingChart = getChart(card, canvas);
-    const hadChart = Boolean(existingChart);
-    const controller = beginCardRequest(card);
-    const filters = getFilters(card);
-    try {
-      const url = buildUrl('/api/analytics/projects/monthly-stage-completions', {
-        lifecycle: filters.lifecycle,
-        categoryId: filters.categoryId,
-        technicalCategoryId: filters.technicalCategoryId,
-        fromMonth: filters.fromMonth,
-        toMonth: filters.toMonth
-      });
-      const data = await fetchJson(url, { signal: controller.signal });
-      if (!isActiveRequest(card, controller)) {
-        return;
-      }
-      renderStageCompletionKpis(card, data.kpis);
-      const labels = data.months.map((month) => month.label);
-      const datasets = data.series.map((serie, idx) => ({
-        label: serie.stageName,
-        data: serie.counts,
-        backgroundColor: palette[idx % palette.length],
-        stageCode: serie.stageCode,
-        stack: 'stages'
-      }));
-      let chart = existingChart;
-      if (chart) {
-        chart.data.labels = labels;
-        chart.data.datasets = datasets;
-        chart.$months = data.months;
-        chart.update();
-        setDownloadReady(card, true);
-      } else {
-        const newChart = new window.Chart(canvas.getContext('2d'), {
-          type: 'bar',
-          data: {
-            labels,
-            datasets
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              tooltip: { mode: 'index', intersect: false },
-              legend: { position: 'bottom' }
-            },
-            scales: {
-              x: { stacked: true },
-              y: { stacked: true, beginAtZero: true }
-            }
-          }
-        });
-        newChart.$months = data.months;
-        canvas.onclick = (evt) => {
-          const activeFilters = getFilters(card);
-          const points = newChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
-          if (points.length === 0) return;
-          const point = points[0];
-          const dataset = newChart.data.datasets[point.datasetIndex];
-          const months = newChart.$months || [];
-          const monthBucket = months[point.index];
-          if (!monthBucket) {
-            return;
-          }
-          const params = {
-            Lifecycle: activeFilters.lifecycle === 'All' ? undefined : activeFilters.lifecycle,
-            CategoryId: activeFilters.categoryId || undefined,
-            TechnicalCategoryId: activeFilters.technicalCategoryId || undefined,
-            StageCode: dataset.stageCode,
-            StageCompletedMonth: monthBucket.key
-          };
-          navigateToProjects(params);
-        };
-        setChart(card, canvas, newChart);
-      }
-    } catch (err) {
-      if (!isAbortError(err)) {
-        console.error(err);
-      }
-      if (hadChart) {
-        setDownloadReady(card, true);
-      }
-    } finally {
-      endCardRequest(card, controller);
-    }
-  }
-
   async function loadSlipBuckets(card) {
     const canvas = card.querySelector('canvas[data-chart="slip-buckets"]');
     if (!canvas) return;
@@ -699,14 +482,6 @@ if (root) {
         case 'stage-distribution':
           handleFilterInteractions(card, loadStageDistribution);
           loadStageDistribution(card);
-          break;
-        case 'lifecycle-status':
-          handleFilterInteractions(card, loadLifecycleStatus);
-          loadLifecycleStatus(card);
-          break;
-        case 'stage-completions':
-          handleFilterInteractions(card, loadStageCompletions);
-          loadStageCompletions(card);
           break;
         case 'slip-buckets':
           handleFilterInteractions(card, loadSlipBuckets);

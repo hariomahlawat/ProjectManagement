@@ -208,13 +208,6 @@ public class ProjectAnalyticsServiceTests : IDisposable
         await _db.SaveChangesAsync();
 
         var stageDistribution = await _service.GetStageDistributionAsync(ProjectLifecycleFilter.All, parent.Id, null);
-        var lifecycle = await _service.GetLifecycleBreakdownAsync(parent.Id, null);
-        var monthly = await _service.GetMonthlyStageCompletionsAsync(
-            ProjectLifecycleFilter.All,
-            parent.Id,
-            null,
-            new DateOnly(2024, 6, 1),
-            new DateOnly(2024, 6, 1));
         var slipBuckets = await _service.GetSlipBucketsAsync(ProjectLifecycleFilter.All, parent.Id, null);
         var slipBucketProjectIds = await _service.GetProjectIdsForSlipBucketAsync(
             ProjectLifecycleFilter.All,
@@ -225,14 +218,6 @@ public class ProjectAnalyticsServiceTests : IDisposable
 
         var stageItem = Assert.Single(stageDistribution.Items, i => i.StageCode == "DD");
         Assert.Equal(1, stageItem.Count);
-
-        var activeLifecycle = lifecycle.Items.Single(i => i.Status == ProjectLifecycleStatus.Active);
-        Assert.Equal(1, activeLifecycle.Count);
-
-        var fsSeries = Assert.Single(monthly.Series, s => s.StageCode == "FS");
-        Assert.Single(fsSeries.Counts);
-        Assert.Equal(1, fsSeries.Counts[0]);
-        Assert.Equal(1, monthly.Kpis.TotalCompletionsThisMonth);
 
         var bucket = Assert.Single(slipBuckets.Buckets, b => b.Key == "1-7");
         Assert.Equal(1, bucket.Count);
