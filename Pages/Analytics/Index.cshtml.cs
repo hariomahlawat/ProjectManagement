@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models.Analytics;
 using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Pages.Analytics
@@ -15,19 +16,12 @@ namespace ProjectManagement.Pages.Analytics
     {
         private readonly ApplicationDbContext _db;
 
-        public enum AnalyticsViewTab
-        {
-            Completed = 0,
-            Ongoing = 1,
-            Coe = 2
-        }
-
         public IndexModel(ApplicationDbContext db)
         {
             _db = db;
         }
 
-        public AnalyticsViewTab ActiveTab { get; private set; } = AnalyticsViewTab.Completed;
+        public AnalyticsTab ActiveTab { get; private set; } = AnalyticsTab.Completed;
 
         public IReadOnlyList<CategoryOption> Categories { get; private set; } = Array.Empty<CategoryOption>();
         public IReadOnlyList<TechnicalCategoryOption> TechnicalCategories { get; private set; } = Array.Empty<TechnicalCategoryOption>();
@@ -36,13 +30,48 @@ namespace ProjectManagement.Pages.Analytics
         public int OngoingCount { get; private set; } = 14;
         public int CoeCount { get; private set; } = 12;
 
+        public CompletedAnalyticsVm? Completed { get; private set; }
+        public OngoingAnalyticsVm? Ongoing { get; private set; }
+        public CoeAnalyticsVm? Coe { get; private set; }
+
         public ProjectLifecycleFilter DefaultLifecycle => ProjectLifecycleFilter.Active;
 
-        public async Task OnGetAsync(AnalyticsViewTab? tab)
+        public async Task OnGetAsync(string? tab)
         {
-            ActiveTab = tab ?? AnalyticsViewTab.Completed;
+            ActiveTab = tab?.ToLowerInvariant() switch
+            {
+                "ongoing" => AnalyticsTab.Ongoing,
+                "coe" => AnalyticsTab.Coe,
+                _ => AnalyticsTab.Completed
+            };
 
             await LoadAnalyticsAsync();
+
+            // SECTION: Active tab hydration
+            switch (ActiveTab)
+            {
+                case AnalyticsTab.Completed:
+                    Completed = new CompletedAnalyticsVm
+                    {
+                        TotalCompletedProjects = CompletedCount
+                    };
+                    break;
+
+                case AnalyticsTab.Ongoing:
+                    Ongoing = new OngoingAnalyticsVm
+                    {
+                        TotalOngoingProjects = OngoingCount
+                    };
+                    break;
+
+                case AnalyticsTab.Coe:
+                    Coe = new CoeAnalyticsVm
+                    {
+                        TotalCoeProjects = CoeCount
+                    };
+                    break;
+            }
+            // END SECTION
         }
 
         private async Task LoadAnalyticsAsync()

@@ -3410,6 +3410,26 @@ summary::marker {
   min-width: 0;
 }
 
+/* SECTION: Analytics panels */
+.analytics-main {
+  /* ensures charts area is aligned nicely with the hero */
+  margin-top: 1.5rem;
+}
+
+.analytics-panel {
+  min-height: 260px;
+}
+
+.analytics-panel--completed {
+}
+
+.analytics-panel--ongoing {
+}
+
+.analytics-panel--coe {
+}
+/* END SECTION */
+
 .analytics-hero {
   position: relative;
   display: flex;
