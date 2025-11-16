@@ -66,7 +66,7 @@
 .dashboard-events-card--floating {
     z-index: 5;
     align-self: flex-end;
-    margin-left: 0;
+    margin-right: -90px;
 }
 
 .dashboard-events-card:hover {
