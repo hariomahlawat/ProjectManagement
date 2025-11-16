@@ -3,6 +3,7 @@
   border: 0;
   border-radius: 1rem;
   background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 55%, #ede9fe 100%);
+  margin-top: 1.5rem;
 }
 
 .ffc-simulator-map-widget .pm-card-body {
