@@ -3351,67 +3351,56 @@ summary::marker {
   }
 }
 
-.analytics-left-nav {
+.analytics-left-rail {
   align-self: stretch;
 }
 
-.analytics-nav {
+.analytics-left-nav {
   display: flex;
   flex-direction: column;
   gap: .75rem;
 }
 
-.analytics-nav__item {
-  width: 100%;
-  text-align: left;
+.analytics-left-nav__item {
+  display: block;
+  padding: 0.9rem 1rem;
   border-radius: 1rem;
   border: 1px solid var(--pm-border);
   background: var(--pm-card);
-  padding: .80rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: .15rem;
-  cursor: pointer;
-  font: inherit;
-  color: var(--pm-text);
-  box-shadow: 0 10px 24px -20px rgba(15, 23, 42, .35);
-  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease, background-color .16s ease;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 10px 25px -22px rgba(15,23,42,.4);
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
 }
 
-.analytics-nav__item:hover {
-  border-color: rgba(45, 108, 223, .4);
-  box-shadow: 0 18px 30px -22px rgba(45, 108, 223, .4);
-  transform: translateY(-1px);
-}
-
-.analytics-nav__item.is-active {
-  border-color: rgba(45, 108, 223, .6);
-  background: rgba(37, 99, 235, .04);
-  box-shadow: 0 20px 34px -24px rgba(45, 108, 223, .45);
-}
-
-.analytics-nav__label {
+.analytics-left-nav__title {
   font-weight: 600;
-  letter-spacing: .02em;
 }
 
-.analytics-nav__meta {
-  font-size: var(--pm-font-size-xs);
+.analytics-left-nav__meta {
+  font-size: .78rem;
   color: var(--pm-text-secondary);
+  margin-top: .15rem;
+}
+
+.analytics-left-nav__item.is-active {
+  border-color: rgba(45,108,223,.6);
+  box-shadow: 0 18px 32px -24px rgba(45,108,223,.45);
+  background: rgba(37,99,235,.04);
 }
 
 @media (max-width: 991.98px) {
-  .analytics-left-nav {
+  .analytics-left-rail {
     order: -1;
   }
 
-  .analytics-nav {
+  .analytics-left-nav {
     flex-direction: row;
     overflow-x: auto;
     padding-bottom: .25rem;
   }
 
-  .analytics-nav__item {
+  .analytics-left-nav__item {
     min-width: 210px;
     flex: 0 0 auto;
   }
