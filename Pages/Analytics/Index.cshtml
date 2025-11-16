@@ -43,123 +43,147 @@
     </dl>
   </header>
 
-  <!-- Analytics grid -->
+  <!-- Analytics layout: mode navigation and chart canvas -->
   <div
     id="analytics-root"
     data-default-lifecycle="@Model.DefaultLifecycle"
     data-projects-index-url="@Url.Page("/Projects/Index")"
     data-project-overview-url="@Url.Page("/Projects/Overview")"
   >
-    <div class="row g-4 g-xl-5 analytics-grid">
-      <!-- Chart: Active projects by category -->
-      <div class="col-12 col-lg-6 col-xxl-4">
-        <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="category-share">
-          <div class="chart-card__header">
-            <h2 class="h6 mb-0">Active projects by category</h2>
-            <div class="chart-card__actions">
-              <button
-                type="button"
-                class="analytics-action"
-                data-download-chart="category-share"
-                title="Download chart as PNG"
-                aria-label="Download Active projects by category chart as PNG"
-                disabled
-              >
-                <i class="bi bi-download" aria-hidden="true"></i>
-              </button>
-              <button type="button" class="analytics-help" title="Shows the share of projects in each category for the selected lifecycle.">
-                <i class="bi bi-question-circle" aria-hidden="true"></i>
-                <span class="visually-hidden">Help</span>
-              </button>
-            </div>
-          </div>
-          <div class="analytics-card__filters" data-filter-strip>
-            <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
-              @foreach (var option in lifecycleOptions)
-              {
-                var label = option.ToString();
-                var isActive = option == Model.DefaultLifecycle;
-                <button
-                  type="button"
-                  class="btn btn-outline-secondary@(isActive ? " active" : string.Empty)"
-                  data-filter="lifecycle"
-                  data-value="@option"
-                  aria-pressed="@(isActive ? "true" : "false")"
-                >@label</button>
-              }
-            </div>
-          </div>
-          <div class="chart-container-320">
-            <canvas data-chart="category-share"></canvas>
-          </div>
-        </article>
-      </div>
+    <section class="analytics-layout" aria-label="Project analytics views">
+      <aside class="analytics-left-nav" aria-label="Analytics modes">
+        <!-- Left navigation for analytics modes -->
+        <div class="analytics-nav">
+          <button type="button" class="analytics-nav__item is-active" data-mode="completed">
+            <span class="analytics-nav__label">Completed projects</span>
+            <span class="analytics-nav__meta">47 projects</span>
+          </button>
 
-      <!-- Chart: Running projects by current stage -->
-      <div class="col-12 col-xl-8">
-        <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="stage-distribution">
-          <div class="chart-card__header">
-            <h2 class="h6 mb-0">Running projects by current stage</h2>
-            <div class="chart-card__actions">
-              <button
-                type="button"
-                class="analytics-action"
-                data-download-chart="stage-distribution"
-                title="Download chart as PNG"
-                aria-label="Download Running projects by current stage chart as PNG"
-                disabled
-              >
-                <i class="bi bi-download" aria-hidden="true"></i>
-              </button>
-              <button type="button" class="analytics-help" title="Shows how many projects are currently in each stage for the selected lifecycle and category.">
-                <i class="bi bi-question-circle" aria-hidden="true"></i>
-                <span class="visually-hidden">Help</span>
-              </button>
-            </div>
-          </div>
-          <div class="analytics-card__filters" data-filter-strip>
-            <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
-              <span class="text-secondary">Category</span>
-              <select class="form-select form-select-sm" data-filter="category">
-                <option value="">All categories</option>
-                @foreach (var category in categories)
-                {
-                  <option value="@category!.Id">@category!.Name</option>
-                }
-              </select>
-            </label>
-            <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
-              <span class="text-secondary">Technical</span>
-              <select class="form-select form-select-sm" data-filter="technical-category">
-                <option value="">All technical categories</option>
-                @foreach (var technical in technicalCategories)
-                {
-                  <option value="@technical!.Id">@technical!.Name</option>
-                }
-              </select>
-            </label>
-            <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
-              @foreach (var option in lifecycleOptions)
-              {
-                var label = option.ToString();
-                var isActive = option == Model.DefaultLifecycle;
-                <button
-                  type="button"
-                  class="btn btn-outline-secondary@(isActive ? " active" : string.Empty)"
-                  data-filter="lifecycle"
-                  data-value="@option"
-                  aria-pressed="@(isActive ? "true" : "false")"
-                >@label</button>
-              }
-            </div>
-          </div>
-          <div class="chart-container-320">
-            <canvas data-chart="stage-distribution"></canvas>
-          </div>
-        </article>
-      </div>
+          <button type="button" class="analytics-nav__item" data-mode="ongoing">
+            <span class="analytics-nav__label">Ongoing projects</span>
+            <span class="analytics-nav__meta">14 projects</span>
+          </button>
 
-    </div>
+          <button type="button" class="analytics-nav__item" data-mode="coe">
+            <span class="analytics-nav__label">CoE projects</span>
+            <span class="analytics-nav__meta">12 projects</span>
+          </button>
+        </div>
+      </aside>
+
+      <div class="analytics-main" data-role="analytics-main">
+        <div class="row g-4 g-xl-5 analytics-grid">
+          <!-- Chart: Active projects by category -->
+          <div class="col-12 col-lg-6 col-xxl-4">
+            <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="category-share">
+              <div class="chart-card__header">
+                <h2 class="h6 mb-0">Active projects by category</h2>
+                <div class="chart-card__actions">
+                  <button
+                    type="button"
+                    class="analytics-action"
+                    data-download-chart="category-share"
+                    title="Download chart as PNG"
+                    aria-label="Download Active projects by category chart as PNG"
+                    disabled
+                  >
+                    <i class="bi bi-download" aria-hidden="true"></i>
+                  </button>
+                  <button type="button" class="analytics-help" title="Shows the share of projects in each category for the selected lifecycle.">
+                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                    <span class="visually-hidden">Help</span>
+                  </button>
+                </div>
+              </div>
+              <div class="analytics-card__filters" data-filter-strip>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
+                  @foreach (var option in lifecycleOptions)
+                  {
+                    var label = option.ToString();
+                    var isActive = option == Model.DefaultLifecycle;
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary@(isActive ? " active" : string.Empty)"
+                      data-filter="lifecycle"
+                      data-value="@option"
+                      aria-pressed="@(isActive ? "true" : "false")"
+                    >@label</button>
+                  }
+                </div>
+              </div>
+              <div class="chart-container-320">
+                <canvas data-chart="category-share"></canvas>
+              </div>
+            </article>
+          </div>
+
+          <!-- Chart: Running projects by current stage -->
+          <div class="col-12 col-xl-8">
+            <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="stage-distribution">
+              <div class="chart-card__header">
+                <h2 class="h6 mb-0">Running projects by current stage</h2>
+                <div class="chart-card__actions">
+                  <button
+                    type="button"
+                    class="analytics-action"
+                    data-download-chart="stage-distribution"
+                    title="Download chart as PNG"
+                    aria-label="Download Running projects by current stage chart as PNG"
+                    disabled
+                  >
+                    <i class="bi bi-download" aria-hidden="true"></i>
+                  </button>
+                  <button type="button" class="analytics-help" title="Shows how many projects are currently in each stage for the selected lifecycle and category.">
+                    <i class="bi bi-question-circle" aria-hidden="true"></i>
+                    <span class="visually-hidden">Help</span>
+                  </button>
+                </div>
+              </div>
+              <div class="analytics-card__filters" data-filter-strip>
+                <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+                  <span class="text-secondary">Category</span>
+                  <select class="form-select form-select-sm" data-filter="category">
+                    <option value="">All categories</option>
+                    @foreach (var category in categories)
+                    {
+                      <option value="@category!.Id">@category!.Name</option>
+                    }
+                  </select>
+                </label>
+                <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+                  <span class="text-secondary">Technical</span>
+                  <select class="form-select form-select-sm" data-filter="technical-category">
+                    <option value="">All technical categories</option>
+                    @foreach (var technical in technicalCategories)
+                    {
+                      <option value="@technical!.Id">@technical!.Name</option>
+                    }
+                  </select>
+                </label>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
+                  @foreach (var option in lifecycleOptions)
+                  {
+                    var label = option.ToString();
+                    var isActive = option == Model.DefaultLifecycle;
+                    <button
+                      type="button"
+                      class="btn btn-outline-secondary@(isActive ? " active" : string.Empty)"
+                      data-filter="lifecycle"
+                      data-value="@option"
+                      aria-pressed="@(isActive ? "true" : "false")"
+                    >@label</button>
+                  }
+                </div>
+              </div>
+              <div class="chart-container-320">
+                <canvas data-chart="stage-distribution"></canvas>
+              </div>
+            </article>
+          </div>
+
+        </div>
+      </div>
+    </section>
   </div>
 </section>
 
