@@ -92,9 +92,10 @@
     var safeCount = typeof count === 'number' && !Number.isNaN(count) ? count : 0;
     var digitCount = String(Math.abs(safeCount)).length;
     var size = 34 + Math.min(Math.max(digitCount - 1, 0) * 6, 12);
-    var height = Math.round(size * 1.35);
+    var pointer = Math.round(size * 0.28);
+    var height = size + pointer;
     var html = '' +
-      '<div class="ffc-simulator-map__pin" style="--pin-size:' + size + 'px">' +
+      '<div class="ffc-simulator-map__pin" style="--pin-size:' + size + 'px; --pin-pointer:' + pointer + 'px">' +
       '  <div class="ffc-simulator-map__pin-head">' +
       '    <span class="ffc-simulator-map__pin-count">' + safeCount + '</span>' +
       '  </div>' +
@@ -103,7 +104,7 @@
       html: html,
       className: '',
       iconSize: [size, height],
-      iconAnchor: [size / 2, height - 4]
+      iconAnchor: [size / 2, height]
     });
   }
 
