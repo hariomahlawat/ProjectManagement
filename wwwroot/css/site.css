@@ -2192,6 +2192,12 @@ summary::marker {
     margin-bottom: 0;
 }
 
+/* SECTION: Dashboard widget spacing */
+.dashboard-main-content > * + * {
+    margin-top: 1.25rem;
+}
+/* END SECTION */
+
 .dashboard-events-card {
     display: block;
     padding: 0;
