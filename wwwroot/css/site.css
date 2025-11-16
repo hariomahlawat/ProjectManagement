@@ -2192,9 +2192,22 @@ summary::marker {
     margin-bottom: 0;
 }
 
-/* SECTION: Dashboard widget spacing */
+/* SECTION: Dashboard layout spacing */
+.dashboard-main-content,
+.dashboard {
+    --dashboard-section-gap: clamp(1.35rem, 1.5vw, 1.75rem);
+}
+
 .dashboard-main-content > * + * {
-    margin-top: clamp(1.35rem, 1.5vw, 1.75rem);
+    margin-top: var(--dashboard-section-gap);
+}
+
+.dashboard-my-projects {
+    margin-top: var(--dashboard-section-gap);
+}
+
+.row.dashboard {
+    --bs-gutter-y: 0;
 }
 /* END SECTION */
 
