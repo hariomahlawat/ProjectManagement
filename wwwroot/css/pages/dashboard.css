@@ -82,7 +82,6 @@
     align-items: flex-end;
     gap: .75rem;
     z-index: 5;
-    margin-right: -90px;
 }
 
 /* Desktop: float the actions slightly outside the sidebar */
@@ -90,7 +89,8 @@
     .dashboard-floating-actions {
         position: absolute;
         top: .5rem; /* align with top of To-Do card */
-        right: -90px; /* pull out by ~90px; tweak as needed */
+        right: 0;
+        transform: translateX(120%); /* push into the gutter without relying on margins */
     }
 }
 
