@@ -2194,7 +2194,7 @@ summary::marker {
 
 /* SECTION: Dashboard widget spacing */
 .dashboard-main-content > * + * {
-    margin-top: 1.25rem;
+    margin-top: clamp(1.35rem, 1.5vw, 1.75rem);
 }
 /* END SECTION */
 
@@ -2404,7 +2404,7 @@ summary::marker {
     box-shadow: var(--pm-shadow);
     background: var(--pm-card);
     padding: 1.25rem 1.5rem 1.5rem;
-    margin-top: 1.5rem;
+    margin-top: clamp(.75rem, 1vw, 1.25rem);
 }
 
 .myproj-stage-widget__header {
