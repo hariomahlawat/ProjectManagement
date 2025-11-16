@@ -2256,16 +2256,15 @@ summary::marker {
 
 .dashboard-my-projects__list {
     display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(15.5rem, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1rem;
-    overflow-x: auto;
-    padding-bottom: .35rem;
-    scrollbar-width: thin;
+    overflow: visible;
+    padding-bottom: 0;
+    scrollbar-width: none;
 }
 
 .dashboard-my-projects__list::-webkit-scrollbar {
-    height: 8px;
+    display: none;
 }
 
 .dashboard-my-projects__list::-webkit-scrollbar-thumb {
@@ -2395,13 +2394,19 @@ summary::marker {
 
 @media (max-width: 1199.98px) {
     .dashboard-my-projects__list {
-        grid-auto-columns: minmax(14rem, 75%);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
 @media (min-width: 1200px) {
     .dashboard-my-projects__list {
-        grid-auto-columns: minmax(16rem, 1fr);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767.98px) {
+    .dashboard-my-projects__list {
+        grid-template-columns: 1fr;
     }
 }
 
