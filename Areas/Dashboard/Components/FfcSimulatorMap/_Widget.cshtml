@@ -1,5 +1,6 @@
 @* SECTION: FFC simulator map widget markup *@
 @using System.Text.Json
+@using System.Linq
 @model ProjectManagement.Areas.Dashboard.Components.FfcSimulatorMap.FfcSimulatorMapVm
 @{
     var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
@@ -7,6 +8,10 @@
     var geoUrl = Url.Content("~/ffc/maps/world_india_view.geojson");
     var focusBounds = "37,-20|-35,55";
     var fullMapUrl = Url.Page("/FFC/Map", values: new { area = "ProjectOfficeReports" });
+    var sortedCountries = Model.Countries
+        .OrderByDescending(country => country.Total)
+        .ThenBy(country => country.Name)
+        .ToList();
 }
 <section class="ffc-simulator-map-widget pm-card pm-shadow" aria-labelledby="ffc-simulator-map-title">
     <div class="pm-card-body">
@@ -49,6 +54,30 @@
                     aria-label="World map highlighting African FFC simulator deliveries"
                 ></div>
                 <div class="ffc-simulator-map__status" data-map-status>Loading delivery footprint…</div>
+            </div>
+            @* SECTION: Below-map country list *@
+            <div class="ffc-simulator-map__list" aria-label="FFC simulator activity by country">
+                <table class="table mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="text-uppercase small fw-semibold text-secondary">Country</th>
+                            <th scope="col" class="text-uppercase small fw-semibold text-secondary text-end">Installed</th>
+                            <th scope="col" class="text-uppercase small fw-semibold text-secondary text-end">Delivered</th>
+                            <th scope="col" class="text-uppercase small fw-semibold text-secondary text-end">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var country in sortedCountries)
+                        {
+                            <tr data-country-row="@country.Iso3" tabindex="0">
+                                <td class="text-truncate" title="@country.Name">@country.Name</td>
+                                <td class="text-end">@country.Installed</td>
+                                <td class="text-end">@country.Delivered</td>
+                                <td class="text-end fw-semibold">@country.Total</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
         }
         else
