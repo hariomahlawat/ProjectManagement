@@ -1,20 +1,41 @@
 /* SECTION: Dashboard layout spacing */
-.dashboard-main-content,
-.dashboard {
-    --dashboard-section-gap: clamp(1.35rem, 1.5vw, 1.75rem);
+
+/* Control vertical rhythm for main left-column sections */
+.dashboard-main-content {
+    --dashboard-gap-tight: clamp(1.4rem, 1.6vw, 1.8rem);
+    --dashboard-gap-comfy: clamp(2.1rem, 2.6vw, 2.9rem);
 }
 
-.dashboard-main-content > * + * {
-    margin-top: var(--dashboard-section-gap);
-}
+    /* Reset any existing top margins so spacing is driven only here */
+    .dashboard-main-content > * {
+        margin-top: 0 !important;
+    }
 
+    /* 1) Project pulse -> OpsSignals */
+    .dashboard-main-content > :first-child {
+        margin-bottom: var(--dashboard-gap-tight);
+    }
+
+    /* 2) OpsSignals -> FFC simulator map */
+    .dashboard-main-content > :nth-child(2) {
+        margin-bottom: var(--dashboard-gap-comfy);
+    }
+
+    /* 3) FFC simulator map -> My projects row */
+    .dashboard-main-content > :nth-child(3) {
+        margin-bottom: var(--dashboard-gap-tight);
+    }
+
+/* My projects card sits directly after the map row, no extra top margin */
 .dashboard-my-projects {
-    margin-top: var(--dashboard-section-gap);
+    margin-top: 0;
 }
 
+/* Disable Bootstrap vertical gutter so it does not fight our custom spacing */
 .row.dashboard {
     --bs-gutter-y: 0;
 }
+
 /* END SECTION */
 
 /* SECTION: Dashboard events & sidebar */
@@ -101,19 +122,19 @@
     scrollbar-width: none;
 }
 
-.dashboard-my-projects__list::-webkit-scrollbar {
-    display: none;
-}
+    .dashboard-my-projects__list::-webkit-scrollbar {
+        display: none;
+    }
 
-.dashboard-my-projects__list::-webkit-scrollbar-thumb {
-    background-color: rgba(15, 23, 42, .15);
-    border-radius: 999px;
-}
+    .dashboard-my-projects__list::-webkit-scrollbar-thumb {
+        background-color: rgba(15, 23, 42, .15);
+        border-radius: 999px;
+    }
 
-.dashboard-my-projects__list::-webkit-scrollbar-track {
-    background-color: rgba(15, 23, 42, .06);
-    border-radius: 999px;
-}
+    .dashboard-my-projects__list::-webkit-scrollbar-track {
+        background-color: rgba(15, 23, 42, .06);
+        border-radius: 999px;
+    }
 
 .dashboard-project-card {
     display: flex;
@@ -130,18 +151,18 @@
     height: 100%;
 }
 
-.dashboard-project-card:hover,
-.dashboard-project-card:focus {
-    text-decoration: none;
-    border-color: rgba(45, 108, 223, .45);
-    box-shadow: 0 22px 32px -26px rgba(45, 108, 223, .4);
-    transform: translateY(-1px);
-}
+    .dashboard-project-card:hover,
+    .dashboard-project-card:focus {
+        text-decoration: none;
+        border-color: rgba(45, 108, 223, .45);
+        box-shadow: 0 22px 32px -26px rgba(45, 108, 223, .4);
+        transform: translateY(-1px);
+    }
 
-.dashboard-project-card:focus-visible {
-    outline: 2px solid var(--pm-primary);
-    outline-offset: 4px;
-}
+    .dashboard-project-card:focus-visible {
+        outline: 2px solid var(--pm-primary);
+        outline-offset: 4px;
+    }
 
 .dashboard-project-card__cover {
     width: 80px;
@@ -158,12 +179,12 @@
     flex-shrink: 0;
 }
 
-.dashboard-project-card__cover img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-}
+    .dashboard-project-card__cover img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
 
 .dashboard-project-card__cover-placeholder {
     padding-inline: .25rem;
@@ -217,10 +238,10 @@
     border-bottom: 1px solid var(--pm-border);
 }
 
-.dashboard-my-projects__pdc-item:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-}
+    .dashboard-my-projects__pdc-item:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
 
 .dashboard-my-projects__pdc-meta {
     margin-top: .35rem;
@@ -237,7 +258,7 @@
     box-shadow: var(--pm-shadow);
     background: var(--pm-card);
     padding: 1.25rem 1.5rem 1.5rem;
-    margin-top: clamp(.75rem, 1vw, 1.25rem);
+    /* no extra margin-top; spacing handled by dashboard-main-content rules */
 }
 
 .myproj-stage-widget__header {
@@ -259,7 +280,7 @@
     width: 40px;
     height: 40px;
     border-radius: 12px;
-    background: color-mix(in oklab, var(--pm-primary, #2d6cdf) 12%, white);
+    background: rgba(45, 108, 223, 0.08);
     color: var(--pm-primary, #2d6cdf);
     display: inline-flex;
     align-items: center;
@@ -267,6 +288,7 @@
     font-size: 1.15rem;
     box-shadow: 0 12px 22px -16px rgba(45, 108, 223, 0.38);
 }
+
 
 .myproj-stage-widget__title {
     margin: 0;
@@ -285,9 +307,9 @@
     font-size: .85rem;
     letter-spacing: .04em;
     text-transform: uppercase;
-    background: color-mix(in oklab, var(--pm-primary, #2d6cdf) 12%, white);
+    background: rgba(45, 108, 223, 0.08);
     color: var(--pm-primary, #2d6cdf);
-    border: 1px solid color-mix(in oklab, var(--pm-primary, #2d6cdf) 35%, transparent);
+    border: 1px solid rgba(45, 108, 223, 0.35);
     white-space: nowrap;
 }
 
@@ -316,10 +338,10 @@
     border-radius: .75rem;
 }
 
-.myproj-stage-widget__pdc-row.is-active .pdc-row__title,
-.myproj-stage-widget__pdc-row.is-active .dashboard-my-projects__pdc-label .fw-semibold {
-    font-weight: 600;
-}
+    .myproj-stage-widget__pdc-row.is-active .pdc-row__title,
+    .myproj-stage-widget__pdc-row.is-active .dashboard-my-projects__pdc-label .fw-semibold {
+        font-weight: 600;
+    }
 
 .dashboard-project-card.is-active {
     border-color: rgba(45, 108, 223, .65);
@@ -391,12 +413,12 @@
 /* Keep dropdowns above any cards/sections on the dashboard */
 .dashboard .dropdown-menu,
 .todo-widget .dropdown-menu {
-    z-index: 1080; /* ensure menus overlay dashboard widgets */
+    z-index: 1080;
 }
 
-/* Menus we move to <body> must sit above dashboard cards */
+/* Menus we move to body must sit above dashboard cards */
 .dropdown-menu.todo-menu {
-    z-index: 1085; /* extra boost once detached to <body> */
+    z-index: 1085;
 }
 
 /* If any card/section had overflow clipping, turn it off at the outer wrapper */
