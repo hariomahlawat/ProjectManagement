@@ -86,7 +86,7 @@ public static class ProjectOfficeReportsPolicies
             throw new ArgumentNullException(nameof(builder));
         }
 
-        return builder.RequireRole(TotTrackerSubmitterRoles);
+        return builder.RequireAuthenticatedUser();
     }
 
     public static AuthorizationPolicyBuilder RequireTotTrackerSubmitter(this AuthorizationPolicyBuilder builder)
