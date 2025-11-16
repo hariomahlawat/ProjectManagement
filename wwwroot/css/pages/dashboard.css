@@ -1,39 +1,46 @@
-/* SECTION: Dashboard layout spacing */
+﻿/* SECTION: Dashboard layout spacing */
 
-/* Control vertical rhythm for main left-column sections */
-.dashboard-main-content {
-    --dashboard-gap-tight: clamp(1.4rem, 1.6vw, 1.8rem);
-    --dashboard-gap-comfy: clamp(2.1rem, 2.6vw, 2.9rem);
+/* Shared vertical rhythm tokens for all four circled gaps */
+.dashboard {
+    --dashboard-gap-small: clamp(1.9rem, 2.1vw, 2.3rem); /* 1 & 2 */
+    --dashboard-gap-large: clamp(2.4rem, 2.8vw, 3rem); /* 3 & 4 */
 }
 
-    /* Reset any existing top margins so spacing is driven only here */
-    .dashboard-main-content > * {
-        margin-top: 0 !important;
-    }
-
-    /* 1) Project pulse -> OpsSignals */
-    .dashboard-main-content > :first-child {
-        margin-bottom: var(--dashboard-gap-tight);
-    }
-
-    /* 2) OpsSignals -> FFC simulator map */
-    .dashboard-main-content > :nth-child(2) {
-        margin-bottom: var(--dashboard-gap-comfy);
-    }
-
-    /* 3) FFC simulator map -> My projects row */
-    .dashboard-main-content > :nth-child(3) {
-        margin-bottom: var(--dashboard-gap-tight);
-    }
-
-/* My projects card sits directly after the map row, no extra top margin */
-.dashboard-my-projects {
-    margin-top: 0;
-}
-
-/* Disable Bootstrap vertical gutter so it does not fight our custom spacing */
+/* Circle 1: header → Project pulse; also kill Bootstrap's vertical gutter */
 .row.dashboard {
+    margin-top: var(--dashboard-gap-small);
     --bs-gutter-y: 0;
+}
+
+/* Main left column: stack sections with flex + explicit gaps */
+.dashboard-main-content {
+    display: flex;
+    flex-direction: column;
+}
+
+    /* Normalise section margins so spacing is owned by gap tokens */
+    .dashboard-main-content > .dashboard-section {
+        margin: 0;
+    }
+
+        .dashboard-main-content > .dashboard-section > * {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+        }
+
+        /* Circle 2: Project pulse → OpsSignals */
+        .dashboard-main-content > .dashboard-section:nth-of-type(2) {
+            margin-top: var(--dashboard-gap-small);
+        }
+
+        /* Circle 3: OpsSignals → FFC map (more breathing room before heavy map slab) */
+        .dashboard-main-content > .dashboard-section:nth-of-type(3) {
+            margin-top: var(--dashboard-gap-large);
+        }
+
+/* Circle 4: FFC map → My projects row */
+.dashboard-my-projects {
+    margin-top: var(--dashboard-gap-large);
 }
 
 /* END SECTION */
@@ -66,7 +73,7 @@
 .dashboard-events-card--floating {
     z-index: 5;
     align-self: flex-end;
-    margin-right: -90px;
+    margin-right:-90px
 }
 
 .dashboard-events-card:hover {
@@ -86,6 +93,7 @@
 .dashboard-events-card:active {
     transform: translateY(0);
 }
+
 .dashboard-events-card__icon {
     display: flex;
     align-items: center;
@@ -263,7 +271,7 @@
     box-shadow: var(--pm-shadow);
     background: var(--pm-card);
     padding: 1.25rem 1.5rem 1.5rem;
-    /* no extra margin-top; spacing handled by dashboard-main-content rules */
+    /* no extra margin-top; spacing handled by layout rules */
 }
 
 .myproj-stage-widget__header {
@@ -293,7 +301,6 @@
     font-size: 1.15rem;
     box-shadow: 0 12px 22px -16px rgba(45, 108, 223, 0.38);
 }
-
 
 .myproj-stage-widget__title {
     margin: 0;
