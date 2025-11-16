@@ -93,38 +93,50 @@
 
 .ffc-simulator-map__pin {
   --pin-size: 40px;
+  --pin-pointer: calc(var(--pin-size) * 0.28);
   --pin-fill: #fef9c3;
   --pin-border: #f59e0b;
   --pin-text: #1f2937;
-  --pin-shadow: 0 10px 22px rgba(217, 119, 6, 0.25);
+  --pin-shadow: 0 10px 18px rgba(217, 119, 6, 0.22);
   position: relative;
   width: var(--pin-size);
-  height: calc(var(--pin-size) * 1.35);
+  height: calc(var(--pin-size) + var(--pin-pointer));
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  padding-bottom: var(--pin-pointer);
   filter: drop-shadow(var(--pin-shadow));
 }
 
+.ffc-simulator-map__pin::before,
 .ffc-simulator-map__pin::after {
   content: '';
   position: absolute;
-  bottom: calc(var(--pin-size) * 0.08);
   left: 50%;
-  width: calc(var(--pin-size) * 0.42);
-  height: calc(var(--pin-size) * 0.42);
-  background: var(--pin-fill);
-  border: 2px solid var(--pin-border);
-  transform: translateX(-50%) rotate(45deg);
-  border-top-color: transparent;
-  border-left-color: transparent;
-  border-bottom-left-radius: 999px;
-  border-bottom-right-radius: 999px;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+}
+
+.ffc-simulator-map__pin::before {
+  bottom: 0;
+  border-left: calc(var(--pin-pointer) * 0.9) solid transparent;
+  border-right: calc(var(--pin-pointer) * 0.9) solid transparent;
+  border-top: calc(var(--pin-pointer) * 0.9) solid var(--pin-border);
+}
+
+.ffc-simulator-map__pin::after {
+  bottom: 1px;
+  border-left: calc(var(--pin-pointer) * 0.75) solid transparent;
+  border-right: calc(var(--pin-pointer) * 0.75) solid transparent;
+  border-top: calc(var(--pin-pointer) * 0.75) solid var(--pin-fill);
+  box-shadow: 0 2px 4px rgba(217, 119, 6, 0.12);
 }
 
 .ffc-simulator-map__pin-head {
   width: 100%;
-  height: calc(var(--pin-size) * 0.9);
+  height: var(--pin-size);
   background: radial-gradient(circle at 35% 35%, #fff7d6, var(--pin-fill));
   border: 2px solid var(--pin-border);
   border-radius: 999px;
