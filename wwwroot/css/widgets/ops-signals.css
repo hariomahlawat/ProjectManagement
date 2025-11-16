@@ -2,7 +2,7 @@
 .ops-signals {
   --ops-gap-xs: 8px;
   --ops-gap-sm: 12px;
-  margin-top: var(--ops-gap-sm);
+  margin-top: 0;
 }
 
 .ops-signals__grid {
