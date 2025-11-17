@@ -23,7 +23,7 @@
 @await Html.PartialAsync("Partials/_AnalyticsHeader", Model)
 <!-- END SECTION -->
 
-<section class="analytics-page">
+<section class="analytics-page" data-analytics-tab="@Model.ActiveTab">
   <!-- Analytics layout: mode navigation and chart canvas -->
   <div
     id="analytics-root"
