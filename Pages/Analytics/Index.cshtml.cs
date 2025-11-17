@@ -21,6 +21,9 @@ namespace ProjectManagement.Pages.Analytics
         private readonly ApplicationDbContext _db;
         private CoeAnalyticsVm? _cachedCoeAnalytics;
 
+        private const int MaxCoeSubcategories = 10;
+        private static readonly string[] CoeLifecycleStatuses = { "Ongoing", "Completed", "Cancelled" };
+
         public IndexModel(ApplicationDbContext db)
         {
             _db = db;
@@ -115,7 +118,7 @@ namespace ProjectManagement.Pages.Analytics
                 .CountAsync(cancellationToken);
 
             _cachedCoeAnalytics = BuildCoeAnalyticsVm();
-            CoeCount = _cachedCoeAnalytics.ByLifecycleStatus.Sum(point => point.Value);
+            CoeCount = _cachedCoeAnalytics.ByLifecycle.Sum(point => point.ProjectCount);
         }
 
         private async Task<CompletedAnalyticsVm> BuildCompletedAnalyticsAsync(CancellationToken cancellationToken)
@@ -179,33 +182,43 @@ namespace ProjectManagement.Pages.Analytics
         private static CoeAnalyticsVm BuildCoeAnalyticsVm()
         {
             // SECTION: Placeholder CoE analytics data (replace with live data wiring when available)
-            var byStage = new List<LabelValuePoint>
+            var sampleProjects = new List<CoeProjectSeed>
             {
-                new("Discovery", 4),
-                new("Planning", 6),
-                new("Execution", 3),
-                new("Adoption", 2)
+                new("Discovery", "Ongoing", "AR/VR"),
+                new("Planning", "Completed", "AR/VR"),
+                new("Execution", "Ongoing", "AI Innovation"),
+                new("Execution", "Ongoing", "AI Innovation"),
+                new("Adoption", "Cancelled", "AI Innovation"),
+                new("Discovery", "Ongoing", "Drones"),
+                new("Planning", "Completed", "Drones"),
+                new("Execution", "Ongoing", "Robotics"),
+                new("Execution", "Completed", "Robotics"),
+                new("Adoption", "Ongoing", "Quantum Research"),
+                new("Discovery", "Ongoing", "Edge Computing"),
+                new("Planning", "Completed", "Edge Computing"),
+                new("Planning", "Ongoing", "Sustainability Labs"),
+                new("Execution", "Completed", "Sustainability Labs"),
+                new("Discovery", "Ongoing", "5G Labs"),
+                new("Planning", "Completed", "5G Labs"),
+                new("Execution", "Cancelled", "Spatial Computing"),
+                new("Planning", "Ongoing", "Advanced Sensors"),
+                new("Execution", "Ongoing", "Advanced Sensors"),
+                new("Planning", "Completed", "Advanced Sensors"),
+                new("Execution", "Ongoing", "Blockchain Lab"),
+                new("Planning", "Ongoing", "Predictive Maintenance"),
+                new("Execution", "Ongoing", "Predictive Maintenance"),
+                new("Execution", "Ongoing", "Industrial Robotics Automation")
             };
 
-            var byLifecycle = new List<LabelValuePoint>
-            {
-                new("Ongoing", 9),
-                new("Completed", 5),
-                new("Cancelled", 1)
-            };
+            var stageBuckets = sampleProjects
+                .GroupBy(project => project.Stage)
+                .Select(group => new CoeStageBucketVm(group.Key, group.Count()))
+                .OrderByDescending(bucket => bucket.ProjectCount)
+                .ToList();
 
-            var bySubcategoryLifecycle = new List<CoeSubcategoryLifecyclePoint>
-            {
-                new("AR/VR", "Ongoing", 3),
-                new("AR/VR", "Completed", 1),
-                new("AI", "Ongoing", 2),
-                new("AI", "Completed", 2),
-                new("AI", "Cancelled", 1),
-                new("Drones", "Ongoing", 2),
-                new("Drones", "Completed", 1),
-                new("Robotics", "Ongoing", 1),
-                new("Robotics", "Completed", 1)
-            };
+            var lifecycleBuckets = BuildLifecycleBuckets(sampleProjects);
+
+            var subcategoryBreakdown = BuildSubcategoryLifecycle(sampleProjects, MaxCoeSubcategories);
 
             var roadmap = new CoeRoadmapVm
             {
@@ -228,13 +241,102 @@ namespace ProjectManagement.Pages.Analytics
 
             return new CoeAnalyticsVm
             {
-                ByStage = byStage,
-                ByLifecycleStatus = byLifecycle,
-                BySubcategoryLifecycle = bySubcategoryLifecycle,
-                Roadmap = roadmap
+                ByStage = stageBuckets,
+                ByLifecycle = lifecycleBuckets,
+                SubcategoriesByLifecycle = subcategoryBreakdown,
+                Roadmap = roadmap,
+                TotalCoeProjects = sampleProjects.Count
             };
             // END SECTION
         }
+
+        private static IReadOnlyList<CoeLifecycleBucketVm> BuildLifecycleBuckets(IEnumerable<CoeProjectSeed> projects)
+        {
+            // SECTION: Lifecycle aggregation
+            var counts = projects
+                .GroupBy(project => project.LifecycleStatus)
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
+
+            return CoeLifecycleStatuses
+                .Select(status => new CoeLifecycleBucketVm(status, counts.TryGetValue(status, out var count) ? count : 0))
+                .ToList();
+            // END SECTION
+        }
+
+        private static IReadOnlyList<CoeSubcategoryLifecycleVm> BuildSubcategoryLifecycle(
+            IEnumerable<CoeProjectSeed> projects,
+            int maxSubcategories)
+        {
+            // SECTION: Sub-category aggregation and trimming
+            var grouped = projects
+                .GroupBy(project => project.Subcategory)
+                .Select(group => new
+                {
+                    Name = group.Key,
+                    Ongoing = group.Count(p => p.LifecycleStatus.Equals("Ongoing", StringComparison.OrdinalIgnoreCase)),
+                    Completed = group.Count(p => p.LifecycleStatus.Equals("Completed", StringComparison.OrdinalIgnoreCase)),
+                    Cancelled = group.Count(p => p.LifecycleStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
+                })
+                .Select(item => new
+                {
+                    item.Name,
+                    item.Ongoing,
+                    item.Completed,
+                    item.Cancelled,
+                    Total = item.Ongoing + item.Completed + item.Cancelled
+                })
+                .Where(item => item.Total > 0)
+                .OrderByDescending(item => item.Total)
+                .ThenBy(item => item.Name)
+                .ToList();
+
+            if (grouped.Count == 0)
+            {
+                return Array.Empty<CoeSubcategoryLifecycleVm>();
+            }
+
+            var trimmed = grouped.Take(maxSubcategories).ToList();
+            var remainder = grouped.Skip(maxSubcategories).ToList();
+
+            if (remainder.Count > 0)
+            {
+                var other = new
+                {
+                    Name = "Other",
+                    Ongoing = remainder.Sum(item => item.Ongoing),
+                    Completed = remainder.Sum(item => item.Completed),
+                    Cancelled = remainder.Sum(item => item.Cancelled),
+                    Total = remainder.Sum(item => item.Total)
+                };
+
+                trimmed.Add(other);
+            }
+
+            return trimmed
+                .Select(item => new CoeSubcategoryLifecycleVm(
+                    item.Name,
+                    BuildShortLabel(item.Name),
+                    item.Ongoing,
+                    item.Completed,
+                    item.Cancelled,
+                    item.Total))
+                .ToList();
+            // END SECTION
+        }
+
+        private static string BuildShortLabel(string name)
+        {
+            // SECTION: Label trimming helper
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return "—";
+            }
+
+            return name.Length <= 16 ? name : string.Concat(name.AsSpan(0, 13), "…");
+            // END SECTION
+        }
+
+        private sealed record CoeProjectSeed(string Stage, string LifecycleStatus, string Subcategory);
 
         // SECTION: Completed analytics helpers
         private async Task<IReadOnlyList<AnalyticsCategoryCountPoint>> BuildCategoryCountsAsync(

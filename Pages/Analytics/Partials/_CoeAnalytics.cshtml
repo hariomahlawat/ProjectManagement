@@ -12,6 +12,7 @@
     var shortTerm = Model.Roadmap.ShortTerm ?? Array.Empty<string>();
     var midTerm = Model.Roadmap.MidTerm ?? Array.Empty<string>();
     var longTerm = Model.Roadmap.LongTerm ?? Array.Empty<string>();
+    var noCoeProjectsMessage = "No CoE projects to analyse yet. Create a CoE project to see analytics here.";
     // END SECTION
 }
 
@@ -28,14 +29,20 @@
                     </p>
                 </header>
                 <div class="analytics-card__body">
-                    <div class="analytics-card__chart">
-                        <canvas id="coe-by-stage-chart"
-                                role="img"
-                                aria-label="Ongoing CoE projects by current stage"
-                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByStage, jsonOptions))'
-                                data-empty-message="No CoE projects with an active stage yet.">
-                        </canvas>
-                    </div>
+                    @if (!Model.HasCoeProjects)
+                    {
+                        <p class="analytics-card__empty-text">@noCoeProjectsMessage</p>
+                    }
+                    else
+                    {
+                        <div class="analytics-card__chart">
+                            <canvas id="coe-by-stage-chart"
+                                    role="img"
+                                    aria-label="Ongoing CoE projects by current stage"
+                                    data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByStage, jsonOptions))'>
+                            </canvas>
+                        </div>
+                    }
                 </div>
             </article>
 
@@ -48,14 +55,20 @@
                     </p>
                 </header>
                 <div class="analytics-card__body">
-                    <div class="analytics-card__chart">
-                        <canvas id="coe-by-lifecycle-chart"
-                                role="img"
-                                aria-label="CoE projects by lifecycle status"
-                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByLifecycleStatus, jsonOptions))'
-                                data-empty-message="No CoE projects found.">
-                        </canvas>
-                    </div>
+                    @if (!Model.HasCoeProjects)
+                    {
+                        <p class="analytics-card__empty-text">@noCoeProjectsMessage</p>
+                    }
+                    else
+                    {
+                        <div class="analytics-card__chart">
+                            <canvas id="coe-by-lifecycle-chart"
+                                    role="img"
+                                    aria-label="CoE projects by lifecycle status"
+                                    data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByLifecycle, jsonOptions))'>
+                            </canvas>
+                        </div>
+                    }
                 </div>
             </article>
 
@@ -68,14 +81,25 @@
                     </p>
                 </header>
                 <div class="analytics-card__body">
-                    <div class="analytics-card__chart">
-                        <canvas id="coe-subcategories-chart"
-                                role="img"
-                                aria-label="CoE sub-categories by lifecycle status"
-                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.BySubcategoryLifecycle, jsonOptions))'
-                                data-empty-message="No CoE sub-category data available.">
-                        </canvas>
-                    </div>
+                    @if (!Model.HasCoeProjects)
+                    {
+                        <p class="analytics-card__empty-text">@noCoeProjectsMessage</p>
+                    }
+                    else if (!Model.HasSubcategoryBreakdown)
+                    {
+                        <p class="analytics-card__empty-text">No CoE sub-categories with projects yet. Add CoE projects to see this breakdown.</p>
+                    }
+                    else
+                    {
+                        <div class="analytics-card__chart analytics-card__chart--scrollable">
+                            <canvas id="coe-subcategories-chart"
+                                    role="img"
+                                    aria-label="CoE sub-categories by lifecycle status"
+                                    data-series='@Html.Raw(JsonSerializer.Serialize(Model.SubcategoriesByLifecycle, jsonOptions))'>
+                            </canvas>
+                        </div>
+                        <p class="analytics-card__footnote">Only CoE sub-categories with at least one project are shown.</p>
+                    }
                 </div>
             </article>
         </div>
