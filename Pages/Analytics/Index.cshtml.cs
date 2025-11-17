@@ -118,17 +118,9 @@ namespace ProjectManagement.Pages.Analytics
                 .AsNoTracking()
                 .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed);
 
-            var byCategory = await completedQuery
-                .GroupBy(p => p.Category != null ? p.Category.Name : "Uncategorized")
-                .Select(g => new CompletedByCategoryPoint(g.Key, g.Count()))
-                .OrderByDescending(x => x.Count)
-                .ToListAsync();
+            var byCategory = await BuildCompletedByCategoryAsync(completedQuery);
 
-            var byTechnical = await completedQuery
-                .GroupBy(p => p.TechnicalCategory != null ? p.TechnicalCategory.Name : "Uncategorized")
-                .Select(g => new CompletedByTechnicalPoint(g.Key, g.Count()))
-                .OrderByDescending(x => x.Count)
-                .ToListAsync();
+            var byTechnical = await BuildCompletedByTechnicalAsync(completedQuery);
 
             var perYear = await completedQuery
                 .Select(p => p.CompletedYear ?? (p.CompletedOn.HasValue ? p.CompletedOn.Value.Year : (int?)null))
@@ -147,6 +139,95 @@ namespace ProjectManagement.Pages.Analytics
             };
             // END SECTION
         }
+
+        // SECTION: Completed analytics helpers
+        private async Task<IReadOnlyList<CompletedByCategoryPoint>> BuildCompletedByCategoryAsync(IQueryable<Project> completedQuery)
+        {
+            var categoryCounts = await completedQuery
+                .GroupBy(p => p.CategoryId)
+                .Select(g => new CategoryAggregation
+                {
+                    Id = g.Key,
+                    Count = g.Count()
+                })
+                .OrderByDescending(x => x.Count)
+                .ToListAsync();
+
+            var namedCategories = await LoadCategoryNamesAsync(categoryCounts);
+
+            return categoryCounts
+                .Select(item => new CompletedByCategoryPoint(ResolveName(item.Id, namedCategories), item.Count))
+                .ToList();
+        }
+
+        private async Task<IReadOnlyList<CompletedByTechnicalPoint>> BuildCompletedByTechnicalAsync(IQueryable<Project> completedQuery)
+        {
+            var technicalCounts = await completedQuery
+                .GroupBy(p => p.TechnicalCategoryId)
+                .Select(g => new CategoryAggregation
+                {
+                    Id = g.Key,
+                    Count = g.Count()
+                })
+                .OrderByDescending(x => x.Count)
+                .ToListAsync();
+
+            var namedTechnicalCategories = await LoadTechnicalCategoryNamesAsync(technicalCounts);
+
+            return technicalCounts
+                .Select(item => new CompletedByTechnicalPoint(ResolveName(item.Id, namedTechnicalCategories), item.Count))
+                .ToList();
+        }
+
+        private async Task<IReadOnlyDictionary<int, string>> LoadCategoryNamesAsync(IEnumerable<CategoryAggregation> aggregations)
+        {
+            var ids = aggregations
+                .Where(a => a.Id.HasValue)
+                .Select(a => a.Id!.Value)
+                .Distinct()
+                .ToList();
+
+            if (ids.Count == 0)
+            {
+                return new Dictionary<int, string>();
+            }
+
+            return await _db.ProjectCategories
+                .AsNoTracking()
+                .Where(c => ids.Contains(c.Id))
+                .ToDictionaryAsync(c => c.Id, c => c.Name);
+        }
+
+        private async Task<IReadOnlyDictionary<int, string>> LoadTechnicalCategoryNamesAsync(IEnumerable<CategoryAggregation> aggregations)
+        {
+            var ids = aggregations
+                .Where(a => a.Id.HasValue)
+                .Select(a => a.Id!.Value)
+                .Distinct()
+                .ToList();
+
+            if (ids.Count == 0)
+            {
+                return new Dictionary<int, string>();
+            }
+
+            return await _db.TechnicalCategories
+                .AsNoTracking()
+                .Where(c => ids.Contains(c.Id))
+                .ToDictionaryAsync(c => c.Id, c => c.Name);
+        }
+
+        private static string ResolveName(int? id, IReadOnlyDictionary<int, string> lookup) =>
+            id.HasValue && lookup.TryGetValue(id.Value, out var name)
+                ? name
+                : "Uncategorized";
+
+        private sealed class CategoryAggregation
+        {
+            public int? Id { get; init; }
+            public int Count { get; init; }
+        }
+        // END SECTION
 
         public sealed record CategoryOption(int Id, string Name);
         public sealed record TechnicalCategoryOption(int Id, string Name);
