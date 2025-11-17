@@ -72,6 +72,37 @@ function createBarChart(
     }
   });
 }
+
+function createStackedBarChart(canvas, { labels, datasets }) {
+  if (!canvas || !window.Chart) {
+    return null;
+  }
+
+  return new window.Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: datasets.map((dataset, index) => ({
+        label: dataset.label,
+        data: dataset.values,
+        backgroundColor: dataset.backgroundColor ?? palette[index % palette.length],
+        borderRadius: 4,
+        stack: 'lifecycle'
+      }))
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' }
+      },
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, beginAtZero: true }
+      }
+    }
+  });
+}
 // END SECTION
 
 // SECTION: Dataset helpers
@@ -91,6 +122,45 @@ function parseSeries(canvas) {
     console.error('Failed to parse analytics series payload.', error);
     return [];
   }
+}
+
+function renderSeriesChart(canvas, renderCallback) {
+  if (!canvas) {
+    return;
+  }
+
+  const series = parseSeries(canvas);
+  if (!series.length) {
+    renderEmptyState(canvas);
+    return;
+  }
+
+  renderCallback(series);
+}
+
+function renderEmptyState(canvas) {
+  if (!canvas) {
+    return;
+  }
+
+  const container = canvas.parentElement;
+  if (!container) {
+    return;
+  }
+
+  const message = canvas.dataset?.emptyMessage ?? 'No data available yet.';
+  canvas.style.display = 'none';
+  canvas.setAttribute('aria-hidden', 'true');
+
+  if (container.querySelector('.analytics-empty-state')) {
+    return;
+  }
+
+  const placeholder = document.createElement('div');
+  placeholder.className = 'analytics-empty-state';
+  placeholder.setAttribute('role', 'status');
+  placeholder.textContent = message;
+  container.appendChild(placeholder);
 }
 // END SECTION
 
@@ -192,30 +262,75 @@ function initOngoingAnalytics() {
 
 // SECTION: CoE analytics initialiser
 function initCoeAnalytics() {
-  const stageCanvas = document.getElementById('coe-projects-by-stage-chart');
-  const lifecycleCanvas = document.getElementById('coe-lifecycle-status-chart');
+  const stageCanvas = document.getElementById('coe-by-stage-chart');
+  const lifecycleCanvas = document.getElementById('coe-by-lifecycle-chart');
+  const subcategoryCanvas = document.getElementById('coe-subcategories-chart');
 
-  const coeStageData = {
-    labels: ['Discovery', 'Planning', 'Execution', 'Adoption'],
-    values: [3, 4, 6, 2]
-  };
-
-  const coeLifecycleData = {
-    labels: ['Ongoing', 'Completed', 'Cancelled'],
-    values: [10, 5, 1]
-  };
-
-  if (stageCanvas) {
+  renderSeriesChart(stageCanvas, (series) => {
     createBarChart(stageCanvas, {
-      ...coeStageData,
+      labels: series.map((point) => point.label),
+      values: series.map((point) => point.value),
       label: 'Projects',
       backgroundColor: '#5c6bc0'
     });
-  }
+  });
 
-  if (lifecycleCanvas) {
-    createDoughnutChart(lifecycleCanvas, coeLifecycleData);
-  }
+  renderSeriesChart(lifecycleCanvas, (series) => {
+    createDoughnutChart(lifecycleCanvas, {
+      labels: series.map((point) => point.label),
+      values: series.map((point) => point.value)
+    });
+  });
+
+  renderSeriesChart(subcategoryCanvas, (series) => {
+    const subcategories = Array.from(
+      new Set(series.map((point) => point.subcategory))
+    );
+    const lifecycleStatuses = orderLifecycleStatuses(
+      Array.from(new Set(series.map((point) => point.lifecycleStatus)))
+    );
+
+    const datasets = lifecycleStatuses.map((status, datasetIndex) => ({
+      label: status,
+      values: subcategories.map((subcategory) => {
+        const match = series.find(
+          (point) =>
+            point.subcategory === subcategory && point.lifecycleStatus === status
+        );
+        return match ? match.value : 0;
+      }),
+      backgroundColor: palette[datasetIndex % palette.length]
+    }));
+
+    createStackedBarChart(subcategoryCanvas, {
+      labels: subcategories,
+      datasets
+    });
+  });
+}
+// END SECTION
+
+// SECTION: Lifecycle ordering helper
+function orderLifecycleStatuses(statuses) {
+  const preferredOrder = ['Ongoing', 'Completed', 'Cancelled', 'On Hold'];
+  return statuses.sort((a, b) => {
+    const indexA = preferredOrder.indexOf(a);
+    const indexB = preferredOrder.indexOf(b);
+
+    if (indexA === -1 && indexB === -1) {
+      return a.localeCompare(b);
+    }
+
+    if (indexA === -1) {
+      return 1;
+    }
+
+    if (indexB === -1) {
+      return -1;
+    }
+
+    return indexA - indexB;
+  });
 }
 // END SECTION
 

@@ -151,6 +151,12 @@
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.35fr);
 }
 
+.analytics-grid--coe {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr);
+  grid-auto-rows: auto;
+  gap: 1.5rem;
+}
+
 .analytics-card--wide {
   grid-column: 1 / -1;
 }
@@ -168,7 +174,8 @@
 
 @media (max-width: 991.98px) {
   .analytics-grid,
-  .analytics-grid--ongoing {
+  .analytics-grid--ongoing,
+  .analytics-grid--coe {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -232,6 +239,50 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
+}
+
+.analytics-roadmap__column {
+  background-color: var(--pm-surface);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.analytics-roadmap__heading {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.analytics-roadmap__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.analytics-roadmap__item {
+  font-size: var(--pm-font-size-sm);
+  line-height: 1.4;
+}
+
+.analytics-roadmap__item--muted {
+  color: var(--pm-text-secondary);
+}
+
+.analytics-empty-state {
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1rem;
+  color: var(--pm-text-secondary);
+  font-size: var(--pm-font-size-sm);
 }
 
 @media (max-width: 991.98px) {

@@ -1,74 +1,138 @@
 @model ProjectManagement.Models.Analytics.CoeAnalyticsVm
-@using ProjectManagement.Pages.Analytics
+@using System.Linq
+@using System.Text.Json
+
+@{
+    // SECTION: JSON serialiser options
+    var jsonOptions = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    var shortTerm = Model.Roadmap.ShortTerm ?? Array.Empty<string>();
+    var midTerm = Model.Roadmap.MidTerm ?? Array.Empty<string>();
+    var longTerm = Model.Roadmap.LongTerm ?? Array.Empty<string>();
+    // END SECTION
+}
 
 <section class="analytics-panel analytics-panel--coe" aria-label="CoE projects analytics">
     <!-- SECTION: CoE analytics layout -->
     <div class="analytics-layout">
-
-        <!-- Row 1: stage + lifecycle -->
-        <div class="analytics-layout__row analytics-layout__row--top">
+        <div class="analytics-grid analytics-grid--coe">
+            <!-- Card 1: Ongoing CoE projects by current stage -->
             <article class="analytics-card">
                 <header class="analytics-card__header">
                     <h2 class="analytics-card__title">Ongoing CoE projects by current stage</h2>
-                    <p class="analytics-card__meta">Current stage distribution for active CoE projects.</p>
+                    <p class="analytics-card__meta">
+                        Current stage distribution for active CoE projects.
+                    </p>
                 </header>
                 <div class="analytics-card__body">
                     <div class="analytics-card__chart">
-                        <canvas id="coe-projects-by-stage-chart"></canvas>
+                        <canvas id="coe-by-stage-chart"
+                                role="img"
+                                aria-label="Ongoing CoE projects by current stage"
+                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByStage, jsonOptions))'
+                                data-empty-message="No CoE projects with an active stage yet.">
+                        </canvas>
                     </div>
                 </div>
             </article>
 
+            <!-- Card 2: CoE projects by lifecycle status -->
             <article class="analytics-card">
                 <header class="analytics-card__header">
                     <h2 class="analytics-card__title">CoE projects by lifecycle status</h2>
                     <p class="analytics-card__meta">
-                        How many CoE projects are ongoing, completed or cancelled as per lifecycle.
+                        How many CoE projects are ongoing, completed, or cancelled as per lifecycle.
                     </p>
                 </header>
                 <div class="analytics-card__body">
                     <div class="analytics-card__chart">
-                        <canvas id="coe-lifecycle-status-chart"></canvas>
+                        <canvas id="coe-by-lifecycle-chart"
+                                role="img"
+                                aria-label="CoE projects by lifecycle status"
+                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByLifecycleStatus, jsonOptions))'
+                                data-empty-message="No CoE projects found.">
+                        </canvas>
                     </div>
                 </div>
             </article>
-        </div>
 
-        <!-- Row 2: roadmap / list -->
-        <div class="analytics-layout__row">
+            <!-- Card 3: CoE sub-categories vs lifecycle -->
             <article class="analytics-card analytics-card--wide">
                 <header class="analytics-card__header">
-                    <h2 class="analytics-card__title">CoE roadmap</h2>
+                    <h2 class="analytics-card__title">CoE sub-categories by lifecycle</h2>
                     <p class="analytics-card__meta">
-                        Short-, mid- and long-term CoE projects (structure only — data in a later step).
+                        Distribution of CoE sub-categories across lifecycle statuses.
                     </p>
                 </header>
-
-                <div class="analytics-card__body analytics-roadmap">
-                    <div class="analytics-roadmap__column">
-                        <h3 class="analytics-roadmap__heading">Short term</h3>
-                        <ul class="analytics-roadmap__list">
-                            <li class="analytics-roadmap__item">TODO: populate from CoE view model.</li>
-                        </ul>
-                    </div>
-
-                    <div class="analytics-roadmap__column">
-                        <h3 class="analytics-roadmap__heading">Mid term</h3>
-                        <ul class="analytics-roadmap__list">
-                            <li class="analytics-roadmap__item">TODO: populate from CoE view model.</li>
-                        </ul>
-                    </div>
-
-                    <div class="analytics-roadmap__column">
-                        <h3 class="analytics-roadmap__heading">Long term</h3>
-                        <ul class="analytics-roadmap__list">
-                            <li class="analytics-roadmap__item">TODO: populate from CoE view model.</li>
-                        </ul>
+                <div class="analytics-card__body">
+                    <div class="analytics-card__chart">
+                        <canvas id="coe-subcategories-chart"
+                                role="img"
+                                aria-label="CoE sub-categories by lifecycle status"
+                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.BySubcategoryLifecycle, jsonOptions))'
+                                data-empty-message="No CoE sub-category data available.">
+                        </canvas>
                     </div>
                 </div>
             </article>
         </div>
 
+        <!-- CoE roadmap summary -->
+        <section class="analytics-roadmap" aria-label="CoE roadmap summary">
+            <div class="analytics-roadmap__column">
+                <h3 class="analytics-roadmap__heading">Short term</h3>
+                <ul class="analytics-roadmap__list">
+                    @if (shortTerm.Any())
+                    {
+                        foreach (var item in shortTerm)
+                        {
+                            <li class="analytics-roadmap__item">@item</li>
+                        }
+                    }
+                    else
+                    {
+                        <li class="analytics-roadmap__item analytics-roadmap__item--muted">No short-term initiatives yet.</li>
+                    }
+                </ul>
+            </div>
+
+            <div class="analytics-roadmap__column">
+                <h3 class="analytics-roadmap__heading">Mid term</h3>
+                <ul class="analytics-roadmap__list">
+                    @if (midTerm.Any())
+                    {
+                        foreach (var item in midTerm)
+                        {
+                            <li class="analytics-roadmap__item">@item</li>
+                        }
+                    }
+                    else
+                    {
+                        <li class="analytics-roadmap__item analytics-roadmap__item--muted">No mid-term initiatives yet.</li>
+                    }
+                </ul>
+            </div>
+
+            <div class="analytics-roadmap__column">
+                <h3 class="analytics-roadmap__heading">Long term</h3>
+                <ul class="analytics-roadmap__list">
+                    @if (longTerm.Any())
+                    {
+                        foreach (var item in longTerm)
+                        {
+                            <li class="analytics-roadmap__item">@item</li>
+                        }
+                    }
+                    else
+                    {
+                        <li class="analytics-roadmap__item analytics-roadmap__item--muted">No long-term initiatives yet.</li>
+                    }
+                </ul>
+            </div>
+        </section>
     </div>
     <!-- END SECTION -->
 </section>
