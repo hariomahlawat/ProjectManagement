@@ -215,12 +215,15 @@ namespace ProjectManagement.Pages.Analytics
             var subcategoryBreakdown = await BuildCoeSubcategoryBreakdownAsync(
                 coeProjectsQuery,
                 cancellationToken);
+            var subcategoryProjects = await BuildCoeSubcategoryProjectsAsync(
+                coeProjectsQuery,
+                cancellationToken);
 
             return new CoeAnalyticsVm
             {
                 ByStage = stageBuckets,
                 SubcategoriesByLifecycle = subcategoryBreakdown,
-                Roadmap = BuildDefaultCoeRoadmap(),
+                SubcategoryProjects = subcategoryProjects,
                 TotalCoeProjects = totalCoeProjects
             };
             // END SECTION
@@ -439,32 +442,8 @@ namespace ProjectManagement.Pages.Analytics
             {
                 ByStage = Array.Empty<CoeStageBucketVm>(),
                 SubcategoriesByLifecycle = Array.Empty<CoeSubcategoryLifecycleVm>(),
-                Roadmap = BuildDefaultCoeRoadmap(),
+                SubcategoryProjects = Array.Empty<CoeSubcategoryProjectsVm>(),
                 TotalCoeProjects = 0
-            };
-            // END SECTION
-        }
-
-        private static CoeRoadmapVm BuildDefaultCoeRoadmap()
-        {
-            // SECTION: CoE roadmap summary
-            return new CoeRoadmapVm
-            {
-                ShortTerm = new[]
-                {
-                    "Publish CoE intake playbook",
-                    "Stand up AR/VR showcase lab"
-                },
-                MidTerm = new[]
-                {
-                    "Expand AI PoC factory",
-                    "Launch drone interoperability pilots"
-                },
-                LongTerm = new[]
-                {
-                    "Operationalise robotics center across regions",
-                    "Establish shared evaluation metrics across CoEs"
-                }
             };
             // END SECTION
         }
@@ -477,6 +456,72 @@ namespace ProjectManagement.Pages.Analytics
                 : name.Trim();
             // END SECTION
         }
+
+        private async Task<IReadOnlyList<CoeSubcategoryProjectsVm>> BuildCoeSubcategoryProjectsAsync(
+            IQueryable<Project> coeProjectsQuery,
+            CancellationToken cancellationToken)
+        {
+            // SECTION: CoE sub-category project listing aggregation
+            var projectRows = await coeProjectsQuery
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Name,
+                    CategoryName = p.Category != null ? p.Category.Name : null,
+                    p.LifecycleStatus,
+                    Stages = p.ProjectStages
+                        .OrderBy(s => s.SortOrder)
+                        .ThenBy(s => s.StageCode)
+                        .Select(s => new StageSnapshot(
+                            s.StageCode,
+                            s.Status,
+                            s.SortOrder,
+                            s.CompletedOn))
+                        .ToList()
+                })
+                .ToListAsync(cancellationToken);
+
+            if (projectRows.Count == 0)
+            {
+                return Array.Empty<CoeSubcategoryProjectsVm>();
+            }
+
+            var groupedProjects = projectRows
+                .Select(row =>
+                {
+                    var stage = DetermineCurrentStage(new ProjectStageSnapshot(row.LifecycleStatus, row.Stages));
+                    var stageName = stage is null ? "—" : StageCodes.DisplayNameOf(stage.StageCode);
+
+                    return new
+                    {
+                        Subcategory = NormalizeCoeSubcategoryName(row.CategoryName),
+                        Project = new CoeProjectSummaryVm(
+                            row.Id,
+                            row.Name,
+                            FormatCoeLifecycleStatus(row.LifecycleStatus),
+                            stageName)
+                    };
+                })
+                .GroupBy(item => item.Subcategory, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new CoeSubcategoryProjectsVm(
+                    group.Key,
+                    group.Select(item => item.Project)
+                        .OrderBy(project => project.Name, StringComparer.OrdinalIgnoreCase)
+                        .ToList()))
+                .OrderBy(bucket => bucket.SubcategoryName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return groupedProjects;
+            // END SECTION
+        }
+
+        private static string FormatCoeLifecycleStatus(ProjectLifecycleStatus status) => status switch
+        {
+            ProjectLifecycleStatus.Active => "Ongoing",
+            ProjectLifecycleStatus.Completed => "Completed",
+            ProjectLifecycleStatus.Cancelled => "Cancelled",
+            _ => status.ToString()
+        };
 
         private sealed record CoeCategoryDescriptor(int Id, int? ParentId, string Name);
         private sealed record CoeCategoryLookup(

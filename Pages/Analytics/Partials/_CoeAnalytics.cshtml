@@ -9,11 +9,9 @@
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    var shortTerm = Model.Roadmap.ShortTerm ?? Array.Empty<string>();
-    var midTerm = Model.Roadmap.MidTerm ?? Array.Empty<string>();
-    var longTerm = Model.Roadmap.LongTerm ?? Array.Empty<string>();
     var noCoeProjectsMessage = "No CoE projects to analyse yet. Create a CoE project to see analytics here.";
     var noSubcategoryMessage = "CoE sub-category breakdown will appear here once projects have sub-categories configured.";
+    var noSubcategoryProjectsMessage = "No CoE projects with sub-categories configured yet.";
     // END SECTION
 }
 
@@ -79,59 +77,40 @@
         </div>
         <!-- END SECTION -->
 
-        <!-- CoE roadmap summary -->
-        <section class="analytics-roadmap" aria-label="CoE roadmap summary">
-            <div class="analytics-roadmap__column">
-                <h3 class="analytics-roadmap__heading">Short term</h3>
-                <ul class="analytics-roadmap__list">
-                    @if (shortTerm.Any())
-                    {
-                        foreach (var item in shortTerm)
-                        {
-                            <li class="analytics-roadmap__item">@item</li>
-                        }
-                    }
-                    else
-                    {
-                        <li class="analytics-roadmap__item analytics-roadmap__item--muted">No short-term initiatives yet.</li>
-                    }
-                </ul>
-            </div>
-
-            <div class="analytics-roadmap__column">
-                <h3 class="analytics-roadmap__heading">Mid term</h3>
-                <ul class="analytics-roadmap__list">
-                    @if (midTerm.Any())
-                    {
-                        foreach (var item in midTerm)
-                        {
-                            <li class="analytics-roadmap__item">@item</li>
-                        }
-                    }
-                    else
-                    {
-                        <li class="analytics-roadmap__item analytics-roadmap__item--muted">No mid-term initiatives yet.</li>
-                    }
-                </ul>
-            </div>
-
-            <div class="analytics-roadmap__column">
-                <h3 class="analytics-roadmap__heading">Long term</h3>
-                <ul class="analytics-roadmap__list">
-                    @if (longTerm.Any())
-                    {
-                        foreach (var item in longTerm)
-                        {
-                            <li class="analytics-roadmap__item">@item</li>
-                        }
-                    }
-                    else
-                    {
-                        <li class="analytics-roadmap__item analytics-roadmap__item--muted">No long-term initiatives yet.</li>
-                    }
-                </ul>
-            </div>
+        <!-- SECTION: CoE projects by sub-category -->
+        <section class="analytics-roadmap analytics-roadmap--coe-subcategories"
+                 aria-label="CoE projects by sub-category">
+            @if (!(Model.SubcategoryProjects?.Any() ?? false))
+            {
+                <div class="analytics-roadmap__column">
+                    <h3 class="analytics-roadmap__heading">CoE sub-categories</h3>
+                    <p class="analytics-roadmap__empty">
+                        @noSubcategoryProjectsMessage
+                    </p>
+                </div>
+            }
+            else
+            {
+                @foreach (var bucket in Model.SubcategoryProjects)
+                {
+                    <div class="analytics-roadmap__column">
+                        <h3 class="analytics-roadmap__heading">@bucket.SubcategoryName</h3>
+                        <ul class="analytics-roadmap__list">
+                            @foreach (var project in bucket.Projects)
+                            {
+                                <li class="analytics-roadmap__item">
+                                    <span class="analytics-roadmap__project-name">@project.Name</span>
+                                    <span class="analytics-roadmap__project-meta">
+                                        @project.LifecycleStatus · @project.CurrentStage
+                                    </span>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+            }
         </section>
+        <!-- END SECTION -->
     </div>
     <!-- END SECTION -->
 </section>
