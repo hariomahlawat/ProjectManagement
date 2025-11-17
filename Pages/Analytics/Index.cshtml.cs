@@ -19,6 +19,7 @@ namespace ProjectManagement.Pages.Analytics
     public class IndexModel : PageModel
     {
         private readonly ApplicationDbContext _db;
+        private CoeAnalyticsVm? _cachedCoeAnalytics;
 
         public IndexModel(ApplicationDbContext db)
         {
@@ -40,7 +41,7 @@ namespace ProjectManagement.Pages.Analytics
 
         public int CompletedCount { get; private set; }
         public int OngoingCount { get; private set; }
-        public int CoeCount { get; private set; } = 12;
+        public int CoeCount { get; private set; }
 
         public CompletedAnalyticsVm? Completed { get; private set; }
         public OngoingAnalyticsVm? Ongoing { get; private set; }
@@ -79,10 +80,7 @@ namespace ProjectManagement.Pages.Analytics
                     break;
 
                 case AnalyticsTab.Coe:
-                    Coe = new CoeAnalyticsVm
-                    {
-                        TotalCoeProjects = CoeCount
-                    };
+                    Coe = _cachedCoeAnalytics ?? BuildCoeAnalyticsVm();
                     break;
             }
             // END SECTION
@@ -115,6 +113,9 @@ namespace ProjectManagement.Pages.Analytics
                 .AsNoTracking()
                 .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active)
                 .CountAsync(cancellationToken);
+
+            _cachedCoeAnalytics = BuildCoeAnalyticsVm();
+            CoeCount = _cachedCoeAnalytics.ByLifecycleStatus.Sum(point => point.Value);
         }
 
         private async Task<CompletedAnalyticsVm> BuildCompletedAnalyticsAsync(CancellationToken cancellationToken)
@@ -171,6 +172,66 @@ namespace ProjectManagement.Pages.Analytics
                 ByCategory = byCategory,
                 ByStage = byStage,
                 AvgStageDurations = stageDurations
+            };
+            // END SECTION
+        }
+
+        private static CoeAnalyticsVm BuildCoeAnalyticsVm()
+        {
+            // SECTION: Placeholder CoE analytics data (replace with live data wiring when available)
+            var byStage = new List<LabelValuePoint>
+            {
+                new("Discovery", 4),
+                new("Planning", 6),
+                new("Execution", 3),
+                new("Adoption", 2)
+            };
+
+            var byLifecycle = new List<LabelValuePoint>
+            {
+                new("Ongoing", 9),
+                new("Completed", 5),
+                new("Cancelled", 1)
+            };
+
+            var bySubcategoryLifecycle = new List<CoeSubcategoryLifecyclePoint>
+            {
+                new("AR/VR", "Ongoing", 3),
+                new("AR/VR", "Completed", 1),
+                new("AI", "Ongoing", 2),
+                new("AI", "Completed", 2),
+                new("AI", "Cancelled", 1),
+                new("Drones", "Ongoing", 2),
+                new("Drones", "Completed", 1),
+                new("Robotics", "Ongoing", 1),
+                new("Robotics", "Completed", 1)
+            };
+
+            var roadmap = new CoeRoadmapVm
+            {
+                ShortTerm = new[]
+                {
+                    "Publish CoE intake playbook",
+                    "Stand up AR/VR showcase lab"
+                },
+                MidTerm = new[]
+                {
+                    "Expand AI PoC factory",
+                    "Launch drone interoperability pilots"
+                },
+                LongTerm = new[]
+                {
+                    "Operationalise robotics center across regions",
+                    "Establish shared evaluation metrics across CoEs"
+                }
+            };
+
+            return new CoeAnalyticsVm
+            {
+                ByStage = byStage,
+                ByLifecycleStatus = byLifecycle,
+                BySubcategoryLifecycle = bySubcategoryLifecycle,
+                Roadmap = roadmap
             };
             // END SECTION
         }
