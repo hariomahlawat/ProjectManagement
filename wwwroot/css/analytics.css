@@ -127,7 +127,11 @@
 
 @media (min-width: 992px) {
   .analytics-panel .analytics-layout__row--top {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    /* SECTION: Wider layout for mixed chart rows */
+    grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+    align-items: stretch;
+    column-gap: 1.75rem;
+    /* END SECTION */
   }
 }
 
