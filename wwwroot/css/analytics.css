@@ -247,6 +247,15 @@
   min-height: 220px;
 }
 
+/* CoE sub-category chart: slightly shorter card */
+.analytics-card--coe-subcategories .analytics-card__body {
+  min-height: 180px;
+}
+
+.analytics-card--coe-subcategories .analytics-card__chart {
+  min-height: 220px;
+}
+
 /* Chart area inside analytics cards */
 .analytics-card__chart {
   position: relative;

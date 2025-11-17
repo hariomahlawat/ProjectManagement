@@ -33,11 +33,10 @@ public sealed record CoeStageBucketVm(string StageName, int ProjectCount);
 // SECTION: CoE sub-category dataset
 public sealed record CoeSubcategoryLifecycleVm(
     string Name,
-    string ShortLabel,
-    int OngoingCount,
-    int CompletedCount,
-    int CancelledCount,
-    int TotalCount);
+    int Ongoing,
+    int Completed,
+    int Cancelled,
+    int Total);
 // END SECTION
 
 // SECTION: CoE roadmap view model
