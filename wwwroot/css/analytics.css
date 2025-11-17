@@ -155,6 +155,17 @@
   grid-column: 1 / -1;
 }
 
+/* SECTION: Analytics panel width overrides */
+.analytics-panel .analytics-layout {
+  width: 100%;
+}
+
+.analytics-panel .analytics-grid {
+  width: 100%;
+  max-width: none;
+}
+/* END SECTION */
+
 @media (max-width: 991.98px) {
   .analytics-grid,
   .analytics-grid--ongoing {
