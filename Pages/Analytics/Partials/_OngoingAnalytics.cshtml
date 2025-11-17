@@ -1,5 +1,14 @@
 @model ProjectManagement.Models.Analytics.OngoingAnalyticsVm
-@using ProjectManagement.Pages.Analytics
+@using System.Text.Json
+
+@{
+    // SECTION: Ongoing analytics serialization
+    var jsonOptions = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+    // END SECTION
+}
 
 <section class="analytics-panel analytics-panel--ongoing" aria-label="Ongoing projects analytics">
     <!-- SECTION: Ongoing analytics layout -->
@@ -14,7 +23,10 @@
                 </header>
                 <div class="analytics-card__body">
                     <div class="analytics-card__chart">
-                        <canvas id="ongoing-projects-by-category-chart"></canvas>
+                        <canvas id="ongoing-by-category-chart"
+                                aria-label="Ongoing projects by category"
+                                role="img"
+                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByCategory, jsonOptions))'></canvas>
                     </div>
                 </div>
             </article>
@@ -26,7 +38,10 @@
                 </header>
                 <div class="analytics-card__body">
                     <div class="analytics-card__chart">
-                        <canvas id="ongoing-projects-by-stage-chart"></canvas>
+                        <canvas id="ongoing-by-stage-chart"
+                                aria-label="Ongoing projects by current stage"
+                                role="img"
+                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByStage, jsonOptions))'></canvas>
                     </div>
                 </div>
             </article>
@@ -43,7 +58,10 @@
                 </header>
                 <div class="analytics-card__body">
                     <div class="analytics-card__chart">
-                        <canvas id="ongoing-stage-duration-chart"></canvas>
+                        <canvas id="ongoing-stage-duration-chart"
+                                aria-label="Average time spent in each stage"
+                                role="img"
+                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.AvgStageDurations, jsonOptions))'></canvas>
                     </div>
                 </div>
             </article>
