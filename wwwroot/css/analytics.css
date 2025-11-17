@@ -159,6 +159,8 @@
 
 .analytics-card--wide {
   grid-column: 1 / -1;
+  width: 100%;
+  max-width: 100%;
 }
 
 /* SECTION: Analytics panel width overrides */
@@ -215,6 +217,28 @@
 
 .analytics-card__meta {
   margin: 0.25rem 0 0;
+  font-size: var(--pm-font-size-xs);
+  color: var(--pm-text-secondary);
+}
+
+.analytics-card__empty-text {
+  margin: 0;
+  padding: 0.5rem 0 0.35rem;
+  color: var(--pm-text-secondary);
+  font-size: var(--pm-font-size-sm);
+}
+
+.analytics-card__chart--scrollable {
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+.analytics-card__chart--scrollable canvas {
+  min-width: min(720px, 100%);
+}
+
+.analytics-card__footnote {
+  margin: 0.35rem 0 0;
   font-size: var(--pm-font-size-xs);
   color: var(--pm-text-secondary);
 }

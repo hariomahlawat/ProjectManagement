@@ -7,25 +7,43 @@ namespace ProjectManagement.Models.Analytics;
 public sealed class CoeAnalyticsVm
 {
     // SECTION: Chart datasets
-    public IReadOnlyList<LabelValuePoint> ByStage { get; init; } = Array.Empty<LabelValuePoint>();
+    public IReadOnlyList<CoeStageBucketVm> ByStage { get; init; } = Array.Empty<CoeStageBucketVm>();
 
-    public IReadOnlyList<LabelValuePoint> ByLifecycleStatus { get; init; } = Array.Empty<LabelValuePoint>();
+    public IReadOnlyList<CoeLifecycleBucketVm> ByLifecycle { get; init; } = Array.Empty<CoeLifecycleBucketVm>();
 
-    public IReadOnlyList<CoeSubcategoryLifecyclePoint> BySubcategoryLifecycle { get; init; } = Array.Empty<CoeSubcategoryLifecyclePoint>();
+    public IReadOnlyList<CoeSubcategoryLifecycleVm> SubcategoriesByLifecycle { get; init; } = Array.Empty<CoeSubcategoryLifecycleVm>();
     // END SECTION
 
     // SECTION: Roadmap summary
     public CoeRoadmapVm Roadmap { get; init; } = new();
     // END SECTION
+
+    // SECTION: Aggregate helpers
+    public int TotalCoeProjects { get; init; }
+
+    public bool HasCoeProjects => TotalCoeProjects > 0;
+
+    public bool HasSubcategoryBreakdown => SubcategoriesByLifecycle.Count > 0;
+    // END SECTION
 }
 // END SECTION
 
-// SECTION: Shared analytics points
-public sealed record LabelValuePoint(string Label, int Value);
+// SECTION: CoE stage dataset
+public sealed record CoeStageBucketVm(string StageName, int ProjectCount);
+// END SECTION
+
+// SECTION: CoE lifecycle dataset
+public sealed record CoeLifecycleBucketVm(string LifecycleStatus, int ProjectCount);
 // END SECTION
 
 // SECTION: CoE sub-category dataset
-public sealed record CoeSubcategoryLifecyclePoint(string Subcategory, string LifecycleStatus, int Value);
+public sealed record CoeSubcategoryLifecycleVm(
+    string Name,
+    string ShortLabel,
+    int OngoingCount,
+    int CompletedCount,
+    int CancelledCount,
+    int TotalCount);
 // END SECTION
 
 // SECTION: CoE roadmap view model

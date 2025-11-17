@@ -11,8 +11,16 @@ const palette = [
   '#43a047'
 ];
 
+const lifecycleStatuses = ['Ongoing', 'Completed', 'Cancelled'];
+
+const lifecycleColorMap = {
+  Ongoing: '#2563eb',
+  Completed: '#fbbf24',
+  Cancelled: '#16a34a'
+};
+
 // SECTION: Chart helpers
-function createDoughnutChart(canvas, { labels, values }) {
+function createDoughnutChart(canvas, { labels, values, colors, options }) {
   if (!canvas || !window.Chart) {
     return null;
   }
@@ -24,23 +32,28 @@ function createDoughnutChart(canvas, { labels, values }) {
       datasets: [
         {
           data: values,
-          backgroundColor: values.map((_, idx) => palette[idx % palette.length]),
+          backgroundColor: Array.isArray(colors) && colors.length
+            ? colors
+            : values.map((_, idx) => palette[idx % palette.length]),
           borderWidth: 0
         }
       ]
     },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'bottom' }
-      }
-    }
+    options: mergeChartOptions(
+      {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom' }
+        }
+      },
+      options
+    )
   });
 }
 
 function createBarChart(
   canvas,
-  { labels, values, label = 'Projects', backgroundColor = '#1a73e8' }
+  { labels, values, label = 'Projects', backgroundColor = '#1a73e8', options }
 ) {
   if (!canvas || !window.Chart) {
     return null;
@@ -59,49 +72,62 @@ function createBarChart(
         }
       ]
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false }
+    options: mergeChartOptions(
+      {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: { ticks: { maxRotation: 0 } },
+          y: { beginAtZero: true }
+        }
       },
-      scales: {
-        x: { ticks: { maxRotation: 0 } },
-        y: { beginAtZero: true }
-      }
-    }
+      options
+    )
   });
 }
+// END SECTION
 
-function createStackedBarChart(canvas, { labels, datasets }) {
-  if (!canvas || !window.Chart) {
-    return null;
+// SECTION: Chart option helpers
+function mergeChartOptions(base, override) {
+  if (!override) {
+    return base;
   }
 
-  return new window.Chart(canvas.getContext('2d'), {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: datasets.map((dataset, index) => ({
-        label: dataset.label,
-        data: dataset.values,
-        backgroundColor: dataset.backgroundColor ?? palette[index % palette.length],
-        borderRadius: 4,
-        stack: 'lifecycle'
-      }))
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'bottom' }
-      },
-      scales: {
-        x: { stacked: true },
-        y: { stacked: true, beginAtZero: true }
-      }
+  return deepMerge(base, override);
+}
+
+function deepMerge(target, source) {
+  const output = { ...target };
+
+  Object.keys(source).forEach((key) => {
+    const sourceValue = source[key];
+    const targetValue = target[key];
+
+    if (sourceValue && typeof sourceValue === 'object' && !Array.isArray(sourceValue)) {
+      const baseValue =
+        targetValue && typeof targetValue === 'object' && !Array.isArray(targetValue)
+          ? targetValue
+          : {};
+      output[key] = deepMerge(baseValue, sourceValue);
+    } else {
+      output[key] = sourceValue;
     }
   });
+
+  return output;
+}
+
+function ensureNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getDefaultLegendClick() {
+  const fallback = window.Chart?.defaults?.plugins?.legend?.onClick;
+  return typeof fallback === 'function' ? fallback : function noop() {};
 }
 // END SECTION
 
@@ -268,68 +294,223 @@ function initCoeAnalytics() {
 
   renderSeriesChart(stageCanvas, (series) => {
     createBarChart(stageCanvas, {
-      labels: series.map((point) => point.label),
-      values: series.map((point) => point.value),
+      labels: series.map((point) => point.stageName ?? point.label ?? ''),
+      values: series.map((point) => ensureNumber(point.projectCount ?? point.value)),
       label: 'Projects',
-      backgroundColor: '#5c6bc0'
+      backgroundColor: '#5c6bc0',
+      options: {
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              precision: 0,
+              stepSize: 1
+            }
+          }
+        }
+      }
     });
   });
 
   renderSeriesChart(lifecycleCanvas, (series) => {
+    const buckets = lifecycleStatuses.map((status) => {
+      const match = series.find((point) => {
+        const key = point.lifecycleStatus ?? point.status ?? point.label;
+        return key === status;
+      });
+      const count = ensureNumber(match?.projectCount ?? match?.value ?? match?.count);
+      return {
+        status,
+        count,
+        color: lifecycleColorMap[status] ?? palette[0]
+      };
+    });
+
+    const activeBuckets = buckets.filter((bucket) => bucket.count > 0);
+    const dataset = activeBuckets.length ? activeBuckets : buckets.slice(0, 1);
+    const datasetIndexLookup = new Map();
+    dataset.forEach((bucket, index) => datasetIndexLookup.set(bucket.status, index));
+
+    const legendEntries = buckets.map((bucket) => ({
+      status: bucket.status,
+      count: bucket.count,
+      color: bucket.count > 0 ? bucket.color : '#cbd5f5',
+      isActive: bucket.count > 0,
+      datasetIndex: datasetIndexLookup.get(bucket.status) ?? 0
+    }));
+
     createDoughnutChart(lifecycleCanvas, {
-      labels: series.map((point) => point.label),
-      values: series.map((point) => point.value)
+      labels: dataset.map((bucket) => bucket.status),
+      values: dataset.map((bucket) => bucket.count),
+      colors: dataset.map((bucket) => bucket.color),
+      options: {
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              usePointStyle: true,
+              generateLabels() {
+                return legendEntries.map((entry) => ({
+                  text: `${entry.status} · ${entry.count}`,
+                  fillStyle: entry.color,
+                  strokeStyle: entry.color,
+                  hidden: false,
+                  lineWidth: entry.isActive ? 1 : 0,
+                  datasetIndex: entry.datasetIndex
+                }));
+              }
+            },
+            onClick(event, legendItem, legend) {
+              const entry = legendEntries[legendItem.index];
+              if (!entry?.isActive) {
+                return;
+              }
+
+              const defaultClick = getDefaultLegendClick();
+              defaultClick.call(this, event, legendItem, legend);
+            }
+          }
+        }
+      }
     });
   });
 
   renderSeriesChart(subcategoryCanvas, (series) => {
-    const subcategories = Array.from(
-      new Set(series.map((point) => point.subcategory))
-    );
-    const lifecycleStatuses = orderLifecycleStatuses(
-      Array.from(new Set(series.map((point) => point.lifecycleStatus)))
-    );
+    if (!window.Chart) {
+      return;
+    }
 
-    const datasets = lifecycleStatuses.map((status, datasetIndex) => ({
-      label: status,
-      values: subcategories.map((subcategory) => {
-        const match = series.find(
-          (point) =>
-            point.subcategory === subcategory && point.lifecycleStatus === status
-        );
-        return match ? match.value : 0;
-      }),
-      backgroundColor: palette[datasetIndex % palette.length]
-    }));
+    const labels = series.map((point) => point.shortLabel ?? point.name ?? '');
+    const lifecycleKeyMap = {
+      Ongoing: 'ongoingCount',
+      Completed: 'completedCount',
+      Cancelled: 'cancelledCount'
+    };
 
-    createStackedBarChart(subcategoryCanvas, {
-      labels: subcategories,
-      datasets
+    const legendEntries = lifecycleStatuses.map((status) => {
+      const key = lifecycleKeyMap[status];
+      const total = series.reduce((sum, row) => sum + ensureNumber(row[key]), 0);
+      return {
+        status,
+        key,
+        total,
+        color: lifecycleColorMap[status] ?? palette[0],
+        isActive: total > 0
+      };
     });
-  });
-}
-// END SECTION
 
-// SECTION: Lifecycle ordering helper
-function orderLifecycleStatuses(statuses) {
-  const preferredOrder = ['Ongoing', 'Completed', 'Cancelled', 'On Hold'];
-  return statuses.sort((a, b) => {
-    const indexA = preferredOrder.indexOf(a);
-    const indexB = preferredOrder.indexOf(b);
+    const datasets = legendEntries
+      .filter((entry) => entry.isActive)
+      .map((entry) => ({
+        label: entry.status,
+        data: series.map((row) => ensureNumber(row[entry.key])),
+        backgroundColor: entry.color,
+        stack: 'lifecycle',
+        borderRadius: 4,
+        maxBarThickness: 48
+      }));
 
-    if (indexA === -1 && indexB === -1) {
-      return a.localeCompare(b);
-    }
+    const datasetIndexLookup = new Map();
+    datasets.forEach((dataset, index) => datasetIndexLookup.set(dataset.label, index));
+    legendEntries.forEach((entry) => {
+      entry.datasetIndex = datasetIndexLookup.get(entry.status) ?? 0;
+    });
 
-    if (indexA === -1) {
-      return 1;
-    }
+    const rotation = labels.length > 6 ? -30 : 0;
 
-    if (indexB === -1) {
-      return -1;
-    }
+    new window.Chart(subcategoryCanvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            stacked: true,
+            ticks: {
+              maxRotation: rotation,
+              minRotation: rotation
+            },
+            grid: {
+              display: false
+            }
+          },
+          y: {
+            stacked: true,
+            beginAtZero: true,
+            ticks: {
+              precision: 0,
+              stepSize: 1
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              usePointStyle: true,
+              generateLabels() {
+                return legendEntries.map((entry) => ({
+                  text: `${entry.status} · ${entry.total}`,
+                  fillStyle: entry.isActive ? entry.color : '#cbd5f5',
+                  strokeStyle: entry.isActive ? entry.color : '#cbd5f5',
+                  hidden: false,
+                  datasetIndex: entry.datasetIndex,
+                  lineWidth: entry.isActive ? 1 : 0
+                }));
+              }
+            },
+            onClick(event, legendItem, legend) {
+              const entry = legendEntries[legendItem.index];
+              if (!entry?.isActive) {
+                return;
+              }
 
-    return indexA - indexB;
+              const defaultClick = getDefaultLegendClick();
+              defaultClick.call(this, event, legendItem, legend);
+            }
+          },
+          tooltip: {
+            callbacks: {
+              title(items) {
+                const item = items?.[0];
+                if (!item) {
+                  return '';
+                }
+
+                const row = series[item.dataIndex] ?? {};
+                return row.name ?? '';
+              },
+              label(context) {
+                const status = context.dataset?.label ?? '';
+                const row = series[context.dataIndex] ?? {};
+                const key = lifecycleKeyMap[status];
+                const value = ensureNumber(context.raw ?? row[key]);
+                const total = ensureNumber(row.totalCount);
+                if (!total) {
+                  return `${status}: ${value} projects`;
+                }
+                const percentage = Math.round((value / total) * 100);
+                return `${status}: ${value} of ${total} projects (${percentage}%)`;
+              },
+              footer(items) {
+                const item = items?.[0];
+                if (!item) {
+                  return '';
+                }
+
+                const row = series[item.dataIndex] ?? {};
+                const total = ensureNumber(row.totalCount);
+                return total ? `Total: ${total} projects` : '';
+              }
+            }
+          }
+        }
+      }
+    });
   });
 }
 // END SECTION
