@@ -22,6 +22,7 @@ namespace ProjectManagement.Pages.Analytics
         private CoeAnalyticsVm? _cachedCoeAnalytics;
 
         private const int MaxCoeSubcategories = 10;
+        private const string DefaultCoeSubcategoryName = "Unspecified";
         private static readonly string[] CoeLifecycleStatuses = { "Ongoing", "Completed", "Cancelled" };
 
         public IndexModel(ApplicationDbContext db)
@@ -269,7 +270,7 @@ namespace ProjectManagement.Pages.Analytics
         {
             // SECTION: Sub-category aggregation and trimming
             var grouped = projects
-                .GroupBy(project => project.Subcategory)
+                .GroupBy(project => NormalizeSubcategoryName(project.Subcategory), StringComparer.OrdinalIgnoreCase)
                 .Select(group => new
                 {
                     Name = group.Key,
@@ -287,7 +288,7 @@ namespace ProjectManagement.Pages.Analytics
                 })
                 .Where(item => item.Total > 0)
                 .OrderByDescending(item => item.Total)
-                .ThenBy(item => item.Name)
+                .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             if (grouped.Count == 0)
@@ -295,24 +296,32 @@ namespace ProjectManagement.Pages.Analytics
                 return Array.Empty<CoeSubcategoryLifecycleVm>();
             }
 
-            var trimmed = grouped.Take(maxSubcategories).ToList();
-            var remainder = grouped.Skip(maxSubcategories).ToList();
-
-            if (remainder.Count > 0)
+            if (grouped.Count <= maxSubcategories)
             {
-                var other = new
-                {
-                    Name = "Other",
-                    Ongoing = remainder.Sum(item => item.Ongoing),
-                    Completed = remainder.Sum(item => item.Completed),
-                    Cancelled = remainder.Sum(item => item.Cancelled),
-                    Total = remainder.Sum(item => item.Total)
-                };
-
-                trimmed.Add(other);
+                return grouped
+                    .Select(item => new CoeSubcategoryLifecycleVm(
+                        item.Name,
+                        BuildShortLabel(item.Name),
+                        item.Ongoing,
+                        item.Completed,
+                        item.Cancelled,
+                        item.Total))
+                    .ToList();
             }
 
-            return trimmed
+            var top = grouped.Take(maxSubcategories).ToList();
+            var remainder = grouped.Skip(maxSubcategories);
+
+            var other = new
+            {
+                Name = "Other",
+                Ongoing = remainder.Sum(item => item.Ongoing),
+                Completed = remainder.Sum(item => item.Completed),
+                Cancelled = remainder.Sum(item => item.Cancelled),
+                Total = remainder.Sum(item => item.Total)
+            };
+
+            return top
                 .Select(item => new CoeSubcategoryLifecycleVm(
                     item.Name,
                     BuildShortLabel(item.Name),
@@ -320,7 +329,23 @@ namespace ProjectManagement.Pages.Analytics
                     item.Completed,
                     item.Cancelled,
                     item.Total))
+                .Append(new CoeSubcategoryLifecycleVm(
+                    other.Name,
+                    BuildShortLabel(other.Name),
+                    other.Ongoing,
+                    other.Completed,
+                    other.Cancelled,
+                    other.Total))
                 .ToList();
+            // END SECTION
+        }
+
+        private static string NormalizeSubcategoryName(string? name)
+        {
+            // SECTION: Sub-category label normaliser
+            return string.IsNullOrWhiteSpace(name)
+                ? DefaultCoeSubcategoryName
+                : name.Trim();
             // END SECTION
         }
 
