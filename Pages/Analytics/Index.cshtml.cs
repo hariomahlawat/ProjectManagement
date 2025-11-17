@@ -122,13 +122,19 @@ namespace ProjectManagement.Pages.Analytics
 
             var byTechnical = await BuildCompletedByTechnicalAsync(completedQuery);
 
-            var perYear = await completedQuery
+            // SECTION: Completed per-year aggregation
+            var completionDates = await completedQuery
+                .Select(p => new { p.CompletedYear, p.CompletedOn })
+                .ToListAsync();
+
+            var perYear = completionDates
                 .Select(p => p.CompletedYear ?? (p.CompletedOn.HasValue ? p.CompletedOn.Value.Year : (int?)null))
                 .Where(year => year.HasValue)
                 .GroupBy(year => year!.Value)
                 .Select(g => new CompletedPerYearPoint(g.Key, g.Count()))
                 .OrderBy(x => x.Year)
-                .ToListAsync();
+                .ToList();
+            // END SECTION
 
             return new CompletedAnalyticsVm
             {
