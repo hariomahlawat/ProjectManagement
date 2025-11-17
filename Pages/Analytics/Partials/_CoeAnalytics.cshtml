@@ -1,9 +1,70 @@
 @model ProjectManagement.Models.Analytics.CoeAnalyticsVm
+@using ProjectManagement.Pages.Analytics
 
 <section class="analytics-panel analytics-panel--coe" aria-label="CoE projects analytics">
-    <!-- SECTION: CoE analytics placeholder -->
-    <p class="text-muted mb-0">
-        CoE projects analytics – charts will be added in the next step.
-    </p>
+    <!-- SECTION: CoE analytics layout -->
+    <div class="analytics-layout">
+
+        <!-- Row 1: stage + lifecycle -->
+        <div class="analytics-layout__row analytics-layout__row--top">
+            <article class="analytics-card">
+                <header class="analytics-card__header">
+                    <h2 class="analytics-card__title">Ongoing CoE projects by current stage</h2>
+                    <p class="analytics-card__meta">Current stage distribution for active CoE projects.</p>
+                </header>
+                <div class="analytics-card__body">
+                    <canvas id="coe-stage-bar"></canvas>
+                </div>
+            </article>
+
+            <article class="analytics-card">
+                <header class="analytics-card__header">
+                    <h2 class="analytics-card__title">CoE projects by lifecycle status</h2>
+                    <p class="analytics-card__meta">
+                        How many CoE projects are ongoing, completed or cancelled as per lifecycle.
+                    </p>
+                </header>
+                <div class="analytics-card__body">
+                    <canvas id="coe-lifecycle-donut"></canvas>
+                </div>
+            </article>
+        </div>
+
+        <!-- Row 2: roadmap / list -->
+        <div class="analytics-layout__row">
+            <article class="analytics-card analytics-card--wide">
+                <header class="analytics-card__header">
+                    <h2 class="analytics-card__title">CoE roadmap</h2>
+                    <p class="analytics-card__meta">
+                        Short-, mid- and long-term CoE projects (structure only — data in a later step).
+                    </p>
+                </header>
+
+                <div class="analytics-card__body analytics-roadmap">
+                    <div class="analytics-roadmap__column">
+                        <h3 class="analytics-roadmap__heading">Short term</h3>
+                        <ul class="analytics-roadmap__list">
+                            <li class="analytics-roadmap__item">TODO: populate from CoE view model.</li>
+                        </ul>
+                    </div>
+
+                    <div class="analytics-roadmap__column">
+                        <h3 class="analytics-roadmap__heading">Mid term</h3>
+                        <ul class="analytics-roadmap__list">
+                            <li class="analytics-roadmap__item">TODO: populate from CoE view model.</li>
+                        </ul>
+                    </div>
+
+                    <div class="analytics-roadmap__column">
+                        <h3 class="analytics-roadmap__heading">Long term</h3>
+                        <ul class="analytics-roadmap__list">
+                            <li class="analytics-roadmap__item">TODO: populate from CoE view model.</li>
+                        </ul>
+                    </div>
+                </div>
+            </article>
+        </div>
+
+    </div>
     <!-- END SECTION -->
 </section>
