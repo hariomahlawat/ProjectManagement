@@ -12,16 +12,17 @@ public sealed class CoeAnalyticsVm
     public IReadOnlyList<CoeSubcategoryLifecycleVm> SubcategoriesByLifecycle { get; init; } = Array.Empty<CoeSubcategoryLifecycleVm>();
     // END SECTION
 
-    // SECTION: Roadmap summary
-    public CoeRoadmapVm Roadmap { get; init; } = new();
-    // END SECTION
-
     // SECTION: Aggregate helpers
     public int TotalCoeProjects { get; init; }
 
     public bool HasCoeProjects => TotalCoeProjects > 0;
 
     public bool HasSubcategoryBreakdown => SubcategoriesByLifecycle.Count > 0;
+    // END SECTION
+
+    // SECTION: Sub-category project listings
+    public IReadOnlyList<CoeSubcategoryProjectsVm> SubcategoryProjects { get; init; } =
+        Array.Empty<CoeSubcategoryProjectsVm>();
     // END SECTION
 }
 // END SECTION
@@ -39,13 +40,14 @@ public sealed record CoeSubcategoryLifecycleVm(
     int Total);
 // END SECTION
 
-// SECTION: CoE roadmap view model
-public sealed class CoeRoadmapVm
-{
-    public IReadOnlyList<string> ShortTerm { get; init; } = Array.Empty<string>();
+// SECTION: CoE sub-category project listing dataset
+public sealed record CoeSubcategoryProjectsVm(
+    string SubcategoryName,
+    IReadOnlyList<CoeProjectSummaryVm> Projects);
 
-    public IReadOnlyList<string> MidTerm { get; init; } = Array.Empty<string>();
-
-    public IReadOnlyList<string> LongTerm { get; init; } = Array.Empty<string>();
-}
+public sealed record CoeProjectSummaryVm(
+    int Id,
+    string Name,
+    string LifecycleStatus,
+    string CurrentStage);
 // END SECTION
