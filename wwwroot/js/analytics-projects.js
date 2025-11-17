@@ -289,7 +289,6 @@ function initOngoingAnalytics() {
 // SECTION: CoE analytics initialiser
 function initCoeAnalytics() {
   const stageCanvas = document.getElementById('coe-by-stage-chart');
-  const lifecycleCanvas = document.getElementById('coe-by-lifecycle-chart');
   const subcategoryCanvas = document.getElementById('coe-subcategories-by-lifecycle-chart');
 
   renderSeriesChart(stageCanvas, (series) => {
@@ -305,69 +304,6 @@ function initCoeAnalytics() {
             ticks: {
               precision: 0,
               stepSize: 1
-            }
-          }
-        }
-      }
-    });
-  });
-
-  renderSeriesChart(lifecycleCanvas, (series) => {
-    const buckets = lifecycleStatuses.map((status) => {
-      const match = series.find((point) => {
-        const key = point.lifecycleStatus ?? point.status ?? point.label;
-        return key === status;
-      });
-      const count = ensureNumber(match?.projectCount ?? match?.value ?? match?.count);
-      return {
-        status,
-        count,
-        color: lifecycleColorMap[status] ?? palette[0]
-      };
-    });
-
-    const activeBuckets = buckets.filter((bucket) => bucket.count > 0);
-    const dataset = activeBuckets.length ? activeBuckets : buckets.slice(0, 1);
-    const datasetIndexLookup = new Map();
-    dataset.forEach((bucket, index) => datasetIndexLookup.set(bucket.status, index));
-
-    const legendEntries = buckets.map((bucket) => ({
-      status: bucket.status,
-      count: bucket.count,
-      color: bucket.count > 0 ? bucket.color : '#cbd5f5',
-      isActive: bucket.count > 0,
-      datasetIndex: datasetIndexLookup.get(bucket.status) ?? 0
-    }));
-
-    createDoughnutChart(lifecycleCanvas, {
-      labels: dataset.map((bucket) => bucket.status),
-      values: dataset.map((bucket) => bucket.count),
-      colors: dataset.map((bucket) => bucket.color),
-      options: {
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              usePointStyle: true,
-              generateLabels() {
-                return legendEntries.map((entry) => ({
-                  text: `${entry.status} · ${entry.count}`,
-                  fillStyle: entry.color,
-                  strokeStyle: entry.color,
-                  hidden: false,
-                  lineWidth: entry.isActive ? 1 : 0,
-                  datasetIndex: entry.datasetIndex
-                }));
-              }
-            },
-            onClick(event, legendItem, legend) {
-              const entry = legendEntries[legendItem.index];
-              if (!entry?.isActive) {
-                return;
-              }
-
-              const defaultClick = getDefaultLegendClick();
-              defaultClick.call(this, event, legendItem, legend);
             }
           }
         }

@@ -91,9 +91,6 @@ public sealed class CoeAnalyticsTests : IDisposable
         var result = await _pageModel.BuildCoeAnalyticsAsync(CancellationToken.None);
 
         Assert.Equal(3, result.TotalCoeProjects);
-        Assert.Equal(1, result.ByLifecycle.Single(b => b.LifecycleStatus == "Ongoing").ProjectCount);
-        Assert.Equal(1, result.ByLifecycle.Single(b => b.LifecycleStatus == "Completed").ProjectCount);
-        Assert.Equal(1, result.ByLifecycle.Single(b => b.LifecycleStatus == "Cancelled").ProjectCount);
 
         var stageBucket = Assert.Single(result.ByStage);
         Assert.Equal(StageCodes.DisplayNameOf(StageCodes.IPA), stageBucket.StageName);
@@ -111,7 +108,7 @@ public sealed class CoeAnalyticsTests : IDisposable
     }
 
     [Fact]
-    public async Task BuildCoeAnalyticsAsync_GroupsOverflowSubcategoriesIntoOther()
+    public async Task BuildCoeAnalyticsAsync_ReturnsAllSubcategoriesWithoutGrouping()
     {
         var coeRoot = new ProjectCategory { Name = "Centres of Excellence" };
         _db.ProjectCategories.Add(coeRoot);
@@ -140,9 +137,11 @@ public sealed class CoeAnalyticsTests : IDisposable
         var result = await _pageModel.BuildCoeAnalyticsAsync(CancellationToken.None);
 
         Assert.Equal(12, result.TotalCoeProjects);
-        var otherBucket = Assert.Single(result.SubcategoriesByLifecycle.Where(b => b.Name == "Other"));
-        Assert.Equal(2, otherBucket.Total);
-        Assert.True(result.SubcategoriesByLifecycle.Count >= 11);
+        Assert.Equal(12, result.SubcategoriesByLifecycle.Count);
+        Assert.DoesNotContain(result.SubcategoriesByLifecycle, bucket => bucket.Name == "Other");
+        var orderedNames = result.SubcategoriesByLifecycle.Select(b => b.Name).ToList();
+        var sortedNames = orderedNames.OrderBy(name => name, StringComparer.Ordinal).ToList();
+        Assert.Equal(sortedNames, orderedNames);
     }
 
     [Fact]
@@ -166,7 +165,6 @@ public sealed class CoeAnalyticsTests : IDisposable
 
         Assert.False(result.HasCoeProjects);
         Assert.Empty(result.ByStage);
-        Assert.All(result.ByLifecycle, bucket => Assert.Equal(0, bucket.ProjectCount));
         Assert.False(result.HasSubcategoryBreakdown);
     }
 
