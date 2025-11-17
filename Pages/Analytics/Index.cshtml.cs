@@ -21,6 +21,14 @@ namespace ProjectManagement.Pages.Analytics
             _db = db;
         }
 
+        private static readonly ProjectLifecycleFilter[] LifecycleFilters =
+        {
+            ProjectLifecycleFilter.Active,
+            ProjectLifecycleFilter.Completed,
+            ProjectLifecycleFilter.Cancelled,
+            ProjectLifecycleFilter.All
+        };
+
         public AnalyticsTab ActiveTab { get; private set; } = AnalyticsTab.Completed;
 
         public IReadOnlyList<CategoryOption> Categories { get; private set; } = Array.Empty<CategoryOption>();
@@ -35,6 +43,12 @@ namespace ProjectManagement.Pages.Analytics
         public CoeAnalyticsVm? Coe { get; private set; }
 
         public ProjectLifecycleFilter DefaultLifecycle => ProjectLifecycleFilter.Active;
+
+        public int LifecycleViewCount => LifecycleFilters.Length;
+
+        public int CategoryCount => Categories.Count;
+
+        public int TechnicalGroupCount => TechnicalCategories.Count;
 
         public async Task OnGetAsync(string? tab)
         {
