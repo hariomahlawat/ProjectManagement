@@ -16,6 +16,23 @@
          data-completed-analytics='@Html.Raw(completedJson)'>
     <!-- SECTION: Completed projects analytics cards -->
     <div class="analytics-grid analytics-grid--completed">
+        <!-- SECTION: Projects completed per year -->
+        <article class="analytics-card analytics-card--wide">
+            <header class="analytics-card__header">
+                <h2 class="analytics-card__title">Projects completed per year</h2>
+                <p class="analytics-card__subtitle">
+                    Year-wise view of projects reaching completion.
+                </p>
+            </header>
+
+            <div class="analytics-card__body">
+                <div class="analytics-chart-container">
+                    <canvas id="completedPerYearChart" aria-label="Projects completed per year" role="img"></canvas>
+                </div>
+            </div>
+        </article>
+        <!-- END SECTION -->
+
         <!-- SECTION: Completed projects by category -->
         <article class="analytics-card">
             <header class="analytics-card__header">
@@ -45,23 +62,6 @@
             <div class="analytics-card__body">
                 <div class="analytics-chart-container">
                     <canvas id="completedByTechnicalChart" aria-label="Completed projects by technical category" role="img"></canvas>
-                </div>
-            </div>
-        </article>
-        <!-- END SECTION -->
-
-        <!-- SECTION: Projects completed per year -->
-        <article class="analytics-card analytics-card--wide">
-            <header class="analytics-card__header">
-                <h2 class="analytics-card__title">Projects completed per year</h2>
-                <p class="analytics-card__subtitle">
-                    Year-wise view of projects reaching completion.
-                </p>
-            </header>
-
-            <div class="analytics-card__body">
-                <div class="analytics-chart-container">
-                    <canvas id="completedPerYearChart" aria-label="Projects completed per year" role="img"></canvas>
                 </div>
             </div>
         </article>
