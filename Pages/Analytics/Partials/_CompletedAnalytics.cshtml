@@ -18,9 +18,9 @@
 
 <section class="analytics-panel analytics-panel--completed" aria-label="Completed projects analytics">
     <!-- SECTION: Completed analytics charts -->
-    <div class="row g-4 g-xl-5 analytics-grid">
-        <!-- Chart: Active projects by category -->
-        <div class="col-12 col-lg-6 col-xxl-4">
+    <div class="analytics-layout">
+        <div class="analytics-layout__row analytics-layout__row--top">
+            <!-- Chart: Active projects by category -->
             <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="category-share">
                 <div class="chart-card__header">
                     <h2 class="h6 mb-0">Active projects by category</h2>
@@ -58,13 +58,11 @@
                     </div>
                 </div>
                 <div class="chart-container-320">
-                    <canvas data-chart="category-share"></canvas>
+                    <canvas id="completed-category-donut" data-chart="category-share"></canvas>
                 </div>
             </article>
-        </div>
 
-        <!-- Chart: Running projects by current stage -->
-        <div class="col-12 col-xl-8">
+            <!-- Chart: Running projects by current stage -->
             <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="stage-distribution">
                 <div class="chart-card__header">
                     <h2 class="h6 mb-0">Running projects by current stage</h2>
@@ -122,7 +120,7 @@
                     </div>
                 </div>
                 <div class="chart-container-320">
-                    <canvas data-chart="stage-distribution"></canvas>
+                    <canvas id="completed-stage-bar" data-chart="stage-distribution"></canvas>
                 </div>
             </article>
         </div>

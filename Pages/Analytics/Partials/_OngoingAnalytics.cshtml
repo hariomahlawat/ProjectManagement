@@ -1,9 +1,48 @@
 @model ProjectManagement.Models.Analytics.OngoingAnalyticsVm
+@using ProjectManagement.Pages.Analytics
 
 <section class="analytics-panel analytics-panel--ongoing" aria-label="Ongoing projects analytics">
-    <!-- SECTION: Ongoing analytics placeholder -->
-    <p class="text-muted mb-0">
-        Ongoing projects analytics – charts will be added in the next step.
-    </p>
+    <!-- SECTION: Ongoing analytics layout -->
+    <div class="analytics-layout">
+
+        <!-- Row 1: category + stage distribution -->
+        <div class="analytics-layout__row analytics-layout__row--top">
+            <article class="analytics-card">
+                <header class="analytics-card__header">
+                    <h2 class="analytics-card__title">Ongoing projects by category</h2>
+                    <p class="analytics-card__meta">Breakdown of ongoing projects in each project category.</p>
+                </header>
+                <div class="analytics-card__body">
+                    <canvas id="ongoing-category-donut"></canvas>
+                </div>
+            </article>
+
+            <article class="analytics-card">
+                <header class="analytics-card__header">
+                    <h2 class="analytics-card__title">Ongoing projects by current stage</h2>
+                    <p class="analytics-card__meta">How many ongoing projects are currently in each stage.</p>
+                </header>
+                <div class="analytics-card__body">
+                    <canvas id="ongoing-stage-bar"></canvas>
+                </div>
+            </article>
+        </div>
+
+        <!-- Row 2: time-in-stage -->
+        <div class="analytics-layout__row">
+            <article class="analytics-card analytics-card--wide">
+                <header class="analytics-card__header">
+                    <h2 class="analytics-card__title">Average time spent in each stage</h2>
+                    <p class="analytics-card__meta">
+                        Average number of days ongoing projects spend in each stage.
+                    </p>
+                </header>
+                <div class="analytics-card__body">
+                    <canvas id="ongoing-stage-average-bar"></canvas>
+                </div>
+            </article>
+        </div>
+
+    </div>
     <!-- END SECTION -->
 </section>
