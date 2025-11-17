@@ -296,11 +296,19 @@ namespace ProjectManagement.Pages.Analytics
             CancellationToken cancellationToken)
         {
             // SECTION: CoE sub-category aggregation
-            var groupedBuckets = await coeProjectsQuery
+            var lifecycleSnapshots = await coeProjectsQuery
                 .Select(p => new
                 {
-                    Subcategory = NormalizeCoeSubcategoryName(p.Category != null ? p.Category.Name : null),
+                    CategoryName = p.Category != null ? p.Category.Name : null,
                     p.LifecycleStatus
+                })
+                .ToListAsync(cancellationToken);
+
+            var groupedBuckets = lifecycleSnapshots
+                .Select(item => new
+                {
+                    Subcategory = NormalizeCoeSubcategoryName(item.CategoryName),
+                    item.LifecycleStatus
                 })
                 .GroupBy(item => item.Subcategory)
                 .Select(g => new
@@ -310,7 +318,7 @@ namespace ProjectManagement.Pages.Analytics
                     Completed = g.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Completed),
                     Cancelled = g.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Cancelled)
                 })
-                .ToListAsync(cancellationToken);
+                .ToList();
 
             if (groupedBuckets.Count == 0)
             {
