@@ -47,8 +47,18 @@
   }
 }
 
+/* SECTION: Analytics left rail */
 .analytics-left-rail {
   align-self: stretch;
+}
+
+@media (min-width: 992px) {
+  .analytics-left-rail {
+    position: sticky;
+    top: 5.25rem;
+    align-self: flex-start;
+    height: fit-content;
+  }
 }
 
 .analytics-left-nav {
