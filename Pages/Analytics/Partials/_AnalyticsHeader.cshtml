@@ -1,30 +1,27 @@
 @model ProjectManagement.Pages.Analytics.IndexModel
+@using ProjectManagement.Models.Analytics
 
+@{
+    // Decide header title and small label from active tab
+    var (title, label) = Model.ActiveTab switch
+    {
+        AnalyticsTab.Completed => ("Completed projects analytics", "Completed projects"),
+        AnalyticsTab.Ongoing   => ("Ongoing projects analytics", "Ongoing projects"),
+        AnalyticsTab.Coe       => ("CoE projects analytics", "CoE projects"),
+        _                       => ("Project analytics", "All projects")
+    };
+}
+
+@* SECTION: Analytics header *@
 <section class="analytics-header" aria-label="Project analytics overview">
     <div class="analytics-header__inner">
         <div class="analytics-header__title-block">
-            <h1 class="analytics-header__title">Project analytics</h1>
+            <p class="analytics-header__kicker">@label</p>
+            <h1 class="analytics-header__title">@title</h1>
             <p class="analytics-header__subtitle">
                 Explore project trends and delivery health at a glance. Each visualisation
                 can be filtered independently to uncover the next best action.
             </p>
-        </div>
-
-        <div class="analytics-header__metrics">
-            <article class="analytics-header__metric">
-                <div class="analytics-header__metric-label">Lifecycle views</div>
-                <div class="analytics-header__metric-value">@Model.LifecycleViewCount</div>
-            </article>
-
-            <article class="analytics-header__metric">
-                <div class="analytics-header__metric-label">Categories tracked</div>
-                <div class="analytics-header__metric-value">@Model.CategoryCount</div>
-            </article>
-
-            <article class="analytics-header__metric">
-                <div class="analytics-header__metric-label">Technical groups</div>
-                <div class="analytics-header__metric-value">@Model.TechnicalGroupCount</div>
-            </article>
         </div>
     </div>
 </section>
