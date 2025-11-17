@@ -4,13 +4,19 @@
 @using ProjectManagement.Models.Analytics
 @using ProjectManagement.Pages.Analytics
 @using ProjectManagement.Services.Projects
-@{
+@{ 
     ViewData["Title"] = "Analytics";
     ViewData["UseFullWidth"] = true;
     var categories = Model.Categories ?? Array.Empty<ProjectManagement.Pages.Analytics.IndexModel.CategoryOption>();
     var technicalCategories = Model.TechnicalCategories ?? Array.Empty<ProjectManagement.Pages.Analytics.IndexModel.TechnicalCategoryOption>();
     ViewData["AnalyticsCategories"] = categories;
     ViewData["AnalyticsTechnicalCategories"] = technicalCategories;
+}
+
+@section Styles {
+    <!-- SECTION: Analytics styles -->
+    <link rel="stylesheet" href="~/css/analytics.css" asp-append-version="true" />
+    <!-- END SECTION -->
 }
 
 <!-- SECTION: Analytics header -->
