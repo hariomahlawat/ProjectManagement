@@ -290,7 +290,7 @@ function initOngoingAnalytics() {
 function initCoeAnalytics() {
   const stageCanvas = document.getElementById('coe-by-stage-chart');
   const lifecycleCanvas = document.getElementById('coe-by-lifecycle-chart');
-  const subcategoryCanvas = document.getElementById('coe-subcategories-chart');
+  const subcategoryCanvas = document.getElementById('coe-subcategories-by-lifecycle-chart');
 
   renderSeriesChart(stageCanvas, (series) => {
     createBarChart(stageCanvas, {
@@ -416,7 +416,7 @@ function initCoeAnalytics() {
       entry.datasetIndex = datasetIndexLookup.get(entry.status) ?? 0;
     });
 
-    const rotation = labels.length > 6 ? -30 : 0;
+    const rotation = labels.length > 6 ? 30 : 0;
 
     new window.Chart(subcategoryCanvas.getContext('2d'), {
       type: 'bar',
