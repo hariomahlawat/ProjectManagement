@@ -21,14 +21,7 @@ namespace ProjectManagement.Pages.Analytics
         private readonly ApplicationDbContext _db;
         private CoeAnalyticsVm? _cachedCoeAnalytics;
 
-        private const int MaxCoeSubcategories = 10;
         private const string DefaultCoeSubcategoryName = "Unspecified";
-        private static readonly (ProjectLifecycleStatus Status, string Label)[] CoeLifecycleOrder =
-        {
-            (ProjectLifecycleStatus.Active, "Ongoing"),
-            (ProjectLifecycleStatus.Completed, "Completed"),
-            (ProjectLifecycleStatus.Cancelled, "Cancelled")
-        };
         private static readonly string[] CoeCategoryKeywords =
         {
             "coe",
@@ -211,27 +204,23 @@ namespace ProjectManagement.Pages.Analytics
                     && p.CategoryId.HasValue
                     && coeCategoryIds.Contains(p.CategoryId.Value));
 
-            var lifecycleAggregations = await coeProjectsQuery
-                .GroupBy(p => p.LifecycleStatus)
-                .Select(g => new LifecycleAggregation(g.Key, g.Count()))
-                .ToListAsync(cancellationToken);
-
-            var lifecycleCounts = lifecycleAggregations.ToDictionary(item => item.Status, item => item.Count);
-            var lifecycleBuckets = BuildLifecycleBuckets(lifecycleCounts);
+            var totalCoeProjects = await coeProjectsQuery.CountAsync(cancellationToken);
+            if (totalCoeProjects == 0)
+            {
+                return BuildEmptyCoeAnalyticsVm();
+            }
 
             var stageBuckets = await BuildCoeStageBucketsAsync(coeCategoryIds, cancellationToken);
             var subcategoryBreakdown = await BuildCoeSubcategoryBreakdownAsync(
                 coeProjectsQuery,
-                coeCategories.CategoryNames,
                 cancellationToken);
 
             return new CoeAnalyticsVm
             {
                 ByStage = stageBuckets,
-                ByLifecycle = lifecycleBuckets,
                 SubcategoriesByLifecycle = subcategoryBreakdown,
                 Roadmap = BuildDefaultCoeRoadmap(),
-                TotalCoeProjects = lifecycleBuckets.Sum(bucket => bucket.ProjectCount)
+                TotalCoeProjects = totalCoeProjects
             };
             // END SECTION
         }
@@ -303,33 +292,46 @@ namespace ProjectManagement.Pages.Analytics
 
         private async Task<IReadOnlyList<CoeSubcategoryLifecycleVm>> BuildCoeSubcategoryBreakdownAsync(
             IQueryable<Project> coeProjectsQuery,
-            IReadOnlyDictionary<int, string> categoryNames,
             CancellationToken cancellationToken)
         {
             // SECTION: CoE sub-category aggregation
-            var grouped = await coeProjectsQuery
-                .GroupBy(p => p.CategoryId!.Value)
-                .Select(g => new CoeSubcategoryAggregateSeed(
-                    g.Key,
-                    g.Count(p => p.LifecycleStatus == ProjectLifecycleStatus.Active),
-                    g.Count(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed),
-                    g.Count(p => p.LifecycleStatus == ProjectLifecycleStatus.Cancelled)))
+            var buckets = await coeProjectsQuery
+                .Select(p => new
+                {
+                    Subcategory = string.IsNullOrWhiteSpace(p.Category != null ? p.Category.Name : null)
+                        ? DefaultCoeSubcategoryName
+                        : p.Category!.Name.Trim(),
+                    p.LifecycleStatus
+                })
+                .GroupBy(item => item.Subcategory)
+                .Select(g => new
+                {
+                    Subcategory = g.Key,
+                    Ongoing = g.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Active),
+                    Completed = g.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Completed),
+                    Cancelled = g.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Cancelled)
+                })
+                .OrderBy(g => g.Subcategory)
                 .ToListAsync(cancellationToken);
 
-            if (grouped.Count == 0)
+            if (buckets.Count == 0)
             {
                 return Array.Empty<CoeSubcategoryLifecycleVm>();
             }
 
-            var aggregates = grouped
-                .Select(item => new CoeSubcategoryAggregate(
-                    categoryNames.TryGetValue(item.CategoryId, out var name) ? name : DefaultCoeSubcategoryName,
-                    item.Ongoing,
-                    item.Completed,
-                    item.Cancelled))
+            return buckets
+                .Select(bucket =>
+                {
+                    var total = bucket.Ongoing + bucket.Completed + bucket.Cancelled;
+                    return new CoeSubcategoryLifecycleVm(
+                        bucket.Subcategory,
+                        BuildShortLabel(bucket.Subcategory),
+                        bucket.Ongoing,
+                        bucket.Completed,
+                        bucket.Cancelled,
+                        total);
+                })
                 .ToList();
-
-            return BuildSubcategoryLifecycle(aggregates, MaxCoeSubcategories);
             // END SECTION
         }
 
@@ -408,9 +410,6 @@ namespace ProjectManagement.Pages.Analytics
             return new CoeAnalyticsVm
             {
                 ByStage = Array.Empty<CoeStageBucketVm>(),
-                ByLifecycle = CoeLifecycleOrder
-                    .Select(item => new CoeLifecycleBucketVm(item.Label, 0))
-                    .ToList(),
                 SubcategoriesByLifecycle = Array.Empty<CoeSubcategoryLifecycleVm>(),
                 Roadmap = BuildDefaultCoeRoadmap(),
                 TotalCoeProjects = 0
@@ -442,95 +441,6 @@ namespace ProjectManagement.Pages.Analytics
             // END SECTION
         }
 
-        private static IReadOnlyList<CoeLifecycleBucketVm> BuildLifecycleBuckets(
-            IReadOnlyDictionary<ProjectLifecycleStatus, int> counts)
-        {
-            // SECTION: Lifecycle aggregation
-            return CoeLifecycleOrder
-                .Select(item => new CoeLifecycleBucketVm(
-                    item.Label,
-                    counts.TryGetValue(item.Status, out var value) ? value : 0))
-                .ToList();
-            // END SECTION
-        }
-
-        private static IReadOnlyList<CoeSubcategoryLifecycleVm> BuildSubcategoryLifecycle(
-            IEnumerable<CoeSubcategoryAggregate> aggregates,
-            int maxSubcategories)
-        {
-            // SECTION: Sub-category aggregation and trimming
-            var grouped = aggregates
-                .Select(item => new
-                {
-                    Name = NormalizeSubcategoryName(item.Name),
-                    item.Ongoing,
-                    item.Completed,
-                    item.Cancelled,
-                    Total = item.Ongoing + item.Completed + item.Cancelled
-                })
-                .Where(item => item.Total > 0)
-                .OrderByDescending(item => item.Total)
-                .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (grouped.Count == 0)
-            {
-                return Array.Empty<CoeSubcategoryLifecycleVm>();
-            }
-
-            if (grouped.Count <= maxSubcategories)
-            {
-                return grouped
-                    .Select(item => new CoeSubcategoryLifecycleVm(
-                        item.Name,
-                        BuildShortLabel(item.Name),
-                        item.Ongoing,
-                        item.Completed,
-                        item.Cancelled,
-                        item.Total))
-                    .ToList();
-            }
-
-            var top = grouped.Take(maxSubcategories).ToList();
-            var remainder = grouped.Skip(maxSubcategories);
-
-            var other = new
-            {
-                Name = "Other",
-                Ongoing = remainder.Sum(item => item.Ongoing),
-                Completed = remainder.Sum(item => item.Completed),
-                Cancelled = remainder.Sum(item => item.Cancelled),
-                Total = remainder.Sum(item => item.Total)
-            };
-
-            return top
-                .Select(item => new CoeSubcategoryLifecycleVm(
-                    item.Name,
-                    BuildShortLabel(item.Name),
-                    item.Ongoing,
-                    item.Completed,
-                    item.Cancelled,
-                    item.Total))
-                .Append(new CoeSubcategoryLifecycleVm(
-                    other.Name,
-                    BuildShortLabel(other.Name),
-                    other.Ongoing,
-                    other.Completed,
-                    other.Cancelled,
-                    other.Total))
-                .ToList();
-            // END SECTION
-        }
-
-        private static string NormalizeSubcategoryName(string? name)
-        {
-            // SECTION: Sub-category label normaliser
-            return string.IsNullOrWhiteSpace(name)
-                ? DefaultCoeSubcategoryName
-                : name.Trim();
-            // END SECTION
-        }
-
         private static string BuildShortLabel(string name)
         {
             // SECTION: Label trimming helper
@@ -543,13 +453,10 @@ namespace ProjectManagement.Pages.Analytics
             // END SECTION
         }
 
-        private sealed record CoeSubcategoryAggregate(string Name, int Ongoing, int Completed, int Cancelled);
-        private sealed record CoeSubcategoryAggregateSeed(int CategoryId, int Ongoing, int Completed, int Cancelled);
         private sealed record CoeCategoryDescriptor(int Id, int? ParentId, string Name);
         private sealed record CoeCategoryLookup(
             IReadOnlyCollection<int> CategoryIds,
             IReadOnlyDictionary<int, string> CategoryNames);
-        private sealed record LifecycleAggregation(ProjectLifecycleStatus Status, int Count);
 
         // SECTION: Completed analytics helpers
         private async Task<IReadOnlyList<AnalyticsCategoryCountPoint>> BuildCategoryCountsAsync(

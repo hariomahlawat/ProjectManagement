@@ -9,8 +9,6 @@ public sealed class CoeAnalyticsVm
     // SECTION: Chart datasets
     public IReadOnlyList<CoeStageBucketVm> ByStage { get; init; } = Array.Empty<CoeStageBucketVm>();
 
-    public IReadOnlyList<CoeLifecycleBucketVm> ByLifecycle { get; init; } = Array.Empty<CoeLifecycleBucketVm>();
-
     public IReadOnlyList<CoeSubcategoryLifecycleVm> SubcategoriesByLifecycle { get; init; } = Array.Empty<CoeSubcategoryLifecycleVm>();
     // END SECTION
 
@@ -30,10 +28,6 @@ public sealed class CoeAnalyticsVm
 
 // SECTION: CoE stage dataset
 public sealed record CoeStageBucketVm(string StageName, int ProjectCount);
-// END SECTION
-
-// SECTION: CoE lifecycle dataset
-public sealed record CoeLifecycleBucketVm(string LifecycleStatus, int ProjectCount);
 // END SECTION
 
 // SECTION: CoE sub-category dataset
