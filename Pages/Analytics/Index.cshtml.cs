@@ -22,6 +22,7 @@ namespace ProjectManagement.Pages.Analytics
         private CoeAnalyticsVm? _cachedCoeAnalytics;
 
         private const string DefaultCoeSubcategoryName = "Unspecified";
+        private const int MaxCoeSubcategoryBuckets = 10;
         private static readonly string[] CoeCategoryKeywords =
         {
             "coe",
@@ -295,12 +296,10 @@ namespace ProjectManagement.Pages.Analytics
             CancellationToken cancellationToken)
         {
             // SECTION: CoE sub-category aggregation
-            var buckets = await coeProjectsQuery
+            var groupedBuckets = await coeProjectsQuery
                 .Select(p => new
                 {
-                    Subcategory = string.IsNullOrWhiteSpace(p.Category != null ? p.Category.Name : null)
-                        ? DefaultCoeSubcategoryName
-                        : p.Category!.Name.Trim(),
+                    Subcategory = NormalizeCoeSubcategoryName(p.Category != null ? p.Category.Name : null),
                     p.LifecycleStatus
                 })
                 .GroupBy(item => item.Subcategory)
@@ -311,27 +310,48 @@ namespace ProjectManagement.Pages.Analytics
                     Completed = g.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Completed),
                     Cancelled = g.Count(item => item.LifecycleStatus == ProjectLifecycleStatus.Cancelled)
                 })
-                .OrderBy(g => g.Subcategory)
                 .ToListAsync(cancellationToken);
 
-            if (buckets.Count == 0)
+            if (groupedBuckets.Count == 0)
             {
                 return Array.Empty<CoeSubcategoryLifecycleVm>();
             }
 
-            return buckets
-                .Select(bucket =>
+            var orderedBuckets = groupedBuckets
+                .Select(bucket => new
                 {
-                    var total = bucket.Ongoing + bucket.Completed + bucket.Cancelled;
-                    return new CoeSubcategoryLifecycleVm(
-                        bucket.Subcategory,
-                        BuildShortLabel(bucket.Subcategory),
-                        bucket.Ongoing,
-                        bucket.Completed,
-                        bucket.Cancelled,
-                        total);
+                    bucket.Subcategory,
+                    bucket.Ongoing,
+                    bucket.Completed,
+                    bucket.Cancelled,
+                    Total = bucket.Ongoing + bucket.Completed + bucket.Cancelled
                 })
+                .OrderByDescending(bucket => bucket.Total)
+                .ThenBy(bucket => bucket.Subcategory, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+
+            var primaryBuckets = orderedBuckets
+                .Take(MaxCoeSubcategoryBuckets)
+                .Select(bucket => new CoeSubcategoryLifecycleVm(
+                    bucket.Subcategory,
+                    bucket.Ongoing,
+                    bucket.Completed,
+                    bucket.Cancelled,
+                    bucket.Total))
+                .ToList();
+
+            var overflow = orderedBuckets.Skip(MaxCoeSubcategoryBuckets).ToList();
+            if (overflow.Count > 0)
+            {
+                primaryBuckets.Add(new CoeSubcategoryLifecycleVm(
+                    "Other",
+                    overflow.Sum(bucket => bucket.Ongoing),
+                    overflow.Sum(bucket => bucket.Completed),
+                    overflow.Sum(bucket => bucket.Cancelled),
+                    overflow.Sum(bucket => bucket.Total)));
+            }
+
+            return primaryBuckets;
             // END SECTION
         }
 
@@ -441,15 +461,12 @@ namespace ProjectManagement.Pages.Analytics
             // END SECTION
         }
 
-        private static string BuildShortLabel(string name)
+        private static string NormalizeCoeSubcategoryName(string? name)
         {
-            // SECTION: Label trimming helper
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return "—";
-            }
-
-            return name.Length <= 16 ? name : string.Concat(name.AsSpan(0, 13), "…");
+            // SECTION: CoE sub-category normaliser
+            return string.IsNullOrWhiteSpace(name)
+                ? DefaultCoeSubcategoryName
+                : name.Trim();
             // END SECTION
         }
 

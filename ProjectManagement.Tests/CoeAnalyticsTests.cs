@@ -97,14 +97,14 @@ public sealed class CoeAnalyticsTests : IDisposable
         Assert.Equal(1, stageBucket.ProjectCount);
 
         var aiBucket = Assert.Single(result.SubcategoriesByLifecycle.Where(s => s.Name == "AI Innovation"));
-        Assert.Equal(1, aiBucket.OngoingCount);
-        Assert.Equal(0, aiBucket.CompletedCount);
-        Assert.Equal(0, aiBucket.CancelledCount);
+        Assert.Equal(1, aiBucket.Ongoing);
+        Assert.Equal(0, aiBucket.Completed);
+        Assert.Equal(0, aiBucket.Cancelled);
 
         var roboticsBucket = Assert.Single(result.SubcategoriesByLifecycle.Where(s => s.Name == "Robotics"));
-        Assert.Equal(0, roboticsBucket.OngoingCount);
-        Assert.Equal(1, roboticsBucket.CompletedCount);
-        Assert.Equal(1, roboticsBucket.CancelledCount);
+        Assert.Equal(0, roboticsBucket.Ongoing);
+        Assert.Equal(1, roboticsBucket.Completed);
+        Assert.Equal(1, roboticsBucket.Cancelled);
     }
 
     [Fact]
@@ -137,10 +137,16 @@ public sealed class CoeAnalyticsTests : IDisposable
         var result = await _pageModel.BuildCoeAnalyticsAsync(CancellationToken.None);
 
         Assert.Equal(12, result.TotalCoeProjects);
-        Assert.Equal(12, result.SubcategoriesByLifecycle.Count);
-        Assert.DoesNotContain(result.SubcategoriesByLifecycle, bucket => bucket.Name == "Other");
-        var orderedNames = result.SubcategoriesByLifecycle.Select(b => b.Name).ToList();
-        var sortedNames = orderedNames.OrderBy(name => name, StringComparer.Ordinal).ToList();
+        Assert.Equal(11, result.SubcategoriesByLifecycle.Count);
+        var otherBucket = Assert.Single(result.SubcategoriesByLifecycle.Where(bucket => bucket.Name == "Other"));
+        Assert.Equal(0, otherBucket.Ongoing);
+        Assert.Equal(2, otherBucket.Completed);
+        Assert.Equal(0, otherBucket.Cancelled);
+        var orderedNames = result.SubcategoriesByLifecycle
+            .Where(bucket => bucket.Name != "Other")
+            .Select(b => b.Name)
+            .ToList();
+        var sortedNames = orderedNames.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).Take(10).ToList();
         Assert.Equal(sortedNames, orderedNames);
     }
 

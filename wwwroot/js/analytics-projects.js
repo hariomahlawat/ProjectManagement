@@ -316,11 +316,11 @@ function initCoeAnalytics() {
       return;
     }
 
-    const labels = series.map((point) => point.shortLabel ?? point.name ?? '');
+    const labels = series.map((point) => point.name ?? '');
     const lifecycleKeyMap = {
-      Ongoing: 'ongoingCount',
-      Completed: 'completedCount',
-      Cancelled: 'cancelledCount'
+      Ongoing: 'ongoing',
+      Completed: 'completed',
+      Cancelled: 'cancelled'
     };
 
     const legendEntries = lifecycleStatuses.map((status) => {
@@ -425,7 +425,7 @@ function initCoeAnalytics() {
                 const row = series[context.dataIndex] ?? {};
                 const key = lifecycleKeyMap[status];
                 const value = ensureNumber(context.raw ?? row[key]);
-                const total = ensureNumber(row.totalCount);
+                const total = ensureNumber(row.total);
                 if (!total) {
                   return `${status}: ${value} projects`;
                 }
@@ -439,7 +439,7 @@ function initCoeAnalytics() {
                 }
 
                 const row = series[item.dataIndex] ?? {};
-                const total = ensureNumber(row.totalCount);
+                const total = ensureNumber(row.total);
                 return total ? `Total: ${total} projects` : '';
               }
             }

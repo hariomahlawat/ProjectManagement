@@ -20,9 +20,9 @@
 <section class="analytics-panel analytics-panel--coe" aria-label="CoE projects analytics">
     <!-- SECTION: CoE analytics layout -->
     <div class="analytics-layout">
-        <div class="analytics-grid analytics-grid--coe">
-            <!-- Card 1: Ongoing CoE projects by current stage -->
-            <article class="analytics-card">
+        <!-- SECTION: CoE stage chart -->
+        <div class="analytics-layout__row">
+            <article class="analytics-card analytics-card--wide">
                 <header class="analytics-card__header">
                     <h2 class="analytics-card__title">Ongoing CoE projects by current stage</h2>
                     <p class="analytics-card__meta">
@@ -46,9 +46,12 @@
                     }
                 </div>
             </article>
+        </div>
+        <!-- END SECTION -->
 
-            <!-- Card 3: CoE sub-categories vs lifecycle -->
-            <article class="analytics-card analytics-card--wide">
+        <!-- SECTION: CoE sub-category lifecycle chart -->
+        <div class="analytics-layout__row">
+            <article class="analytics-card analytics-card--wide analytics-card--coe-subcategories">
                 <header class="analytics-card__header">
                     <h2 class="analytics-card__title">CoE sub-categories by lifecycle</h2>
                     <p class="analytics-card__meta">
@@ -74,6 +77,7 @@
                 </div>
             </article>
         </div>
+        <!-- END SECTION -->
 
         <!-- CoE roadmap summary -->
         <section class="analytics-roadmap" aria-label="CoE roadmap summary">
