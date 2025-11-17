@@ -7,46 +7,17 @@
 @{
     ViewData["Title"] = "Analytics";
     ViewData["UseFullWidth"] = true;
-    var lifecycleOptions = new[]
-    {
-        ProjectLifecycleFilter.Active,
-        ProjectLifecycleFilter.Completed,
-        ProjectLifecycleFilter.Cancelled,
-        ProjectLifecycleFilter.All
-    };
     var categories = Model.Categories ?? Array.Empty<ProjectManagement.Pages.Analytics.IndexModel.CategoryOption>();
     var technicalCategories = Model.TechnicalCategories ?? Array.Empty<ProjectManagement.Pages.Analytics.IndexModel.TechnicalCategoryOption>();
     ViewData["AnalyticsCategories"] = categories;
     ViewData["AnalyticsTechnicalCategories"] = technicalCategories;
-    var categoryCount = categories.Count;
-    var technicalCount = technicalCategories.Count;
 }
 
-<section class="analytics-page">
-  <!-- Hero section: summary metrics -->
-  <header class="analytics-hero pm-shadow">
-    <div class="analytics-hero__text">
-      <h1 class="analytics-title">Project analytics</h1>
-      <p class="analytics-subtitle">
-        Explore project trends and delivery health at a glance. Each visualization can be filtered independently to uncover the next best action.
-      </p>
-    </div>
-    <dl class="analytics-hero__stats">
-      <div class="analytics-hero__stat">
-        <dt class="analytics-hero__stat-label">Lifecycle views</dt>
-        <dd class="analytics-hero__stat-value">@lifecycleOptions.Length</dd>
-      </div>
-      <div class="analytics-hero__stat">
-        <dt class="analytics-hero__stat-label">Categories tracked</dt>
-        <dd class="analytics-hero__stat-value">@categoryCount</dd>
-      </div>
-      <div class="analytics-hero__stat">
-        <dt class="analytics-hero__stat-label">Technical groups</dt>
-        <dd class="analytics-hero__stat-value">@technicalCount</dd>
-      </div>
-    </dl>
-  </header>
+<!-- SECTION: Analytics header -->
+@await Html.PartialAsync("Partials/_AnalyticsHeader", Model)
+<!-- END SECTION -->
 
+<section class="analytics-page">
   <!-- Analytics layout: mode navigation and chart canvas -->
   <div
     id="analytics-root"
@@ -54,7 +25,7 @@
     data-projects-index-url="@Url.Page("/Projects/Index")"
     data-project-overview-url="@Url.Page("/Projects/Overview")"
   >
-    <section class="analytics-layout" aria-label="Project analytics views">
+    <div class="analytics-layout" aria-label="Project analytics views">
       <aside class="analytics-left-rail" aria-label="Analytics modes">
         <!-- Left navigation for analytics modes -->
         <nav class="analytics-left-nav" aria-label="Analytics views">
@@ -107,7 +78,7 @@
         </div>
         <!-- END SECTION -->
       </div>
-    </section>
+    </div>
   </div>
 </section>
 
