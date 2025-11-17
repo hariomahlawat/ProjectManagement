@@ -74,6 +74,26 @@ function createBarChart(
 }
 // END SECTION
 
+// SECTION: Dataset helpers
+function parseSeries(canvas) {
+  if (!canvas) {
+    return [];
+  }
+
+  const payload = canvas.dataset?.series;
+  if (!payload) {
+    return [];
+  }
+
+  try {
+    return JSON.parse(payload);
+  } catch (error) {
+    console.error('Failed to parse analytics series payload.', error);
+    return [];
+  }
+}
+// END SECTION
+
 // SECTION: Completed analytics helpers
 function getCompletedAnalyticsData() {
   const panel = document.querySelector('.analytics-panel--completed');
@@ -106,14 +126,14 @@ function initCompletedAnalytics() {
 
   if (byCategoryEl && data.byCategory?.length) {
     createDoughnutChart(byCategoryEl, {
-      labels: data.byCategory.map((point) => point.categoryName),
+      labels: data.byCategory.map((point) => point.name),
       values: data.byCategory.map((point) => point.count)
     });
   }
 
   if (byTechnicalEl && data.byTechnical?.length) {
     createBarChart(byTechnicalEl, {
-      labels: data.byTechnical.map((point) => point.technicalCategoryName),
+      labels: data.byTechnical.map((point) => point.name),
       values: data.byTechnical.map((point) => point.count)
     });
   }
@@ -131,42 +151,41 @@ function initCompletedAnalytics() {
 
 // SECTION: Ongoing analytics initialiser
 function initOngoingAnalytics() {
-  const categoryCanvas = document.getElementById('ongoing-projects-by-category-chart');
-  const stageCanvas = document.getElementById('ongoing-projects-by-stage-chart');
+  const categoryCanvas = document.getElementById('ongoing-by-category-chart');
+  const stageCanvas = document.getElementById('ongoing-by-stage-chart');
   const durationCanvas = document.getElementById('ongoing-stage-duration-chart');
 
-  const ongoingCategoryData = {
-    labels: ['Innovation', 'Sustainment', 'Operations', 'Optimization'],
-    values: [12, 9, 6, 4]
-  };
-
-  const ongoingStageData = {
-    labels: ['Ideation', 'Planning', 'Execution', 'Stabilizing'],
-    values: [5, 7, 12, 8]
-  };
-
-  const ongoingDurationData = {
-    labels: ['Ideation', 'Planning', 'Execution', 'Stabilizing'],
-    values: [14, 28, 64, 21]
-  };
-
   if (categoryCanvas) {
-    createDoughnutChart(categoryCanvas, ongoingCategoryData);
+    const series = parseSeries(categoryCanvas);
+    if (series.length) {
+      createDoughnutChart(categoryCanvas, {
+        labels: series.map((point) => point.name),
+        values: series.map((point) => point.count)
+      });
+    }
   }
 
   if (stageCanvas) {
-    createBarChart(stageCanvas, {
-      ...ongoingStageData,
-      label: 'Projects'
-    });
+    const series = parseSeries(stageCanvas);
+    if (series.length) {
+      createBarChart(stageCanvas, {
+        labels: series.map((point) => point.name),
+        values: series.map((point) => point.count),
+        label: 'Projects'
+      });
+    }
   }
 
   if (durationCanvas) {
-    createBarChart(durationCanvas, {
-      ...ongoingDurationData,
-      label: 'Average days in stage',
-      backgroundColor: '#34a853'
-    });
+    const series = parseSeries(durationCanvas);
+    if (series.length) {
+      createBarChart(durationCanvas, {
+        labels: series.map((point) => point.name),
+        values: series.map((point) => point.days),
+        label: 'Average days in stage',
+        backgroundColor: '#34a853'
+      });
+    }
   }
 }
 // END SECTION
