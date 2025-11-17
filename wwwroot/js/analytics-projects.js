@@ -11,24 +11,121 @@ const palette = [
   '#43a047'
 ];
 
-// SECTION: Completed analytics initialiser
-function initCompletedAnalytics() {
-  const canvases = [
-    document.getElementById('completedByCategoryChart'),
-    document.getElementById('completedByTechnicalChart'),
-    document.getElementById('completedPerYearChart')
-  ].filter((canvas) => Boolean(canvas));
+// SECTION: Chart helpers
+function createDoughnutChart(canvas, { labels, values }) {
+  if (!canvas || !window.Chart) {
+    return null;
+  }
 
-  if (canvases.length === 0) {
+  return new window.Chart(canvas.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [
+        {
+          data: values,
+          backgroundColor: values.map((_, idx) => palette[idx % palette.length]),
+          borderWidth: 0
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom' }
+      }
+    }
+  });
+}
+
+function createBarChart(
+  canvas,
+  { labels, values, label = 'Projects', backgroundColor = '#1a73e8' }
+) {
+  if (!canvas || !window.Chart) {
+    return null;
+  }
+
+  return new window.Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label,
+          data: values,
+          backgroundColor,
+          borderRadius: 4
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: { ticks: { maxRotation: 0 } },
+        y: { beginAtZero: true }
+      }
+    }
+  });
+}
+// END SECTION
+
+// SECTION: Completed analytics helpers
+function getCompletedAnalyticsData() {
+  const panel = document.querySelector('.analytics-panel--completed');
+  if (!panel) {
+    return null;
+  }
+
+  const json = panel.dataset.completedAnalytics;
+  if (!json) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(json);
+  } catch (error) {
+    console.error('Failed to parse completed analytics payload.', error);
+    return null;
+  }
+}
+
+function initCompletedAnalytics() {
+  const data = getCompletedAnalyticsData();
+  if (!data) {
     return;
   }
 
-  // SECTION: Placeholder references for future chart initialisation
-  // Real data binding will be added in a follow-up iteration.
-  canvases.forEach((canvas) => {
-    canvas.dataset.analyticsChart = 'pending';
-  });
-  // END SECTION
+  const byCategoryEl = document.getElementById('completedByCategoryChart');
+  const byTechnicalEl = document.getElementById('completedByTechnicalChart');
+  const perYearEl = document.getElementById('completedPerYearChart');
+
+  if (byCategoryEl && data.byCategory?.length) {
+    createDoughnutChart(byCategoryEl, {
+      labels: data.byCategory.map((point) => point.categoryName),
+      values: data.byCategory.map((point) => point.count)
+    });
+  }
+
+  if (byTechnicalEl && data.byTechnical?.length) {
+    createBarChart(byTechnicalEl, {
+      labels: data.byTechnical.map((point) => point.technicalCategoryName),
+      values: data.byTechnical.map((point) => point.count)
+    });
+  }
+
+  if (perYearEl && data.perYear?.length) {
+    createBarChart(perYearEl, {
+      labels: data.perYear.map((point) => point.year?.toString() ?? ''),
+      values: data.perYear.map((point) => point.count),
+      label: 'Projects completed',
+      backgroundColor: '#34a853'
+    });
+  }
 }
 // END SECTION
 
@@ -37,9 +134,6 @@ function initOngoingAnalytics() {
   const categoryCanvas = document.getElementById('ongoing-projects-by-category-chart');
   const stageCanvas = document.getElementById('ongoing-projects-by-stage-chart');
   const durationCanvas = document.getElementById('ongoing-stage-duration-chart');
-  if (!categoryCanvas || !stageCanvas || !durationCanvas || !window.Chart) {
-    return;
-  }
 
   const ongoingCategoryData = {
     labels: ['Innovation', 'Sustainment', 'Operations', 'Optimization'],
@@ -56,77 +150,24 @@ function initOngoingAnalytics() {
     values: [14, 28, 64, 21]
   };
 
-  new window.Chart(categoryCanvas.getContext('2d'), {
-    type: 'doughnut',
-    data: {
-      labels: ongoingCategoryData.labels,
-      datasets: [
-        {
-          data: ongoingCategoryData.values,
-          backgroundColor: ongoingCategoryData.values.map((_, idx) => palette[idx % palette.length]),
-          borderWidth: 0
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'bottom' }
-      }
-    }
-  });
+  if (categoryCanvas) {
+    createDoughnutChart(categoryCanvas, ongoingCategoryData);
+  }
 
-  new window.Chart(stageCanvas.getContext('2d'), {
-    type: 'bar',
-    data: {
-      labels: ongoingStageData.labels,
-      datasets: [
-        {
-          label: 'Projects',
-          data: ongoingStageData.values,
-          backgroundColor: '#1a73e8',
-          borderRadius: 4
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        x: { ticks: { maxRotation: 0 } },
-        y: { beginAtZero: true }
-      }
-    }
-  });
+  if (stageCanvas) {
+    createBarChart(stageCanvas, {
+      ...ongoingStageData,
+      label: 'Projects'
+    });
+  }
 
-  new window.Chart(durationCanvas.getContext('2d'), {
-    type: 'bar',
-    data: {
-      labels: ongoingDurationData.labels,
-      datasets: [
-        {
-          label: 'Average days in stage',
-          data: ongoingDurationData.values,
-          backgroundColor: '#34a853',
-          borderRadius: 4
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        x: { ticks: { maxRotation: 0 } },
-        y: { beginAtZero: true }
-      }
-    }
-  });
+  if (durationCanvas) {
+    createBarChart(durationCanvas, {
+      ...ongoingDurationData,
+      label: 'Average days in stage',
+      backgroundColor: '#34a853'
+    });
+  }
 }
 // END SECTION
 
@@ -134,9 +175,6 @@ function initOngoingAnalytics() {
 function initCoeAnalytics() {
   const stageCanvas = document.getElementById('coe-projects-by-stage-chart');
   const lifecycleCanvas = document.getElementById('coe-lifecycle-status-chart');
-  if (!stageCanvas || !lifecycleCanvas || !window.Chart) {
-    return;
-  }
 
   const coeStageData = {
     labels: ['Discovery', 'Planning', 'Execution', 'Adoption'],
@@ -148,51 +186,17 @@ function initCoeAnalytics() {
     values: [10, 5, 1]
   };
 
-  new window.Chart(stageCanvas.getContext('2d'), {
-    type: 'bar',
-    data: {
-      labels: coeStageData.labels,
-      datasets: [
-        {
-          label: 'Projects',
-          data: coeStageData.values,
-          backgroundColor: '#5c6bc0',
-          borderRadius: 4
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        x: { ticks: { maxRotation: 0 } },
-        y: { beginAtZero: true }
-      }
-    }
-  });
+  if (stageCanvas) {
+    createBarChart(stageCanvas, {
+      ...coeStageData,
+      label: 'Projects',
+      backgroundColor: '#5c6bc0'
+    });
+  }
 
-  new window.Chart(lifecycleCanvas.getContext('2d'), {
-    type: 'doughnut',
-    data: {
-      labels: coeLifecycleData.labels,
-      datasets: [
-        {
-          data: coeLifecycleData.values,
-          backgroundColor: coeLifecycleData.values.map((_, idx) => palette[idx % palette.length]),
-          borderWidth: 0
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'bottom' }
-      }
-    }
-  });
+  if (lifecycleCanvas) {
+    createDoughnutChart(lifecycleCanvas, coeLifecycleData);
+  }
 }
 // END SECTION
 
@@ -203,18 +207,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  const tab = (page.dataset.analyticsTab || '').toLowerCase();
-
-  switch (tab) {
-    case 'ongoing':
-      initOngoingAnalytics();
-      break;
-    case 'coe':
-      initCoeAnalytics();
-      break;
-    default:
-      initCompletedAnalytics();
-      break;
+  if (document.querySelector('.analytics-panel--completed')) {
+    initCompletedAnalytics();
+  } else if (document.querySelector('.analytics-panel--ongoing')) {
+    initOngoingAnalytics();
+  } else if (document.querySelector('.analytics-panel--coe')) {
+    initCoeAnalytics();
   }
 });
 // END SECTION

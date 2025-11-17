@@ -1,6 +1,19 @@
 @model ProjectManagement.Models.Analytics.CompletedAnalyticsVm
+@using System.Text.Json
 
-<section class="analytics-panel analytics-panel--completed" aria-label="Completed projects analytics">
+@{
+    // SECTION: Completed analytics serialization
+    var jsonOptions = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+    var completedJson = JsonSerializer.Serialize(Model, jsonOptions);
+    // END SECTION
+}
+
+<section class="analytics-panel analytics-panel--completed"
+         aria-label="Completed projects analytics"
+         data-completed-analytics='@Html.Raw(completedJson)'>
     <!-- SECTION: Completed projects analytics cards -->
     <div class="analytics-grid analytics-grid--completed">
         <!-- SECTION: Completed projects by category -->
