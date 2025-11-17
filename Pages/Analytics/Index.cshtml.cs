@@ -23,7 +23,20 @@ namespace ProjectManagement.Pages.Analytics
 
         private const int MaxCoeSubcategories = 10;
         private const string DefaultCoeSubcategoryName = "Unspecified";
-        private static readonly string[] CoeLifecycleStatuses = { "Ongoing", "Completed", "Cancelled" };
+        private static readonly (ProjectLifecycleStatus Status, string Label)[] CoeLifecycleOrder =
+        {
+            (ProjectLifecycleStatus.Active, "Ongoing"),
+            (ProjectLifecycleStatus.Completed, "Completed"),
+            (ProjectLifecycleStatus.Cancelled, "Cancelled")
+        };
+        private static readonly string[] CoeCategoryKeywords =
+        {
+            "coe",
+            "center of excellence",
+            "centre of excellence",
+            "centers of excellence",
+            "centres of excellence"
+        };
 
         public IndexModel(ApplicationDbContext db)
         {
@@ -84,7 +97,7 @@ namespace ProjectManagement.Pages.Analytics
                     break;
 
                 case AnalyticsTab.Coe:
-                    Coe = _cachedCoeAnalytics ?? BuildCoeAnalyticsVm();
+                    Coe = _cachedCoeAnalytics ?? await BuildCoeAnalyticsAsync(cancellationToken);
                     break;
             }
             // END SECTION
@@ -118,8 +131,8 @@ namespace ProjectManagement.Pages.Analytics
                 .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active)
                 .CountAsync(cancellationToken);
 
-            _cachedCoeAnalytics = BuildCoeAnalyticsVm();
-            CoeCount = _cachedCoeAnalytics.ByLifecycle.Sum(point => point.ProjectCount);
+            _cachedCoeAnalytics = await BuildCoeAnalyticsAsync(cancellationToken);
+            CoeCount = _cachedCoeAnalytics.TotalCoeProjects;
         }
 
         private async Task<CompletedAnalyticsVm> BuildCompletedAnalyticsAsync(CancellationToken cancellationToken)
@@ -180,48 +193,235 @@ namespace ProjectManagement.Pages.Analytics
             // END SECTION
         }
 
-        private static CoeAnalyticsVm BuildCoeAnalyticsVm()
+        internal async Task<CoeAnalyticsVm> BuildCoeAnalyticsAsync(CancellationToken cancellationToken)
         {
-            // SECTION: Placeholder CoE analytics data (replace with live data wiring when available)
-            var sampleProjects = new List<CoeProjectSeed>
+            // SECTION: CoE analytics aggregation
+            var coeCategories = await LoadCoeCategoriesAsync(cancellationToken);
+            if (coeCategories.CategoryIds.Count == 0)
             {
-                new("Discovery", "Ongoing", "AR/VR"),
-                new("Planning", "Completed", "AR/VR"),
-                new("Execution", "Ongoing", "AI Innovation"),
-                new("Execution", "Ongoing", "AI Innovation"),
-                new("Adoption", "Cancelled", "AI Innovation"),
-                new("Discovery", "Ongoing", "Drones"),
-                new("Planning", "Completed", "Drones"),
-                new("Execution", "Ongoing", "Robotics"),
-                new("Execution", "Completed", "Robotics"),
-                new("Adoption", "Ongoing", "Quantum Research"),
-                new("Discovery", "Ongoing", "Edge Computing"),
-                new("Planning", "Completed", "Edge Computing"),
-                new("Planning", "Ongoing", "Sustainability Labs"),
-                new("Execution", "Completed", "Sustainability Labs"),
-                new("Discovery", "Ongoing", "5G Labs"),
-                new("Planning", "Completed", "5G Labs"),
-                new("Execution", "Cancelled", "Spatial Computing"),
-                new("Planning", "Ongoing", "Advanced Sensors"),
-                new("Execution", "Ongoing", "Advanced Sensors"),
-                new("Planning", "Completed", "Advanced Sensors"),
-                new("Execution", "Ongoing", "Blockchain Lab"),
-                new("Planning", "Ongoing", "Predictive Maintenance"),
-                new("Execution", "Ongoing", "Predictive Maintenance"),
-                new("Execution", "Ongoing", "Industrial Robotics Automation")
-            };
+                return BuildEmptyCoeAnalyticsVm();
+            }
 
-            var stageBuckets = sampleProjects
-                .GroupBy(project => project.Stage)
-                .Select(group => new CoeStageBucketVm(group.Key, group.Count()))
-                .OrderByDescending(bucket => bucket.ProjectCount)
+            var coeCategoryIds = coeCategories.CategoryIds.ToList();
+
+            var coeProjectsQuery = _db.Projects
+                .AsNoTracking()
+                .Where(p => !p.IsDeleted
+                    && !p.IsArchived
+                    && p.CategoryId.HasValue
+                    && coeCategoryIds.Contains(p.CategoryId.Value));
+
+            var lifecycleAggregations = await coeProjectsQuery
+                .GroupBy(p => p.LifecycleStatus)
+                .Select(g => new LifecycleAggregation(g.Key, g.Count()))
+                .ToListAsync(cancellationToken);
+
+            var lifecycleCounts = lifecycleAggregations.ToDictionary(item => item.Status, item => item.Count);
+            var lifecycleBuckets = BuildLifecycleBuckets(lifecycleCounts);
+
+            var stageBuckets = await BuildCoeStageBucketsAsync(coeCategoryIds, cancellationToken);
+            var subcategoryBreakdown = await BuildCoeSubcategoryBreakdownAsync(
+                coeProjectsQuery,
+                coeCategories.CategoryNames,
+                cancellationToken);
+
+            return new CoeAnalyticsVm
+            {
+                ByStage = stageBuckets,
+                ByLifecycle = lifecycleBuckets,
+                SubcategoriesByLifecycle = subcategoryBreakdown,
+                Roadmap = BuildDefaultCoeRoadmap(),
+                TotalCoeProjects = lifecycleBuckets.Sum(bucket => bucket.ProjectCount)
+            };
+            // END SECTION
+        }
+
+        private async Task<IReadOnlyList<CoeStageBucketVm>> BuildCoeStageBucketsAsync(
+            IReadOnlyCollection<int> coeCategoryIds,
+            CancellationToken cancellationToken)
+        {
+            // SECTION: CoE stage distribution
+            if (coeCategoryIds.Count == 0)
+            {
+                return Array.Empty<CoeStageBucketVm>();
+            }
+
+            var stageSnapshots = await _db.Projects
+                .AsNoTracking()
+                .Where(p => !p.IsDeleted
+                    && !p.IsArchived
+                    && p.LifecycleStatus == ProjectLifecycleStatus.Active
+                    && p.CategoryId.HasValue
+                    && coeCategoryIds.Contains(p.CategoryId.Value))
+                .Select(p => new ProjectStageSnapshot(
+                    p.LifecycleStatus,
+                    p.ProjectStages
+                        .OrderBy(s => s.SortOrder)
+                        .ThenBy(s => s.StageCode)
+                        .Select(s => new StageSnapshot(
+                            s.StageCode,
+                            s.Status,
+                            s.SortOrder,
+                            s.CompletedOn))
+                        .ToList()))
+                .ToListAsync(cancellationToken);
+
+            if (stageSnapshots.Count == 0)
+            {
+                return Array.Empty<CoeStageBucketVm>();
+            }
+
+            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var project in stageSnapshots)
+            {
+                var stage = DetermineCurrentStage(project);
+                if (stage is null || string.IsNullOrWhiteSpace(stage.StageCode))
+                {
+                    continue;
+                }
+
+                counts.TryGetValue(stage.StageCode, out var existing);
+                counts[stage.StageCode] = existing + 1;
+            }
+
+            if (counts.Count == 0)
+            {
+                return Array.Empty<CoeStageBucketVm>();
+            }
+
+            var orderedCodes = StageCodes.All
+                .Where(code => counts.ContainsKey(code))
+                .Concat(counts.Keys.Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase)))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            var lifecycleBuckets = BuildLifecycleBuckets(sampleProjects);
+            return orderedCodes
+                .Select(code => new CoeStageBucketVm(StageCodes.DisplayNameOf(code), counts[code]))
+                .ToList();
+            // END SECTION
+        }
 
-            var subcategoryBreakdown = BuildSubcategoryLifecycle(sampleProjects, MaxCoeSubcategories);
+        private async Task<IReadOnlyList<CoeSubcategoryLifecycleVm>> BuildCoeSubcategoryBreakdownAsync(
+            IQueryable<Project> coeProjectsQuery,
+            IReadOnlyDictionary<int, string> categoryNames,
+            CancellationToken cancellationToken)
+        {
+            // SECTION: CoE sub-category aggregation
+            var grouped = await coeProjectsQuery
+                .GroupBy(p => p.CategoryId!.Value)
+                .Select(g => new CoeSubcategoryAggregateSeed(
+                    g.Key,
+                    g.Count(p => p.LifecycleStatus == ProjectLifecycleStatus.Active),
+                    g.Count(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed),
+                    g.Count(p => p.LifecycleStatus == ProjectLifecycleStatus.Cancelled)))
+                .ToListAsync(cancellationToken);
 
-            var roadmap = new CoeRoadmapVm
+            if (grouped.Count == 0)
+            {
+                return Array.Empty<CoeSubcategoryLifecycleVm>();
+            }
+
+            var aggregates = grouped
+                .Select(item => new CoeSubcategoryAggregate(
+                    categoryNames.TryGetValue(item.CategoryId, out var name) ? name : DefaultCoeSubcategoryName,
+                    item.Ongoing,
+                    item.Completed,
+                    item.Cancelled))
+                .ToList();
+
+            return BuildSubcategoryLifecycle(aggregates, MaxCoeSubcategories);
+            // END SECTION
+        }
+
+        private async Task<CoeCategoryLookup> LoadCoeCategoriesAsync(CancellationToken cancellationToken)
+        {
+            // SECTION: CoE category resolution
+            var categories = await _db.ProjectCategories
+                .AsNoTracking()
+                .Select(c => new CoeCategoryDescriptor(c.Id, c.ParentId, c.Name))
+                .ToListAsync(cancellationToken);
+
+            if (categories.Count == 0)
+            {
+                return new CoeCategoryLookup(Array.Empty<int>(), new Dictionary<int, string>());
+            }
+
+            var descriptorLookup = categories.ToDictionary(c => c.Id);
+            var matches = new HashSet<int>();
+
+            foreach (var descriptor in categories)
+            {
+                if (IsCoeCategory(descriptor, descriptorLookup))
+                {
+                    matches.Add(descriptor.Id);
+                }
+            }
+
+            var ids = matches.ToList();
+            var names = categories
+                .Where(c => matches.Contains(c.Id))
+                .ToDictionary(c => c.Id, c => c.Name);
+
+            return new CoeCategoryLookup(ids, names);
+            // END SECTION
+        }
+
+        private static bool IsCoeCategory(
+            CoeCategoryDescriptor descriptor,
+            IReadOnlyDictionary<int, CoeCategoryDescriptor> lookup)
+        {
+            // SECTION: CoE category detector
+            var current = descriptor;
+            while (current is not null)
+            {
+                if (MatchesCoeName(current.Name))
+                {
+                    return true;
+                }
+
+                if (!current.ParentId.HasValue || !lookup.TryGetValue(current.ParentId.Value, out current))
+                {
+                    current = null;
+                }
+            }
+
+            return false;
+            // END SECTION
+        }
+
+        private static bool MatchesCoeName(string? name)
+        {
+            // SECTION: CoE keyword match
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return false;
+            }
+
+            return CoeCategoryKeywords.Any(keyword =>
+                name.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+            // END SECTION
+        }
+
+        private static CoeAnalyticsVm BuildEmptyCoeAnalyticsVm()
+        {
+            // SECTION: Empty CoE analytics fallback
+            return new CoeAnalyticsVm
+            {
+                ByStage = Array.Empty<CoeStageBucketVm>(),
+                ByLifecycle = CoeLifecycleOrder
+                    .Select(item => new CoeLifecycleBucketVm(item.Label, 0))
+                    .ToList(),
+                SubcategoriesByLifecycle = Array.Empty<CoeSubcategoryLifecycleVm>(),
+                Roadmap = BuildDefaultCoeRoadmap(),
+                TotalCoeProjects = 0
+            };
+            // END SECTION
+        }
+
+        private static CoeRoadmapVm BuildDefaultCoeRoadmap()
+        {
+            // SECTION: CoE roadmap summary
+            return new CoeRoadmapVm
             {
                 ShortTerm = new[]
                 {
@@ -239,48 +439,30 @@ namespace ProjectManagement.Pages.Analytics
                     "Establish shared evaluation metrics across CoEs"
                 }
             };
-
-            return new CoeAnalyticsVm
-            {
-                ByStage = stageBuckets,
-                ByLifecycle = lifecycleBuckets,
-                SubcategoriesByLifecycle = subcategoryBreakdown,
-                Roadmap = roadmap,
-                TotalCoeProjects = sampleProjects.Count
-            };
             // END SECTION
         }
 
-        private static IReadOnlyList<CoeLifecycleBucketVm> BuildLifecycleBuckets(IEnumerable<CoeProjectSeed> projects)
+        private static IReadOnlyList<CoeLifecycleBucketVm> BuildLifecycleBuckets(
+            IReadOnlyDictionary<ProjectLifecycleStatus, int> counts)
         {
             // SECTION: Lifecycle aggregation
-            var counts = projects
-                .GroupBy(project => project.LifecycleStatus)
-                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
-
-            return CoeLifecycleStatuses
-                .Select(status => new CoeLifecycleBucketVm(status, counts.TryGetValue(status, out var count) ? count : 0))
+            return CoeLifecycleOrder
+                .Select(item => new CoeLifecycleBucketVm(
+                    item.Label,
+                    counts.TryGetValue(item.Status, out var value) ? value : 0))
                 .ToList();
             // END SECTION
         }
 
         private static IReadOnlyList<CoeSubcategoryLifecycleVm> BuildSubcategoryLifecycle(
-            IEnumerable<CoeProjectSeed> projects,
+            IEnumerable<CoeSubcategoryAggregate> aggregates,
             int maxSubcategories)
         {
             // SECTION: Sub-category aggregation and trimming
-            var grouped = projects
-                .GroupBy(project => NormalizeSubcategoryName(project.Subcategory), StringComparer.OrdinalIgnoreCase)
-                .Select(group => new
-                {
-                    Name = group.Key,
-                    Ongoing = group.Count(p => p.LifecycleStatus.Equals("Ongoing", StringComparison.OrdinalIgnoreCase)),
-                    Completed = group.Count(p => p.LifecycleStatus.Equals("Completed", StringComparison.OrdinalIgnoreCase)),
-                    Cancelled = group.Count(p => p.LifecycleStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
-                })
+            var grouped = aggregates
                 .Select(item => new
                 {
-                    item.Name,
+                    Name = NormalizeSubcategoryName(item.Name),
                     item.Ongoing,
                     item.Completed,
                     item.Cancelled,
@@ -361,7 +543,13 @@ namespace ProjectManagement.Pages.Analytics
             // END SECTION
         }
 
-        private sealed record CoeProjectSeed(string Stage, string LifecycleStatus, string Subcategory);
+        private sealed record CoeSubcategoryAggregate(string Name, int Ongoing, int Completed, int Cancelled);
+        private sealed record CoeSubcategoryAggregateSeed(int CategoryId, int Ongoing, int Completed, int Cancelled);
+        private sealed record CoeCategoryDescriptor(int Id, int? ParentId, string Name);
+        private sealed record CoeCategoryLookup(
+            IReadOnlyCollection<int> CategoryIds,
+            IReadOnlyDictionary<int, string> CategoryNames);
+        private sealed record LifecycleAggregation(ProjectLifecycleStatus Status, int Count);
 
         // SECTION: Completed analytics helpers
         private async Task<IReadOnlyList<AnalyticsCategoryCountPoint>> BuildCategoryCountsAsync(
