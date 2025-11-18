@@ -29,15 +29,9 @@
 
 /* SECTION: Analytics shell widths */
 .analytics-layout--shell {
-  width: min(1360px, 100%);
+  width: 100%;
   max-width: none;
   margin-inline: auto;
-}
-
-@media (min-width: 1600px) {
-  .analytics-layout--shell {
-    width: min(1480px, calc(100% - 3rem));
-  }
 }
 /* END SECTION */
 
