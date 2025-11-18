@@ -172,9 +172,11 @@
   align-items: stretch;
 }
 
+/* SECTION: Ongoing analytics ratio */
 .analytics-grid--ongoing {
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.35fr);
+  grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
 }
+/* END SECTION */
 
 .analytics-grid--coe {
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr);
