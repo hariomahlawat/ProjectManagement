@@ -668,17 +668,65 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         CancellationToken cancellationToken)
         where TFact : ProjectFactBase
     {
+        var projection = CreateMoneyFactProjection(selector);
+
         return query
+            .Select(projection)
             .GroupBy(f => f.ProjectId)
             .Select(g => new
             {
                 ProjectId = g.Key,
                 Cost = g
                     .OrderByDescending(f => f.CreatedOnUtc)
-                    .Select(selector)
+                    .Select(f => f.Cost)
                     .FirstOrDefault()
             })
             .ToDictionaryAsync(x => x.ProjectId, x => x.Cost, cancellationToken);
+    }
+
+    // -------------------------------------------------------------------------
+    // SECTION: Money Fact Helpers
+    // -------------------------------------------------------------------------
+
+    private static Expression<Func<TFact, MoneyFactProjection>> CreateMoneyFactProjection<TFact>(
+        Expression<Func<TFact, decimal?>> selector)
+        where TFact : ProjectFactBase
+    {
+        var parameter = Expression.Parameter(typeof(TFact), "fact");
+        var costBody = new ExpressionParameterReplacer(selector.Parameters[0], parameter)
+            .Visit(selector.Body)!;
+
+        var constructor = typeof(MoneyFactProjection).GetConstructor(new[]
+        {
+            typeof(int),
+            typeof(DateTime),
+            typeof(decimal?)
+        })!;
+
+        var projectId = Expression.Property(parameter, nameof(ProjectFactBase.ProjectId));
+        var createdOn = Expression.Property(parameter, nameof(ProjectFactBase.CreatedOnUtc));
+        var newProjection = Expression.New(constructor, projectId, createdOn, costBody);
+
+        return Expression.Lambda<Func<TFact, MoneyFactProjection>>(newProjection, parameter);
+    }
+
+    private sealed record MoneyFactProjection(int ProjectId, DateTime CreatedOnUtc, decimal? Cost);
+
+    private sealed class ExpressionParameterReplacer : ExpressionVisitor
+    {
+        private readonly ParameterExpression _source;
+        private readonly ParameterExpression _target;
+
+        public ExpressionParameterReplacer(ParameterExpression source, ParameterExpression target)
+        {
+            _source = source;
+            _target = target;
+        }
+
+        protected override Expression VisitParameter(ParameterExpression node)
+        {
+            return ReferenceEquals(node, _source) ? _target : base.VisitParameter(node);
+        }
     }
 
     private static string? TryResolveCostBucket(decimal? projectCost)
