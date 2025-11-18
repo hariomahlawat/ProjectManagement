@@ -310,7 +310,8 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                 && !s.Project.IsArchived
                 && (s.Project.LifecycleStatus == ProjectLifecycleStatus.Active
                     || s.Project.LifecycleStatus == ProjectLifecycleStatus.Completed))
-            .Where(s => s.ActualStart.HasValue && s.CompletedOn.HasValue);
+            .Where(s => s.ActualStart.HasValue && s.CompletedOn.HasValue)
+            .Where(s => !StageCodes.IsTot(s.StageCode));
 
         if (categoryId.HasValue)
         {

@@ -51,8 +51,11 @@ namespace ProjectManagement.Pages.Analytics
 
         public AnalyticsTab ActiveTab { get; private set; } = AnalyticsTab.Completed;
 
-        [BindProperty(SupportsGet = true)]
-        public int? CategoryId { get; set; }
+        [BindProperty(SupportsGet = true, Name = "categoryId")]
+        public int? StageTimeCategoryId { get; set; }
+
+        [BindProperty(SupportsGet = true, Name = "hotspotCategoryId")]
+        public int? StageHotspotCategoryId { get; set; }
 
         public IReadOnlyList<CategoryOption> Categories { get; private set; } = Array.Empty<CategoryOption>();
         public IReadOnlyList<TechnicalCategoryOption> TechnicalCategories { get; private set; } = Array.Empty<TechnicalCategoryOption>();
@@ -64,7 +67,7 @@ namespace ProjectManagement.Pages.Analytics
         public CompletedAnalyticsVm? Completed { get; private set; }
         public OngoingAnalyticsVm? Ongoing { get; private set; }
         public CoeAnalyticsVm? Coe { get; private set; }
-        public StageTimeInsightsVm? Insights { get; private set; }
+        public StageTimeInsightsPanelVm? Insights { get; private set; }
 
         public ProjectLifecycleFilter DefaultLifecycle => ProjectLifecycleFilter.Active;
 
@@ -104,7 +107,31 @@ namespace ProjectManagement.Pages.Analytics
                     break;
 
                 case AnalyticsTab.Insights:
-                    Insights = await _projectAnalyticsService.GetStageTimeInsightsAsync(CategoryId, cancellationToken);
+                    var stageCycleTask = _projectAnalyticsService.GetStageTimeInsightsAsync(StageTimeCategoryId, cancellationToken);
+                    Task<StageTimeInsightsVm>? hotspotTask = null;
+                    if (StageHotspotCategoryId != StageTimeCategoryId)
+                    {
+                        hotspotTask = _projectAnalyticsService.GetStageTimeInsightsAsync(StageHotspotCategoryId, cancellationToken);
+                    }
+
+                    var stageCycleResult = await stageCycleTask;
+                    var hotspotResult = StageHotspotCategoryId == StageTimeCategoryId
+                        ? stageCycleResult
+                        : await (hotspotTask ?? stageCycleTask);
+
+                    Insights = new StageTimeInsightsPanelVm
+                    {
+                        StageCycleTime = new StageTimeCycleChartVm
+                        {
+                            Rows = stageCycleResult.Rows,
+                            SelectedCategoryId = StageTimeCategoryId ?? stageCycleResult.SelectedCategoryId
+                        },
+                        StageHotspots = new StageHotspotChartVm
+                        {
+                            Points = hotspotResult.StageHotspots,
+                            SelectedCategoryId = StageHotspotCategoryId ?? hotspotResult.SelectedCategoryId
+                        }
+                    };
                     break;
             }
             // END SECTION

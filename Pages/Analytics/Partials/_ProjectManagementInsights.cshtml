@@ -1,4 +1,4 @@
-@model ProjectManagement.Models.Analytics.StageTimeInsightsVm
+@model ProjectManagement.Models.Analytics.StageTimeInsightsPanelVm
 @using System.Text.Json
 @using ProjectManagement.Pages.Analytics
 
@@ -10,19 +10,10 @@
 
     var categories = ViewData["AnalyticsCategories"] as IEnumerable<IndexModel.CategoryOption>
         ?? Array.Empty<IndexModel.CategoryOption>();
-    // SECTION: Filter state hydration
-    var selectedCategoryId = Model.SelectedCategoryId;
-    if (!selectedCategoryId.HasValue)
-    {
-        var queryValue = ViewContext?.HttpContext?.Request?.Query?["categoryId"].ToString();
-        if (!string.IsNullOrWhiteSpace(queryValue) && int.TryParse(queryValue, out var parsedCategoryId))
-        {
-            selectedCategoryId = parsedCategoryId;
-        }
-    }
-    // END SECTION
     var filterId = "project-category-filter";
     var hotspotFilterId = $"{filterId}-hotspots";
+    var stageTimeCategoryId = Model.StageCycleTime.SelectedCategoryId;
+    var hotspotCategoryId = Model.StageHotspots.SelectedCategoryId;
 }
 
 <!-- SECTION: Project management insights -->
@@ -43,6 +34,7 @@
                         <!-- SECTION: Project category filter -->
                         <form method="get" asp-page="./Index" class="analytics-card__filters">
                             <input type="hidden" name="tab" value="Insights" />
+                            <input type="hidden" name="hotspotCategoryId" value="@(hotspotCategoryId?.ToString() ?? string.Empty)" />
                             <div class="analytics-card__filter-chip">
                                 <label class="form-label mb-0" for="@filterId">
                                     Project category
@@ -55,13 +47,13 @@
                                 >
                                     <option
                                         value=""
-                                        selected="@(!selectedCategoryId.HasValue ? "selected" : null)"
+                                        selected="@(!stageTimeCategoryId.HasValue ? "selected" : null)"
                                     >
                                         All
                                     </option>
                                     @foreach (var category in categories)
                                     {
-                                        var isSelected = selectedCategoryId.HasValue && selectedCategoryId.Value == category.Id;
+                                        var isSelected = stageTimeCategoryId.HasValue && stageTimeCategoryId.Value == category.Id;
                                         <option
                                             value="@category.Id"
                                             selected="@(isSelected ? "selected" : null)"
@@ -77,7 +69,7 @@
                 </header>
 
                 <div class="analytics-card__body">
-                    @if (!Model.HasData)
+                    @if (!Model.StageCycleTime.HasData)
                     {
                         <p class="analytics-card__empty-text">
                             Not enough finished stages yet to calculate cycle times.
@@ -86,14 +78,14 @@
                     else
                     {
                         <div class="analytics-card__chart">
-                            <canvas
-                                id="stage-time-by-cost-chart"
-                                role="img"
-                                aria-label="Stage cycle time by project cost bucket"
-                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.Rows, jsonOptions))'
-                                data-empty-message="Not enough finished stages yet to calculate cycle times."
-                            ></canvas>
-                        </div>
+                                <canvas
+                                    id="stage-time-by-cost-chart"
+                                    role="img"
+                                    aria-label="Stage cycle time by project cost bucket"
+                                    data-series='@Html.Raw(JsonSerializer.Serialize(Model.StageCycleTime.Rows, jsonOptions))'
+                                    data-empty-message="Not enough finished stages yet to calculate cycle times."
+                                ></canvas>
+                            </div>
 
                         <p class="analytics-card__footnote">
                             Only stages with both actual start and completion dates are counted.
@@ -119,25 +111,26 @@
                         <!-- SECTION: Shared project category filter -->
                         <form method="get" asp-page="./Index" class="analytics-card__filters">
                             <input type="hidden" name="tab" value="Insights" />
+                            <input type="hidden" name="categoryId" value="@(stageTimeCategoryId?.ToString() ?? string.Empty)" />
                             <div class="analytics-card__filter-chip">
                                 <label class="form-label mb-0" for="@hotspotFilterId">
                                     Project category
                                 </label>
                                 <select
                                     id="@hotspotFilterId"
-                                    name="categoryId"
+                                    name="hotspotCategoryId"
                                     class="form-select form-select-sm"
                                     data-auto-submit="change"
                                 >
                                     <option
                                         value=""
-                                        selected="@(!selectedCategoryId.HasValue ? "selected" : null)"
+                                        selected="@(!hotspotCategoryId.HasValue ? "selected" : null)"
                                     >
                                         All
                                     </option>
                                     @foreach (var category in categories)
                                     {
-                                        var isSelected = selectedCategoryId.HasValue && selectedCategoryId.Value == category.Id;
+                                        var isSelected = hotspotCategoryId.HasValue && hotspotCategoryId.Value == category.Id;
                                         <option
                                             value="@category.Id"
                                             selected="@(isSelected ? "selected" : null)"
@@ -153,7 +146,7 @@
                 </header>
 
                 <div class="analytics-card__body">
-                    @if (!(Model.StageHotspots?.Any() ?? false))
+                    @if (!Model.StageHotspots.HasData)
                     {
                         <p class="analytics-card__empty-text">
                             No completed stages available yet to analyse stage delays.
@@ -162,13 +155,13 @@
                     else
                     {
                         <div class="analytics-card__chart">
-                            <canvas
-                                id="stage-hotspots-chart"
-                                role="img"
-                                aria-label="Stage delay hotspots - median days per stage"
-                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.StageHotspots, jsonOptions))'
-                                data-empty-message="No completed stages available yet to analyse stage delays."
-                            ></canvas>
+                                <canvas
+                                    id="stage-hotspots-chart"
+                                    role="img"
+                                    aria-label="Stage delay hotspots - median days per stage"
+                                    data-series='@Html.Raw(JsonSerializer.Serialize(Model.StageHotspots.Points, jsonOptions))'
+                                    data-empty-message="No completed stages available yet to analyse stage delays."
+                                ></canvas>
                         </div>
 
                         <p class="analytics-card__footnote">

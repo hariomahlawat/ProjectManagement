@@ -197,4 +197,65 @@ public class ProjectAnalyticsServiceStageTimeTests
         Assert.Equal(10, designHotspot.MedianDays);
         Assert.Equal(1, designHotspot.ProjectCount);
     }
+
+    [Fact]
+    public async Task GetStageTimeInsightsAsync_ExcludesTotStage()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var project = new Project
+        {
+            Id = 50,
+            Name = "Transfer",
+            CreatedByUserId = "system",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
+        };
+
+        db.Projects.Add(project);
+
+        db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                Id = 500,
+                ProjectId = project.Id,
+                Project = project,
+                StageCode = StageCodes.FS,
+                SortOrder = 1,
+                ActualStart = new DateOnly(2024, 6, 1),
+                CompletedOn = new DateOnly(2024, 6, 4)
+            },
+            new ProjectStage
+            {
+                Id = 501,
+                ProjectId = project.Id,
+                Project = project,
+                StageCode = StageCodes.TOT,
+                SortOrder = 140,
+                ActualStart = new DateOnly(2024, 7, 1),
+                CompletedOn = new DateOnly(2024, 7, 10)
+            });
+
+        db.ProjectAonFacts.Add(new ProjectAonFact
+        {
+            ProjectId = project.Id,
+            AonCost = 15_000_000m,
+            CreatedByUserId = "seed",
+            CreatedOnUtc = DateTime.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
+        var service = new ProjectAnalyticsService(db, clock, new ProjectCategoryHierarchyService(db));
+
+        var result = await service.GetStageTimeInsightsAsync();
+
+        Assert.DoesNotContain(result.Rows, row => string.Equals(row.StageKey, StageCodes.TOT, StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(result.StageHotspots, point => string.Equals(point.StageKey, StageCodes.TOT, StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.StageHotspots, point => point.StageKey == StageCodes.FS);
+    }
 }
