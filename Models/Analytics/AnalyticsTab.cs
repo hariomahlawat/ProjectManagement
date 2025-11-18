@@ -5,6 +5,7 @@ public enum AnalyticsTab
 {
     Completed,
     Ongoing,
-    Coe
+    Coe,
+    Insights
 }
 // END SECTION

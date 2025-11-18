@@ -11,6 +11,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Analytics;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Pages.Analytics
@@ -19,6 +20,7 @@ namespace ProjectManagement.Pages.Analytics
     public class IndexModel : PageModel
     {
         private readonly ApplicationDbContext _db;
+        private readonly IProjectAnalyticsService _projectAnalyticsService;
         private CoeAnalyticsVm? _cachedCoeAnalytics;
 
         private const string DefaultCoeSubcategoryName = "Unspecified";
@@ -32,9 +34,10 @@ namespace ProjectManagement.Pages.Analytics
             "centres of excellence"
         };
 
-        public IndexModel(ApplicationDbContext db)
+        public IndexModel(ApplicationDbContext db, IProjectAnalyticsService projectAnalyticsService)
         {
             _db = db;
+            _projectAnalyticsService = projectAnalyticsService;
         }
 
         private static readonly ProjectLifecycleFilter[] LifecycleFilters =
@@ -57,6 +60,7 @@ namespace ProjectManagement.Pages.Analytics
         public CompletedAnalyticsVm? Completed { get; private set; }
         public OngoingAnalyticsVm? Ongoing { get; private set; }
         public CoeAnalyticsVm? Coe { get; private set; }
+        public StageTimeInsightsVm? Insights { get; private set; }
 
         public ProjectLifecycleFilter DefaultLifecycle => ProjectLifecycleFilter.Active;
 
@@ -72,6 +76,7 @@ namespace ProjectManagement.Pages.Analytics
             {
                 "ongoing" => AnalyticsTab.Ongoing,
                 "coe" => AnalyticsTab.Coe,
+                "insights" => AnalyticsTab.Insights,
                 _ => AnalyticsTab.Completed
             };
 
@@ -92,6 +97,10 @@ namespace ProjectManagement.Pages.Analytics
 
                 case AnalyticsTab.Coe:
                     Coe = _cachedCoeAnalytics ?? await BuildCoeAnalyticsAsync(cancellationToken);
+                    break;
+
+                case AnalyticsTab.Insights:
+                    Insights = await _projectAnalyticsService.GetStageTimeInsightsAsync(cancellationToken);
                     break;
             }
             // END SECTION

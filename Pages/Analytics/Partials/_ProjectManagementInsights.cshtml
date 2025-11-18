@@ -1,0 +1,53 @@
+@model ProjectManagement.Models.Analytics.StageTimeInsightsVm
+@using System.Text.Json
+
+@{
+    var jsonOptions = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+}
+
+<!-- SECTION: Project management insights -->
+<section class="analytics-panel analytics-panel--insights" aria-label="Project management insights">
+    <div class="analytics-layout analytics-layout--shell">
+        <div class="analytics-layout__row">
+            <article class="analytics-card analytics-card--wide">
+                <header class="analytics-card__header">
+                    <h2 class="analytics-card__title">Stage cycle time by AoN bucket</h2>
+                    <p class="analytics-card__meta">
+                        Median days spent in each stage split by projects below and above one crore AoN cost.
+                        Active stages from ongoing projects are excluded until they finish.
+                    </p>
+                </header>
+
+                <div class="analytics-card__body">
+                    @if (!Model.HasData)
+                    {
+                        <p class="analytics-card__empty-text">
+                            Not enough finished stages yet to calculate cycle times.
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="analytics-card__chart">
+                            <canvas
+                                id="stage-time-by-aon-chart"
+                                role="img"
+                                aria-label="Stage cycle time by AoN bucket"
+                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.Rows, jsonOptions))'
+                                data-empty-message="Not enough finished stages yet to calculate cycle times."
+                            ></canvas>
+                        </div>
+
+                        <p class="analytics-card__footnote">
+                            Only stages with both actual start and completion dates are counted.
+                            Ongoing projects contribute once their stages finish.
+                        </p>
+                    }
+                </div>
+            </article>
+        </div>
+    </div>
+</section>
+<!-- END SECTION -->

@@ -19,6 +19,11 @@ const lifecycleColorMap = {
   Cancelled: '#16a34a'
 };
 
+const stageTimeBucketKeys = {
+  below: 'Below1Cr',
+  above: 'AboveOrEqual1Cr'
+};
+
 const MAX_STAGE_AXIS_LABEL_LENGTH = 16;
 
 // SECTION: Chart helpers
@@ -504,6 +509,120 @@ function initCoeAnalytics() {
 }
 // END SECTION
 
+// SECTION: Project management insights initialiser
+function initStageTimeInsights() {
+  const canvas = document.getElementById('stage-time-by-aon-chart');
+  if (!canvas || !window.Chart) {
+    return;
+  }
+
+  const series = parseSeries(canvas);
+  if (!series.length) {
+    renderEmptyState(canvas);
+    return;
+  }
+
+  const orderedSeries = [...series].sort((a, b) => {
+    const orderCompare = (a.stageOrder ?? 0) - (b.stageOrder ?? 0);
+    if (orderCompare !== 0) {
+      return orderCompare;
+    }
+
+    const nameA = a.stageName || '';
+    const nameB = b.stageName || '';
+    return nameA.localeCompare(nameB);
+  });
+
+  const stages = Array.from(
+    new Map(
+      orderedSeries.map((row) => {
+        const key = row.stageKey || '';
+        return [key, {
+          key,
+          name: row.stageName || key,
+          order: row.stageOrder ?? 0
+        }];
+      })
+    ).values()
+  );
+
+  const labels = stages.map((stage) => stage.name);
+
+  function buildDataset(bucketKey, label, color) {
+    return {
+      label,
+      bucketKey,
+      data: stages.map((stage) => {
+        const match = series.find((row) => row.stageKey === stage.key && row.bucket === bucketKey);
+        return match ? Number(match.medianDays) || 0 : 0;
+      }),
+      backgroundColor: color,
+      borderRadius: 4,
+      maxBarThickness: 40
+    };
+  }
+
+  const datasets = [
+    buildDataset(stageTimeBucketKeys.below, 'AoN below 1 crore', '#1a73e8'),
+    buildDataset(stageTimeBucketKeys.above, 'AoN at or above 1 crore', '#34a853')
+  ];
+
+  new window.Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          stacked: false,
+          ticks: { maxRotation: 0 }
+        },
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Median days in stage' }
+        }
+      },
+      plugins: {
+        legend: {
+          position: 'bottom'
+        },
+        tooltip: {
+          callbacks: {
+            title(items) {
+              const item = items?.[0];
+              return item ? item.label : '';
+            },
+            label(context) {
+              const stage = stages[context.dataIndex];
+              const bucketKey = context.dataset?.bucketKey;
+              if (!stage || !bucketKey) {
+                return `${context.dataset?.label || 'AoN bucket'}: 0 days`;
+              }
+
+              const row = series.find(
+                (entry) => entry.stageKey === stage.key && entry.bucket === bucketKey
+              );
+              if (!row) {
+                return `${context.dataset?.label || 'AoN bucket'}: 0 days`;
+              }
+
+              const median = Number(row.medianDays ?? 0).toFixed(1);
+              const average = Number(row.averageDays ?? 0).toFixed(1);
+              const count = row.projectCount ?? 0;
+              return `${context.dataset?.label}: median ${median} days, average ${average} days, ${count} projects`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+// END SECTION
+
 // SECTION: Analytics bootstrap
 document.addEventListener('DOMContentLoaded', () => {
   const page = document.querySelector('.analytics-page');
@@ -517,6 +636,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initOngoingAnalytics();
   } else if (document.querySelector('.analytics-panel--coe')) {
     initCoeAnalytics();
+  } else if (document.querySelector('.analytics-panel--insights')) {
+    initStageTimeInsights();
   }
 });
 // END SECTION
