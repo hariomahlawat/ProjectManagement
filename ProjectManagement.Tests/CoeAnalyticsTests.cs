@@ -9,6 +9,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Pages.Analytics;
+using static ProjectManagement.Tests.ProjectAnalyticsApiTests;
 
 namespace ProjectManagement.Tests;
 
