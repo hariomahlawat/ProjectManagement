@@ -438,12 +438,14 @@
 }
 
 /* Completed analytics grid */
+/* SECTION: Completed analytics ratio */
 .analytics-grid--completed {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr);
+  grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
   grid-auto-rows: auto;
   gap: 1.5rem;
 }
+/* END SECTION */
 
 @media (max-width: 991.98px) {
   .analytics-grid--completed {
