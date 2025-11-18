@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Analytics;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
@@ -17,6 +18,7 @@ namespace ProjectManagement.Services.Analytics;
 public sealed class ProjectAnalyticsService : IProjectAnalyticsService
 {
     private static readonly string[] StageOrder = StageCodes.All;
+    private const decimal OneCroreRupees = 10_000_000m;
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
@@ -290,6 +292,115 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         return new TopOverdueProjectsResult(ordered);
     }
 
+    public async Task<StageTimeInsightsVm> GetStageTimeInsightsAsync(CancellationToken cancellationToken = default)
+    {
+        var stageRows = await _db.ProjectStages
+            .AsNoTracking()
+            .Where(s => s.Project != null
+                && !s.Project.IsDeleted
+                && !s.Project.IsArchived
+                && (s.Project.LifecycleStatus == ProjectLifecycleStatus.Active
+                    || s.Project.LifecycleStatus == ProjectLifecycleStatus.Completed))
+            .Where(s => s.ActualStart.HasValue && s.CompletedOn.HasValue)
+            .Select(s => new StageTimeSpanRow(
+                s.ProjectId,
+                s.StageCode,
+                s.SortOrder,
+                s.ActualStart!.Value,
+                s.CompletedOn!.Value,
+                s.Project!.LifecycleStatus == ProjectLifecycleStatus.Completed))
+            .ToListAsync(cancellationToken);
+
+        if (stageRows.Count == 0)
+        {
+            return new StageTimeInsightsVm();
+        }
+
+        var aonCosts = await _db.ProjectAonFacts
+            .AsNoTracking()
+            .GroupBy(f => f.ProjectId)
+            .Select(g => new
+            {
+                ProjectId = g.Key,
+                Cost = g
+                    .OrderByDescending(f => f.CreatedOnUtc)
+                    .Select(f => (decimal?)f.AonCost)
+                    .FirstOrDefault()
+            })
+            .ToDictionaryAsync(x => x.ProjectId, x => x.Cost, cancellationToken);
+
+        var spans = stageRows
+            .Select(row =>
+            {
+                var bucket = TryResolveAonBucket(aonCosts.TryGetValue(row.ProjectId, out var cost) ? cost : null);
+                if (bucket is null)
+                {
+                    return null;
+                }
+
+                var days = CalculateStageDurationDays(row.ActualStart, row.CompletedOn);
+                return new StageTimeBucketSpan(
+                    row.ProjectId,
+                    row.StageCode ?? string.Empty,
+                    StageCodes.DisplayNameOf(row.StageCode ?? string.Empty),
+                    row.StageOrder,
+                    bucket,
+                    days,
+                    row.IsCompletedProject);
+            })
+            .Where(span => span is not null)
+            .Select(span => span!)
+            .ToList();
+
+        if (spans.Count == 0)
+        {
+            return new StageTimeInsightsVm();
+        }
+
+        var rows = spans
+            .GroupBy(span => new StageTimeBucketKey(span.StageKey, span.StageName, span.StageOrder, span.Bucket))
+            .Select(group =>
+            {
+                var durations = group
+                    .Select(item => item.Days)
+                    .OrderBy(value => value)
+                    .ToArray();
+                var projectIds = group
+                    .Select(item => item.ProjectId)
+                    .Distinct()
+                    .ToArray();
+                var completedProjects = group
+                    .Where(item => item.IsCompletedProject)
+                    .Select(item => item.ProjectId)
+                    .Distinct()
+                    .Count();
+                var ongoingProjects = projectIds.Length - completedProjects;
+
+                return new StageTimeBucketRowVm
+                {
+                    StageKey = group.Key.StageKey,
+                    StageName = group.Key.StageName,
+                    StageOrder = group.Key.StageOrder,
+                    Bucket = group.Key.Bucket,
+                    MedianDays = CalculateMedian(durations),
+                    AverageDays = durations.Length == 0 ? 0 : durations.Average(),
+                    ProjectCount = projectIds.Length,
+                    CompletedProjectCount = completedProjects,
+                    OngoingProjectCount = ongoingProjects
+                };
+            })
+            .OrderBy(row => row.StageOrder)
+            .ThenBy(row => row.StageName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(row => BucketSortOrder(row.Bucket))
+            .ThenBy(row => row.Bucket, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return new StageTimeInsightsVm
+        {
+            Rows = rows
+        };
+    }
+
     private async Task<List<ProjectHealthSnapshot>> LoadProjectsForHealthAsync(
         ProjectLifecycleFilter lifecycle,
         int? categoryId,
@@ -471,6 +582,74 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
             new SlipBucketDefinition("31+", "31+ days", 31, null)
         };
     }
+
+    private static string? TryResolveAonBucket(decimal? aonCost)
+    {
+        if (!aonCost.HasValue)
+        {
+            return null;
+        }
+
+        return aonCost.Value < OneCroreRupees
+            ? StageTimeBucketKeys.BelowOneCrore
+            : StageTimeBucketKeys.AboveOrEqualOneCrore;
+    }
+
+    private static double CalculateStageDurationDays(DateOnly start, DateOnly end)
+    {
+        var startDate = start.ToDateTime(TimeOnly.MinValue);
+        var endDate = end.ToDateTime(TimeOnly.MinValue);
+        var duration = (endDate - startDate).TotalDays;
+        return duration < 0 ? 0 : duration;
+    }
+
+    private static double CalculateMedian(double[] orderedValues)
+    {
+        if (orderedValues.Length == 0)
+        {
+            return 0;
+        }
+
+        var count = orderedValues.Length;
+        var midpoint = count / 2;
+        return count % 2 == 1
+            ? orderedValues[midpoint]
+            : (orderedValues[midpoint - 1] + orderedValues[midpoint]) / 2.0;
+    }
+
+    private static int BucketSortOrder(string bucket)
+    {
+        if (bucket.Equals(StageTimeBucketKeys.BelowOneCrore, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (bucket.Equals(StageTimeBucketKeys.AboveOrEqualOneCrore, StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        return 2;
+    }
+
+    private sealed record StageTimeSpanRow(
+        int ProjectId,
+        string StageCode,
+        int StageOrder,
+        DateOnly ActualStart,
+        DateOnly CompletedOn,
+        bool IsCompletedProject);
+
+    private sealed record StageTimeBucketSpan(
+        int ProjectId,
+        string StageKey,
+        string StageName,
+        int StageOrder,
+        string Bucket,
+        double Days,
+        bool IsCompletedProject);
+
+    private sealed record StageTimeBucketKey(string StageKey, string StageName, int StageOrder, string Bucket);
 }
 
 public sealed record CategoryShareResult(IReadOnlyList<CategoryShareSlice> Slices, int Total);

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using ProjectManagement.Models.Analytics;
 using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.Analytics;
@@ -40,4 +41,6 @@ public interface IProjectAnalyticsService
         int? technicalCategoryId,
         int take,
         CancellationToken cancellationToken = default);
+
+    Task<StageTimeInsightsVm> GetStageTimeInsightsAsync(CancellationToken cancellationToken = default);
 }

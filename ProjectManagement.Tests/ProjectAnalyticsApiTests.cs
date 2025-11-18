@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Models.Analytics;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Projects;
 using Xunit;
@@ -195,6 +196,11 @@ public class ProjectAnalyticsApiTests
         {
             TopOverdueRequests.Add((lifecycle, categoryId, technicalCategoryId, take));
             return Task.FromResult(new TopOverdueProjectsResult(Array.Empty<TopOverdueProject>()));
+        }
+
+        public Task<StageTimeInsightsVm> GetStageTimeInsightsAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new StageTimeInsightsVm());
         }
     }
 }

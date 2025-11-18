@@ -61,6 +61,15 @@
             <div class="analytics-left-nav__title">CoE projects</div>
             <div class="analytics-left-nav__meta">@Model.CoeCount projects</div>
           </a>
+
+          <a
+            asp-page="./Index"
+            asp-route-tab="Insights"
+            class="analytics-left-nav__item @(Model.ActiveTab == AnalyticsTab.Insights ? "is-active" : null)"
+          >
+            <div class="analytics-left-nav__title">Project management insights</div>
+            <div class="analytics-left-nav__meta">Stage cycle time</div>
+          </a>
         </nav>
       </aside>
 
@@ -79,6 +88,10 @@
 
             case AnalyticsTab.Coe:
               @await Html.PartialAsync("Partials/_CoeAnalytics", Model.Coe!)
+              break;
+
+            case AnalyticsTab.Insights:
+              @await Html.PartialAsync("Partials/_ProjectManagementInsights", Model.Insights!)
               break;
           }
         </div>
