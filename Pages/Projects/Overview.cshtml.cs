@@ -1617,7 +1617,12 @@ namespace ProjectManagement.Pages.Projects
             var uploadedBy = FormatUser(document.UploadedByFullName, document.UploadedByUserName, document.UploadedByEmail) ?? "Unknown";
             var uploadedOn = TimeZoneInfo.ConvertTime(document.UploadedAtUtc, tz);
             var metadata = string.Format(CultureInfo.InvariantCulture, "Uploaded on {0:dd MMM yyyy} by {1}", uploadedOn, uploadedBy);
-            var title = string.IsNullOrWhiteSpace(document.Title) ? document.OriginalFileName : document.Title;
+            // SECTION: Determine final document title with fallbacks
+            var fallbackTitle = string.IsNullOrWhiteSpace(document.OriginalFileName)
+                ? $"Document {document.Id}"
+                : document.OriginalFileName!;
+            var title = string.IsNullOrWhiteSpace(document.Title) ? fallbackTitle : document.Title!;
+            // END SECTION
             var statusLabel = document.Status == ProjectDocumentStatus.Published ? "Published" : "Removed";
             var statusVariant = document.Status == ProjectDocumentStatus.Published ? "success" : "secondary";
             string? secondarySummary = null;

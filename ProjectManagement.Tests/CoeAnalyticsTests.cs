@@ -30,7 +30,7 @@ public sealed class CoeAnalyticsTests : IDisposable
         _db = new ApplicationDbContext(options);
         _db.Database.EnsureCreated();
 
-        _pageModel = new IndexModel(_db);
+        _pageModel = new IndexModel(_db, new SpyProjectAnalyticsService());
     }
 
     [Fact]
