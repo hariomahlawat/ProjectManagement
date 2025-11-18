@@ -600,7 +600,12 @@ function initStageTimeInsights() {
       scales: {
         x: {
           stacked: false,
-          ticks: { maxRotation: 0 }
+          // SECTION: Ensure all stage labels display on x-axis
+          ticks: {
+            maxRotation: 0,
+            autoSkip: false
+          }
+          // END SECTION
         },
         y: {
           beginAtZero: true,
