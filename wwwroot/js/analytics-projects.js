@@ -604,8 +604,12 @@ function initStageTimeInsights() {
   );
 
   // SECTION: Stage axis label formatting
-  const labels = stages.map((stage) => stage.name);
-  const wrappedLabels = labels.map((label) => wrapLabel(label, MAX_STAGE_AXIS_LABEL_LENGTH));
+  const stageAxisPoints = stages.map((stage) => ({
+    name: stage.name,
+    stageCode: stage.key
+  }));
+  const axisLabels = stageAxisPoints.map((point) => getStageAxisLabel(point));
+  const wrappedLabels = axisLabels.map((label) => wrapLabel(label, MAX_STAGE_AXIS_LABEL_LENGTH));
   // END SECTION
 
   function buildDataset(bucketKey, label, color) {
