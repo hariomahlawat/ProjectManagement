@@ -19,6 +19,8 @@ const lifecycleColorMap = {
   Cancelled: '#16a34a'
 };
 
+const MAX_STAGE_AXIS_LABEL_LENGTH = 16;
+
 // SECTION: Chart helpers
 function createDoughnutChart(canvas, { labels, values, colors, options }) {
   if (!canvas || !window.Chart) {
@@ -190,6 +192,38 @@ function renderEmptyState(canvas) {
 }
 // END SECTION
 
+// SECTION: Stage axis helpers
+function getStageAxisLabel(point) {
+  if (!point) {
+    return '';
+  }
+
+  const name = point.name ?? '';
+  const code = point.stageCode ?? '';
+
+  if (!name) {
+    return code;
+  }
+
+  if (name.length <= MAX_STAGE_AXIS_LABEL_LENGTH || !code) {
+    return name;
+  }
+
+  return code;
+}
+
+function createStageTooltipTitle(series) {
+  return (tooltipItems) => {
+    if (!tooltipItems?.length) {
+      return '';
+    }
+
+    const index = tooltipItems[0]?.dataIndex ?? 0;
+    return series[index]?.name ?? tooltipItems[0]?.label ?? '';
+  };
+}
+// END SECTION
+
 // SECTION: Completed analytics helpers
 function getCompletedAnalyticsData() {
   const panel = document.querySelector('.analytics-panel--completed');
@@ -275,11 +309,28 @@ function initOngoingAnalytics() {
   if (durationCanvas) {
     const series = parseSeries(durationCanvas);
     if (series.length) {
+      const labels = series.map((point) => getStageAxisLabel(point));
       createBarChart(durationCanvas, {
-        labels: series.map((point) => point.name),
+        labels,
         values: series.map((point) => point.days),
         label: 'Average days in stage',
-        backgroundColor: '#34a853'
+        backgroundColor: '#34a853',
+        options: {
+          plugins: {
+            tooltip: {
+              callbacks: {
+                title: createStageTooltipTitle(series)
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: {
+                maxRotation: 0
+              }
+            }
+          }
+        }
       });
     }
   }

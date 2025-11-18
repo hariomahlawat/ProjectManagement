@@ -679,13 +679,17 @@ namespace ProjectManagement.Pages.Analytics
 
             var orderedStages = StageCodes.All
                 .Select(code => new AnalyticsStageDurationPoint(
+                    code,
                     StageCodes.DisplayNameOf(code),
                     durationsByCode.TryGetValue(code, out var avgDays) ? avgDays : 0));
 
             var adHocStages = durationsByCode.Keys
                 .Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase))
                 .OrderBy(code => StageCodes.DisplayNameOf(code), StringComparer.OrdinalIgnoreCase)
-                .Select(code => new AnalyticsStageDurationPoint(StageCodes.DisplayNameOf(code), durationsByCode[code]));
+                .Select(code => new AnalyticsStageDurationPoint(
+                    code,
+                    StageCodes.DisplayNameOf(code),
+                    durationsByCode[code]));
 
             return orderedStages
                 .Concat(adHocStages)
