@@ -10,7 +10,17 @@
 
     var categories = ViewData["AnalyticsCategories"] as IEnumerable<IndexModel.CategoryOption>
         ?? Array.Empty<IndexModel.CategoryOption>();
+    // SECTION: Filter state hydration
     var selectedCategoryId = Model.SelectedCategoryId;
+    if (!selectedCategoryId.HasValue)
+    {
+        var queryValue = ViewContext?.HttpContext?.Request?.Query?["categoryId"].ToString();
+        if (!string.IsNullOrWhiteSpace(queryValue) && int.TryParse(queryValue, out var parsedCategoryId))
+        {
+            selectedCategoryId = parsedCategoryId;
+        }
+    }
+    // END SECTION
     var filterId = "project-category-filter";
 }
 
