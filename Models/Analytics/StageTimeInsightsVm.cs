@@ -15,6 +15,8 @@ public sealed class StageTimeInsightsVm
     public IReadOnlyList<StageTimeBucketRowVm> Rows { get; init; } = Array.Empty<StageTimeBucketRowVm>();
 
     public bool HasData => Rows.Count > 0;
+
+    public int? SelectedCategoryId { get; init; }
 }
 
 public sealed class StageTimeBucketRowVm
