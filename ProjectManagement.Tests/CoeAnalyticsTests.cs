@@ -92,9 +92,14 @@ public sealed class CoeAnalyticsTests : IDisposable
 
         Assert.Equal(3, result.TotalCoeProjects);
 
-        var stageBucket = Assert.Single(result.ByStage);
-        Assert.Equal(StageCodes.DisplayNameOf(StageCodes.IPA), stageBucket.StageName);
+        Assert.Equal(StageCodes.All.Length, result.ByStage.Count);
+        var stageBucket = Assert.Single(result.ByStage
+            .Where(bucket => bucket.StageName == StageCodes.DisplayNameOf(StageCodes.IPA)));
         Assert.Equal(1, stageBucket.ProjectCount);
+        Assert.All(result.ByStage.Where(bucket => bucket.StageName != StageCodes.DisplayNameOf(StageCodes.IPA)), bucket =>
+        {
+            Assert.Equal(0, bucket.ProjectCount);
+        });
 
         var aiBucket = Assert.Single(result.SubcategoriesByLifecycle.Where(s => s.Name == "AI Innovation"));
         Assert.Equal(1, aiBucket.Ongoing);
