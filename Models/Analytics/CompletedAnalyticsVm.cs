@@ -14,7 +14,7 @@ public sealed record AnalyticsCategoryCountPoint(string Name, int Count);
 
 public sealed record AnalyticsStageCountPoint(string Name, int Count);
 
-public sealed record AnalyticsStageDurationPoint(string Name, double Days);
+public sealed record AnalyticsStageDurationPoint(string StageCode, string Name, double Days);
 
 public sealed record CompletedPerYearPoint(int Year, int Count);
 // END SECTION
