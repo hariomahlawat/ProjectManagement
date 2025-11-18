@@ -42,5 +42,7 @@ public interface IProjectAnalyticsService
         int take,
         CancellationToken cancellationToken = default);
 
-    Task<StageTimeInsightsVm> GetStageTimeInsightsAsync(CancellationToken cancellationToken = default);
+    Task<StageTimeInsightsVm> GetStageTimeInsightsAsync(
+        int? categoryId = null,
+        CancellationToken cancellationToken = default);
 }

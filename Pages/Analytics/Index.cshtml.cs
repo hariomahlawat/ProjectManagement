@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
@@ -49,6 +50,9 @@ namespace ProjectManagement.Pages.Analytics
         };
 
         public AnalyticsTab ActiveTab { get; private set; } = AnalyticsTab.Completed;
+
+        [BindProperty(SupportsGet = true)]
+        public int? CategoryId { get; set; }
 
         public IReadOnlyList<CategoryOption> Categories { get; private set; } = Array.Empty<CategoryOption>();
         public IReadOnlyList<TechnicalCategoryOption> TechnicalCategories { get; private set; } = Array.Empty<TechnicalCategoryOption>();
@@ -100,7 +104,7 @@ namespace ProjectManagement.Pages.Analytics
                     break;
 
                 case AnalyticsTab.Insights:
-                    Insights = await _projectAnalyticsService.GetStageTimeInsightsAsync(cancellationToken);
+                    Insights = await _projectAnalyticsService.GetStageTimeInsightsAsync(CategoryId, cancellationToken);
                     break;
             }
             // END SECTION

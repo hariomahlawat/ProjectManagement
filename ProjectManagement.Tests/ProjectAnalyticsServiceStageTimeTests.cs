@@ -98,4 +98,93 @@ public class ProjectAnalyticsServiceStageTimeTests
         Assert.Equal(5, belowRow.MedianDays);
         Assert.Equal(1, belowRow.ProjectCount);
     }
+
+    [Fact]
+    public async Task GetStageTimeInsightsAsync_AppliesCategoryFilter()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var designCategoryId = 10;
+        var digitalCategoryId = 20;
+
+        var designProject = new Project
+        {
+            Id = 10,
+            Name = "Design",
+            CreatedByUserId = "system",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            CategoryId = designCategoryId
+        };
+
+        var digitalProject = new Project
+        {
+            Id = 11,
+            Name = "Digital",
+            CreatedByUserId = "system",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            CategoryId = digitalCategoryId
+        };
+
+        db.Projects.AddRange(designProject, digitalProject);
+
+        db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                Id = 100,
+                ProjectId = designProject.Id,
+                Project = designProject,
+                StageCode = StageCodes.FS,
+                SortOrder = 1,
+                ActualStart = new DateOnly(2024, 4, 1),
+                CompletedOn = new DateOnly(2024, 4, 11)
+            },
+            new ProjectStage
+            {
+                Id = 101,
+                ProjectId = digitalProject.Id,
+                Project = digitalProject,
+                StageCode = StageCodes.FS,
+                SortOrder = 1,
+                ActualStart = new DateOnly(2024, 5, 1),
+                CompletedOn = new DateOnly(2024, 5, 4)
+            });
+
+        db.ProjectAonFacts.Add(new ProjectAonFact
+        {
+            ProjectId = designProject.Id,
+            AonCost = 20_000_000m,
+            CreatedByUserId = "seed",
+            CreatedOnUtc = DateTime.UtcNow
+        });
+
+        db.ProjectPncFacts.Add(new ProjectPncFact
+        {
+            ProjectId = digitalProject.Id,
+            PncCost = 5_000_000m,
+            CreatedByUserId = "seed",
+            CreatedOnUtc = DateTime.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
+        var service = new ProjectAnalyticsService(db, clock, new ProjectCategoryHierarchyService(db));
+
+        var result = await service.GetStageTimeInsightsAsync(designCategoryId);
+
+        var fsRows = result.Rows.Where(r => r.StageKey == StageCodes.FS).ToList();
+        Assert.NotEmpty(fsRows);
+
+        var aboveRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.AboveOrEqualOneCrore);
+        Assert.Equal(1, aboveRow.ProjectCount);
+
+        var belowRow = fsRows.Single(r => r.Bucket == StageTimeBucketKeys.BelowOneCrore);
+        Assert.Equal(0, belowRow.ProjectCount);
+
+        Assert.Equal(designCategoryId, result.SelectedCategoryId);
+    }
 }

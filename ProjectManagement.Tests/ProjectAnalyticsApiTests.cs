@@ -198,9 +198,12 @@ public class ProjectAnalyticsApiTests
             return Task.FromResult(new TopOverdueProjectsResult(Array.Empty<TopOverdueProject>()));
         }
 
-        public Task<StageTimeInsightsVm> GetStageTimeInsightsAsync(CancellationToken cancellationToken = default)
+        public Task<StageTimeInsightsVm> GetStageTimeInsightsAsync(int? categoryId = null, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(new StageTimeInsightsVm());
+            return Task.FromResult(new StageTimeInsightsVm
+            {
+                SelectedCategoryId = categoryId
+            });
         }
     }
 }

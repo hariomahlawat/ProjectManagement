@@ -509,8 +509,29 @@ function initCoeAnalytics() {
 }
 // END SECTION
 
+// SECTION: Analytics form helpers
+function enableAutoSubmitFilters() {
+  const elements = document.querySelectorAll('[data-auto-submit="change"]');
+  elements.forEach((element) => {
+    element.addEventListener('change', () => {
+      const form = element.closest('form');
+      if (form?.requestSubmit) {
+        form.requestSubmit();
+        return;
+      }
+
+      if (form) {
+        form.submit();
+      }
+    });
+  });
+}
+// END SECTION
+
 // SECTION: Project management insights initialiser
 function initStageTimeInsights() {
+  enableAutoSubmitFilters();
+
   const canvas = document.getElementById('stage-time-by-cost-chart');
   if (!canvas || !window.Chart) {
     return;

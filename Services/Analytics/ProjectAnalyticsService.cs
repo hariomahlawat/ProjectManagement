@@ -299,16 +299,25 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         return new TopOverdueProjectsResult(ordered);
     }
 
-    public async Task<StageTimeInsightsVm> GetStageTimeInsightsAsync(CancellationToken cancellationToken = default)
+    public async Task<StageTimeInsightsVm> GetStageTimeInsightsAsync(
+        int? categoryId = null,
+        CancellationToken cancellationToken = default)
     {
-        var stageRows = await _db.ProjectStages
+        var stageQuery = _db.ProjectStages
             .AsNoTracking()
             .Where(s => s.Project != null
                 && !s.Project.IsDeleted
                 && !s.Project.IsArchived
                 && (s.Project.LifecycleStatus == ProjectLifecycleStatus.Active
                     || s.Project.LifecycleStatus == ProjectLifecycleStatus.Completed))
-            .Where(s => s.ActualStart.HasValue && s.CompletedOn.HasValue)
+            .Where(s => s.ActualStart.HasValue && s.CompletedOn.HasValue);
+
+        if (categoryId.HasValue)
+        {
+            stageQuery = stageQuery.Where(s => s.Project != null && s.Project.CategoryId == categoryId.Value);
+        }
+
+        var stageRows = await stageQuery
             .Select(s => new StageTimeSpanRow(
                 s.ProjectId,
                 s.StageCode,
@@ -391,7 +400,8 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
 
         return new StageTimeInsightsVm
         {
-            Rows = rows
+            Rows = rows,
+            SelectedCategoryId = categoryId
         };
     }
 
