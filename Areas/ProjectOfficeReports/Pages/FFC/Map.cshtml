@@ -14,8 +14,8 @@
         <div>
             <h1 class="h4 mb-1">FFC – World map</h1>
             <p class="pm-page-subtitle">
-                Countries shaded by the number of <strong>completed, linked projects</strong>.
-                'Installed', 'Delivered (not installed)' and 'Planned' totals are shown per country.
+                Countries shaded by total <strong>project units</strong> (Installed / Delivered / Planned).
+                Drill into each country to see how many units are installed, delivered, or still planned.
             </p>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -59,7 +59,7 @@
             <div id="ffc-map"
                  class="ffc-map"
                  role="img"
-                 aria-label="World map showing FFC completed linked project counts"
+                 aria-label="World map showing FFC project unit counts"
                  data-data-url="@Url.Page("./Map", pageHandler: "Data")"
                  data-geo-url="@Url.Content("~/ffc/maps/world_india_view.geojson")"
                  data-ffc-index-url-base="@Url.Page("./Index")"></div>
@@ -78,7 +78,7 @@
         <aside class="ffc-map-sidebar" id="ffc-map-sidebar" aria-label="Map controls">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <h2 class="h6 mb-3">Total completed linked projects</h2>
+                    <h2 class="h6 mb-3">Total project units</h2>
                     <div id="legendRamp" class="legend-ramp ffc-legend-ramp" aria-hidden="true"></div>
                     <ul id="legendLabels" class="legend-labels ffc-legend-labels list-unstyled small mb-0"></ul>
                 </div>

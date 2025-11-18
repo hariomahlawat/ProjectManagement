@@ -51,42 +51,6 @@
 </div>
 
 <hr />
-<h6 class="mb-2">Delivery</h6>
-<div class="form-check">
-    <input class="form-check-input" asp-for="Input.DeliveryYes" />
-    <label class="form-check-label" asp-for="Input.DeliveryYes">Yes</label>
-</div>
-<div class="row g-3">
-    <div class="col-md-6">
-        <label asp-for="Input.DeliveryDate" class="form-label">Date (optional)</label>
-        <input asp-for="Input.DeliveryDate" type="date" class="form-control" />
-        <span asp-validation-for="Input.DeliveryDate" class="text-danger"></span>
-    </div>
-    <div class="col-md-6">
-        <label asp-for="Input.DeliveryRemarks" class="form-label">Remarks</label>
-        <input asp-for="Input.DeliveryRemarks" class="form-control" />
-    </div>
-</div>
-
-<hr />
-<h6 class="mb-2">Installation</h6>
-<div class="form-check">
-    <input class="form-check-input" asp-for="Input.InstallationYes" />
-    <label class="form-check-label" asp-for="Input.InstallationYes">Yes</label>
-</div>
-<div class="row g-3">
-    <div class="col-md-6">
-        <label asp-for="Input.InstallationDate" class="form-label">Date (optional)</label>
-        <input asp-for="Input.InstallationDate" type="date" class="form-control" />
-        <span asp-validation-for="Input.InstallationDate" class="text-danger"></span>
-    </div>
-    <div class="col-md-6">
-        <label asp-for="Input.InstallationRemarks" class="form-label">Remarks</label>
-        <input asp-for="Input.InstallationRemarks" class="form-control" />
-    </div>
-</div>
-
-<hr />
 <div>
     <label asp-for="Input.OverallRemarks" class="form-label">Overall Remarks</label>
     <textarea asp-for="Input.OverallRemarks" rows="3" class="form-control"></textarea>

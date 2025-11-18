@@ -6,7 +6,7 @@
 @using ProjectManagement.Models
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel
 @{
-    ViewData["Title"] = "FFC simulators";
+    ViewData["Title"] = "FFC deliveries";
 
 }
 
@@ -14,8 +14,8 @@
     <section class="ffc-index">
         <div class="pm-page-header">
             <div>
-                <h1 class="h4 mb-1">FFC simulators</h1>
-                <p class="pm-page-subtitle">Review the status of FFC simulator deliveries by country and year.</p>
+                <h1 class="h4 mb-1">FFC deliveries</h1>
+                <p class="pm-page-subtitle">Review project-level delivery and installation progress by country and year.</p>
             </div>
             <div class="d-flex flex-wrap align-items-center gap-2">
                 @if (Model.CanManageRecords)
@@ -58,7 +58,7 @@
         }
         else
         {
-            <section class="ffc-record-grid" aria-label="FFC simulator records">
+            <section class="ffc-record-grid" aria-label="FFC delivery records">
                 @foreach (var record in Model.Records)
                 {
                     <div class="ffc-record-grid__item">
@@ -73,6 +73,7 @@
                         @await Html.PartialAsync("_FfcRecordCard", new ProjectManagement.Areas.ProjectOfficeReports.ViewModels.FfcRecordCardViewModel
                         {
                             Record = record,
+                            ProjectSummary = ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcProjectBucketHelper.Summarize(record.Projects),
                             CanManageRecords = Model.CanManageRecords,
                             PageNumber = Model.PageNumber,
                             Query = Model.Query,

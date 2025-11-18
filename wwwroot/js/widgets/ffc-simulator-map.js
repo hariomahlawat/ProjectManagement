@@ -201,13 +201,13 @@
             '<div class="ffc-simulator-map__tooltip-title">' + name + '</div>',
             '<dl class="ffc-simulator-map__tooltip-metrics">',
             '  <div class="ffc-simulator-map__tooltip-row">',
-            '    <dt>Installed</dt><dd>' + stats.installed + '</dd>',
+            '    <dt>Installed units</dt><dd>' + stats.installed + '</dd>',
             '  </div>',
             '  <div class="ffc-simulator-map__tooltip-row">',
-            '    <dt>Delivered</dt><dd>' + stats.delivered + '</dd>',
+            '    <dt>Delivered units</dt><dd>' + stats.delivered + '</dd>',
             '  </div>',
             '  <div class="ffc-simulator-map__tooltip-row">',
-            '    <dt>Total</dt><dd>' + stats.total + '</dd>',
+            '    <dt>Total units</dt><dd>' + stats.total + '</dd>',
             '  </div>',
             '</dl>'
           ];

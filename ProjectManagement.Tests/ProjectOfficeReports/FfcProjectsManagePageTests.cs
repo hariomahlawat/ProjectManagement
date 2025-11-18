@@ -59,7 +59,12 @@ public sealed class FfcProjectsManagePageTests
         {
             Name = "Simulator Upgrade",
             Remarks = "Initial scope",
-            LinkedProjectId = linkedProject.Id
+            LinkedProjectId = linkedProject.Id,
+            Quantity = 3,
+            IsDelivered = true,
+            DeliveredOn = new DateOnly(2024, 1, 15),
+            IsInstalled = true,
+            InstalledOn = new DateOnly(2024, 2, 20)
         };
 
         var result = await page.OnPostCreateAsync(record.Id);
@@ -71,6 +76,11 @@ public sealed class FfcProjectsManagePageTests
         Assert.Equal(record.Id, created.FfcRecordId);
         Assert.Equal("Simulator Upgrade", created.Name);
         Assert.Equal(linkedProject.Id, created.LinkedProjectId);
+        Assert.Equal(3, created.Quantity);
+        Assert.True(created.IsDelivered);
+        Assert.Equal(new DateOnly(2024, 1, 15), created.DeliveredOn);
+        Assert.True(created.IsInstalled);
+        Assert.Equal(new DateOnly(2024, 2, 20), created.InstalledOn);
         Assert.Equal("Project added.", page.TempData["StatusMessage"]);
     }
 
@@ -96,7 +106,12 @@ public sealed class FfcProjectsManagePageTests
             Id = entity.Id,
             Name = "Initial",
             Remarks = "Updated remarks",
-            LinkedProjectId = null
+            LinkedProjectId = null,
+            Quantity = 5,
+            IsDelivered = true,
+            DeliveredOn = new DateOnly(2024, 3, 1),
+            IsInstalled = false,
+            InstalledOn = null
         };
 
         var result = await page.OnPostUpdateAsync(record.Id);
@@ -107,7 +122,57 @@ public sealed class FfcProjectsManagePageTests
         var refreshed = await db.FfcProjects.AsNoTracking().SingleAsync();
         Assert.Equal("Updated remarks", refreshed.Remarks);
         Assert.Null(refreshed.LinkedProjectId);
+        Assert.Equal(5, refreshed.Quantity);
+        Assert.True(refreshed.IsDelivered);
+        Assert.Equal(new DateOnly(2024, 3, 1), refreshed.DeliveredOn);
+        Assert.False(refreshed.IsInstalled);
         Assert.Equal("Project updated.", page.TempData["StatusMessage"]);
+    }
+
+    [Fact]
+    public async Task OnPostCreateAsync_WithInvalidQuantity_ReturnsValidationError()
+    {
+        await using var db = CreateDbContext();
+        var (record, _) = await SeedRecordAsync(db);
+        var page = CreatePage(db);
+        ConfigurePageContext(page, CreateAdminPrincipal());
+
+        page.Input = new ManageModel.InputModel
+        {
+            Name = "Invalid",
+            Quantity = 0
+        };
+
+        var result = await page.OnPostCreateAsync(record.Id);
+
+        Assert.IsType<PageResult>(result);
+        Assert.False(page.ModelState.IsValid);
+        Assert.True(page.ModelState.ContainsKey("Quantity"));
+        Assert.Empty(await db.FfcProjects.ToListAsync());
+    }
+
+    [Fact]
+    public async Task OnPostCreateAsync_InstallationWithoutDelivery_ReturnsValidationError()
+    {
+        await using var db = CreateDbContext();
+        var (record, _) = await SeedRecordAsync(db);
+        var page = CreatePage(db);
+        ConfigurePageContext(page, CreateAdminPrincipal());
+
+        page.Input = new ManageModel.InputModel
+        {
+            Name = "Future install",
+            Quantity = 1,
+            IsInstalled = true,
+            InstalledOn = new DateOnly(2024, 4, 10)
+        };
+
+        var result = await page.OnPostCreateAsync(record.Id);
+
+        Assert.IsType<PageResult>(result);
+        Assert.False(page.ModelState.IsValid);
+        Assert.Contains(page.ModelState, kvp => kvp.Key.Contains(nameof(ManageModel.InputModel.IsInstalled)));
+        Assert.Empty(await db.FfcProjects.ToListAsync());
     }
 
     [Fact]

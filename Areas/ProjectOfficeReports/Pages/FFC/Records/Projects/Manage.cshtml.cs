@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Security.Claims;
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -35,6 +37,14 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         public string Name { get; set; } = string.Empty;
         public string? Remarks { get; set; }
         public int? LinkedProjectId { get; set; }
+        [Range(1, int.MaxValue, ErrorMessage = "Quantity must be at least 1.")]
+        public int Quantity { get; set; } = 1;
+        public bool IsDelivered { get; set; }
+        [DataType(DataType.Date)]
+        public DateOnly? DeliveredOn { get; set; }
+        public bool IsInstalled { get; set; }
+        [DataType(DataType.Date)]
+        public DateOnly? InstalledOn { get; set; }
     }
 
     public async Task<IActionResult> OnGetAsync(long recordId, long? id)
@@ -59,7 +69,12 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
                 Id = project.Id,
                 Name = project.Name,
                 Remarks = project.Remarks,
-                LinkedProjectId = project.LinkedProjectId
+                LinkedProjectId = project.LinkedProjectId,
+                Quantity = project.Quantity,
+                IsDelivered = project.IsDelivered,
+                DeliveredOn = project.DeliveredOn,
+                IsInstalled = project.IsInstalled,
+                InstalledOn = project.InstalledOn
             };
         }
         else
@@ -84,6 +99,8 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         if (string.IsNullOrWhiteSpace(Input.Name))
             ModelState.AddModelError(nameof(Input.Name), "Name is required.");
 
+        ValidateProjectInput();
+
         if (!ModelState.IsValid)
         {
             await LoadPageDataAsync(recordId, Input.LinkedProjectId);
@@ -95,7 +112,12 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
             FfcRecordId = recordId,
             Name = Input.Name.Trim(),
             Remarks = string.IsNullOrWhiteSpace(Input.Remarks) ? null : Input.Remarks.Trim(),
-            LinkedProjectId = Input.LinkedProjectId
+            LinkedProjectId = Input.LinkedProjectId,
+            Quantity = Input.Quantity,
+            IsDelivered = Input.IsDelivered,
+            DeliveredOn = Input.DeliveredOn,
+            IsInstalled = Input.IsInstalled,
+            InstalledOn = Input.InstalledOn
         };
         _db.FfcProjects.Add(entity);
         await _db.SaveChangesAsync();
@@ -121,6 +143,8 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         if (string.IsNullOrWhiteSpace(Input.Name))
             ModelState.AddModelError(nameof(Input.Name), "Name is required.");
 
+        ValidateProjectInput();
+
         if (!ModelState.IsValid)
         {
             await LoadPageDataAsync(recordId, Input.LinkedProjectId);
@@ -135,6 +159,11 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         p.Name = Input.Name.Trim();
         p.Remarks = string.IsNullOrWhiteSpace(Input.Remarks) ? null : Input.Remarks.Trim();
         p.LinkedProjectId = Input.LinkedProjectId;
+        p.Quantity = Input.Quantity;
+        p.IsDelivered = Input.IsDelivered;
+        p.DeliveredOn = Input.DeliveredOn;
+        p.IsInstalled = Input.IsInstalled;
+        p.InstalledOn = Input.InstalledOn;
 
         await _db.SaveChangesAsync();
 
@@ -191,13 +220,20 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
 
     private static Dictionary<string, string?> BuildProjectData(FfcProject project, string prefix)
     {
+        static string? FormatDate(DateOnly? value) => value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
         return new Dictionary<string, string?>
         {
             [$"{prefix}.ProjectId"] = project.Id.ToString(),
             [$"{prefix}.RecordId"] = project.FfcRecordId.ToString(),
             [$"{prefix}.Name"] = project.Name,
             [$"{prefix}.Remarks"] = project.Remarks,
-            [$"{prefix}.LinkedProjectId"] = project.LinkedProjectId?.ToString()
+            [$"{prefix}.LinkedProjectId"] = project.LinkedProjectId?.ToString(),
+            [$"{prefix}.Quantity"] = project.Quantity.ToString(CultureInfo.InvariantCulture),
+            [$"{prefix}.IsDelivered"] = project.IsDelivered.ToString(),
+            [$"{prefix}.DeliveredOn"] = FormatDate(project.DeliveredOn),
+            [$"{prefix}.IsInstalled"] = project.IsInstalled.ToString(),
+            [$"{prefix}.InstalledOn"] = FormatDate(project.InstalledOn)
         };
     }
 
@@ -234,5 +270,33 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
             .ToListAsync();
 
         LinkedProjects = new SelectList(linkedProjects, "Id", "Name", selectedLinkedProjectId);
+    }
+
+    private void ValidateProjectInput()
+    {
+        if (Input.Quantity < 1)
+        {
+            ModelState.AddModelError(nameof(Input.Quantity), "Quantity must be at least 1.");
+        }
+
+        if (Input.DeliveredOn.HasValue && !Input.IsDelivered)
+        {
+            ModelState.AddModelError(nameof(Input.DeliveredOn), "Delivery date requires delivery to be marked as done.");
+        }
+
+        if (Input.InstalledOn.HasValue && !Input.IsInstalled)
+        {
+            ModelState.AddModelError(nameof(Input.InstalledOn), "Installation date requires installation to be marked as done.");
+        }
+
+        if (Input.IsInstalled && !Input.IsDelivered)
+        {
+            ModelState.AddModelError(nameof(Input.IsInstalled), "Installation requires delivery to be marked as complete.");
+        }
+
+        if (Input.DeliveredOn.HasValue && Input.InstalledOn.HasValue && Input.InstalledOn.Value < Input.DeliveredOn.Value)
+        {
+            ModelState.AddModelError(nameof(Input.InstalledOn), "Installation date cannot be earlier than delivery date.");
+        }
     }
 }

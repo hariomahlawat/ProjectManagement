@@ -7,6 +7,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.ViewModels;
 public sealed class FfcRecordCardViewModel
 {
     public required FfcRecord Record { get; init; }
+    public required FfcProjectQuantitySummary ProjectSummary { get; init; }
     public required bool CanManageRecords { get; init; }
     public int PageNumber { get; init; }
     public string CurrentSort { get; init; } = "year";

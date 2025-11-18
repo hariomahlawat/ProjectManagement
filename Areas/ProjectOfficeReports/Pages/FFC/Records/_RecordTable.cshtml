@@ -28,8 +28,7 @@
             </th>
             <th>IPA</th>
             <th>GSL</th>
-            <th>Delivery</th>
-            <th>Installation</th>
+            <th>Project units<br /><small class="text-muted">Installed / Delivered / Planned</small></th>
             <th>Remarks</th>
             <th class="text-end">Actions</th>
         </tr>
@@ -38,13 +37,14 @@
     @if (!Model.Records.Any())
     {
         <tr>
-            <td colspan="8" class="text-center text-muted">No records found.</td>
+            <td colspan="7" class="text-center text-muted">No records found.</td>
         </tr>
     }
     else
     {
         foreach (var record in Model.Records)
         {
+            var summary = Model.GetProjectSummary(record);
             <tr>
                 <td>@record.Year</td>
                 <td>@record.Country?.Name</td>
@@ -65,19 +65,14 @@
                     }
                 </td>
                 <td class="text-center">
-                    @{ var deliveryDate = FormatMilestoneDate(record.DeliveryDate); }
-                    <span class="badge @GetMilestoneBadgeClass(record.DeliveryYes)">@GetMilestoneBadgeText(record.DeliveryYes)</span>
-                    @if (!string.IsNullOrWhiteSpace(deliveryDate))
+                    @if (summary.Total == 0)
                     {
-                        <small class="text-muted d-block">@deliveryDate</small>
+                        <span class="text-muted">—</span>
                     }
-                </td>
-                <td class="text-center">
-                    @{ var installationDate = FormatMilestoneDate(record.InstallationDate); }
-                    <span class="badge @GetMilestoneBadgeClass(record.InstallationYes)">@GetMilestoneBadgeText(record.InstallationYes)</span>
-                    @if (!string.IsNullOrWhiteSpace(installationDate))
+                    else
                     {
-                        <small class="text-muted d-block">@installationDate</small>
+                        <div class="fw-semibold">@summary.Installed / @summary.DeliveredNotInstalled / @summary.Planned</div>
+                        <small class="text-muted">Total: @summary.Total</small>
                     }
                 </td>
                 <td class="text-break" style="max-width:220px;">

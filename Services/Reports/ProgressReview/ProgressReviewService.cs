@@ -756,12 +756,17 @@ public sealed class ProgressReviewService : IProgressReviewService
                 record.GslYes,
                 record.GslDate,
                 record.GslRemarks,
-                record.DeliveryYes,
-                record.DeliveryDate,
-                record.DeliveryRemarks,
-                record.InstallationYes,
-                record.InstallationDate,
-                record.InstallationRemarks
+                Projects = record.Projects
+                    .Select(project => new
+                    {
+                        project.Name,
+                        project.Quantity,
+                        project.IsDelivered,
+                        project.DeliveredOn,
+                        project.IsInstalled,
+                        project.InstalledOn
+                    })
+                    .ToList()
             })
             .ToListAsync(cancellationToken);
 
@@ -770,8 +775,42 @@ public sealed class ProgressReviewService : IProgressReviewService
         {
             AppendFfcRow(rows, entry.Id, entry.Country, "IPA cleared", entry.IpaDate, entry.IpaRemarks, entry.IpaYes, from, to);
             AppendFfcRow(rows, entry.Id, entry.Country, "GSL", entry.GslDate, entry.GslRemarks, entry.GslYes, from, to);
-            AppendFfcRow(rows, entry.Id, entry.Country, "Delivery", entry.DeliveryDate, entry.DeliveryRemarks, entry.DeliveryYes, from, to);
-            AppendFfcRow(rows, entry.Id, entry.Country, "Installation", entry.InstallationDate, entry.InstallationRemarks, entry.InstallationYes, from, to);
+
+            foreach (var project in entry.Projects)
+            {
+                var units = project.Quantity <= 0 ? 1 : project.Quantity;
+                var projectLabel = string.IsNullOrWhiteSpace(project.Name)
+                    ? $"Project units ({units})"
+                    : $"{project.Name} ({units} unit{(units == 1 ? string.Empty : "s")})";
+
+                if (project.IsDelivered && project.DeliveredOn.HasValue)
+                {
+                    AppendFfcRow(
+                        rows,
+                        entry.Id,
+                        entry.Country,
+                        $"Delivery – {projectLabel}",
+                        project.DeliveredOn,
+                        remarks: null,
+                        isYes: true,
+                        from,
+                        to);
+                }
+
+                if (project.IsInstalled && project.InstalledOn.HasValue)
+                {
+                    AppendFfcRow(
+                        rows,
+                        entry.Id,
+                        entry.Country,
+                        $"Installation – {projectLabel}",
+                        project.InstalledOn,
+                        remarks: null,
+                        isYes: true,
+                        from,
+                        to);
+                }
+            }
         }
 
         return new FfcSectionVm(rows

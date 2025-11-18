@@ -234,8 +234,8 @@ public abstract class FfcRecordListPageModel : PageModel
     {
         queryable = ApplyMilestoneFilter(queryable, IpaStatus, record => record.IpaYes);
         queryable = ApplyMilestoneFilter(queryable, GslStatus, record => record.GslYes);
-        queryable = ApplyMilestoneFilter(queryable, DeliveryStatus, record => record.DeliveryYes);
-        queryable = ApplyMilestoneFilter(queryable, InstallationStatus, record => record.InstallationYes);
+        queryable = ApplyMilestoneFilter(queryable, DeliveryStatus, record => record.Projects.Any(project => project.IsDelivered));
+        queryable = ApplyMilestoneFilter(queryable, InstallationStatus, record => record.Projects.Any(project => project.IsInstalled));
         return queryable;
     }
 

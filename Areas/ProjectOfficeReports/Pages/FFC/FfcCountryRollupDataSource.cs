@@ -4,11 +4,12 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
-using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 
+// SECTION: DTO contract
 public sealed record FfcCountryRollupDto(
     long CountryId,
     string Iso3,
@@ -19,40 +20,32 @@ public sealed record FfcCountryRollupDto(
     int Total
 );
 
+// SECTION: Data source helpers
 internal static class FfcCountryRollupDataSource
 {
+    // SECTION: Aggregation entry point
     public static async Task<IReadOnlyList<FfcCountryRollupDto>> LoadAsync(
         ApplicationDbContext db,
         CancellationToken cancellationToken)
     {
-        var linkedProjects = await db.FfcProjects
+        var projects = await db.FfcProjects
             .AsNoTracking()
-            .Where(project => project.LinkedProjectId != null)
-            .Where(project =>
-                !project.Record.IsDeleted &&
-                project.Record.Country.IsActive &&
-                project.LinkedProject != null &&
-                !project.LinkedProject.IsDeleted &&
-                project.LinkedProject.LifecycleStatus == ProjectLifecycleStatus.Completed)
-            .Select(project => new
-            {
-                ProjectId = project.LinkedProjectId!.Value,
-                project.Record.CountryId,
-                CountryIso3 = project.Record.Country.IsoCode,
-                CountryName = project.Record.Country.Name,
-                project.Record.InstallationYes,
-                project.Record.DeliveryYes
-            })
-            .Distinct()
+            .Include(project => project.Record)
+                .ThenInclude(record => record.Country)
+            .Where(project => !project.Record.IsDeleted && project.Record.Country.IsActive)
             .ToListAsync(cancellationToken);
 
-        var aggregates = linkedProjects
-            .GroupBy(item => new { item.CountryId, item.CountryIso3, item.CountryName })
+        var aggregates = projects
+            .Where(project => project.Record.Country is not null)
+            .GroupBy(project => new
+            {
+                project.Record.CountryId,
+                CountryIso3 = project.Record.Country!.IsoCode,
+                CountryName = project.Record.Country!.Name
+            })
             .Select(group =>
             {
-                var installed = group.Count(record => record.InstallationYes);
-                var delivered = group.Count(record => !record.InstallationYes && record.DeliveryYes);
-                var planned = group.Count(record => !record.InstallationYes && !record.DeliveryYes);
+                var summary = FfcProjectBucketHelper.Summarize(group);
                 var iso = (group.Key.CountryIso3 ?? string.Empty).ToUpperInvariant();
                 var name = group.Key.CountryName ?? string.Empty;
 
@@ -60,10 +53,10 @@ internal static class FfcCountryRollupDataSource
                     group.Key.CountryId,
                     iso,
                     name,
-                    installed,
-                    delivered,
-                    planned,
-                    installed + delivered + planned);
+                    summary.Installed,
+                    summary.DeliveredNotInstalled,
+                    summary.Planned,
+                    summary.Total);
             })
             .OrderByDescending(row => row.Total)
             .ThenBy(row => row.Name, StringComparer.OrdinalIgnoreCase)

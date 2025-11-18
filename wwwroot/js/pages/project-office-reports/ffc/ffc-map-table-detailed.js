@@ -22,23 +22,24 @@
       throw new Error('Failed to load detailed data');
     }
 
-    /** @type {{countryIso3:string,countryName:string,projectName:string,isLinked:boolean,bucket:string,latestStage:string,externalRemark:string}[]} */
+    /** @type {{countryIso3:string,countryName:string,projectName:string,isLinked:boolean,quantity:number,bucket:string,latestStage:string,externalRemark:string}[]} */
     const rows = await response.json();
     return rows;
   }
 
   function render(rows) {
     if (!Array.isArray(rows) || rows.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-muted">No projects found.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-muted">No projects found.</td></tr>';
       return;
     }
 
-    tbody.innerHTML = rows.map((row) => `
+        tbody.innerHTML = rows.map((row) => `
       <tr>
         <td>${esc(row.countryName)}</td>
         <td><code>${esc((row.countryIso3 || '').toUpperCase())}</code></td>
         <td>${esc(row.projectName)}</td>
         <td>${row.isLinked ? 'Yes' : 'No'}</td>
+        <td class="text-end">${row.quantity ?? 0}</td>
         <td>${esc(row.bucket)}</td>
         <td>${esc(row.latestStage)}</td>
         <td>${esc(row.externalRemark)}</td>
@@ -49,6 +50,6 @@
   load()
     .then(render)
     .catch(() => {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-danger">Failed to load detailed table.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-danger">Failed to load detailed table.</td></tr>';
     });
 })();
