@@ -662,7 +662,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         return lookup;
     }
 
-    private static Task<Dictionary<int, decimal?>> LoadLatestMoneyFactsAsync<TFact>(
+    private static async Task<Dictionary<int, decimal?>> LoadLatestMoneyFactsAsync<TFact>(
         IQueryable<TFact> query,
         Expression<Func<TFact, decimal?>> selector,
         CancellationToken cancellationToken)
@@ -670,8 +670,11 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
     {
         var projection = CreateMoneyFactProjection(selector);
 
-        return query
+        var facts = await query
             .Select(projection)
+            .ToListAsync(cancellationToken);
+
+        return facts
             .GroupBy(f => f.ProjectId)
             .Select(g => new
             {
@@ -681,7 +684,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                     .Select(f => f.Cost)
                     .FirstOrDefault()
             })
-            .ToDictionaryAsync(x => x.ProjectId, x => x.Cost, cancellationToken);
+            .ToDictionary(x => x.ProjectId, x => x.Cost);
     }
 
     // -------------------------------------------------------------------------
