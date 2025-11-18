@@ -18,6 +18,12 @@ namespace ProjectManagement.Services.Analytics;
 public sealed class ProjectAnalyticsService : IProjectAnalyticsService
 {
     private static readonly string[] StageOrder = StageCodes.All;
+    private static readonly string[] StageTimeBuckets =
+    {
+        StageTimeBucketKeys.BelowOneCrore,
+        StageTimeBucketKeys.AboveOrEqualOneCrore
+    };
+
     private const decimal OneCroreRupees = 10_000_000m;
 
     private readonly ApplicationDbContext _db;
@@ -389,16 +395,61 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                     OngoingProjectCount = ongoingProjects
                 };
             })
-            .OrderBy(row => row.StageOrder)
-            .ThenBy(row => row.StageName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(row => BucketSortOrder(row.Bucket))
-            .ThenBy(row => row.Bucket, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        rows = EnsureAllStageBuckets(rows);
 
         return new StageTimeInsightsVm
         {
             Rows = rows
         };
+    }
+
+    private static List<StageTimeBucketRowVm> EnsureAllStageBuckets(List<StageTimeBucketRowVm> rows)
+    {
+        var comparer = StringComparer.OrdinalIgnoreCase;
+
+        foreach (var stageCode in StageOrder)
+        {
+            var stageOrder = rows
+                .Where(row => comparer.Equals(row.StageKey, stageCode))
+                .Select(row => row.StageOrder)
+                .Cast<int?>()
+                .FirstOrDefault()
+                ?? Array.IndexOf(StageOrder, stageCode);
+
+            var stageName = StageCodes.DisplayNameOf(stageCode);
+
+            foreach (var bucket in StageTimeBuckets)
+            {
+                var exists = rows.Any(row => comparer.Equals(row.StageKey, stageCode)
+                    && comparer.Equals(row.Bucket, bucket));
+                if (exists)
+                {
+                    continue;
+                }
+
+                rows.Add(new StageTimeBucketRowVm
+                {
+                    StageKey = stageCode,
+                    StageName = stageName,
+                    StageOrder = stageOrder,
+                    Bucket = bucket,
+                    MedianDays = 0,
+                    AverageDays = 0,
+                    ProjectCount = 0,
+                    CompletedProjectCount = 0,
+                    OngoingProjectCount = 0
+                });
+            }
+        }
+
+        return rows
+            .OrderBy(row => row.StageOrder)
+            .ThenBy(row => row.StageName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(row => BucketSortOrder(row.Bucket))
+            .ThenBy(row => row.Bucket, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private async Task<List<ProjectHealthSnapshot>> LoadProjectsForHealthAsync(
