@@ -16,7 +16,7 @@
                 <header class="analytics-card__header">
                     <h2 class="analytics-card__title">Stage cycle time by Project Cost Band</h2>
                     <p class="analytics-card__meta">
-                        Median days spent in each completed stage, grouped by AoN cost bucket.
+                        Median days spent in each completed stage, grouped by the latest recorded procurement cost bucket.
                         Active stages from ongoing projects are excluded until those stages finish.
                     </p>
                 </header>
@@ -32,9 +32,9 @@
                     {
                         <div class="analytics-card__chart">
                             <canvas
-                                id="stage-time-by-aon-chart"
+                                id="stage-time-by-cost-chart"
                                 role="img"
-                                aria-label="Stage cycle time by AoN bucket"
+                                aria-label="Stage cycle time by project cost bucket"
                                 data-series='@Html.Raw(JsonSerializer.Serialize(Model.Rows, jsonOptions))'
                                 data-empty-message="Not enough finished stages yet to calculate cycle times."
                             ></canvas>
@@ -43,6 +43,7 @@
                         <p class="analytics-card__footnote">
                             Only stages with both actual start and completion dates are counted.
                             Stages from ongoing projects are only included once they complete.
+                            Cost buckets use the latest AoN, benchmark, PNC, L1, or IPA entry available per project.
                         </p>
                     }
                 </div>
