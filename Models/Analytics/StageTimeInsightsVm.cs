@@ -14,6 +14,8 @@ public sealed class StageTimeInsightsVm
 {
     public IReadOnlyList<StageTimeBucketRowVm> Rows { get; init; } = Array.Empty<StageTimeBucketRowVm>();
 
+    public IReadOnlyList<StageHotspotPointVm> StageHotspots { get; init; } = Array.Empty<StageHotspotPointVm>();
+
     public bool HasData => Rows.Count > 0;
 
     public int? SelectedCategoryId { get; init; }
@@ -33,5 +35,15 @@ public sealed class StageTimeBucketRowVm
     public int ProjectCount { get; init; }
     public int CompletedProjectCount { get; init; }
     public int OngoingProjectCount { get; init; }
+}
+
+public sealed class StageHotspotPointVm
+{
+    public string StageKey { get; init; } = string.Empty;
+    public string StageName { get; init; } = string.Empty;
+    public int StageOrder { get; init; }
+    public double MedianDays { get; init; }
+    public double AverageDays { get; init; }
+    public int ProjectCount { get; init; }
 }
 // END SECTION

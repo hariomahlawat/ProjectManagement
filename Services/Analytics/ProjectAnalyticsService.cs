@@ -404,11 +404,61 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
 
         rows = EnsureAllStageBuckets(rows);
 
+        var hotspots = BuildStageHotspots(spans);
+
         return new StageTimeInsightsVm
         {
             Rows = rows,
+            StageHotspots = hotspots,
             SelectedCategoryId = categoryId
         };
+    }
+
+    private static IReadOnlyList<StageHotspotPointVm> BuildStageHotspots(IReadOnlyCollection<StageTimeBucketSpan> spans)
+    {
+        if (spans.Count == 0)
+        {
+            return Array.Empty<StageHotspotPointVm>();
+        }
+
+        var points = spans
+            .GroupBy(span => new StageHotspotKey(span.StageKey, span.StageName, span.StageOrder))
+            .Select(group =>
+            {
+                var durations = group
+                    .Select(item => item.Days)
+                    .Where(value => value >= 0)
+                    .OrderBy(value => value)
+                    .ToArray();
+
+                if (durations.Length == 0)
+                {
+                    return null;
+                }
+
+                var projectCount = group
+                    .Select(item => item.ProjectId)
+                    .Distinct()
+                    .Count();
+
+                return new StageHotspotPointVm
+                {
+                    StageKey = group.Key.StageKey,
+                    StageName = group.Key.StageName,
+                    StageOrder = group.Key.StageOrder,
+                    MedianDays = CalculateMedian(durations),
+                    AverageDays = durations.Average(),
+                    ProjectCount = projectCount
+                };
+            })
+            .Where(point => point is not null)
+            .Select(point => point!)
+            .OrderByDescending(point => point.MedianDays)
+            .ThenBy(point => point.StageOrder)
+            .ThenBy(point => point.StageName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return points;
     }
 
     private static List<StageTimeBucketRowVm> EnsureAllStageBuckets(List<StageTimeBucketRowVm> rows)
@@ -815,6 +865,8 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         bool IsCompletedProject);
 
     private sealed record StageTimeBucketKey(string StageKey, string StageName, int StageOrder, string Bucket);
+
+    private sealed record StageHotspotKey(string StageKey, string StageName, int StageOrder);
 }
 
 public sealed record CategoryShareResult(IReadOnlyList<CategoryShareSlice> Slices, int Total);
