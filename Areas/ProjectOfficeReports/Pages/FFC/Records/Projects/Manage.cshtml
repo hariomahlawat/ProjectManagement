@@ -12,12 +12,12 @@
             <nav aria-label="Breadcrumb">
                 <ol class="breadcrumb mb-2 small">
                     <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                    <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/FFC/Index">FFC simulators</a></li>
+                    <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/FFC/Index">FFC deliveries</a></li>
                     <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/FFC/Records/Manage">Manage records</a></li>
                     <li class="breadcrumb-item active" aria-current="page">Projects</li>
                 </ol>
             </nav>
-            <p class="text-muted mb-0">Link simulator deliveries to projects and record any supporting remarks.</p>
+            <p class="text-muted mb-0">Track project-level quantities and milestones for this country-year record.</p>
         </div>
     </div>
 
@@ -30,7 +30,7 @@
                     <div class="pm-card-heading">
                         <div>
                             <h2 class="pm-card-title h5 mb-1">Linked projects</h2>
-                            <p class="pm-card-subtitle text-muted mb-0">Review existing links and keep simulator details in sync.</p>
+                            <p class="pm-card-subtitle text-muted mb-0">Review existing links and keep project unit details in sync.</p>
                         </div>
                     </div>
                 </div>
@@ -40,7 +40,10 @@
                             <thead>
                                 <tr>
                                     <th>Name</th>
+                                    <th class="text-end">Quantity</th>
                                     <th>Linked</th>
+                                    <th>Delivered</th>
+                                    <th>Installed</th>
                                     <th>Remarks</th>
                                     <th class="text-end">Actions</th>
                                 </tr>
@@ -49,7 +52,7 @@
                             @if (!Model.Items.Any())
                             {
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted py-4">No projects linked yet. Add one using the form to the right.</td>
+                                    <td colspan="7" class="text-center text-muted py-4">No projects linked yet. Add one using the form to the right.</td>
                                 </tr>
                             }
                             else
@@ -58,7 +61,26 @@
                                 {
                                     <tr>
                                         <td>@p.Name</td>
+                                        <td class="text-end">@p.Quantity</td>
                                         <td>@(p.LinkedProject?.Name ?? "— none —")</td>
+                                        <td>
+                                            <span class="badge rounded-pill @(p.IsDelivered || p.IsInstalled ? "text-bg-success" : "text-bg-secondary")">
+                                                @(p.IsDelivered || p.IsInstalled ? "Yes" : "No")
+                                            </span>
+                                            @if ((p.IsDelivered || p.IsInstalled) && (p.DeliveredOn ?? p.InstalledOn).HasValue)
+                                            {
+                                                <small class="text-muted d-block">@((p.DeliveredOn ?? p.InstalledOn)!.Value.ToString("dd MMM yyyy"))</small>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="badge rounded-pill @(p.IsInstalled ? "text-bg-success" : "text-bg-secondary")">
+                                                @(p.IsInstalled ? "Yes" : "No")
+                                            </span>
+                                            @if (p.IsInstalled && p.InstalledOn.HasValue)
+                                            {
+                                                <small class="text-muted d-block">@p.InstalledOn.Value.ToString("dd MMM yyyy")</small>
+                                            }
+                                        </td>
                                         <td>@p.Remarks</td>
                                         <td class="text-end">
                                             <authorize roles="Admin,HoD">
@@ -94,7 +116,7 @@
                         <div class="pm-card-heading">
                             <div>
                                 <h2 class="pm-card-title h5 mb-0">@(Model.Input.Id.HasValue ? "Edit project" : "Add project")</h2>
-                                <p class="pm-card-subtitle text-muted mb-0">Capture project details and link simulator deliveries.</p>
+                                <p class="pm-card-subtitle text-muted mb-0">Capture per-project quantity, delivery, and installation data.</p>
                             </div>
                         </div>
                     </div>
@@ -111,10 +133,35 @@
                                 <span asp-validation-for="Input.Name" class="text-danger"></span>
                             </div>
                             <div>
+                                <label asp-for="Input.Quantity" class="form-label">Quantity</label>
+                                <input asp-for="Input.Quantity" type="number" min="1" class="form-control" />
+                                <span asp-validation-for="Input.Quantity" class="text-danger"></span>
+                            </div>
+                            <div>
                                 <label asp-for="Input.LinkedProjectId" class="form-label">Link to Project (optional)</label>
                                 <select asp-for="Input.LinkedProjectId" class="form-select" asp-items="Model.LinkedProjects">
                                     <option value="">-- none --</option>
                                 </select>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" asp-for="Input.IsDelivered" />
+                                        <label class="form-check-label" asp-for="Input.IsDelivered">Delivered</label>
+                                    </div>
+                                    <label asp-for="Input.DeliveredOn" class="form-label">Delivered on (optional)</label>
+                                    <input asp-for="Input.DeliveredOn" type="date" class="form-control" />
+                                    <span asp-validation-for="Input.DeliveredOn" class="text-danger"></span>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" asp-for="Input.IsInstalled" />
+                                        <label class="form-check-label" asp-for="Input.IsInstalled">Installed</label>
+                                    </div>
+                                    <label asp-for="Input.InstalledOn" class="form-label">Installed on (optional)</label>
+                                    <input asp-for="Input.InstalledOn" type="date" class="form-control" />
+                                    <span asp-validation-for="Input.InstalledOn" class="text-danger"></span>
+                                </div>
                             </div>
                             <div>
                                 <label asp-for="Input.Remarks" class="form-label">Remarks</label>

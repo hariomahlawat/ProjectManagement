@@ -19,20 +19,20 @@
     <div class="pm-card-body">
         <div class="ffc-simulator-map-widget__header">
             <div>
-                <p class="ffc-simulator-map-widget__eyebrow text-uppercase mb-1">Simulators for Friendly Foreign Countries </p>
-                <h2 id="ffc-simulator-map-title" class="h5 mb-1">Installed & delivered footprint</h2>
+                <p class="ffc-simulator-map-widget__eyebrow text-uppercase mb-1">Friendly Foreign Countries</p>
+                <h2 id="ffc-simulator-map-title" class="h5 mb-1">Project unit footprint</h2>
             </div>
             <div class="ffc-simulator-map-widget__stats" aria-label="FFC delivery totals">
                 <div class="ffc-simulator-map-widget__stat">
-                    <span class="label">Installed</span>
+                    <span class="label">Installed units</span>
                     <strong>@Model.TotalInstalled</strong>
                 </div>
                 <div class="ffc-simulator-map-widget__stat">
-                    <span class="label">Delivered</span>
+                    <span class="label">Delivered units</span>
                     <strong>@Model.TotalDelivered</strong>
                 </div>
                 <div class="ffc-simulator-map-widget__stat">
-                    <span class="label">Total</span>
+                    <span class="label">Total units</span>
                     <strong>@Model.TotalProjects</strong>
                 </div>
             </div>
@@ -52,12 +52,12 @@
                 <div
                     class="ffc-simulator-map__canvas"
                     role="img"
-                    aria-label="World map highlighting African FFC simulator deliveries"
+                    aria-label="World map highlighting African FFC project units"
                 ></div>
                 <div class="ffc-simulator-map__status" data-map-status>Loading delivery footprint…</div>
             </div>
             @* SECTION: Below-map country chip strip *@
-            <div class="ffc-simulator-map__country-strip" aria-label="FFC simulator activity by country">
+            <div class="ffc-simulator-map__country-strip" aria-label="FFC project unit activity by country">
                 <div class="ffc-country-strip" role="list">
                     @for (var index = 0; index < topCountries.Count; index++)
                     {
@@ -89,7 +89,7 @@
         }
         else
         {
-            <p class="text-secondary small mb-0 mt-3">FFC simulator delivery data is not available right now.</p>
+            <p class="text-secondary small mb-0 mt-3">FFC delivery data is not available right now.</p>
         }
     </div>
 </section>

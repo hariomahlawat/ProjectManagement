@@ -38,8 +38,6 @@ public sealed class FfcRecordsManagePageTests
     [Theory]
     [InlineData(nameof(FfcRecordsManagePageTests.SetIpaMismatch), nameof(ManageModel.Input.IpaDate))]
     [InlineData(nameof(FfcRecordsManagePageTests.SetGslMismatch), nameof(ManageModel.Input.GslDate))]
-    [InlineData(nameof(FfcRecordsManagePageTests.SetDeliveryMismatch), nameof(ManageModel.Input.DeliveryDate))]
-    [InlineData(nameof(FfcRecordsManagePageTests.SetInstallationMismatch), nameof(ManageModel.Input.InstallationDate))]
     public async Task OnPostCreateAsync_WithFlagDateMismatch_AddsModelError(string setupMethod, string expectedKey)
     {
         await using var db = CreateDbContext();
@@ -80,11 +78,7 @@ public sealed class FfcRecordsManagePageTests
             IpaYes = true,
             IpaDate = new DateOnly(2025, 1, 10),
             GslYes = true,
-            GslDate = new DateOnly(2025, 2, 15),
-            DeliveryYes = true,
-            DeliveryDate = new DateOnly(2025, 3, 20),
-            InstallationYes = true,
-            InstallationDate = new DateOnly(2025, 4, 25)
+            GslDate = new DateOnly(2025, 2, 15)
         };
 
         var result = await page.OnPostCreateAsync();
@@ -233,18 +227,6 @@ public sealed class FfcRecordsManagePageTests
     {
         input.GslYes = false;
         input.GslDate = new DateOnly(2024, 2, 1);
-    }
-
-    private static void SetDeliveryMismatch(ManageModel.InputModel input)
-    {
-        input.DeliveryYes = false;
-        input.DeliveryDate = new DateOnly(2024, 3, 1);
-    }
-
-    private static void SetInstallationMismatch(ManageModel.InputModel input)
-    {
-        input.InstallationYes = false;
-        input.InstallationDate = new DateOnly(2024, 4, 1);
     }
 
     private static ManageModel CreatePage(ApplicationDbContext db)

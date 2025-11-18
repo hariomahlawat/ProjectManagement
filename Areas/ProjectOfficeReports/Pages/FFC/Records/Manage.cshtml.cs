@@ -24,6 +24,7 @@ public class ManageModel : FfcRecordListPageModel
     private readonly ILogger<ManageModel> _logger;
     private const string ConcurrencyReloadMessage =
         "The record was modified by another user. The latest values have been loaded; please review and try again.";
+    private readonly Dictionary<long, FfcProjectQuantitySummary> _projectSummaryCache = new();
 
     public bool CanManageRecords => User.IsInRole("Admin") || User.IsInRole("HoD");
     public SelectList CountrySelect { get; private set; } = default!;
@@ -54,14 +55,6 @@ public class ManageModel : FfcRecordListPageModel
         public bool GslYes { get; set; }
         [DataType(DataType.Date)] public DateOnly? GslDate { get; set; }
         public string? GslRemarks { get; set; }
-
-        public bool DeliveryYes { get; set; }
-        [DataType(DataType.Date)] public DateOnly? DeliveryDate { get; set; }
-        public string? DeliveryRemarks { get; set; }
-
-        public bool InstallationYes { get; set; }
-        [DataType(DataType.Date)] public DateOnly? InstallationDate { get; set; }
-        public string? InstallationRemarks { get; set; }
 
         public string? OverallRemarks { get; set; }
         public bool IsDeleted { get; set; }
@@ -166,6 +159,7 @@ public class ManageModel : FfcRecordListPageModel
     private async Task LoadPageAsync(long? keepEditId = null)
     {
         await LoadRecordsAsync();
+        _projectSummaryCache.Clear();
 
         var countries = await Db.FfcCountries
             .Where(c => c.IsActive)
@@ -205,12 +199,6 @@ public class ManageModel : FfcRecordListPageModel
         GslYes = r.GslYes,
         GslDate = r.GslDate,
         GslRemarks = r.GslRemarks,
-        DeliveryYes = r.DeliveryYes,
-        DeliveryDate = r.DeliveryDate,
-        DeliveryRemarks = r.DeliveryRemarks,
-        InstallationYes = r.InstallationYes,
-        InstallationDate = r.InstallationDate,
-        InstallationRemarks = r.InstallationRemarks,
         OverallRemarks = r.OverallRemarks,
         IsDeleted = r.IsDeleted,
         RowVersion = r.RowVersion.Length > 0 ? Convert.ToBase64String(r.RowVersion) : null
@@ -226,12 +214,6 @@ public class ManageModel : FfcRecordListPageModel
         e.GslYes = i.GslYes;
         e.GslDate = i.GslDate;
         e.GslRemarks = i.GslRemarks;
-        e.DeliveryYes = i.DeliveryYes;
-        e.DeliveryDate = i.DeliveryDate;
-        e.DeliveryRemarks = i.DeliveryRemarks;
-        e.InstallationYes = i.InstallationYes;
-        e.InstallationDate = i.InstallationDate;
-        e.InstallationRemarks = i.InstallationRemarks;
         e.OverallRemarks = i.OverallRemarks;
         e.IsDeleted = i.IsDeleted;
         return e;
@@ -327,10 +309,6 @@ public class ManageModel : FfcRecordListPageModel
             ModelState.AddModelError(nameof(Input) + "." + nameof(Input.IpaDate), "IPA date requires IPA = Yes.");
         if (i.GslDate.HasValue && !i.GslYes)
             ModelState.AddModelError(nameof(Input) + "." + nameof(Input.GslDate), "GSL date requires GSL = Yes.");
-        if (i.DeliveryDate.HasValue && !i.DeliveryYes)
-            ModelState.AddModelError(nameof(Input) + "." + nameof(Input.DeliveryDate), "Delivery date requires Delivery = Yes.");
-        if (i.InstallationDate.HasValue && !i.InstallationYes)
-            ModelState.AddModelError(nameof(Input) + "." + nameof(Input.InstallationDate), "Installation date requires Installation = Yes.");
     }
 
     public async Task<IActionResult> OnGetEditAsync(long id)
@@ -379,5 +357,22 @@ public class ManageModel : FfcRecordListPageModel
             [$"{prefix}.OverallRemarks"] = record.OverallRemarks,
             [$"{prefix}.IsDeleted"] = record.IsDeleted.ToString()
         };
+    }
+
+    public FfcProjectQuantitySummary GetProjectSummary(FfcRecord record)
+    {
+        if (record is null)
+        {
+            return new FfcProjectQuantitySummary(0, 0, 0);
+        }
+
+        if (_projectSummaryCache.TryGetValue(record.Id, out var summary))
+        {
+            return summary;
+        }
+
+        summary = FfcProjectBucketHelper.Summarize(record.Projects);
+        _projectSummaryCache[record.Id] = summary;
+        return summary;
     }
 }

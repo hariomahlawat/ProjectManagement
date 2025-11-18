@@ -10,15 +10,17 @@
     var milestoneStatuses = new[]
     {
         new { Title = "IPA", IsComplete = record.IpaYes, Date = record.IpaDate, Remarks = record.IpaRemarks },
-        new { Title = "GSL", IsComplete = record.GslYes, Date = record.GslDate, Remarks = record.GslRemarks },
-        new { Title = "Delivery", IsComplete = record.DeliveryYes, Date = record.DeliveryDate, Remarks = record.DeliveryRemarks },
-        new { Title = "Installation", IsComplete = record.InstallationYes, Date = record.InstallationDate, Remarks = record.InstallationRemarks }
+        new { Title = "GSL", IsComplete = record.GslYes, Date = record.GslDate, Remarks = record.GslRemarks }
     };
 
     var projects = record.Projects
         .OrderBy(p => p.Name)
         .ToList();
     var projectCount = projects.Count;
+    var projectUnits = Model.ProjectSummary.Total;
+    var deliveredUnits = Model.ProjectSummary.DeliveredNotInstalled + Model.ProjectSummary.Installed;
+    var installedUnits = Model.ProjectSummary.Installed;
+    var plannedUnits = Model.ProjectSummary.Planned;
     var countryName = record.Country?.Name ?? "Unassigned";
 
     var attachments = record.Attachments
@@ -70,6 +72,10 @@
                 <span class="ffc-record-card__summary-value ffc-record-card__summary-value--projects">@projectCount</span>
                 <span class="ffc-record-card__summary-label">Project@(projectCount == 1 ? string.Empty : "s")</span>
             </div>
+            <div class="ffc-record-card__summary-item ffc-record-card__summary-item--units">
+                <span class="ffc-record-card__summary-value ffc-record-card__summary-value--projects">@projectUnits</span>
+                <span class="ffc-record-card__summary-label">Project unit@(projectUnits == 1 ? string.Empty : "s")</span>
+            </div>
             <div class="ffc-record-card__summary-item ffc-record-card__summary-item--attachments">
                 <span class="ffc-record-card__summary-value ffc-record-card__summary-value--attachments">@attachmentCount</span>
                 <span class="ffc-record-card__summary-label">Attachment@(attachmentCount == 1 ? string.Empty : "s")</span>
@@ -100,6 +106,50 @@
                         }
                     </article>
                 }
+            </div>
+        </section>
+
+        <section class="ffc-record-card__section" aria-label="Delivery and installation summary">
+            <h3 class="ffc-record-card__section-title">Delivery &amp; installation</h3>
+            <div class="ffc-record-card__statuses">
+                @{
+                    var deliveryBadge = projectUnits > 0
+                        ? deliveredUnits >= projectUnits ? "text-bg-success" : deliveredUnits > 0 ? "text-bg-warning" : "text-bg-secondary"
+                        : "text-bg-secondary";
+                    var installBadge = projectUnits > 0
+                        ? installedUnits >= projectUnits ? "text-bg-success" : installedUnits > 0 ? "text-bg-warning" : "text-bg-secondary"
+                        : "text-bg-secondary";
+                }
+                <article class="ffc-record-card__status">
+                    <header class="ffc-record-card__status-header">
+                        <span class="ffc-record-card__status-title">Delivery</span>
+                        <span class="badge rounded-pill @deliveryBadge">@((deliveredUnits >= projectUnits && projectUnits > 0) ? "Complete" : deliveredUnits > 0 ? "Partial" : "Pending")</span>
+                    </header>
+                    @if (projectUnits > 0)
+                    {
+                        <div class="ffc-record-card__status-date">@deliveredUnits of @projectUnits unit@(projectUnits == 1 ? string.Empty : "s") delivered</div>
+                        <p class="ffc-record-card__status-remarks mb-0">Planned: @plannedUnits unit@(plannedUnits == 1 ? string.Empty : "s")</p>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">No project units captured yet.</p>
+                    }
+                </article>
+                <article class="ffc-record-card__status">
+                    <header class="ffc-record-card__status-header">
+                        <span class="ffc-record-card__status-title">Installation</span>
+                        <span class="badge rounded-pill @installBadge">@((installedUnits >= projectUnits && projectUnits > 0) ? "Complete" : installedUnits > 0 ? "Partial" : "Pending")</span>
+                    </header>
+                    @if (projectUnits > 0)
+                    {
+                        <div class="ffc-record-card__status-date">@installedUnits of @projectUnits unit@(projectUnits == 1 ? string.Empty : "s") installed</div>
+                        <p class="ffc-record-card__status-remarks mb-0">Awaiting install: @(projectUnits - installedUnits)</p>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">No project units captured yet.</p>
+                    }
+                </article>
             </div>
         </section>
 
@@ -163,6 +213,7 @@
                                 {
                                     <div class="text-muted small">@stageSummary</div>
                                 }
+                                <div class="text-muted small">Units: @Math.Max(1, project.Quantity)</div>
                                 <div class="text-muted small">
                                     @if (!string.IsNullOrWhiteSpace(externalRemark))
                                     {
@@ -184,6 +235,7 @@
                     {
                         <div class="mb-2">
                             <div class="fw-semibold">@project.Name</div>
+                            <div class="text-muted small">Units: @Math.Max(1, project.Quantity)</div>
                             @if (!string.IsNullOrWhiteSpace(project.Remarks))
                             {
                                 <div class="text-muted small">@project.Remarks</div>

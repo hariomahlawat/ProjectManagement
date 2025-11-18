@@ -759,6 +759,9 @@ namespace ProjectManagement.Data
                 entity.ToTable("FfcProjects");
                 entity.Property(x => x.Name).HasMaxLength(256).IsRequired();
                 entity.Property(x => x.Remarks).HasColumnType("text");
+                entity.Property(x => x.Quantity).HasDefaultValue(1);
+                entity.Property(x => x.IsDelivered).HasDefaultValue(false);
+                entity.Property(x => x.IsInstalled).HasDefaultValue(false);
                 entity.Property(x => x.CreatedAt).HasDefaultValueSql("now() at time zone 'utc'");
                 entity.Property(x => x.UpdatedAt).HasDefaultValueSql("now() at time zone 'utc'");
 
@@ -782,6 +785,17 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.LinkedProjectId)
                     .OnDelete(DeleteBehavior.SetNull);
+
+                entity.ToTable(tb =>
+                {
+                    tb.HasCheckConstraint("CK_FfcProjects_Quantity_Positive", "\"Quantity\" > 0");
+                    tb.HasCheckConstraint(
+                        "CK_FfcProjects_DeliveredOn_RequiresFlag",
+                        "\"DeliveredOn\" IS NULL OR \"IsDelivered\" = TRUE");
+                    tb.HasCheckConstraint(
+                        "CK_FfcProjects_InstalledOn_RequiresFlag",
+                        "\"InstalledOn\" IS NULL OR \"IsInstalled\" = TRUE");
+                });
             });
 
             builder.Entity<FfcAttachment>(entity =>

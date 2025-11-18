@@ -1,19 +1,19 @@
-# FFC Simulators Module Architecture
+# FFC Delivery Module Architecture
 
 ## 1. Purpose and High-Level Responsibilities
-The FFC simulators area under `Areas/ProjectOfficeReports/FFC` lets authorised staff track simulator delivery milestones, supporting dashboards, drill-down views, and exported reports. Key responsibilities include:
+The FFC delivery area under `Areas/ProjectOfficeReports/FFC` lets authorised staff track project-unit delivery milestones, supporting dashboards, drill-down views, and exported reports. Key responsibilities include:
 
-- Persisting per-country/year simulator records, linked projects, and attachments.
+- Persisting per-country/year records, linked projects (with per-project quantities), and attachments.
 - Surfacing milestone progress cards, filters, and search integration.
 - Managing master data (countries, records, projects, files) under Admin/HoD roles.
-- Publishing geospatial rollups for dashboards, maps, and tabular exports.
-- Feeding other modules (global search, progress review reports, dashboards) with the same data set.
+- Publishing geospatial rollups for dashboards, maps, and tabular exports based on project-unit counts.
+- Feeding other modules (global search, progress review reports, dashboards) with the same project-level data set.
 
 ## 2. Data Model & Persistence Layer
 ### 2.1 Entities
 - **`FfcCountry`** - ISO-3166-based country with `IsActive` flag, timestamps, and navigation to records.
-- **`FfcRecord`** - Primary milestone record keyed by `CountryId`+`Year`, holding IPA/GSL/Delivery/Installation booleans, dates, remarks, overall remarks, soft-delete flag, and relationships to `FfcCountry`, `FfcProject`, and `FfcAttachment`. Row versioning supports concurrency control.
-- **`FfcProject`** - Per-record linked project stub capturing `Name`, optional remarks, and optional link to a core `Project` entity for lifecycle rollups.
+- **`FfcRecord`** - Primary milestone record keyed by `CountryId`+`Year`, holding IPA/GSL milestones, overall remarks, soft-delete flag, and relationships to `FfcCountry`, `FfcProject`, and `FfcAttachment`. Delivery/installation progress is derived from child `FfcProject` rows, while legacy record-level flags remain only for historical backfill.
+- **`FfcProject`** - Per-record linked project stub capturing `Name`, optional remarks, optional link to a core `Project` entity for lifecycle rollups, `Quantity`, and per-project delivery/installation flags & dates.
 - **`FfcAttachment`** - Metadata for PDF/photo uploads (path, MIME, checksum, caption, uploader) grouped by record, with `FfcAttachmentKind` describing the type.
 
 ### 2.2 Entity Framework Configuration
@@ -24,7 +24,7 @@ The FFC simulators area under `Areas/ProjectOfficeReports/FFC` lets authorised s
 
 ## 3. Security, Navigation & Routing
 - Razor Pages under `/ProjectOfficeReports/FFC` are decorated with `[Authorize]`, with admin-specific pages (`Records/Manage`, `Countries/Manage`) restricted to the `Admin` or `HoD` roles, while listing pages require any authenticated user.
-- Left-hand navigation includes a "FFC simulators" item, wiring the `/ProjectOfficeReports/FFC/Index` page into the broader reports menu so eligible users can reach the module easily.
+- Left-hand navigation includes a "FFC deliveries" item, wiring the `/ProjectOfficeReports/FFC/Index` page into the broader reports menu so eligible users can reach the module easily.
 - `UrlBuilder` centralises deep links (record edit, attachment view) so services like global search can point users to the correct page with `editId` pre-selected.
 
 ## 4. Backend Features by Area
@@ -40,10 +40,10 @@ The FFC simulators area under `Areas/ProjectOfficeReports/FFC` lets authorised s
 The Razor partial `_FfcRecordCard` renders each record's milestones, remarks, top three linked projects (with lifecycle badges and stage summaries), attachment counts, and management buttons. It also creates a modal gallery for attachments with inline preview links.
 
 ### 4.3 Record CRUD (Admin)
-The admin `Records/Manage` page combines the list view with a form sidebar. It binds an `InputModel` covering all milestone fields, tracks `RowVersion` for concurrency, and validates business rules (active country, year range, milestone date dependencies). Create/update handlers map between form and entity, save changes, and emit audit logs via `IAuditService`. Concurrency conflicts reload the latest data and display a friendly error. Listing filters persist via `BuildRoute` so returning to the same filter context is seamless.
+The admin `Records/Manage` page combines the list view with a form sidebar. It binds an `InputModel` covering country/year, IPA, and GSL fields (delivery/installation are now summarised from child projects), tracks `RowVersion` for concurrency, and validates business rules (active country, year range, milestone date dependencies). Create/update handlers map between form and entity, save changes, and emit audit logs via `IAuditService`. Concurrency conflicts reload the latest data and display a friendly error. Listing filters persist via `BuildRoute` so returning to the same filter context is seamless.
 
 ### 4.4 Linked Projects Management
-`Records/Projects/Manage` provides CRUD over the child `FfcProject` rows. It enforces Admin/HoD roles, ensures the parent record exists, validates required names, optionally links to an existing project, and writes audit logs for create/update/delete. The page also preloads selectable projects and displays the current list (including linked `Project` metadata).
+`Records/Projects/Manage` provides CRUD over the child `FfcProject` rows. It enforces Admin/HoD roles, ensures the parent record exists, validates required names and quantities, captures delivery/installation flags with optional dates, optionally links to an existing project, and writes audit logs for create/update/delete. The page also preloads selectable projects and displays the current list (including linked `Project` metadata and per-project quantities).
 
 ### 4.5 Attachment Management & Delivery
 `Records/Attachments/Upload` lists attachments, enforces Admin/HoD roles, and uses `IFfcAttachmentStorage` to persist validated uploads. Successful PDF uploads also flow into the document repository (`IDocRepoIngestionService`) for cross-module search. Users can delete attachments, which removes both the DB row and the file via the storage service. The `/FFC/Attachments/View` page streams files inline with HTTP range support while ensuring the parent record still exists and isn't deleted.
@@ -52,11 +52,11 @@ The admin `Records/Manage` page combines the list view with a form sidebar. It b
 `Countries/Manage` is a paged, sortable list of `FfcCountry` records with quick search and toggle actions. Only Admin/HoD can change activation state, and changes write audit logs. Sorting supports name/ISO/status columns, and filter state persists through helper route builders.
 
 ### 4.7 Map, Tables, and Board Endpoints
-All geographic views rely on `FfcCountryRollupDataSource`, which aggregates completed linked projects per active country by grouping linked `FfcProject` rows whose underlying `Project` has reached `Completed` status. It classifies each row as Installed/Delivered/Planned based on delivery/install flags and returns ISO3-coded DTOs.
+All geographic views rely on `FfcCountryRollupDataSource`, which aggregates per-project quantities per active country by grouping `FfcProject` rows (linked or stand-alone). It classifies each row as Installed/Delivered/Planned based on per-project flags, multiplies counts by `Quantity`, and returns ISO3-coded DTOs that represent total project units rather than project counts.
 
 - `/FFC/Map` serves the Leaflet map and exposes a JSON handler returning the rollup DTOs.
 - `/FFC/MapTable` returns the same rollup JSON for sortable tables and can export the summary to Excel, writing column headers and totals per row.
-- `/FFC/MapTableDetailed` expands to project-level rows by combining `FfcProject`, linked `Project` snapshots (names + stage history), and latest external remarks. It buckets rows (Installed/Delivered/Planned/Proposed), truncates remarks for display, and exposes both JSON and XLSX export handlers.
+- `/FFC/MapTableDetailed` expands to project-level rows by combining `FfcProject`, linked `Project` snapshots (names + stage history), per-project quantities, and latest external remarks. It buckets rows (Installed/Delivered/Planned), truncates remarks for display, and exposes both JSON and XLSX export handlers.
 - `/FFC/MapBoard` is a fullscreen board built entirely from the rollup JSON.
 
 ### 4.8 Dashboard Widget Integration

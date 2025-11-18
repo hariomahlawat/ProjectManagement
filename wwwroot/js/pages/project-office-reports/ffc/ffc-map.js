@@ -106,10 +106,10 @@
 
     var rowsHtml = '' +
       '<div class="ffc-tip__rows">' +
-      '<div class="ffc-tip__row"><span>Installed</span><strong>' + formatNumber(installed) + '</strong></div>' +
+      '<div class="ffc-tip__row"><span>Installed units</span><strong>' + formatNumber(installed) + '</strong></div>' +
       '<div class="ffc-tip__row"><span>Delivered (not installed)</span><strong>' + formatNumber(delivered) + '</strong></div>' +
-      '<div class="ffc-tip__row"><span>Planned</span><strong>' + formatNumber(planned) + '</strong></div>' +
-      '<div class="ffc-tip__row ffc-tip__row--muted"><span>Total</span><strong>' + formatNumber(total) + '</strong></div>' +
+      '<div class="ffc-tip__row"><span>Planned units</span><strong>' + formatNumber(planned) + '</strong></div>' +
+      '<div class="ffc-tip__row ffc-tip__row--muted"><span>Total units</span><strong>' + formatNumber(total) + '</strong></div>' +
       '</div>';
 
     var drillHref = total > 0 ? buildDrillUrl(cfg, datum) : '';

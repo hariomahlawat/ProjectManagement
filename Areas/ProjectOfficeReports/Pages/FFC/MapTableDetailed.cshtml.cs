@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
@@ -33,6 +34,7 @@ public class MapTableDetailedModel : PageModel
         string CountryName,
         string ProjectName,
         bool IsLinked,
+        int Quantity,
         string Bucket,
         string LatestStage,
         string ExternalRemark
@@ -55,9 +57,10 @@ public class MapTableDetailedModel : PageModel
         worksheet.Cell(1, 2).Value = "ISO3";
         worksheet.Cell(1, 3).Value = "Project";
         worksheet.Cell(1, 4).Value = "Linked?";
-        worksheet.Cell(1, 5).Value = "Bucket";
-        worksheet.Cell(1, 6).Value = "Latest stage";
-        worksheet.Cell(1, 7).Value = "External remark";
+        worksheet.Cell(1, 5).Value = "Quantity";
+        worksheet.Cell(1, 6).Value = "Bucket";
+        worksheet.Cell(1, 7).Value = "Latest stage";
+        worksheet.Cell(1, 8).Value = "External remark";
 
         var rowIndex = 2;
         foreach (var row in rows)
@@ -66,9 +69,10 @@ public class MapTableDetailedModel : PageModel
             worksheet.Cell(rowIndex, 2).Value = row.CountryIso3;
             worksheet.Cell(rowIndex, 3).Value = row.ProjectName;
             worksheet.Cell(rowIndex, 4).Value = row.IsLinked ? "Yes" : "No";
-            worksheet.Cell(rowIndex, 5).Value = row.Bucket;
-            worksheet.Cell(rowIndex, 6).Value = row.LatestStage;
-            worksheet.Cell(rowIndex, 7).Value = row.ExternalRemark;
+            worksheet.Cell(rowIndex, 5).Value = row.Quantity;
+            worksheet.Cell(rowIndex, 6).Value = row.Bucket;
+            worksheet.Cell(rowIndex, 7).Value = row.LatestStage;
+            worksheet.Cell(rowIndex, 8).Value = row.ExternalRemark;
             rowIndex++;
         }
 
@@ -89,59 +93,24 @@ public class MapTableDetailedModel : PageModel
         var projects = await _db.FfcProjects
             .AsNoTracking()
             .Where(project => !project.Record.IsDeleted && project.Record.Country.IsActive)
-            .Where(project => project.LinkedProjectId == null
-                || (project.LinkedProject != null
-                    && !project.LinkedProject.IsDeleted
-                    && project.LinkedProject.LifecycleStatus == ProjectLifecycleStatus.Completed))
             .Select(project => new
             {
                 project.Id,
                 project.Name,
                 project.Remarks,
+                project.Quantity,
+                project.IsDelivered,
+                project.IsInstalled,
                 project.LinkedProjectId,
+                LinkedProjectName = project.LinkedProject != null ? project.LinkedProject.Name : null,
                 CountryIso3 = project.Record.Country.IsoCode,
-                CountryName = project.Record.Country.Name,
-                project.Record.InstallationYes,
-                project.Record.DeliveryYes
+                CountryName = project.Record.Country.Name
             })
             .ToListAsync(cancellationToken);
 
-        var linkedCandidates = projects
+        var linkedProjectIds = projects
             .Where(row => row.LinkedProjectId.HasValue)
-            .Select(row => new
-            {
-                ProjectId = row.LinkedProjectId!.Value,
-                CountryIso3 = row.CountryIso3 ?? string.Empty,
-                CountryName = row.CountryName ?? string.Empty,
-                row.InstallationYes,
-                row.DeliveryYes,
-                ProposedName = row.Name ?? string.Empty
-            })
-            .ToList();
-
-        var linkedGroups = linkedCandidates
-            .GroupBy(row => row.ProjectId)
-            .Select(group =>
-            {
-                var selected = group
-                    .OrderBy(row => BucketPriority(row.InstallationYes, row.DeliveryYes))
-                    .ThenBy(row => row.CountryName, StringComparer.OrdinalIgnoreCase)
-                    .First();
-
-                return new
-                {
-                    ProjectId = group.Key,
-                    selected.CountryIso3,
-                    selected.CountryName,
-                    selected.InstallationYes,
-                    selected.DeliveryYes,
-                    selected.ProposedName
-                };
-            })
-            .ToList();
-
-        var linkedProjectIds = linkedGroups
-            .Select(row => row.ProjectId)
+            .Select(row => row.LinkedProjectId!.Value)
             .Distinct()
             .ToArray();
 
@@ -188,60 +157,61 @@ public class MapTableDetailedModel : PageModel
             ? new Dictionary<int, string>()
             : await LoadRemarkSummariesAsync(linkedProjectIds, cancellationToken);
 
-        var linkedRows = linkedGroups
+        var rows = projects
             .Select(row =>
             {
+                var (bucket, quantity) = FfcProjectBucketHelper.Classify(row.IsInstalled, row.IsDelivered, row.Quantity);
+                var bucketLabel = FfcProjectBucketHelper.GetBucketLabel(bucket);
                 var iso = (row.CountryIso3 ?? string.Empty).ToUpperInvariant();
                 var name = row.CountryName ?? string.Empty;
-                var projectName = projectNameMap.TryGetValue(row.ProjectId, out var pn) && !string.IsNullOrWhiteSpace(pn)
-                    ? pn
-                    : row.ProposedName;
-                var stageSummary = stageSummaryMap.TryGetValue(row.ProjectId, out var summary) ? summary ?? string.Empty : string.Empty;
-                var remark = remarkMap.TryGetValue(row.ProjectId, out var text) ? text : string.Empty;
+                var isLinked = row.LinkedProjectId.HasValue;
+                var projectName = row.Name ?? string.Empty;
+                var stageSummary = string.Empty;
+                var remark = string.Empty;
+
+                if (isLinked)
+                {
+                    var linkedId = row.LinkedProjectId!.Value;
+                    if (projectNameMap.TryGetValue(linkedId, out var linkedName) && !string.IsNullOrWhiteSpace(linkedName))
+                    {
+                        projectName = linkedName;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(row.LinkedProjectName))
+                    {
+                        projectName = row.LinkedProjectName!;
+                    }
+
+                    stageSummary = stageSummaryMap.TryGetValue(linkedId, out var summary) ? summary ?? string.Empty : string.Empty;
+                    remark = remarkMap.TryGetValue(linkedId, out var text) ? text : string.Empty;
+                }
+                else
+                {
+                    remark = FormatRemark(row.Remarks);
+                }
 
                 return new RowDto(
                     iso,
                     name,
                     projectName,
-                    true,
-                    GetBucketLabel(row.InstallationYes, row.DeliveryYes),
+                    isLinked,
+                    quantity,
+                    bucketLabel,
                     stageSummary,
                     remark);
             })
-            .ToList();
-
-        var proposedRows = projects
-            .Where(row => !row.LinkedProjectId.HasValue)
-            .Select(row => new RowDto(
-                (row.CountryIso3 ?? string.Empty).ToUpperInvariant(),
-                row.CountryName ?? string.Empty,
-                row.Name ?? string.Empty,
-                false,
-                "Proposed Projects",
-                string.Empty,
-                FormatRemark(row.Remarks)))
-            .ToList();
-
-        return linkedRows
-            .Concat(proposedRows)
             .OrderBy(row => BucketOrder(row.Bucket))
             .ThenBy(row => row.CountryName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        return rows;
     }
-
-    private static int BucketPriority(bool installed, bool delivered)
-        => installed ? 0 : delivered ? 1 : 2;
-
-    private static string GetBucketLabel(bool installed, bool delivered)
-        => installed ? "Installed" : delivered ? "Delivered (not installed)" : "Planned";
 
     private static int BucketOrder(string bucket) => bucket switch
     {
         "Installed" => 0,
         "Delivered (not installed)" => 1,
         "Planned" => 2,
-        "Proposed Projects" => 3,
         _ => 4
     };
 
