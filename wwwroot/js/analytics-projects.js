@@ -29,28 +29,81 @@ const MAX_STAGE_AXIS_LABEL_LENGTH = 16;
 // SECTION: Label helpers
 // Wrap long axis labels onto multiple lines so they do not overlap
 function wrapLabel(label, maxLineLength = 16) {
-  if (!label) return '';
-  const text = String(label);
-  const words = text.split(' ');
+  if (!label) {
+    return '';
+  }
+
+  const text = String(label).trim();
+  if (!text) {
+    return '';
+  }
+
+  const words = tokenizeLabel(text, maxLineLength);
   const lines = [];
   let current = '';
 
-  for (const word of words) {
-    const test = current ? current + ' ' + word : word;
-    if (test.length > maxLineLength && current) {
+  const pushCurrentLine = () => {
+    if (current) {
       lines.push(current);
-      current = word;
-    } else {
-      current = test;
+      current = '';
     }
-  }
+  };
 
-  if (current) {
-    lines.push(current);
+  words.forEach((word) => {
+    const segments = splitLabelSegment(word, maxLineLength);
+
+    segments.forEach((segment, index) => {
+      const candidate = current ? `${current} ${segment}` : segment;
+      if (candidate.length > maxLineLength && current) {
+        pushCurrentLine();
+        current = segment;
+      } else {
+        current = candidate;
+      }
+
+      const hasMoreSegments = index < segments.length - 1;
+      if (hasMoreSegments) {
+        pushCurrentLine();
+      }
+    });
+  });
+
+  pushCurrentLine();
+
+  if (!lines.length) {
+    return text;
   }
 
   // Chart.js supports either a string or an array of strings.
   return lines.length > 1 ? lines : lines[0];
+}
+
+function tokenizeLabel(text, maxLineLength) {
+  return text
+    .replace(/([-/])/g, '$1 ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((token) => token.trim())
+    .flatMap((token) => splitLabelSegment(token, maxLineLength));
+}
+
+function splitLabelSegment(segment, maxLineLength) {
+  if (!segment) {
+    return [];
+  }
+
+  if (segment.length <= maxLineLength) {
+    return [segment];
+  }
+
+  const parts = [];
+  let start = 0;
+  while (start < segment.length) {
+    parts.push(segment.slice(start, start + maxLineLength));
+    start += maxLineLength;
+  }
+
+  return parts;
 }
 // END SECTION
 
