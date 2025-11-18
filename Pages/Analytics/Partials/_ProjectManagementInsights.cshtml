@@ -42,11 +42,21 @@
                                     class="form-select form-select-sm"
                                     data-auto-submit="change"
                                 >
-                                    <option value="" @if (!selectedCategoryId.HasValue) { <text>selected</text> }>All</option>
+                                    <option
+                                        value=""
+                                        selected="@(!selectedCategoryId.HasValue ? "selected" : null)"
+                                    >
+                                        All
+                                    </option>
                                     @foreach (var category in categories)
                                     {
                                         var isSelected = selectedCategoryId.HasValue && selectedCategoryId.Value == category.Id;
-                                        <option value="@category.Id" @if (isSelected) { <text>selected</text> }>@category.Name</option>
+                                        <option
+                                            value="@category.Id"
+                                            selected="@(isSelected ? "selected" : null)"
+                                        >
+                                            @category.Name
+                                        </option>
                                     }
                                 </select>
                             </div>
