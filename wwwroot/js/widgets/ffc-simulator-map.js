@@ -54,11 +54,13 @@
     var installed = valueOrZero(country, 'installed');
     var delivered = valueOrZero(country, 'delivered');
     var planned = valueOrZero(country, 'planned');
-    var total = installed + delivered;
+    var completed = installed + delivered;
+    var total = completed + planned;
     return {
       installed: installed,
       delivered: delivered,
       planned: planned,
+      completed: completed,
       total: total,
       displayCount: delivered > 0 ? delivered : installed
     };
@@ -201,16 +203,26 @@
             '<div class="ffc-simulator-map__tooltip-title">' + name + '</div>',
             '<dl class="ffc-simulator-map__tooltip-metrics">',
             '  <div class="ffc-simulator-map__tooltip-row">',
+            '    <dt>Completed units</dt><dd>' + stats.completed + '</dd>',
+            '  </div>',
+            '  <div class="ffc-simulator-map__tooltip-row">',
             '    <dt>Installed units</dt><dd>' + stats.installed + '</dd>',
             '  </div>',
             '  <div class="ffc-simulator-map__tooltip-row">',
             '    <dt>Delivered units</dt><dd>' + stats.delivered + '</dd>',
-            '  </div>',
-            '  <div class="ffc-simulator-map__tooltip-row">',
-            '    <dt>Total units</dt><dd>' + stats.total + '</dd>',
-            '  </div>',
-            '</dl>'
+            '  </div>'
           ];
+          if (stats.planned > 0) {
+            rows.push(
+              '  <div class="ffc-simulator-map__tooltip-row">',
+              '    <dt>Planned units</dt><dd>' + stats.planned + '</dd>',
+              '  </div>',
+              '  <div class="ffc-simulator-map__tooltip-row">',
+              '    <dt>All units</dt><dd>' + stats.total + '</dd>',
+              '  </div>'
+            );
+          }
+          rows.push('</dl>');
           tooltip.innerHTML = rows.join('');
         }
 

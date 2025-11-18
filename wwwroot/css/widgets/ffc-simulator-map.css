@@ -38,6 +38,17 @@
   color: #475569;
 }
 
+.ffc-simulator-map-widget__stat-note {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 0.1rem;
+}
+
+.ffc-simulator-map-widget__stat--emphasis strong {
+  color: #5b21b6;
+}
+
 .ffc-simulator-map-widget__stat strong {
   display: block;
   font-size: 1.4rem;
@@ -278,6 +289,12 @@
 
 .ffc-country-chip__total strong {
   font-weight: 800;
+}
+
+.ffc-country-chip__planned {
+  color: #6b7280;
+  font-weight: 600;
+  margin-left: 0.15rem;
 }
 
 .ffc-country-chip--more {

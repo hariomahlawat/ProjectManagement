@@ -11,7 +11,11 @@ public sealed class FfcSimulatorMapVm
 
     public int TotalDelivered { get; init; }
 
-    public int TotalProjects { get; init; }
+    public int TotalPlanned { get; init; }
+
+    public int TotalCompleted => TotalInstalled + TotalDelivered;
+
+    public int TotalUnits => TotalCompleted + TotalPlanned;
 
     public bool HasData => Countries.Count > 0;
 }

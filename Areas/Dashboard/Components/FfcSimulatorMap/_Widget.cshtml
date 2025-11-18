@@ -31,9 +31,13 @@
                     <span class="label">Delivered units</span>
                     <strong>@Model.TotalDelivered</strong>
                 </div>
-                <div class="ffc-simulator-map-widget__stat">
-                    <span class="label">Total units</span>
-                    <strong>@Model.TotalProjects</strong>
+                <div class="ffc-simulator-map-widget__stat ffc-simulator-map-widget__stat--emphasis">
+                    <span class="label">Completed units</span>
+                    <strong>@Model.TotalCompleted</strong>
+                    @if (Model.TotalPlanned > 0)
+                    {
+                        <span class="ffc-simulator-map-widget__stat-note">@Model.TotalPlanned planned units</span>
+                    }
                 </div>
             </div>
             <a href="@fullMapUrl" class="btn btn-outline-primary btn-sm">View full map</a>
@@ -74,7 +78,14 @@
                             role="listitem"
                         >
                             <span class="ffc-country-chip__name">@country.Name</span>
-                            <span class="ffc-country-chip__total">(<strong>@country.Total</strong>)</span>
+                            <span class="ffc-country-chip__total">
+                                (<strong>@country.Completed</strong> completed
+                                @if (country.Planned > 0)
+                                {
+                                    <span class="ffc-country-chip__planned">+@country.Planned planned</span>
+                                }
+                                )
+                            </span>
                         </button>
                     }
                     @if (remainingCount > 0)
