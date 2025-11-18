@@ -145,28 +145,46 @@
     });
   }
 
-  function attachZoomControls(map, layer) {
+  // -----------------------------------------------------------------------------
+  // Zoom helpers
+  // -----------------------------------------------------------------------------
+  function focusMap(map, target, worldBounds) {
+    if (!map) {
+      return;
+    }
+
+    var padding = target === 'world' ? [20, 20] : [10, 10];
+    if (target === 'southasia') {
+      map.fitBounds([[0, 55], [35, 100]], { padding: padding });
+      return;
+    }
+
+    if (target === 'africa') {
+      map.fitBounds([[-35, -20], [38, 55]], { padding: padding });
+      return;
+    }
+
+    if (worldBounds) {
+      map.fitBounds(worldBounds, { padding: [20, 20] });
+      return;
+    }
+  }
+
+  function attachZoomControls(map, layer, precomputedWorldBounds) {
     var buttons = document.querySelectorAll('[data-zoom]');
     if (!buttons || buttons.length === 0) {
       return;
     }
 
-    var worldBounds = layer && typeof layer.getBounds === 'function' ? layer.getBounds() : null;
+    var worldBounds = precomputedWorldBounds;
+    if (!worldBounds && layer && typeof layer.getBounds === 'function') {
+      worldBounds = layer.getBounds();
+    }
 
     buttons.forEach(function (button) {
       button.addEventListener('click', function () {
         var target = button.getAttribute('data-zoom');
-        if (!map) {
-          return;
-        }
-
-        if (target === 'southasia') {
-          map.fitBounds([[0, 55], [35, 100]], { padding: [10, 10] });
-        } else if (target === 'africa') {
-          map.fitBounds([[-35, -20], [38, 55]], { padding: [10, 10] });
-        } else if (worldBounds) {
-          map.fitBounds(worldBounds, { padding: [20, 20] });
-        }
+        focusMap(map, target, worldBounds);
       });
     });
   }
@@ -338,13 +356,15 @@
         }).addTo(map);
 
         var geoBounds = geoLayer.getBounds();
-        if (geoBounds && geoBounds.isValid()) {
-          map.fitBounds(geoBounds, { padding: [20, 20] });
+        var worldBounds = geoBounds && geoBounds.isValid() ? geoBounds : null;
+        if (worldBounds) {
+          map.fitBounds(worldBounds, { padding: [20, 20] });
         } else {
           map.setView([10, 40], 3);
         }
 
-        attachZoomControls(map, geoLayer);
+        focusMap(map, 'africa', worldBounds);
+        attachZoomControls(map, geoLayer, worldBounds);
         renderLegend(scale);
 
         var shell = document.getElementById('ffc-map-shell');
