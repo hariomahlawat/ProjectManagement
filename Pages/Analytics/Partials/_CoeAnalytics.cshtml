@@ -18,9 +18,10 @@
 <section class="analytics-panel analytics-panel--coe" aria-label="CoE projects analytics">
     <!-- SECTION: CoE analytics layout -->
     <div class="analytics-layout">
-        <!-- SECTION: CoE stage chart -->
-        <div class="analytics-layout__row">
-            <article class="analytics-card analytics-card--wide">
+        <!-- SECTION: CoE stage and lifecycle charts row -->
+        <div class="analytics-layout__row analytics-layout__row--coe-grid">
+            <!-- SECTION: CoE stage chart -->
+            <article class="analytics-card">
                 <header class="analytics-card__header">
                     <h2 class="analytics-card__title">Ongoing CoE projects by current stage</h2>
                     <p class="analytics-card__meta">
@@ -44,12 +45,10 @@
                     }
                 </div>
             </article>
-        </div>
-        <!-- END SECTION -->
+            <!-- END SECTION -->
 
-        <!-- SECTION: CoE sub-category lifecycle chart -->
-        <div class="analytics-layout__row">
-            <article class="analytics-card analytics-card--wide analytics-card--coe-subcategories">
+            <!-- SECTION: CoE sub-category lifecycle chart -->
+            <article class="analytics-card analytics-card--coe-subcategories">
                 <header class="analytics-card__header">
                     <h2 class="analytics-card__title">CoE sub-categories by lifecycle</h2>
                     <p class="analytics-card__meta">
@@ -74,6 +73,7 @@
                     }
                 </div>
             </article>
+            <!-- END SECTION -->
         </div>
         <!-- END SECTION -->
 
