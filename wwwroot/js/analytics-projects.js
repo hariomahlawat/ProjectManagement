@@ -511,7 +511,7 @@ function initCoeAnalytics() {
 
 // SECTION: Project management insights initialiser
 function initStageTimeInsights() {
-  const canvas = document.getElementById('stage-time-by-aon-chart');
+  const canvas = document.getElementById('stage-time-by-cost-chart');
   if (!canvas || !window.Chart) {
     return;
   }
@@ -563,8 +563,8 @@ function initStageTimeInsights() {
   }
 
   const datasets = [
-    buildDataset(stageTimeBucketKeys.below, 'AoN below 1 crore', '#1a73e8'),
-    buildDataset(stageTimeBucketKeys.above, 'AoN at or above 1 crore', '#34a853')
+    buildDataset(stageTimeBucketKeys.below, 'Latest cost below 1 crore', '#1a73e8'),
+    buildDataset(stageTimeBucketKeys.above, 'Latest cost at or above 1 crore', '#34a853')
   ];
 
   new window.Chart(canvas.getContext('2d'), {
@@ -600,14 +600,14 @@ function initStageTimeInsights() {
               const stage = stages[context.dataIndex];
               const bucketKey = context.dataset?.bucketKey;
               if (!stage || !bucketKey) {
-                return `${context.dataset?.label || 'AoN bucket'}: 0 days`;
+                return `${context.dataset?.label || 'Cost bucket'}: 0 days`;
               }
 
               const row = series.find(
                 (entry) => entry.stageKey === stage.key && entry.bucket === bucketKey
               );
               if (!row) {
-                return `${context.dataset?.label || 'AoN bucket'}: 0 days`;
+                return `${context.dataset?.label || 'Cost bucket'}: 0 days`;
               }
 
               const median = Number(row.medianDays ?? 0).toFixed(1);

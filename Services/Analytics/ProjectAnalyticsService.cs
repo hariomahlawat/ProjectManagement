@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -322,23 +323,12 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
             return new StageTimeInsightsVm();
         }
 
-        var aonCosts = await _db.ProjectAonFacts
-            .AsNoTracking()
-            .GroupBy(f => f.ProjectId)
-            .Select(g => new
-            {
-                ProjectId = g.Key,
-                Cost = g
-                    .OrderByDescending(f => f.CreatedOnUtc)
-                    .Select(f => (decimal?)f.AonCost)
-                    .FirstOrDefault()
-            })
-            .ToDictionaryAsync(x => x.ProjectId, x => x.Cost, cancellationToken);
+        var projectCosts = await LoadProjectCostLookupAsync(cancellationToken);
 
         var spans = stageRows
             .Select(row =>
             {
-                var bucket = TryResolveAonBucket(aonCosts.TryGetValue(row.ProjectId, out var cost) ? cost : null);
+                var bucket = TryResolveCostBucket(projectCosts.TryGetValue(row.ProjectId, out var cost) ? cost : null);
                 if (bucket is null)
                 {
                     return null;
@@ -634,14 +624,71 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         };
     }
 
-    private static string? TryResolveAonBucket(decimal? aonCost)
+    private async Task<Dictionary<int, decimal?>> LoadProjectCostLookupAsync(CancellationToken cancellationToken)
     {
-        if (!aonCost.HasValue)
+        var aonCosts = await LoadLatestMoneyFactsAsync(
+            _db.ProjectAonFacts.AsNoTracking(),
+            fact => (decimal?)fact.AonCost,
+            cancellationToken);
+        var benchmarkCosts = await LoadLatestMoneyFactsAsync(
+            _db.ProjectBenchmarkFacts.AsNoTracking(),
+            fact => (decimal?)fact.BenchmarkCost,
+            cancellationToken);
+        var pncCosts = await LoadLatestMoneyFactsAsync(
+            _db.ProjectPncFacts.AsNoTracking(),
+            fact => (decimal?)fact.PncCost,
+            cancellationToken);
+        var commercialCosts = await LoadLatestMoneyFactsAsync(
+            _db.ProjectCommercialFacts.AsNoTracking(),
+            fact => (decimal?)fact.L1Cost,
+            cancellationToken);
+        var ipaCosts = await LoadLatestMoneyFactsAsync(
+            _db.ProjectIpaFacts.AsNoTracking(),
+            fact => (decimal?)fact.IpaCost,
+            cancellationToken);
+
+        var lookup = new Dictionary<int, decimal?>();
+        foreach (var source in new[] { aonCosts, benchmarkCosts, pncCosts, commercialCosts, ipaCosts })
+        {
+            foreach (var pair in source)
+            {
+                if (pair.Value.HasValue)
+                {
+                    lookup.TryAdd(pair.Key, pair.Value);
+                }
+            }
+        }
+
+        return lookup;
+    }
+
+    private static Task<Dictionary<int, decimal?>> LoadLatestMoneyFactsAsync<TFact>(
+        IQueryable<TFact> query,
+        Expression<Func<TFact, decimal?>> selector,
+        CancellationToken cancellationToken)
+        where TFact : ProjectFactBase
+    {
+        return query
+            .GroupBy(f => f.ProjectId)
+            .Select(g => new
+            {
+                ProjectId = g.Key,
+                Cost = g
+                    .OrderByDescending(f => f.CreatedOnUtc)
+                    .Select(selector)
+                    .FirstOrDefault()
+            })
+            .ToDictionaryAsync(x => x.ProjectId, x => x.Cost, cancellationToken);
+    }
+
+    private static string? TryResolveCostBucket(decimal? projectCost)
+    {
+        if (!projectCost.HasValue)
         {
             return null;
         }
 
-        return aonCost.Value < OneCroreRupees
+        return projectCost.Value < OneCroreRupees
             ? StageTimeBucketKeys.BelowOneCrore
             : StageTimeBucketKeys.AboveOrEqualOneCrore;
     }
