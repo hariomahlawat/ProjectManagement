@@ -229,7 +229,7 @@ namespace ProjectManagement.Pages.Dashboard
                 Countries = ffcCountries,
                 TotalInstalled = ffcCountries.Sum(country => country.Installed),
                 TotalDelivered = ffcCountries.Sum(country => country.Delivered),
-                TotalProjects = ffcCountries.Sum(country => country.Total)
+                TotalPlanned = ffcCountries.Sum(country => country.Planned)
             };
         }
 
