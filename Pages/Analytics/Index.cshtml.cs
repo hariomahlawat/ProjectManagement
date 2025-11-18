@@ -259,11 +259,6 @@ namespace ProjectManagement.Pages.Analytics
                         .ToList()))
                 .ToListAsync(cancellationToken);
 
-            if (stageSnapshots.Count == 0)
-            {
-                return Array.Empty<CoeStageBucketVm>();
-            }
-
             var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var project in stageSnapshots)
             {
@@ -277,19 +272,17 @@ namespace ProjectManagement.Pages.Analytics
                 counts[stage.StageCode] = existing + 1;
             }
 
-            if (counts.Count == 0)
-            {
-                return Array.Empty<CoeStageBucketVm>();
-            }
-
             var orderedCodes = StageCodes.All
-                .Where(code => counts.ContainsKey(code))
                 .Concat(counts.Keys.Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase)))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             return orderedCodes
-                .Select(code => new CoeStageBucketVm(StageCodes.DisplayNameOf(code), counts[code]))
+                .Select(code =>
+                {
+                    counts.TryGetValue(code, out var count);
+                    return new CoeStageBucketVm(StageCodes.DisplayNameOf(code), count);
+                })
                 .ToList();
             // END SECTION
         }
