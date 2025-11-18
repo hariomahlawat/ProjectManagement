@@ -291,6 +291,12 @@
   padding: 1rem 1.25rem 1.5rem;
 }
 
+/* SECTION: Stage delay hotspots card */
+.analytics-card--insights-hotspots .analytics-card__chart {
+  min-height: 320px;
+}
+/* END SECTION */
+
 .analytics-card__chart canvas {
   width: 100%;
   height: 100%;

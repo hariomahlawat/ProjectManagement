@@ -22,6 +22,7 @@
     }
     // END SECTION
     var filterId = "project-category-filter";
+    var hotspotFilterId = $"{filterId}-hotspots";
 }
 
 <!-- SECTION: Project management insights -->
@@ -98,6 +99,80 @@
                             Only stages with both actual start and completion dates are counted.
                             Stages from ongoing projects are only included once they complete.
                             Cost buckets use the latest AoN, benchmark, PNC, L1, or IPA entry available per project.
+                        </p>
+                    }
+                </div>
+            </article>
+        </div>
+
+        <div class="analytics-layout__row">
+            <article class="analytics-card analytics-card--wide analytics-card--insights-hotspots">
+                <header class="analytics-card__header">
+                    <div class="d-flex justify-content-between align-items-start gap-3">
+                        <div>
+                            <h2 class="analytics-card__title">Stage delay hotspots</h2>
+                            <p class="analytics-card__meta">
+                                Median days taken to complete each project stage. Ongoing stages are only included after they finish.
+                            </p>
+                        </div>
+
+                        <!-- SECTION: Shared project category filter -->
+                        <form method="get" asp-page="./Index" class="analytics-card__filters">
+                            <input type="hidden" name="tab" value="Insights" />
+                            <div class="analytics-card__filter-chip">
+                                <label class="form-label mb-0" for="@hotspotFilterId">
+                                    Project category
+                                </label>
+                                <select
+                                    id="@hotspotFilterId"
+                                    name="categoryId"
+                                    class="form-select form-select-sm"
+                                    data-auto-submit="change"
+                                >
+                                    <option
+                                        value=""
+                                        selected="@(!selectedCategoryId.HasValue ? "selected" : null)"
+                                    >
+                                        All
+                                    </option>
+                                    @foreach (var category in categories)
+                                    {
+                                        var isSelected = selectedCategoryId.HasValue && selectedCategoryId.Value == category.Id;
+                                        <option
+                                            value="@category.Id"
+                                            selected="@(isSelected ? "selected" : null)"
+                                        >
+                                            @category.Name
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                        </form>
+                        <!-- END SECTION -->
+                    </div>
+                </header>
+
+                <div class="analytics-card__body">
+                    @if (!(Model.StageHotspots?.Any() ?? false))
+                    {
+                        <p class="analytics-card__empty-text">
+                            No completed stages available yet to analyse stage delays.
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="analytics-card__chart">
+                            <canvas
+                                id="stage-hotspots-chart"
+                                role="img"
+                                aria-label="Stage delay hotspots - median days per stage"
+                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.StageHotspots, jsonOptions))'
+                                data-empty-message="No completed stages available yet to analyse stage delays."
+                            ></canvas>
+                        </div>
+
+                        <p class="analytics-card__footnote">
+                            Only stages with both actual start and completion dates are counted. Ongoing projects contribute once their stages finish. Outliers are included; use median to understand the central tendency.
                         </p>
                     }
                 </div>

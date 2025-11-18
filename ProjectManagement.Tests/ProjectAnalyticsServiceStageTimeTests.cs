@@ -97,6 +97,11 @@ public class ProjectAnalyticsServiceStageTimeTests
         Assert.Equal(1, aboveRow.ProjectCount);
         Assert.Equal(5, belowRow.MedianDays);
         Assert.Equal(1, belowRow.ProjectCount);
+
+        var hotspot = Assert.Single(result.StageHotspots);
+        Assert.Equal(StageCodes.FS, hotspot.StageKey);
+        Assert.Equal(7.5, hotspot.MedianDays);
+        Assert.Equal(2, hotspot.ProjectCount);
     }
 
     [Fact]
@@ -186,5 +191,10 @@ public class ProjectAnalyticsServiceStageTimeTests
         Assert.Equal(0, belowRow.ProjectCount);
 
         Assert.Equal(designCategoryId, result.SelectedCategoryId);
+
+        var designHotspot = Assert.Single(result.StageHotspots);
+        Assert.Equal(StageCodes.FS, designHotspot.StageKey);
+        Assert.Equal(10, designHotspot.MedianDays);
+        Assert.Equal(1, designHotspot.ProjectCount);
     }
 }

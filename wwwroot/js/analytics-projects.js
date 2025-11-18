@@ -620,7 +620,11 @@ function enableAutoSubmitFilters() {
 // SECTION: Project management insights initialiser
 function initStageTimeInsights() {
   enableAutoSubmitFilters();
+  initStageCycleTimeByCostChart();
+  initStageHotspotsChart();
+}
 
+function initStageCycleTimeByCostChart() {
   const canvas = document.getElementById('stage-time-by-cost-chart');
   if (!canvas || !window.Chart) {
     return;
@@ -746,6 +750,114 @@ function initStageTimeInsights() {
         }
       }
     }
+  });
+}
+
+function initStageHotspotsChart() {
+  const canvas = document.getElementById('stage-hotspots-chart');
+  if (!canvas || !window.Chart) {
+    return;
+  }
+
+  renderSeriesChart(canvas, (series) => {
+    const orderedSeries = [...series].sort((a, b) => {
+      const medianDelta = (b.medianDays ?? 0) - (a.medianDays ?? 0);
+      if (medianDelta !== 0) {
+        return medianDelta;
+      }
+
+      const orderCompare = (a.stageOrder ?? 0) - (b.stageOrder ?? 0);
+      if (orderCompare !== 0) {
+        return orderCompare;
+      }
+
+      const nameA = a.stageName || '';
+      const nameB = b.stageName || '';
+      return nameA.localeCompare(nameB);
+    });
+
+    const stageAxisPoints = orderedSeries.map((point) => ({
+      name: point.stageName || point.stageKey || '',
+      stageCode: point.stageKey || ''
+    }));
+    const labels = stageAxisPoints
+      .map((point) => getStageAxisLabel(point))
+      .map((label) => wrapLabel(label, MAX_STAGE_AXIS_LABEL_LENGTH));
+
+    const medianValues = orderedSeries.map((point) => ensureNumber(point.medianDays));
+    const averageValues = orderedSeries.map((point) => ensureNumber(point.averageDays));
+    const projectCounts = orderedSeries.map((point) => Math.max(0, Math.round(point.projectCount ?? 0)));
+
+    const emphasisColors = medianValues.map((_, index) => (index < 3 ? '#1d4ed8' : '#93c5fd'));
+    const emphasisBorders = medianValues.map((_, index) => (index < 3 ? '#1d4ed8' : '#bfdbfe'));
+
+    new window.Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Median days to finish stage',
+            data: medianValues,
+            backgroundColor: emphasisColors,
+            borderColor: emphasisBorders,
+            borderWidth: 1,
+            borderRadius: 6,
+            barThickness: 24
+          }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            beginAtZero: true,
+            title: { display: true, text: 'Median days in stage' },
+            ticks: {
+              precision: 0
+            }
+          },
+          y: {
+            grid: { display: false },
+            ticks: {
+              autoSkip: false
+            }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: createStageTooltipTitle(stageAxisPoints),
+              label(context) {
+                const index = context.dataIndex ?? 0;
+                const median = medianValues[index];
+                const average = averageValues[index];
+                const count = projectCounts[index];
+
+                const lines = [];
+                if (Number.isFinite(median)) {
+                  lines.push(`Median: ${median.toFixed(1)} days`);
+                }
+
+                if (Number.isFinite(average)) {
+                  lines.push(`Average: ${average.toFixed(1)} days`);
+                }
+
+                if (Number.isFinite(count)) {
+                  const sampleLabel = count < 3 ? ' (low sample size)' : '';
+                  lines.push(`Projects counted: ${count}${sampleLabel}`);
+                }
+
+                return lines;
+              }
+            }
+          }
+        }
+      }
+    });
   });
 }
 // END SECTION
