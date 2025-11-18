@@ -326,7 +326,9 @@ function initOngoingAnalytics() {
           scales: {
             x: {
               ticks: {
-                maxRotation: 0
+                autoSkip: false,
+                maxRotation: 0,
+                minRotation: 0
               }
             }
           }
