@@ -258,4 +258,52 @@ public class ProjectAnalyticsServiceStageTimeTests
         Assert.DoesNotContain(result.StageHotspots, point => string.Equals(point.StageKey, StageCodes.TOT, StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.StageHotspots, point => point.StageKey == StageCodes.FS);
     }
+
+    [Fact]
+    public async Task GetStageTimeInsightsAsync_DoesNotPadTotStage()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var project = new Project
+        {
+            Id = 60,
+            Name = "Padding", 
+            CreatedByUserId = "system",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
+        };
+
+        db.Projects.Add(project);
+
+        db.ProjectStages.Add(new ProjectStage
+        {
+            Id = 601,
+            ProjectId = project.Id,
+            Project = project,
+            StageCode = StageCodes.FS,
+            SortOrder = 1,
+            ActualStart = new DateOnly(2024, 5, 1),
+            CompletedOn = new DateOnly(2024, 5, 5)
+        });
+
+        db.ProjectAonFacts.Add(new ProjectAonFact
+        {
+            ProjectId = project.Id,
+            AonCost = 12_000_000m,
+            CreatedByUserId = "seed",
+            CreatedOnUtc = DateTime.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
+        var service = new ProjectAnalyticsService(db, clock, new ProjectCategoryHierarchyService(db));
+
+        var result = await service.GetStageTimeInsightsAsync();
+
+        Assert.DoesNotContain(result.Rows, row => string.Equals(row.StageKey, StageCodes.TOT, StringComparison.OrdinalIgnoreCase));
+    }
 }
