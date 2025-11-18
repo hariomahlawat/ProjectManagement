@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -14,11 +15,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Areas.Dashboard.Components.OpsSignals;
+using ProjectManagement.Areas.Dashboard.Components.ProjectPulse;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Pages.Dashboard;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Models.Scheduling;
 using Xunit;
 
@@ -73,7 +77,9 @@ namespace ProjectManagement.Tests
                 NullLogger<UserManager<ApplicationUser>>.Instance);
 
             var todo = new StubTodoService();
-            var page = new IndexModel(todo, userManager, context)
+            var projectPulse = new StubProjectPulseService();
+            var opsSignals = new StubOpsSignalsService();
+            var page = new IndexModel(todo, userManager, context, projectPulse, opsSignals)
             {
                 PageContext = new PageContext(new ActionContext(
                     new DefaultHttpContext
@@ -84,7 +90,7 @@ namespace ProjectManagement.Tests
                     new ActionDescriptor()))
             };
 
-            await page.OnGetAsync();
+            await page.OnGetAsync(CancellationToken.None);
 
             var ev = Assert.Single(page.UpcomingEvents);
             Assert.Equal("All Hands", ev.Title);
@@ -132,7 +138,9 @@ namespace ProjectManagement.Tests
                 NullLogger<UserManager<ApplicationUser>>.Instance);
 
             var todo = new StubTodoService();
-            var page = new IndexModel(todo, userManager, context)
+            var projectPulse = new StubProjectPulseService();
+            var opsSignals = new StubOpsSignalsService();
+            var page = new IndexModel(todo, userManager, context, projectPulse, opsSignals)
             {
                 PageContext = new PageContext(new ActionContext(
                     new DefaultHttpContext
@@ -143,7 +151,7 @@ namespace ProjectManagement.Tests
                     new ActionDescriptor()))
             };
 
-            await page.OnGetAsync();
+            await page.OnGetAsync(CancellationToken.None);
 
             var ev = Assert.Single(page.UpcomingEvents);
             Assert.Equal("Holiday: Republic Day", ev.Title);
@@ -178,7 +186,9 @@ namespace ProjectManagement.Tests
             var todo = new RecordingTodoService();
             var nowIst = new DateTimeOffset(2024, 5, 10, 15, 30, 0, TimeSpan.FromHours(5.5));
 
-            var page = new TestableIndexModel(todo, userManager, context, nowIst)
+            var projectPulse = new StubProjectPulseService();
+            var opsSignals = new StubOpsSignalsService();
+            var page = new TestableIndexModel(todo, userManager, context, projectPulse, opsSignals, nowIst)
             {
                 PageContext = new PageContext(new ActionContext(
                     new DefaultHttpContext
@@ -228,7 +238,9 @@ namespace ProjectManagement.Tests
             var todo = new RecordingTodoService();
             var nowIst = new DateTimeOffset(2024, 5, 10, 15, 30, 0, TimeSpan.FromHours(5.5));
 
-            var page = new TestableIndexModel(todo, userManager, context, nowIst)
+            var projectPulse = new StubProjectPulseService();
+            var opsSignals = new StubOpsSignalsService();
+            var page = new TestableIndexModel(todo, userManager, context, projectPulse, opsSignals, nowIst)
             {
                 PageContext = new PageContext(new ActionContext(
                     new DefaultHttpContext
@@ -326,13 +338,54 @@ namespace ProjectManagement.Tests
         {
             private readonly DateTimeOffset _nowIst;
 
-            public TestableIndexModel(ITodoService todo, UserManager<ApplicationUser> users, ApplicationDbContext context, DateTimeOffset nowIst)
-                : base(todo, users, context)
+            public TestableIndexModel(
+                ITodoService todo,
+                UserManager<ApplicationUser> users,
+                ApplicationDbContext context,
+                IProjectPulseService projectPulse,
+                IOpsSignalsService opsSignals,
+                DateTimeOffset nowIst)
+                : base(todo, users, context, projectPulse, opsSignals)
             {
                 _nowIst = nowIst;
             }
 
             internal override DateTimeOffset GetNowIst() => _nowIst;
+        }
+
+        private sealed class StubProjectPulseService : IProjectPulseService
+        {
+            public Task<ProjectPulseVm> GetAsync(CancellationToken cancellationToken = default)
+            {
+                return Task.FromResult(new ProjectPulseVm
+                {
+                    ProliferationEligible = 0,
+                    AnalyticsUrl = string.Empty,
+                    CompletedCount = 0,
+                    OngoingCount = 0,
+                    TotalProjects = 0,
+                    CompletedByYear = Array.Empty<BarPoint>(),
+                    OngoingByProjectCategory = Array.Empty<CategorySlice>(),
+                    AllByTechnicalCategoryTop = Array.Empty<CategorySlice>(),
+                    RemainingTechCategories = 0,
+                    CompletedUrl = string.Empty,
+                    OngoingUrl = string.Empty,
+                    RepositoryUrl = string.Empty
+                });
+            }
+        }
+
+        private sealed class StubOpsSignalsService : IOpsSignalsService
+        {
+            public Task<OpsSignalsVm> GetAsync(DateOnly? from, DateOnly? to, string userId, CancellationToken ct)
+            {
+                return Task.FromResult(new OpsSignalsVm
+                {
+                    Tiles = Array.Empty<OpsTileVm>(),
+                    RangeStart = from,
+                    RangeEnd = to
+                });
+            }
         }
     }
 }
