@@ -603,7 +603,10 @@ function initStageTimeInsights() {
     ).values()
   );
 
+  // SECTION: Stage axis label formatting
   const labels = stages.map((stage) => stage.name);
+  const wrappedLabels = labels.map((label) => wrapLabel(label, MAX_STAGE_AXIS_LABEL_LENGTH));
+  // END SECTION
 
   function buildDataset(bucketKey, label, color) {
     return {
@@ -627,7 +630,7 @@ function initStageTimeInsights() {
   new window.Chart(canvas.getContext('2d'), {
     type: 'bar',
     data: {
-      labels,
+      labels: wrappedLabels,
       datasets
     },
     options: {
@@ -656,7 +659,12 @@ function initStageTimeInsights() {
           callbacks: {
             title(items) {
               const item = items?.[0];
-              return item ? item.label : '';
+              if (!item) {
+                return '';
+              }
+
+              const stage = stages[item.dataIndex];
+              return stage?.name || '';
             },
             label(context) {
               const stage = stages[context.dataIndex];
