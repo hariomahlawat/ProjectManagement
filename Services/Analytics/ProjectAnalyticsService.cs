@@ -329,7 +329,10 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
 
         if (stageRows.Count == 0)
         {
-            return new StageTimeInsightsVm();
+            return new StageTimeInsightsVm
+            {
+                SelectedCategoryId = categoryId
+            };
         }
 
         var projectCosts = await LoadProjectCostLookupAsync(cancellationToken);
@@ -359,7 +362,10 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
 
         if (spans.Count == 0)
         {
-            return new StageTimeInsightsVm();
+            return new StageTimeInsightsVm
+            {
+                SelectedCategoryId = categoryId
+            };
         }
 
         var rows = spans
