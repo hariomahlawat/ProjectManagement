@@ -311,7 +311,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                 && (s.Project.LifecycleStatus == ProjectLifecycleStatus.Active
                     || s.Project.LifecycleStatus == ProjectLifecycleStatus.Completed))
             .Where(s => s.ActualStart.HasValue && s.CompletedOn.HasValue)
-            .Where(s => !StageCodes.IsTot(s.StageCode));
+            .Where(s => !string.Equals(s.StageCode, StageCodes.TOT));
 
         if (categoryId.HasValue)
         {
