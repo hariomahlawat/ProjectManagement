@@ -668,13 +668,27 @@ namespace ProjectManagement.Pages.Analytics
                 })
                 .ToListAsync(cancellationToken);
 
-            return stageRows
+            // SECTION: Stage duration aggregation
+            var durationsByCode = stageRows
                 .Where(s => !string.IsNullOrWhiteSpace(s.StageCode) && s.ActualStart.HasValue)
-                .GroupBy(s => s.StageCode!)
-                .Select(g => new AnalyticsStageDurationPoint(
-                    StageCodes.DisplayNameOf(g.Key),
-                    g.Average(item => CalculateStageDurationDays(item.ActualStart, item.CompletedOn))))
-                .OrderByDescending(x => x.Days)
+                .GroupBy(s => s.StageCode!, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Average(item => CalculateStageDurationDays(item.ActualStart, item.CompletedOn)),
+                    StringComparer.OrdinalIgnoreCase);
+
+            var orderedStages = StageCodes.All
+                .Select(code => new AnalyticsStageDurationPoint(
+                    StageCodes.DisplayNameOf(code),
+                    durationsByCode.TryGetValue(code, out var avgDays) ? avgDays : 0));
+
+            var adHocStages = durationsByCode.Keys
+                .Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase))
+                .OrderBy(code => StageCodes.DisplayNameOf(code), StringComparer.OrdinalIgnoreCase)
+                .Select(code => new AnalyticsStageDurationPoint(StageCodes.DisplayNameOf(code), durationsByCode[code]));
+
+            return orderedStages
+                .Concat(adHocStages)
                 .ToList();
         }
 
