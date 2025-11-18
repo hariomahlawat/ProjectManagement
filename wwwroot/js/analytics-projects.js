@@ -26,6 +26,34 @@ const stageTimeBucketKeys = {
 
 const MAX_STAGE_AXIS_LABEL_LENGTH = 16;
 
+// SECTION: Label helpers
+// Wrap long axis labels onto multiple lines so they do not overlap
+function wrapLabel(label, maxLineLength = 16) {
+  if (!label) return '';
+  const text = String(label);
+  const words = text.split(' ');
+  const lines = [];
+  let current = '';
+
+  for (const word of words) {
+    const test = current ? current + ' ' + word : word;
+    if (test.length > maxLineLength && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  }
+
+  if (current) {
+    lines.push(current);
+  }
+
+  // Chart.js supports either a string or an array of strings.
+  return lines.length > 1 ? lines : lines[0];
+}
+// END SECTION
+
 // SECTION: Chart helpers
 function createDoughnutChart(canvas, { labels, values, colors, options }) {
   if (!canvas || !window.Chart) {
@@ -66,10 +94,13 @@ function createBarChart(
     return null;
   }
 
+  const rawLabels = Array.isArray(labels) ? labels : [];
+  const wrappedLabels = rawLabels.map((l) => wrapLabel(l));
+
   return new window.Chart(canvas.getContext('2d'), {
     type: 'bar',
     data: {
-      labels,
+      labels: wrappedLabels,
       datasets: [
         {
           label,
@@ -87,7 +118,12 @@ function createBarChart(
           legend: { display: false }
         },
         scales: {
-          x: { ticks: { maxRotation: 0 } },
+          x: {
+            ticks: {
+              maxRotation: 0,
+              autoSkip: false
+            }
+          },
           y: { beginAtZero: true }
         }
       },
