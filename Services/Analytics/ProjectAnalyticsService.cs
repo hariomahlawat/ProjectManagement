@@ -468,6 +468,13 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
 
         foreach (var stageCode in StageOrder)
         {
+            // SECTION: Skip TOT stage from insights padding
+            if (StageCodes.IsTot(stageCode))
+            {
+                continue;
+            }
+            // END SECTION
+
             var stageOrder = rows
                 .Where(row => comparer.Equals(row.StageKey, stageCode))
                 .Select(row => row.StageOrder)

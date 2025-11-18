@@ -107,17 +107,16 @@ namespace ProjectManagement.Pages.Analytics
                     break;
 
                 case AnalyticsTab.Insights:
-                    var stageCycleTask = _projectAnalyticsService.GetStageTimeInsightsAsync(StageTimeCategoryId, cancellationToken);
-                    Task<StageTimeInsightsVm>? hotspotTask = null;
-                    if (StageHotspotCategoryId != StageTimeCategoryId)
-                    {
-                        hotspotTask = _projectAnalyticsService.GetStageTimeInsightsAsync(StageHotspotCategoryId, cancellationToken);
-                    }
+                {
+                    // SECTION: Stage time insight loading
+                    var stageCycleResult = await _projectAnalyticsService
+                        .GetStageTimeInsightsAsync(StageTimeCategoryId, cancellationToken);
 
-                    var stageCycleResult = await stageCycleTask;
                     var hotspotResult = StageHotspotCategoryId == StageTimeCategoryId
                         ? stageCycleResult
-                        : await (hotspotTask ?? stageCycleTask);
+                        : await _projectAnalyticsService
+                            .GetStageTimeInsightsAsync(StageHotspotCategoryId, cancellationToken);
+                    // END SECTION
 
                     Insights = new StageTimeInsightsPanelVm
                     {
@@ -133,6 +132,7 @@ namespace ProjectManagement.Pages.Analytics
                         }
                     };
                     break;
+                }
             }
             // END SECTION
         }
