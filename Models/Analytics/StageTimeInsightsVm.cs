@@ -21,6 +21,33 @@ public sealed class StageTimeInsightsVm
     public int? SelectedCategoryId { get; init; }
 }
 
+// SECTION: Project management insights panel view models
+public sealed class StageTimeInsightsPanelVm
+{
+    public StageTimeCycleChartVm StageCycleTime { get; init; } = new();
+
+    public StageHotspotChartVm StageHotspots { get; init; } = new();
+}
+
+public sealed class StageTimeCycleChartVm
+{
+    public IReadOnlyList<StageTimeBucketRowVm> Rows { get; init; } = Array.Empty<StageTimeBucketRowVm>();
+
+    public bool HasData => Rows.Count > 0;
+
+    public int? SelectedCategoryId { get; init; }
+}
+
+public sealed class StageHotspotChartVm
+{
+    public IReadOnlyList<StageHotspotPointVm> Points { get; init; } = Array.Empty<StageHotspotPointVm>();
+
+    public bool HasData => Points.Count > 0;
+
+    public int? SelectedCategoryId { get; init; }
+}
+// END SECTION
+
 public sealed class StageTimeBucketRowVm
 {
     public string StageKey { get; init; } = string.Empty;
