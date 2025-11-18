@@ -287,6 +287,11 @@ function renderEmptyState(canvas) {
 // END SECTION
 
 // SECTION: Stage axis helpers
+const stageAxisLabelOverrides = {
+  EAS: 'EAS',
+  SO: 'SO'
+};
+
 function getStageAxisLabel(point) {
   if (!point) {
     return '';
@@ -294,6 +299,12 @@ function getStageAxisLabel(point) {
 
   const name = point.name ?? '';
   const code = point.stageCode ?? '';
+
+  const normalizedCode = code.toUpperCase();
+  const overrideLabel = stageAxisLabelOverrides[normalizedCode];
+  if (overrideLabel) {
+    return overrideLabel;
+  }
 
   if (!name) {
     return code;
