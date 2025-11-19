@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using ProjectManagement.Application.Security;
 using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Services.Activities;
