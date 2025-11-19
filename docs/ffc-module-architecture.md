@@ -70,7 +70,7 @@ The home dashboard loads `FfcCountryRollupDataSource`, filters for countries wit
 ## 5. Front-End Views & Components
 - **Index view** (`Areas/ProjectOfficeReports/Pages/FFC/Index.cshtml`) composes toolbar actions (map, detailed table, board, management pages) and renders `ffc-record-card` tiles using `_FfcRecordCard` plus `ViewData` dictionaries for rollup metadata.
 - **Manage pages** reuse `_RecordForm` for the edit/create experience; the offcanvas/table layout mirrors the standard admin pattern.
-- **Country board** replaces the legacy country table and emphasises screenshot-friendly cards with consistent toolbar controls.
+- **Country board** replaces the legacy country table and emphasises a clean, screenshot-friendly card grid without extra toolbar chrome.
 - **Attachment modal** inside `_FfcRecordCard` displays both images and document lists, reusing the viewer endpoint for inline previews.
 
 ## 6. Client-Side Modules
@@ -81,7 +81,7 @@ The home dashboard loads `FfcCountryRollupDataSource`, filters for countries wit
 - Remembers "full-width" UI preferences in `localStorage` and exposes an `init` entrypoint used by `ffc-map-init.js` to bootstrap the map based on data attributes rendered by the Razor view.
 
 ### 6.2 Map Board (`ffc-map-board.js`)
-Fetches `/FFC/Map?handler=Data` (or a custom data URL provided by the Razor view), renders responsive cards sorted by total project units, and offers controls for full-width mode, screenshot-friendly mode, PNG export via `html2canvas`, and "Sort by" dropdown selections (Total units or Country A→Z). Buttons toggle CSS classes for layout adjustments, and toolbar chrome hides automatically during screenshot mode.
+Fetches `/FFC/Map?handler=Data` (or a custom data URL provided by the Razor view), renders responsive cards sorted by total project units, and keeps the experience intentionally minimal—no auxiliary toolbars or client-side sort toggles—so the board is always presentation-ready.
 
 ### 6.3 Detailed Table (`ffc-map-table-detailed.js`)
 The detailed table script fetches its JSON handler via the data attributes rendered on the Razor page, sorts and renders grouped rows (country-year headers, project rows), and attaches client-side formatting. It prints a friendly "No projects" row when data is unavailable, formats remarks placeholders, and provides Excel export alignment with the visible columns.
