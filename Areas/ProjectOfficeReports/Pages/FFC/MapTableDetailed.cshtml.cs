@@ -96,7 +96,9 @@ public class MapTableDetailedModel : PageModel
         worksheet.Cell(1, columnIndex++).Value = "Overall remarks";
 
         var rowIndex = 2;
-        foreach (var group in groups.OrderBy(g => g.CountryName).ThenBy(g => g.Year))
+        foreach (var group in groups
+            .OrderByDescending(g => g.Year)
+            .ThenBy(g => g.CountryName, StringComparer.OrdinalIgnoreCase))
         {
             if (group.Projects is null || group.Projects.Count == 0)
             {
@@ -243,8 +245,8 @@ public class MapTableDetailedModel : PageModel
                 project.CountryIso3,
                 project.OverallRemarks
             })
-            .OrderBy(group => group.Key.CountryName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(group => group.Key.Year)
+            .OrderByDescending(group => group.Key.Year)
+            .ThenBy(group => group.Key.CountryName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         var result = new List<FfcRecordDetailGroupDto>(groups.Count);
