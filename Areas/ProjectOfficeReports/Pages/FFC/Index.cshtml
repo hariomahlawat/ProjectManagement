@@ -1,8 +1,10 @@
 @page
 @using System
 @using System.Globalization
+@using System.Linq
 @using Microsoft.AspNetCore.Mvc.ViewFeatures
 @using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC
+@using ProjectManagement.Areas.ProjectOfficeReports.Domain
 @using ProjectManagement.Models
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel
 @{
@@ -10,49 +12,261 @@
 
 }
 
+@{
+    var recordsOnPage = Model.Records;
+    var visibleRecordCount = recordsOnPage.Count;
+    var visibleCountryCount = recordsOnPage
+        .Select(record => record.Country?.Name ?? "Unassigned")
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Count();
+
+    int SumQuantity(Func<FfcProject, bool> predicate)
+    {
+        return recordsOnPage.Sum(record =>
+        {
+            var projects = record.Projects ?? Enumerable.Empty<FfcProject>();
+            return projects
+                .Where(predicate)
+                .Sum(project => Math.Max(1, project.Quantity));
+        });
+    }
+
+    var totalProjects = recordsOnPage.Sum(record => record.Projects?.Count ?? 0);
+    var totalUnits = SumQuantity(_ => true);
+    var deliveredUnits = SumQuantity(project => project.IsDelivered);
+    var installedUnits = SumQuantity(project => project.IsInstalled);
+    var deliveryPercent = totalUnits == 0 ? 0 : (int)Math.Round(deliveredUnits * 100d / totalUnits);
+    var installPercent = totalUnits == 0 ? 0 : (int)Math.Round(installedUnits * 100d / totalUnits);
+
+    var selectedCountryLabel = Model.CountryOptions.FirstOrDefault(option => option.Selected)?.Text;
+    var selectedYearLabel = Model.Year?.ToString(CultureInfo.InvariantCulture);
+
+    var milestoneFilters = new[]
+    {
+        new { Label = "IPA", Value = Model.IpaStatus },
+        new { Label = "GSL", Value = Model.GslStatus },
+        new { Label = "Delivery", Value = Model.DeliveryStatus },
+        new { Label = "Installation", Value = Model.InstallationStatus }
+    };
+}
+
 <div class="container-fluid py-4">
     <section class="ffc-index">
-        <div class="pm-page-header">
-            <div>
-                <h1 class="h4 mb-1">FFC Proposals</h1>
-                <p class="pm-page-subtitle">Review project delivery and installation progress by country and year.</p>
-                @* SECTION: Record filters trigger *@
-                <div class="d-flex flex-wrap gap-2 mt-3">
-                    <button type="button"
-                            class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2"
-                            data-bs-toggle="modal"
-                            data-bs-target="#ffcFiltersModal">
-                        <span class="bi bi-funnel" aria-hidden="true"></span>
-                        <span>Filter</span>
-                    </button>
+        @* SECTION: Hero with navigation *@
+        <div class="pm-card pm-shadow ffc-index__hero">
+            <div class="ffc-index__hero-copy">
+                <p class="text-uppercase text-muted small fw-semibold mb-1">Dashboard · Progress review</p>
+                <div class="d-flex flex-wrap align-items-center gap-3">
+                    <h1 class="h4 mb-0">FFC Proposals</h1>
+                    <span class="badge rounded-pill text-bg-light text-muted">Production ready</span>
+                </div>
+                <p class="pm-page-subtitle mb-3">Review project delivery and installation progress by country and year.</p>
+                <div class="ffc-index__hero-meta">
+                    <span class="ffc-index__hero-meta-item">
+                        Showing <strong>@visibleRecordCount</strong> of <strong>@Model.TotalCount</strong> records
+                    </span>
+                    <span class="badge rounded-pill text-bg-primary-subtle text-primary">@Model.TotalPages page@(Model.TotalPages == 1 ? string.Empty : "s")</span>
+                    @if (Model.HasActiveFilters)
+                    {
+                        <span class="badge rounded-pill text-bg-warning-subtle text-warning">Filters active</span>
+                    }
                 </div>
             </div>
-            @* SECTION: FFC navigation toolbar *@
-            <div class="btn-toolbar flex-wrap justify-content-end gap-3" role="toolbar" aria-label="FFC navigation">
-                <div class="btn-group btn-group-sm" role="group" aria-label="FFC views">
-                    <a asp-area="ProjectOfficeReports"
-                       asp-page="/FFC/Map"
-                       class="btn btn-outline-secondary">Map view</a>
-                    <a asp-area="ProjectOfficeReports"
-                       asp-page="/FFC/MapTableDetailed"
-                       class="btn btn-outline-secondary">Detailed table</a>
-                    <a asp-area="ProjectOfficeReports"
-                       asp-page="/FFC/MapBoard"
-                       class="btn btn-outline-secondary">Country board</a>
+            <div class="ffc-index__hero-actions" role="toolbar" aria-label="FFC navigation">
+                <div class="ffc-index__toolbar">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="FFC views">
+                        <a asp-area="ProjectOfficeReports"
+                           asp-page="/FFC/Map"
+                           class="btn btn-outline-primary d-inline-flex align-items-center gap-1">
+                            <span class="bi bi-geo-alt" aria-hidden="true"></span>
+                            <span>Map view</span>
+                        </a>
+                        <a asp-area="ProjectOfficeReports"
+                           asp-page="/FFC/MapTableDetailed"
+                           class="btn btn-outline-primary d-inline-flex align-items-center gap-1">
+                            <span class="bi bi-table" aria-hidden="true"></span>
+                            <span>Detailed table</span>
+                        </a>
+                        <a asp-area="ProjectOfficeReports"
+                           asp-page="/FFC/MapBoard"
+                           class="btn btn-outline-primary d-inline-flex align-items-center gap-1">
+                            <span class="bi bi-grid" aria-hidden="true"></span>
+                            <span>Country board</span>
+                        </a>
+                    </div>
+                    <button type="button"
+                            class="btn btn-secondary btn-sm d-inline-flex align-items-center gap-2"
+                            data-bs-toggle="modal"
+                            data-bs-target="#ffcFiltersModal">
+                        <span class="bi bi-sliders" aria-hidden="true"></span>
+                        <span>Advanced filters</span>
+                    </button>
                 </div>
                 @if (Model.CanManageRecords)
                 {
-                    <div class="d-flex flex-wrap gap-2" role="group" aria-label="Management actions">
+                    <div class="ffc-index__management" role="group" aria-label="Management actions">
                         <a asp-area="ProjectOfficeReports"
                            asp-page="/FFC/Records/Manage"
-                           class="btn btn-outline-secondary btn-sm">Manage records</a>
+                           class="btn btn-light btn-sm d-inline-flex align-items-center gap-2">
+                            <span class="bi bi-clipboard-data" aria-hidden="true"></span>
+                            <span>Manage records</span>
+                        </a>
                         <a asp-area="ProjectOfficeReports"
                            asp-page="/FFC/Countries/Manage"
-                           class="btn btn-outline-secondary btn-sm">Manage countries</a>
+                           class="btn btn-light btn-sm d-inline-flex align-items-center gap-2">
+                            <span class="bi bi-globe2" aria-hidden="true"></span>
+                            <span>Manage countries</span>
+                        </a>
                     </div>
                 }
             </div>
         </div>
+
+        @* SECTION: Quick filters *@
+        <div class="pm-card pm-shadow ffc-index__filters-card" aria-labelledby="ffcQuickFiltersTitle">
+            <div class="ffc-index__filters-card-header">
+                <div>
+                    <p class="text-uppercase text-muted small mb-1" id="ffcQuickFiltersTitle">Quick filters</p>
+                    <p class="mb-0 text-muted">Use inline filters for fast adjustments. Advanced options remain available via the modal.</p>
+                </div>
+                <button type="button"
+                        class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2"
+                        data-bs-toggle="modal"
+                        data-bs-target="#ffcFiltersModal">
+                    <span class="bi bi-funnel" aria-hidden="true"></span>
+                    <span>Advanced filters</span>
+                </button>
+            </div>
+            <form method="get" class="ffc-index__filters-form" aria-describedby="ffcQuickFiltersTitle">
+                <input type="hidden" name="page" value="1" />
+                <input type="hidden" name="sort" value="@Model.CurrentSort" />
+                <input type="hidden" name="dir" value="@Model.CurrentSortDirection" />
+                @if (Model.IpaStatus != MilestoneFilterState.Any)
+                {
+                    <input type="hidden" name="ipa" value="@Model.IpaStatus.ToString().ToLowerInvariant()" />
+                }
+                @if (Model.GslStatus != MilestoneFilterState.Any)
+                {
+                    <input type="hidden" name="gsl" value="@Model.GslStatus.ToString().ToLowerInvariant()" />
+                }
+                @if (Model.DeliveryStatus != MilestoneFilterState.Any)
+                {
+                    <input type="hidden" name="delivery" value="@Model.DeliveryStatus.ToString().ToLowerInvariant()" />
+                }
+                @if (Model.InstallationStatus != MilestoneFilterState.Any)
+                {
+                    <input type="hidden" name="installation" value="@Model.InstallationStatus.ToString().ToLowerInvariant()" />
+                }
+                <div class="ffc-index__filters-grid">
+                    <div class="ffc-index__filter">
+                        <label class="form-label" for="ffc-filter-search-inline">Search records</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bi bi-search" aria-hidden="true"></span>
+                            <input type="search" class="form-control" id="ffc-filter-search-inline" name="q" value="@Model.Query" placeholder="Search by country or year" />
+                        </div>
+                    </div>
+                    <div class="ffc-index__filter">
+                        <label class="form-label" for="ffc-filter-year-inline">Year</label>
+                        <select class="form-select form-select-sm" id="ffc-filter-year-inline" name="year">
+                            <option value="">All years</option>
+                            @foreach (var option in Model.YearOptions)
+                            {
+                                <option value="@option.Value" selected="@(option.Selected ? "selected" : null)">@option.Text</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="ffc-index__filter">
+                        <label class="form-label" for="ffc-filter-country-inline">Country</label>
+                        <select class="form-select form-select-sm" id="ffc-filter-country-inline" name="countryId">
+                            <option value="">All countries</option>
+                            @foreach (var option in Model.CountryOptions)
+                            {
+                                <option value="@option.Value" selected="@(option.Selected ? "selected" : null)">@option.Text</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="ffc-index__filter ffc-index__filter--actions">
+                        <label class="form-label" for="ffc-filter-submit" aria-hidden="true">&nbsp;</label>
+                        <button type="submit" id="ffc-filter-submit" class="btn btn-primary w-100 d-inline-flex align-items-center justify-content-center gap-2">
+                            <span class="bi bi-filter" aria-hidden="true"></span>
+                            <span>Apply filters</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="ffc-index__filter-actions">
+                    <a asp-page="./Index" class="btn btn-link btn-sm px-0">Reset</a>
+                </div>
+            </form>
+        </div>
+
+        @* SECTION: Active filters summary *@
+        @if (Model.HasActiveFilters)
+        {
+            <section class="pm-card pm-shadow ffc-index__active-filters" aria-label="Active filters summary">
+                <header class="ffc-index__active-filters-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="bi bi-sliders" aria-hidden="true"></span>
+                        <h2 class="h6 mb-0">Active filters</h2>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-sm"
+                                data-bs-toggle="modal"
+                                data-bs-target="#ffcFiltersModal">
+                            Adjust
+                        </button>
+                        <a asp-page="./Index" class="btn btn-link btn-sm">Clear all</a>
+                    </div>
+                </header>
+                <div class="ffc-index__active-filters-list">
+                    @if (Model.HasQuery && !string.IsNullOrWhiteSpace(Model.Query))
+                    {
+                        <span class="ffc-index__filter-badge">Search: <strong>@Model.Query</strong></span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(selectedYearLabel))
+                    {
+                        <span class="ffc-index__filter-badge">Year: <strong>@selectedYearLabel</strong></span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(selectedCountryLabel))
+                    {
+                        <span class="ffc-index__filter-badge">Country: <strong>@selectedCountryLabel</strong></span>
+                    }
+                    @foreach (var milestone in milestoneFilters)
+                    {
+                        if (milestone.Value != MilestoneFilterState.Any)
+                        {
+                            <span class="ffc-index__filter-badge">@milestone.Label: <strong>@Model.GetMilestoneLabel(milestone.Value)</strong></span>
+                        }
+                    }
+                </div>
+            </section>
+        }
+
+        @* SECTION: Summary stats *@
+        <section class="pm-card pm-shadow ffc-index__stats-card" aria-label="Record summary">
+            <div class="ffc-index__stats">
+                <article class="ffc-index__stat" aria-label="Total records">
+                    <p class="ffc-index__stat-value">@Model.TotalCount</p>
+                    <p class="ffc-index__stat-label">Total records</p>
+                    <p class="ffc-index__stat-meta">@Model.TotalPages page@(Model.TotalPages == 1 ? string.Empty : "s") available</p>
+                </article>
+                <article class="ffc-index__stat" aria-label="Countries in view">
+                    <p class="ffc-index__stat-value">@visibleCountryCount</p>
+                    <p class="ffc-index__stat-label">Countries in view</p>
+                    <p class="ffc-index__stat-meta">@visibleRecordCount record@(visibleRecordCount == 1 ? string.Empty : "s") on this page</p>
+                </article>
+                <article class="ffc-index__stat" aria-label="Linked projects">
+                    <p class="ffc-index__stat-value">@totalProjects</p>
+                    <p class="ffc-index__stat-label">Linked projects</p>
+                    <p class="ffc-index__stat-meta">@totalUnits total unit@(totalUnits == 1 ? string.Empty : "s") planned</p>
+                </article>
+                <article class="ffc-index__stat" aria-label="Delivery status">
+                    <p class="ffc-index__stat-value">@deliveryPercent<span class="ffc-index__stat-suffix">%</span></p>
+                    <p class="ffc-index__stat-label">Delivery progress</p>
+                    <p class="ffc-index__stat-meta">@deliveredUnits of @totalUnits unit@(totalUnits == 1 ? string.Empty : "s") delivered · @installPercent% installed</p>
+                </article>
+            </div>
+        </section>
 
         <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
 
