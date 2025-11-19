@@ -30,12 +30,22 @@ if (-not (Test-Path $PgBin)) {
 $dropDb = Join-Path $PgBin "dropdb.exe"
 $createDb = Join-Path $PgBin "createdb.exe"
 
+foreach ($tool in @($dropDb, $createDb)) {
+    if (-not (Test-Path $tool)) {
+        throw "Required PostgreSQL utility not found: $tool"
+    }
+}
+
 & $dropDb --if-exists --host=$Host --port=$Port --username=$User $DbName
 & $createDb --host=$Host --port=$Port --username=$User $DbName
 #endregion
 
 #region Restore
 $pgRestore = Join-Path $PgBin "pg_restore.exe"
+
+if (-not (Test-Path $pgRestore)) {
+    throw "pg_restore not found at $pgRestore"
+}
 
 & $pgRestore `
     --host=$Host `

@@ -54,8 +54,10 @@ This document lists every supported configuration value, its default, and how th
 
 | Key | Default | Purpose |
 | --- | --- | --- |
+| `Storage:DataRoot` | `App_Data` beneath the application base path | Authoritative parent directory for all persisted uploads and document repository files. Override in `appsettings.Production.json` or via the `PM_DATA_ROOT` environment variable to point at a dedicated data volume. |
 | `ProjectPhotos:StorageRoot` | `wwwroot/uploads` (resolved at runtime) | Base directory for photo derivatives. Can be overridden via configuration or the `PM_UPLOAD_ROOT` environment variable. (see Services/Projects/ProjectPhotoOptionsSetup.cs lines 1-33) (see Services/Storage/UploadRootProvider.cs lines 17-60) |
 | `PM_UPLOAD_ROOT` (env) | empty | When set, overrides `ProjectPhotos:StorageRoot` for all upload consumers (photos, documents, comment attachments). |
+| `DocRepo:RootPath` | `App_Data/DocRepo` | Root directory for the document repository. Configure it under the same `Storage:DataRoot` tree so file backups capture all user documents. |
 | `ProjectPhotos:MaxFileSizeBytes` | `5_242_880` (5 MB) | Maximum raw photo upload size. |
 | `ProjectPhotos:MinWidth` / `MinHeight` | `720`×`540` | Historical guidance for recommended resolution; uploads smaller than these values are still accepted but may be flagged as low resolution. |
 | `ProjectPhotos:AllowedContentTypes` | `image/jpeg`, `image/png`, `image/webp` | MIME types accepted for project photos. |
@@ -82,6 +84,19 @@ This document lists every supported configuration value, its default, and how th
 | `FileDownload:BindTokensToUser` | `true` | When true, download tokens are tied to the requesting user ID; set to `false` only if generating system-to-system links is required. |
 
 `ProjectOfficeReports:SocialMediaPhotos` mirrors the `VisitPhotos` block: override `MaxFileSizeBytes`, opt into `MinWidth` / `MinHeight` thresholds when desired, manage `AllowedContentTypes`, and adjust derivative presets per campaign. Keep the key names stable so generated assets continue to resolve even if you tweak dimensions or JPEG quality. The `StoragePrefix` placeholder can be replaced with nested folder names, but must retain an `{eventId}` token so uploads remain segregated per event. (see appsettings.json lines 94-105) (see Areas/ProjectOfficeReports/Application/SocialMediaPhotoOptions.cs lines 6-37)
+
+## Data directories & backup automation
+
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `PM_DATA_ROOT` (env) | empty | Master directory that the file backup scripts mirror. Point it at the same location as `Storage:DataRoot` to guarantee every upload, DocRepo file, and OCR workspace is captured. |
+| `PM_FILE_BACKUP_ROOT` (env) | empty | Destination directory for `ops/backup-files.sh`. The script creates timestamped mirrors beneath this root. |
+| `PM_FILE_BACKUP_SOURCE` (env) | empty | Source directory used by `ops/restore-files.sh` to locate the mirror that should be copied back into `PM_DATA_ROOT`. |
+| `PM_BACKUP_DIR` (env) | empty | Directory where `ops/backup-db.sh` writes `.dump` files. Commonly `${PM_DATA_ROOT}/backups/db`. |
+| `PM_DUMP_FILE` (env) | empty | Absolute path to the `.dump` file consumed by `ops/restore-db.sh`. |
+| `PGRESTORE_USER` (env) | empty | PostgreSQL role (usually superuser) used by `ops/restore-db.sh` when recreating the database. |
+| `PGBIN` (env) | `/usr/bin` | Optional override for the PostgreSQL binary directory consumed by the Linux scripts. Set it if `pg_dump` / `pg_restore` are not on the default PATH. |
+| `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` (env) | Standard PostgreSQL defaults | Connection metadata used by `ops/backup-db.sh`. Provide these via the job definition rather than editing the script. |
 
 ## Security headers & networking
 
