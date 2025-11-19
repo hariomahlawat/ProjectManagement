@@ -16,17 +16,20 @@
             <div>
                 <h1 class="h4 mb-1">FFC Proposals</h1>
                 <p class="pm-page-subtitle">Review project delivery and installation progress by country and year.</p>
+                @* SECTION: Record filters trigger *@
                 <div class="d-flex flex-wrap gap-2 mt-3">
                     <button type="button"
-                            class="btn btn-outline-secondary"
+                            class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2"
                             data-bs-toggle="modal"
                             data-bs-target="#ffcFiltersModal">
-                        Filter records
+                        <span class="bi bi-funnel" aria-hidden="true"></span>
+                        <span>Filter</span>
                     </button>
                 </div>
             </div>
-            <div class="btn-toolbar flex-wrap justify-content-end gap-2" role="toolbar" aria-label="FFC navigation">
-                <div class="btn-group" role="group" aria-label="FFC views">
+            @* SECTION: FFC navigation toolbar *@
+            <div class="btn-toolbar flex-wrap justify-content-end gap-3" role="toolbar" aria-label="FFC navigation">
+                <div class="btn-group btn-group-sm" role="group" aria-label="FFC views">
                     <a asp-area="ProjectOfficeReports"
                        asp-page="/FFC/Map"
                        class="btn btn-outline-secondary">Map view</a>
@@ -39,13 +42,13 @@
                 </div>
                 @if (Model.CanManageRecords)
                 {
-                    <div class="btn-group" role="group" aria-label="Management actions">
+                    <div class="d-flex flex-wrap gap-2" role="group" aria-label="Management actions">
                         <a asp-area="ProjectOfficeReports"
                            asp-page="/FFC/Records/Manage"
-                           class="btn btn-outline-secondary">Manage records</a>
+                           class="btn btn-outline-secondary btn-sm">Manage records</a>
                         <a asp-area="ProjectOfficeReports"
                            asp-page="/FFC/Countries/Manage"
-                           class="btn btn-outline-secondary">Manage countries</a>
+                           class="btn btn-outline-secondary btn-sm">Manage countries</a>
                     </div>
                 }
             </div>

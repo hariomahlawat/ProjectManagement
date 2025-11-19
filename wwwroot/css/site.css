@@ -543,10 +543,12 @@ body {
     --ffc-summary-border: rgba(147, 51, 234, .5);
 }
 
+/* SECTION: FFC record card summary labels */
 .ffc-record-card__summary-label {
-    font-size: .75rem;
-    text-transform: uppercase;
-    letter-spacing: .08em;
+    font-size: .85rem;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: normal;
     color: var(--pm-muted);
 }
 
