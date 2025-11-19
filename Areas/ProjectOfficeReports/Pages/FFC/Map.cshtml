@@ -9,41 +9,19 @@
     <link rel="stylesheet" href="~/css/project-office-reports/ffc-map.css" asp-append-version="true" />
 }
 
-<div class="container-xxl py-4">
+<div class="container-xxl py-0">
     <div class="pm-page-header">
         <div>
-            <h1 class="h4 mb-1">FFC – World map</h1>
+            <h1 class="h4 mb-1">FFC – Simulators footprint</h1>
             <p class="pm-page-subtitle">
-                Countries shaded by total project units (installed, delivered, planned). Drill into a country to see details.
+                Countries shaded by total project/ simulators units (installed, delivered, planned). Drill into a country to see details.
             </p>
-        </div>
-        <div class="btn-toolbar flex-wrap gap-2 justify-content-end" role="toolbar" aria-label="Map actions">
-            <div class="btn-group" role="group" aria-label="FFC navigation">
-                <a asp-area="ProjectOfficeReports"
-                   asp-page="/FFC/Index"
-                   class="btn btn-outline-secondary">FFC dashboard</a>
-                <a asp-area="ProjectOfficeReports"
-                   asp-page="/FFC/MapTableDetailed"
-                   class="btn btn-outline-secondary">Detailed table</a>
-                <a asp-area="ProjectOfficeReports"
-                   asp-page="/FFC/MapBoard"
-                   class="btn btn-outline-secondary">Country board</a>
-            </div>
-            <div class="btn-group" role="group" aria-label="Layout controls">
-                <button type="button"
-                        class="btn btn-outline-secondary"
-                        data-action="ffc-map-toggle-fullwidth"
-                        aria-pressed="false"
-                        aria-label="Toggle full width">
-                    Full width
-                </button>
-            </div>
         </div>
     </div>
 
     <section class="ffc-map-layout"
              id="ffc-map-shell"
-             data-map-fullwidth="off">
+             data-map-fullwidth="on">
         <div class="ffc-map-canvas">
             <div id="ffc-map"
                  class="ffc-map"
@@ -63,27 +41,6 @@
                 </div>
             </div>
         </div>
-
-        <aside class="ffc-map-sidebar" id="ffc-map-sidebar" aria-label="Map controls">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h2 class="h6 mb-3">Total project units</h2>
-                    <div id="legendRamp" class="legend-ramp ffc-legend-ramp" aria-hidden="true"></div>
-                    <ul id="legendLabels" class="legend-labels ffc-legend-labels list-unstyled small mb-0"></ul>
-                </div>
-            </div>
-
-            <div class="card shadow-sm mt-3">
-                <div class="card-body">
-                    <h2 class="h6 mb-3">Focus</h2>
-                    <div class="d-grid gap-2">
-                        <button type="button" class="btn btn-outline-primary" data-zoom="southasia">South Asia</button>
-                        <button type="button" class="btn btn-outline-primary" data-zoom="africa">Africa</button>
-                        <button type="button" class="btn btn-outline-secondary" data-zoom="world">Reset</button>
-                    </div>
-                </div>
-            </div>
-        </aside>
     </section>
 </div>
 

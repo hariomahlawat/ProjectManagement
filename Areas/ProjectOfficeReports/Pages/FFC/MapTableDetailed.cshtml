@@ -3,30 +3,22 @@
 @{
     ViewData["Title"] = "FFC Proposals – Detailed table";
 }
-<div class="container-xxl py-4">
-    <section class="pm-page-header">
-        <div>
-            <h1 class="h4 mb-1">FFC – Detailed table</h1>
-            <p class="pm-page-subtitle">
-                Installed, delivered and planned totals show project units captured against each FFC record. Linked project
-                details feed the cost and progress summaries shown per row.
-            </p>
+
+<div class="container-xxl py-1">
+    <!-- HEADER: title left, export button right -->
+    <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+        <h1 class="h4 mb-0">FFC – Detailed table</h1>
+
+        <div class="btn-group" role="group" aria-label="Export actions">
+            <a asp-page="./MapTableDetailed"
+               asp-route-handler="Export"
+               asp-route-countryId="@Model.CountryId"
+               asp-route-year="@Model.Year"
+               class="btn btn-primary">
+                Export Excel
+            </a>
         </div>
-        <div class="btn-toolbar flex-wrap gap-2 justify-content-end" role="toolbar" aria-label="Detailed table actions">
-            <div class="btn-group" role="group" aria-label="FFC navigation">
-                <a asp-area="ProjectOfficeReports" asp-page="/FFC/Index" class="btn btn-outline-secondary">FFC dashboard</a>
-                <a asp-area="ProjectOfficeReports" asp-page="/FFC/Map" class="btn btn-outline-secondary">Map view</a>
-                <a asp-area="ProjectOfficeReports" asp-page="/FFC/MapBoard" class="btn btn-outline-secondary">Country board</a>
-            </div>
-            <div class="btn-group" role="group" aria-label="Export actions">
-                <a asp-page="./MapTableDetailed"
-                   asp-route-handler="Export"
-                   asp-route-countryId="@Model.CountryId"
-                   asp-route-year="@Model.Year"
-                   class="btn btn-primary">Export Excel</a>
-            </div>
-        </div>
-    </section>
+    </div>
 
     @if (Model.HasFilters && !string.IsNullOrWhiteSpace(Model.FilterSummary))
     {
