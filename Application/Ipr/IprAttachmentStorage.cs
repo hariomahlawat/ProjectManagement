@@ -177,7 +177,8 @@ public sealed class IprAttachmentStorage
         return string.IsNullOrWhiteSpace(safe) ? "attachment" : safe;
     }
 
-    private static string BuildStorageKey(int iprId, string fileName)
+    // SECTION: Storage helpers
+    private string BuildStorageKey(int iprId, string fileName)
     {
         var timestamp = DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
         var uniqueName = new StringBuilder(timestamp.Length + 1 + 32 + 1 + fileName.Length);
