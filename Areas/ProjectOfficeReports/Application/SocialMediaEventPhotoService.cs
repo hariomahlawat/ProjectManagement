@@ -59,19 +59,22 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
     private readonly SocialMediaPhotoOptions _options;
     private readonly IUploadRootProvider _uploadRootProvider;
     private readonly ILogger<SocialMediaEventPhotoService> _logger;
+    private readonly IVirusScanner? _virusScanner;
 
     public SocialMediaEventPhotoService(
         ApplicationDbContext db,
         IClock clock,
         IOptions<SocialMediaPhotoOptions> options,
         IUploadRootProvider uploadRootProvider,
-        ILogger<SocialMediaEventPhotoService> logger)
+        ILogger<SocialMediaEventPhotoService> logger,
+        IVirusScanner? virusScanner = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _virusScanner = virusScanner;
     }
 
     public async Task<IReadOnlyList<SocialMediaEventPhoto>> GetPhotosAsync(Guid eventId, CancellationToken cancellationToken)
@@ -115,6 +118,13 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
 
         await using var buffer = new MemoryStream();
         await content.CopyToAsync(buffer, cancellationToken);
+
+        if (_virusScanner != null)
+        {
+            buffer.Position = 0;
+            await _virusScanner.ScanAsync(buffer, originalFileName, cancellationToken);
+            buffer.Position = 0;
+        }
 
         if (buffer.Length == 0)
         {

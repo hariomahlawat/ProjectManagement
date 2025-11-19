@@ -11,8 +11,6 @@ public interface IActivityAttachmentStorage
         CancellationToken cancellationToken = default);
 
     Task DeleteAsync(string storageKey, CancellationToken cancellationToken = default);
-
-    string GetDownloadUrl(string storageKey);
 }
 
 public sealed record ActivityAttachmentStorageResult(

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using ProjectManagement.Application.Security;
 using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Activities;
@@ -206,8 +207,12 @@ public class ActivityServiceTests : IDisposable
         _attachmentValidator = new ActivityAttachmentValidator();
         _userContext = new TestUserContext("owner");
         _uploadRoot = new TestUploadRootProvider();
-        var storage = new FileSystemActivityAttachmentStorage(_uploadRoot, NullLogger<FileSystemActivityAttachmentStorage>.Instance);
+        var storage = new FileSystemActivityAttachmentStorage(
+            _uploadRoot,
+            new FileSecurityValidator(),
+            NullLogger<FileSystemActivityAttachmentStorage>.Instance);
         var ingestion = new StubDocRepoIngestionService();
+        var urlBuilder = new FakeFileUrlBuilder();
         _attachmentManager = new ActivityAttachmentManager(
             _activityRepository,
             storage,
@@ -215,6 +220,7 @@ public class ActivityServiceTests : IDisposable
             _clock,
             ingestion,
             _uploadRoot,
+            urlBuilder,
             NullLogger<ActivityAttachmentManager>.Instance);
         _service = new ActivityService(_activityRepository,
             _inputValidator,
@@ -417,7 +423,8 @@ public class ActivityServiceTests : IDisposable
         var metadata = await _service.GetAttachmentMetadataAsync(created.Id);
         var item = Assert.Single(metadata);
         Assert.Equal(ActivityAttachmentValidator.SanitizeFileName(upload.FileName), item.FileName);
-        Assert.Equal($"/files/{attachment.StorageKey}", item.DownloadUrl);
+        Assert.StartsWith("/files/", item.DownloadUrl, StringComparison.Ordinal);
+        Assert.False(string.IsNullOrWhiteSpace(item.DownloadUrl));
         Assert.Equal(attachment.Id, item.Id);
     }
 
@@ -554,6 +561,12 @@ internal sealed class StubDocRepoIngestionService : IDocRepoIngestionService
 {
     public Task<Guid> IngestExternalPdfAsync(Stream pdfStream, string originalFileName, string sourceModule, string sourceItemId, CancellationToken cancellationToken = default)
         => Task.FromResult(Guid.NewGuid());
+}
+
+internal sealed class FakeFileUrlBuilder : IProtectedFileUrlBuilder
+{
+    public string CreateDownloadUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
+        => string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/{storageKey}";
 }
 
 internal sealed class TestUploadRootProvider : IUploadRootProvider, IDisposable

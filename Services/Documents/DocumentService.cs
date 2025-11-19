@@ -244,7 +244,7 @@ public sealed class DocumentService : IDocumentService
         _db.ProjectDocuments.Add(document);
         await _db.SaveChangesAsync(cancellationToken);
 
-        var storageKey = BuildDocumentStorageKey(projectId, stageId, document.Id);
+        var storageKey = BuildDocumentStorageKey(projectId, stageId, document.Id, sanitizedName);
         var destinationPath = ResolveAbsolutePath(storageKey);
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
 
@@ -580,11 +580,18 @@ public sealed class DocumentService : IDocumentService
             "file.pdf");
     }
 
-    private string BuildDocumentStorageKey(int projectId, int? stageId, int documentId)
+    private string BuildDocumentStorageKey(int projectId, int? stageId, int documentId, string originalFileName)
     {
         var projectSegment = projectId.ToString(CultureInfo.InvariantCulture);
         var stageSegment = stageId?.ToString(CultureInfo.InvariantCulture) ?? "general";
         var documentSegment = documentId.ToString(CultureInfo.InvariantCulture);
+        var extension = Path.GetExtension(originalFileName);
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            extension = ".pdf";
+        }
+
+        var uniqueName = $"{documentSegment}-{Guid.NewGuid():N}{extension.ToLowerInvariant()}";
 
         return NormalizeStorageKey(
             _options.ProjectsSubpath,
@@ -592,8 +599,7 @@ public sealed class DocumentService : IDocumentService
             _options.StorageSubPath,
             "stages",
             stageSegment,
-            documentSegment,
-            "file.pdf");
+            uniqueName);
     }
 
     private string NormalizeStorageKey(params string[] segments)

@@ -14,6 +14,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Tests.Fakes;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Tests;
 
@@ -178,9 +179,10 @@ public sealed class IprWriteServiceTests
         var root = CreateTempRoot();
         try
         {
-            var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
+            var optionWrapper = Options.Create(options);
+            var storage = CreateStorage(root, optionWrapper);
             var ingestion = new StubDocRepoIngestionService();
-            var service = new IprWriteService(db, clock, storage, Options.Create(options), ingestion, NullLogger<IprWriteService>.Instance);
+            var service = new IprWriteService(db, clock, storage, optionWrapper, ingestion, NullLogger<IprWriteService>.Instance);
 
             var record = new IprRecord
             {
@@ -231,9 +233,10 @@ public sealed class IprWriteServiceTests
         var root = CreateTempRoot();
         try
         {
-            var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
+            var optionWrapper = Options.Create(options);
+            var storage = CreateStorage(root, optionWrapper);
             var ingestion = new StubDocRepoIngestionService();
-            var service = new IprWriteService(db, clock, storage, Options.Create(options), ingestion, NullLogger<IprWriteService>.Instance);
+            var service = new IprWriteService(db, clock, storage, optionWrapper, ingestion, NullLogger<IprWriteService>.Instance);
 
             var record = new IprRecord
             {
@@ -274,9 +277,10 @@ public sealed class IprWriteServiceTests
         var root = CreateTempRoot();
         try
         {
-            var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
+            var optionWrapper = Options.Create(options);
+            var storage = CreateStorage(root, optionWrapper);
             var ingestion = new StubDocRepoIngestionService();
-            var service = new IprWriteService(db, clock, storage, Options.Create(options), ingestion, NullLogger<IprWriteService>.Instance);
+            var service = new IprWriteService(db, clock, storage, optionWrapper, ingestion, NullLogger<IprWriteService>.Instance);
 
             var record = new IprRecord
             {
@@ -342,7 +346,7 @@ public sealed class IprWriteServiceTests
     {
         var options = Options.Create(new IprAttachmentOptions());
         var root = CreateTempRoot();
-        var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
+        var storage = CreateStorage(root, options);
         var ingestion = new StubDocRepoIngestionService();
         var service = new IprWriteService(db, clock, storage, options, ingestion, NullLogger<IprWriteService>.Instance);
         return (service, root);
@@ -367,6 +371,13 @@ public sealed class IprWriteServiceTests
     {
         var relative = storageKey.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
         return Path.Combine(root, relative);
+    }
+
+    private static IprAttachmentStorage CreateStorage(string root, IOptions<IprAttachmentOptions> options)
+    {
+        var provider = new TestUploadRootProvider(root);
+        var resolver = new UploadPathResolver(provider);
+        return new IprAttachmentStorage(provider, resolver, options);
     }
 
     private sealed class StubDocRepoIngestionService : IDocRepoIngestionService

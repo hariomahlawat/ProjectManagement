@@ -27,6 +27,7 @@ public class ActivityAttachmentManagerTests : IDisposable
     private readonly StubDocRepoIngestionService _ingestion = new();
     private readonly TestUploadRootProvider _uploadRootProvider;
     private readonly string _rootPath;
+    private readonly FakeUrlBuilder _urlBuilder = new();
 
     public ActivityAttachmentManagerTests()
     {
@@ -43,6 +44,7 @@ public class ActivityAttachmentManagerTests : IDisposable
             _clock,
             _ingestion,
             _uploadRootProvider,
+            _urlBuilder,
             NullLogger<ActivityAttachmentManager>.Instance);
     }
 
@@ -91,7 +93,7 @@ public class ActivityAttachmentManagerTests : IDisposable
 
         var metadata = _manager.CreateMetadata(activity);
         var item = Assert.Single(metadata);
-        Assert.Equal(FakeStorage.DownloadRoot + "/" + FakeStorage.StorageKey, item.DownloadUrl);
+        Assert.Equal($"/files/signed/{FakeStorage.StorageKey}", item.DownloadUrl);
         Assert.Equal(ActivityAttachmentValidator.SanitizeFileName(upload.FileName), item.FileName);
     }
 
@@ -130,7 +132,6 @@ public class ActivityAttachmentManagerTests : IDisposable
     {
         public const string StorageKey = "activities/1/fake-key";
         public const string FileName = "fake.pdf";
-        public const string DownloadRoot = "/files";
 
         public bool SaveCalled { get; private set; }
         public bool DeleteCalled { get; private set; }
@@ -171,9 +172,13 @@ public class ActivityAttachmentManagerTests : IDisposable
             return Task.CompletedTask;
         }
 
-        public string GetDownloadUrl(string storageKey)
+    }
+
+    private sealed class FakeUrlBuilder : IProtectedFileUrlBuilder
+    {
+        public string CreateDownloadUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
         {
-            return DownloadRoot + "/" + storageKey;
+            return string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/signed/{storageKey}";
         }
     }
 

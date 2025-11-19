@@ -24,6 +24,7 @@ public sealed class ActivityAttachmentManager : IActivityAttachmentManager
     private readonly IDocRepoIngestionService _docRepoIngestionService;
     private readonly IUploadRootProvider _uploadRootProvider;
     private readonly ILogger<ActivityAttachmentManager>? _logger;
+    private readonly IProtectedFileUrlBuilder _fileUrlBuilder;
 
     public ActivityAttachmentManager(IActivityRepository activityRepository,
                                      IActivityAttachmentStorage storage,
@@ -31,6 +32,7 @@ public sealed class ActivityAttachmentManager : IActivityAttachmentManager
                                      IClock clock,
                                      IDocRepoIngestionService docRepoIngestionService,
                                      IUploadRootProvider uploadRootProvider,
+                                     IProtectedFileUrlBuilder fileUrlBuilder,
                                      ILogger<ActivityAttachmentManager>? logger = null)
     {
         _activityRepository = activityRepository ?? throw new ArgumentNullException(nameof(activityRepository));
@@ -39,6 +41,7 @@ public sealed class ActivityAttachmentManager : IActivityAttachmentManager
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _docRepoIngestionService = docRepoIngestionService ?? throw new ArgumentNullException(nameof(docRepoIngestionService));
         _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
+        _fileUrlBuilder = fileUrlBuilder ?? throw new ArgumentNullException(nameof(fileUrlBuilder));
         _logger = logger;
     }
 
@@ -144,7 +147,7 @@ public sealed class ActivityAttachmentManager : IActivityAttachmentManager
         ArgumentNullException.ThrowIfNull(attachment);
 
         var fileName = ActivityAttachmentValidator.SanitizeFileName(attachment.OriginalFileName);
-        var downloadUrl = _storage.GetDownloadUrl(attachment.StorageKey);
+        var downloadUrl = _fileUrlBuilder.CreateDownloadUrl(attachment.StorageKey, attachment.OriginalFileName, attachment.ContentType);
 
         return new ActivityAttachmentMetadata(
             attachment.Id,

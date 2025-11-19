@@ -5,20 +5,47 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using ProjectManagement.Configuration;
 using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Application.Ipr;
 
 public sealed class IprAttachmentStorage
 {
-    private const string RootFolder = "ipr-attachments";
-
+    private readonly string _storageFolderName;
+    private readonly string _storageRoot;
     private readonly IUploadRootProvider _uploadRootProvider;
+    private readonly IUploadPathResolver _pathResolver;
     private readonly ILogger<IprAttachmentStorage>? _logger;
 
-    public IprAttachmentStorage(IUploadRootProvider uploadRootProvider, ILogger<IprAttachmentStorage>? logger = null)
+    public IprAttachmentStorage(IUploadRootProvider uploadRootProvider,
+                                IUploadPathResolver pathResolver,
+                                IOptions<IprAttachmentOptions> options,
+                                ILogger<IprAttachmentStorage>? logger = null)
     {
         _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
+        _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
+        if (options == null)
+        {
+            throw new ArgumentNullException(nameof(options));
+        }
+
+        var value = options.Value ?? new IprAttachmentOptions();
+        var sanitizedFolder = string.IsNullOrWhiteSpace(value.StorageFolderName)
+            ? "ipr-attachments"
+            : value.StorageFolderName.Trim().Trim('/', '\\');
+
+        if (string.IsNullOrWhiteSpace(value.StorageRoot))
+        {
+            _storageFolderName = sanitizedFolder;
+            _storageRoot = Path.GetFullPath(Path.Combine(uploadRootProvider.RootPath, sanitizedFolder));
+        }
+        else
+        {
+            _storageFolderName = string.Empty;
+            _storageRoot = ResolveStorageRoot(value.StorageRoot);
+        }
         _logger = logger;
     }
 
@@ -79,7 +106,8 @@ public sealed class IprAttachmentStorage
             throw;
         }
 
-        return new IprAttachmentStorageResult(storageKey, sanitizedName, totalBytes);
+        var persistedKey = _pathResolver.ToRelative(absolutePath);
+        return new IprAttachmentStorageResult(persistedKey, sanitizedName, totalBytes);
     }
 
     public Task<Stream> OpenReadAsync(string storageKey, CancellationToken cancellationToken = default)
@@ -112,8 +140,30 @@ public sealed class IprAttachmentStorage
 
     private string ResolveAbsolutePath(string storageKey)
     {
+        if (string.IsNullOrWhiteSpace(storageKey))
+        {
+            throw new ArgumentException("Storage key is required.", nameof(storageKey));
+        }
+
+        if (Path.IsPathRooted(storageKey))
+        {
+            return Path.GetFullPath(storageKey);
+        }
+
+        if (!string.IsNullOrEmpty(_storageFolderName))
+        {
+            try
+            {
+                return _pathResolver.ToAbsolute(storageKey);
+            }
+            catch
+            {
+                // Fall back below.
+            }
+        }
+
         var relative = storageKey.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
-        return Path.Combine(_uploadRootProvider.RootPath, relative);
+        return Path.GetFullPath(Path.Combine(_storageRoot, relative));
     }
 
     private static string SanitizeFileName(string original)
@@ -137,7 +187,11 @@ public sealed class IprAttachmentStorage
         uniqueName.Append('-');
         uniqueName.Append(fileName);
 
-        return Path.Combine(RootFolder, iprId.ToString(CultureInfo.InvariantCulture), uniqueName.ToString())
+        var folder = string.IsNullOrWhiteSpace(_storageFolderName)
+            ? string.Empty
+            : _storageFolderName;
+
+        return Path.Combine(folder, iprId.ToString(CultureInfo.InvariantCulture), uniqueName.ToString())
             .Replace('\\', '/');
     }
 
@@ -169,5 +223,10 @@ public sealed class IprAttachmentStorage
         {
             // ignored on purpose to avoid masking original exception
         }
+    }
+
+    private static string ResolveStorageRoot(string configuredRoot)
+    {
+        return Path.GetFullPath(configuredRoot);
     }
 }

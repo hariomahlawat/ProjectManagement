@@ -17,6 +17,7 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Attachments;
 
@@ -27,7 +28,8 @@ public class UploadModel(
     IOptions<FfcAttachmentOptions> options,
     IAuditService audit,
     ILogger<UploadModel> logger,
-    IDocRepoIngestionService docRepoIngestionService) : PageModel
+    IDocRepoIngestionService docRepoIngestionService,
+    IUploadPathResolver pathResolver) : PageModel
 {
     private readonly ApplicationDbContext _db = db;
     private readonly IFfcAttachmentStorage _storage = storage;
@@ -35,6 +37,7 @@ public class UploadModel(
     private readonly IAuditService _audit = audit;
     private readonly ILogger<UploadModel> _logger = logger;
     private readonly IDocRepoIngestionService _docRepoIngestionService = docRepoIngestionService;
+    private readonly IUploadPathResolver _pathResolver = pathResolver;
 
     [FromQuery] public long RecordId { get; set; }
     public FfcRecord Record { get; private set; } = default!;
@@ -99,7 +102,8 @@ public class UploadModel(
             {
                 try
                 {
-                    await using var pdfStream = System.IO.File.OpenRead(attachment.FilePath);
+                    var absolutePath = _pathResolver.ToAbsolute(attachment.FilePath);
+                    await using var pdfStream = System.IO.File.OpenRead(absolutePath);
                     await _docRepoIngestionService.IngestExternalPdfAsync(
                         pdfStream,
                         UploadFile.FileName,
