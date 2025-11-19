@@ -24,56 +24,95 @@ public class MapTableDetailedModel : PageModel
 {
     private readonly ApplicationDbContext _db;
 
+    // SECTION: Construction
     public MapTableDetailedModel(ApplicationDbContext db)
     {
         _db = db;
     }
 
-    public sealed record RowDto(
-        string CountryIso3,
-        string CountryName,
+    // SECTION: DTO contracts
+    public sealed record FfcProjectDetailRowDto(
+        int SerialNumber,
         string ProjectName,
         bool IsLinked,
+        decimal? CostInCr,
         int Quantity,
         string Bucket,
-        string LatestStage,
-        string ExternalRemark
+        string? ProgressRemark
     );
 
+    public sealed record FfcRecordDetailGroupDto(
+        string CountryName,
+        string CountryIso3,
+        int Year,
+        string? OverallRemarks,
+        IReadOnlyList<FfcProjectDetailRowDto> Projects
+    );
+
+    // SECTION: Internal projections
+    private sealed record FfcProjectProjection(
+        long Id,
+        string? Name,
+        string? Remarks,
+        int Quantity,
+        bool IsDelivered,
+        bool IsInstalled,
+        DateOnly? DeliveredOn,
+        DateOnly? InstalledOn,
+        int? LinkedProjectId,
+        string? LinkedProjectName,
+        long RecordId,
+        int Year,
+        string? OverallRemarks,
+        string? CountryIso3,
+        string? CountryName
+    );
+
+    // SECTION: Request handlers
     public async Task<IActionResult> OnGetDataAsync(CancellationToken cancellationToken)
     {
-        var rows = await LoadAsync(cancellationToken);
-        return new JsonResult(rows);
+        var groups = await LoadAsync(cancellationToken);
+        return new JsonResult(groups);
     }
 
     public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
     {
-        var rows = await LoadAsync(cancellationToken);
+        var groups = await LoadAsync(cancellationToken);
 
         using var workbook = new XLWorkbook();
         var worksheet = workbook.AddWorksheet("FFC Projects (Detailed)");
 
         worksheet.Cell(1, 1).Value = "Country";
         worksheet.Cell(1, 2).Value = "ISO3";
-        worksheet.Cell(1, 3).Value = "Project";
-        worksheet.Cell(1, 4).Value = "Linked?";
-        worksheet.Cell(1, 5).Value = "Quantity";
-        worksheet.Cell(1, 6).Value = "Bucket";
-        worksheet.Cell(1, 7).Value = "Latest stage";
-        worksheet.Cell(1, 8).Value = "External remark";
+        worksheet.Cell(1, 3).Value = "Year";
+        worksheet.Cell(1, 4).Value = "Project";
+        worksheet.Cell(1, 5).Value = "Linked?";
+        worksheet.Cell(1, 6).Value = "Cost (₹ Cr)";
+        worksheet.Cell(1, 7).Value = "Quantity";
+        worksheet.Cell(1, 8).Value = "Status";
+        worksheet.Cell(1, 9).Value = "Progress / present status";
+        worksheet.Cell(1, 10).Value = "Overall remarks";
 
         var rowIndex = 2;
-        foreach (var row in rows)
+        foreach (var group in groups)
         {
-            worksheet.Cell(rowIndex, 1).Value = row.CountryName;
-            worksheet.Cell(rowIndex, 2).Value = row.CountryIso3;
-            worksheet.Cell(rowIndex, 3).Value = row.ProjectName;
-            worksheet.Cell(rowIndex, 4).Value = row.IsLinked ? "Yes" : "No";
-            worksheet.Cell(rowIndex, 5).Value = row.Quantity;
-            worksheet.Cell(rowIndex, 6).Value = row.Bucket;
-            worksheet.Cell(rowIndex, 7).Value = row.LatestStage;
-            worksheet.Cell(rowIndex, 8).Value = row.ExternalRemark;
-            rowIndex++;
+            foreach (var project in group.Projects)
+            {
+                worksheet.Cell(rowIndex, 1).Value = group.CountryName;
+                worksheet.Cell(rowIndex, 2).Value = group.CountryIso3;
+                worksheet.Cell(rowIndex, 3).Value = group.Year;
+                worksheet.Cell(rowIndex, 4).Value = project.ProjectName;
+                worksheet.Cell(rowIndex, 5).Value = project.IsLinked ? "Yes" : "No";
+                if (project.CostInCr.HasValue)
+                {
+                    worksheet.Cell(rowIndex, 6).Value = (double)project.CostInCr.Value;
+                }
+                worksheet.Cell(rowIndex, 7).Value = project.Quantity;
+                worksheet.Cell(rowIndex, 8).Value = project.Bucket;
+                worksheet.Cell(rowIndex, 9).Value = project.ProgressRemark ?? string.Empty;
+                worksheet.Cell(rowIndex, 10).Value = group.OverallRemarks ?? string.Empty;
+                rowIndex++;
+            }
         }
 
         worksheet.Columns().AdjustToContents();
@@ -88,25 +127,34 @@ public class MapTableDetailedModel : PageModel
             fileName);
     }
 
-    private async Task<List<RowDto>> LoadAsync(CancellationToken cancellationToken)
+    // SECTION: Data shaping
+    private async Task<List<FfcRecordDetailGroupDto>> LoadAsync(CancellationToken cancellationToken)
     {
         var projects = await _db.FfcProjects
             .AsNoTracking()
             .Where(project => !project.Record.IsDeleted && project.Record.Country.IsActive)
-            .Select(project => new
-            {
+            .Select(project => new FfcProjectProjection(
                 project.Id,
                 project.Name,
                 project.Remarks,
                 project.Quantity,
                 project.IsDelivered,
                 project.IsInstalled,
+                project.DeliveredOn,
+                project.InstalledOn,
                 project.LinkedProjectId,
-                LinkedProjectName = project.LinkedProject != null ? project.LinkedProject.Name : null,
-                CountryIso3 = project.Record.Country.IsoCode,
-                CountryName = project.Record.Country.Name
-            })
+                project.LinkedProject != null ? project.LinkedProject.Name : null,
+                project.Record.Id,
+                project.Record.Year,
+                project.Record.OverallRemarks,
+                project.Record.Country.IsoCode,
+                project.Record.Country.Name))
             .ToListAsync(cancellationToken);
+
+        if (projects.Count == 0)
+        {
+            return new List<FfcRecordDetailGroupDto>();
+        }
 
         var linkedProjectIds = projects
             .Where(row => row.LinkedProjectId.HasValue)
@@ -115,6 +163,7 @@ public class MapTableDetailedModel : PageModel
             .ToArray();
 
         var projectNameMap = new Dictionary<int, string>(linkedProjectIds.Length);
+        var projectCostMap = new Dictionary<int, decimal?>(linkedProjectIds.Length);
         var stageSummaryMap = new Dictionary<int, string?>(linkedProjectIds.Length);
 
         if (linkedProjectIds.Length > 0)
@@ -126,6 +175,7 @@ public class MapTableDetailedModel : PageModel
                 {
                     project.Id,
                     project.Name,
+                    project.CostLakhs,
                     Stages = project.ProjectStages
                         .Select(stage => new
                         {
@@ -141,6 +191,9 @@ public class MapTableDetailedModel : PageModel
             projectNameMap = projectSnapshots
                 .ToDictionary(x => x.Id, x => x.Name ?? string.Empty);
 
+            projectCostMap = projectSnapshots
+                .ToDictionary(x => x.Id, x => ConvertLakhsToCr(x.CostLakhs));
+
             stageSummaryMap = projectSnapshots
                 .ToDictionary(
                     x => x.Id,
@@ -154,66 +207,164 @@ public class MapTableDetailedModel : PageModel
         }
 
         var remarkMap = linkedProjectIds.Length == 0
-            ? new Dictionary<int, string>()
+            ? new Dictionary<int, string?>()
             : await LoadRemarkSummariesAsync(linkedProjectIds, cancellationToken);
 
-        var rows = projects
-            .Select(row =>
+        var groups = projects
+            .GroupBy(project => new
             {
-                var (bucket, quantity) = FfcProjectBucketHelper.Classify(row.IsInstalled, row.IsDelivered, row.Quantity);
-                var bucketLabel = FfcProjectBucketHelper.GetBucketLabel(bucket);
-                var iso = (row.CountryIso3 ?? string.Empty).ToUpperInvariant();
-                var name = row.CountryName ?? string.Empty;
-                var isLinked = row.LinkedProjectId.HasValue;
-                var projectName = row.Name ?? string.Empty;
-                var stageSummary = string.Empty;
-                var remark = string.Empty;
-
-                if (isLinked)
-                {
-                    var linkedId = row.LinkedProjectId!.Value;
-                    if (projectNameMap.TryGetValue(linkedId, out var linkedName) && !string.IsNullOrWhiteSpace(linkedName))
-                    {
-                        projectName = linkedName;
-                    }
-                    else if (!string.IsNullOrWhiteSpace(row.LinkedProjectName))
-                    {
-                        projectName = row.LinkedProjectName!;
-                    }
-
-                    stageSummary = stageSummaryMap.TryGetValue(linkedId, out var summary) ? summary ?? string.Empty : string.Empty;
-                    remark = remarkMap.TryGetValue(linkedId, out var text) ? text : string.Empty;
-                }
-                else
-                {
-                    remark = FormatRemark(row.Remarks);
-                }
-
-                return new RowDto(
-                    iso,
-                    name,
-                    projectName,
-                    isLinked,
-                    quantity,
-                    bucketLabel,
-                    stageSummary,
-                    remark);
+                project.RecordId,
+                project.Year,
+                project.CountryName,
+                project.CountryIso3,
+                project.OverallRemarks
             })
-            .OrderBy(row => BucketOrder(row.Bucket))
-            .ThenBy(row => row.CountryName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(group => group.Key.CountryName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(group => group.Key.Year)
             .ToList();
 
-        return rows;
+        var result = new List<FfcRecordDetailGroupDto>(groups.Count);
+
+        foreach (var group in groups)
+        {
+            var projectRows = group
+                .OrderBy(project => project.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .Select((project, index) =>
+                {
+                    var (bucket, quantity) = FfcProjectBucketHelper.Classify(project.IsInstalled, project.IsDelivered, project.Quantity);
+                    var bucketLabel = FfcProjectBucketHelper.GetBucketLabel(bucket);
+                    var effectiveName = ResolveProjectName(project, projectNameMap);
+                    var costInCr = ResolveProjectCost(project.LinkedProjectId, projectCostMap);
+                    var progressRemark = BuildProgressRemark(project, bucket, stageSummaryMap, remarkMap);
+
+                    return new FfcProjectDetailRowDto(
+                        SerialNumber: index + 1,
+                        ProjectName: effectiveName,
+                        IsLinked: project.LinkedProjectId.HasValue,
+                        CostInCr: costInCr,
+                        Quantity: quantity,
+                        Bucket: bucketLabel,
+                        ProgressRemark: progressRemark
+                    );
+                })
+                .ToList();
+
+            if (projectRows.Count == 0)
+            {
+                continue;
+            }
+
+            result.Add(new FfcRecordDetailGroupDto(
+                CountryName: group.Key.CountryName ?? string.Empty,
+                CountryIso3: (group.Key.CountryIso3 ?? string.Empty).ToUpperInvariant(),
+                Year: group.Key.Year,
+                OverallRemarks: FormatRemark(group.Key.OverallRemarks),
+                Projects: projectRows
+            ));
+        }
+
+        return result;
     }
 
-    private static int BucketOrder(string bucket) => bucket switch
+    // SECTION: Projection helpers
+    private static string ResolveProjectName(FfcProjectProjection project, IReadOnlyDictionary<int, string> projectNameMap)
     {
-        "Installed" => 0,
-        "Delivered (not installed)" => 1,
-        "Planned" => 2,
-        _ => 4
-    };
+        var displayName = project.Name ?? string.Empty;
+        if (project.LinkedProjectId is int linkedId)
+        {
+            if (projectNameMap.TryGetValue(linkedId, out var linkedName) && !string.IsNullOrWhiteSpace(linkedName))
+            {
+                return linkedName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(project.LinkedProjectName))
+            {
+                return project.LinkedProjectName;
+            }
+        }
+
+        return displayName;
+    }
+
+    private static decimal? ResolveProjectCost(int? linkedProjectId, IReadOnlyDictionary<int, decimal?> costMap)
+    {
+        if (linkedProjectId is not int id)
+        {
+            return null;
+        }
+
+        return costMap.TryGetValue(id, out var cost) ? cost : null;
+    }
+
+    private static string? BuildProgressRemark(
+        FfcProjectProjection project,
+        FfcDeliveryBucket bucket,
+        IReadOnlyDictionary<int, string?> stageSummaryMap,
+        IReadOnlyDictionary<int, string?> remarkMap)
+    {
+        string? remarkFromFfc = FormatRemark(project.Remarks);
+
+        if (bucket == FfcDeliveryBucket.Planned)
+        {
+            if (project.LinkedProjectId is int linkedId && TryGetNonEmpty(remarkMap, linkedId, out var externalRemark))
+            {
+                return externalRemark;
+            }
+
+            return remarkFromFfc;
+        }
+
+        if (project.LinkedProjectId is int deliveredId)
+        {
+            if (TryGetNonEmpty(stageSummaryMap, deliveredId, out var stageSummary))
+            {
+                return stageSummary;
+            }
+
+            if (TryGetNonEmpty(remarkMap, deliveredId, out var externalRemark))
+            {
+                return externalRemark;
+            }
+        }
+
+        if (bucket == FfcDeliveryBucket.Installed && project.InstalledOn is DateOnly installedOn)
+        {
+            return $"Installed on {FormatDate(installedOn)}";
+        }
+
+        if (bucket == FfcDeliveryBucket.DeliveredNotInstalled && project.DeliveredOn is DateOnly deliveredOn)
+        {
+            return $"Delivered on {FormatDate(deliveredOn)}";
+        }
+
+        return remarkFromFfc;
+    }
+
+    private static bool TryGetNonEmpty(IReadOnlyDictionary<int, string?> source, int key, out string value)
+    {
+        if (source.TryGetValue(key, out var raw) && raw is not null)
+        {
+            var text = raw;
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                value = text;
+                return true;
+            }
+        }
+
+        value = string.Empty;
+        return false;
+    }
+
+    private static decimal? ConvertLakhsToCr(decimal? costLakhs)
+    {
+        if (!costLakhs.HasValue)
+        {
+            return null;
+        }
+
+        return decimal.Divide(costLakhs.Value, 100m);
+    }
 
     private static string FormatRemark(string? remark)
     {
@@ -226,9 +377,11 @@ public class MapTableDetailedModel : PageModel
             .Replace("\r", " ", StringComparison.Ordinal)
             .Replace("\n", " ", StringComparison.Ordinal);
 
-        const int limit = 120;
+        const int limit = 200;
         return text.Length <= limit ? text : string.Concat(text.AsSpan(0, limit), "…");
     }
+
+    private static string FormatDate(DateOnly date) => date.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
 
     private static string? BuildStageSummary(IEnumerable<ProjectStage> projectStages)
     {
@@ -295,7 +448,8 @@ public class MapTableDetailedModel : PageModel
         return $"Completed: {topLabel} ({topDate}){trailing}";
     }
 
-    private async Task<Dictionary<int, string>> LoadRemarkSummariesAsync(int[] projectIds, CancellationToken cancellationToken)
+    // SECTION: External remarks
+    private async Task<Dictionary<int, string?>> LoadRemarkSummariesAsync(int[] projectIds, CancellationToken cancellationToken)
     {
         var remarks = await _db.Remarks
             .AsNoTracking()
