@@ -82,39 +82,62 @@ public class MapTableDetailedModel : PageModel
         using var workbook = new XLWorkbook();
         var worksheet = workbook.AddWorksheet("FFC Projects (Detailed)");
 
-        worksheet.Cell(1, 1).Value = "Country";
-        worksheet.Cell(1, 2).Value = "ISO3";
-        worksheet.Cell(1, 3).Value = "Year";
-        worksheet.Cell(1, 4).Value = "Project";
-        worksheet.Cell(1, 5).Value = "Linked?";
-        worksheet.Cell(1, 6).Value = "Cost (₹ Cr)";
-        worksheet.Cell(1, 7).Value = "Quantity";
-        worksheet.Cell(1, 8).Value = "Status";
-        worksheet.Cell(1, 9).Value = "Progress / present status";
-        worksheet.Cell(1, 10).Value = "Overall remarks";
+        // SECTION: Header row
+        var columnIndex = 1;
+        worksheet.Cell(1, columnIndex++).Value = "Country";
+        worksheet.Cell(1, columnIndex++).Value = "ISO3";
+        worksheet.Cell(1, columnIndex++).Value = "Year";
+        worksheet.Cell(1, columnIndex++).Value = "S. No.";
+        worksheet.Cell(1, columnIndex++).Value = "Project";
+        worksheet.Cell(1, columnIndex++).Value = "Cost (₹ Cr)";
+        worksheet.Cell(1, columnIndex++).Value = "Quantity";
+        worksheet.Cell(1, columnIndex++).Value = "Status";
+        worksheet.Cell(1, columnIndex++).Value = "Progress / present status";
+        worksheet.Cell(1, columnIndex++).Value = "Overall remarks";
 
         var rowIndex = 2;
-        foreach (var group in groups)
+        foreach (var group in groups.OrderBy(g => g.CountryName).ThenBy(g => g.Year))
         {
+            if (group.Projects is null || group.Projects.Count == 0)
+            {
+                continue;
+            }
+
             foreach (var project in group.Projects)
             {
-                worksheet.Cell(rowIndex, 1).Value = group.CountryName;
-                worksheet.Cell(rowIndex, 2).Value = group.CountryIso3;
-                worksheet.Cell(rowIndex, 3).Value = group.Year;
-                worksheet.Cell(rowIndex, 4).Value = project.ProjectName;
-                worksheet.Cell(rowIndex, 5).Value = project.IsLinked ? "Yes" : "No";
+                columnIndex = 1;
+
+                worksheet.Cell(rowIndex, columnIndex++).Value = group.CountryName;
+                worksheet.Cell(rowIndex, columnIndex++).Value = group.CountryIso3;
+                worksheet.Cell(rowIndex, columnIndex++).Value = group.Year;
+                worksheet.Cell(rowIndex, columnIndex++).Value = project.SerialNumber;
+                worksheet.Cell(rowIndex, columnIndex++).Value = project.ProjectName;
+
                 if (project.CostInCr.HasValue)
                 {
-                    worksheet.Cell(rowIndex, 6).Value = (double)project.CostInCr.Value;
+                    worksheet.Cell(rowIndex, columnIndex).Value = project.CostInCr.Value;
+                    worksheet.Cell(rowIndex, columnIndex).Style.NumberFormat.Format = "0.00";
                 }
-                worksheet.Cell(rowIndex, 7).Value = project.Quantity;
-                worksheet.Cell(rowIndex, 8).Value = project.Bucket;
-                worksheet.Cell(rowIndex, 9).Value = project.ProgressRemark ?? string.Empty;
-                worksheet.Cell(rowIndex, 10).Value = group.OverallRemarks ?? string.Empty;
+                columnIndex++;
+
+                worksheet.Cell(rowIndex, columnIndex++).Value = project.Quantity;
+                worksheet.Cell(rowIndex, columnIndex++).Value = project.Bucket;
+                worksheet.Cell(rowIndex, columnIndex++).Value = project.ProgressRemark ?? string.Empty;
+                worksheet.Cell(rowIndex, columnIndex++).Value = group.OverallRemarks ?? string.Empty;
+
                 rowIndex++;
             }
+
+            rowIndex++;
         }
 
+        // SECTION: Styling
+        var headerRange = worksheet.Range(1, 1, 1, 10);
+        headerRange.Style.Font.Bold = true;
+        headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#f3f4f6");
+        headerRange.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+
+        worksheet.SheetView.FreezeRows(1);
         worksheet.Columns().AdjustToContents();
 
         using var stream = new MemoryStream();
@@ -122,9 +145,10 @@ public class MapTableDetailedModel : PageModel
         stream.Position = 0;
 
         var fileName = $"FFC_Projects_Detailed_{DateTime.UtcNow:yyyyMMdd_HHmm}.xlsx";
-        return File(stream.ToArray(),
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            fileName);
+        return File(
+            fileContents: stream.ToArray(),
+            contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            fileDownloadName: fileName);
     }
 
     // SECTION: Data shaping
