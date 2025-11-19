@@ -220,52 +220,11 @@
   font-variant-numeric: tabular-nums;
 }
 
-.ffc-board__toolbar .btn-group {
-  flex-wrap: wrap;
+/* ----- FFC board spacing ----- */
+#ffc-board-page {
+  padding-top: 1rem;
 }
 
-.ffc-board__sort {
-  margin-top: 0.5rem;
-}
-
-.ffc-board-full {
-  max-width: none !important;
-}
-
-#ffc-board-page.ffc-board--screenshot {
-  max-width: none !important;
-  padding: 2rem 2rem 3rem;
-  background: #ffffff;
-}
-
-#ffc-board-page.ffc-board--screenshot .pm-page-header {
-  margin-bottom: 1rem;
-}
-
-#ffc-board-page.ffc-board--screenshot .pm-page-header .pm-page-subtitle {
-  display: none;
-}
-
-#ffc-board-page.ffc-board--screenshot .ffc-board__toolbar,
-#ffc-board-page.ffc-board--screenshot .ffc-board__sort,
-#ffc-board-page.ffc-board--screenshot .app-breadcrumbs {
-  display: none !important;
-}
-
-#ffc-board-page.ffc-board--screenshot #ffc-board-screenshot {
-  align-self: flex-start;
-}
-
-#ffc-board-page.ffc-board--screenshot .ffc-board {
-  gap: 10px;
-}
-
-#ffc-board-page.ffc-board--screenshot .ffc-card {
-  padding: 12px 14px;
-  box-shadow: none;
-  border-color: #e2e8f0;
-}
-
-#ffc-board-page.ffc-board--screenshot footer {
-  display: none;
+.app-breadcrumbs + #ffc-board-page {
+  margin-top: -0.5rem;
 }

@@ -9,6 +9,7 @@
 }
 
 <div class="container-xxl py-4" id="ffc-board-page">
+    <!-- ===== Board header ===== -->
     <section class="pm-page-header">
         <div>
             <h1 class="h4 mb-1">FFC – Country board</h1>
@@ -16,36 +17,16 @@
                 Project units per country (installed, delivered, planned). Optimised for screenshots and slides.
             </p>
         </div>
-        <div class="btn-toolbar flex-wrap gap-2 justify-content-end ffc-board__toolbar" role="toolbar" aria-label="Board actions">
-            <div class="btn-group" role="group" aria-label="FFC navigation">
-                <a asp-area="ProjectOfficeReports" asp-page="/FFC/Index" class="btn btn-outline-secondary">FFC dashboard</a>
-                <a asp-area="ProjectOfficeReports" asp-page="/FFC/Map" class="btn btn-outline-secondary">Map view</a>
-                <a asp-area="ProjectOfficeReports" asp-page="/FFC/MapTableDetailed" class="btn btn-outline-secondary">Detailed table</a>
-            </div>
-            <div class="btn-group" role="group" aria-label="Presentation controls">
-                <button id="ffc-board-fullscreen" class="btn btn-outline-secondary" type="button">Full width</button>
-                <button id="ffc-board-screenshot" class="btn btn-outline-secondary" type="button" aria-pressed="false">Screenshot mode</button>
-                <button id="ffc-board-export" class="btn btn-primary" type="button">Export PNG</button>
-            </div>
-        </div>
     </section>
 
-    <div class="ffc-board__sort d-flex flex-wrap align-items-center justify-content-end gap-2 mb-3">
-        <label class="form-label small mb-0" for="ffc-board-sort">Sort by</label>
-        <select id="ffc-board-sort" class="form-select form-select-sm" aria-label="Sort countries">
-            <option value="total" selected>Total units</option>
-            <option value="country">Country A to Z</option>
-        </select>
-    </div>
-
+    <!-- ===== Country cards ===== -->
     <div id="ffc-board" class="ffc-board" data-data-url="@Url.Page("/FFC/Map", pageHandler: "Data")">
         <!-- tiles injected by JS -->
     </div>
 
-    <footer class="text-muted small mt-3">Tip: Use Screenshot mode or Full width for slide friendly captures.</footer>
+    <footer class="text-muted small mt-3">Project units data refreshes nightly.</footer>
 </div>
 
 @section Scripts {
-    <script defer src="~/js/vendor/html2canvas.min.js" asp-append-version="true"></script>
     <script defer src="~/js/pages/project-office-reports/ffc/ffc-map-board.js" asp-append-version="true"></script>
 }
