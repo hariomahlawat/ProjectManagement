@@ -303,7 +303,7 @@ public sealed class IprIndexPageTests
         var options = Options.Create(new IprAttachmentOptions
         {
             MaxFileSizeBytes = 1024 * 1024,
-            AllowedContentTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            AllowedContentTypes = new List<string> { "application/pdf" }
         });
 
         var uploadRootProvider = new TestUploadRootProvider(root);
