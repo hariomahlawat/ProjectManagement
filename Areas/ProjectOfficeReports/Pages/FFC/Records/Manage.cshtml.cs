@@ -42,6 +42,14 @@ public class ManageModel : FfcRecordListPageModel
         _logger = logger;
     }
 
+    private void ConfigureBreadcrumb()
+    {
+        FfcBreadcrumbs.Set(
+            ViewData,
+            ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
+            ("Manage records", null));
+    }
+
     public class InputModel
     {
         public long? Id { get; set; }
@@ -63,6 +71,7 @@ public class ManageModel : FfcRecordListPageModel
 
     public async Task<IActionResult> OnGetAsync()
     {
+        ConfigureBreadcrumb();
         var editId = EditId;
         await LoadPageAsync(editId);
         if (editId.HasValue)
@@ -76,6 +85,7 @@ public class ManageModel : FfcRecordListPageModel
 
     public async Task<IActionResult> OnPostCreateAsync()
     {
+        ConfigureBreadcrumb();
         await ValidateAsync(Input);
         if (!ModelState.IsValid)
         {
@@ -97,6 +107,7 @@ public class ManageModel : FfcRecordListPageModel
 
     public async Task<IActionResult> OnPostUpdateAsync()
     {
+        ConfigureBreadcrumb();
         if (Input.Id is null) return BadRequest();
         await ValidateAsync(Input);
         if (!ModelState.IsValid)

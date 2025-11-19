@@ -2,7 +2,7 @@
 @{
     Layout = null;
 }
-<nav aria-label="breadcrumb" class="mb-2">
+<nav aria-label="breadcrumb" class="app-breadcrumbs mb-3">
     <ol class="breadcrumb small">
         <li class="breadcrumb-item"><a asp-area="" asp-controller="Home" asp-action="Index">Dashboard</a></li>
         @foreach (var (text, url) in Model.Items)

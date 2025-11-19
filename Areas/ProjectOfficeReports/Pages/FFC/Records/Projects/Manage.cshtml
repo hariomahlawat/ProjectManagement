@@ -1,23 +1,15 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Projects.ManageModel
 @{
-    ViewData["Title"] = "FFC Projects";
+    ViewData["Title"] = "FFC Proposals – Projects";
 }
 
 <div class="container-fluid py-3">
     <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
         <div>
-            <p class="text-uppercase text-muted small mb-1">Project office reports</p>
+            <p class="text-uppercase text-muted small mb-1">FFC Proposals</p>
             <h1 class="h4 mb-1">Projects for @Model.Record.Country.Name (@Model.Record.Year)</h1>
-            <nav aria-label="Breadcrumb">
-                <ol class="breadcrumb mb-2 small">
-                    <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                    <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/FFC/Index">FFC deliveries</a></li>
-                    <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/FFC/Records/Manage">Manage records</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Projects</li>
-                </ol>
-            </nav>
-            <p class="text-muted mb-0">Track project-level quantities and milestones for this country-year record.</p>
+            <p class="text-muted mb-0">Track project-level quantities and milestones for this record.</p>
         </div>
     </div>
 

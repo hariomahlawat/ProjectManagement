@@ -70,15 +70,21 @@
         <div class="ffc-record-card__summary" aria-label="Record summary">
             <div class="ffc-record-card__summary-item ffc-record-card__summary-item--projects">
                 <span class="ffc-record-card__summary-value ffc-record-card__summary-value--projects">@projectCount</span>
-                <span class="ffc-record-card__summary-label">Project@(projectCount == 1 ? string.Empty : "s")</span>
+                <span class="ffc-record-card__summary-label"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="top"
+                      title="Number of FFC projects for this country and year">Projects</span>
             </div>
             <div class="ffc-record-card__summary-item ffc-record-card__summary-item--units">
-                <span class="ffc-record-card__summary-value ffc-record-card__summary-value--projects">@projectUnits</span>
-                <span class="ffc-record-card__summary-label">Project unit@(projectUnits == 1 ? string.Empty : "s")</span>
+                <span class="ffc-record-card__summary-value ffc-record-card__summary-value--units">@projectUnits</span>
+                <span class="ffc-record-card__summary-label"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="top"
+                      title="Number of individual project units recorded for this record">Project units</span>
             </div>
             <div class="ffc-record-card__summary-item ffc-record-card__summary-item--attachments">
                 <span class="ffc-record-card__summary-value ffc-record-card__summary-value--attachments">@attachmentCount</span>
-                <span class="ffc-record-card__summary-label">Attachment@(attachmentCount == 1 ? string.Empty : "s")</span>
+                <span class="ffc-record-card__summary-label">Attachments</span>
             </div>
         </div>
     </div>
@@ -132,7 +138,7 @@
                     }
                     else
                     {
-                        <p class="text-muted mb-0">No project units captured yet.</p>
+                        <p class="text-muted mb-0">No project units recorded.</p>
                     }
                 </article>
                 <article class="ffc-record-card__status">
@@ -147,7 +153,7 @@
                     }
                     else
                     {
-                        <p class="text-muted mb-0">No project units captured yet.</p>
+                        <p class="text-muted mb-0">No project units recorded.</p>
                     }
                 </article>
             </div>

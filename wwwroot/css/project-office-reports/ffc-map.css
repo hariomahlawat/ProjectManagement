@@ -75,6 +75,12 @@
   margin-bottom: 0.25rem;
 }
 
+.ffc-tip__meta {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 0.35rem;
+}
+
 .ffc-tip__rows {
   display: grid;
   gap: 0.25rem;
@@ -160,7 +166,7 @@
 
 .ffc-board {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 14px;
 }
 
@@ -170,6 +176,9 @@
   background: var(--bs-body-bg);
   padding: 14px 16px;
   box-shadow: 0 1px 2px rgba(10, 10, 10, 0.04);
+  max-width: 320px;
+  width: 100%;
+  margin-inline: auto;
 }
 
 .ffc-card__hdr {
@@ -211,6 +220,14 @@
   font-variant-numeric: tabular-nums;
 }
 
+.ffc-board__toolbar .btn-group {
+  flex-wrap: wrap;
+}
+
+.ffc-board__sort {
+  margin-top: 0.5rem;
+}
+
 .ffc-board-full {
   max-width: none !important;
 }
@@ -229,7 +246,9 @@
   display: none;
 }
 
-#ffc-board-page.ffc-board--screenshot .btn-group-board {
+#ffc-board-page.ffc-board--screenshot .ffc-board__toolbar,
+#ffc-board-page.ffc-board--screenshot .ffc-board__sort,
+#ffc-board-page.ffc-board--screenshot .app-breadcrumbs {
   display: none !important;
 }
 

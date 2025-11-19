@@ -17,7 +17,8 @@ public sealed record FfcCountryRollupDto(
     int Installed,
     int Delivered,
     int Planned,
-    int Total
+    int Total,
+    int LatestYear
 );
 
 // SECTION: Data source helpers
@@ -48,6 +49,7 @@ internal static class FfcCountryRollupDataSource
                 var summary = FfcProjectBucketHelper.Summarize(group);
                 var iso = (group.Key.CountryIso3 ?? string.Empty).ToUpperInvariant();
                 var name = group.Key.CountryName ?? string.Empty;
+                var latestYear = group.Max(project => project.Record.Year);
 
                 return new FfcCountryRollupDto(
                     group.Key.CountryId,
@@ -56,7 +58,8 @@ internal static class FfcCountryRollupDataSource
                     summary.Installed,
                     summary.DeliveredNotInstalled,
                     summary.Planned,
-                    summary.Total);
+                    summary.Total,
+                    latestYear);
             })
             .OrderByDescending(row => row.Total)
             .ThenBy(row => row.Name, StringComparer.OrdinalIgnoreCase)

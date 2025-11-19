@@ -11,6 +11,6 @@
     mapId: 'ffc-map',
     dataUrl: mapElement.dataset.dataUrl,
     geoJsonUrl: mapElement.dataset.geoUrl,
-    ffcIndexUrlBase: mapElement.dataset.ffcIndexUrlBase
+    ffcDetailUrlBase: mapElement.dataset.ffcDetailUrl
   });
 })(window, document);

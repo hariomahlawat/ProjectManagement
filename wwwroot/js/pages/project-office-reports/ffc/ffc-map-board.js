@@ -4,14 +4,18 @@
     const fullBtn = document.getElementById('ffc-board-fullscreen');
     const screenshotBtn = document.getElementById('ffc-board-screenshot');
     const boardPage = document.getElementById('ffc-board-page');
+    const sortSelect = document.getElementById('ffc-board-sort');
 
     if (!boardEl) {
         return;
     }
 
+    const dataUrl = boardEl.dataset.dataUrl || '/ProjectOfficeReports/FFC/Map?handler=Data';
+    let boardData = [];
+    let currentSort = sortSelect?.value || 'total';
+
     async function loadData() {
-        const url = '/ProjectOfficeReports/FFC/Map?handler=Data';
-        const response = await fetch(url, { credentials: 'same-origin' });
+        const response = await fetch(dataUrl, { credentials: 'same-origin' });
         if (!response.ok) {
             throw new Error('Failed to load data');
         }
@@ -57,11 +61,23 @@
             </div>`;
     }
 
-    function render(rows) {
-        rows.sort((a, b) => (b.total || 0) - (a.total || 0)
+    function sortRows(rows) {
+        const clone = Array.isArray(rows) ? [...rows] : [];
+        if (currentSort === 'country') {
+            clone.sort((a, b) => (a.name || '').localeCompare(b.name || '')
+                || (a.iso3 || '').localeCompare(b.iso3 || ''));
+            return clone;
+        }
+
+        clone.sort((a, b) => (b.total || 0) - (a.total || 0)
             || (a.name || '').localeCompare(b.name || '')
             || (a.iso3 || '').localeCompare(b.iso3 || ''));
-        boardEl.innerHTML = rows.map(tileHtml).join('');
+        return clone;
+    }
+
+    function render(rows) {
+        const sorted = sortRows(rows);
+        boardEl.innerHTML = sorted.map(tileHtml).join('');
     }
 
     function toggleFullWidth() {
@@ -72,7 +88,10 @@
 
         container.classList.toggle('ffc-board-full');
         const isFull = container.classList.contains('ffc-board-full');
-        fullBtn.textContent = isFull ? 'Normal width' : 'Full width';
+        if (fullBtn) {
+            fullBtn.textContent = isFull ? 'Normal width' : 'Full width';
+            fullBtn.setAttribute('aria-pressed', isFull ? 'true' : 'false');
+        }
     }
 
     function toggleScreenshotMode() {
@@ -106,12 +125,16 @@
     }
 
     try {
-        const data = await loadData();
-        render(data);
+        boardData = await loadData();
+        render(boardData);
 
         fullBtn?.addEventListener('click', toggleFullWidth);
         exportBtn?.addEventListener('click', exportPng);
         screenshotBtn?.addEventListener('click', toggleScreenshotMode);
+        sortSelect?.addEventListener('change', (event) => {
+            currentSort = event.target?.value || 'total';
+            render(boardData);
+        });
     } catch (error) {
         console.error('Board failed', error);
         boardEl.innerHTML = '<div class="alert alert-danger">Failed to load board.</div>';

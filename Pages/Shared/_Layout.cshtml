@@ -26,6 +26,7 @@
         var mainContainerClass = useFullWidth
         ? "container-fluid analytics-shell px-3 px-lg-4 px-xxl-5"
         : "container";
+        var breadcrumbModel = ViewData["Breadcrumb"] as BreadcrumbModel;
     }
     <header class="pm-topbar">
         <div class="container-fluid px-3 px-md-4 px-lg-5 pm-topbar__inner">
@@ -85,6 +86,10 @@
     <main role="main" class="pb-5@(useFullWidth ? " analytics-main" : string.Empty)">
         <div class="@mainContainerClass">
             @await Html.PartialAsync("_Toasts")
+            @if (breadcrumbModel is not null)
+            {
+                @await Html.PartialAsync("~/Views/Shared/_Breadcrumbs.cshtml", breadcrumbModel)
+            }
             @RenderBody()
         </div>
     </main>

@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
 
@@ -50,6 +51,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
 
     public async Task<IActionResult> OnGetAsync()
     {
+        ConfigureBreadcrumb();
         await LoadCountriesAsync();
         return Page();
     }
@@ -80,6 +82,14 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
 
         TempData["StatusMessage"] = entity.IsActive ? "Country activated." : "Country deactivated.";
         return RedirectToManage();
+    }
+
+    private void ConfigureBreadcrumb()
+    {
+        FfcBreadcrumbs.Set(
+            ViewData,
+            ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
+            ("Manage countries", null));
     }
 
     private async Task LoadCountriesAsync()

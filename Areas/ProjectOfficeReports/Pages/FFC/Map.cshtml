@@ -1,7 +1,7 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.MapModel
 @{
-    ViewData["Title"] = "FFC – Map view";
+    ViewData["Title"] = "FFC Proposals – World map";
 }
 
 @section Styles {
@@ -14,41 +14,30 @@
         <div>
             <h1 class="h4 mb-1">FFC – World map</h1>
             <p class="pm-page-subtitle">
-                Countries shaded by total <strong>project units</strong> (Installed / Delivered / Planned).
-                Drill into each country to see how many units are installed, delivered, or still planned.
+                Countries shaded by total project units (installed, delivered, planned). Drill into a country to see details.
             </p>
         </div>
-        <div class="d-flex align-items-center gap-2">
-            <a asp-area="ProjectOfficeReports"
-               asp-page="/FFC/Index"
-               class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
-                <i class="bi bi-list" aria-hidden="true"></i>
-                <span>Back to list</span>
-            </a>
-            <a asp-area="ProjectOfficeReports"
-               asp-page="/FFC/MapBoard"
-               class="btn btn-outline-secondary">
-                Board
-            </a>
-            <a asp-area="ProjectOfficeReports"
-               asp-page="/FFC/MapTable"
-               class="btn btn-outline-secondary">
-                Country summary
-            </a>
-            <a asp-area="ProjectOfficeReports"
-               asp-page="/FFC/MapTableDetailed"
-               class="btn btn-outline-secondary">
-                Detailed table
-            </a>
-
-            <button type="button"
-                    class="btn btn-outline-primary"
-                    data-action="ffc-map-toggle-fullwidth"
-                    aria-pressed="false"
-                    aria-label="Toggle full width">
-                <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
-                <span class="ms-1">Full width</span>
-            </button>
+        <div class="btn-toolbar flex-wrap gap-2 justify-content-end" role="toolbar" aria-label="Map actions">
+            <div class="btn-group" role="group" aria-label="FFC navigation">
+                <a asp-area="ProjectOfficeReports"
+                   asp-page="/FFC/Index"
+                   class="btn btn-outline-secondary">FFC dashboard</a>
+                <a asp-area="ProjectOfficeReports"
+                   asp-page="/FFC/MapTableDetailed"
+                   class="btn btn-outline-secondary">Detailed table</a>
+                <a asp-area="ProjectOfficeReports"
+                   asp-page="/FFC/MapBoard"
+                   class="btn btn-outline-secondary">Country board</a>
+            </div>
+            <div class="btn-group" role="group" aria-label="Layout controls">
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        data-action="ffc-map-toggle-fullwidth"
+                        aria-pressed="false"
+                        aria-label="Toggle full width">
+                    Full width
+                </button>
+            </div>
         </div>
     </div>
 
@@ -62,7 +51,7 @@
                  aria-label="World map showing FFC project unit counts"
                  data-data-url="@Url.Page("./Map", pageHandler: "Data")"
                  data-geo-url="@Url.Content("~/ffc/maps/world_india_view.geojson")"
-                 data-ffc-index-url-base="@Url.Page("./Index")"></div>
+                 data-ffc-detail-url="@Url.Page("./MapTableDetailed")"></div>
 
             <div class="ffc-focus-floating card shadow-sm" id="ffc-focus-floating">
                 <div class="card-body">

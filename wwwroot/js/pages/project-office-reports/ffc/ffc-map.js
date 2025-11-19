@@ -62,43 +62,32 @@
     return value.toString().toUpperCase();
   }
 
-  function buildDrillUrl(cfg, datum) {
-    if (!cfg || !cfg.ffcIndexUrlBase || !datum || datum.countryId == null) {
+  function buildDetailUrl(cfg, datum) {
+    if (!cfg || !cfg.ffcDetailUrlBase || !datum || datum.countryId == null) {
       return '';
     }
 
-    var installed = Number(datum.installed || 0);
-    var delivered = Number(datum.delivered || 0);
-
-    var deliveryFilter = 'delivery=pending';
-    if (installed > 0) {
-      deliveryFilter = 'installation=completed';
-    } else if (delivered > 0) {
-      deliveryFilter = 'delivery=completed';
-    }
-
     if (typeof URLSearchParams === 'undefined') {
-      var legacyParams = 'countryId=' + encodeURIComponent(String(datum.countryId));
-      if (deliveryFilter.indexOf('=') > 0) {
-        legacyParams += '&' + deliveryFilter;
+      var legacy = 'countryId=' + encodeURIComponent(String(datum.countryId));
+      if (datum.latestYear) {
+        legacy += '&year=' + encodeURIComponent(String(datum.latestYear));
       }
 
-      return cfg.ffcIndexUrlBase + '?' + legacyParams;
+      return cfg.ffcDetailUrlBase + '?' + legacy;
     }
 
     var params = new URLSearchParams();
     params.set('countryId', String(datum.countryId));
-
-    var filterParts = deliveryFilter.split('=');
-    if (filterParts.length === 2) {
-      params.set(filterParts[0], filterParts[1]);
+    if (datum.latestYear) {
+      params.set('year', String(datum.latestYear));
     }
 
-    return cfg.ffcIndexUrlBase + '?' + params.toString();
+    return cfg.ffcDetailUrlBase + '?' + params.toString();
   }
 
   function buildPopupHtml(countryName, datum, cfg) {
     var name = countryName || 'Unknown';
+    var iso = datum && datum.iso3 ? String(datum.iso3).toUpperCase() : '';
     var installed = datum ? Number(datum.installed || 0) : 0;
     var delivered = datum ? Number(datum.delivered || 0) : 0;
     var planned = datum ? Number(datum.planned || 0) : 0;
@@ -112,14 +101,15 @@
       '<div class="ffc-tip__row ffc-tip__row--muted"><span>Total units</span><strong>' + formatNumber(total) + '</strong></div>' +
       '</div>';
 
-    var drillHref = total > 0 ? buildDrillUrl(cfg, datum) : '';
-    var linkHtml = drillHref
-      ? '<a class="btn btn-sm btn-outline-primary mt-2" href="' + drillHref + '">View in list</a>'
+    var detailHref = total > 0 ? buildDetailUrl(cfg, datum) : '';
+    var linkHtml = detailHref
+      ? '<a class="btn btn-sm btn-outline-primary mt-2" href="' + detailHref + '">View projects in detailed table</a>'
       : '';
 
     return '' +
       '<div class="ffc-tip">' +
       '<div class="ffc-tip__title">' + name + '</div>' +
+      (iso ? '<div class="ffc-tip__meta">ISO ' + iso + '</div>' : '') +
       rowsHtml +
       linkHtml +
       '</div>';
@@ -225,10 +215,12 @@
           map.set(iso, {
             countryId: row.countryId,
             name: row.name || '',
+            iso3: iso,
             installed: Number(row.installed || 0),
             delivered: Number(row.delivered || 0),
             planned: Number(row.planned || 0),
-            total: Number(row.total || 0)
+            total: Number(row.total || 0),
+            latestYear: row.latestYear || null
           });
         });
 
@@ -289,7 +281,7 @@
 
         var legendTitle = document.createElement('h2');
         legendTitle.className = 'h6 mb-3';
-        legendTitle.textContent = 'Total completed linked projects';
+        legendTitle.textContent = 'Total project units';
 
         var legendRamp = document.createElement('div');
         legendRamp.className = 'legend-ramp ffc-legend-ramp';

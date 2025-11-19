@@ -508,6 +508,13 @@ body {
     --ffc-summary-icon-content: "\1F4C1";
 }
 
+.ffc-record-card__summary-value--units {
+    --ffc-summary-bg: rgba(14, 165, 233, .12);
+    --ffc-summary-border: rgba(14, 165, 233, .32);
+    --ffc-summary-icon-color: #0ea5e9;
+    --ffc-summary-icon-content: "\2699";
+}
+
 .ffc-record-card__summary-value--attachments {
     --ffc-summary-bg: rgba(147, 51, 234, .12);
     --ffc-summary-border: rgba(147, 51, 234, .32);
@@ -526,6 +533,11 @@ body {
     --ffc-summary-border: rgba(37, 99, 235, .5);
 }
 
+[data-bs-theme="dark"] .ffc-record-card__summary-value--units {
+    --ffc-summary-bg: rgba(14, 165, 233, .22);
+    --ffc-summary-border: rgba(14, 165, 233, .5);
+}
+
 [data-bs-theme="dark"] .ffc-record-card__summary-value--attachments {
     --ffc-summary-bg: rgba(147, 51, 234, .22);
     --ffc-summary-border: rgba(147, 51, 234, .5);
@@ -542,6 +554,37 @@ body {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+}
+
+.ffc-dtable__group-row {
+    background-color: #f8fafc;
+    font-size: 0.95rem;
+}
+
+.ffc-dtable__group-row td {
+    padding-top: 0.9rem;
+    padding-bottom: 0.9rem;
+}
+
+.ffc-dtable__group {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+}
+
+.ffc-dtable__group-title {
+    font-weight: 600;
+}
+
+.ffc-dtable__group-iso {
+    font-variant: all-small-caps;
+    color: #94a3b8;
+}
+
+.ffc-dtable__remarks-empty {
+    color: #94a3b8;
+    font-style: italic;
 }
 
 .ffc-record-card__section-title {

@@ -19,6 +19,10 @@ public class MapModel : PageModel
 
     public void OnGet()
     {
+        FfcBreadcrumbs.Set(
+            ViewData,
+            ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
+            ("World map", null));
     }
 
     public async Task<IActionResult> OnGetDataAsync(CancellationToken cancellationToken)
