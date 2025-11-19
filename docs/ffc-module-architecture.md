@@ -1,7 +1,7 @@
-# FFC Delivery Module Architecture
+# FFC Proposals Module Architecture
 
 ## 1. Purpose and High-Level Responsibilities
-The FFC delivery area under `Areas/ProjectOfficeReports/FFC` lets authorised staff track project-unit delivery milestones, supporting dashboards, drill-down views, and exported reports. Key responsibilities include:
+The FFC Proposals area under `Areas/ProjectOfficeReports/FFC` lets authorised staff track project-unit delivery milestones, supporting dashboards, drill-down views, and exported reports. Key responsibilities include:
 
 - Persisting per-country/year records, linked projects (with per-project quantities), and attachments.
 - Surfacing milestone progress cards, filters, and search integration.
@@ -24,7 +24,7 @@ The FFC delivery area under `Areas/ProjectOfficeReports/FFC` lets authorised sta
 
 ## 3. Security, Navigation & Routing
 - Razor Pages under `/ProjectOfficeReports/FFC` are decorated with `[Authorize]`, with admin-specific pages (`Records/Manage`, `Countries/Manage`) restricted to the `Admin` or `HoD` roles, while listing pages require any authenticated user.
-- Left-hand navigation includes a "FFC deliveries" item, wiring the `/ProjectOfficeReports/FFC/Index` page into the broader reports menu so eligible users can reach the module easily.
+- Left-hand navigation includes a "FFC Proposals" item, wiring the `/ProjectOfficeReports/FFC/Index` page into the broader reports menu so eligible users can reach the module easily.
 - `UrlBuilder` centralises deep links (record edit, attachment view) so services like global search can point users to the correct page with `editId` pre-selected.
 
 ## 4. Backend Features by Area
@@ -37,7 +37,7 @@ The FFC delivery area under `Areas/ProjectOfficeReports/FFC` lets authorised sta
 2. Loads year/country/milestone options from active data.
 3. Loads records (filtering out `IsDeleted`).
 4. Calls `LoadProjectRollupMetadataAsync`, which pulls linked project lifecycle statuses, stage history, and latest external remarks to decorate the cards with live project context.
-The Razor partial `_FfcRecordCard` renders each record's milestones, remarks, top three linked projects (with lifecycle badges and stage summaries), attachment counts, and management buttons. It also creates a modal gallery for attachments with inline preview links.
+The Razor partial `_FfcRecordCard` renders each record's milestones, remarks, top three linked projects (with lifecycle badges and stage summaries), attachment counts, and management buttons. It now uses consistent counters (“Projects”, “Project units”, “Attachments”) with tooltips and neutral zero-state messaging per record. It also creates a modal gallery for attachments with inline preview links.
 
 ### 4.3 Record CRUD (Admin)
 The admin `Records/Manage` page combines the list view with a form sidebar. It binds an `InputModel` covering country/year, IPA, and GSL fields (delivery/installation are now summarised from child projects), tracks `RowVersion` for concurrency, and validates business rules (active country, year range, milestone date dependencies). Create/update handlers map between form and entity, save changes, and emit audit logs via `IAuditService`. Concurrency conflicts reload the latest data and display a friendly error. Listing filters persist via `BuildRoute` so returning to the same filter context is seamless.
@@ -54,10 +54,11 @@ The admin `Records/Manage` page combines the list view with a form sidebar. It b
 ### 4.7 Map, Tables, and Board Endpoints
 All geographic views rely on `FfcCountryRollupDataSource`, which aggregates per-project quantities per active country by grouping `FfcProject` rows (linked or stand-alone). It classifies each row as Installed/Delivered/Planned based on per-project flags, multiplies counts by `Quantity`, and returns ISO3-coded DTOs that represent total project units rather than project counts.
 
-- `/FFC/Map` serves the Leaflet map and exposes a JSON handler returning the rollup DTOs.
-- `/FFC/MapTable` returns the same rollup JSON for sortable tables and can export the summary to Excel, writing column headers and totals per row.
-- `/FFC/MapTableDetailed` expands to project-level rows by combining `FfcProject`, linked `Project` snapshots (names + stage history), per-project quantities, and latest external remarks. It buckets rows (Installed/Delivered/Planned), truncates remarks for display, and exposes both JSON and XLSX export handlers.
-- `/FFC/MapBoard` is a fullscreen board built entirely from the rollup JSON.
+- `/FFC/Map` serves the Leaflet map and exposes a JSON handler returning the rollup DTOs. Popups show ISO3 codes, status totals, and deep links into the detailed table filtered by country/year.
+- `/FFC/MapTableDetailed` expands to project-level rows by combining `FfcProject`, linked `Project` snapshots (names + stage history), per-project quantities, and latest external remarks. It buckets rows (Installed/Delivered/Planned), truncates remarks for display, exposes both JSON and XLSX export handlers, and renders grouped country-year headers server-side.
+- `/FFC/MapBoard` is a fullscreen board built entirely from the rollup JSON. It supports server-provided sort defaults, “Sort by” UI (total units or country name), screenshot/full-width toggles, and PNG export.
+
+> **Note:** The former `/FFC/MapTable` country summary view now redirects to the board because the map, detailed table, and board cover the required use cases.
 
 ### 4.8 Dashboard Widget Integration
 The home dashboard loads `FfcCountryRollupDataSource`, filters for countries with any completed work, and builds a `FfcSimulatorMapVm` summarising totals. The `_Widget` partial renders totals, the interactive mini-map, and the top countries strip, delegating front-end behaviour to `wwwroot/js/widgets/ffc-simulator-map.js`.
@@ -67,23 +68,23 @@ The home dashboard loads `FfcCountryRollupDataSource`, filters for countries wit
 - The progress review report service pulls all non-deleted records, emits milestone rows per lifecycle event, and merges them with other proliferation/misc sections for the leadership review deck.
 
 ## 5. Front-End Views & Components
-- **Index view** (`Areas/ProjectOfficeReports/Pages/FFC/Index.cshtml`) composes toolbar actions (manage records, countries, map views) and renders `ffc-record-card` tiles using `_FfcRecordCard` plus `ViewData` dictionaries for rollup metadata.
+- **Index view** (`Areas/ProjectOfficeReports/Pages/FFC/Index.cshtml`) composes toolbar actions (map, detailed table, board, management pages) and renders `ffc-record-card` tiles using `_FfcRecordCard` plus `ViewData` dictionaries for rollup metadata.
 - **Manage pages** reuse `_RecordForm` for the edit/create experience; the offcanvas/table layout mirrors the standard admin pattern.
-- **Country/record tables** show filter pills, quick-search fields, and status badges to emphasise data hygiene.
+- **Country board** replaces the legacy country table and emphasises screenshot-friendly cards with consistent toolbar controls.
 - **Attachment modal** inside `_FfcRecordCard` displays both images and document lists, reusing the viewer endpoint for inline previews.
 
 ## 6. Client-Side Modules
 ### 6.1 Leaflet Map (`ffc-map.js` + `ffc-map-init.js`)
 `ffc-map.js` defines a `window.FfcMap` namespace that:
 - Builds color scales and popups, wires zoom controls, and caches country aggregates by ISO3.
-- Fetches GeoJSON + rollup data, paints the map with Leaflet layers, attaches tooltips, and provides drill-down URLs back to the index with pre-set filters.
-- Remembers "full-width" UI preferences in `localStorage` and exposes a `init` entrypoint used by `ffc-map-init.js` to bootstrap the map based on data attributes rendered by the Razor view.
+- Fetches GeoJSON + rollup data, paints the map with Leaflet layers, attaches tooltips, and links popups to the detailed table with country/year parameters.
+- Remembers "full-width" UI preferences in `localStorage` and exposes an `init` entrypoint used by `ffc-map-init.js` to bootstrap the map based on data attributes rendered by the Razor view.
 
 ### 6.2 Map Board (`ffc-map-board.js`)
-Fetches `/FFC/Map?handler=Data`, renders responsive cards sorted by total deliveries, and offers controls for full-width mode, screenshot-friendly mode, and PNG export via `html2canvas`. Buttons toggle CSS classes for layout adjustments.
+Fetches `/FFC/Map?handler=Data` (or a custom data URL provided by the Razor view), renders responsive cards sorted by total project units, and offers controls for full-width mode, screenshot-friendly mode, PNG export via `html2canvas`, and "Sort by" dropdown selections (Total units or Country A→Z). Buttons toggle CSS classes for layout adjustments, and toolbar chrome hides automatically during screenshot mode.
 
-### 6.3 Tabular Views (`ffc-map-table.js`, `ffc-map-table-detailed.js`)
-Both scripts fetch their respective JSON handlers, sort and render rows, and attach client-side sorting or error states. The summary table allows header-click sorting by numeric or string columns; the detailed table prints a friendly "No projects" or error row when data is unavailable.
+### 6.3 Detailed Table (`ffc-map-table-detailed.js`)
+The detailed table script fetches its JSON handler via the data attributes rendered on the Razor page, sorts and renders grouped rows (country-year headers, project rows), and attaches client-side formatting. It prints a friendly "No projects" row when data is unavailable, formats remarks placeholders, and provides Excel export alignment with the visible columns.
 
 ### 6.4 Dashboard Widget Script (`ffc-simulator-map.js`)
 Uses Leaflet to plot the condensed world map inside the dashboard widget. It parses serialized country data, builds proportional pins, colours features based on completion ratios, and exposes chip interactions + tooltips for accessibility. GeoJSON bounds can be provided to focus on specific regions.

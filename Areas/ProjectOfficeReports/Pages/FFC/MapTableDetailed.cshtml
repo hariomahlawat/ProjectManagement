@@ -1,26 +1,45 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.MapTableDetailedModel
 @{
-    ViewData["Title"] = "FFC – Detailed table";
+    ViewData["Title"] = "FFC Proposals – Detailed table";
 }
 <div class="container-xxl py-4">
     <section class="pm-page-header">
         <div>
             <h1 class="h4 mb-1">FFC – Detailed table</h1>
             <p class="pm-page-subtitle">
-                Installed / Delivered / Planned totals show project units captured against each FFC record. Linked project
+                Installed, delivered and planned totals show project units captured against each FFC record. Linked project
                 details feed the cost and progress summaries shown per row.
             </p>
         </div>
-        <div class="d-flex flex-wrap gap-2 align-items-center">
-            <a asp-area="ProjectOfficeReports" asp-page="/FFC/Map" class="btn btn-outline-secondary">Back to map</a>
-            <a asp-area="ProjectOfficeReports" asp-page="/FFC/MapTable" class="btn btn-outline-secondary">Country summary</a>
-            <a asp-page="./MapTableDetailed" asp-route-handler="Export" class="btn btn-primary">Export Excel</a>
+        <div class="btn-toolbar flex-wrap gap-2 justify-content-end" role="toolbar" aria-label="Detailed table actions">
+            <div class="btn-group" role="group" aria-label="FFC navigation">
+                <a asp-area="ProjectOfficeReports" asp-page="/FFC/Index" class="btn btn-outline-secondary">FFC dashboard</a>
+                <a asp-area="ProjectOfficeReports" asp-page="/FFC/Map" class="btn btn-outline-secondary">Map view</a>
+                <a asp-area="ProjectOfficeReports" asp-page="/FFC/MapBoard" class="btn btn-outline-secondary">Country board</a>
+            </div>
+            <div class="btn-group" role="group" aria-label="Export actions">
+                <a asp-page="./MapTableDetailed"
+                   asp-route-handler="Export"
+                   asp-route-countryId="@Model.CountryId"
+                   asp-route-year="@Model.Year"
+                   class="btn btn-primary">Export Excel</a>
+            </div>
         </div>
     </section>
 
+    @if (Model.HasFilters && !string.IsNullOrWhiteSpace(Model.FilterSummary))
+    {
+        <div class="alert alert-info py-2" role="status">
+            Showing records for <strong>@Model.FilterSummary</strong>.
+            <a asp-page="./MapTableDetailed" class="alert-link">Reset filters</a>
+        </div>
+    }
+
     <div class="table-responsive">
-        <table id="ffc-dtable" class="table table-sm align-middle">
+        <table id="ffc-dtable"
+               class="table table-sm align-middle ffc-dtable"
+               data-source-url="@Url.Page("./MapTableDetailed", pageHandler: "Data", values: new { countryId = Model.CountryId, year = Model.Year })">
             <thead>
                 <tr>
                     <th scope="col" style="width:4rem;">S. No.</th>

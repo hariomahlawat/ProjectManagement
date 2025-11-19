@@ -47,6 +47,7 @@ public class IndexModel : FfcRecordListPageModel
         await LoadRecordsAsync();
 
         await LoadProjectRollupMetadataAsync();
+        FfcBreadcrumbs.Set(ViewData, ("FFC Proposals", null));
     }
 
     protected override IQueryable<FfcRecord> ApplyRecordFilters(IQueryable<FfcRecord> queryable)

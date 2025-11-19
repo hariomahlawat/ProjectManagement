@@ -1,27 +1,20 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.ManageModel
 @{
-    ViewData["Title"] = "FFC Records";
+    ViewData["Title"] = "FFC Proposals – Manage records";
 }
 
 <div class="container-fluid py-3">
     <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
         <div>
-            <p class="text-uppercase text-muted small mb-1">Project office reports</p>
-            <h1 class="h4 mb-2">Manage FFC records</h1>
-            <nav aria-label="Breadcrumb">
-                <ol class="breadcrumb mb-0 small">
-                    <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                    <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/FFC/Index">FFC deliveries</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Manage records</li>
-                </ol>
-            </nav>
-            <p class="text-muted mb-0 mt-2">Create, edit, or remove project delivery records and keep information up to date.</p>
+            <p class="text-uppercase text-muted small mb-1">FFC Proposals</p>
+            <h1 class="h4 mb-2">Manage FFC Proposals records</h1>
+            <p class="text-muted mb-0">Create, edit, or remove records and keep project unit information current.</p>
         </div>
 
         <div class="d-flex flex-wrap gap-2">
             <a asp-area="ProjectOfficeReports" asp-page="/FFC/Index" class="btn btn-outline-secondary btn-sm">
-                View overview
+                FFC dashboard
             </a>
             <a asp-area="ProjectOfficeReports" asp-page="/FFC/Countries/Manage" class="btn btn-outline-secondary btn-sm">
                 Manage countries

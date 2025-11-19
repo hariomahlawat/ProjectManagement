@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Application.Ffc;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
@@ -56,6 +57,7 @@ public class UploadModel(
             return NotFound();
         }
 
+        ConfigureBreadcrumb();
         await LoadAttachmentItemsAsync(recordId);
 
         return Page();
@@ -69,6 +71,8 @@ public class UploadModel(
         {
             return NotFound();
         }
+
+        ConfigureBreadcrumb();
 
         if (UploadFile is null || UploadFile.Length == 0)
         {
@@ -131,6 +135,8 @@ public class UploadModel(
             return NotFound();
         }
 
+        ConfigureBreadcrumb();
+
         var a = await _db.FfcAttachments.FirstOrDefaultAsync(x => x.Id == id && x.FfcRecordId == recordId);
         if (a is null) return NotFound();
 
@@ -149,6 +155,23 @@ public class UploadModel(
         await TryLogAsync("ProjectOfficeReports.FFC.AttachmentDeleted", data);
         TempData["StatusMessage"] = "Attachment removed.";
         return RedirectToPage(new { recordId });
+    }
+
+    private void ConfigureBreadcrumb()
+    {
+        var dashboardUrl = Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" });
+        var manageUrl = Url.Page("/FFC/Records/Manage", new { area = "ProjectOfficeReports" });
+        var recordSegmentText = $"{Record.Country?.Name ?? "Record"} – {Record.Year}";
+        var recordSegmentUrl = Url.Page(
+            "/FFC/Records/Manage",
+            new { area = "ProjectOfficeReports", editId = Record.Id });
+
+        FfcBreadcrumbs.Set(
+            ViewData,
+            ("FFC Proposals", dashboardUrl),
+            ("Manage records", manageUrl),
+            (recordSegmentText, recordSegmentUrl),
+            ("Attachments", null));
     }
 
     private async Task TryLogAsync(string action, IDictionary<string, string?> data)

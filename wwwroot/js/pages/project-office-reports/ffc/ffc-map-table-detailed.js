@@ -10,6 +10,8 @@
     return;
   }
 
+  const sourceUrl = table.dataset.sourceUrl || '?handler=Data';
+
   // SECTION: Formatting helpers
   const escapeMap = {
     '&': '&amp;',
@@ -50,7 +52,7 @@
 
   // SECTION: Data access
   async function loadGroups() {
-    const response = await fetch('?handler=Data', { credentials: 'same-origin' });
+    const response = await fetch(sourceUrl, { credentials: 'same-origin' });
     if (!response.ok) {
       throw new Error('Failed to load detailed data');
     }
@@ -76,15 +78,20 @@
       }
 
       rows.push(
-        `<tr class="table-light">
+        `<tr class="ffc-dtable__group-row">
           <td colspan="7">
-            <strong>${esc(group.countryName)} – ${esc(group.year)}</strong>
-            <span class="ms-2 text-muted">${esc(group.countryIso3)}</span>
+            <div class="ffc-dtable__group">
+              <div class="ffc-dtable__group-title">${esc(group.countryName)} – ${esc(group.year)}</div>
+              <span class="ffc-dtable__group-iso">${esc(group.countryIso3)}</span>
+            </div>
           </td>
         </tr>`
       );
 
-      const overallRemarks = esc(group.overallRemarks || '');
+      const hasRemarks = typeof group.overallRemarks === 'string' && group.overallRemarks.trim().length > 0;
+      const overallRemarks = hasRemarks
+        ? esc(group.overallRemarks)
+        : '<span class="ffc-dtable__remarks-empty">No overall remarks recorded.</span>';
       const rowspan = projectRows.length;
 
       projectRows.forEach((project, index) => {

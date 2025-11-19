@@ -30,6 +30,17 @@ public class MapTableDetailedModel : PageModel
         _db = db;
     }
 
+    // SECTION: Filter state
+    public long? CountryId { get; private set; }
+
+    public short? Year { get; private set; }
+
+    public string? CountryName { get; private set; }
+
+    public bool HasFilters => CountryId.HasValue || Year.HasValue;
+
+    public string? FilterSummary { get; private set; }
+
     // SECTION: DTO contracts
     public sealed record FfcProjectDetailRowDto(
         int SerialNumber,
@@ -69,15 +80,37 @@ public class MapTableDetailedModel : PageModel
     );
 
     // SECTION: Request handlers
-    public async Task<IActionResult> OnGetDataAsync(CancellationToken cancellationToken)
+    public async Task OnGetAsync(long? countryId, short? year, CancellationToken cancellationToken)
     {
-        var groups = await LoadAsync(cancellationToken);
+        CountryId = countryId;
+        Year = year;
+
+        if (CountryId.HasValue)
+        {
+            CountryName = await _db.FfcCountries
+                .AsNoTracking()
+                .Where(country => country.Id == CountryId.Value)
+                .Select(country => country.Name)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        FilterSummary = BuildFilterSummary();
+
+        FfcBreadcrumbs.Set(
+            ViewData,
+            ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
+            ("Detailed table", null));
+    }
+
+    public async Task<IActionResult> OnGetDataAsync(long? countryId, short? year, CancellationToken cancellationToken)
+    {
+        var groups = await LoadAsync(countryId, year, cancellationToken);
         return new JsonResult(groups);
     }
 
-    public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetExportAsync(long? countryId, short? year, CancellationToken cancellationToken)
     {
-        var groups = await LoadAsync(cancellationToken);
+        var groups = await LoadAsync(countryId, year, cancellationToken);
 
         using var workbook = new XLWorkbook();
         var worksheet = workbook.AddWorksheet("FFC Projects (Detailed)");
@@ -154,11 +187,26 @@ public class MapTableDetailedModel : PageModel
     }
 
     // SECTION: Data shaping
-    private async Task<List<FfcRecordDetailGroupDto>> LoadAsync(CancellationToken cancellationToken)
+    private async Task<List<FfcRecordDetailGroupDto>> LoadAsync(long? countryId, short? year, CancellationToken cancellationToken)
     {
-        var projects = await _db.FfcProjects
+        var queryable = _db.FfcProjects
             .AsNoTracking()
             .Where(project => !project.Record.IsDeleted && project.Record.Country.IsActive)
+            .Include(project => project.Record)
+                .ThenInclude(record => record.Country)
+            .AsQueryable();
+
+        if (countryId.HasValue)
+        {
+            queryable = queryable.Where(project => project.Record.CountryId == countryId.Value);
+        }
+
+        if (year.HasValue)
+        {
+            queryable = queryable.Where(project => project.Record.Year == year.Value);
+        }
+
+        var projects = await queryable
             .Select(project => new FfcProjectProjection(
                 project.Id,
                 project.Name,
@@ -290,6 +338,28 @@ public class MapTableDetailedModel : PageModel
         }
 
         return result;
+    }
+
+    private string? BuildFilterSummary()
+    {
+        if (!HasFilters)
+        {
+            return null;
+        }
+
+        var parts = new List<string>();
+
+        if (CountryId.HasValue)
+        {
+            parts.Add(string.IsNullOrWhiteSpace(CountryName) ? "Selected country" : CountryName!);
+        }
+
+        if (Year.HasValue)
+        {
+            parts.Add(Year.Value.ToString(CultureInfo.InvariantCulture));
+        }
+
+        return string.Join(" · ", parts);
     }
 
     // SECTION: Projection helpers
