@@ -1,11 +1,21 @@
+// -----------------------------------------------------------------------------
+// Usings
+// -----------------------------------------------------------------------------
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
+// -----------------------------------------------------------------------------
+// Namespace
+// -----------------------------------------------------------------------------
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 
 [Authorize]
 public class MapBoardModel : PageModel
 {
+    // -------------------------------------------------------------------------
+    // Handlers
+    // -------------------------------------------------------------------------
     public void OnGet()
     {
         FfcBreadcrumbs.Set(
