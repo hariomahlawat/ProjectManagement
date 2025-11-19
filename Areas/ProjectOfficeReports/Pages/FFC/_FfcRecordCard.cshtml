@@ -67,24 +67,28 @@
                 <h2 class="ffc-record-card__country">@countryName</h2>
             </div>
         </div>
+        @* SECTION: Record summary counters *@
         <div class="ffc-record-card__summary" aria-label="Record summary">
             <div class="ffc-record-card__summary-item ffc-record-card__summary-item--projects">
                 <span class="ffc-record-card__summary-value ffc-record-card__summary-value--projects">@projectCount</span>
                 <span class="ffc-record-card__summary-label"
                       data-bs-toggle="tooltip"
                       data-bs-placement="top"
-                      title="Number of FFC projects for this country and year">Projects</span>
+                      title="Number of projects for this country and year">Projects</span>
             </div>
             <div class="ffc-record-card__summary-item ffc-record-card__summary-item--units">
                 <span class="ffc-record-card__summary-value ffc-record-card__summary-value--units">@projectUnits</span>
                 <span class="ffc-record-card__summary-label"
                       data-bs-toggle="tooltip"
                       data-bs-placement="top"
-                      title="Number of individual project units recorded for this record">Project units</span>
+                      title="Total project units captured for this country and year">Project units</span>
             </div>
             <div class="ffc-record-card__summary-item ffc-record-card__summary-item--attachments">
                 <span class="ffc-record-card__summary-value ffc-record-card__summary-value--attachments">@attachmentCount</span>
-                <span class="ffc-record-card__summary-label">Attachments</span>
+                <span class="ffc-record-card__summary-label"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="top"
+                      title="Number of attachments linked to this record">Attachments</span>
             </div>
         </div>
     </div>
