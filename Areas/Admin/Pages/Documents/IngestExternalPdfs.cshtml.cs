@@ -23,20 +23,20 @@ public class IngestExternalPdfsModel : PageModel
     private readonly ApplicationDbContext _dbContext;
     private readonly IDocRepoIngestionService _docRepoIngestionService;
     private readonly IprAttachmentStorage _iprAttachmentStorage;
-    private readonly IUploadRootProvider _uploadRootProvider;
+    private readonly IUploadPathResolver _pathResolver;
     private readonly ILogger<IngestExternalPdfsModel>? _logger;
 
     public IngestExternalPdfsModel(
         ApplicationDbContext dbContext,
         IDocRepoIngestionService docRepoIngestionService,
         IprAttachmentStorage iprAttachmentStorage,
-        IUploadRootProvider uploadRootProvider,
+        IUploadPathResolver pathResolver,
         ILogger<IngestExternalPdfsModel>? logger = null)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _docRepoIngestionService = docRepoIngestionService ?? throw new ArgumentNullException(nameof(docRepoIngestionService));
         _iprAttachmentStorage = iprAttachmentStorage ?? throw new ArgumentNullException(nameof(iprAttachmentStorage));
-        _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
+        _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
         _logger = logger;
     }
 
@@ -70,7 +70,9 @@ public class IngestExternalPdfsModel : PageModel
 
         foreach (var attachment in attachments)
         {
-            if (string.IsNullOrWhiteSpace(attachment.FilePath) || !System.IO.File.Exists(attachment.FilePath))
+            var absolutePath = ResolveAbsolutePath(attachment.FilePath);
+
+            if (string.IsNullOrWhiteSpace(absolutePath) || !System.IO.File.Exists(absolutePath))
             {
                 SkippedMissing++;
                 continue;
@@ -78,10 +80,10 @@ public class IngestExternalPdfsModel : PageModel
 
             try
             {
-                await using var stream = System.IO.File.OpenRead(attachment.FilePath);
+                await using var stream = System.IO.File.OpenRead(absolutePath);
                 await _docRepoIngestionService.IngestExternalPdfAsync(
                     stream,
-                    Path.GetFileName(attachment.FilePath),
+                    Path.GetFileName(absolutePath),
                     "FFC",
                     attachment.Id.ToString(CultureInfo.InvariantCulture),
                     cancellationToken);
@@ -134,7 +136,7 @@ public class IngestExternalPdfsModel : PageModel
 
         foreach (var attachment in attachments)
         {
-            var absolutePath = ResolveActivityAttachmentPath(attachment.StorageKey);
+            var absolutePath = ResolveAbsolutePath(attachment.StorageKey);
             if (!System.IO.File.Exists(absolutePath))
             {
                 SkippedMissing++;
@@ -159,9 +161,20 @@ public class IngestExternalPdfsModel : PageModel
         }
     }
 
-    private string ResolveActivityAttachmentPath(string storageKey)
+    private string ResolveAbsolutePath(string? storageKey)
     {
-        var relative = storageKey.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
-        return Path.Combine(_uploadRootProvider.RootPath, relative);
+        if (string.IsNullOrWhiteSpace(storageKey))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return _pathResolver.ToAbsolute(storageKey);
+        }
+        catch
+        {
+            return storageKey;
+        }
     }
 }

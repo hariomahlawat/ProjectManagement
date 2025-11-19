@@ -59,6 +59,7 @@ using ProjectManagement.Services.Reports.ProgressReview;
 using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Services.Startup;
+using ProjectManagement.Services.Security;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Utilities;
 using ProjectManagement.Utilities.Reporting;
@@ -308,6 +309,8 @@ builder.Services.Configure<IprAttachmentOptions>(
     builder.Configuration.GetSection("IprAttachments"));
 builder.Services.Configure<FfcAttachmentOptions>(
     builder.Configuration.GetSection("FfcAttachments"));
+builder.Services.Configure<FileDownloadOptions>(
+    builder.Configuration.GetSection("FileDownload"));
 builder.Services.AddSingleton<IprAttachmentStorage>();
 builder.Services.AddScoped<IFileSecurityValidator, FileSecurityValidator>();
 builder.Services.AddScoped<IFfcAttachmentStorage, FfcAttachmentStorage>();
@@ -429,6 +432,9 @@ builder.Services.AddOptions<ProjectVideoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectVideos"));
 builder.Services.AddSingleton<IConfigureOptions<ProjectPhotoOptions>, ProjectPhotoOptionsSetup>();
 builder.Services.AddSingleton<IUploadRootProvider, UploadRootProvider>();
+builder.Services.AddSingleton<IUploadPathResolver, UploadPathResolver>();
+builder.Services.AddSingleton<IFileAccessTokenService, FileAccessTokenService>();
+builder.Services.AddScoped<IProtectedFileUrlBuilder, ProtectedFileUrlBuilder>();
 builder.Services.AddScoped<IProjectPhotoService, ProjectPhotoService>();
 builder.Services.AddScoped<IProjectVideoService, ProjectVideoService>();
 builder.Services.AddOptions<ProjectRetentionOptions>()
@@ -635,18 +641,9 @@ app.Use(async (ctx, next) =>
     await next();
 });
 
-var uploadRoot = app.Services.GetRequiredService<IUploadRootProvider>();
-
 var contentTypeProvider = new FileExtensionContentTypeProvider();
 contentTypeProvider.Mappings[".geojson"] = "application/geo+json";
 contentTypeProvider.Mappings[".topojson"] = "application/json";
-
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(uploadRoot.RootPath),
-    RequestPath = "/files",
-    ServeUnknownFileTypes = true,
-});
 
 app.UseStaticFiles(new StaticFileOptions
 {

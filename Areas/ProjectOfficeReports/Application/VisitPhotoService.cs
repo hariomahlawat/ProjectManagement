@@ -43,13 +43,15 @@ public sealed class VisitPhotoService : IVisitPhotoService
     private readonly VisitPhotoOptions _options;
     private readonly IUploadRootProvider _uploadRootProvider;
     private readonly ILogger<VisitPhotoService> _logger;
+    private readonly IVirusScanner? _virusScanner;
 
     public VisitPhotoService(ApplicationDbContext db,
                              IClock clock,
                              IAuditService audit,
                              IOptions<VisitPhotoOptions> options,
                              IUploadRootProvider uploadRootProvider,
-                             ILogger<VisitPhotoService> logger)
+                             ILogger<VisitPhotoService> logger,
+                             IVirusScanner? virusScanner = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -57,6 +59,7 @@ public sealed class VisitPhotoService : IVisitPhotoService
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _virusScanner = virusScanner;
     }
 
     public async Task<IReadOnlyList<VisitPhoto>> GetPhotosAsync(Guid visitId, CancellationToken cancellationToken)
@@ -97,6 +100,13 @@ public sealed class VisitPhotoService : IVisitPhotoService
 
         await using var buffer = new MemoryStream();
         await content.CopyToAsync(buffer, cancellationToken);
+
+        if (_virusScanner != null)
+        {
+            buffer.Position = 0;
+            await _virusScanner.ScanAsync(buffer, originalFileName, cancellationToken);
+            buffer.Position = 0;
+        }
 
         if (buffer.Length == 0)
         {

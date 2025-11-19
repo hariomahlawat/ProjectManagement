@@ -14,12 +14,15 @@ public sealed class FileSystemActivityAttachmentStorage : IActivityAttachmentSto
     private const string RootFolder = "activities";
 
     private readonly IUploadRootProvider _uploadRootProvider;
+    private readonly IFileSecurityValidator _validator;
     private readonly ILogger<FileSystemActivityAttachmentStorage>? _logger;
 
     public FileSystemActivityAttachmentStorage(IUploadRootProvider uploadRootProvider,
+                                               IFileSecurityValidator validator,
                                                ILogger<FileSystemActivityAttachmentStorage>? logger = null)
     {
         _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
+        _validator = validator ?? throw new ArgumentNullException(nameof(validator));
         _logger = logger;
     }
 
@@ -38,8 +41,7 @@ public sealed class FileSystemActivityAttachmentStorage : IActivityAttachmentSto
         var sanitizedName = ActivityAttachmentValidator.SanitizeFileName(upload.FileName);
         var storageKey = BuildStorageKey(activityId, sanitizedName);
         var absolutePath = ResolveAbsolutePath(storageKey);
-
-        Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
+        var tempFile = Path.GetTempFileName();
 
         if (upload.Content.CanSeek)
         {
@@ -49,24 +51,33 @@ public sealed class FileSystemActivityAttachmentStorage : IActivityAttachmentSto
         long totalBytes = 0;
         try
         {
-            await using var destination = new FileStream(absolutePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
-            var buffer = new byte[81920];
-            while (true)
+            await using (var tempStream = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
             {
-                var read = await upload.Content.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
-                if (read <= 0)
+                var buffer = new byte[81920];
+                while (true)
                 {
-                    break;
+                    var read = await upload.Content.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+                    if (read <= 0)
+                    {
+                        break;
+                    }
+
+                    totalBytes += read;
+                    await tempStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                 }
 
-                totalBytes += read;
-                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                await tempStream.FlushAsync(cancellationToken);
             }
 
-            await destination.FlushAsync(cancellationToken);
+            await _validator.IsSafeAsync(tempFile, upload.ContentType, cancellationToken);
+
+            Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
+            File.Move(tempFile, absolutePath, overwrite: true);
+            tempFile = string.Empty;
         }
         catch
         {
+            SafeDelete(tempFile);
             SafeDelete(absolutePath);
             throw;
         }
@@ -95,17 +106,6 @@ public sealed class FileSystemActivityAttachmentStorage : IActivityAttachmentSto
         }
 
         return Task.CompletedTask;
-    }
-
-    public string GetDownloadUrl(string storageKey)
-    {
-        if (string.IsNullOrWhiteSpace(storageKey))
-        {
-            return string.Empty;
-        }
-
-        var normalized = storageKey.Replace('\\', '/');
-        return $"/files/{normalized}";
     }
 
     private static string BuildStorageKey(int activityId, string fileName)

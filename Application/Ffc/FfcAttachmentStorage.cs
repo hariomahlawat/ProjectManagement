@@ -19,6 +19,7 @@ public class FfcAttachmentStorage(
     ApplicationDbContext db,
     IFileSecurityValidator validator,
     IUploadRootProvider uploadRootProvider,
+    IUploadPathResolver pathResolver,
     IUserContext userContext,
     IOptions<FfcAttachmentOptions> options) : IFfcAttachmentStorage
 {
@@ -26,6 +27,7 @@ public class FfcAttachmentStorage(
     private readonly ApplicationDbContext _db = db;
     private readonly IFileSecurityValidator _validator = validator;
     private readonly IUserContext _userContext = userContext;
+    private readonly IUploadPathResolver _pathResolver = pathResolver;
     private readonly FfcAttachmentOptions _options = options.Value;
     private readonly string _storageRoot = ResolveStorageRoot(options.Value, uploadRootProvider);
 
@@ -70,11 +72,13 @@ public class FfcAttachmentStorage(
         var finalPath = Path.Combine(_storageRoot, fileName);
         File.Move(tmpPath, finalPath, true);
 
+        var storageKey = _pathResolver.ToRelative(finalPath);
+
         var attachment = new FfcAttachment
         {
             FfcRecordId = recordId,
             Kind = kind,
-            FilePath = finalPath,
+            FilePath = storageKey,
             ContentType = file.ContentType,
             SizeBytes = file.Length,
             Caption = string.IsNullOrWhiteSpace(caption) ? null : caption.Trim(),
@@ -98,9 +102,10 @@ public class FfcAttachmentStorage(
         _db.FfcAttachments.Remove(attachment);
         await _db.SaveChangesAsync();
 
-        if (File.Exists(attachment.FilePath))
+        var absolutePath = ResolveAbsolutePath(attachment.FilePath);
+        if (!string.IsNullOrWhiteSpace(absolutePath) && File.Exists(absolutePath))
         {
-            File.Delete(attachment.FilePath);
+            File.Delete(absolutePath);
         }
     }
 
@@ -133,6 +138,29 @@ public class FfcAttachmentStorage(
         }
 
         return Path.GetFullPath(configuredRoot);
+    }
+
+    private string ResolveAbsolutePath(string storageKey)
+    {
+        if (string.IsNullOrWhiteSpace(storageKey))
+        {
+            return string.Empty;
+        }
+
+        if (Path.IsPathRooted(storageKey))
+        {
+            return Path.GetFullPath(storageKey);
+        }
+
+        try
+        {
+            return _pathResolver.ToAbsolute(storageKey);
+        }
+        catch
+        {
+            var relative = storageKey.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            return Path.Combine(_storageRoot, relative);
+        }
     }
 
 }

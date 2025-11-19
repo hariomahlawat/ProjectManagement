@@ -9,13 +9,21 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Attachments;
 
 [Authorize]
-public class ViewModel(ApplicationDbContext db) : PageModel
+public class ViewModel : PageModel
 {
-    private readonly ApplicationDbContext _db = db;
+    private readonly ApplicationDbContext _db;
+    private readonly IUploadPathResolver _pathResolver;
+
+    public ViewModel(ApplicationDbContext db, IUploadPathResolver pathResolver)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
+    }
 
     public async Task<IActionResult> OnGetAsync(long id, CancellationToken cancellationToken)
     {
@@ -34,23 +42,25 @@ public class ViewModel(ApplicationDbContext db) : PageModel
             return NotFound();
         }
 
-        if (!System.IO.File.Exists(attachment.FilePath))
+        var absolutePath = _pathResolver.ToAbsolute(attachment.FilePath);
+
+        if (!System.IO.File.Exists(absolutePath))
         {
             return NotFound();
         }
 
-        var stream = new FileStream(attachment.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var stream = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.Read);
 
         var contentType = string.IsNullOrWhiteSpace(attachment.ContentType)
             ? "application/octet-stream"
             : attachment.ContentType;
 
         var baseName = string.IsNullOrWhiteSpace(attachment.Caption)
-            ? Path.GetFileNameWithoutExtension(attachment.FilePath)
+            ? Path.GetFileNameWithoutExtension(absolutePath)
             : attachment.Caption.Trim();
-        var extension = Path.GetExtension(attachment.FilePath);
+        var extension = Path.GetExtension(absolutePath);
         var downloadName = string.IsNullOrWhiteSpace(baseName)
-            ? Path.GetFileName(attachment.FilePath)
+            ? Path.GetFileName(absolutePath)
             : string.IsNullOrWhiteSpace(extension)
                 ? baseName
                 : $"{baseName}{extension}";

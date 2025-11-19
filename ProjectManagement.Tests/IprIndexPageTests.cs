@@ -28,6 +28,7 @@ using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Tests.Fakes;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Tests;
 
@@ -305,7 +306,9 @@ public sealed class IprIndexPageTests
             AllowedContentTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         });
 
-        var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
+        var uploadRootProvider = new TestUploadRootProvider(root);
+        var pathResolver = new UploadPathResolver(uploadRootProvider);
+        var storage = new IprAttachmentStorage(uploadRootProvider, pathResolver, options);
         var ingestion = new StubDocRepoIngestionService();
         var service = new IprWriteService(db, clock, storage, options, ingestion, NullLogger<IprWriteService>.Instance);
         return (service, root);

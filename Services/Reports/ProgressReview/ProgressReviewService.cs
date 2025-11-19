@@ -13,6 +13,7 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Services.Reports.ProgressReview;
 
@@ -27,10 +28,12 @@ public sealed class ProgressReviewService : IProgressReviewService
     private static readonly Guid DroneTrainingTypeId = new("39f0d83c-5322-4a6d-bd1c-1b4dfbb5887b");
 
     private readonly ApplicationDbContext _db;
+    private readonly IProtectedFileUrlBuilder _fileUrlBuilder;
 
-    public ProgressReviewService(ApplicationDbContext db)
+    public ProgressReviewService(ApplicationDbContext db, IProtectedFileUrlBuilder fileUrlBuilder)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _fileUrlBuilder = fileUrlBuilder ?? throw new ArgumentNullException(nameof(fileUrlBuilder));
     }
 
     public async Task<ProgressReviewVm> GetAsync(ProgressReviewRequest request, CancellationToken cancellationToken = default)
@@ -1074,15 +1077,11 @@ public sealed class ProgressReviewService : IProgressReviewService
         return (display, history.Count - display.Count);
     }
 
-    private static string? BuildAttachmentUrl(string? storageKey)
+    private string? BuildAttachmentUrl(string? storageKey)
     {
-        if (string.IsNullOrWhiteSpace(storageKey))
-        {
-            return null;
-        }
-
-        var normalized = storageKey.Replace('\\', '/').TrimStart('/');
-        return string.IsNullOrWhiteSpace(normalized) ? null : $"/files/{normalized}";
+        return string.IsNullOrWhiteSpace(storageKey)
+            ? null
+            : _fileUrlBuilder.CreateDownloadUrl(storageKey);
     }
 
     private static (DateOnly From, DateOnly To) NormalizeRange(DateOnly from, DateOnly to)

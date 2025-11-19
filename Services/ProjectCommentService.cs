@@ -22,6 +22,7 @@ namespace ProjectManagement.Services
         private readonly IAuditService _audit;
         private readonly ILogger<ProjectCommentService> _logger;
         private readonly IUploadRootProvider _uploadRootProvider;
+        private readonly IUploadPathResolver _pathResolver;
 
         public const long MaxAttachmentSizeBytes = 25 * 1024 * 1024; // 25 MB per file
 
@@ -38,6 +39,7 @@ namespace ProjectManagement.Services
                                      IClock clock,
                                      IAuditService audit,
                                      IUploadRootProvider uploadRootProvider,
+                                     IUploadPathResolver pathResolver,
                                      ILogger<ProjectCommentService> logger)
         {
             _db = db;
@@ -45,6 +47,7 @@ namespace ProjectManagement.Services
             _audit = audit;
             _logger = logger;
             _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
+            _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
         }
 
         public async Task<ProjectComment> CreateAsync(int projectId,
@@ -228,13 +231,24 @@ namespace ProjectManagement.Services
                 return null;
             }
 
-            if (!File.Exists(attachment.StoragePath))
+            string absolutePath;
+            try
             {
-                _logger.LogWarning("Attachment file missing at path {Path} for attachment {AttachmentId}", attachment.StoragePath, attachmentId);
+                absolutePath = _pathResolver.ToAbsolute(attachment.StoragePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to resolve attachment path for attachment {AttachmentId}", attachmentId);
                 return null;
             }
 
-            var stream = new FileStream(attachment.StoragePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (!File.Exists(absolutePath))
+            {
+                _logger.LogWarning("Attachment file missing at path {Path} for attachment {AttachmentId}", absolutePath, attachmentId);
+                return null;
+            }
+
+            var stream = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.Read);
             return (attachment, stream);
         }
 
@@ -321,6 +335,8 @@ namespace ProjectManagement.Services
                     await file.CopyToAsync(target, cancellationToken);
                 }
 
+                var storageKey = SafeToRelative(fullPath);
+
                 list.Add(new ProjectCommentAttachment
                 {
                     CommentId = comment.Id,
@@ -328,13 +344,25 @@ namespace ProjectManagement.Services
                     OriginalFileName = originalName,
                     ContentType = file.ContentType,
                     SizeBytes = file.Length,
-                    StoragePath = fullPath,
+                    StoragePath = storageKey,
                     UploadedByUserId = userId,
                     UploadedOn = timestamp
                 });
             }
 
             return list;
+        }
+
+        private string SafeToRelative(string absolutePath)
+        {
+            try
+            {
+                return _pathResolver.ToRelative(absolutePath);
+            }
+            catch
+            {
+                return absolutePath;
+            }
         }
 
         private string BuildCommentDirectory(int projectId, int commentId)
