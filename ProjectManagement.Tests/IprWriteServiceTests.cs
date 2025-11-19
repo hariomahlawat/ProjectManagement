@@ -170,7 +170,7 @@ public sealed class IprWriteServiceTests
         var options = new IprAttachmentOptions
         {
             MaxFileSizeBytes = 1024,
-            AllowedContentTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            AllowedContentTypes = new List<string>
             {
                 "application/pdf"
             }
@@ -224,7 +224,7 @@ public sealed class IprWriteServiceTests
         var options = new IprAttachmentOptions
         {
             MaxFileSizeBytes = 1024,
-            AllowedContentTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            AllowedContentTypes = new List<string>
             {
                 "application/pdf"
             }
@@ -268,7 +268,7 @@ public sealed class IprWriteServiceTests
         var options = new IprAttachmentOptions
         {
             MaxFileSizeBytes = 5,
-            AllowedContentTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            AllowedContentTypes = new List<string>
             {
                 "application/pdf"
             }

@@ -22,6 +22,7 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Services.Storage;
 using Xunit;
 
 namespace ProjectManagement.Tests.ProjectOfficeReports;
@@ -56,7 +57,14 @@ public sealed class FfcAttachmentsUploadPageTests
         var storage = new ThrowingAttachmentStorage();
         var options = Options.Create(new FfcAttachmentOptions { MaxFileSizeBytes = 10_000_000 });
         var ingestion = new StubDocRepoIngestionService();
-        return new UploadModel(db, storage, options, new StubAuditService(), NullLogger<UploadModel>.Instance, ingestion);
+        return new UploadModel(
+            db,
+            storage,
+            options,
+            new StubAuditService(),
+            NullLogger<UploadModel>.Instance,
+            ingestion,
+            new StubUploadPathResolver());
     }
 
     private static ApplicationDbContext CreateDbContext()
@@ -133,5 +141,12 @@ public sealed class FfcAttachmentsUploadPageTests
         public void SaveTempData(HttpContext context, IDictionary<string, object?> values)
         {
         }
+    }
+
+    private sealed class StubUploadPathResolver : IUploadPathResolver
+    {
+        public string ToAbsolute(string storageKey) => storageKey;
+
+        public string ToRelative(string absolutePath) => absolutePath;
     }
 }

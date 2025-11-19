@@ -141,10 +141,14 @@ public sealed class FfcAttachmentStorageTests : IDisposable
         var resolvedRoot = GetResolvedStorageRoot(effectiveOptions);
         effectiveOptions.StorageRoot = resolvedRoot;
 
+        var uploadRootProvider = new TestUploadRootProvider(_uploadsRoot);
+        var pathResolver = new UploadPathResolver(uploadRootProvider);
+
         return new FfcAttachmentStorage(
             _db,
             _validator,
-            new TestUploadRootProvider(_uploadsRoot),
+            uploadRootProvider,
+            pathResolver,
             userContext,
             Options.Create(effectiveOptions));
     }
