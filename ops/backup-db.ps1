@@ -31,6 +31,10 @@ New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 #region Execution
 $pgDumpPath = Join-Path $PgBin "pg_dump.exe"
 
+if (-not (Test-Path $pgDumpPath)) {
+    throw "pg_dump not found at $pgDumpPath"
+}
+
 & $pgDumpPath `
     --format=custom `
     --host=$Host `

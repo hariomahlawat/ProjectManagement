@@ -22,9 +22,27 @@ New-Item -ItemType Directory -Force -Path $destination | Out-Null
 
 #region Execution
 $logPath = Join-Path $BackupRoot "backup.log"
-robocopy $DataRoot $destination /MIR /R:2 /W:5 /NP /NDL /NFL /LOG+:"$logPath"
+$logArgument = '/LOG+:"' + $logPath + '"'
+$robocopyArgs = @(
+    $DataRoot,
+    $destination,
+    '/MIR',
+    '/R:2',
+    '/W:5',
+    '/NP',
+    '/NDL',
+    '/NFL',
+    $logArgument
+)
+
+robocopy @robocopyArgs
+$exitCode = $LASTEXITCODE
+
+if ($exitCode -gt 3) {
+    throw "robocopy reported a failure (exit code $exitCode). Review $logPath for details."
+}
 #endregion
 
 #region Output
-Write-Host "File backup completed:" $destination
+Write-Host "File backup completed:" $destination "(robocopy exit code $exitCode)"
 #endregion
