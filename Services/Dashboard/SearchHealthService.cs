@@ -42,123 +42,117 @@ public sealed class SearchHealthService : ISearchHealthService
         // END SECTION
 
         // SECTION: Searchable corpus aggregation
-        var docRepoSearchableTask = docRepoBaseQuery
+        var docRepoSearchable = await docRepoBaseQuery
             .Where(document => document.SearchVector != null)
-            .LongCountAsync(cancellationToken);
+            .LongCountAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        var projectDocsSearchableTask = projectDocBaseQuery
+        var projectDocsSearchable = await projectDocBaseQuery
             .Where(document => document.SearchVector != null)
-            .LongCountAsync(cancellationToken);
+            .LongCountAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         var projectReportsSearchable = 0L;
         // END SECTION
 
         // SECTION: OCR snapshot aggregation
-        var docRepoSucceededTask = docRepoBaseQuery
+        var docRepoSucceeded = await docRepoBaseQuery
             .Where(document => document.OcrStatus == DocOcrStatus.Succeeded)
-            .LongCountAsync(cancellationToken);
-        var docRepoPendingTask = docRepoBaseQuery
+            .LongCountAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var docRepoPending = await docRepoBaseQuery
             .Where(document => document.OcrStatus == DocOcrStatus.Pending)
-            .LongCountAsync(cancellationToken);
-        var docRepoFailedTask = docRepoBaseQuery
+            .LongCountAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var docRepoFailed = await docRepoBaseQuery
             .Where(document => document.OcrStatus == DocOcrStatus.Failed)
-            .LongCountAsync(cancellationToken);
+            .LongCountAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        var projectDocsSucceededTask = projectDocBaseQuery
+        var projectDocsSucceeded = await projectDocBaseQuery
             .Where(document => document.OcrStatus == ProjectDocumentOcrStatus.Succeeded)
-            .LongCountAsync(cancellationToken);
-        var projectDocsPendingTask = projectDocBaseQuery
+            .LongCountAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var projectDocsPending = await projectDocBaseQuery
             .Where(document => document.OcrStatus == ProjectDocumentOcrStatus.Pending)
-            .LongCountAsync(cancellationToken);
-        var projectDocsFailedTask = projectDocBaseQuery
+            .LongCountAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var projectDocsFailed = await projectDocBaseQuery
             .Where(document => document.OcrStatus == ProjectDocumentOcrStatus.Failed)
-            .LongCountAsync(cancellationToken);
+            .LongCountAsync(cancellationToken)
+            .ConfigureAwait(false);
         // END SECTION
 
         // SECTION: OCR trend aggregation
         var trendStartDate = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(-6));
         var trendStartUtc = trendStartDate.ToDateTime(TimeOnly.MinValue);
 
-        var docRepoTrendTask = docRepoBaseQuery
+        var docRepoTrend = await docRepoBaseQuery
             .Where(document => document.OcrStatus == DocOcrStatus.Succeeded && document.OcrLastTriedUtc.HasValue)
             .Where(document => document.OcrLastTriedUtc!.Value.UtcDateTime >= trendStartUtc)
             .GroupBy(document => DateOnly.FromDateTime(document.OcrLastTriedUtc!.Value.UtcDateTime.Date))
             .Select(group => new KeyValuePair<DateOnly, int>(group.Key, group.Count()))
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        var projectDocsTrendTask = projectDocBaseQuery
+        var projectDocsTrend = await projectDocBaseQuery
             .Where(document => document.OcrStatus == ProjectDocumentOcrStatus.Succeeded && document.OcrLastTriedUtc.HasValue)
             .Where(document => document.OcrLastTriedUtc!.Value.UtcDateTime >= trendStartUtc)
             .GroupBy(document => DateOnly.FromDateTime(document.OcrLastTriedUtc!.Value.UtcDateTime.Date))
             .Select(group => new KeyValuePair<DateOnly, int>(group.Key, group.Count()))
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
         // END SECTION
 
         // SECTION: Pending age + worker activity aggregation
-        var docRepoPendingOldestTask = docRepoBaseQuery
+        var docRepoPendingOldest = await docRepoBaseQuery
             .Where(document => document.OcrStatus == DocOcrStatus.Pending)
             .Select(document => (DateTimeOffset?)DateTime.SpecifyKind(document.CreatedAtUtc, DateTimeKind.Utc))
             .OrderBy(value => value)
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        var projectDocPendingOldestTask = projectDocBaseQuery
+        var projectDocPendingOldest = await projectDocBaseQuery
             .Where(document => document.OcrStatus == ProjectDocumentOcrStatus.Pending)
             .Select(document => (DateTimeOffset?)document.UploadedAtUtc)
             .OrderBy(value => value)
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        var docRepoLastAttemptTask = docRepoBaseQuery
+        var docRepoLastAttempt = await docRepoBaseQuery
             .Where(document => document.OcrLastTriedUtc.HasValue)
             .Select(document => document.OcrLastTriedUtc)
             .OrderByDescending(value => value)
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        var projectDocLastAttemptTask = projectDocBaseQuery
+        var projectDocLastAttempt = await projectDocBaseQuery
             .Where(document => document.OcrLastTriedUtc.HasValue)
             .Select(document => document.OcrLastTriedUtc)
             .OrderByDescending(value => value)
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
         // END SECTION
 
-        await Task.WhenAll(
-            docRepoSearchableTask,
-            projectDocsSearchableTask,
-            docRepoSucceededTask,
-            docRepoPendingTask,
-            docRepoFailedTask,
-            projectDocsSucceededTask,
-            projectDocsPendingTask,
-            projectDocsFailedTask,
-            docRepoTrendTask,
-            projectDocsTrendTask,
-            docRepoPendingOldestTask,
-            projectDocPendingOldestTask,
-            docRepoLastAttemptTask,
-            projectDocLastAttemptTask
-        ).ConfigureAwait(false);
-
         // SECTION: Combine results
-        var docRepoSearchable = docRepoSearchableTask.Result;
-        var projectDocsSearchable = projectDocsSearchableTask.Result;
-
         var ocrSnapshot = new SearchHealthOcrSnapshot
         {
-            Succeeded = docRepoSucceededTask.Result + projectDocsSucceededTask.Result,
-            Pending = docRepoPendingTask.Result + projectDocsPendingTask.Result,
-            Failed = docRepoFailedTask.Result + projectDocsFailedTask.Result,
-            DocRepoSucceeded = docRepoSucceededTask.Result,
-            DocRepoPending = docRepoPendingTask.Result,
-            DocRepoFailed = docRepoFailedTask.Result,
-            ProjectDocumentsSucceeded = projectDocsSucceededTask.Result,
-            ProjectDocumentsPending = projectDocsPendingTask.Result,
-            ProjectDocumentsFailed = projectDocsFailedTask.Result
+            Succeeded = docRepoSucceeded + projectDocsSucceeded,
+            Pending = docRepoPending + projectDocsPending,
+            Failed = docRepoFailed + projectDocsFailed,
+            DocRepoSucceeded = docRepoSucceeded,
+            DocRepoPending = docRepoPending,
+            DocRepoFailed = docRepoFailed,
+            ProjectDocumentsSucceeded = projectDocsSucceeded,
+            ProjectDocumentsPending = projectDocsPending,
+            ProjectDocumentsFailed = projectDocsFailed
         };
 
         var totalSearchable = docRepoSearchable + projectDocsSearchable + projectReportsSearchable;
 
-        var trendValues = BuildTrend(trendStartDate, docRepoTrendTask.Result, projectDocsTrendTask.Result);
-        var oldestPending = MinNonNull(docRepoPendingOldestTask.Result, projectDocPendingOldestTask.Result);
-        var lastAttempt = MaxNonNull(docRepoLastAttemptTask.Result, projectDocLastAttemptTask.Result);
+        var trendValues = BuildTrend(trendStartDate, docRepoTrend, projectDocsTrend);
+        var oldestPending = MinNonNull(docRepoPendingOldest, projectDocPendingOldest);
+        var lastAttempt = MaxNonNull(docRepoLastAttempt, projectDocLastAttempt);
         // END SECTION
 
         return new SearchHealthVm
