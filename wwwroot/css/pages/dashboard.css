@@ -80,6 +80,7 @@
     display: flex;
     flex-direction: column;
     align-items: flex-end;
+    margin-right:-9px;
     gap: .75rem;
     z-index: 5;
 }
@@ -89,8 +90,8 @@
     .dashboard-floating-actions {
         position: absolute;
         top: .5rem; /* align with top of To-Do card */
-        right: 0;
-        transform: translateX(120%); /* push into the gutter without relying on margins */
+        margin-right: -9px;
+        transform: translateX(140%); /* push into the gutter without relying on margins */
     }
 }
 
@@ -99,7 +100,7 @@
     .dashboard-floating-actions {
         position: static;
         margin-left: auto;
-        margin-right: 0;
+        margin-right: 0px;
     }
 }
 
