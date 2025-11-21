@@ -1,0 +1,151 @@
+@using System.Text.Json
+@model ProjectManagement.ViewModels.Dashboard.SearchHealthVm
+
+@{
+    var trendValues = Model?.OcrCompletionsTrend ?? Array.Empty<int>();
+    var trendJson = JsonSerializer.Serialize(trendValues);
+    var workerBadgeClass = Model?.WorkerActive == true
+        ? "bg-success-subtle text-success"
+        : "bg-danger-subtle text-danger";
+    var workerBadgeLabel = Model?.WorkerActive == true ? "OCR worker active" : "Worker inactive";
+    var hasCorpus = Model?.HasSearchableCorpus == true;
+}
+
+<div class="card shadow-sm search-health-card">
+    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2 py-2">
+        <div class="d-flex flex-column">
+            <div class="d-flex align-items-center gap-2">
+                <h2 class="h6 mb-0">Search and OCR Health</h2>
+                <span class="badge rounded-pill @workerBadgeClass">@workerBadgeLabel</span>
+            </div>
+            <p class="small text-muted mb-0">Live view of searchable corpus and OCR queue.</p>
+        </div>
+        <a asp-area="Common"
+           asp-page="/Search/Index"
+           class="btn btn-sm btn-primary">
+            Open global search
+        </a>
+    </div>
+
+    <div class="card-body search-health-card__body">
+        @if (!hasCorpus)
+        {
+            <div class="search-health-empty text-center py-4">
+                <p class="fw-semibold mb-1">No searchable documents yet.</p>
+                <p class="text-muted small mb-3">Upload files to start OCR and full-text indexing.</p>
+                <a asp-area="DocumentRepository"
+                   asp-page="/Documents/Upload"
+                   class="btn btn-outline-primary btn-sm">
+                    Upload a document
+                </a>
+            </div>
+        }
+        else
+        {
+            <div class="search-health-grid">
+                @* SECTION: Searchable corpus *@
+                <section aria-label="Searchable corpus" class="search-health-block">
+                    <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+                        <div>
+                            <p class="text-muted text-uppercase fw-semibold small mb-1">Searchable corpus</p>
+                            <div class="d-flex align-items-baseline gap-2">
+                                <span class="display-6 fw-semibold text-dark">@Model!.TotalSearchable</span>
+                                <span class="text-secondary small">total documents</span>
+                            </div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <span class="badge rounded-pill text-bg-light border">Project documents @Model.ProjectDocumentsSearchable</span>
+                            <span class="badge rounded-pill text-bg-light border">Document repository @Model.DocRepoSearchable</span>
+                            @if (Model.IncludeProjectReports)
+                            {
+                                <span class="badge rounded-pill text-bg-light border">Project reports @Model.ProjectReportsSearchable</span>
+                            }
+                        </div>
+                    </div>
+                </section>
+                @* END SECTION *@
+
+                @* SECTION: OCR snapshot *@
+                <section aria-label="OCR snapshot" class="search-health-block">
+                    <div class="row g-2 text-center text-lg-start">
+                        <div class="col-12 col-lg-4">
+                            <div class="search-health-stat search-health-stat--ok">
+                                <p class="text-uppercase small text-muted mb-1">Succeeded</p>
+                                <div class="d-flex align-items-baseline justify-content-lg-start justify-content-center gap-2">
+                                    <span class="fw-semibold h4 mb-0">@Model.Ocr.Succeeded</span>
+                                    <span class="badge bg-success-subtle text-success">@Model.Ocr.ProjectDocumentsSucceeded project · @Model.Ocr.DocRepoSucceeded repo</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-4">
+                            <div class="search-health-stat search-health-stat--pending">
+                                <p class="text-uppercase small text-muted mb-1">Pending</p>
+                                <div class="d-flex align-items-baseline justify-content-lg-start justify-content-center gap-2">
+                                    <span class="fw-semibold h4 mb-0">@Model.Ocr.Pending</span>
+                                    <span class="badge bg-warning-subtle text-warning">@Model.Ocr.ProjectDocumentsPending project · @Model.Ocr.DocRepoPending repo</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-4">
+                            <div class="search-health-stat search-health-stat--fail">
+                                <p class="text-uppercase small text-muted mb-1">Failed</p>
+                                <div class="d-flex align-items-baseline justify-content-lg-start justify-content-center gap-2">
+                                    <a asp-area="DocumentRepository"
+                                       asp-page="/Admin/OCRFailures/OcrFailures"
+                                       class="fw-semibold h4 mb-0 text-danger text-decoration-none">
+                                        @Model.Ocr.Failed
+                                    </a>
+                                    <span class="badge bg-danger-subtle text-danger">@Model.Ocr.ProjectDocumentsFailed project · @Model.Ocr.DocRepoFailed repo</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                @* END SECTION *@
+
+                @* SECTION: OCR completions trend *@
+                <section aria-label="Recent OCR completions" class="search-health-block">
+                    <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                        <div>
+                            <p class="text-uppercase text-muted small fw-semibold mb-1">Last 7 days completions</p>
+                            <p class="mb-0 small text-secondary">Sparkline updates as OCR finishes.</p>
+                        </div>
+                        <div class="search-health-trend" data-ocr-trend='@trendJson'>
+                            <canvas role="img" aria-label="Seven day OCR completion sparkline"></canvas>
+                        </div>
+                    </div>
+                </section>
+                @* END SECTION *@
+
+                @* SECTION: Queue health *@
+                <section aria-label="Queue health" class="search-health-block">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                        <div class="d-flex flex-column">
+                            <span class="text-uppercase small text-muted fw-semibold">Queue health</span>
+                            <span class="fw-semibold">
+                                @(Model.OldestPendingLabel ?? "Queue is clear")
+                            </span>
+                            <span class="text-muted small">Oldest pending OCR age</span>
+                        </div>
+                        <div class="text-end">
+                            <p class="small text-muted mb-1">Ranking uses weighted metadata, tags, and OCR body with cover-density rank.</p>
+                            <div class="d-flex align-items-center gap-2 justify-content-end flex-wrap">
+                                <a asp-area="Common"
+                                   asp-page="/Search/Index"
+                                   class="btn btn-sm btn-primary">
+                                    Open global search
+                                </a>
+                                <a asp-area="DocumentRepository"
+                                   asp-page="/Documents/Index"
+                                   class="btn btn-sm btn-outline-secondary">
+                                    Search basics
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                @* END SECTION *@
+            </div>
+        }
+    </div>
+</div>
