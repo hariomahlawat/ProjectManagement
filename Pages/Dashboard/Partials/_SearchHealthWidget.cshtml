@@ -6,10 +6,14 @@
     // SECTION: Header tokens
     var hasCorpus = Model?.HasSearchableCorpus == true;
 
-    // Neutral pill always, severity via dot and text only
+    // Worker status: neutral pill always; color via dot + text.
+    var workerIsActive = Model?.WorkerActive == true;
+
+    // Amber for inactive (state), green for active (healthy).
     var workerBadgeClass = "bg-light text-muted border";
-    var workerTextClass = Model?.WorkerActive == true ? "text-success" : "text-danger";
-    var workerBadgeLabel = Model?.WorkerActive == true ? "Worker active" : "Worker inactive";
+    var workerTextClass = workerIsActive ? "text-success" : "text-warning";
+    var workerDotClass = workerIsActive ? "dot-success" : "dot-warning";
+    var workerBadgeLabel = workerIsActive ? "Worker active" : "Worker offline";
     // END SECTION
 
     // SECTION: Trend serialization
@@ -29,11 +33,10 @@
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <h2 class="h6 mb-0 fw-semibold">Search and OCR Health</h2>
                     <span class="badge rounded-pill search-health__worker @workerBadgeClass @workerTextClass">
-                        <span class="search-health__dot @(Model?.WorkerActive == true ? "dot-success" : "dot-danger")"></span>
+                        <span class="search-health__dot @workerDotClass"></span>
                         @workerBadgeLabel
                     </span>
                 </div>
-                <p class="text-muted small mb-0">Searchable corpus and OCR pipeline status</p>
             </div>
 
             <div class="d-flex align-items-center gap-2 flex-shrink-0">
@@ -121,12 +124,6 @@
                             }
                         </div>
                     </div>
-
-                    <div class="text-muted small mt-2">
-                        Split: <strong>@Model.Ocr.ProjectDocumentsSucceeded</strong> project
-                        <span class="mx-1">·</span>
-                        <strong>@Model.Ocr.DocRepoSucceeded</strong> repository
-                    </div>
                 </section>
                 @* END SECTION *@
 
@@ -182,7 +179,7 @@
                     <a asp-area="DocumentRepository"
                        asp-page="/Documents/Index"
                        class="small text-decoration-none ms-1">
-                        Search basics →
+                        Search docus repository →
                     </a>
                 </div>
                 @* END SECTION *@
