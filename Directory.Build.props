@@ -4,5 +4,14 @@
     <BuildInParallel>false</BuildInParallel>
     <!-- Disable the DefineStaticWebAssets cache to avoid locked rpswa.dswa.cache.json errors on Windows builds -->
     <StaticWebAssetsCacheDefineStaticWebAssetsEnabled>false</StaticWebAssetsCacheDefineStaticWebAssetsEnabled>
+    <!--
+        Ensure that intermediate and restore assets are written to the expected obj directory instead of
+        inheriting a tool-specific output path (for example, a test runner changing the working directory).
+        This keeps NuGet assets such as project.assets.json and *.nuget.dgspec.json discoverable during copy
+        operations that run after a clean build.
+    -->
+    <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\obj\</BaseIntermediateOutputPath>
+    <RestoreOutputPath>$(BaseIntermediateOutputPath)</RestoreOutputPath>
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
   </PropertyGroup>
 </Project>
