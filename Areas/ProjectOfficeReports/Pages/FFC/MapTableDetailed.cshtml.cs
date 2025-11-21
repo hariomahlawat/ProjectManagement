@@ -572,7 +572,7 @@ public class MapTableDetailedModel : PageModel
                         .ThenByDescending(item => item.Id)
                         .FirstOrDefault();
 
-                    return latest is null ? string.Empty : FormatRemark(latest.Body);
+                    return latest is null ? null : FormatRemark(latest.Body);
                 });
     }
 }
