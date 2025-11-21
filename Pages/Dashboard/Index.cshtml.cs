@@ -21,6 +21,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.ViewModels.Dashboard;
 
 namespace ProjectManagement.Pages.Dashboard
 {
@@ -32,6 +33,7 @@ namespace ProjectManagement.Pages.Dashboard
         private readonly Data.ApplicationDbContext _db;
         private readonly IProjectPulseService _projectPulse;
         private readonly IOpsSignalsService _opsSignalsService;
+        private readonly ISearchHealthService _searchHealthService;
         private static readonly TimeZoneInfo IST = IstClock.TimeZone;
 
         public IndexModel(
@@ -39,13 +41,15 @@ namespace ProjectManagement.Pages.Dashboard
             UserManager<ApplicationUser> users,
             Data.ApplicationDbContext db,
             IProjectPulseService projectPulse,
-            IOpsSignalsService opsSignalsService)
+            IOpsSignalsService opsSignalsService,
+            ISearchHealthService searchHealthService)
         {
             _todo = todo;
             _users = users;
             _db = db;
             _projectPulse = projectPulse;
             _opsSignalsService = opsSignalsService;
+            _searchHealthService = searchHealthService;
         }
 
         public TodoWidgetResult? TodoWidget { get; set; }
@@ -56,6 +60,7 @@ namespace ProjectManagement.Pages.Dashboard
         public ProjectPulseVm? ProjectPulse { get; private set; }
         public OpsSignalsVm OpsSignals { get; private set; } = new() { Tiles = Array.Empty<OpsTileVm>() };
         public FfcSimulatorMapVm FfcSimulatorMap { get; private set; } = new();
+        public SearchHealthVm SearchHealth { get; private set; } = new();
         // END SECTION
 
         // SECTION: My Projects widget state
@@ -208,6 +213,8 @@ namespace ProjectManagement.Pages.Dashboard
                 to: null,
                 userId: uid ?? string.Empty,
                 cancellationToken);
+
+            SearchHealth = await _searchHealthService.GetAsync(cancellationToken);
 
             var ffcRows = await FfcCountryRollupDataSource.LoadAsync(_db, cancellationToken);
             var ffcCountries = ffcRows

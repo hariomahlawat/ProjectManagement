@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="~/lib/leaflet/1.9.4/leaflet.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/widgets/ffc-simulator-map.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/todo-widget.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/dashboard/search-health-widget.css" asp-append-version="true" />
 }
 
 @if (TempData["Error"] is string err && !string.IsNullOrWhiteSpace(err))
@@ -25,7 +26,7 @@
 
 <div class="row g-3 dashboard">
     @* SECTION: Primary dashboard content (Project pulse + sidebar) *@
-    <div class="col-12 col-lg-9">
+    <div class="col-12 col-lg-8">
         <div class="dashboard-main-content h-100">
 
             @* SECTION: Project Pulse widget *@
@@ -65,31 +66,36 @@
         </div>
     </div>
 
-    <div class="col-12 col-lg-3 dashboard-sidebar">
-        <partial name="_TodoWidget" model="Model.TodoWidget" />
+    <div class="col-12 col-lg-4">
+        <div class="dashboard-sidebar">
+            <div class="d-flex flex-column gap-3">
+                <partial name="_TodoWidget" model="Model.TodoWidget" />
+                <partial name="~/Pages/Dashboard/Partials/_SearchHealthWidget.cshtml" model="Model.SearchHealth" />
+            </div>
 
-        <div class="dashboard-floating-actions mt-3 mt-lg-0">
-            <button type="button"
-                    class="dashboard-events-card pm-shadow"
-                    data-drawer-toggle
-                    data-drawer-target="dashboard-events"
-                    aria-controls="dashboard-events"
-                    aria-haspopup="dialog"
-                    aria-label="View upcoming events">
-                <span class="visually-hidden">View upcoming events</span>
-                <span class="dashboard-events-card__icon" aria-hidden="true">
-                    <i class="bi bi-calendar-event"></i>
-                </span>
-            </button>
-            <a asp-area="Common"
-               asp-page="/Search/Index"
-               class="dashboard-events-card pm-shadow"
-               aria-label="Open global search">
-                <span class="visually-hidden">Open global search</span>
-                <span class="dashboard-events-card__icon" aria-hidden="true">
-                    <i class="bi bi-search"></i>
-                </span>
-            </a>
+            <div class="dashboard-floating-actions mt-3 mt-lg-0">
+                <button type="button"
+                        class="dashboard-events-card pm-shadow"
+                        data-drawer-toggle
+                        data-drawer-target="dashboard-events"
+                        aria-controls="dashboard-events"
+                        aria-haspopup="dialog"
+                        aria-label="View upcoming events">
+                    <span class="visually-hidden">View upcoming events</span>
+                    <span class="dashboard-events-card__icon" aria-hidden="true">
+                        <i class="bi bi-calendar-event"></i>
+                    </span>
+                </button>
+                <a asp-area="Common"
+                   asp-page="/Search/Index"
+                   class="dashboard-events-card pm-shadow"
+                   aria-label="Open global search">
+                    <span class="visually-hidden">Open global search</span>
+                    <span class="dashboard-events-card__icon" aria-hidden="true">
+                        <i class="bi bi-search"></i>
+                    </span>
+                </a>
+            </div>
         </div>
     </div>
 
@@ -296,5 +302,6 @@
     <script src="~/lib/leaflet/1.9.4/leaflet.js" asp-append-version="true" defer></script>
     <script src="~/js/widgets/ffc-simulator-map.js" asp-append-version="true" defer></script>
     <script src="~/js/todo-widget.js" asp-append-version="true" defer></script>
+    <script src="~/js/dashboard/search-health-widget.js" asp-append-version="true" defer></script>
     <script type="module" src="~/js/dashboard/myproj-stage-widget.js" asp-append-version="true"></script>
 }
