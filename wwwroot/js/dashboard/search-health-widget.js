@@ -6,8 +6,8 @@
   }
 
   var ChartCtor = window.Chart;
-  var strokeColor = '#2563eb';
-  var fillColor = 'rgba(37, 99, 235, 0.08)';
+  var strokeColor = '#3b82f6';
+  var fillColor = 'rgba(59, 130, 246, 0.06)';
 
   function parseValues(target) {
     try {
