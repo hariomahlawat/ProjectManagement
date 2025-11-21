@@ -20,7 +20,7 @@
 .search-health__divider {
     border: 0;
     border-top: 1px solid #e9edf2;
-    opacity: 0.7;
+    opacity: 0.45; /* lighter divider for compact card */
 }
 
 .search-health-empty {
@@ -38,11 +38,20 @@
     height: 8px;
     border-radius: 999px;
     display: inline-block;
+    flex-shrink: 0;
 }
 
-.dot-success { background: var(--bs-success); }
-.dot-warning { background: var(--bs-warning); }
-.dot-danger  { background: var(--bs-danger); }
+.dot-success {
+    background: var(--bs-success);
+}
+
+.dot-warning {
+    background: var(--bs-warning);
+}
+
+.dot-danger {
+    background: var(--bs-danger);
+}
 
 .search-health__worker {
     font-size: 0.72rem;
@@ -57,7 +66,6 @@
 /* SECTION: Sparkline */
 .search-health__sparkline-wrap {
     width: 100%;
-    max-width: 320px;
     height: 56px;
     position: relative;
 }

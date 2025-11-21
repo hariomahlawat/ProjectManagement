@@ -5,9 +5,10 @@
 @{
     // SECTION: Header tokens
     var hasCorpus = Model?.HasSearchableCorpus == true;
-    var workerBadgeClass = Model?.WorkerActive == true
-        ? "bg-success-subtle text-success"
-        : "bg-danger-subtle text-danger";
+
+    // Neutral pill always, severity via dot and text only
+    var workerBadgeClass = "bg-light text-muted border";
+    var workerTextClass = Model?.WorkerActive == true ? "text-success" : "text-danger";
     var workerBadgeLabel = Model?.WorkerActive == true ? "Worker active" : "Worker inactive";
     // END SECTION
 
@@ -21,19 +22,21 @@
 
 <div class="card shadow-sm search-health-card">
     <div class="card-body p-3 p-lg-4 search-health-card__body">
+
         @* SECTION: Header *@
-        <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-3">
+        <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
             <div class="d-flex flex-column gap-1">
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <h2 class="h6 mb-0 fw-semibold">Search and OCR Health</h2>
-                    <span class="badge rounded-pill search-health__worker @workerBadgeClass">
+                    <span class="badge rounded-pill search-health__worker @workerBadgeClass @workerTextClass">
                         <span class="search-health__dot @(Model?.WorkerActive == true ? "dot-success" : "dot-danger")"></span>
                         @workerBadgeLabel
                     </span>
                 </div>
                 <p class="text-muted small mb-0">Searchable corpus and OCR pipeline status</p>
             </div>
-            <div class="flex-shrink-0">
+
+            <div class="d-flex align-items-center gap-2 flex-shrink-0">
                 <a asp-area="Common"
                    asp-page="/Search/Index"
                    class="btn btn-sm btn-primary">
@@ -60,9 +63,10 @@
         else
         {
             <div class="d-flex flex-column gap-3">
+
                 @* SECTION: Searchable corpus *@
                 <section aria-label="Searchable corpus" class="search-health__section">
-                    <div class="text-uppercase text-muted small fw-semibold mb-1">Searchable corpus</div>
+                    <div class="text-muted small fw-semibold mb-1">Searchable corpus</div>
 
                     <div class="d-flex align-items-baseline gap-3 flex-wrap">
                         <div class="d-flex align-items-baseline gap-2">
@@ -87,7 +91,7 @@
 
                 @* SECTION: OCR status *@
                 <section aria-label="OCR status" class="search-health__section">
-                    <div class="text-uppercase text-muted small fw-semibold mb-2">OCR status</div>
+                    <div class="text-muted small fw-semibold mb-2">OCR status</div>
 
                     <div class="d-flex flex-wrap align-items-center gap-3 small">
                         <div class="d-flex align-items-center gap-2">
@@ -119,9 +123,9 @@
                     </div>
 
                     <div class="text-muted small mt-2">
-                        Succeeded split: Project documents <strong>@Model.Ocr.ProjectDocumentsSucceeded</strong>
+                        Split: <strong>@Model.Ocr.ProjectDocumentsSucceeded</strong> project
                         <span class="mx-1">·</span>
-                        Document repository <strong>@Model.Ocr.DocRepoSucceeded</strong>
+                        <strong>@Model.Ocr.DocRepoSucceeded</strong> repository
                     </div>
                 </section>
                 @* END SECTION *@
@@ -131,17 +135,19 @@
                 @* SECTION: OCR completions trend *@
                 <section aria-label="Recent OCR completions" class="search-health__section">
                     <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
-                        <div class="text-uppercase text-muted small fw-semibold">OCR completions (7 days)</div>
-                        @if (!trendHasActivity)
-                        {
-                            <div class="text-muted small">No OCR runs in last 7 days.</div>
-                        }
+                        <div class="text-muted small fw-semibold">OCR completions (7 days)</div>
                     </div>
 
-                    @if (hasTrendValues)
+                    @if (hasTrendValues && trendHasActivity)
                     {
                         <div class="search-health__sparkline-wrap mt-2" data-ocr-trend='@trendJson'>
                             <canvas class="search-health__sparkline" role="img" aria-label="Seven day OCR completion sparkline"></canvas>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-muted small mt-2">
+                            No OCR completions in the last 7 days.
                         </div>
                     }
                 </section>
@@ -151,7 +157,7 @@
 
                 @* SECTION: Queue health *@
                 <section aria-label="Queue health" class="search-health__section">
-                    <div class="text-uppercase text-muted small fw-semibold mb-1">Queue health</div>
+                    <div class="text-muted small fw-semibold mb-1">Queue health</div>
 
                     @if (Model.Ocr.Pending == 0)
                     {
@@ -164,7 +170,7 @@
                         <div class="small">
                             Queue backlog
                             <span class="text-muted">· Oldest pending: <strong>@(Model.OldestPendingLabel ?? "–")</strong></span>
-                            <a class="ms-2 small" asp-area="DocumentRepository" asp-page="/Documents/Index">View queue</a>
+                            <a class="ms-2 small" asp-area="DocumentRepository" asp-page="/Documents/Index">Open documents</a>
                         </div>
                     }
                 </section>
@@ -172,14 +178,12 @@
 
                 @* SECTION: Footer *@
                 <div class="text-muted small search-health__section">
-                    Ranking prioritises weighted metadata, tags, and OCR body.
-                    <div>
-                        <a asp-area="DocumentRepository"
-                           asp-page="/Documents/Index"
-                           class="small text-decoration-none">
-                            Search basics
-                        </a>
-                    </div>
+                    Ranking blends metadata, tags, and OCR body.
+                    <a asp-area="DocumentRepository"
+                       asp-page="/Documents/Index"
+                       class="small text-decoration-none ms-1">
+                        Search basics →
+                    </a>
                 </div>
                 @* END SECTION *@
             </div>
