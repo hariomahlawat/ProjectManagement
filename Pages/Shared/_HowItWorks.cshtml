@@ -1,11 +1,84 @@
-<div class="row g-4 align-items-start">
-    <div class="col-12">
-        <h2 class="h4 fw-bold">How it works</h2>
-        <ol class="pm-steps">
-            <li><strong>Sign in</strong> with credentials issued by the administrator.</li>
-            <li><strong>Access your team area</strong> based on your role.</li>
-            <li><strong>Create or update projects</strong> and milestones as authorised.</li>
-            <li><strong>Track progress</strong> with boards, timelines and reports.</li>
-        </ol>
+@* Pages/Shared/_HowItWorks.cshtml *@
+<section class="pm-how">
+    <div class="pm-how__header">
+        <h2 class="pm-section__title">How it works</h2>
+        <p class="pm-section__subtitle text-muted">
+            A simple, traceable workflow that links progress, approvals, and documents.
+        </p>
     </div>
-</div>
+
+    <div class="row g-3 g-lg-4">
+
+        <div class="col-12 col-lg-6">
+            <div class="pm-how-card">
+                <div class="pm-how-card__step">Step 1</div>
+                <div class="pm-how-card__title">Sign in and land on your role dashboard</div>
+                <div class="pm-how-card__text text-muted">
+                    Each role sees a tailored view of ongoing work, key alerts, and priorities.
+                </div>
+            </div>
+
+            <div class="pm-how-card">
+                <div class="pm-how-card__step">Step 2</div>
+                <div class="pm-how-card__title">Create or update projects and plans</div>
+                <div class="pm-how-card__text text-muted">
+                    Define stages, ownership, timelines, and PDCs. Submit edits through
+                    the approval chain.
+                </div>
+            </div>
+
+            <div class="pm-how-card">
+                <div class="pm-how-card__step">Step 3</div>
+                <div class="pm-how-card__title">Track progress via reports and trackers</div>
+                <div class="pm-how-card__text text-muted">
+                    Project Office maintains FFC, IPR, Proliferation, ToT, Training,
+                    and other operational records.
+                </div>
+            </div>
+
+            <div class="pm-how-card mb-0">
+                <div class="pm-how-card__step">Step 4</div>
+                <div class="pm-how-card__title">Attach documents and let OCR index them</div>
+                <div class="pm-how-card__text text-muted">
+                    Upload project artefacts or repository files. OCR and full-text indexing
+                    make everything searchable, including scanned PDFs.
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-6">
+            <div class="pm-how-panel">
+                <div class="pm-how-panel__title">What you gain</div>
+
+                <ul class="pm-how-panel__list">
+                    <li>
+                        <i class="bi bi-check2-circle"></i>
+                        Clear stage health and delay signals for decision makers.
+                    </li>
+                    <li>
+                        <i class="bi bi-check2-circle"></i>
+                        One searchable institutional memory across modules.
+                    </li>
+                    <li>
+                        <i class="bi bi-check2-circle"></i>
+                        Traceable approvals and audit trails for compliance.
+                    </li>
+                    <li>
+                        <i class="bi bi-check2-circle"></i>
+                        Faster reporting with fewer manual spreadsheets.
+                    </li>
+                </ul>
+
+                <div class="pm-how-panel__actions">
+                    <a class="btn btn-sm btn-primary" asp-area="Common" asp-page="/Search/Index">
+                        Open global search
+                    </a>
+                    <a class="btn btn-sm btn-outline-secondary" asp-page="/Projects/Index">
+                        Browse projects
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</section>

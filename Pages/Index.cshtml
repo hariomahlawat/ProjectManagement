@@ -82,20 +82,80 @@
   </aside>
 </section>
 
-<section id="features" class="container-xxl mt-5">
-  <h2 class="h3 fw-bold mb-4">Feature highlights</h2>
-  <partial name="_FeatureGrid" />
+<section class="container-xxl pm-section pm-section--soft">
+    <div class="row g-4 align-items-center">
+        <div class="col-12 col-lg-6">
+            <h2 class="pm-section__title">How work flows through the system</h2>
+            <p class="text-muted mb-3">
+                A single source of truth that links timelines, approvals, data, and documents.
+            </p>
+            <ol class="pm-flow">
+                <li><strong>Create or update projects</strong> with stage plans, responsibilities, and PDCs.</li>
+                <li><strong>Capture progress</strong> via reports and trackers used by Project Office.</li>
+                <li><strong>Attach documents</strong> to projects or the repository and let OCR index them.</li>
+                <li><strong>Search globally</strong> with ranked results spanning every module.</li>
+            </ol>
+
+            @if (!signedIn)
+            {
+                <a class="btn btn-primary mt-2" href="#login-card">Sign in to begin</a>
+            }
+        </div>
+
+        <div class="col-12 col-lg-6">
+            @* Keep your existing feature grid, now in a better shell *@
+            <div class="pm-features-shell">
+                <partial name="_FeatureGrid" />
+            </div>
+        </div>
+    </div>
 </section>
 
-<section class="py-5">
-  <partial name="_HowItWorks" />
+<section class="container-xxl pm-section">
+    <div class="pm-section__header">
+        <h2 class="pm-section__title">Operational advantages</h2>
+        <p class="pm-section__subtitle text-muted">
+            Designed for air-gapped environments and real defence documentation.
+        </p>
+    </div>
+
+    <div class="row g-3 g-lg-4">
+        <div class="col-12 col-md-4">
+            <div class="pm-adv-card">
+                <div class="pm-adv-card__title">Faster decisions</div>
+                <div class="pm-adv-card__text text-muted">
+                    Live dashboards show stage health, slippages, and completion signals.
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="pm-adv-card">
+                <div class="pm-adv-card__title">Searchable institutional memory</div>
+                <div class="pm-adv-card__text text-muted">
+                    OCR + FTS makes even scanned PDFs discoverable across years.
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="pm-adv-card">
+                <div class="pm-adv-card__title">Audit and compliance</div>
+                <div class="pm-adv-card__text text-muted">
+                    Traceable changes, role gates, and structured records for every action.
+                </div>
+            </div>
+        </div>
+    </div>
 </section>
 
-<section id="security" class="py-5 border-top">
-  <partial name="_SecurityStrip" />
+<section class="pm-section container-xxl">
+    <partial name="_HowItWorks" />
+</section>
+
+<section id="security" class="pm-section container-xxl">
+    <partial name="_SecurityStrip" />
 </section>
 
 @section Scripts {
-  <script type="module" src="~/js/utils/password-toggle.js"></script>
-  <script type="module" src="~/js/utils/login-card.js"></script>
+    <script type="module" src="~/js/utils/password-toggle.js"></script>
+    <script type="module" src="~/js/utils/login-card.js"></script>
 }
