@@ -3,55 +3,309 @@
 @using Microsoft.AspNetCore.Identity
 @inject SignInManager<ProjectManagement.Models.ApplicationUser> SignInManager
 
-<section class="hero container-xxl">
-  <div class="hero-left">
-    <h1 class="display-4 fw-bold mb-2">Plan. Track. Deliver.</h1>
-    <p class="lead text-muted mb-4">
-      Project management for defence R&D. Track milestones, approvals and progress by role.
-    </p>
+@{
+    ViewData["Title"] = "ProjectManagement";
+    var signedIn = SignInManager.IsSignedIn(User);
+}
 
-    <ul class="list-unstyled mb-4">
-      <li class="mb-2">✦ Custom dashboards per role</li>
-      <li class="mb-2">✦ Tasks, comments, and file attachments</li>
-      <li class="mb-2">✦ Progress boards and timelines</li>
-    </ul>
+<section class="pm-hero">
+    <div class="pm-hero__art" aria-hidden="true">
+        <img src="~/img/logos/sdd.png" alt="" />
+    </div>
+    <div class="container-xxl pm-hero__inner">
+        <div class="pm-hero__left">
 
-    @if (SignInManager.IsSignedIn(User))
-    {
-      <a class="btn btn-success btn-lg" asp-page="/Dashboard/Index">Go to your dashboard</a>
-    }
-    else
-    {
-      <a class="btn btn-primary btn-lg me-2" href="#login-card">Sign in</a>
-      <a class="link-primary" href="#features">Explore features</a>
-    }
-  </div>
+            <div class="pm-hero__eyebrow">
+                <span class="pm-pill pm-pill--soft">
+                    Defence R&D project ecosystem
+                </span>
+                <span class="pm-pill pm-pill--soft">
+                    Offline ready
+                </span>
+                <span class="pm-pill pm-pill--soft">
+                    OCR + Full-text search
+                </span>
+            </div>
 
-  <aside class="hero-right">
-    @* <img class="hero-art" src="~/img/sdd.webp" alt="Eklavya sybolising self learning" /> *@
-    @if (!SignInManager.IsSignedIn(User))
-    {
-      <div class="hero-card" id="login-card">
-        <partial name="_LoginCard" />
-      </div>
-    }
-  </aside>
+            <h1 class="pm-hero__title">
+                Plan. Track. Deliver.
+            </h1>
+
+            <p class="pm-hero__subtitle">
+                End-to-end project management for Simulator Development Division workflows.
+                Role-based dashboards, stage timelines, Project Office Reports,
+                and a searchable document corpus with OCR and customised ranking.
+            </p>
+
+            <div class="pm-hero__highlights">
+                <div class="pm-highlight">
+                    <div class="pm-highlight__icon"><i class="bi bi-kanban"></i></div>
+                    <div>
+                        <div class="pm-highlight__title">Lifecycle boards and timelines</div>
+                        <div class="pm-highlight__text">Track stages, approvals, slippages, and PDCs clearly.</div>
+                    </div>
+                </div>
+                <div class="pm-highlight">
+                    <div class="pm-highlight__icon"><i class="bi bi-file-earmark-text"></i></div>
+                    <div>
+                        <div class="pm-highlight__title">Document Repository with OCR</div>
+                        <div class="pm-highlight__text">Upload, tag, OCR, and search everything in one place.</div>
+                    </div>
+                </div>
+                <div class="pm-highlight">
+                    <div class="pm-highlight__icon"><i class="bi bi-search"></i></div>
+                    <div>
+                        <div class="pm-highlight__title">Global Search across modules</div>
+                        <div class="pm-highlight__text">Projects, reports, trackers, and documents via ranked FTS.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pm-hero__cta">
+                @if (signedIn)
+                {
+                    <a class="btn btn-primary btn-lg" asp-page="/Dashboard/Index">
+                        Go to your dashboard
+                    </a>
+                    <a class="btn btn-outline-secondary btn-lg" asp-area="Common" asp-page="/Search/Index">
+                        Open global search
+                    </a>
+                }
+                else
+                {
+                    <a class="btn btn-primary btn-lg" href="#login-card">
+                        Sign in
+                    </a>
+                    <a class="btn btn-outline-secondary btn-lg" href="#modules">
+                        Explore modules
+                    </a>
+                }
+            </div>
+
+            <div class="pm-hero__quicklinks">
+                <span class="text-muted small fw-semibold">Popular areas</span>
+                <div class="pm-hero__quicklinks-row">
+                    <a class="pm-quicklink" asp-page="/Projects/Index"><i class="bi bi-folder2-open"></i> Projects</a>
+                    <a class="pm-quicklink" asp-area="ProjectOfficeReports" asp-page="/Index"><i class="bi bi-clipboard-data"></i> Project Office Reports</a>
+                    <a class="pm-quicklink" asp-area="DocumentRepository" asp-page="/Documents/Index"><i class="bi bi-archive"></i> Document Repository</a>
+                    <a class="pm-quicklink" asp-area="Common" asp-page="/Search/Index"><i class="bi bi-search"></i> Global Search</a>
+                    <a class="pm-quicklink" asp-page="/Dashboard/Analytics"><i class="bi bi-bar-chart"></i> Analytics</a>
+                </div>
+            </div>
+
+        </div>
+
+        <aside class="pm-hero__right">
+            @if (!signedIn)
+            {
+                <div class="pm-login-card" id="login-card">
+                    <div class="pm-login-card__header">
+                        <div class="pm-login-card__title">Sign in</div>
+                        <div class="pm-login-card__subtitle text-muted small">
+                            Use credentials issued by administrator
+                        </div>
+                    </div>
+
+                    <partial name="_LoginCard" />
+
+                    <div class="pm-powered-by">
+                        <span>Powered by</span>
+                        <img src="~/img/logos/sdd.png" class="pm-powered-by__logo" alt="Company logo" />
+                        <span>Simulator Development Division</span>
+                    </div>
+                </div>
+
+            }
+            else
+            {
+                <div class="pm-hero-panel">
+                    <div class="pm-hero-panel__title">
+                        Welcome back
+                    </div>
+                    <div class="pm-hero-panel__text text-muted">
+                        Jump straight into ongoing work.
+                    </div>
+
+                    <div class="pm-hero-panel__actions">
+                        <a class="btn btn-sm btn-primary w-100" asp-page="/Dashboard/Index">
+                            Open dashboard
+                        </a>
+                        <a class="btn btn-sm btn-outline-secondary w-100" asp-page="/Projects/Create">
+                            Create project
+                        </a>
+                        <a class="btn btn-sm btn-outline-secondary w-100" asp-area="DocumentRepository" asp-page="/Documents/Upload">
+                            Upload document
+                        </a>
+                    </div>
+
+                    <div class="pm-powered-by pm-powered-by--compact">
+                        <img src="~/img/logos/sdd.png" class="pm-powered-by__logo" alt="Company logo" />
+                        <span>Built by Simulator Development Division</span>
+                    </div>
+
+                </div>
+            }
+        </aside>
+    </div>
 </section>
 
-<section id="features" class="container-xxl mt-5">
-  <h2 class="h3 fw-bold mb-4">Feature highlights</h2>
-  <partial name="_FeatureGrid" />
+<section id="modules" class="container-xxl pm-section">
+    <div class="pm-section__header">
+        <h2 class="pm-section__title">Core modules</h2>
+        <p class="pm-section__subtitle text-muted">
+            Everything needed to run defence R&D projects from concept to completion.
+        </p>
+    </div>
+
+    <div class="row g-3 g-lg-4">
+        <div class="col-12 col-md-6 col-lg-4">
+            <a class="pm-module-card" asp-page="/Projects/Index">
+                <div class="pm-module-card__icon"><i class="bi bi-folder2-open"></i></div>
+                <div class="pm-module-card__body">
+                    <div class="pm-module-card__title">Projects</div>
+                    <div class="pm-module-card__text">
+                        Stage timelines, PDC tracking, approvals, and role-wise ownership.
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <div class="col-12 col-md-6 col-lg-4">
+            <a class="pm-module-card" asp-area="ProjectOfficeReports" asp-page="/Index">
+                <div class="pm-module-card__icon"><i class="bi bi-clipboard-data"></i></div>
+                <div class="pm-module-card__body">
+                    <div class="pm-module-card__title">Project Office Reports</div>
+                    <div class="pm-module-card__text">
+                        FFC, IPR, Proliferation, ToT, training, and decision support tables.
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <div class="col-12 col-md-6 col-lg-4">
+            <a class="pm-module-card" asp-area="DocumentRepository" asp-page="/Documents/Index">
+                <div class="pm-module-card__icon"><i class="bi bi-archive"></i></div>
+                <div class="pm-module-card__body">
+                    <div class="pm-module-card__title">Document Repository</div>
+                    <div class="pm-module-card__text">
+                        Upload, tag, OCR, version, and manage a living knowledge base.
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <div class="col-12 col-md-6 col-lg-4">
+            <a class="pm-module-card" asp-area="Common" asp-page="/Search/Index">
+                <div class="pm-module-card__icon"><i class="bi bi-search"></i></div>
+                <div class="pm-module-card__body">
+                    <div class="pm-module-card__title">Global Search</div>
+                    <div class="pm-module-card__text">
+                        Full-text search across modules with weighted ranking and OCR body.
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <div class="col-12 col-md-6 col-lg-4">
+            <a class="pm-module-card" asp-page="/Dashboard/Analytics">
+                <div class="pm-module-card__icon"><i class="bi bi-bar-chart"></i></div>
+                <div class="pm-module-card__body">
+                    <div class="pm-module-card__title">Analytics and Logs</div>
+                    <div class="pm-module-card__text">
+                        Stage cycle time insights, hotspots, trends, and audit trails.
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="pm-module-card pm-module-card--static">
+                <div class="pm-module-card__icon"><i class="bi bi-shield-check"></i></div>
+                <div class="pm-module-card__body">
+                    <div class="pm-module-card__title">Secure and role controlled</div>
+                    <div class="pm-module-card__text">
+                        Offline deployment, granular permissions, and traceable updates.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </section>
 
-<section class="py-5">
-  <partial name="_HowItWorks" />
+<section class="container-xxl pm-section pm-section--soft">
+    <div class="row g-4 align-items-center">
+        <div class="col-12 col-lg-6">
+            <h2 class="pm-section__title">How work flows through the system</h2>
+            <p class="text-muted mb-3">
+                A single source of truth that links timelines, approvals, data, and documents.
+            </p>
+            <ol class="pm-flow">
+                <li><strong>Create or update projects</strong> with stage plans, responsibilities, and PDCs.</li>
+                <li><strong>Capture progress</strong> via reports and trackers used by Project Office.</li>
+                <li><strong>Attach documents</strong> to projects or the repository and let OCR index them.</li>
+                <li><strong>Search globally</strong> with ranked results spanning every module.</li>
+            </ol>
+
+            @if (!signedIn)
+            {
+                <a class="btn btn-primary mt-2" href="#login-card">Sign in to begin</a>
+            }
+        </div>
+
+        <div class="col-12 col-lg-6">
+            @* Keep your existing feature grid, now in a better shell *@
+            <div class="pm-features-shell">
+                <partial name="_FeatureGrid" />
+            </div>
+        </div>
+    </div>
 </section>
 
-<section id="security" class="py-5 border-top">
-  <partial name="_SecurityStrip" />
+<section class="container-xxl pm-section">
+    <div class="pm-section__header">
+        <h2 class="pm-section__title">Operational advantages</h2>
+        <p class="pm-section__subtitle text-muted">
+            Designed for air-gapped environments and real defence documentation.
+        </p>
+    </div>
+
+    <div class="row g-3 g-lg-4">
+        <div class="col-12 col-md-4">
+            <div class="pm-adv-card">
+                <div class="pm-adv-card__title">Faster decisions</div>
+                <div class="pm-adv-card__text text-muted">
+                    Live dashboards show stage health, slippages, and completion signals.
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="pm-adv-card">
+                <div class="pm-adv-card__title">Searchable institutional memory</div>
+                <div class="pm-adv-card__text text-muted">
+                    OCR + FTS makes even scanned PDFs discoverable across years.
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="pm-adv-card">
+                <div class="pm-adv-card__title">Audit and compliance</div>
+                <div class="pm-adv-card__text text-muted">
+                    Traceable changes, role gates, and structured records for every action.
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="pm-section container-xxl">
+    <partial name="_HowItWorks" />
+</section>
+
+<section id="security" class="pm-section container-xxl">
+    <partial name="_SecurityStrip" />
 </section>
 
 @section Scripts {
-  <script type="module" src="~/js/utils/password-toggle.js"></script>
-  <script type="module" src="~/js/utils/login-card.js"></script>
+    <script type="module" src="~/js/utils/password-toggle.js"></script>
+    <script type="module" src="~/js/utils/login-card.js"></script>
 }

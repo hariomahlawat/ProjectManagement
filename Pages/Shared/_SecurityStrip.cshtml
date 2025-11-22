@@ -1,10 +1,24 @@
 ﻿<div class="pm-security-strip rounded-4 p-4 bg-white shadow-sm">
-    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-3">
-        <h3 class="h6 fw-bold mb-0">Security and Compliance</h3>
-        <ul class="pm-inline-list text-secondary mb-0">
-            <li>HTTPS enforced; data encrypted in transit</li>
-            <li>Role-based access control</li>
-            <li>Comprehensive audit trail</li>
-        </ul>
+    <div class="d-flex flex-column gap-2">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <h3 class="h6 fw-bold mb-0">Security controls</h3>
+            <span class="text-muted small">Key protections currently enabled</span>
+        </div>
+
+        <div class="pm-chip-wrap">
+            <span class="pm-chip">HTTPS enforced</span>
+            <span class="pm-chip">HSTS enabled</span>
+            <span class="pm-chip">Secure session cookies</span>
+            <span class="pm-chip">CSRF protection (forms)</span>
+            <span class="pm-chip">XSS sanitised</span>
+            <span class="pm-chip">CSP locked down</span>
+            <span class="pm-chip">Rate limited login</span>
+            <span class="pm-chip">Rate limited uploads</span>
+            <span class="pm-chip">Role and Claim based access</span>
+            <span class="pm-chip">Audit trail on</span>
+            <span class="pm-chip">IDOR guarded docs</span>
+            <span class="pm-chip">No inline scripts</span>
+            <span class="pm-chip">Antiforgery</span>
+        </div>
     </div>
 </div>
