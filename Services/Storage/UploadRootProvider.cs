@@ -51,7 +51,7 @@ public sealed class UploadRootProvider : IUploadRootProvider
             throw new InvalidOperationException("Upload root path cannot be empty.");
         }
 
-        RootPath = EnsureRootWithFallback(Path.GetFullPath(resolvedRoot));
+        RootPath = EnsureRootWithFallback(Path.GetFullPath(ExpandPath(resolvedRoot)));
         ProjectsRootPath = EnsureDirectory(CombineOptional(RootPath, _documentOptions.ProjectsSubpath));
     }
 
@@ -160,6 +160,24 @@ public sealed class UploadRootProvider : IUploadRootProvider
                 throw new InvalidOperationException(message, fallbackEx);
             }
         }
+    }
+
+    // SECTION: Path helpers
+    private static string ExpandPath(string path)
+    {
+        var expanded = Environment.ExpandEnvironmentVariables(path);
+
+        if (expanded.StartsWith("~", StringComparison.Ordinal))
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrWhiteSpace(home))
+            {
+                var remainder = expanded[1..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                expanded = Path.Combine(home, remainder);
+            }
+        }
+
+        return expanded;
     }
 
     private string GetFallbackRoot()
