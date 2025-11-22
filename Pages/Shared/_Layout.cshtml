@@ -33,8 +33,10 @@
             <div class="pm-topbar__left">
                 @await Component.InvokeAsync("NavigationDrawer")
 
-                <a class="pm-brand" asp-area="" asp-page="/Index">
-                    ProjectManagement
+                <a class="pm-brand d-flex align-items-center gap-2" asp-area="" asp-page="/Index">
+                    <img src="~/img/logos/artrac.png" asp-append-version="true"
+                         alt="Parent organisation crest" class="pm-nav-logo" />
+                    <span class="fw-semibold">ProjectManagement</span>
                 </a>
 
                 @* ===== Top Navigation Tabs ===== *@
