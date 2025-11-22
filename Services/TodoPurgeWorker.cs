@@ -14,11 +14,13 @@ namespace ProjectManagement.Services
 {
     public class TodoPurgeWorker : BackgroundService
     {
+        // SECTION: Fields
         private readonly IServiceProvider _sp;
         private readonly ILogger<TodoPurgeWorker> _log;
         private readonly int _retentionDays;
         private bool _loggedMissingDeletedUtc;
 
+        // SECTION: Constructor
         public TodoPurgeWorker(IServiceProvider sp, ILogger<TodoPurgeWorker> log, IOptions<TodoOptions> options)
         {
             _sp = sp;
@@ -26,6 +28,7 @@ namespace ProjectManagement.Services
             _retentionDays = options.Value.RetentionDays;
         }
 
+        // SECTION: Background processing
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             try
@@ -64,7 +67,7 @@ namespace ProjectManagement.Services
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
             var columnCount = await db.Database
-                .SqlQueryRaw<long>("SELECT COUNT(*) FROM information_schema.columns WHERE table_name='TodoItems' AND column_name='DeletedUtc'")
+                .SqlQueryRaw<long>("SELECT COUNT(*) AS \"Value\" FROM information_schema.columns WHERE table_name='TodoItems' AND column_name='DeletedUtc'")
                 .SingleAsync(stoppingToken);
             var hasDeletedUtc = columnCount > 0;
 
