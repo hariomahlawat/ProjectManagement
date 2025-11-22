@@ -656,6 +656,24 @@
         }, 8000);
     }
 
+    /* ---------- Stage progress meter ---------- */
+    function initStageProgressBar() {
+        const progressBar = document.querySelector('[data-stage-progress]');
+        if (!progressBar) {
+            return;
+        }
+
+        const rawProgress = progressBar.getAttribute('data-stage-progress');
+        const parsedProgress = Number.parseInt(rawProgress, 10);
+        const normalizedProgress = Number.isFinite(parsedProgress)
+            ? Math.min(Math.max(parsedProgress, 0), 100)
+            : 0;
+
+        progressBar.style.setProperty('--pm-progress-width', `${normalizedProgress}%`);
+    }
+
+    initStageProgressBar();
+
     const remarksElement = document.querySelector('[data-remarks-panel]');
     let remarksPanelInstance = null;
     const createRemarksPanel = typeof remarksNamespace.createRemarksPanel === 'function'

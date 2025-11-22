@@ -42,7 +42,7 @@ else
                     ? $"photo titled {photo.Caption}"
                     : $"photo in position {photo.Ordinal}";
                 <tr>
-                    <td style="width: 140px;">
+                    <td class="project-photo-list__preview">
                         @{ 
                             var previewSm = Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "sm" });
                             var previewMd = Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "md" });
@@ -57,8 +57,7 @@ else
                             <img src="@previewSm"
                                  srcset="@previewSrcSet"
                                  alt="Project photo preview"
-                                 class="img-thumbnail"
-                                 style="max-width: 128px;" />
+                                 class="img-thumbnail project-photo-list__thumbnail" />
                         </picture>
                     </td>
                     <td>
