@@ -5684,6 +5684,11 @@ body.has-project-photo-preview-dialog {
     border-bottom: 1px solid rgba(0,0,0,.035);
 }
 
+/* stage metadata chips */
+.ongoing-card__stage-chip {
+    font-size: 0.7rem;
+}
+
 .ongoing-timeline {
     padding: 0.75rem 1.25rem 1rem 1.25rem;
     background: #f8fafc;
@@ -5694,6 +5699,13 @@ body.has-project-photo-preview-dialog {
     flex-wrap: wrap;
     gap: 0.5rem;
     align-items: center;
+}
+
+/* timeline nodes */
+.ongoing-timeline__stage-node {
+    width: 42px;
+    height: 42px;
+    font-size: .7rem;
 }
 
 .ongoing-timeline__item {
@@ -5735,6 +5747,11 @@ body.has-project-photo-preview-dialog {
     display: flex;
     align-items: center;
     gap: .4rem;
+}
+
+.ongoing-timeline__connector-gap {
+    width: 4px;
+    height: 2px;
 }
 
 .ongoing-timeline__line {

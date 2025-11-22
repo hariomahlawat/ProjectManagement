@@ -176,7 +176,7 @@ else
                                 }
 
                                 @* extra line for stage age *@
-                                <span class="ms-2 text-muted" style="font-size:.7rem;">
+                                <span class="ms-2 text-muted ongoing-card__stage-chip">
                                     @if (presentStage.DaysSinceStartOrLastCompletion.HasValue)
                                     {
                                         var daysInCurrent = presentStage.DaysSinceStartOrLastCompletion.Value;
@@ -190,20 +190,20 @@ else
                                     {
                                         if (!isOverdue)
                                         {
-                                            <span class="ms-2 text-success" style="font-size:.7rem;">
+                                            <span class="ms-2 text-success ongoing-card__stage-chip">
                                                 @daysToPdc day@(daysToPdc == 1 ? "" : "s") to PDC
                                             </span>
                                         }
                                         else
                                         {
-                                            <span class="ms-2 text-danger" style="font-size:.7rem;">
+                                            <span class="ms-2 text-danger ongoing-card__stage-chip">
                                                 overdue by @daysToPdc day@(daysToPdc == 1 ? "" : "s")
                                             </span>
                                         }
                                     }
                                     else
                                     {
-                                        <span class="ms-2 text-muted" style="font-size:.7rem;">
+                                        <span class="ms-2 text-muted ongoing-card__stage-chip">
                                             • no PDC set
                                         </span>
                                     }
@@ -225,8 +225,7 @@ else
                                     if (isCompleted)
                                     {
                                         <div class="d-flex align-items-center gap-1">
-                                            <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center"
-                                                 style="width:42px;height:42px;font-size:.7rem;">
+                                            <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center ongoing-timeline__stage-node">
                                                 @stage.Code
                                             </div>
                                             <div class="small">
@@ -244,8 +243,7 @@ else
                                     else if (isCurrent)
                                     {
                                         <div class="d-flex align-items-center gap-1">
-                                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
-                                                 style="width:42px;height:42px;font-size:.7rem;">
+                                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center ongoing-timeline__stage-node">
                                                 @stage.Code
                                             </div>
                                             <div class="small">
@@ -273,12 +271,12 @@ else
                                             - stage.ActualCompletedOn.Value.ToDateTime(TimeOnly.MinValue)).Days;
                                         }
 
-                                        <div class="d-flex align-items-center gap-1">
-                                            <div style="width:50px;height:2px;background:rgba(0,0,0,.08);"></div>
+                                        <div class="d-flex align-items-center gap-1 ongoing-timeline__connector">
+                                            <div class="ongoing-timeline__line"></div>
                                             <div class="badge bg-light text-muted border small">
                                                 @(days.HasValue ? $"{days.Value} days" : "—")
                                             </div>
-                                            <div style="width:4px;height:2px;"></div>
+                                            <div class="ongoing-timeline__connector-gap"></div>
                                         </div>
                                     }
                                 }
