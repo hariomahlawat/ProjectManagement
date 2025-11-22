@@ -17,11 +17,11 @@
     <link rel="icon" href="~/favicon.ico" />
 </head>
 <body>
-    @{ 
+    @{
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
         var isProgressReviewPage = string.Equals(currentArea, "ProjectOfficeReports", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(currentPage, "/ProgressReview/Index", StringComparison.OrdinalIgnoreCase);
+        && string.Equals(currentPage, "/ProgressReview/Index", StringComparison.OrdinalIgnoreCase);
         var useFullWidth = (ViewData["UseFullWidth"] as bool?) == true;
         var mainContainerClass = useFullWidth
         ? "container-fluid analytics-shell px-3 px-lg-4 px-xxl-5"
@@ -33,8 +33,11 @@
             <div class="pm-topbar__left">
                 @await Component.InvokeAsync("NavigationDrawer")
 
-                <a class="pm-brand" asp-area="" asp-page="/Index">
-                    ProjectManagement
+                <a class="pm-brand" asp-area="" asp-page="/Index" aria-label="ProjectManagement Home">
+                    <img src="~/img/logos/artrac.png"
+                         class="pm-nav-logo"
+                         alt="ARTRAC crest" />
+                    <span class="pm-brand__text">ProjectManagement</span>
                 </a>
 
                 @* ===== Top Navigation Tabs ===== *@
@@ -79,9 +82,6 @@
             </div>
         </div>
     </header>
-
-
-
 
     <main role="main" class="pb-5@(useFullWidth ? " analytics-main" : string.Empty)">
         <div class="@mainContainerClass">

@@ -6729,6 +6729,72 @@ body.has-project-photo-preview-dialog {
     }
 }
 
+/* ---------- Navbar dual branding ---------- */
+.pm-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--pm-text);
+    white-space: nowrap;
+}
+
+    .pm-brand:hover {
+        color: var(--pm-text);
+    }
+
+.pm-brand__text {
+    line-height: 1;
+}
+
+.pm-nav-logo {
+    height: 28px;
+    width: auto;
+    display: block;
+    object-fit: contain;
+}
+
+/* If crest PNG has lots of empty transparent area */
+.pm-nav-logo {
+    max-width: 56px;
+}
+
+/* ---------- Hero branding line (left) ---------- */
+.pm-hero__brandline {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    margin: .6rem 0 1rem 0;
+    color: var(--pm-text-secondary);
+    font-size: .95rem;
+    font-weight: 600;
+}
+
+.pm-hero__brandlogo {
+    height: 28px;
+    width: auto;
+    object-fit: contain;
+    display: block;
+    opacity: .95;
+}
+
+.pm-hero__brandlogo--company {
+    height: 24px;
+}
+
+.pm-hero__brandtext {
+    letter-spacing: .01em;
+}
+
+/* Safety: never let any hero art bleed into topbar */
+.pm-hero__art img {
+    max-width: clamp(220px, 38vw, 460px);
+    height: auto;
+    opacity: .06;
+    pointer-events: none;
+}
+
 
 /* ===========================
    FEATURE GRID (NEW)

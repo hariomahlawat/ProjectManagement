@@ -12,24 +12,27 @@
     <div class="pm-hero__art" aria-hidden="true">
         <img src="~/img/logos/sdd.png" alt="" />
     </div>
+
     <div class="container-xxl pm-hero__inner">
         <div class="pm-hero__left">
 
             <div class="pm-hero__eyebrow">
-                <span class="pm-pill pm-pill--soft">
-                    Defence R&D project ecosystem
-                </span>
-                <span class="pm-pill pm-pill--soft">
-                    Offline ready
-                </span>
-                <span class="pm-pill pm-pill--soft">
-                    OCR + Full-text search
-                </span>
+                <span class="pm-pill pm-pill--soft">Defence R&amp;D project ecosystem</span>
+                <span class="pm-pill pm-pill--soft">Offline ready</span>
+                <span class="pm-pill pm-pill--soft">OCR + Full-text search</span>
             </div>
 
-            <h1 class="pm-hero__title">
-                Plan. Track. Deliver.
-            </h1>
+            <div class="pm-hero__brandline" aria-label="Branding">
+                <img src="~/img/logos/artrac.png"
+                     class="pm-hero__brandlogo pm-hero__brandlogo--parent"
+                     alt="ARTRAC crest" />
+                <img src="~/img/logos/sdd.png"
+                     class="pm-hero__brandlogo pm-hero__brandlogo--company"
+                     alt="Simulator Development Division logo" />
+                <span class="pm-hero__brandtext">Simulator Development Division</span>
+            </div>
+
+            <h1 class="pm-hero__title">Plan. Track. Deliver.</h1>
 
             <p class="pm-hero__subtitle">
                 End-to-end project management for Simulator Development Division workflows.
@@ -64,21 +67,13 @@
             <div class="pm-hero__cta">
                 @if (signedIn)
                 {
-                    <a class="btn btn-primary btn-lg" asp-page="/Dashboard/Index">
-                        Go to your dashboard
-                    </a>
-                    <a class="btn btn-outline-secondary btn-lg" asp-area="Common" asp-page="/Search/Index">
-                        Open global search
-                    </a>
+                    <a class="btn btn-primary btn-lg" asp-page="/Dashboard/Index">Go to your dashboard</a>
+                    <a class="btn btn-outline-secondary btn-lg" asp-area="Common" asp-page="/Search/Index">Open global search</a>
                 }
                 else
                 {
-                    <a class="btn btn-primary btn-lg" href="#login-card">
-                        Sign in
-                    </a>
-                    <a class="btn btn-outline-secondary btn-lg" href="#modules">
-                        Explore modules
-                    </a>
+                    <a class="btn btn-primary btn-lg" href="#login-card">Sign in</a>
+                    <a class="btn btn-outline-secondary btn-lg" href="#modules">Explore modules</a>
                 }
             </div>
 
@@ -110,15 +105,28 @@
 
                     <div class="pm-powered-by">
                         <span>Powered by</span>
-                        <img src="~/img/logos/sdd.png" class="pm-powered-by__logo" alt="SDD logo" />
+                        <img src="~/img/logos/sdd.png" class="pm-powered-by__logo" alt="Simulator Development Division logo" />
                         <span>Simulator Development Division</span>
                     </div>
                 </div>
-
             }
             else
             {
-                
+                <div class="pm-hero-panel">
+                    <div class="pm-hero-panel__title">Welcome back</div>
+                    <div class="pm-hero-panel__text text-muted">Jump straight into ongoing work.</div>
+
+                    <div class="pm-hero-panel__actions">
+                        <a class="btn btn-sm btn-primary w-100" asp-page="/Dashboard/Index">Open dashboard</a>
+                        <a class="btn btn-sm btn-outline-secondary w-100" asp-page="/Projects/Create">Create project</a>
+                        <a class="btn btn-sm btn-outline-secondary w-100" asp-area="DocumentRepository" asp-page="/Documents/Upload">Upload document</a>
+                    </div>
+
+                    <div class="pm-powered-by pm-powered-by--compact">
+                        <img src="~/img/logos/sdd.png" class="pm-powered-by__logo" alt="Simulator Development Division logo" />
+                        <span>Built by Simulator Development Division</span>
+                    </div>
+                </div>
             }
         </aside>
     </div>
@@ -128,7 +136,7 @@
     <div class="pm-section__header">
         <h2 class="pm-section__title">Core modules</h2>
         <p class="pm-section__subtitle text-muted">
-            Everything needed to run defence R&D projects from concept to completion.
+            Everything needed to run defence R&amp;D projects from concept to completion.
         </p>
     </div>
 
@@ -228,7 +236,6 @@
         </div>
 
         <div class="col-12 col-lg-6">
-            @* Keep your existing feature grid, now in a better shell *@
             <div class="pm-features-shell">
                 <partial name="_FeatureGrid" />
             </div>
