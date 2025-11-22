@@ -6,11 +6,11 @@
 
   // Build a plugin list that only includes plugins that actually exist
   const pluginList = [];
-  // Prefer FC.<plugin>; fall back to legacy window.FullCalendar<Plugin> globals
-  const dg = (FC && FC.dayGrid) || window.FullCalendarDayGrid;
-  const tg = (FC && FC.timeGrid) || window.FullCalendarTimeGrid;
-  const ls = (FC && FC.list)     || window.FullCalendarList;
-  const ia = (FC && FC.interaction) || window.FullCalendarInteraction;
+  // Prefer FullCalendar 6 global bundle plugin names; fall back to legacy globals
+  const dg = (FC && (FC.dayGridPlugin || FC.dayGrid)) || window.FullCalendarDayGrid;
+  const tg = (FC && (FC.timeGridPlugin || FC.timeGrid)) || window.FullCalendarTimeGrid;
+  const ls = (FC && (FC.listPlugin || FC.list)) || window.FullCalendarList;
+  const ia = (FC && (FC.interactionPlugin || FC.interaction)) || window.FullCalendarInteraction;
   if (dg) pluginList.push(dg);
   if (tg) pluginList.push(tg);
   if (ls) pluginList.push(ls);
