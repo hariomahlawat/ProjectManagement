@@ -246,9 +246,9 @@ namespace ProjectManagement.Services.DocRepo
             return path;
         }
 
-        private static string ResolveRoot(DocRepoOptions options, IUploadRootProvider uploadRootProvider)
-        {
-            var configured = options.OcrWorkRoot;
+    private static string ResolveRoot(DocRepoOptions options, IUploadRootProvider uploadRootProvider)
+    {
+        var configured = ExpandPath(options.OcrWorkRoot);
 
             if (string.IsNullOrWhiteSpace(configured))
             {
@@ -259,20 +259,39 @@ namespace ProjectManagement.Services.DocRepo
                 configured = Path.Combine(uploadRootProvider.RootPath, configured);
             }
 
-            return Path.GetFullPath(configured);
+        return Path.GetFullPath(configured);
+    }
+
+    private static string ResolveSubpath(string? configured, string fallback)
+    {
+        var trimmed = configured?.Trim();
+        return string.IsNullOrWhiteSpace(trimmed) ? fallback : trimmed;
+    }
+
+    // SECTION: Path helpers
+    private static string ExpandPath(string? path)
+    {
+        var configured = (path ?? string.Empty).Trim();
+        var expanded = Environment.ExpandEnvironmentVariables(configured);
+
+        if (expanded.StartsWith("~", StringComparison.Ordinal))
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrWhiteSpace(home))
+            {
+                var remainder = expanded[1..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                expanded = Path.Combine(home, remainder);
+            }
         }
 
-        private static string ResolveSubpath(string? configured, string fallback)
-        {
-            var trimmed = configured?.Trim();
-            return string.IsNullOrWhiteSpace(trimmed) ? fallback : trimmed;
-        }
+        return expanded;
+    }
 
-        // SECTION: Path helpers
-        private static string BuildTempPath(string directory, string documentId, string runToken, string extension)
-        {
-            return Path.Combine(directory, documentId + "-" + runToken + extension);
-        }
+    // SECTION: Path helpers
+    private static string BuildTempPath(string directory, string documentId, string runToken, string extension)
+    {
+        return Path.Combine(directory, documentId + "-" + runToken + extension);
+    }
 
         private static string GenerateRunToken()
         {

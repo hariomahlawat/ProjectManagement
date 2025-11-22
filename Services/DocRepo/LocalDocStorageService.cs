@@ -78,11 +78,31 @@ public class LocalDocStorageService : IDocStorage
             ? Path.Combine(AppContext.BaseDirectory, "App_Data", "DocRepo")
             : configuredRoot;
 
+        root = ExpandPath(root);
+
         if (!Path.IsPathRooted(root))
         {
             root = Path.Combine(AppContext.BaseDirectory, root);
         }
 
         return Path.GetFullPath(root);
+    }
+
+    // SECTION: Path helpers
+    private static string ExpandPath(string path)
+    {
+        var expanded = Environment.ExpandEnvironmentVariables(path);
+
+        if (expanded.StartsWith("~", StringComparison.Ordinal))
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrWhiteSpace(home))
+            {
+                var remainder = expanded[1..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                expanded = Path.Combine(home, remainder);
+            }
+        }
+
+        return expanded;
     }
 }
