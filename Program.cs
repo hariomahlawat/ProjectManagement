@@ -66,6 +66,7 @@ using ProjectManagement.Utilities.Reporting;
 using System;
 using System.Collections.Generic;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -253,7 +254,15 @@ builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IUserContext, HttpUserContext>();
 builder.Services.AddScoped<IActivityRepository, ActivityRepository>();
-builder.Services.Configure<DocRepoOptions>(builder.Configuration.GetSection("DocRepo"));
+// SECTION: Doc repository options
+builder.Services
+    .AddOptions<DocRepoOptions>()
+    .Bind(builder.Configuration.GetSection("DocRepo"))
+    .ValidateDataAnnotations()
+    .Validate(
+        options => !options.EnableOcrWorker || !string.IsNullOrWhiteSpace(options.OcrWorkRoot),
+        "DocRepo:OcrWorkRoot must be configured when OCR worker is enabled.")
+    .ValidateOnStart();
 builder.Services.AddSingleton<IDocStorage, LocalDocStorageService>();
 builder.Services.AddSingleton<IUrlBuilder, UrlBuilder>();
 builder.Services.AddScoped<DocumentOcrService>();
