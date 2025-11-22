@@ -634,7 +634,11 @@ app.Use(async (ctx, next) =>
         var devSourcesSuffix = app.Environment.IsDevelopment() && developmentLoopbackOrigins.Length > 0
             ? " " + string.Join(' ', developmentLoopbackOrigins)
             : string.Empty;
+        // ----- Content Security Policy -----
         var styleUnsafeInline = app.Environment.IsDevelopment() ? " 'unsafe-inline'" : string.Empty;
+        var styleSrcDirective = $"style-src 'self'{styleUnsafeInline}{devSourcesSuffix}; ";
+        var styleSrcAttrDirective = "style-src-attr 'unsafe-inline'; ";
+        var styleSrcElemDirective = $"style-src-elem 'self'{devSourcesSuffix}; ";
 
         h["Content-Security-Policy"] =
             "default-src 'self'; " +
@@ -643,7 +647,9 @@ app.Use(async (ctx, next) =>
             $"frame-src 'self' data: blob:{devSourcesSuffix}; " +
             $"img-src 'self' data: blob:{devSourcesSuffix}; " +
             $"script-src 'self'{devSourcesSuffix}; " +
-            $"style-src 'self'{styleUnsafeInline}{devSourcesSuffix}; " +
+            styleSrcDirective +
+            styleSrcAttrDirective +
+            styleSrcElemDirective +
             $"font-src 'self' data:{devSourcesSuffix}; " +
             "object-src 'none'; " +
             $"connect-src {connectSrcDirective};";
