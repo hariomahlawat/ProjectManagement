@@ -2452,6 +2452,12 @@ summary::marker {
     background: var(--pm-surface);
 }
 
+/* --- Navbar branding --- */
+.pm-nav-logo {
+    height: 28px;
+    width: auto;
+}
+
 /* --- Landing hero --- */
 .hero {
   display: grid;
@@ -2478,6 +2484,78 @@ summary::marker {
 
 .hero-card {
   width: min(420px, 100%);
+}
+
+/* --- Landing hero: branding line --- */
+.pm-hero__brandline {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    margin-top: .75rem;
+    color: var(--pm-muted);
+    font-size: .9rem;
+    font-weight: 600;
+}
+
+.pm-hero__brandlogo {
+    height: 24px;
+    width: auto;
+    opacity: .95;
+}
+
+.pm-hero__brandlogo--company {
+    height: 22px;
+}
+
+.pm-hero__brandtext {
+    letter-spacing: .01em;
+}
+
+/* --- Landing hero: quick actions panel --- */
+.pm-hero-panel {
+    width: min(420px, 100%);
+    padding: 1.2rem 1.3rem;
+    border-radius: 1rem;
+    background: var(--pm-card);
+    box-shadow: var(--pm-shadow);
+    border: 1px solid rgba(0,0,0,.04);
+}
+
+.pm-hero-panel__title {
+    font-weight: 700;
+    letter-spacing: .1px;
+    margin-bottom: .1rem;
+}
+
+.pm-hero-panel__text {
+    font-size: var(--pm-font-size-compact);
+}
+
+.pm-hero-panel__actions-list {
+    display: grid;
+    gap: .4rem;
+    margin-top: .75rem;
+}
+
+.pm-action {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .55rem .7rem;
+    border-radius: .6rem;
+    text-decoration: none;
+    background: #f7f9ff;
+    color: var(--pm-text);
+    font-weight: 500;
+    border: 1px solid rgba(0,0,0,.04);
+}
+
+.pm-action:hover {
+    background: #eef3ff;
+}
+
+.pm-action .bi {
+    color: var(--pm-primary);
 }
 
 /* The login partial outer wrapper should not be absolutely positioned.
@@ -3396,6 +3474,8 @@ summary::marker {
   /* Show card first, art below on tablets/phones */
   .hero-card { order: 1; width: 100%; }
   .hero-art  { order: 2; max-width: clamp(220px, 50vw, 340px); }
+  .pm-hero__brandlogo { height: 20px; }
+  .pm-hero__brandline { flex-wrap: wrap; }
 }
 
 /* Fixed-height wrapper for responsive Chart.js canvases */

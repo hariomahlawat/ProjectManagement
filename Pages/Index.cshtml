@@ -1,14 +1,24 @@
 @page
 @model ProjectManagement.Pages.IndexModel
 @using Microsoft.AspNetCore.Identity
+@using ProjectManagement.Configuration
 @inject SignInManager<ProjectManagement.Models.ApplicationUser> SignInManager
 
 <section class="hero container-xxl">
   <div class="hero-left">
+    @* === Hero intro === *@
     <h1 class="display-4 fw-bold mb-2">Plan. Track. Deliver.</h1>
-    <p class="lead text-muted mb-4">
+    <p class="lead text-muted mb-3 pm-hero__subtitle">
       Project management for defence R&D. Track milestones, approvals and progress by role.
     </p>
+
+    <div class="pm-hero__brandline">
+      <img src="~/img/logos/artrac.png" asp-append-version="true"
+           alt="Parent organisation crest" class="pm-hero__brandlogo" />
+      <img src="~/img/logos/sdd.png" asp-append-version="true"
+           alt="Company logo" class="pm-hero__brandlogo pm-hero__brandlogo--company" />
+      <span class="pm-hero__brandtext">Built by Simulator Development Division</span>
+    </div>
 
     <ul class="list-unstyled mb-4">
       <li class="mb-2">✦ Custom dashboards per role</li>
@@ -29,7 +39,41 @@
 
   <aside class="hero-right">
     @* <img class="hero-art" src="~/img/sdd.webp" alt="Eklavya sybolising self learning" /> *@
-    @if (!SignInManager.IsSignedIn(User))
+    @* === Hero quick actions / auth card === *@
+    @if (SignInManager.IsSignedIn(User))
+    {
+      <div class="pm-hero-panel">
+        <div class="pm-hero-panel__title">Welcome back</div>
+        <div class="pm-hero-panel__text text-muted">Jump straight into ongoing work.</div>
+
+        <div class="pm-hero-panel__actions-list">
+          <a class="pm-action" asp-page="/Dashboard/Index">
+            <i class="bi bi-speedometer2"></i>
+            <span>Open dashboard</span>
+            <i class="bi bi-chevron-right ms-auto"></i>
+          </a>
+
+          @if (User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.HoD))
+          {
+            <a class="pm-action" asp-page="/Projects/Create">
+              <i class="bi bi-plus-circle"></i>
+              <span>Create project</span>
+              <i class="bi bi-chevron-right ms-auto"></i>
+            </a>
+          }
+
+          @if (User.IsInRole(RoleNames.ProjectOffice) || User.IsInRole(RoleNames.Admin))
+          {
+            <a class="pm-action" asp-area="DocumentRepository" asp-page="/Documents/Upload">
+              <i class="bi bi-upload"></i>
+              <span>Upload document</span>
+              <i class="bi bi-chevron-right ms-auto"></i>
+            </a>
+          }
+        </div>
+      </div>
+    }
+    else
     {
       <div class="hero-card" id="login-card">
         <partial name="_LoginCard" />
