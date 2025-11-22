@@ -109,7 +109,7 @@ Include a versioned folder containing:
 ### C2. Publish command (dev machine)
 
 ```powershell
-Dotnet publish .\ProjectManagement.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=false /p:PublishTrimmed=false -o .\publish
+dotnet publish .\ProjectManagement.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=false /p:PublishTrimmed=false -o .\publish
 ```
 
 ### C3. IIS site setup
