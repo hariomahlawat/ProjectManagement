@@ -214,6 +214,19 @@ body {
     background: linear-gradient(90deg, var(--pm-primary) 0%, var(--pm-primary-hover) 100%);
     border-radius: inherit;
     transition: width .3s ease;
+    width: var(--pm-progress-width, 0);
+}
+
+/* ---------- Text utilities ---------- */
+.pm-text-prewrap {
+    white-space: pre-wrap;
+}
+
+/* ---------- Attachment previews ---------- */
+.pm-attachment-preview {
+    width: 100%;
+    min-height: 420px;
+    border: 0;
 }
 
 .pm-card-body {
@@ -2589,9 +2602,61 @@ summary::marker {
     }
 }
 
+.project-photo-current {
+    max-width: 320px;
+}
+
 .project-overview__description {
     white-space: pre-wrap;
     word-break: break-word;
+}
+
+.project-photo-list__preview {
+    width: 140px;
+}
+
+.project-photo-list__thumbnail {
+    max-width: 128px;
+}
+
+/* ---------- Project media tables ---------- */
+.project-video-table__col-title {
+    width: 50%;
+}
+
+.project-video-table__col-size {
+    width: 15%;
+}
+
+.project-video-table__col-uploaded {
+    width: 20%;
+}
+
+.project-video-table__col-actions {
+    width: 15%;
+}
+
+.project-summary__col-amount {
+    width: 140px;
+}
+
+.project-summary__col-date {
+    width: 145px;
+}
+
+.project-summary__col-document,
+.project-summary__col-so-number {
+    width: 200px;
+}
+
+/* ---------- Notification center ---------- */
+.notifications-table__select-col {
+    width: 3rem;
+}
+
+/* ---------- Layout helpers ---------- */
+.pm-search-icon {
+    font-size: 1.05rem;
 }
 
 .project-photo-empty {
