@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Options;
 
 namespace ProjectManagement.Services.DocRepo;
@@ -5,6 +6,7 @@ namespace ProjectManagement.Services.DocRepo;
 // SECTION: Options
 public class DocRepoOptions
 {
+    [Required]
     public string RootPath { get; set; } = Path.Combine(AppContext.BaseDirectory, "App_Data", "DocRepo");
     public bool EnableOcrWorker { get; set; } = true;
     public bool EnableIngestion { get; set; } = true;
