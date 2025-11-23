@@ -18,9 +18,9 @@ namespace ProjectManagement.Migrations
                 table: "Projects",
                 type: "character varying(32)",
                 nullable: false,
-                defaultValue: "SDD-1.0");
+                defaultValue: "SDD-2.0");
 
-            migrationBuilder.Sql(@"UPDATE \"Projects\" SET \"WorkflowVersion\" = 'SDD-1.0' WHERE \"WorkflowVersion\" IS NULL;");
+            migrationBuilder.Sql(@"UPDATE \"Projects\" SET \"WorkflowVersion\" = 'SDD-2.0' WHERE \"WorkflowVersion\" IS NULL;");
         }
 
         // SECTION: Revert schema changes

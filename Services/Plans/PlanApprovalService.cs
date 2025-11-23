@@ -128,6 +128,21 @@ public class PlanApprovalService
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
+        var workflowVersion = plan.Project?.WorkflowVersion ?? PlanConstants.DefaultStageTemplateVersion;
+
+        var stageTemplates = await _db.StageTemplates
+            .AsNoTracking()
+            .Where(t => t.Version == workflowVersion)
+            .OrderBy(t => t.Sequence)
+            .ToListAsync(cancellationToken);
+
+        var sequenceByCode = stageTemplates
+            .ToDictionary(t => t.Code, t => t.Sequence, StringComparer.OrdinalIgnoreCase);
+
+        var nextSortOrder = stageTemplates.Count > 0
+            ? stageTemplates[^1].Sequence + 1
+            : 0;
+
         var currentStages = await _db.ProjectStages
             .Where(ps => ps.ProjectId == projectId)
             .ToListAsync(cancellationToken);
@@ -145,7 +160,7 @@ public class PlanApprovalService
                 {
                     ProjectId = projectId,
                     StageCode = code,
-                    SortOrder = ResolveSortOrder(code),
+                    SortOrder = ResolveSortOrder(code, sequenceByCode, ref nextSortOrder),
                     Status = StageStatus.NotStarted
                 };
                 _db.ProjectStages.Add(stage);
@@ -211,10 +226,14 @@ public class PlanApprovalService
         return await ValidateStagePlansAsync(plan, cancellationToken);
     }
 
-    private static int ResolveSortOrder(string code)
+    private static int ResolveSortOrder(string code, IReadOnlyDictionary<string, int> sequenceByCode, ref int nextSequence)
     {
-        var index = Array.IndexOf(StageCodes.All, code);
-        return index >= 0 ? index : int.MaxValue;
+        if (sequenceByCode.TryGetValue(code, out var sequence))
+        {
+            return sequence;
+        }
+
+        return nextSequence++;
     }
 
     public async Task<bool> RejectLatestPendingAsync(int projectId, string hodUserId, string? reason, CancellationToken cancellationToken = default)

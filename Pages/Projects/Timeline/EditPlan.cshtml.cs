@@ -97,7 +97,11 @@ public class EditPlanModel : PageModel
 
         if (string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
         {
-            return await HandleDurationsAsync(id, userId, cancellationToken);
+            var workflowVersion = string.IsNullOrWhiteSpace(project.WorkflowVersion)
+                ? PlanConstants.DefaultStageTemplateVersion
+                : project.WorkflowVersion;
+
+            return await HandleDurationsAsync(id, userId, workflowVersion, cancellationToken);
         }
 
         return await HandleExactAsync(id, userId, principal, cancellationToken);
@@ -360,7 +364,7 @@ public class EditPlanModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    private async Task<IActionResult> HandleDurationsAsync(int id, string userId, CancellationToken ct)
+    private async Task<IActionResult> HandleDurationsAsync(int id, string userId, string workflowVersion, CancellationToken ct)
     {
         var action = NormalizeAction(Input.Action);
         var calculateOnly = string.Equals(action, PlanEditActions.Calculate, StringComparison.OrdinalIgnoreCase);
@@ -449,7 +453,18 @@ public class EditPlanModel : PageModel
             .Where(d => !string.IsNullOrWhiteSpace(d.StageCode))
             .ToDictionary(d => d.StageCode!, StringComparer.OrdinalIgnoreCase);
 
-        var extraSortStart = StageCodes.All.Length;
+        var stageTemplates = await _db.StageTemplates
+            .AsNoTracking()
+            .Where(t => t.Version == workflowVersion)
+            .OrderBy(t => t.Sequence)
+            .ToListAsync(ct);
+
+        var sequenceByCode = stageTemplates
+            .ToDictionary(t => t.Code, t => t.Sequence, StringComparer.OrdinalIgnoreCase);
+
+        var extraSortStart = stageTemplates.Count > 0
+            ? stageTemplates[^1].Sequence + 1
+            : 0;
 
         foreach (var row in rows)
         {
@@ -458,7 +473,7 @@ public class EditPlanModel : PageModel
                 continue;
             }
 
-            var sortOrder = StageOrder(row.Code, ref extraSortStart);
+            var sortOrder = StageOrder(row.Code, sequenceByCode, ref extraSortStart);
 
             if (!durationMap.TryGetValue(row.Code, out var duration))
             {
@@ -601,12 +616,14 @@ public class EditPlanModel : PageModel
 
     private static string? FormatDate(DateOnly? value) => value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-    private static int StageOrder(string stageCode, ref int extraSortStart)
+    private static int StageOrder(
+        string stageCode,
+        IReadOnlyDictionary<string, int> sequenceByCode,
+        ref int extraSortStart)
     {
-        var index = Array.IndexOf(StageCodes.All, stageCode);
-        if (index >= 0)
+        if (sequenceByCode.TryGetValue(stageCode, out var sequence))
         {
-            return index;
+            return sequence;
         }
 
         return extraSortStart++;
