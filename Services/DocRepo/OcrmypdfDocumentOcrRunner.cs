@@ -1,14 +1,15 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data.DocRepo;
+using ProjectManagement.Services.Ocr;
 using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Services.DocRepo
 {
+    // SECTION: DocRepo OCR runner using shared pipeline
     public sealed class OcrmypdfDocumentOcrRunner : IDocumentOcrRunner
     {
         private readonly IDocStorage _storage;
@@ -17,17 +18,21 @@ namespace ProjectManagement.Services.DocRepo
         private readonly string _inputDir;
         private readonly string _outputDir;
         private readonly string _logsDir;
+        private readonly OcrmypdfSharedRunner _sharedRunner;
 
         public OcrmypdfDocumentOcrRunner(
             IDocStorage storage,
             IOptions<DocRepoOptions> options,
-            IUploadRootProvider uploadRootProvider)
+            IUploadRootProvider uploadRootProvider,
+            OcrmypdfSharedRunner sharedRunner)
         {
             ArgumentNullException.ThrowIfNull(storage);
             ArgumentNullException.ThrowIfNull(options);
             ArgumentNullException.ThrowIfNull(uploadRootProvider);
+            ArgumentNullException.ThrowIfNull(sharedRunner);
 
             _storage = storage;
+            _sharedRunner = sharedRunner;
             var value = options.Value ?? throw new ArgumentException("DocRepo options cannot be null.", nameof(options));
 
             _ocrExecutable = ResolveExecutablePath(value.OcrExecutablePath);
@@ -39,229 +44,43 @@ namespace ProjectManagement.Services.DocRepo
 
         public async Task<OcrRunResult> RunAsync(Document document, CancellationToken ct = default)
         {
+            ArgumentNullException.ThrowIfNull(document);
+
             var docId = document.Id.ToString();
-            var runToken = GenerateRunToken();
-            var inputPdf = BuildTempPath(_inputDir, docId, runToken, ".pdf");
-            var outputPdf = BuildTempPath(_outputDir, docId, runToken, ".pdf");
-            var sidecar = BuildTempPath(_outputDir, docId, runToken, ".txt");
-            var logFile = BuildTempPath(_logsDir, docId, runToken, ".log");
-            var latestLog = Path.Combine(_logsDir, docId + ".log");
+            var sourcePdf = Path.Combine(_inputDir, $"{docId}-{Guid.NewGuid():N}-source.pdf");
 
             try
             {
                 // SECTION: Write source PDF to worker input
                 await using (var src = await _storage.OpenReadAsync(document.StoragePath, ct))
-                await using (var dst = File.Create(inputPdf))
+                await using (var dst = File.Create(sourcePdf))
                 {
                     await src.CopyToAsync(dst, ct);
                 }
 
-                // SECTION: First OCR pass
-                var first = await RunOcrmypdfAsync(
-                    args: $"--sidecar \"{sidecar}\" \"{inputPdf}\" \"{outputPdf}\"",
-                    workingDir: _rootDir,
-                    ct: ct);
-
-                // SECTION: Log first attempt
-                await File.WriteAllTextAsync(
-                    logFile,
-                    $"FIRST RUN exit={first.ExitCode}{Environment.NewLine}{first.Stdout}{Environment.NewLine}{first.Stderr}",
-                    ct);
-                MirrorLogToLatest(logFile, latestLog);
-
-                var isTaggedPdf = IsTaggedPdf(first);
-                if (isTaggedPdf)
+                // SECTION: Execute shared OCR pipeline
+                var request = new OcrmypdfSharedRequest
                 {
-                    // SECTION: Second OCR pass (skip-text)
-                    var skipText = await RunOcrmypdfAsync(
-                        args: $"--skip-text --sidecar \"{sidecar}\" \"{inputPdf}\" \"{outputPdf}\"",
-                        workingDir: _rootDir,
-                        ct: ct);
+                    DocumentId = docId,
+                    OcrExecutable = _ocrExecutable,
+                    WorkRoot = _rootDir,
+                    InputDirectory = _inputDir,
+                    OutputDirectory = _outputDir,
+                    LogsDirectory = _logsDir,
+                    SourcePdfPath = sourcePdf,
+                    SourceAlreadyInWorkDirectory = true
+                };
 
-                    // SECTION: Append log for skip-text run
-                    await File.AppendAllTextAsync(
-                        logFile,
-                        $"{Environment.NewLine}SECOND RUN (skip-text) exit={skipText.ExitCode}{Environment.NewLine}{skipText.Stdout}{Environment.NewLine}{skipText.Stderr}",
-                        ct);
-                    MirrorLogToLatest(logFile, latestLog);
-
-                    if (!File.Exists(sidecar))
-                    {
-                        return OcrRunResult.Fail($"ocrmypdf (skip-text) did not produce a sidecar file. See {logFile}");
-                    }
-
-                    var skipTextContent = await File.ReadAllTextAsync(sidecar, ct);
-                    if (HasUsefulText(skipTextContent))
-                    {
-                        return OcrRunResult.Ok(skipTextContent);
-                    }
-
-                    // SECTION: Skip-text fallback (force OCR)
-                    var forcedAfterSkip = await RunOcrmypdfAsync(
-                        args: $"--force-ocr --sidecar \"{sidecar}\" \"{inputPdf}\" \"{outputPdf}\"",
-                        workingDir: _rootDir,
-                        ct: ct);
-
-                    await File.AppendAllTextAsync(
-                        logFile,
-                        $"{Environment.NewLine}THIRD RUN (force after skip-text) exit={forcedAfterSkip.ExitCode}{Environment.NewLine}{forcedAfterSkip.Stdout}{Environment.NewLine}{forcedAfterSkip.Stderr}",
-                        ct);
-                    MirrorLogToLatest(logFile, latestLog);
-
-                    if (!File.Exists(sidecar))
-                    {
-                        return OcrRunResult.Fail($"ocrmypdf (force after skip-text) did not produce a sidecar file. See {logFile}");
-                    }
-
-                    var forcedAfterSkipContent = await File.ReadAllTextAsync(sidecar, ct);
-                    if (!HasUsefulText(forcedAfterSkipContent))
-                    {
-                        return OcrRunResult.Fail($"ocrmypdf (force after skip-text) produced unusable text. See {logFile}");
-                    }
-
-                    return OcrRunResult.Ok(forcedAfterSkipContent);
-                }
-
-                var needForce =
-                    first.ExitCode == 6 ||                             // PriorOcrFoundError
-                    (first.Stderr?.IndexOf("PriorOcrFoundError", StringComparison.OrdinalIgnoreCase) >= 0);
-
-                if (needForce)
-                {
-                    // SECTION: Second OCR pass (force)
-                    var second = await RunOcrmypdfAsync(
-                        args: $"--force-ocr --sidecar \"{sidecar}\" \"{inputPdf}\" \"{outputPdf}\"",
-                        workingDir: _rootDir,
-                        ct: ct);
-
-                    // SECTION: Append log for forced run
-                    await File.AppendAllTextAsync(
-                        logFile,
-                        $"{Environment.NewLine}SECOND RUN (force) exit={second.ExitCode}{Environment.NewLine}{second.Stdout}{Environment.NewLine}{second.Stderr}",
-                        ct);
-                    MirrorLogToLatest(logFile, latestLog);
-
-                    // after force run, decide
-                    if (!File.Exists(sidecar))
-                    {
-                        return OcrRunResult.Fail($"ocrmypdf (forced) did not produce a sidecar file. See {logFile}");
-                    }
-
-                    var text2 = await File.ReadAllTextAsync(sidecar, ct);
-                    if (HasUsefulText(text2))
-                    {
-                        return OcrRunResult.Ok(text2);
-                    }
-
-                    return await RunRedoOcrAsync(
-                        sidecar,
-                        inputPdf,
-                        outputPdf,
-                        logFile,
-                        latestLog,
-                        runLabel: "SECOND RUN (redo-ocr after force)",
-                        failureContext: "force + redo",
-                        workingDir: _rootDir,
-                        ct: ct);
-                }
-
-                // SECTION: No force needed, read first pass result
-                if (!File.Exists(sidecar))
-                {
-                    return OcrRunResult.Fail($"ocrmypdf did not produce a sidecar file. Exit {first.ExitCode}. See {logFile}");
-                }
-
-                var text = await File.ReadAllTextAsync(sidecar, ct);
-                if (HasUsefulText(text))
-                {
-                    return OcrRunResult.Ok(text);
-                }
-
-                return await RunRedoOcrAsync(
-                    sidecar,
-                    inputPdf,
-                    outputPdf,
-                    logFile,
-                    latestLog,
-                    runLabel: "SECOND RUN (redo-ocr after empty)",
-                    failureContext: "redo after empty",
-                    workingDir: _rootDir,
-                    ct: ct);
+                var result = await _sharedRunner.RunAsync(request, ct);
+                return result.Success
+                    ? OcrRunResult.Ok(result.Text!)
+                    : OcrRunResult.Fail(result.Error ?? "OCR failed.");
             }
             finally
             {
                 // SECTION: Cleanup temporary artifacts
-                TryDelete(inputPdf);
-                TryDelete(outputPdf);
-                TryDelete(sidecar);
+                TryDelete(sourcePdf);
             }
-        }
-
-        private async Task<(int ExitCode, string Stdout, string Stderr)> RunOcrmypdfAsync(
-            string args,
-            string workingDir,
-            CancellationToken ct)
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = _ocrExecutable,
-                Arguments = args,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WorkingDirectory = workingDir
-            };
-
-            using var process = Process.Start(psi)
-                ?? throw new InvalidOperationException("Failed to start ocrmypdf process.");
-
-            var stdoutTask = process.StandardOutput.ReadToEndAsync();
-            var stderrTask = process.StandardError.ReadToEndAsync();
-
-            await process.WaitForExitAsync(ct);
-
-            var stdout = await stdoutTask;
-            var stderr = await stderrTask;
-
-            return (process.ExitCode, stdout, stderr);
-        }
-
-        private async Task<OcrRunResult> RunRedoOcrAsync(
-            string sidecar,
-            string inputPdf,
-            string outputPdf,
-            string logFile,
-            string latestLog,
-            string runLabel,
-            string failureContext,
-            string workingDir,
-            CancellationToken ct)
-        {
-            // SECTION: redo-ocr fallback when prior runs only emitted skip banners
-            var redo = await RunOcrmypdfAsync(
-                args: $"--redo-ocr --sidecar \"{sidecar}\" \"{inputPdf}\" \"{outputPdf}\"",
-                workingDir: workingDir,
-                ct: ct);
-
-            await File.AppendAllTextAsync(
-                logFile,
-                $"{Environment.NewLine}{runLabel} exit={redo.ExitCode}{Environment.NewLine}{redo.Stdout}{Environment.NewLine}{redo.Stderr}",
-                ct);
-            MirrorLogToLatest(logFile, latestLog);
-
-            if (!File.Exists(sidecar))
-            {
-                return OcrRunResult.Fail($"ocrmypdf ({failureContext}) did not produce a sidecar file. See {logFile}");
-            }
-
-            var redoText = await File.ReadAllTextAsync(sidecar, ct);
-            if (!HasUsefulText(redoText))
-            {
-                return OcrRunResult.Fail($"ocrmypdf ({failureContext}) produced unusable text. See {logFile}");
-            }
-
-            return OcrRunResult.Ok(redoText);
         }
 
         // SECTION: Executable resolution
@@ -283,58 +102,15 @@ namespace ProjectManagement.Services.DocRepo
             return fullPath;
         }
 
-        // SECTION: Result helpers
-        private static bool HasUsefulText(string? text)
-        {
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                return false;
-            }
-
-            // SECTION: Remove BOM artifacts before inspection
-            var normalized = TrimLeadingBom(text);
-            var trimmed = normalized.Trim();
-
-            if (trimmed.StartsWith("OCR skipped on page", StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            if (trimmed.StartsWith("Prior OCR", StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        // SECTION: Text normalization helpers
-        private static string TrimLeadingBom(string value)
-        {
-            return value.Length > 0 ? value.TrimStart('\ufeff') : value;
-        }
-
-        private static bool IsTaggedPdf((int ExitCode, string Stdout, string Stderr) result)
-        {
-            if (result.ExitCode != 2)
-            {
-                return false;
-            }
-
-            var stderr = result.Stderr ?? string.Empty;
-            return stderr.IndexOf("TaggedPDFError", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                   stderr.IndexOf("This PDF is marked as a Tagged PDF", StringComparison.OrdinalIgnoreCase) >= 0;
-        }
-
         private static string EnsureDirectory(string path)
         {
             Directory.CreateDirectory(path);
             return path;
         }
 
-    private static string ResolveRoot(DocRepoOptions options, IUploadRootProvider uploadRootProvider)
-    {
-        var configured = ExpandPath(options.OcrWorkRoot);
+        private static string ResolveRoot(DocRepoOptions options, IUploadRootProvider uploadRootProvider)
+        {
+            var configured = ExpandPath(options.OcrWorkRoot);
 
             if (string.IsNullOrWhiteSpace(configured))
             {
@@ -345,46 +121,33 @@ namespace ProjectManagement.Services.DocRepo
                 configured = Path.Combine(uploadRootProvider.RootPath, configured);
             }
 
-        return Path.GetFullPath(configured);
-    }
+            return Path.GetFullPath(configured);
+        }
 
-    private static string ResolveSubpath(string? configured, string fallback)
-    {
-        var trimmed = configured?.Trim();
-        return string.IsNullOrWhiteSpace(trimmed) ? fallback : trimmed;
-    }
-
-    // SECTION: Path helpers
-    private static string ExpandPath(string? path)
-    {
-        var configured = (path ?? string.Empty).Trim();
-        var expanded = Environment.ExpandEnvironmentVariables(configured);
-
-        if (expanded.StartsWith("~", StringComparison.Ordinal))
+        private static string ResolveSubpath(string? configured, string fallback)
         {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            if (!string.IsNullOrWhiteSpace(home))
+            var trimmed = configured?.Trim();
+            return string.IsNullOrWhiteSpace(trimmed) ? fallback : trimmed;
+        }
+
+        private static string ExpandPath(string? path)
+        {
+            var configured = (path ?? string.Empty).Trim();
+            var expanded = Environment.ExpandEnvironmentVariables(configured);
+
+            if (expanded.StartsWith("~", StringComparison.Ordinal))
             {
-                var remainder = expanded[1..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                expanded = Path.Combine(home, remainder);
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                if (!string.IsNullOrWhiteSpace(home))
+                {
+                    var remainder = expanded[1..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                    expanded = Path.Combine(home, remainder);
+                }
             }
+
+            return expanded;
         }
 
-        return expanded;
-    }
-
-    // SECTION: Path helpers
-    private static string BuildTempPath(string directory, string documentId, string runToken, string extension)
-    {
-        return Path.Combine(directory, documentId + "-" + runToken + extension);
-    }
-
-        private static string GenerateRunToken()
-        {
-            return DateTime.UtcNow.ToString("yyyyMMddHHmmssfff") + "-" + Guid.NewGuid().ToString("N");
-        }
-
-        // SECTION: Cleanup helpers
         private static void TryDelete(string path)
         {
             try
@@ -397,19 +160,6 @@ namespace ProjectManagement.Services.DocRepo
             catch
             {
                 // Best effort cleanup; ignore failures.
-            }
-        }
-
-        // SECTION: Log helpers
-        private static void MirrorLogToLatest(string source, string destination)
-        {
-            try
-            {
-                File.Copy(source, destination, overwrite: true);
-            }
-            catch
-            {
-                // Log mirroring is best-effort; ignore failures to avoid masking OCR results.
             }
         }
     }

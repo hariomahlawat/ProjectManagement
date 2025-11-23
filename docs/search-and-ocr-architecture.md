@@ -20,9 +20,8 @@ This document explains how the application performs OCR and full-text search (FT
 - **Retry/failure handling**: Any runner failure or exception sets status to `Failed`, trims the reason to **1000 characters**, clears stored OCR text, and logs the error; success clears the failure reason and marks `Succeeded`.[F:Hosted/DocRepoOcrWorker.csL55-L98][F:Hosted/DocRepoOcrWorker.csL115-L134]
 
 ### 2.4 OCR runner
-- **Tool**: `ocrmypdf` invoked via `ProcessStartInfo` with redirected output; initial pass uses `--sidecar`.[F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL57-L68][F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL170-L198]
-- **Two-pass / three-pass logic**: Tagged PDFs trigger a second `--skip-text` run; if that text lacks content, a forced third pass (`--force-ocr`) is executed. Prior OCR detection (`ExitCode == 6` or message) triggers a forced second pass directly. Sidecar absence or unusable text returns failure with log pointers.[F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL70-L150][F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL200-L223]
-- **Logs**: Each run writes to a unique log file and mirrors to a stable `<docId>.log` for review.[F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL63-L107]
+- **Tool**: A shared runner extracts embedded text with PdfPig before invoking `ocrmypdf`; the first pass always uses `--skip-text`, then escalates to `--force-ocr` and `--redo-ocr` only when cleaned sidecar text remains empty.[F:Services/Ocr/PdfPigTextExtractor.csL10-L37][F:Services/Ocr/OcrmypdfSharedRunner.csL65-L145][F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL12-L85]
+- **Logs**: Each run writes to a unique log file and mirrors to a stable `<docId>.log` for review.[F:Services/Ocr/OcrmypdfSharedRunner.csL100-L167]
 
 ### 2.5 Text persistence
 - **Storage**: OCR text is saved to `DocumentText.OcrText`; the helper caps stored text to **200,000 characters** before persistence.[F:Hosted/DocRepoOcrWorker.csL55-L66][F:Hosted/DocRepoOcrWorker.csL126-L134]
@@ -60,8 +59,8 @@ This document explains how the application performs OCR and full-text search (FT
 - **Failure handling**: Any failure trims the reason to **1000 characters**, nulls OCR text if it existed, sets `Failed`, and logs the warning; success stores OCR text and marks `Succeeded`. Skip-text-only banners are treated as failure with a fixed reason and trigger search-vector refresh.[F:Hosted/ProjectDocumentOcrWorker.csL55-L142][F:Hosted/ProjectDocumentOcrWorker.csL166-L184]
 
 ### 3.4 OCR runner
-- **Tool and passes**: Uses `ocrmypdf` with a sidecar pass; tagged PDFs invoke a `--skip-text` pass, then a forced pass if needed. Prior OCR detection also forces a rerun. Missing or useless sidecar text results in failure with log references. Logs mirror to a stable `<docId>.log`.[F:Services/Projects/OcrmypdfProjectOcrRunner.csL57-L150][F:Services/Projects/OcrmypdfProjectOcrRunner.csL170-L240][F:Services/Projects/OcrmypdfProjectOcrRunner.csL292-L340]
-- **Text quality checks**: `HasUsefulText` ignores banner lines like "OCR skipped on page" or "Prior OCR" before accepting text.[F:Services/Projects/OcrmypdfProjectOcrRunner.csL292-L340]
+- **Tool and passes**: Both project and DocRepo runners rely on the shared OCR pipeline that extracts embedded text first, runs `ocrmypdf` with `--skip-text` as the default pass, and only escalates to `--force-ocr` / `--redo-ocr` if banner-free text is still missing. Logs are mirrored per document id.[F:Services/Ocr/PdfPigTextExtractor.csL10-L37][F:Services/Ocr/OcrmypdfSharedRunner.csL65-L145][F:Services/Projects/OcrmypdfProjectOcrRunner.csL13-L92]
+- **Text quality checks**: Banner text such as "OCR skipped" or "Prior OCR" is stripped before evaluating usefulness for storage.[F:Services/Ocr/OcrTextUtilities.csL10-L34]
 
 ### 3.5 Text persistence
 - **Storage**: OCR text saved into `ProjectDocumentText.OcrText`; insert-or-update path ensures a row exists. Text is capped to **200,000 characters** on save.[F:Hosted/ProjectDocumentOcrWorker.csL86-L105][F:Hosted/ProjectDocumentOcrWorker.csL177-L185]
@@ -101,7 +100,7 @@ This document explains how the application performs OCR and full-text search (FT
 - **Worker cadence**: Both OCR workers poll every **2 minutes** when idle and process small batches (DocRepo: 3, Project Documents: 5), so latency depends on queue depth and OCR runtime.[F:Hosted/DocRepoOcrWorker.csL34-L45][F:Hosted/ProjectDocumentOcrWorker.csL35-L46]
 - **Admin visibility**: Failure reasons are capped at **1000 characters**; statuses transition Pending -> Succeeded/Failed with `OcrLastTriedUtc` updated per attempt.[F:Hosted/DocRepoOcrWorker.csL49-L98][F:Hosted/ProjectDocumentOcrWorker.csL49-L142]
 - **Executable path**: Both OCR runners allow an explicit path to `ocrmypdf` via `ProjectDocuments:Ocr:OcrExecutablePath` and `DocRepo:OcrExecutablePath`; configured paths are validated and replace reliance on the worker process `PATH`. Missing executables throw startup errors with the provided path.[F:Configuration/ProjectDocumentOcrOptions.csL15-L21][F:Services/Projects/OcrmypdfProjectOcrRunner.csL22-L112][F:Services/DocRepo/LocalDocStorageService.csL9-L29][F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL13-L114]
-- **Common failures**: Runner detects missing sidecar output or "Prior OCR"/"OCR skipped" banners and records precise messages pointing to the stored log path.[F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL70-L150][F:Services/Projects/OcrmypdfProjectOcrRunner.csL86-L150]
+- **Common failures**: Shared runner flags missing sidecar output or banner-only text and records precise messages pointing to the stored log path.[F:Services/Ocr/OcrmypdfSharedRunner.csL100-L145]
 
 ## 6. Limitations and Roadmap
 - **PostgreSQL required**: Both OCR/FTS pipelines and global project document search short-circuit if the provider is not PostgreSQL.[F:Migrations/20260115000000_AddDocRepoFullTextSearch.csL13-L19][F:Services/Search/GlobalProjectDocumentSearchService.csL40-L55]

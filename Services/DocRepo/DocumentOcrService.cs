@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
+using ProjectManagement.Services.Ocr;
 
 namespace ProjectManagement.Services.DocRepo
 {
@@ -53,14 +54,14 @@ namespace ProjectManagement.Services.DocRepo
                     UpdatedAtUtc = DateTime.UtcNow
                 };
 
-                documentText.OcrText = CapExtractedText(result.Text);
+                documentText.OcrText = OcrTextLimiter.CapExtractedText(result.Text);
                 documentText.UpdatedAtUtc = DateTime.UtcNow;
                 doc.OcrFailureReason = null;
             }
             else
             {
                 doc.OcrStatus = DocOcrStatus.Failed;
-                doc.OcrFailureReason = TrimForFailure(result.Error);
+                doc.OcrFailureReason = OcrTextLimiter.TrimForFailure(result.Error);
 
                 if (doc.DocumentText is not null)
                 {
@@ -103,14 +104,14 @@ namespace ProjectManagement.Services.DocRepo
                         UpdatedAtUtc = DateTime.UtcNow
                     };
 
-                    text.OcrText = CapExtractedText(result.Text);
+                    text.OcrText = OcrTextLimiter.CapExtractedText(result.Text);
                     text.UpdatedAtUtc = DateTime.UtcNow;
                     doc.OcrFailureReason = null;
                 }
                 else
                 {
                     doc.OcrStatus = DocOcrStatus.Failed;
-                    doc.OcrFailureReason = TrimForFailure(result.Error);
+                    doc.OcrFailureReason = OcrTextLimiter.TrimForFailure(result.Error);
 
                     if (doc.DocumentText is not null)
                     {
@@ -126,25 +127,5 @@ namespace ProjectManagement.Services.DocRepo
             return processed;
         }
 
-        // SECTION: Helper methods
-        private static string? CapExtractedText(string? text)
-        {
-            if (string.IsNullOrEmpty(text))
-            {
-                return text;
-            }
-
-            return text.Length > 200_000 ? text[..200_000] : text;
-        }
-
-        private static string? TrimForFailure(string? value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return value;
-            }
-
-            return value.Length > 1000 ? value[..1000] : value;
-        }
     }
 }
