@@ -24,6 +24,7 @@ using ProjectManagement.Pages.Dashboard;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Models.Scheduling;
+using ProjectManagement.ViewModels.Dashboard;
 using Xunit;
 
 namespace ProjectManagement.Tests
@@ -79,7 +80,8 @@ namespace ProjectManagement.Tests
             var todo = new StubTodoService();
             var projectPulse = new StubProjectPulseService();
             var opsSignals = new StubOpsSignalsService();
-            var page = new IndexModel(todo, userManager, context, projectPulse, opsSignals)
+            var searchHealth = new StubSearchHealthService();
+            var page = new IndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth)
             {
                 PageContext = new PageContext(new ActionContext(
                     new DefaultHttpContext
@@ -140,7 +142,8 @@ namespace ProjectManagement.Tests
             var todo = new StubTodoService();
             var projectPulse = new StubProjectPulseService();
             var opsSignals = new StubOpsSignalsService();
-            var page = new IndexModel(todo, userManager, context, projectPulse, opsSignals)
+            var searchHealth = new StubSearchHealthService();
+            var page = new IndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth)
             {
                 PageContext = new PageContext(new ActionContext(
                     new DefaultHttpContext
@@ -188,7 +191,8 @@ namespace ProjectManagement.Tests
 
             var projectPulse = new StubProjectPulseService();
             var opsSignals = new StubOpsSignalsService();
-            var page = new TestableIndexModel(todo, userManager, context, projectPulse, opsSignals, nowIst)
+            var searchHealth = new StubSearchHealthService();
+            var page = new TestableIndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth, nowIst)
             {
                 PageContext = new PageContext(new ActionContext(
                     new DefaultHttpContext
@@ -240,7 +244,8 @@ namespace ProjectManagement.Tests
 
             var projectPulse = new StubProjectPulseService();
             var opsSignals = new StubOpsSignalsService();
-            var page = new TestableIndexModel(todo, userManager, context, projectPulse, opsSignals, nowIst)
+            var searchHealth = new StubSearchHealthService();
+            var page = new TestableIndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth, nowIst)
             {
                 PageContext = new PageContext(new ActionContext(
                     new DefaultHttpContext
@@ -344,13 +349,22 @@ namespace ProjectManagement.Tests
                 ApplicationDbContext context,
                 IProjectPulseService projectPulse,
                 IOpsSignalsService opsSignals,
+                ISearchHealthService searchHealth,
                 DateTimeOffset nowIst)
-                : base(todo, users, context, projectPulse, opsSignals)
+                : base(todo, users, context, projectPulse, opsSignals, searchHealth)
             {
                 _nowIst = nowIst;
             }
 
             internal override DateTimeOffset GetNowIst() => _nowIst;
+        }
+
+        private sealed class StubSearchHealthService : ISearchHealthService
+        {
+            public Task<SearchHealthVm> GetAsync(CancellationToken cancellationToken)
+            {
+                return Task.FromResult(new SearchHealthVm());
+            }
         }
 
         private sealed class StubProjectPulseService : IProjectPulseService
