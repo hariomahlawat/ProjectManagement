@@ -595,6 +595,9 @@ namespace ProjectManagement.Pages.Projects
 
         private async Task LoadDocumentOverviewAsync(Project project, bool isAdmin, bool isHoD, HashSet<int> availableTotIds, CancellationToken ct)
         {
+            // SECTION: Document workflow context
+            var workflowVersion = project.WorkflowVersion;
+
             var isApprover = isAdmin || isHoD;
             IsDocumentApprover = isApprover;
 
