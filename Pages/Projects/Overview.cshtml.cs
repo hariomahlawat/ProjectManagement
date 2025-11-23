@@ -598,6 +598,8 @@ namespace ProjectManagement.Pages.Projects
             var isApprover = isAdmin || isHoD;
             IsDocumentApprover = isApprover;
 
+            var workflowVersion = project.WorkflowVersion;
+
             var normalizedStage = NormalizeDocumentStage(DocumentStageFilter);
             var normalizedStatus = NormalizeDocumentStatus(DocumentStatusFilter, isApprover);
 
