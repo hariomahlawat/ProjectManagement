@@ -70,7 +70,7 @@ namespace ProjectManagement.Services.Search
                     record.GslRemarks,
                     record.DeliveryRemarks,
                     record.InstallationRemarks,
-                    Snippet = EF.Functions.TsHeadline(
+                    Snippet = ApplicationDbContext.TsHeadline(
                         "english",
                         (record.Country != null ? record.Country.Name : string.Empty) + " " +
                         (record.OverallRemarks ?? string.Empty) + " " +

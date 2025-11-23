@@ -76,7 +76,7 @@ namespace ProjectManagement.Services.Search
                     visit.CreatedAtUtc,
                     visit.LastModifiedAtUtc,
                     TypeName = visit.VisitType != null ? visit.VisitType.Name : null,
-                    Snippet = EF.Functions.TsHeadline(
+                    Snippet = ApplicationDbContext.TsHeadline(
                         "english",
                         (visit.VisitorName ?? string.Empty) + " " +
                         (visit.Remarks ?? string.Empty) + " " +
@@ -132,7 +132,7 @@ namespace ProjectManagement.Services.Search
                     e.CreatedAtUtc,
                     e.LastModifiedAtUtc,
                     PlatformName = e.SocialMediaPlatform != null ? e.SocialMediaPlatform.Name : null,
-                    Snippet = EF.Functions.TsHeadline(
+                    Snippet = ApplicationDbContext.TsHeadline(
                         "english",
                         (e.Title ?? string.Empty) + " " +
                         (e.Description ?? string.Empty) + " " +
@@ -190,7 +190,7 @@ namespace ProjectManagement.Services.Search
                     training.CreatedAtUtc,
                     training.LastModifiedAtUtc,
                     TrainingTypeName = training.TrainingType != null ? training.TrainingType.Name : null,
-                    Snippet = EF.Functions.TsHeadline(
+                    Snippet = ApplicationDbContext.TsHeadline(
                         "english",
                         (training.Notes ?? string.Empty) + " " +
                         (training.TrainingType != null ? training.TrainingType.Name : string.Empty),
@@ -263,7 +263,7 @@ namespace ProjectManagement.Services.Search
                     training.EndDate,
                     training.CreatedAtUtc,
                     training.LastModifiedAtUtc,
-                    Snippet = EF.Functions.TsHeadline(
+                    Snippet = ApplicationDbContext.TsHeadline(
                         "english",
                         training.Notes ?? string.Empty,
                         searchQuery,
@@ -327,7 +327,7 @@ namespace ProjectManagement.Services.Search
                     record.SurveyDate,
                     record.CreatedAtUtc,
                     record.LastModifiedAtUtc,
-                    Snippet = EF.Functions.TsHeadline(
+                    Snippet = ApplicationDbContext.TsHeadline(
                         "english",
                         (record.Country ?? string.Empty) + " " +
                         (record.Topic ?? string.Empty) + " " +
