@@ -256,7 +256,11 @@ namespace ProjectManagement.Services.Search
                         (tot.Project != null ? tot.Project.Name : string.Empty) + " " +
                         (tot.MetDetails ?? string.Empty))
                         .Matches(searchQuery))
-                .OrderByDescending(tot => tot.LastApprovedOnUtc ?? tot.CompletedOn ?? tot.StartedOn ?? tot.Project!.CreatedAt)
+                .OrderByDescending(tot =>
+                    tot.LastApprovedOnUtc
+                    ?? (tot.CompletedOn.HasValue ? tot.CompletedOn.Value.ToDateTime(TimeOnly.MinValue) : (DateTime?)null)
+                    ?? (tot.StartedOn.HasValue ? tot.StartedOn.Value.ToDateTime(TimeOnly.MinValue) : (DateTime?)null)
+                    ?? tot.Project!.CreatedAt)
                 .Take(limit)
                 .Select(tot => new
                 {
