@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using NpgsqlTypes;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Navigation;
 
@@ -36,9 +36,42 @@ namespace ProjectManagement.Services.Search
             }
 
             var trimmed = query.Trim();
-            var searchQuery = EF.Functions.WebSearchToTsQuery("english", trimmed);
             var headlineOptions = "StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=10, ShortWord=3";
             var limit = Math.Max(1, maxResults);
+
+            if (!_dbContext.Database.IsNpgsql())
+            {
+                var fallbackProjects = await _dbContext.Projects
+                    .AsNoTracking()
+                    .Include(p => p.SponsoringUnit)
+                    .Include(p => p.SponsoringLineDirectorate)
+                    .Where(p =>
+                        !p.IsDeleted &&
+                        !p.IsArchived &&
+                        (
+                            (!string.IsNullOrEmpty(p.Name) && EF.Functions.Like(p.Name!, $"%{trimmed}%")) ||
+                            (!string.IsNullOrEmpty(p.Description) && EF.Functions.Like(p.Description!, $"%{trimmed}%")) ||
+                            (!string.IsNullOrEmpty(p.CaseFileNumber) && EF.Functions.Like(p.CaseFileNumber!, $"%{trimmed}%")) ||
+                            (p.SponsoringUnit != null && EF.Functions.Like(p.SponsoringUnit.Name, $"%{trimmed}%")) ||
+                            (p.SponsoringLineDirectorate != null && EF.Functions.Like(p.SponsoringLineDirectorate.Name, $"%{trimmed}%"))
+                        ))
+                    .Take(limit * 3)
+                    .Select(p => new ProjectSearchRow(
+                        p.Id,
+                        p.Name,
+                        p.Description,
+                        p.CreatedAt,
+                        p.ArchivedAt,
+                        p.DeletedAt,
+                        p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
+                        p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : null,
+                        null))
+                    .ToListAsync(cancellationToken);
+
+                return BuildHits(fallbackProjects, limit);
+            }
+
+            var searchQuery = EF.Functions.WebSearchToTsQuery("english", trimmed);
 
             // 1) EF-friendly query only
             var projects = await _dbContext.Projects
@@ -57,17 +90,16 @@ namespace ProjectManagement.Services.Search
                         .Matches(searchQuery))
                 // pull a few extra so sorting in-memory still has room
                 .Take(limit * 3)
-                .Select(p => new
-                {
+                .Select(p => new ProjectSearchRow(
                     p.Id,
                     p.Name,
                     p.Description,
                     p.CreatedAt,
                     p.ArchivedAt,
                     p.DeletedAt,
-                    SponsoringUnit = p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
-                    LineDirectorate = p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : null,
-                    Snippet = ApplicationDbContext.TsHeadline(
+                    p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
+                    p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : null,
+                    ApplicationDbContext.TsHeadline(
                         "english",
                         (p.Name ?? string.Empty) + " " +
                         (p.Description ?? string.Empty) + " " +
@@ -75,20 +107,23 @@ namespace ProjectManagement.Services.Search
                         (p.SponsoringUnit != null ? p.SponsoringUnit.Name : string.Empty) + " " +
                         (p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : string.Empty),
                         searchQuery,
-                        headlineOptions)
-                })
+                        headlineOptions)))
                 .ToListAsync(cancellationToken);
 
-            if (projects.Count == 0)
+            return BuildHits(projects, limit);
+        }
+
+        // SECTION: Project global search helpers
+        private IReadOnlyList<GlobalSearchHit> BuildHits(IEnumerable<ProjectSearchRow> projects, int limit)
+        {
+            if (!projects.Any())
             {
                 return Array.Empty<GlobalSearchHit>();
             }
 
-            // 2) in-memory: pick the “best” date & sort
             var ordered = projects
                 .Select(p =>
                 {
-                    // prefer archived, then deleted, then created
                     var date = p.ArchivedAt
                         ?? p.DeletedAt
                         ?? new DateTimeOffset(DateTime.SpecifyKind(p.CreatedAt, DateTimeKind.Utc));
@@ -132,5 +167,17 @@ namespace ProjectManagement.Services.Search
 
             return ordered;
         }
+
+        // SECTION: Project global search row mapping
+        private sealed record ProjectSearchRow(
+            int Id,
+            string? Name,
+            string? Description,
+            DateTime CreatedAt,
+            DateTimeOffset? ArchivedAt,
+            DateTimeOffset? DeletedAt,
+            string? SponsoringUnit,
+            string? LineDirectorate,
+            string? Snippet);
     }
 }
