@@ -325,8 +325,7 @@ namespace ProjectManagement.Services.Search
                 .Where(record =>
                     EF.Functions.ToTsVector("english",
                         record.UnitName + " " +
-                        (record.Remarks ?? string.Empty) + " " +
-                        record.Source.ToString())
+                        (record.Remarks ?? string.Empty))
                         .Matches(EF.Functions.WebSearchToTsQuery("english", trimmedQuery)))
                 .OrderByDescending(record => record.LastUpdatedOnUtc)
                 .Take(limit)
@@ -342,8 +341,7 @@ namespace ProjectManagement.Services.Search
                     Snippet = ApplicationDbContext.TsHeadline(
                         "english",
                         record.UnitName + " " +
-                        (record.Remarks ?? string.Empty) + " " +
-                        record.Source.ToString(),
+                        (record.Remarks ?? string.Empty),
                         EF.Functions.WebSearchToTsQuery("english", trimmedQuery),
                         headlineOptions)
                 })
