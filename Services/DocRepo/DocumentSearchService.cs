@@ -21,6 +21,7 @@ namespace ProjectManagement.Services.DocRepo
     {
         private const string SearchConfiguration = "english";
 
+        // SECTION: Query preparation
         public bool TryPrepareQuery(string? rawQuery, out string preparedQuery)
         {
             preparedQuery = string.Empty;
@@ -34,29 +35,33 @@ namespace ProjectManagement.Services.DocRepo
             return preparedQuery.Length > 0;
         }
 
+        // SECTION: EF-friendly search composition
         public IQueryable<Document> ApplySearch(IQueryable<Document> source, string preparedQuery)
         {
+            var searchQuery = EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery);
+
             return source
                 .Where(d =>
                     d.SearchVector != null &&
-                    d.SearchVector.Matches(
-                        EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)))
+                    d.SearchVector.Matches(searchQuery))
                 .OrderByDescending(d =>
-                    d.SearchVector!.RankCoverDensity(
-                        EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)))
+                    d.SearchVector!.RankCoverDensity(searchQuery))
                 .ThenByDescending(d => d.DocumentDate.HasValue)
                 .ThenByDescending(d => d.DocumentDate)
                 .ThenByDescending(d => d.CreatedAtUtc);
         }
 
+        // SECTION: Projected search composition
         public IQueryable<DocumentSearchResultVm> ApplySearchProjected(IQueryable<Document> source, string preparedQuery)
         {
+            var searchQuery = EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery);
+            var normalizedQuery = preparedQuery.ToLowerInvariant();
+
             return source
                 // 1) full-text filter, fully inlined
                 .Where(d =>
                     d.SearchVector != null &&
-                    d.SearchVector.Matches(
-                        EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)))
+                    d.SearchVector.Matches(searchQuery))
                 // 2) project directly to VM
                 .Select(d => new DocumentSearchResultVm
                 {
@@ -66,15 +71,14 @@ namespace ProjectManagement.Services.DocRepo
                     OfficeCategoryName = d.OfficeCategory != null ? d.OfficeCategory.Name : null,
                     DocumentCategoryName = d.DocumentCategory != null ? d.DocumentCategory.Name : null,
 
-                    // we can’t project per-row IReadOnlyCollection<string> cleanly, so return empty
+                    // we cant project per-row IReadOnlyCollection<string> cleanly, so return empty
                     Tags = Array.Empty<string>(),
 
                     OcrStatus = d.OcrStatus,
                     OcrFailureReason = d.OcrFailureReason,
 
                     // rank
-                    Rank = (double?)d.SearchVector!.RankCoverDensity(
-                        EF.Functions.WebSearchToTsQuery("english", preparedQuery)),
+                    Rank = (double?)d.SearchVector!.RankCoverDensity(searchQuery),
 
                     // query-aware snippet from PG
                     Snippet = d.DocumentText != null
@@ -82,7 +86,7 @@ namespace ProjectManagement.Services.DocRepo
                             "english",
                             // you only have OCR text here
                             (d.DocumentText.OcrText ?? ""),
-                            EF.Functions.WebSearchToTsQuery("english", preparedQuery),
+                            searchQuery,
                             "StartSel=<mark>, StopSel=</mark>, MaxFragments=2, MaxWords=20")
                         : null,
 
@@ -92,7 +96,7 @@ namespace ProjectManagement.Services.DocRepo
 
                     MatchedInTags = d.DocumentTags.Any(dt =>
                         dt.Tag.Name == preparedQuery ||
-                        dt.Tag.NormalizedName == preparedQuery.ToLower()),
+                        dt.Tag.NormalizedName == normalizedQuery),
 
                     MatchedInBody = d.DocumentText != null
                 })
