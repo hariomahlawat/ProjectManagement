@@ -274,12 +274,35 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
         }
 
         var forcedText = await File.ReadAllTextAsync(sidecar, cancellationToken);
-        if (!HasUsefulText(forcedText))
+        if (HasUsefulText(forcedText))
         {
-            return ProjectDocumentOcrResult.Failure($"ocrmypdf ({failureContext}) produced unusable text. See {logFile}");
+            return ProjectDocumentOcrResult.SuccessResult(forcedText);
         }
 
-        return ProjectDocumentOcrResult.SuccessResult(forcedText);
+        // SECTION: Final fallback when forced run still skipped text
+        var redo = await RunOcrmypdfAsync(
+            workingDir: _workRoot,
+            cancellationToken: cancellationToken,
+            "--redo-ocr", "--sidecar", sidecar, inputPdf, outputPdf);
+
+        await File.AppendAllTextAsync(
+            logFile,
+            $"{Environment.NewLine}{runLabel} (redo-ocr) exit={redo.ExitCode}{Environment.NewLine}{redo.Stdout}{Environment.NewLine}{redo.Stderr}",
+            cancellationToken);
+        MirrorLogToLatest(logFile, latestLog);
+
+        if (!File.Exists(sidecar))
+        {
+            return ProjectDocumentOcrResult.Failure($"ocrmypdf ({failureContext} + redo-ocr) did not produce a sidecar file. See {logFile}");
+        }
+
+        var redoText = await File.ReadAllTextAsync(sidecar, cancellationToken);
+        if (!HasUsefulText(redoText))
+        {
+            return ProjectDocumentOcrResult.Failure($"ocrmypdf ({failureContext} + redo-ocr) produced unusable text. See {logFile}");
+        }
+
+        return ProjectDocumentOcrResult.SuccessResult(redoText);
     }
 
     // SECTION: Result helpers

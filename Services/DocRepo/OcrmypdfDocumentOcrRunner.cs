@@ -148,7 +148,21 @@ namespace ProjectManagement.Services.DocRepo
                     }
 
                     var text2 = await File.ReadAllTextAsync(sidecar, ct);
-                    return OcrRunResult.Ok(text2);
+                    if (HasUsefulText(text2))
+                    {
+                        return OcrRunResult.Ok(text2);
+                    }
+
+                    return await RunRedoOcrAsync(
+                        sidecar,
+                        inputPdf,
+                        outputPdf,
+                        logFile,
+                        latestLog,
+                        runLabel: "SECOND RUN (redo-ocr after force)",
+                        failureContext: "force + redo",
+                        workingDir: _rootDir,
+                        ct: ct);
                 }
 
                 // SECTION: No force needed, read first pass result
@@ -158,7 +172,21 @@ namespace ProjectManagement.Services.DocRepo
                 }
 
                 var text = await File.ReadAllTextAsync(sidecar, ct);
-                return OcrRunResult.Ok(text);
+                if (HasUsefulText(text))
+                {
+                    return OcrRunResult.Ok(text);
+                }
+
+                return await RunRedoOcrAsync(
+                    sidecar,
+                    inputPdf,
+                    outputPdf,
+                    logFile,
+                    latestLog,
+                    runLabel: "SECOND RUN (redo-ocr after empty)",
+                    failureContext: "redo after empty",
+                    workingDir: _rootDir,
+                    ct: ct);
             }
             finally
             {
@@ -197,6 +225,43 @@ namespace ProjectManagement.Services.DocRepo
             var stderr = await stderrTask;
 
             return (process.ExitCode, stdout, stderr);
+        }
+
+        private async Task<OcrRunResult> RunRedoOcrAsync(
+            string sidecar,
+            string inputPdf,
+            string outputPdf,
+            string logFile,
+            string latestLog,
+            string runLabel,
+            string failureContext,
+            string workingDir,
+            CancellationToken ct)
+        {
+            // SECTION: redo-ocr fallback when prior runs only emitted skip banners
+            var redo = await RunOcrmypdfAsync(
+                args: $"--redo-ocr --sidecar \"{sidecar}\" \"{inputPdf}\" \"{outputPdf}\"",
+                workingDir: workingDir,
+                ct: ct);
+
+            await File.AppendAllTextAsync(
+                logFile,
+                $"{Environment.NewLine}{runLabel} exit={redo.ExitCode}{Environment.NewLine}{redo.Stdout}{Environment.NewLine}{redo.Stderr}",
+                ct);
+            MirrorLogToLatest(logFile, latestLog);
+
+            if (!File.Exists(sidecar))
+            {
+                return OcrRunResult.Fail($"ocrmypdf ({failureContext}) did not produce a sidecar file. See {logFile}");
+            }
+
+            var redoText = await File.ReadAllTextAsync(sidecar, ct);
+            if (!HasUsefulText(redoText))
+            {
+                return OcrRunResult.Fail($"ocrmypdf ({failureContext}) produced unusable text. See {logFile}");
+            }
+
+            return OcrRunResult.Ok(redoText);
         }
 
         // SECTION: Executable resolution
