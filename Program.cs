@@ -51,6 +51,7 @@ using ProjectManagement.Services.Documents;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Notifications;
 using ProjectManagement.Services.Search;
+using ProjectManagement.Services.Ocr;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.ProjectOfficeReports.Training;
 using ProjectManagement.Services.Projects;
@@ -266,6 +267,9 @@ builder.Services
 builder.Services.AddSingleton<IDocStorage, LocalDocStorageService>();
 builder.Services.AddSingleton<IUrlBuilder, UrlBuilder>();
 builder.Services.AddScoped<DocumentOcrService>();
+builder.Services.AddSingleton<IOcrmypdfInvoker, ProcessOcrmypdfInvoker>();
+builder.Services.AddSingleton<IPdfTextExtractor, PdfPigTextExtractor>();
+builder.Services.AddScoped<OcrmypdfSharedRunner>();
 builder.Services.AddScoped<IDocRepoAuditService, DocRepoAuditService>();
 builder.Services.AddScoped<IFileScanner, NoopFileScanner>();
 builder.Services.AddScoped<IDocumentOcrRunner, OcrmypdfDocumentOcrRunner>();
@@ -291,6 +295,12 @@ builder.Services.AddScoped<IProjectDocumentOcrRunner, OcrmypdfProjectOcrRunner>(
 builder.Services.AddScoped<IGlobalProjectDocumentSearchService, GlobalProjectDocumentSearchService>();
 builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 
+builder.Services
+    .AddOptions<OcrBackfillOptions>()
+    .Bind(builder.Configuration.GetSection("OcrBackfill"))
+    .ValidateOnStart();
+builder.Services.AddScoped<OcrTextBackfillService>();
+
 if (builder.Configuration.GetValue("DocRepo:EnableOcrWorker", true))
 {
     builder.Services.AddHostedService<DocRepoOcrWorker>();
@@ -299,6 +309,11 @@ if (builder.Configuration.GetValue("DocRepo:EnableOcrWorker", true))
 if (builder.Configuration.GetValue("ProjectDocuments:Ocr:EnableWorker", true))
 {
     builder.Services.AddHostedService<ProjectDocumentOcrWorker>();
+}
+
+if (builder.Configuration.GetValue("OcrBackfill:Enabled", false))
+{
+    builder.Services.AddHostedService<OcrTextBackfillWorker>();
 }
 
 builder.Services.AddScoped<IActivityTypeRepository, ActivityTypeRepository>();
