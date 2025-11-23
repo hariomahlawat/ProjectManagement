@@ -184,7 +184,7 @@ public sealed class StageDirectApplyService
                 {
                     var previousStatus = stageForWarnings.Status;
                     stageForWarnings.Status = StageStatus.NotStarted;
-                    var context = await rulesService.BuildContextAsync(projectStages, ct);
+                    var context = await rulesService.BuildContextAsync(projectId, projectStages, ct);
                     stageForWarnings.Status = previousStatus;
                     guard = rulesService.CanStart(context, stageForWarnings.StageCode);
                 }
@@ -192,13 +192,13 @@ public sealed class StageDirectApplyService
                 {
                     var previousStatus = stageForWarnings.Status;
                     stageForWarnings.Status = StageStatus.InProgress;
-                    var context = await rulesService.BuildContextAsync(projectStages, ct);
+                    var context = await rulesService.BuildContextAsync(projectId, projectStages, ct);
                     stageForWarnings.Status = previousStatus;
                     guard = rulesService.CanComplete(context, stageForWarnings.StageCode);
                 }
                 else if (targetStatus == StageStatus.Skipped)
                 {
-                    var context = await rulesService.BuildContextAsync(projectStages, ct);
+                    var context = await rulesService.BuildContextAsync(projectId, projectStages, ct);
                     guard = rulesService.CanSkip(context, stageForWarnings.StageCode);
                 }
 

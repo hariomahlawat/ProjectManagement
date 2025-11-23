@@ -294,9 +294,17 @@ public class PlanApprovalService
     {
         var errors = new List<string>();
 
+        // SECTION: Workflow Resolution
+        var workflowVersion = plan.Project?.WorkflowVersion
+            ?? await _db.Projects
+                .Where(p => p.Id == plan.ProjectId)
+                .Select(p => p.WorkflowVersion)
+                .SingleAsync(cancellationToken);
+        workflowVersion ??= PlanConstants.StageTemplateVersionV1;
+
         var templates = await _db.StageTemplates
             .AsNoTracking()
-            .Where(t => t.Version == PlanConstants.StageTemplateVersion)
+            .Where(t => t.Version == workflowVersion)
             .OrderBy(t => t.Sequence)
             .ToListAsync(cancellationToken);
 
@@ -305,7 +313,7 @@ public class PlanApprovalService
 
         var dependencies = await _db.StageDependencyTemplates
             .AsNoTracking()
-            .Where(d => d.Version == PlanConstants.StageTemplateVersion)
+            .Where(d => d.Version == workflowVersion)
             .ToListAsync(cancellationToken);
 
         var dependenciesByStage = dependencies

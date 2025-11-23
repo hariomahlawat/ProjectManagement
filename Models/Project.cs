@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Execution;
 
 namespace ProjectManagement.Models
@@ -52,6 +53,11 @@ namespace ProjectManagement.Models
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
         public int? ActivePlanVersionNo { get; set; }
+
+        // SECTION: Workflow Versioning
+        [Required]
+        [MaxLength(32)]
+        public string WorkflowVersion { get; set; } = PlanConstants.DefaultStageTemplateVersion;
 
         public int? CategoryId { get; set; }
         public ProjectCategory? Category { get; set; }

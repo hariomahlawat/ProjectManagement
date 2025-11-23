@@ -12,6 +12,7 @@ using Npgsql;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
@@ -41,6 +42,7 @@ namespace ProjectManagement.Pages.Projects
         public IEnumerable<SelectListItem> HodList { get; private set; } = Array.Empty<SelectListItem>();
         public IEnumerable<SelectListItem> PoList { get; private set; } = Array.Empty<SelectListItem>();
         public IEnumerable<SelectListItem> StageOptions { get; private set; } = Array.Empty<SelectListItem>();
+        public IEnumerable<SelectListItem> WorkflowVersionOptions { get; private set; } = Array.Empty<SelectListItem>();
         public IEnumerable<SelectListItem> SponsoringUnitOptions { get; private set; } = Array.Empty<SelectListItem>();
         public IEnumerable<SelectListItem> LineDirectorateOptions { get; private set; } = Array.Empty<SelectListItem>();
         public IEnumerable<SelectListItem> TechnicalCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
@@ -71,6 +73,9 @@ namespace ProjectManagement.Pages.Projects
             public bool IsOngoing { get; set; }
 
             public bool IsLegacy { get; set; }
+
+            [Required]
+            public string WorkflowVersion { get; set; } = PlanConstants.DefaultStageTemplateVersion;
 
             public string? LastStageCompleted { get; set; }
 
@@ -233,6 +238,7 @@ namespace ProjectManagement.Pages.Projects
                 CreatedByUserId = currentUserId,
                 CreatedAt = _clock.UtcNow.UtcDateTime,
                 CoverPhotoVersion = 1,
+                WorkflowVersion = Input.WorkflowVersion,
                 IsLegacy = Input.IsLegacy,
                 LifecycleStatus = lifecycleStatus,
                 CompletedOn = completedOn,
@@ -440,6 +446,15 @@ namespace ProjectManagement.Pages.Projects
             StageOptions = StageCodes.All
                 .Select(code => new SelectListItem(code, code))
                 .ToList();
+
+            // SECTION: Workflow Version Options
+            WorkflowVersionOptions = new[]
+            {
+                new SelectListItem("Workflow v2 (FS → SOW → IPA → ...)", PlanConstants.StageTemplateVersionV2,
+                    Input.WorkflowVersion == PlanConstants.StageTemplateVersionV2),
+                new SelectListItem("Workflow v1 (FS → IPA → SOW → ...)", PlanConstants.StageTemplateVersionV1,
+                    Input.WorkflowVersion == PlanConstants.StageTemplateVersionV1)
+            };
 
             await LoadSponsoringLookupsAsync();
             await LoadTechnicalCategoryOptionsAsync();

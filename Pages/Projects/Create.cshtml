@@ -60,6 +60,14 @@
                 </div>
                 <div class="row g-3 mt-0">
                     <div class="col-md-6">
+                        <label asp-for="Input.WorkflowVersion" class="form-label">Workflow version</label>
+                        <select asp-for="Input.WorkflowVersion" class="form-select" asp-items="Model.WorkflowVersionOptions"></select>
+                        <span asp-validation-for="Input.WorkflowVersion" class="text-danger"></span>
+                        <div class="form-text">Default is v2 as per current policy. Existing projects stay on v1.</div>
+                    </div>
+                </div>
+                <div class="row g-3 mt-0">
+                    <div class="col-md-6">
                         <label asp-for="Input.TechnicalCategoryId" class="form-label">Technical Category (optional)</label>
                         <select asp-for="Input.TechnicalCategoryId" class="form-select" asp-items="Model.TechnicalCategoryOptions"></select>
                         <span asp-validation-for="Input.TechnicalCategoryId" class="text-danger"></span>

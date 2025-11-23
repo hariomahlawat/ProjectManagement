@@ -26,7 +26,8 @@ public class PlanGenerationServiceTests
         {
             Id = 1,
             Name = "Test Project",
-            CreatedByUserId = "seed"
+            CreatedByUserId = "seed",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
         });
 
         db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
@@ -39,9 +40,9 @@ public class PlanGenerationServiceTests
         });
 
         db.StageTemplates.AddRange(
-            new StageTemplate { Version = PlanConstants.StageTemplateVersion, Code = StageCodes.COB, Name = "Commercial Opening", Sequence = 70 },
-            new StageTemplate { Version = PlanConstants.StageTemplateVersion, Code = StageCodes.PNC, Name = "Price Negotiation", Sequence = 80, Optional = true },
-            new StageTemplate { Version = PlanConstants.StageTemplateVersion, Code = StageCodes.EAS, Name = "Expenditure Sanction", Sequence = 90 }
+            new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.COB, Name = "Commercial Opening", Sequence = 70 },
+            new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.PNC, Name = "Price Negotiation", Sequence = 80, Optional = true },
+            new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.EAS, Name = "Expenditure Sanction", Sequence = 90 }
         );
 
         db.ProjectPlanDurations.AddRange(
@@ -98,7 +99,8 @@ public class PlanGenerationServiceTests
         {
             Id = 1,
             Name = "Test Project",
-            CreatedByUserId = "seed"
+            CreatedByUserId = "seed",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
         });
 
         db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
@@ -111,8 +113,8 @@ public class PlanGenerationServiceTests
         });
 
         db.StageTemplates.AddRange(
-            new StageTemplate { Version = PlanConstants.StageTemplateVersion, Code = StageCodes.BID, Name = "Bid Upload", Sequence = 50 },
-            new StageTemplate { Version = PlanConstants.StageTemplateVersion, Code = StageCodes.TEC, Name = "Technical Evaluation Committee", Sequence = 60 }
+            new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.BID, Name = "Bid Upload", Sequence = 50 },
+            new StageTemplate { Version = PlanConstants.StageTemplateVersionV1, Code = StageCodes.TEC, Name = "Technical Evaluation Committee", Sequence = 60 }
         );
 
         db.ProjectPlanDurations.AddRange(
