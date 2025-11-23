@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using NpgsqlTypes;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Data;
@@ -39,23 +38,22 @@ namespace ProjectManagement.Services.Search
             }
 
             var trimmed = query.Trim();
-            var searchQuery = EF.Functions.WebSearchToTsQuery("english", trimmed);
             var limit = Math.Max(1, maxResults);
             var perSourceLimit = Math.Max(1, (int)Math.Ceiling(limit / 5d));
             var headlineOptions = "StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=10, ShortWord=3";
             var hits = new List<GlobalSearchHit>();
 
-            await AppendVisitsAsync(searchQuery, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
-            await AppendSocialMediaAsync(searchQuery, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
-            await AppendTrainingAsync(trimmed, searchQuery, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
-            await AppendTotAsync(searchQuery, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
-            await AppendProliferationAsync(searchQuery, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
+            await AppendVisitsAsync(trimmed, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
+            await AppendSocialMediaAsync(trimmed, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
+            await AppendTrainingAsync(trimmed, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
+            await AppendTotAsync(trimmed, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
+            await AppendProliferationAsync(trimmed, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
 
             return hits;
         }
 
         // SECTION: Visits tracker search
-        private async Task AppendVisitsAsync(NpgsqlTsQuery searchQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
+        private async Task AppendVisitsAsync(string trimmedQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
             var visits = await _dbContext.Visits
                 .AsNoTracking()
@@ -64,7 +62,7 @@ namespace ProjectManagement.Services.Search
                         (visit.VisitorName ?? string.Empty) + " " +
                         (visit.Remarks ?? string.Empty) + " " +
                         (visit.VisitType != null ? visit.VisitType.Name : string.Empty))
-                    .Matches(searchQuery))
+                    .Matches(EF.Functions.WebSearchToTsQuery("english", trimmedQuery)))
                 .OrderByDescending(visit => visit.LastModifiedAtUtc ?? visit.CreatedAtUtc)
                 .Take(limit)
                 .Select(visit => new
@@ -81,7 +79,7 @@ namespace ProjectManagement.Services.Search
                         (visit.VisitorName ?? string.Empty) + " " +
                         (visit.Remarks ?? string.Empty) + " " +
                         (visit.VisitType != null ? visit.VisitType.Name : string.Empty),
-                        searchQuery,
+                        EF.Functions.WebSearchToTsQuery("english", trimmedQuery),
                         headlineOptions)
                 })
                 .ToListAsync(cancellationToken)
@@ -112,7 +110,7 @@ namespace ProjectManagement.Services.Search
         }
 
         // SECTION: Social media tracker search
-        private async Task AppendSocialMediaAsync(NpgsqlTsQuery searchQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
+        private async Task AppendSocialMediaAsync(string trimmedQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
             var events = await _dbContext.SocialMediaEvents
                 .AsNoTracking()
@@ -121,7 +119,7 @@ namespace ProjectManagement.Services.Search
                         (e.Title ?? string.Empty) + " " +
                         (e.Description ?? string.Empty) + " " +
                         (e.SocialMediaPlatform != null ? e.SocialMediaPlatform.Name : string.Empty))
-                    .Matches(searchQuery))
+                    .Matches(EF.Functions.WebSearchToTsQuery("english", trimmedQuery)))
                 .OrderByDescending(e => e.LastModifiedAtUtc ?? e.CreatedAtUtc)
                 .Take(limit)
                 .Select(e => new
@@ -137,7 +135,7 @@ namespace ProjectManagement.Services.Search
                         (e.Title ?? string.Empty) + " " +
                         (e.Description ?? string.Empty) + " " +
                         (e.SocialMediaPlatform != null ? e.SocialMediaPlatform.Name : string.Empty),
-                        searchQuery,
+                        EF.Functions.WebSearchToTsQuery("english", trimmedQuery),
                         headlineOptions)
                 })
                 .ToListAsync(cancellationToken)
@@ -164,7 +162,7 @@ namespace ProjectManagement.Services.Search
         }
 
         // SECTION: Training tracker search
-        private async Task AppendTrainingAsync(string trimmedQuery, NpgsqlTsQuery searchQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
+        private async Task AppendTrainingAsync(string trimmedQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
             var numericMatch = int.TryParse(trimmedQuery, NumberStyles.Integer, CultureInfo.InvariantCulture, out var yearQuery)
                 ? yearQuery
@@ -176,7 +174,7 @@ namespace ProjectManagement.Services.Search
                     EF.Functions.ToTsVector("english",
                         (training.Notes ?? string.Empty) + " " +
                         (training.TrainingType != null ? training.TrainingType.Name : string.Empty))
-                        .Matches(searchQuery) ||
+                        .Matches(EF.Functions.WebSearchToTsQuery("english", trimmedQuery)) ||
                     (numericMatch.HasValue && training.TrainingYear == numericMatch.Value))
                 .OrderByDescending(training => training.LastModifiedAtUtc ?? training.CreatedAtUtc)
                 .Take(limit)
@@ -194,7 +192,7 @@ namespace ProjectManagement.Services.Search
                         "english",
                         (training.Notes ?? string.Empty) + " " +
                         (training.TrainingType != null ? training.TrainingType.Name : string.Empty),
-                        searchQuery,
+                        EF.Functions.WebSearchToTsQuery("english", trimmedQuery),
                         headlineOptions)
                 })
                 .ToListAsync(cancellationToken)
@@ -246,7 +244,7 @@ namespace ProjectManagement.Services.Search
         }
 
         // SECTION: TOT tracker search
-        private async Task AppendTotAsync(NpgsqlTsQuery searchQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
+        private async Task AppendTotAsync(string trimmedQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
             var tots = await _dbContext.ProjectTots
                 .Include(tot => tot.Project)
@@ -255,7 +253,7 @@ namespace ProjectManagement.Services.Search
                     EF.Functions.ToTsVector("english",
                         (tot.Project != null ? tot.Project.Name : string.Empty) + " " +
                         (tot.MetDetails ?? string.Empty))
-                        .Matches(searchQuery))
+                        .Matches(EF.Functions.WebSearchToTsQuery("english", trimmedQuery)))
                 .OrderByDescending(tot =>
                     tot.LastApprovedOnUtc
                     ?? (tot.CompletedOn.HasValue ? tot.CompletedOn.Value.ToDateTime(TimeOnly.MinValue) : (DateTime?)null)
@@ -275,7 +273,7 @@ namespace ProjectManagement.Services.Search
                         "english",
                         (tot.Project != null ? tot.Project.Name : string.Empty) + " " +
                         (tot.MetDetails ?? string.Empty),
-                        searchQuery,
+                        EF.Functions.WebSearchToTsQuery("english", trimmedQuery),
                         headlineOptions)
                 })
                 .ToListAsync(cancellationToken)
@@ -320,7 +318,7 @@ namespace ProjectManagement.Services.Search
         }
 
         // SECTION: Proliferation survey search
-        private async Task AppendProliferationAsync(NpgsqlTsQuery searchQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
+        private async Task AppendProliferationAsync(string trimmedQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
             var records = await _dbContext.Set<ProliferationGranular>()
                 .AsNoTracking()
@@ -329,7 +327,7 @@ namespace ProjectManagement.Services.Search
                         record.UnitName + " " +
                         (record.Remarks ?? string.Empty) + " " +
                         record.Source.ToString())
-                        .Matches(searchQuery))
+                        .Matches(EF.Functions.WebSearchToTsQuery("english", trimmedQuery)))
                 .OrderByDescending(record => record.LastUpdatedOnUtc)
                 .Take(limit)
                 .Select(record => new
@@ -346,7 +344,7 @@ namespace ProjectManagement.Services.Search
                         record.UnitName + " " +
                         (record.Remarks ?? string.Empty) + " " +
                         record.Source.ToString(),
-                        searchQuery,
+                        EF.Functions.WebSearchToTsQuery("english", trimmedQuery),
                         headlineOptions)
                 })
                 .ToListAsync(cancellationToken)
