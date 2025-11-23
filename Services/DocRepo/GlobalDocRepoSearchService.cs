@@ -41,6 +41,12 @@ public sealed class GlobalDocRepoSearchService : IGlobalDocRepoSearchService
             return Array.Empty<GlobalSearchHit>();
         }
 
+        // SECTION: Provider guard - WebSearchToTsQuery only works on PostgreSQL
+        if (!_dbContext.Database.IsNpgsql())
+        {
+            return Array.Empty<GlobalSearchHit>();
+        }
+
         var baseQuery = _dbContext.Documents
             .AsNoTracking()
             .Where(document => !document.IsDeleted);
