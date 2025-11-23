@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using NpgsqlTypes;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Navigation;
 
@@ -34,7 +35,9 @@ namespace ProjectManagement.Services.Search
                 return Array.Empty<GlobalSearchHit>();
             }
 
-            var pattern = $"%{query.Trim()}%";
+            var trimmed = query.Trim();
+            var searchQuery = EF.Functions.WebSearchToTsQuery("english", trimmed);
+            var headlineOptions = "StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=10, ShortWord=3";
             var recordLimit = Math.Max(1, maxResults);
             var attachmentLimit = Math.Max(1, maxResults / 2);
             var hits = new List<GlobalSearchHit>();
@@ -45,15 +48,39 @@ namespace ProjectManagement.Services.Search
             var records = await _dbContext.FfcRecords
                 .AsNoTracking()
                 .Include(record => record.Country)
-                .Where(record => !record.IsDeleted && (
-                    EF.Functions.ILike(record.Country.Name, pattern) ||
-                    EF.Functions.ILike(record.OverallRemarks ?? string.Empty, pattern) ||
-                    EF.Functions.ILike(record.IpaRemarks ?? string.Empty, pattern) ||
-                    EF.Functions.ILike(record.GslRemarks ?? string.Empty, pattern) ||
-                    EF.Functions.ILike(record.DeliveryRemarks ?? string.Empty, pattern) ||
-                    EF.Functions.ILike(record.InstallationRemarks ?? string.Empty, pattern)))
+                .Where(record => !record.IsDeleted &&
+                    EF.Functions.ToTsVector("english",
+                        (record.Country != null ? record.Country.Name : string.Empty) + " " +
+                        (record.OverallRemarks ?? string.Empty) + " " +
+                        (record.IpaRemarks ?? string.Empty) + " " +
+                        (record.GslRemarks ?? string.Empty) + " " +
+                        (record.DeliveryRemarks ?? string.Empty) + " " +
+                        (record.InstallationRemarks ?? string.Empty))
+                        .Matches(searchQuery))
                 .OrderByDescending(record => record.CreatedAt)
                 .Take(recordLimit)
+                .Select(record => new
+                {
+                    record.Id,
+                    record.CreatedAt,
+                    record.Year,
+                    record.Country,
+                    record.OverallRemarks,
+                    record.IpaRemarks,
+                    record.GslRemarks,
+                    record.DeliveryRemarks,
+                    record.InstallationRemarks,
+                    Snippet = EF.Functions.TsHeadline(
+                        "english",
+                        (record.Country != null ? record.Country.Name : string.Empty) + " " +
+                        (record.OverallRemarks ?? string.Empty) + " " +
+                        (record.IpaRemarks ?? string.Empty) + " " +
+                        (record.GslRemarks ?? string.Empty) + " " +
+                        (record.DeliveryRemarks ?? string.Empty) + " " +
+                        (record.InstallationRemarks ?? string.Empty),
+                        searchQuery,
+                        headlineOptions)
+                })
                 .ToListAsync(cancellationToken);
 
             foreach (var record in records)
@@ -62,7 +89,10 @@ namespace ProjectManagement.Services.Search
                     ? $"FFC record {record.Id}"
                     : $"{record.Country.Name} {record.Year}";
 
-                var snippet = record.OverallRemarks;
+                var snippet = string.IsNullOrWhiteSpace(record.Snippet)
+                    ? record.OverallRemarks
+                    : record.Snippet;
+
                 if (string.IsNullOrWhiteSpace(snippet))
                 {
                     snippet = record.DeliveryRemarks
@@ -93,8 +123,8 @@ namespace ProjectManagement.Services.Search
                     // EF-translatable check, no StringComparison
                     attachment.ContentType == "application/pdf" &&
                     (
-                        EF.Functions.ILike(attachment.Caption ?? string.Empty, pattern) ||
-                        EF.Functions.ILike(attachment.Record.Country.Name, pattern)
+                        EF.Functions.ILike(attachment.Caption ?? string.Empty, $"%{trimmed}%") ||
+                        EF.Functions.ILike(attachment.Record.Country.Name, $"%{trimmed}%")
                     ))
                 .OrderByDescending(attachment => attachment.UploadedAt)
                 .Take(attachmentLimit)
