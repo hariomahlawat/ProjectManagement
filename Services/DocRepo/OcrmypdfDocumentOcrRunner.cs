@@ -12,6 +12,7 @@ namespace ProjectManagement.Services.DocRepo
     public sealed class OcrmypdfDocumentOcrRunner : IDocumentOcrRunner
     {
         private readonly IDocStorage _storage;
+        private readonly string _ocrExecutable;
         private readonly string _rootDir;
         private readonly string _inputDir;
         private readonly string _outputDir;
@@ -29,6 +30,7 @@ namespace ProjectManagement.Services.DocRepo
             _storage = storage;
             var value = options.Value ?? throw new ArgumentException("DocRepo options cannot be null.", nameof(options));
 
+            _ocrExecutable = ResolveExecutablePath(value.OcrExecutablePath);
             _rootDir = EnsureDirectory(ResolveRoot(value, uploadRootProvider));
             _inputDir = EnsureDirectory(Path.Combine(_rootDir, ResolveSubpath(value.OcrInput, "input")));
             _outputDir = EnsureDirectory(Path.Combine(_rootDir, ResolveSubpath(value.OcrOutput, "output")));
@@ -167,14 +169,14 @@ namespace ProjectManagement.Services.DocRepo
             }
         }
 
-        private static async Task<(int ExitCode, string Stdout, string Stderr)> RunOcrmypdfAsync(
+        private async Task<(int ExitCode, string Stdout, string Stderr)> RunOcrmypdfAsync(
             string args,
             string workingDir,
             CancellationToken ct)
         {
             var psi = new ProcessStartInfo
             {
-                FileName = "ocrmypdf",
+                FileName = _ocrExecutable,
                 Arguments = args,
                 RedirectStandardError = true,
                 RedirectStandardOutput = true,
@@ -195,6 +197,25 @@ namespace ProjectManagement.Services.DocRepo
             var stderr = await stderrTask;
 
             return (process.ExitCode, stdout, stderr);
+        }
+
+        // SECTION: Executable resolution
+        private static string ResolveExecutablePath(string? configuredPath)
+        {
+            if (string.IsNullOrWhiteSpace(configuredPath))
+            {
+                return "ocrmypdf";
+            }
+
+            var expanded = Environment.ExpandEnvironmentVariables(configuredPath);
+            var fullPath = Path.GetFullPath(expanded);
+
+            if (!File.Exists(fullPath))
+            {
+                throw new InvalidOperationException($"Configured ocrmypdf executable was not found at '{fullPath}'.");
+            }
+
+            return fullPath;
         }
 
         // SECTION: Result helpers

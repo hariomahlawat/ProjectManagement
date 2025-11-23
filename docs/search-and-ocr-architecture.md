@@ -100,6 +100,7 @@ This document explains how the application performs OCR and full-text search (FT
 ## 5. Operational Notes
 - **Worker cadence**: Both OCR workers poll every **2 minutes** when idle and process small batches (DocRepo: 3, Project Documents: 5), so latency depends on queue depth and OCR runtime.[F:Hosted/DocRepoOcrWorker.csL34-L45][F:Hosted/ProjectDocumentOcrWorker.csL35-L46]
 - **Admin visibility**: Failure reasons are capped at **1000 characters**; statuses transition Pending -> Succeeded/Failed with `OcrLastTriedUtc` updated per attempt.[F:Hosted/DocRepoOcrWorker.csL49-L98][F:Hosted/ProjectDocumentOcrWorker.csL49-L142]
+- **Executable path**: Both OCR runners allow an explicit path to `ocrmypdf` via `ProjectDocuments:Ocr:OcrExecutablePath` and `DocRepo:OcrExecutablePath`; configured paths are validated and replace reliance on the worker process `PATH`. Missing executables throw startup errors with the provided path.[F:Configuration/ProjectDocumentOcrOptions.csL15-L21][F:Services/Projects/OcrmypdfProjectOcrRunner.csL22-L112][F:Services/DocRepo/LocalDocStorageService.csL9-L29][F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL13-L114]
 - **Common failures**: Runner detects missing sidecar output or "Prior OCR"/"OCR skipped" banners and records precise messages pointing to the stored log path.[F:Services/DocRepo/OcrmypdfDocumentOcrRunner.csL70-L150][F:Services/Projects/OcrmypdfProjectOcrRunner.csL86-L150]
 
 ## 6. Limitations and Roadmap
