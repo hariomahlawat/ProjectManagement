@@ -67,7 +67,7 @@ namespace ProjectManagement.Services.Search
                     p.DeletedAt,
                     SponsoringUnit = p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
                     LineDirectorate = p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : null,
-                    Snippet = EF.Functions.TsHeadline(
+                    Snippet = ApplicationDbContext.TsHeadline(
                         "english",
                         (p.Name ?? string.Empty) + " " +
                         (p.Description ?? string.Empty) + " " +

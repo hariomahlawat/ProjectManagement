@@ -59,7 +59,7 @@ public sealed class GlobalActivitiesSearchService : IGlobalActivitiesSearchServi
                 activity.Location,
                 activity.CreatedAtUtc,
                 activity.ScheduledStartUtc,
-                Snippet = EF.Functions.TsHeadline(
+                Snippet = ApplicationDbContext.TsHeadline(
                     "english",
                     (activity.Title ?? string.Empty) + " " +
                     (activity.Description ?? string.Empty) + " " +
