@@ -650,10 +650,13 @@ app.Use(async (ctx, next) =>
             ? " " + string.Join(' ', developmentLoopbackOrigins)
             : string.Empty;
         // ----- Content Security Policy -----
-        var styleUnsafeInline = app.Environment.IsDevelopment() ? " 'unsafe-inline'" : string.Empty;
+        // Calendar relies on FullCalendar's inline style injection; scope the allowance to the calendar routes
+        // so other pages remain locked down in production.
+        var isCalendarRoute = ctx.Request.Path.StartsWithSegments("/Calendar", StringComparison.OrdinalIgnoreCase);
+        var styleUnsafeInline = app.Environment.IsDevelopment() || isCalendarRoute ? " 'unsafe-inline'" : string.Empty;
         var styleSrcDirective = $"style-src 'self'{styleUnsafeInline}{devSourcesSuffix}; ";
         var styleSrcAttrDirective = "style-src-attr 'unsafe-inline'; ";
-        var styleSrcElemDirective = $"style-src-elem 'self'{devSourcesSuffix}; ";
+        var styleSrcElemDirective = $"style-src-elem 'self'{styleUnsafeInline}{devSourcesSuffix}; ";
 
         h["Content-Security-Policy"] =
             "default-src 'self'; " +
