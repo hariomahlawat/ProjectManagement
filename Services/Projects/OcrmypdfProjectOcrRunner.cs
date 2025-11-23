@@ -15,6 +15,7 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
 {
     // SECTION: Dependencies
     private readonly IProjectDocumentStorageResolver _storageResolver;
+    private readonly string _ocrExecutable;
     private readonly string _workRoot;
     private readonly string _inputDir;
     private readonly string _outputDir;
@@ -28,6 +29,7 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
         _storageResolver = storageResolver ?? throw new ArgumentNullException(nameof(storageResolver));
         var value = options?.Value ?? throw new ArgumentNullException(nameof(options));
 
+        _ocrExecutable = ResolveExecutablePath(value.OcrExecutablePath);
         _workRoot = EnsureDirectory(ResolveWorkRoot(value));
         _inputDir = EnsureDirectory(Path.Combine(_workRoot, ResolveSubpath(value.InputSubpath, "input", nameof(value.InputSubpath))), _workRoot);
         _outputDir = EnsureDirectory(Path.Combine(_workRoot, ResolveSubpath(value.OutputSubpath, "output", nameof(value.OutputSubpath))), _workRoot);
@@ -186,14 +188,14 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
     }
 
     // SECTION: ocrmypdf invocation helpers
-    private static async Task<(int ExitCode, string Stdout, string Stderr)> RunOcrmypdfAsync(
+    private async Task<(int ExitCode, string Stdout, string Stderr)> RunOcrmypdfAsync(
         string workingDir,
         CancellationToken cancellationToken,
         params string[] arguments)
     {
         var startInfo = new ProcessStartInfo
         {
-            FileName = "ocrmypdf",
+            FileName = _ocrExecutable,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -223,6 +225,25 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
         var stderr = await stderrTask;
 
         return (process.ExitCode, stdout, stderr);
+    }
+
+    // SECTION: Executable resolution
+    private static string ResolveExecutablePath(string? configuredPath)
+    {
+        if (string.IsNullOrWhiteSpace(configuredPath))
+        {
+            return "ocrmypdf";
+        }
+
+        var expanded = Environment.ExpandEnvironmentVariables(configuredPath);
+        var fullPath = Path.GetFullPath(expanded);
+
+        if (!File.Exists(fullPath))
+        {
+            throw new InvalidOperationException($"Configured ocrmypdf executable was not found at '{fullPath}'.");
+        }
+
+        return fullPath;
     }
 
     // SECTION: Forced OCR helper

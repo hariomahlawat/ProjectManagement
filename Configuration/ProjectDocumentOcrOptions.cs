@@ -18,6 +18,8 @@ public sealed class ProjectDocumentOcrOptions
     [Required(AllowEmptyStrings = false)]
     public string LogsSubpath { get; set; } = "logs";
 
+    public string? OcrExecutablePath { get; set; }
+
     // SECTION: Feature toggles
     public bool EnableWorker { get; set; } = true;
 }

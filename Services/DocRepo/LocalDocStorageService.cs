@@ -16,6 +16,7 @@ public class DocRepoOptions
         = null;
     public string IngestionUserId { get; set; } = "system";
     public long MaxFileSizeBytes { get; set; } = 52_428_800;
+    public string? OcrExecutablePath { get; set; }
     public string? OcrWorkRoot { get; set; }
     public string OcrInput { get; set; } = "input";
     public string OcrOutput { get; set; } = "output";
