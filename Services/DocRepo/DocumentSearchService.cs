@@ -38,14 +38,12 @@ namespace ProjectManagement.Services.DocRepo
         // SECTION: EF-friendly search composition
         public IQueryable<Document> ApplySearch(IQueryable<Document> source, string preparedQuery)
         {
-            var searchQuery = EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery);
-
             return source
                 .Where(d =>
                     d.SearchVector != null &&
-                    d.SearchVector.Matches(searchQuery))
+                    d.SearchVector.Matches(EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)))
                 .OrderByDescending(d =>
-                    d.SearchVector!.RankCoverDensity(searchQuery))
+                    d.SearchVector!.RankCoverDensity(EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)))
                 .ThenByDescending(d => d.DocumentDate.HasValue)
                 .ThenByDescending(d => d.DocumentDate)
                 .ThenByDescending(d => d.CreatedAtUtc);
@@ -54,14 +52,14 @@ namespace ProjectManagement.Services.DocRepo
         // SECTION: Projected search composition
         public IQueryable<DocumentSearchResultVm> ApplySearchProjected(IQueryable<Document> source, string preparedQuery)
         {
-            var searchQuery = EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery);
             var normalizedQuery = preparedQuery.ToLowerInvariant();
 
             return source
                 // 1) full-text filter, fully inlined
                 .Where(d =>
                     d.SearchVector != null &&
-                    d.SearchVector.Matches(searchQuery))
+                    d.SearchVector.Matches(
+                        EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)))
                 // 2) project directly to VM
                 .Select(d => new DocumentSearchResultVm
                 {
@@ -78,7 +76,8 @@ namespace ProjectManagement.Services.DocRepo
                     OcrFailureReason = d.OcrFailureReason,
 
                     // rank
-                    Rank = (double?)d.SearchVector!.RankCoverDensity(searchQuery),
+                    Rank = (double?)d.SearchVector!.RankCoverDensity(
+                        EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)),
 
                     // query-aware snippet from PG
                     Snippet = d.DocumentText != null
@@ -86,7 +85,7 @@ namespace ProjectManagement.Services.DocRepo
                             "english",
                             // you only have OCR text here
                             (d.DocumentText.OcrText ?? ""),
-                            searchQuery,
+                            EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery),
                             "StartSel=<mark>, StopSel=</mark>, MaxFragments=2, MaxWords=20")
                         : null,
 
