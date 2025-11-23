@@ -20,7 +20,7 @@ namespace ProjectManagement.Migrations
                 nullable: false,
                 defaultValue: "SDD-1.0");
 
-            migrationBuilder.Sql(@"UPDATE \"Projects\" SET \"WorkflowVersion\" = 'SDD-1.0' WHERE \"WorkflowVersion\" IS NULL;");
+            migrationBuilder.Sql(@"UPDATE ""Projects"" SET ""WorkflowVersion"" = 'SDD-1.0' WHERE ""WorkflowVersion"" IS NULL;");
         }
 
         // SECTION: Revert schema changes
