@@ -71,8 +71,6 @@ namespace ProjectManagement.Services.Search
                 return BuildHits(fallbackProjects, limit);
             }
 
-            var searchQuery = EF.Functions.WebSearchToTsQuery("english", trimmed);
-
             // 1) EF-friendly query only
             var projects = await _dbContext.Projects
                 .AsNoTracking()
@@ -87,7 +85,7 @@ namespace ProjectManagement.Services.Search
                         (p.CaseFileNumber ?? string.Empty) + " " +
                         (p.SponsoringUnit != null ? p.SponsoringUnit.Name : string.Empty) + " " +
                         (p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : string.Empty))
-                        .Matches(searchQuery))
+                        .Matches(EF.Functions.WebSearchToTsQuery("english", trimmed)))
                 // pull a few extra so sorting in-memory still has room
                 .Take(limit * 3)
                 .Select(p => new ProjectSearchRow(
@@ -106,7 +104,7 @@ namespace ProjectManagement.Services.Search
                         (p.CaseFileNumber ?? string.Empty) + " " +
                         (p.SponsoringUnit != null ? p.SponsoringUnit.Name : string.Empty) + " " +
                         (p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : string.Empty),
-                        searchQuery,
+                        EF.Functions.WebSearchToTsQuery("english", trimmed),
                         headlineOptions)))
                 .ToListAsync(cancellationToken);
 

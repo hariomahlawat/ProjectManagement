@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using NpgsqlTypes;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Navigation;
 
@@ -36,7 +35,6 @@ namespace ProjectManagement.Services.Search
             }
 
             var trimmed = query.Trim();
-            var searchQuery = EF.Functions.WebSearchToTsQuery("english", trimmed);
             var headlineOptions = "StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=10, ShortWord=3";
             var recordLimit = Math.Max(1, maxResults);
             var attachmentLimit = Math.Max(1, maxResults / 2);
@@ -56,7 +54,7 @@ namespace ProjectManagement.Services.Search
                         (record.GslRemarks ?? string.Empty) + " " +
                         (record.DeliveryRemarks ?? string.Empty) + " " +
                         (record.InstallationRemarks ?? string.Empty))
-                        .Matches(searchQuery))
+                        .Matches(EF.Functions.WebSearchToTsQuery("english", trimmed)))
                 .OrderByDescending(record => record.CreatedAt)
                 .Take(recordLimit)
                 .Select(record => new
@@ -78,7 +76,7 @@ namespace ProjectManagement.Services.Search
                         (record.GslRemarks ?? string.Empty) + " " +
                         (record.DeliveryRemarks ?? string.Empty) + " " +
                         (record.InstallationRemarks ?? string.Empty),
-                        searchQuery,
+                        EF.Functions.WebSearchToTsQuery("english", trimmed),
                         headlineOptions)
                 })
                 .ToListAsync(cancellationToken);

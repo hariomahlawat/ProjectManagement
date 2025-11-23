@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using NpgsqlTypes;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Services.Navigation;
@@ -37,7 +36,6 @@ public sealed class GlobalActivitiesSearchService : IGlobalActivitiesSearchServi
         }
 
         var trimmed = query.Trim();
-        var searchQuery = EF.Functions.WebSearchToTsQuery("english", trimmed);
         var headlineOptions = "StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=10, ShortWord=3";
         var limit = Math.Max(1, maxResults);
 
@@ -48,7 +46,7 @@ public sealed class GlobalActivitiesSearchService : IGlobalActivitiesSearchServi
                     (activity.Title ?? string.Empty) + " " +
                     (activity.Description ?? string.Empty) + " " +
                     (activity.Location ?? string.Empty))
-                    .Matches(searchQuery))
+                    .Matches(EF.Functions.WebSearchToTsQuery("english", trimmed)))
             .OrderByDescending(activity => activity.ScheduledStartUtc ?? activity.CreatedAtUtc)
             .Take(limit)
             .Select(activity => new
@@ -64,7 +62,7 @@ public sealed class GlobalActivitiesSearchService : IGlobalActivitiesSearchServi
                     (activity.Title ?? string.Empty) + " " +
                     (activity.Description ?? string.Empty) + " " +
                     (activity.Location ?? string.Empty),
-                    searchQuery,
+                    EF.Functions.WebSearchToTsQuery("english", trimmed),
                     headlineOptions)
             })
             .ToListAsync(cancellationToken);
