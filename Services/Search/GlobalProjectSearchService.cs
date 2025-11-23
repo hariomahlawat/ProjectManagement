@@ -148,7 +148,7 @@ namespace ProjectManagement.Services.Search
                         Date = date,
                         Hit = new GlobalSearchHit(
                             Source: "Projects",
-                            Title: string.IsNullOrWhiteSpace(p.Name) ? "Untitled project" : p.Name,
+                            Title: string.IsNullOrWhiteSpace(p.Name) ? "Untitled project" : p.Name!,
                             Snippet: snippet,
                             Url: _urlBuilder.ProjectOverview(p.Id),
                             Date: date,
