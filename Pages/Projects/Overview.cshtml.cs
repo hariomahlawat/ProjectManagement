@@ -227,12 +227,15 @@ namespace ProjectManagement.Pages.Projects
 
             var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetConnectionString());
 
+            var workflowVersion = project.WorkflowVersion;
+            var orderedStageCodes = ProcurementWorkflow.StageCodesFor(workflowVersion);
+
             var projectStages = await _db.ProjectStages
                 .Where(s => s.ProjectId == id)
                 .ToListAsync(ct);
 
             Stages = projectStages
-                .OrderBy(s => StageOrder(s.StageCode))
+                .OrderBy(s => ProcurementWorkflow.OrderOf(workflowVersion, s.StageCode))
                 .ThenBy(s => s.StageCode, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -242,7 +245,7 @@ namespace ProjectManagement.Pages.Projects
                 StringComparer.OrdinalIgnoreCase);
 
             var placeholderAdded = false;
-            foreach (var code in StageCodes.All)
+            foreach (var code in orderedStageCodes)
             {
                 if (knownStageCodes.Contains(code))
                 {
@@ -253,7 +256,7 @@ namespace ProjectManagement.Pages.Projects
                 {
                     ProjectId = project.Id,
                     StageCode = code,
-                    SortOrder = StageOrder(code),
+                    SortOrder = ProcurementWorkflow.OrderOf(workflowVersion, code),
                     Status = StageStatus.NotStarted
                 });
 
@@ -263,7 +266,7 @@ namespace ProjectManagement.Pages.Projects
             if (placeholderAdded)
             {
                 Stages = Stages
-                    .OrderBy(s => StageOrder(s.StageCode))
+                    .OrderBy(s => ProcurementWorkflow.OrderOf(workflowVersion, s.StageCode))
                     .ThenBy(s => s.StageCode, StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }
@@ -823,14 +826,14 @@ namespace ProjectManagement.Pages.Projects
 
             var filteredDocuments = documentsForDisplay
                 .Where(d => StageMatches(d.StageCode, normalizedStage))
-                .OrderBy(d => StageOrder(d.StageCode))
+                .OrderBy(d => ProcurementWorkflow.OrderOf(workflowVersion, d.StageCode))
                 .ThenByDescending(d => d.UploadedAtUtc)
                 .ThenBy(d => d.Id)
                 .ToList();
 
             var filteredRequests = requestsForDisplay
                 .Where(r => StageMatches(r.StageCode, normalizedStage))
-                .OrderBy(r => StageOrder(r.StageCode))
+                .OrderBy(r => ProcurementWorkflow.OrderOf(workflowVersion, r.StageCode))
                 .ThenByDescending(r => r.RequestedAtUtc)
                 .ThenBy(r => r.Id)
                 .ToList();
@@ -856,7 +859,7 @@ namespace ProjectManagement.Pages.Projects
 
             var groups = pageRows
                 .GroupBy(r => r.StageCode, StringComparer.OrdinalIgnoreCase)
-                .OrderBy(g => StageOrder(g.Key))
+                .OrderBy(g => ProcurementWorkflow.OrderOf(workflowVersion, g.Key))
                 .ThenBy(g => g.Key ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                 .Select(g => new ProjectDocumentStageGroupViewModel(
                     string.IsNullOrEmpty(g.Key) ? null : g.Key,
@@ -864,7 +867,7 @@ namespace ProjectManagement.Pages.Projects
                     g.ToList()))
                 .ToList();
 
-            var stageFilters = BuildStageFilters(documentsForDisplay, requestsForDisplay, normalizedStage);
+            var stageFilters = BuildStageFilters(documentsForDisplay, requestsForDisplay, normalizedStage, workflowVersion);
             var statusFilters = BuildStatusFilters(normalizedStatus, isApprover);
 
             DocumentSummary = new ProjectDocumentSummaryViewModel
@@ -1524,7 +1527,8 @@ namespace ProjectManagement.Pages.Projects
         private IReadOnlyList<ProjectDocumentFilterOptionViewModel> BuildStageFilters(
             IReadOnlyCollection<DocumentOverviewRow> documents,
             IReadOnlyCollection<DocumentRequestOverviewRow> pendingRequests,
-            string? selectedStage)
+            string? selectedStage,
+            string? workflowVersion)
         {
             var filters = new List<ProjectDocumentFilterOptionViewModel>
             {
@@ -1533,7 +1537,7 @@ namespace ProjectManagement.Pages.Projects
 
             var stageCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var code in StageCodes.All)
+            foreach (var code in ProcurementWorkflow.StageCodesFor(workflowVersion))
             {
                 stageCodes.Add(code);
             }
@@ -1563,7 +1567,7 @@ namespace ProjectManagement.Pages.Projects
             }
 
             var orderedCodes = stageCodes
-                .OrderBy(StageOrder)
+                .OrderBy(code => ProcurementWorkflow.OrderOf(workflowVersion, code))
                 .ThenBy(code => code, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -2321,17 +2325,6 @@ namespace ProjectManagement.Pages.Projects
             }
 
             return path;
-        }
-
-        private static int StageOrder(string? stageCode)
-        {
-            if (stageCode is null)
-            {
-                return int.MaxValue;
-            }
-
-            var index = Array.IndexOf(StageCodes.All, stageCode);
-            return index >= 0 ? index : int.MaxValue;
         }
 
         // SECTION: Document overview data records

@@ -278,8 +278,10 @@ public class StageProgressService
             .Where(s => s.ProjectId == projectId)
             .ToListAsync(ct);
 
+        var workflowVersion = completedStage.Project?.WorkflowVersion;
+
         var ordered = stages
-            .OrderBy(s => StageOrderValue(s.StageCode))
+            .OrderBy(s => StageOrderValue(s.StageCode, workflowVersion))
             .ThenBy(s => s.StageCode, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -337,14 +339,7 @@ public class StageProgressService
         return calendar.NextWorkingDay(completedOn);
     }
 
-    private static int StageOrderValue(string? stageCode)
-    {
-        if (stageCode is null)
-        {
-            return int.MaxValue;
-        }
-
-        var index = Array.IndexOf(StageCodes.All, stageCode);
-        return index >= 0 ? index : int.MaxValue;
-    }
+    // SECTION: Stage ordering helpers
+    private static int StageOrderValue(string? stageCode, string? workflowVersion) =>
+        ProcurementWorkflow.OrderOf(workflowVersion, stageCode);
 }

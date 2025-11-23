@@ -86,6 +86,8 @@ public class EditPlanModel : PageModel
             return NotFound();
         }
 
+        var workflowVersion = project.WorkflowVersion;
+
         var isProjectsHod = isHoD && string.Equals(project.HodUserId, userId, StringComparison.Ordinal);
         var isProjectsPo = string.Equals(project.LeadPoUserId, userId, StringComparison.Ordinal);
 
@@ -97,10 +99,10 @@ public class EditPlanModel : PageModel
 
         if (string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
         {
-            return await HandleDurationsAsync(id, userId, cancellationToken);
+            return await HandleDurationsAsync(id, userId, cancellationToken, workflowVersion);
         }
 
-        return await HandleExactAsync(id, userId, principal, cancellationToken);
+        return await HandleExactAsync(id, userId, principal, cancellationToken, workflowVersion);
     }
 
     public async Task<IActionResult> OnGetValidateAsync(int id, CancellationToken cancellationToken)
@@ -188,7 +190,7 @@ public class EditPlanModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    private async Task<IActionResult> HandleExactAsync(int id, string userId, ClaimsPrincipal principal, CancellationToken cancellationToken)
+    private async Task<IActionResult> HandleExactAsync(int id, string userId, ClaimsPrincipal principal, CancellationToken cancellationToken, string? workflowVersion)
     {
         var rows = Input.Rows ??= new List<PlanEditInputRow>();
 
@@ -360,7 +362,7 @@ public class EditPlanModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    private async Task<IActionResult> HandleDurationsAsync(int id, string userId, CancellationToken ct)
+    private async Task<IActionResult> HandleDurationsAsync(int id, string userId, CancellationToken ct, string? workflowVersion)
     {
         var action = NormalizeAction(Input.Action);
         var calculateOnly = string.Equals(action, PlanEditActions.Calculate, StringComparison.OrdinalIgnoreCase);
@@ -449,7 +451,8 @@ public class EditPlanModel : PageModel
             .Where(d => !string.IsNullOrWhiteSpace(d.StageCode))
             .ToDictionary(d => d.StageCode!, StringComparer.OrdinalIgnoreCase);
 
-        var extraSortStart = StageCodes.All.Length;
+        var stageOrderLookup = ProcurementWorkflow.BuildOrderLookup(workflowVersion);
+        var extraSortStart = stageOrderLookup.Count;
 
         foreach (var row in rows)
         {
@@ -458,7 +461,7 @@ public class EditPlanModel : PageModel
                 continue;
             }
 
-            var sortOrder = StageOrder(row.Code, ref extraSortStart);
+            var sortOrder = StageOrder(row.Code, stageOrderLookup, ref extraSortStart);
 
             if (!durationMap.TryGetValue(row.Code, out var duration))
             {
@@ -601,10 +604,10 @@ public class EditPlanModel : PageModel
 
     private static string? FormatDate(DateOnly? value) => value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-    private static int StageOrder(string stageCode, ref int extraSortStart)
+    // SECTION: Stage ordering helpers
+    private static int StageOrder(string stageCode, IReadOnlyDictionary<string, int> stageOrderLookup, ref int extraSortStart)
     {
-        var index = Array.IndexOf(StageCodes.All, stageCode);
-        if (index >= 0)
+        if (stageOrderLookup.TryGetValue(stageCode, out var index))
         {
             return index;
         }
