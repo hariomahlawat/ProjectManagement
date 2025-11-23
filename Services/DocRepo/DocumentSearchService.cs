@@ -38,32 +38,31 @@ namespace ProjectManagement.Services.DocRepo
         // SECTION: EF-friendly search composition
         public IQueryable<Document> ApplySearch(IQueryable<Document> source, string preparedQuery)
         {
-            var searchQuery = EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery);
-
-            return source
-                .Where(d =>
-                    d.SearchVector != null &&
-                    d.SearchVector.Matches(searchQuery))
-                .OrderByDescending(d =>
-                    d.SearchVector!.RankCoverDensity(searchQuery))
-                .ThenByDescending(d => d.DocumentDate.HasValue)
-                .ThenByDescending(d => d.DocumentDate)
-                .ThenByDescending(d => d.CreatedAtUtc);
+            return
+                from d in source
+                let searchQuery = EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)
+                where d.SearchVector != null &&
+                    d.SearchVector.Matches(searchQuery)
+                orderby d.SearchVector!.RankCoverDensity(searchQuery) descending,
+                    d.DocumentDate.HasValue descending,
+                    d.DocumentDate descending,
+                    d.CreatedAtUtc descending
+                select d;
         }
 
         // SECTION: Projected search composition
         public IQueryable<DocumentSearchResultVm> ApplySearchProjected(IQueryable<Document> source, string preparedQuery)
         {
-            var searchQuery = EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery);
             var normalizedQuery = preparedQuery.ToLowerInvariant();
 
-            return source
+            return
+                from d in source
+                let searchQuery = EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)
                 // 1) full-text filter, fully inlined
-                .Where(d =>
-                    d.SearchVector != null &&
-                    d.SearchVector.Matches(searchQuery))
+                where d.SearchVector != null &&
+                    d.SearchVector.Matches(searchQuery)
                 // 2) project directly to VM
-                .Select(d => new DocumentSearchResultVm
+                select new DocumentSearchResultVm
                 {
                     Id = d.Id,
                     Subject = d.Subject,
@@ -99,10 +98,11 @@ namespace ProjectManagement.Services.DocRepo
                         dt.Tag.NormalizedName == normalizedQuery),
 
                     MatchedInBody = d.DocumentText != null
-                })
+                }
                 // 3) order by rank/date
-                .OrderByDescending(r => r.Rank)
-                .ThenByDescending(r => r.DocumentDate);
+                into result
+                orderby result.Rank descending, result.DocumentDate descending
+                select result;
         }
 
     }
