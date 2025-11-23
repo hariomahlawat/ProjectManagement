@@ -143,12 +143,14 @@ namespace ProjectManagement.Services.Search
 
                     var snippet = snippetParts.Count == 0 ? null : string.Join(" · ", snippetParts);
 
+                    var title = string.IsNullOrWhiteSpace(p.Name) ? "Untitled project" : p.Name;
+
                     return new
                     {
                         Date = date,
                         Hit = new GlobalSearchHit(
                             Source: "Projects",
-                            Title: string.IsNullOrWhiteSpace(p.Name) ? "Untitled project" : p.Name!,
+                            Title: title,
                             Snippet: snippet,
                             Url: _urlBuilder.ProjectOverview(p.Id),
                             Date: date,
