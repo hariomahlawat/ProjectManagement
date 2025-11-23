@@ -21,7 +21,7 @@ public class IndexModel : PageModel
         _db = db;
     }
 
-    public string ProcessVersion { get; private set; } = PlanConstants.StageTemplateVersion;
+    public string ProcessVersion { get; private set; } = PlanConstants.DefaultStageTemplateVersion;
     public bool CanEditChecklist { get; private set; }
         = false;
 

@@ -3339,6 +3339,12 @@ namespace ProjectManagement.Migrations
                     b.Property<int?>("ActivePlanVersionNo")
                         .HasColumnType("integer");
 
+                    b.Property<string>("WorkflowVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("SDD-1.0");
+
                     b.Property<DateTimeOffset?>("ArchivedAt")
                         .HasColumnType("timestamp with time zone");
 

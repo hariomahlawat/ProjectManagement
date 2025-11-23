@@ -43,7 +43,8 @@ public class EditPlanPncOptionalityTests
         {
             Id = 1,
             Name = "Durations",
-            LeadPoUserId = "po-user"
+            LeadPoUserId = "po-user",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
         });
 
         await db.SaveChangesAsync();
@@ -99,7 +100,8 @@ public class EditPlanPncOptionalityTests
         {
             Id = 2,
             Name = "Exact",
-            LeadPoUserId = "po-user"
+            LeadPoUserId = "po-user",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
         });
 
         await db.SaveChangesAsync();
@@ -140,14 +142,14 @@ public class EditPlanPncOptionalityTests
         db.StageTemplates.AddRange(
             new StageTemplate
             {
-                Version = PlanConstants.StageTemplateVersion,
+                Version = PlanConstants.StageTemplateVersionV1,
                 Code = StageCodes.IPA,
                 Name = "IPA",
                 Sequence = 10
             },
             new StageTemplate
             {
-                Version = PlanConstants.StageTemplateVersion,
+                Version = PlanConstants.StageTemplateVersionV1,
                 Code = StageCodes.PNC,
                 Name = "PNC",
                 Sequence = 20

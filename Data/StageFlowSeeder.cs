@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Data;
@@ -10,40 +11,24 @@ public static class StageFlowSeeder
 {
     public static async Task SeedAsync(IServiceProvider sp)
     {
-        const string version = "SDD-1.0";
         using var scope = sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var stages = new[]
-        {
-            new StageTemplate { Version = version, Code = StageCodes.FS,  Name = "Feasibility Study",              Sequence = 10 },
-            new StageTemplate { Version = version, Code = StageCodes.IPA,   Name = "In-Principle Approval",          Sequence = 20 },
-            new StageTemplate { Version = version, Code = StageCodes.SOW,   Name = "Scope of Work Vetting",          Sequence = 30 },
-            new StageTemplate { Version = version, Code = StageCodes.AON,   Name = "Acceptance of Necessity",        Sequence = 40 },
-            new StageTemplate { Version = version, Code = StageCodes.BID,   Name = "Bid Upload",                     Sequence = 50 },
-            new StageTemplate { Version = version, Code = StageCodes.TEC,   Name = "Technical Evaluation Committee", Sequence = 60 },
-            new StageTemplate { Version = version, Code = StageCodes.BM, Name = "Benchmarking",                   Sequence = 65, ParallelGroup = "PRE_COB" },
-            new StageTemplate { Version = version, Code = StageCodes.COB,   Name = "Commercial Opening Board",       Sequence = 70 },
-            new StageTemplate { Version = version, Code = StageCodes.PNC,   Name = "Price Negotiation Committee",    Sequence = 80, Optional = true },
-            new StageTemplate { Version = version, Code = StageCodes.EAS,   Name = "Expenditure Angle Sanction",     Sequence = 90 },
-            new StageTemplate { Version = version, Code = StageCodes.SO,    Name = "Supply Order",                   Sequence = 100 },
-            new StageTemplate { Version = version, Code = StageCodes.DEVP,   Name = "Development",                    Sequence = 110 },
-            new StageTemplate { Version = version, Code = StageCodes.ATP,    Name = "Acceptance Testing",             Sequence = 120 },
-            new StageTemplate { Version = version, Code = StageCodes.PAYMENT,   Name = "Payment",                        Sequence = 130 },
-            new StageTemplate { Version = version, Code = StageCodes.TOT, Name = "Transfer of Technology", Sequence = 140, Optional = true },
-        };
+        // SECTION: Stage Template Versions
+        var changesMade = false;
 
-        var deps = new[]
-        {
-            D(StageCodes.IPA, StageCodes.FS), D(StageCodes.SOW, StageCodes.IPA), D(StageCodes.AON, StageCodes.SOW), D(StageCodes.BID, StageCodes.AON),
-            D(StageCodes.TEC, StageCodes.BID), D(StageCodes.BM, StageCodes.BID),
-            D(StageCodes.COB, StageCodes.TEC), D(StageCodes.COB, StageCodes.BM),
-            D(StageCodes.PNC, StageCodes.COB),
-            D(StageCodes.EAS, StageCodes.COB), D(StageCodes.EAS, StageCodes.PNC),
-            D(StageCodes.SO, StageCodes.EAS), D(StageCodes.DEVP, StageCodes.SO), D(StageCodes.ATP, StageCodes.DEVP), D(StageCodes.PAYMENT, StageCodes.ATP),
-            D(StageCodes.TOT, StageCodes.PAYMENT)
-        };
+        changesMade |= await SeedVersionAsync(db, PlanConstants.StageTemplateVersionV1, BuildV1Stages(), BuildV1Deps());
+        changesMade |= await SeedVersionAsync(db, PlanConstants.StageTemplateVersionV2, BuildV2Stages(), BuildV2Deps());
 
+        if (changesMade)
+        {
+            await db.SaveChangesAsync();
+        }
+    }
+
+    private static async Task<bool> SeedVersionAsync(ApplicationDbContext db, string version, StageTemplate[] stages, StageDependencyTemplate[] deps)
+    {
+        // SECTION: Template Upsert
         var changesMade = false;
 
         var existingTemplates = await db.StageTemplates
@@ -77,6 +62,7 @@ public static class StageFlowSeeder
             }
         }
 
+        // SECTION: Dependency Upsert
         var existingDeps = await db.StageDependencyTemplates
             .Where(t => t.Version == version)
             .ToListAsync();
@@ -93,12 +79,96 @@ public static class StageFlowSeeder
             changesMade = true;
         }
 
-        if (changesMade)
-        {
-            await db.SaveChangesAsync();
-        }
-
-        StageDependencyTemplate D(string from, string on)
-            => new() { Version = version, FromStageCode = from, DependsOnStageCode = on };
+        return changesMade;
     }
+
+    private static StageTemplate[] BuildV1Stages()
+    {
+        var version = PlanConstants.StageTemplateVersionV1;
+
+        return new[]
+        {
+            new StageTemplate { Version = version, Code = StageCodes.FS,  Name = "Feasibility Study",              Sequence = 10 },
+            new StageTemplate { Version = version, Code = StageCodes.IPA,   Name = "In-Principle Approval",          Sequence = 20 },
+            new StageTemplate { Version = version, Code = StageCodes.SOW,   Name = "Scope of Work Vetting",          Sequence = 30 },
+            new StageTemplate { Version = version, Code = StageCodes.AON,   Name = "Acceptance of Necessity",        Sequence = 40 },
+            new StageTemplate { Version = version, Code = StageCodes.BID,   Name = "Bid Upload",                     Sequence = 50 },
+            new StageTemplate { Version = version, Code = StageCodes.TEC,   Name = "Technical Evaluation Committee", Sequence = 60 },
+            new StageTemplate { Version = version, Code = StageCodes.BM, Name = "Benchmarking",                   Sequence = 65, ParallelGroup = "PRE_COB" },
+            new StageTemplate { Version = version, Code = StageCodes.COB,   Name = "Commercial Opening Board",       Sequence = 70 },
+            new StageTemplate { Version = version, Code = StageCodes.PNC,   Name = "Price Negotiation Committee",    Sequence = 80, Optional = true },
+            new StageTemplate { Version = version, Code = StageCodes.EAS,   Name = "Expenditure Angle Sanction",     Sequence = 90 },
+            new StageTemplate { Version = version, Code = StageCodes.SO,    Name = "Supply Order",                   Sequence = 100 },
+            new StageTemplate { Version = version, Code = StageCodes.DEVP,   Name = "Development",                    Sequence = 110 },
+            new StageTemplate { Version = version, Code = StageCodes.ATP,    Name = "Acceptance Testing",             Sequence = 120 },
+            new StageTemplate { Version = version, Code = StageCodes.PAYMENT,   Name = "Payment",                        Sequence = 130 },
+            new StageTemplate { Version = version, Code = StageCodes.TOT, Name = "Transfer of Technology", Sequence = 140, Optional = true },
+        };
+    }
+
+    private static StageTemplate[] BuildV2Stages()
+    {
+        var version = PlanConstants.StageTemplateVersionV2;
+
+        return new[]
+        {
+            new StageTemplate { Version = version, Code = StageCodes.FS,  Name = "Feasibility Study",        Sequence = 10 },
+            new StageTemplate { Version = version, Code = StageCodes.SOW, Name = "Scope of Work Vetting",   Sequence = 20 },
+            new StageTemplate { Version = version, Code = StageCodes.IPA, Name = "In-Principle Approval",  Sequence = 30 },
+            new StageTemplate { Version = version, Code = StageCodes.AON, Name = "AoN / Sanction",         Sequence = 40 },
+            new StageTemplate { Version = version, Code = StageCodes.BID, Name = "Bid Process",            Sequence = 50 },
+            new StageTemplate { Version = version, Code = StageCodes.TEC, Name = "Technical Evaluation",   Sequence = 60 },
+            new StageTemplate { Version = version, Code = StageCodes.BM,  Name = "Benchmarking",           Sequence = 70 },
+            new StageTemplate { Version = version, Code = StageCodes.COB, Name = "Commercial Opening",     Sequence = 80 },
+            new StageTemplate { Version = version, Code = StageCodes.PNC, Name = "Price Negotiation",      Sequence = 90, Optional = true },
+            new StageTemplate { Version = version, Code = StageCodes.EAS, Name = "EAS / Approval",         Sequence = 100 },
+            new StageTemplate { Version = version, Code = StageCodes.SO,  Name = "Supply Order",           Sequence = 110 },
+            new StageTemplate { Version = version, Code = StageCodes.DEVP, Name = "Development",           Sequence = 115 },
+            new StageTemplate { Version = version, Code = StageCodes.ATP, Name = "Acceptance Testing",     Sequence = 120 },
+            new StageTemplate { Version = version, Code = StageCodes.PAYMENT, Name = "Payment",            Sequence = 130 },
+            new StageTemplate { Version = version, Code = StageCodes.TOT, Name = "Transfer of Technology", Sequence = 140, Optional = true },
+        };
+    }
+
+    private static StageDependencyTemplate[] BuildV1Deps()
+    {
+        var version = PlanConstants.StageTemplateVersionV1;
+
+        return new[]
+        {
+            D(StageCodes.IPA, StageCodes.FS, version), D(StageCodes.SOW, StageCodes.IPA, version), D(StageCodes.AON, StageCodes.SOW, version), D(StageCodes.BID, StageCodes.AON, version),
+            D(StageCodes.TEC, StageCodes.BID, version), D(StageCodes.BM, StageCodes.BID, version),
+            D(StageCodes.COB, StageCodes.TEC, version), D(StageCodes.COB, StageCodes.BM, version),
+            D(StageCodes.PNC, StageCodes.COB, version),
+            D(StageCodes.EAS, StageCodes.COB, version), D(StageCodes.EAS, StageCodes.PNC, version),
+            D(StageCodes.SO, StageCodes.EAS, version), D(StageCodes.DEVP, StageCodes.SO, version), D(StageCodes.ATP, StageCodes.DEVP, version), D(StageCodes.PAYMENT, StageCodes.ATP, version),
+            D(StageCodes.TOT, StageCodes.PAYMENT, version)
+        };
+    }
+
+    private static StageDependencyTemplate[] BuildV2Deps()
+    {
+        var version = PlanConstants.StageTemplateVersionV2;
+
+        return new[]
+        {
+            D(StageCodes.SOW, StageCodes.FS, version),
+            D(StageCodes.IPA, StageCodes.SOW, version),
+            D(StageCodes.AON, StageCodes.IPA, version),
+            D(StageCodes.BID, StageCodes.AON, version),
+            D(StageCodes.TEC, StageCodes.BID, version),
+            D(StageCodes.BM, StageCodes.BID, version),
+            D(StageCodes.COB, StageCodes.TEC, version), D(StageCodes.COB, StageCodes.BM, version),
+            D(StageCodes.PNC, StageCodes.COB, version),
+            D(StageCodes.EAS, StageCodes.COB, version), D(StageCodes.EAS, StageCodes.PNC, version),
+            D(StageCodes.SO, StageCodes.EAS, version),
+            D(StageCodes.DEVP, StageCodes.SO, version),
+            D(StageCodes.ATP, StageCodes.DEVP, version),
+            D(StageCodes.PAYMENT, StageCodes.ATP, version),
+            D(StageCodes.TOT, StageCodes.PAYMENT, version)
+        };
+    }
+
+    private static StageDependencyTemplate D(string from, string on, string version)
+        => new() { Version = version, FromStageCode = from, DependsOnStageCode = on };
 }

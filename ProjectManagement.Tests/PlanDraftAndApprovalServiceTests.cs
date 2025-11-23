@@ -30,7 +30,7 @@ public class PlanDraftAndApprovalServiceTests
 
         db.StageTemplates.Add(new StageTemplate
         {
-            Version = PlanConstants.StageTemplateVersion,
+            Version = PlanConstants.StageTemplateVersionV1,
             Code = StageCodes.FS,
             Name = "Feasibility Study",
             Sequence = 10
@@ -40,7 +40,8 @@ public class PlanDraftAndApprovalServiceTests
         {
             Id = 1,
             Name = "Test Project",
-            LeadPoUserId = "po-user"
+            LeadPoUserId = "po-user",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
         });
 
         db.PlanVersions.Add(new PlanVersion
@@ -80,7 +81,7 @@ public class PlanDraftAndApprovalServiceTests
 
         db.StageTemplates.Add(new StageTemplate
         {
-            Version = PlanConstants.StageTemplateVersion,
+            Version = PlanConstants.StageTemplateVersionV1,
             Code = StageCodes.FS,
             Name = "Feasibility Study",
             Sequence = 10
@@ -90,7 +91,8 @@ public class PlanDraftAndApprovalServiceTests
         {
             Id = 2,
             Name = "Privacy",
-            LeadPoUserId = "user-a"
+            LeadPoUserId = "user-a",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
         });
 
         await db.SaveChangesAsync();
@@ -125,7 +127,7 @@ public class PlanDraftAndApprovalServiceTests
 
         db.StageTemplates.Add(new StageTemplate
         {
-            Version = PlanConstants.StageTemplateVersion,
+            Version = PlanConstants.StageTemplateVersionV1,
             Code = StageCodes.FS,
             Name = "Feasibility Study",
             Sequence = 10
@@ -135,7 +137,8 @@ public class PlanDraftAndApprovalServiceTests
         {
             Id = 3,
             Name = "Orphan",
-            LeadPoUserId = "owner"
+            LeadPoUserId = "owner",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
         });
 
         var orphan = new PlanVersion
@@ -182,7 +185,8 @@ public class PlanDraftAndApprovalServiceTests
         {
             Id = 7,
             Name = "Blocked",
-            LeadPoUserId = "po-owner"
+            LeadPoUserId = "po-owner",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
         });
 
         db.PlanVersions.Add(new PlanVersion

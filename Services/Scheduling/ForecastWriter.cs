@@ -47,6 +47,11 @@ public class ForecastWriter : IForecastWriter
             return;
         }
 
+        // SECTION: Workflow Resolution
+        var workflowVersion = string.IsNullOrWhiteSpace(project.WorkflowVersion)
+            ? PlanConstants.StageTemplateVersionV1
+            : project.WorkflowVersion;
+
         var planVersion = await _db.PlanVersions
             .AsNoTracking()
             .Where(p => p.ProjectId == projectId && p.VersionNo == project.ActivePlanVersionNo.Value)
@@ -66,13 +71,13 @@ public class ForecastWriter : IForecastWriter
 
         var templates = await _db.StageTemplates
             .AsNoTracking()
-            .Where(t => t.Version == PlanConstants.StageTemplateVersion)
+            .Where(t => t.Version == workflowVersion)
             .OrderBy(t => t.Sequence)
             .ToListAsync(ct);
 
         var dependencies = await _db.StageDependencyTemplates
             .AsNoTracking()
-            .Where(d => d.Version == PlanConstants.StageTemplateVersion)
+            .Where(d => d.Version == workflowVersion)
             .ToListAsync(ct);
 
         var durations = await _db.StagePlans

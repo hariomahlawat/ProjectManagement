@@ -33,6 +33,18 @@ public sealed class PlanGenerationService
             .OrderBy(d => d.SortOrder)
             .ToListAsync(ct);
 
+        // SECTION: Workflow Resolution
+        var workflowVersion = await _db.Projects
+            .Where(p => p.Id == projectId)
+            .Select(p => p.WorkflowVersion)
+            .SingleAsync(ct);
+        workflowVersion ??= PlanConstants.StageTemplateVersionV1;
+
+        var templateSequence = await _db.StageTemplates
+            .AsNoTracking()
+            .Where(t => t.Version == workflowVersion)
+            .ToDictionaryAsync(t => t.Code, t => t.Sequence, StringComparer.OrdinalIgnoreCase, ct);
+
         var stages = await _db.ProjectStages
             .Where(s => s.ProjectId == projectId)
             .ToListAsync(ct);
@@ -48,7 +60,7 @@ public sealed class PlanGenerationService
             .ToDictionary(d => d.StageCode!, StringComparer.OrdinalIgnoreCase);
 
         var orderedStages = stages
-            .OrderBy(s => ResolveSortOrder(s.StageCode, durationMap))
+            .OrderBy(s => ResolveSortOrder(s.StageCode, durationMap, templateSequence))
             .ThenBy(s => s.StageCode, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -73,7 +85,7 @@ public sealed class PlanGenerationService
                 continue;
             }
 
-            stage.SortOrder = ResolveSortOrder(stage.StageCode, durationMap);
+            stage.SortOrder = ResolveSortOrder(stage.StageCode, durationMap, templateSequence);
 
             var start = i == 0
                 ? cursor
@@ -108,9 +120,16 @@ public sealed class PlanGenerationService
             .OrderBy(d => d.SortOrder)
             .ToListAsync(ct);
 
+        // SECTION: Workflow Resolution
+        var workflowVersion = await _db.Projects
+            .Where(p => p.Id == projectId)
+            .Select(p => p.WorkflowVersion)
+            .SingleAsync(ct);
+        workflowVersion ??= PlanConstants.StageTemplateVersionV1;
+
         var templates = await _db.StageTemplates
             .AsNoTracking()
-            .Where(t => t.Version == PlanConstants.StageTemplateVersion)
+            .Where(t => t.Version == workflowVersion)
             .OrderBy(t => t.Sequence)
             .Select(t => t.Code)
             .ToListAsync(ct);
@@ -221,7 +240,7 @@ public sealed class PlanGenerationService
         return ordered;
     }
 
-    private static int ResolveSortOrder(string? stageCode, IReadOnlyDictionary<string, ProjectPlanDuration>? durationMap)
+    private static int ResolveSortOrder(string? stageCode, IReadOnlyDictionary<string, ProjectPlanDuration>? durationMap, IReadOnlyDictionary<string, int>? templateSequence = null)
     {
         if (stageCode is not null && durationMap is not null && durationMap.TryGetValue(stageCode, out var duration))
         {
@@ -231,6 +250,11 @@ public sealed class PlanGenerationService
         if (stageCode is null)
         {
             return int.MaxValue;
+        }
+
+        if (templateSequence is not null && templateSequence.TryGetValue(stageCode, out var templateOrder))
+        {
+            return templateOrder;
         }
 
         var index = Array.IndexOf(StageCodes.All, stageCode);

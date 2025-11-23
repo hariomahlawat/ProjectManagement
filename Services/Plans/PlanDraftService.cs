@@ -137,9 +137,16 @@ public class PlanDraftService
             .Select(p => (int?)p.VersionNo)
             .MaxAsync(cancellationToken) ?? 0;
 
+        // SECTION: Workflow Resolution
+        var workflowVersion = await _db.Projects
+            .Where(p => p.Id == projectId)
+            .Select(p => p.WorkflowVersion)
+            .SingleAsync(cancellationToken);
+        workflowVersion ??= PlanConstants.StageTemplateVersionV1;
+
         var stageCodes = await _db.StageTemplates
             .AsNoTracking()
-            .Where(t => t.Version == PlanConstants.StageTemplateVersion)
+            .Where(t => t.Version == workflowVersion)
             .OrderBy(t => t.Sequence)
             .Select(t => t.Code)
             .ToListAsync(cancellationToken);
@@ -147,7 +154,7 @@ public class PlanDraftService
         if (stageCodes.Count == 0)
         {
             _logger.LogWarning("No stage templates found for version {Version}. Creating an empty draft for project {ProjectId}.",
-                PlanConstants.StageTemplateVersion, projectId);
+                workflowVersion, projectId);
         }
 
         var plan = new PlanVersion
