@@ -9,6 +9,7 @@ using NpgsqlTypes;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using ProjectManagement.Services.Navigation;
 
 namespace ProjectManagement.Services.Search
@@ -237,7 +238,7 @@ namespace ProjectManagement.Services.Search
                     Source: "Training tracker",
                     Title: title,
                     Snippet: string.IsNullOrWhiteSpace(training.Snippet) ? training.Notes : training.Snippet,
-                    Url: _urlBuilder.ProjectOfficeTrainingDetails(training.Id),
+                    Url: _urlBuilder.ProjectOfficeTrainingManage(training.Id),
                     Date: date,
                     Score: 0.5m,
                     FileType: null,
@@ -248,57 +249,82 @@ namespace ProjectManagement.Services.Search
         // SECTION: TOT tracker search
         private async Task AppendTotAsync(NpgsqlTsQuery searchQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
-            var trainings = await _dbContext.TotTrainings
+            var tots = await _dbContext.ProjectTots
                 .AsNoTracking()
-                .Where(training =>
-                    EF.Functions.ToTsVector("english", training.Notes ?? string.Empty)
+                .Join(
+                    _dbContext.Projects.AsNoTracking(),
+                    tot => tot.ProjectId,
+                    project => project.Id,
+                    (tot, project) => new { tot, project })
+                .Where(entry =>
+                    EF.Functions.ToTsVector("english",
+                        (entry.project.Name ?? string.Empty) + " " +
+                        (entry.tot.MetDetails ?? string.Empty))
                         .Matches(searchQuery))
-                .OrderByDescending(training => training.LastModifiedAtUtc ?? training.CreatedAtUtc)
+                .OrderByDescending(entry => entry.tot.LastApprovedOnUtc ??
+                    (entry.tot.CompletedOn.HasValue
+                        ? entry.tot.CompletedOn.Value.ToDateTime(TimeOnly.MinValue)
+                        : entry.tot.StartedOn.HasValue
+                            ? entry.tot.StartedOn.Value.ToDateTime(TimeOnly.MinValue)
+                            : entry.project.CreatedAt))
                 .Take(limit)
-                .Select(training => new
+                .Select(entry => new
                 {
-                    training.Id,
-                    training.Notes,
-                    training.StartDate,
-                    training.EndDate,
-                    training.CreatedAtUtc,
-                    training.LastModifiedAtUtc,
+                    entry.tot.Id,
+                    entry.tot.ProjectId,
+                    entry.tot.Status,
+                    entry.tot.MetDetails,
+                    entry.tot.StartedOn,
+                    entry.tot.CompletedOn,
+                    entry.tot.LastApprovedOnUtc,
+                    ProjectName = entry.project.Name,
+                    Date = entry.tot.LastApprovedOnUtc ??
+                        (entry.tot.CompletedOn.HasValue
+                            ? entry.tot.CompletedOn.Value.ToDateTime(TimeOnly.MinValue)
+                            : entry.tot.StartedOn.HasValue
+                                ? entry.tot.StartedOn.Value.ToDateTime(TimeOnly.MinValue)
+                                : entry.project.CreatedAt),
                     Snippet = EF.Functions.TsHeadline(
                         "english",
-                        training.Notes ?? string.Empty,
+                        (entry.project.Name ?? string.Empty) + " " +
+                        (entry.tot.MetDetails ?? string.Empty),
                         searchQuery,
                         headlineOptions)
                 })
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            foreach (var training in trainings)
+            foreach (var tot in tots)
             {
-                var titleParts = new List<string>(2);
-                if (training.StartDate.HasValue || training.EndDate.HasValue)
+                var titleParts = new List<string>(3);
+                if (!string.IsNullOrWhiteSpace(tot.ProjectName))
                 {
-                    titleParts.Add(string.Join(" – ", new[]
-                    {
-                        training.StartDate?.ToString("dd MMM", CultureInfo.InvariantCulture),
-                        training.EndDate?.ToString("dd MMM", CultureInfo.InvariantCulture)
-                    }.Where(v => !string.IsNullOrWhiteSpace(v))));
+                    titleParts.Add(tot.ProjectName);
                 }
 
-                if (!string.IsNullOrWhiteSpace(training.Notes))
+                titleParts.Add(tot.Status.ToString());
+
+                var dateText = tot.CompletedOn.HasValue
+                    ? tot.CompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
+                    : tot.StartedOn.HasValue
+                        ? tot.StartedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
+                        : null;
+
+                if (!string.IsNullOrWhiteSpace(dateText))
                 {
-                    titleParts.Add(training.Notes);
+                    titleParts.Add(dateText);
                 }
 
                 var title = titleParts.Count == 0
-                    ? "TOT training"
+                    ? "TOT tracker entry"
                     : string.Join(" · ", titleParts);
 
                 hits.Add(new GlobalSearchHit(
                     Source: "TOT tracker",
                     Title: title,
-                    Snippet: string.IsNullOrWhiteSpace(training.Snippet) ? training.Notes : training.Snippet,
-                    Url: _urlBuilder.ProjectOfficeTotDetails(training.Id),
-                    Date: training.LastModifiedAtUtc ?? training.CreatedAtUtc,
+                    Snippet: string.IsNullOrWhiteSpace(tot.Snippet) ? tot.MetDetails : tot.Snippet,
+                    Url: _urlBuilder.ProjectOfficeTotTracker(tot.ProjectId),
+                    Date: tot.Date,
                     Score: 0.48m,
                     FileType: null,
                     Extra: null));
@@ -308,57 +334,144 @@ namespace ProjectManagement.Services.Search
         // SECTION: Proliferation survey search
         private async Task AppendProliferationAsync(NpgsqlTsQuery searchQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
-            var records = await _dbContext.ProliferationSurveys
+            var yearlyRecords = await _dbContext.ProliferationYearlies
                 .AsNoTracking()
-                .Where(record =>
+                .Join(
+                    _dbContext.Projects.AsNoTracking(),
+                    record => record.ProjectId,
+                    project => project.Id,
+                    (record, project) => new { record, project })
+                .Where(entry =>
                     EF.Functions.ToTsVector("english",
-                        (record.Country ?? string.Empty) + " " +
-                        (record.Topic ?? string.Empty) + " " +
-                        (record.Remarks ?? string.Empty))
+                        (entry.project.Name ?? string.Empty) + " " +
+                        (entry.record.Remarks ?? string.Empty))
                         .Matches(searchQuery))
-                .OrderByDescending(record => record.LastModifiedAtUtc ?? record.CreatedAtUtc)
+                .OrderByDescending(entry => entry.record.LastUpdatedOnUtc)
                 .Take(limit)
-                .Select(record => new
+                .Select(entry => new
                 {
-                    record.Id,
-                    record.Topic,
-                    record.Country,
-                    record.Remarks,
-                    record.SurveyDate,
-                    record.CreatedAtUtc,
-                    record.LastModifiedAtUtc,
+                    entry.record.Id,
+                    entry.record.ProjectId,
+                    entry.record.Source,
+                    entry.record.Year,
+                    entry.record.Remarks,
+                    entry.record.CreatedOnUtc,
+                    entry.record.LastUpdatedOnUtc,
+                    ProjectName = entry.project.Name,
                     Snippet = EF.Functions.TsHeadline(
                         "english",
-                        (record.Country ?? string.Empty) + " " +
-                        (record.Topic ?? string.Empty) + " " +
-                        (record.Remarks ?? string.Empty),
+                        (entry.project.Name ?? string.Empty) + " " +
+                        (entry.record.Remarks ?? string.Empty),
                         searchQuery,
                         headlineOptions)
                 })
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
+            var granularRecords = await _dbContext.ProliferationGranularEntries
+                .AsNoTracking()
+                .Join(
+                    _dbContext.Projects.AsNoTracking(),
+                    record => record.ProjectId,
+                    project => project.Id,
+                    (record, project) => new { record, project })
+                .Where(entry =>
+                    EF.Functions.ToTsVector("english",
+                        (entry.project.Name ?? string.Empty) + " " +
+                        (entry.record.UnitName ?? string.Empty) + " " +
+                        (entry.record.Remarks ?? string.Empty))
+                        .Matches(searchQuery))
+                .OrderByDescending(entry => entry.record.LastUpdatedOnUtc)
+                .Take(limit)
+                .Select(entry => new
+                {
+                    entry.record.Id,
+                    entry.record.ProjectId,
+                    entry.record.Source,
+                    entry.record.ProliferationDate,
+                    entry.record.Remarks,
+                    entry.record.CreatedOnUtc,
+                    entry.record.LastUpdatedOnUtc,
+                    ProjectName = entry.project.Name,
+                    Snippet = EF.Functions.TsHeadline(
+                        "english",
+                        (entry.project.Name ?? string.Empty) + " " +
+                        (entry.record.UnitName ?? string.Empty) + " " +
+                        (entry.record.Remarks ?? string.Empty),
+                        searchQuery,
+                        headlineOptions)
+                })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var records = yearlyRecords
+                .Select(record => new
+                {
+                    record.Id,
+                    record.ProjectId,
+                    record.ProjectName,
+                    record.Source,
+                    Kind = ProliferationRecordKind.Yearly,
+                    Year = (int?)record.Year,
+                    ProliferationDate = (DateOnly?)null,
+                    record.Remarks,
+                    record.Snippet,
+                    Date = record.LastUpdatedOnUtc
+                })
+                .Concat(granularRecords.Select(record => new
+                {
+                    record.Id,
+                    record.ProjectId,
+                    record.ProjectName,
+                    record.Source,
+                    Kind = ProliferationRecordKind.Granular,
+                    Year = (int?)record.ProliferationDate.Year,
+                    ProliferationDate = (DateOnly?)record.ProliferationDate,
+                    record.Remarks,
+                    record.Snippet,
+                    Date = record.LastUpdatedOnUtc
+                }))
+                .OrderByDescending(record => record.Date)
+                .Take(limit)
+                .ToList();
+
             foreach (var record in records)
             {
-                var date = record.LastModifiedAtUtc ?? record.CreatedAtUtc;
-                var title = record.Topic ?? record.Country;
-
-                if (record.SurveyDate.HasValue)
+                var titleParts = new List<string>(3);
+                if (!string.IsNullOrWhiteSpace(record.ProjectName))
                 {
-                    title = string.IsNullOrWhiteSpace(title)
-                        ? record.SurveyDate.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
-                        : $"{title} ({record.SurveyDate.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)})";
+                    titleParts.Add(record.ProjectName);
                 }
 
+                var sourceLabel = record.Source.ToString();
+
+                if (record.Kind == ProliferationRecordKind.Yearly)
+                {
+                    titleParts.Add(record.Year.HasValue
+                        ? $"{sourceLabel} ({record.Year.Value.ToString(CultureInfo.InvariantCulture)})"
+                        : sourceLabel);
+                }
+                else
+                {
+                    var dateLabel = record.ProliferationDate?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+                    titleParts.Add(string.IsNullOrWhiteSpace(dateLabel) ? sourceLabel : $"{sourceLabel} ({dateLabel})");
+                }
+
+                var title = titleParts.Count == 0
+                    ? "Proliferation record"
+                    : string.Join(" · ", titleParts);
+
+                var snippet = string.IsNullOrWhiteSpace(record.Snippet) ? record.Remarks : record.Snippet;
+
                 hits.Add(new GlobalSearchHit(
-                    Source: "Proliferation survey",
+                    Source: "Proliferation tracker",
                     Title: title,
-                    Snippet: string.IsNullOrWhiteSpace(record.Snippet) ? record.Remarks : record.Snippet,
-                    Url: _urlBuilder.ProjectOfficeProliferationDetails(record.Id),
-                    Date: date,
+                    Snippet: snippet,
+                    Url: _urlBuilder.ProjectOfficeProliferationManage(record.ProjectId, record.Kind, record.Source, record.Year),
+                    Date: record.Date,
                     Score: 0.47m,
                     FileType: null,
-                    Extra: record.Country));
+                    Extra: record.Year?.ToString(CultureInfo.InvariantCulture)));
             }
         }
     }
