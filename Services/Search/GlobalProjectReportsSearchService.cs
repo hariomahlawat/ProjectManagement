@@ -237,7 +237,7 @@ namespace ProjectManagement.Services.Search
                     Source: "Training tracker",
                     Title: title,
                     Snippet: string.IsNullOrWhiteSpace(training.Snippet) ? training.Notes : training.Snippet,
-                    Url: _urlBuilder.ProjectOfficeTrainingDetails(training.Id),
+                    Url: _urlBuilder.ProjectOfficeTrainingManage(training.Id),
                     Date: date,
                     Score: 0.5m,
                     FileType: null,
@@ -248,57 +248,67 @@ namespace ProjectManagement.Services.Search
         // SECTION: TOT tracker search
         private async Task AppendTotAsync(NpgsqlTsQuery searchQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
-            var trainings = await _dbContext.TotTrainings
+            var tots = await _dbContext.ProjectTots
+                .Include(tot => tot.Project)
                 .AsNoTracking()
-                .Where(training =>
-                    EF.Functions.ToTsVector("english", training.Notes ?? string.Empty)
+                .Where(tot =>
+                    EF.Functions.ToTsVector("english",
+                        (tot.Project != null ? tot.Project.Name : string.Empty) + " " +
+                        (tot.MetDetails ?? string.Empty))
                         .Matches(searchQuery))
-                .OrderByDescending(training => training.LastModifiedAtUtc ?? training.CreatedAtUtc)
+                .OrderByDescending(tot => tot.LastApprovedOnUtc ?? tot.CompletedOn ?? tot.StartedOn ?? tot.Project!.CreatedAt)
                 .Take(limit)
-                .Select(training => new
+                .Select(tot => new
                 {
-                    training.Id,
-                    training.Notes,
-                    training.StartDate,
-                    training.EndDate,
-                    training.CreatedAtUtc,
-                    training.LastModifiedAtUtc,
+                    tot.ProjectId,
+                    ProjectName = tot.Project != null ? tot.Project.Name : null,
+                    tot.MetDetails,
+                    tot.StartedOn,
+                    tot.CompletedOn,
+                    tot.LastApprovedOnUtc,
+                    ProjectCreatedOn = tot.Project != null ? (DateTime?)tot.Project.CreatedAt : null,
                     Snippet = ApplicationDbContext.TsHeadline(
                         "english",
-                        training.Notes ?? string.Empty,
+                        (tot.Project != null ? tot.Project.Name : string.Empty) + " " +
+                        (tot.MetDetails ?? string.Empty),
                         searchQuery,
                         headlineOptions)
                 })
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            foreach (var training in trainings)
+            foreach (var tot in tots)
             {
                 var titleParts = new List<string>(2);
-                if (training.StartDate.HasValue || training.EndDate.HasValue)
+                if (!string.IsNullOrWhiteSpace(tot.ProjectName))
+                {
+                    titleParts.Add(tot.ProjectName);
+                }
+
+                if (tot.StartedOn.HasValue || tot.CompletedOn.HasValue)
                 {
                     titleParts.Add(string.Join(" – ", new[]
                     {
-                        training.StartDate?.ToString("dd MMM", CultureInfo.InvariantCulture),
-                        training.EndDate?.ToString("dd MMM", CultureInfo.InvariantCulture)
+                        tot.StartedOn?.ToString("dd MMM", CultureInfo.InvariantCulture),
+                        tot.CompletedOn?.ToString("dd MMM", CultureInfo.InvariantCulture)
                     }.Where(v => !string.IsNullOrWhiteSpace(v))));
                 }
 
-                if (!string.IsNullOrWhiteSpace(training.Notes))
+                if (!string.IsNullOrWhiteSpace(tot.MetDetails))
                 {
-                    titleParts.Add(training.Notes);
+                    titleParts.Add(tot.MetDetails);
                 }
 
                 var title = titleParts.Count == 0
-                    ? "TOT training"
+                    ? "TOT tracker"
                     : string.Join(" · ", titleParts);
 
                 hits.Add(new GlobalSearchHit(
                     Source: "TOT tracker",
                     Title: title,
-                    Snippet: string.IsNullOrWhiteSpace(training.Snippet) ? training.Notes : training.Snippet,
-                    Url: _urlBuilder.ProjectOfficeTotDetails(training.Id),
-                    Date: training.LastModifiedAtUtc ?? training.CreatedAtUtc,
+                    Snippet: string.IsNullOrWhiteSpace(tot.Snippet) ? tot.MetDetails : tot.Snippet,
+                    Url: _urlBuilder.ProjectOfficeTotTracker(tot.ProjectId),
+                    Date: tot.LastApprovedOnUtc ?? tot.CompletedOn?.ToDateTime(TimeOnly.MinValue) ?? tot.ProjectCreatedOn ?? DateTime.UtcNow,
                     Score: 0.48m,
                     FileType: null,
                     Extra: null));
@@ -308,30 +318,30 @@ namespace ProjectManagement.Services.Search
         // SECTION: Proliferation survey search
         private async Task AppendProliferationAsync(NpgsqlTsQuery searchQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
-            var records = await _dbContext.ProliferationSurveys
+            var records = await _dbContext.Set<ProliferationGranular>()
                 .AsNoTracking()
                 .Where(record =>
                     EF.Functions.ToTsVector("english",
-                        (record.Country ?? string.Empty) + " " +
-                        (record.Topic ?? string.Empty) + " " +
-                        (record.Remarks ?? string.Empty))
+                        record.UnitName + " " +
+                        (record.Remarks ?? string.Empty) + " " +
+                        record.Source.ToString())
                         .Matches(searchQuery))
-                .OrderByDescending(record => record.LastModifiedAtUtc ?? record.CreatedAtUtc)
+                .OrderByDescending(record => record.LastUpdatedOnUtc)
                 .Take(limit)
                 .Select(record => new
                 {
                     record.Id,
-                    record.Topic,
-                    record.Country,
+                    record.ProjectId,
+                    record.UnitName,
+                    record.Source,
                     record.Remarks,
-                    record.SurveyDate,
-                    record.CreatedAtUtc,
-                    record.LastModifiedAtUtc,
+                    record.ProliferationDate,
+                    record.LastUpdatedOnUtc,
                     Snippet = ApplicationDbContext.TsHeadline(
                         "english",
-                        (record.Country ?? string.Empty) + " " +
-                        (record.Topic ?? string.Empty) + " " +
-                        (record.Remarks ?? string.Empty),
+                        record.UnitName + " " +
+                        (record.Remarks ?? string.Empty) + " " +
+                        record.Source.ToString(),
                         searchQuery,
                         headlineOptions)
                 })
@@ -340,25 +350,27 @@ namespace ProjectManagement.Services.Search
 
             foreach (var record in records)
             {
-                var date = record.LastModifiedAtUtc ?? record.CreatedAtUtc;
-                var title = record.Topic ?? record.Country;
+                var date = record.LastUpdatedOnUtc;
+                var titleParts = new List<string>(3);
+                titleParts.Add(record.Source.ToDisplayName());
+                titleParts.Add(record.UnitName);
+                titleParts.Add(record.ProliferationDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture));
 
-                if (record.SurveyDate.HasValue)
-                {
-                    title = string.IsNullOrWhiteSpace(title)
-                        ? record.SurveyDate.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
-                        : $"{title} ({record.SurveyDate.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)})";
-                }
+                var title = string.Join(" · ", titleParts.Where(p => !string.IsNullOrWhiteSpace(p)));
 
                 hits.Add(new GlobalSearchHit(
                     Source: "Proliferation survey",
                     Title: title,
                     Snippet: string.IsNullOrWhiteSpace(record.Snippet) ? record.Remarks : record.Snippet,
-                    Url: _urlBuilder.ProjectOfficeProliferationDetails(record.Id),
+                    Url: _urlBuilder.ProjectOfficeProliferationManage(
+                        record.ProjectId,
+                        ProliferationRecordKind.Granular,
+                        record.Source,
+                        record.ProliferationDate.Year),
                     Date: date,
                     Score: 0.47m,
                     FileType: null,
-                    Extra: record.Country));
+                    Extra: record.Source.ToDisplayName()));
             }
         }
     }
