@@ -60,12 +60,9 @@ public sealed class ProjectDocumentOcrWorker : BackgroundService
                         {
                             // SECTION: Guard against ocrmypdf banner-only output
                             var normalizedOcrText = result.Text?.Trim();
-                            var looksLikeBanner = !string.IsNullOrEmpty(normalizedOcrText) &&
-                                normalizedOcrText.IndexOf(
-                                    "OCR skipped on page",
-                                    StringComparison.OrdinalIgnoreCase) >= 0;
+                            var containsOnlySkipBanners = ContainsOnlySkipBanners(normalizedOcrText);
 
-                            if (looksLikeBanner)
+                            if (containsOnlySkipBanners)
                             {
                                 document.OcrStatus = ProjectDocumentOcrStatus.Failed;
                                 document.OcrFailureReason = "OCR produced only a skip message.";
@@ -182,6 +179,55 @@ public sealed class ProjectDocumentOcrWorker : BackgroundService
         }
 
         return text.Length > 200_000 ? text[..200_000] : text;
+    }
+
+    private static bool ContainsOnlySkipBanners(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var hasContent = false;
+        var lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var rawLine in lines)
+        {
+            var line = TrimLeadingBom(rawLine).Trim();
+
+            if (line.Length == 0)
+            {
+                continue;
+            }
+
+            if ((line.StartsWith("[", StringComparison.Ordinal) && line.EndsWith("]", StringComparison.Ordinal)) ||
+                (line.StartsWith("(", StringComparison.Ordinal) && line.EndsWith(")", StringComparison.Ordinal)))
+            {
+                line = line.TrimStart('[', '(').TrimEnd(']', ')').Trim();
+            }
+
+            if (line.Length == 0)
+            {
+                continue;
+            }
+
+            hasContent = true;
+
+            var isSkipBanner = line.IndexOf("OCR skipped on page", StringComparison.OrdinalIgnoreCase) >= 0;
+            var isPriorOcrBanner = line.IndexOf("Prior OCR", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            if (!isSkipBanner && !isPriorOcrBanner)
+            {
+                return false;
+            }
+        }
+
+        return hasContent;
+    }
+
+    private static string TrimLeadingBom(string value)
+    {
+        return value.Length > 0 ? value.TrimStart('\ufeff') : value;
     }
 
     // SECTION: Full-text search maintenance helpers
