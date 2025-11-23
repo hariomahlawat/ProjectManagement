@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using NpgsqlTypes;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Navigation;
 
@@ -34,7 +35,9 @@ namespace ProjectManagement.Services.Search
                 return Array.Empty<GlobalSearchHit>();
             }
 
-            var pattern = $"%{query.Trim()}%";
+            var trimmed = query.Trim();
+            var searchQuery = EF.Functions.WebSearchToTsQuery("english", trimmed);
+            var headlineOptions = "StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=10, ShortWord=3";
             var limit = Math.Max(1, maxResults);
 
             // 1) EF-friendly query only
@@ -45,13 +48,13 @@ namespace ProjectManagement.Services.Search
                 .Where(p =>
                     !p.IsDeleted &&
                     !p.IsArchived &&
-                    (
-                        EF.Functions.ILike(p.Name, pattern) ||
-                        EF.Functions.ILike(p.Description ?? string.Empty, pattern) ||
-                        EF.Functions.ILike(p.CaseFileNumber ?? string.Empty, pattern) ||
-                        (p.SponsoringUnit != null && EF.Functions.ILike(p.SponsoringUnit.Name, pattern)) ||
-                        (p.SponsoringLineDirectorate != null && EF.Functions.ILike(p.SponsoringLineDirectorate.Name, pattern))
-                    ))
+                    EF.Functions.ToTsVector("english",
+                        (p.Name ?? string.Empty) + " " +
+                        (p.Description ?? string.Empty) + " " +
+                        (p.CaseFileNumber ?? string.Empty) + " " +
+                        (p.SponsoringUnit != null ? p.SponsoringUnit.Name : string.Empty) + " " +
+                        (p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : string.Empty))
+                        .Matches(searchQuery))
                 // pull a few extra so sorting in-memory still has room
                 .Take(limit * 3)
                 .Select(p => new
@@ -63,7 +66,16 @@ namespace ProjectManagement.Services.Search
                     p.ArchivedAt,
                     p.DeletedAt,
                     SponsoringUnit = p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
-                    LineDirectorate = p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : null
+                    LineDirectorate = p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : null,
+                    Snippet = EF.Functions.TsHeadline(
+                        "english",
+                        (p.Name ?? string.Empty) + " " +
+                        (p.Description ?? string.Empty) + " " +
+                        (p.CaseFileNumber ?? string.Empty) + " " +
+                        (p.SponsoringUnit != null ? p.SponsoringUnit.Name : string.Empty) + " " +
+                        (p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : string.Empty),
+                        searchQuery,
+                        headlineOptions)
                 })
                 .ToListAsync(cancellationToken);
 
@@ -82,12 +94,19 @@ namespace ProjectManagement.Services.Search
                         ?? new DateTimeOffset(DateTime.SpecifyKind(p.CreatedAt, DateTimeKind.Utc));
 
                     var snippetParts = new List<string>(3);
-                    if (!string.IsNullOrWhiteSpace(p.Description))
-                        snippetParts.Add(p.Description);
-                    if (!string.IsNullOrWhiteSpace(p.SponsoringUnit))
-                        snippetParts.Add($"Sponsoring unit: {p.SponsoringUnit}");
-                    if (!string.IsNullOrWhiteSpace(p.LineDirectorate))
-                        snippetParts.Add($"Line directorate: {p.LineDirectorate}");
+                    if (!string.IsNullOrWhiteSpace(p.Snippet))
+                    {
+                        snippetParts.Add(p.Snippet);
+                    }
+                    else
+                    {
+                        if (!string.IsNullOrWhiteSpace(p.Description))
+                            snippetParts.Add(p.Description);
+                        if (!string.IsNullOrWhiteSpace(p.SponsoringUnit))
+                            snippetParts.Add($"Sponsoring unit: {p.SponsoringUnit}");
+                        if (!string.IsNullOrWhiteSpace(p.LineDirectorate))
+                            snippetParts.Add($"Line directorate: {p.LineDirectorate}");
+                    }
 
                     var snippet = snippetParts.Count == 0 ? null : string.Join(" · ", snippetParts);
 

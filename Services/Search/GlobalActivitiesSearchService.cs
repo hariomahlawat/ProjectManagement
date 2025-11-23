@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using NpgsqlTypes;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Services.Navigation;
@@ -35,17 +36,37 @@ public sealed class GlobalActivitiesSearchService : IGlobalActivitiesSearchServi
             return Array.Empty<GlobalSearchHit>();
         }
 
-        var pattern = $"%{query.Trim()}%";
+        var trimmed = query.Trim();
+        var searchQuery = EF.Functions.WebSearchToTsQuery("english", trimmed);
+        var headlineOptions = "StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=10, ShortWord=3";
         var limit = Math.Max(1, maxResults);
 
         var activities = await _dbContext.Activities
             .AsNoTracking()
-            .Where(activity => !activity.IsDeleted && (
-                EF.Functions.ILike(activity.Title, pattern) ||
-                EF.Functions.ILike(activity.Description ?? string.Empty, pattern) ||
-                EF.Functions.ILike(activity.Location ?? string.Empty, pattern)))
+            .Where(activity => !activity.IsDeleted &&
+                EF.Functions.ToTsVector("english",
+                    (activity.Title ?? string.Empty) + " " +
+                    (activity.Description ?? string.Empty) + " " +
+                    (activity.Location ?? string.Empty))
+                    .Matches(searchQuery))
             .OrderByDescending(activity => activity.ScheduledStartUtc ?? activity.CreatedAtUtc)
             .Take(limit)
+            .Select(activity => new
+            {
+                activity.Id,
+                activity.Title,
+                activity.Description,
+                activity.Location,
+                activity.CreatedAtUtc,
+                activity.ScheduledStartUtc,
+                Snippet = EF.Functions.TsHeadline(
+                    "english",
+                    (activity.Title ?? string.Empty) + " " +
+                    (activity.Description ?? string.Empty) + " " +
+                    (activity.Location ?? string.Empty),
+                    searchQuery,
+                    headlineOptions)
+            })
             .ToListAsync(cancellationToken);
 
         if (activities.Count == 0)
@@ -60,7 +81,7 @@ public sealed class GlobalActivitiesSearchService : IGlobalActivitiesSearchServi
             hits.Add(new GlobalSearchHit(
                 Source: "Activities",
                 Title: activity.Title,
-                Snippet: activity.Description,
+                Snippet: string.IsNullOrWhiteSpace(activity.Snippet) ? activity.Description : activity.Snippet,
                 Url: _urlBuilder.ActivityDetails(activity.Id),
                 Date: date,
                 Score: 0.45m,

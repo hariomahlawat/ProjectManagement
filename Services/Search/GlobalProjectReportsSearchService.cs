@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using NpgsqlTypes;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Data;
@@ -38,29 +39,32 @@ namespace ProjectManagement.Services.Search
             }
 
             var trimmed = query.Trim();
-            var pattern = $"%{trimmed}%";
+            var searchQuery = EF.Functions.WebSearchToTsQuery("english", trimmed);
             var limit = Math.Max(1, maxResults);
             var perSourceLimit = Math.Max(1, (int)Math.Ceiling(limit / 5d));
+            var headlineOptions = "StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=10, ShortWord=3";
             var hits = new List<GlobalSearchHit>();
 
-            await AppendVisitsAsync(pattern, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
-            await AppendSocialMediaAsync(pattern, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
-            await AppendTrainingAsync(trimmed, pattern, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
-            await AppendTotAsync(pattern, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
-            await AppendProliferationAsync(pattern, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
+            await AppendVisitsAsync(searchQuery, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
+            await AppendSocialMediaAsync(searchQuery, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
+            await AppendTrainingAsync(trimmed, searchQuery, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
+            await AppendTotAsync(searchQuery, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
+            await AppendProliferationAsync(searchQuery, headlineOptions, perSourceLimit, hits, cancellationToken).ConfigureAwait(false);
 
             return hits;
         }
 
         // SECTION: Visits tracker search
-        private async Task AppendVisitsAsync(string pattern, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
+        private async Task AppendVisitsAsync(NpgsqlTsQuery searchQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
             var visits = await _dbContext.Visits
                 .AsNoTracking()
                 .Where(visit =>
-                    EF.Functions.ILike(visit.VisitorName, pattern) ||
-                    EF.Functions.ILike(visit.Remarks ?? string.Empty, pattern) ||
-                    (visit.VisitType != null && EF.Functions.ILike(visit.VisitType.Name, pattern)))
+                    EF.Functions.ToTsVector("english",
+                        (visit.VisitorName ?? string.Empty) + " " +
+                        (visit.Remarks ?? string.Empty) + " " +
+                        (visit.VisitType != null ? visit.VisitType.Name : string.Empty))
+                    .Matches(searchQuery))
                 .OrderByDescending(visit => visit.LastModifiedAtUtc ?? visit.CreatedAtUtc)
                 .Take(limit)
                 .Select(visit => new
@@ -71,7 +75,14 @@ namespace ProjectManagement.Services.Search
                     visit.DateOfVisit,
                     visit.CreatedAtUtc,
                     visit.LastModifiedAtUtc,
-                    TypeName = visit.VisitType != null ? visit.VisitType.Name : null
+                    TypeName = visit.VisitType != null ? visit.VisitType.Name : null,
+                    Snippet = EF.Functions.TsHeadline(
+                        "english",
+                        (visit.VisitorName ?? string.Empty) + " " +
+                        (visit.Remarks ?? string.Empty) + " " +
+                        (visit.VisitType != null ? visit.VisitType.Name : string.Empty),
+                        searchQuery,
+                        headlineOptions)
                 })
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -84,9 +95,9 @@ namespace ProjectManagement.Services.Search
                     ? visit.VisitorName
                     : $"{visit.TypeName} · {visit.VisitorName}";
 
-                var snippet = string.IsNullOrWhiteSpace(visit.Remarks)
+                var snippet = string.IsNullOrWhiteSpace(visit.Snippet)
                     ? $"Visit on {visit.DateOfVisit.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}"
-                    : visit.Remarks;
+                    : visit.Snippet;
 
                 hits.Add(new GlobalSearchHit(
                     Source: "Visits tracker",
@@ -101,14 +112,16 @@ namespace ProjectManagement.Services.Search
         }
 
         // SECTION: Social media tracker search
-        private async Task AppendSocialMediaAsync(string pattern, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
+        private async Task AppendSocialMediaAsync(NpgsqlTsQuery searchQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
             var events = await _dbContext.SocialMediaEvents
                 .AsNoTracking()
                 .Where(e =>
-                    EF.Functions.ILike(e.Title, pattern) ||
-                    EF.Functions.ILike(e.Description ?? string.Empty, pattern) ||
-                    (e.SocialMediaPlatform != null && EF.Functions.ILike(e.SocialMediaPlatform.Name, pattern)))
+                    EF.Functions.ToTsVector("english",
+                        (e.Title ?? string.Empty) + " " +
+                        (e.Description ?? string.Empty) + " " +
+                        (e.SocialMediaPlatform != null ? e.SocialMediaPlatform.Name : string.Empty))
+                    .Matches(searchQuery))
                 .OrderByDescending(e => e.LastModifiedAtUtc ?? e.CreatedAtUtc)
                 .Take(limit)
                 .Select(e => new
@@ -118,7 +131,14 @@ namespace ProjectManagement.Services.Search
                     e.Description,
                     e.CreatedAtUtc,
                     e.LastModifiedAtUtc,
-                    PlatformName = e.SocialMediaPlatform != null ? e.SocialMediaPlatform.Name : null
+                    PlatformName = e.SocialMediaPlatform != null ? e.SocialMediaPlatform.Name : null,
+                    Snippet = EF.Functions.TsHeadline(
+                        "english",
+                        (e.Title ?? string.Empty) + " " +
+                        (e.Description ?? string.Empty) + " " +
+                        (e.SocialMediaPlatform != null ? e.SocialMediaPlatform.Name : string.Empty),
+                        searchQuery,
+                        headlineOptions)
                 })
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -133,7 +153,7 @@ namespace ProjectManagement.Services.Search
                 hits.Add(new GlobalSearchHit(
                     Source: "Social media tracker",
                     Title: title,
-                    Snippet: ev.Description,
+                    Snippet: string.IsNullOrWhiteSpace(ev.Snippet) ? ev.Description : ev.Snippet,
                     // your app uses /ProjectOfficeReports/SocialMedia/Details/{id}
                     Url: $"/ProjectOfficeReports/SocialMedia/Details/{ev.Id}",
                     Date: date,
@@ -144,7 +164,7 @@ namespace ProjectManagement.Services.Search
         }
 
         // SECTION: Training tracker search
-        private async Task AppendTrainingAsync(string trimmedQuery, string pattern, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
+        private async Task AppendTrainingAsync(string trimmedQuery, NpgsqlTsQuery searchQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
             var numericMatch = int.TryParse(trimmedQuery, NumberStyles.Integer, CultureInfo.InvariantCulture, out var yearQuery)
                 ? yearQuery
@@ -153,8 +173,10 @@ namespace ProjectManagement.Services.Search
             var trainings = await _dbContext.Trainings
                 .AsNoTracking()
                 .Where(training =>
-                    EF.Functions.ILike(training.Notes ?? string.Empty, pattern) ||
-                    (training.TrainingType != null && EF.Functions.ILike(training.TrainingType.Name, pattern)) ||
+                    EF.Functions.ToTsVector("english",
+                        (training.Notes ?? string.Empty) + " " +
+                        (training.TrainingType != null ? training.TrainingType.Name : string.Empty))
+                        .Matches(searchQuery) ||
                     (numericMatch.HasValue && training.TrainingYear == numericMatch.Value))
                 .OrderByDescending(training => training.LastModifiedAtUtc ?? training.CreatedAtUtc)
                 .Take(limit)
@@ -167,7 +189,13 @@ namespace ProjectManagement.Services.Search
                     training.TrainingYear,
                     training.CreatedAtUtc,
                     training.LastModifiedAtUtc,
-                    TrainingTypeName = training.TrainingType != null ? training.TrainingType.Name : null
+                    TrainingTypeName = training.TrainingType != null ? training.TrainingType.Name : null,
+                    Snippet = EF.Functions.TsHeadline(
+                        "english",
+                        (training.Notes ?? string.Empty) + " " +
+                        (training.TrainingType != null ? training.TrainingType.Name : string.Empty),
+                        searchQuery,
+                        headlineOptions)
                 })
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -201,177 +229,137 @@ namespace ProjectManagement.Services.Search
                     }
                 }
 
-                var title = titleParts.Count == 0 ? "Training session" : string.Join(" · ", titleParts);
+                var title = titleParts.Count == 0
+                    ? "Training record"
+                    : string.Join(" · ", titleParts);
 
                 hits.Add(new GlobalSearchHit(
                     Source: "Training tracker",
                     Title: title,
-                    Snippet: training.Notes,
-                    // use builder – builder must return /ProjectOfficeReports/Training/Manage/{id} (or whatever your app uses)
-                    Url: _urlBuilder.ProjectOfficeTrainingManage(training.Id),
+                    Snippet: string.IsNullOrWhiteSpace(training.Snippet) ? training.Notes : training.Snippet,
+                    Url: _urlBuilder.ProjectOfficeTrainingDetails(training.Id),
                     Date: date,
+                    Score: 0.5m,
+                    FileType: null,
+                    Extra: null));
+            }
+        }
+
+        // SECTION: TOT tracker search
+        private async Task AppendTotAsync(NpgsqlTsQuery searchQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
+        {
+            var trainings = await _dbContext.TotTrainings
+                .AsNoTracking()
+                .Where(training =>
+                    EF.Functions.ToTsVector("english", training.Notes ?? string.Empty)
+                        .Matches(searchQuery))
+                .OrderByDescending(training => training.LastModifiedAtUtc ?? training.CreatedAtUtc)
+                .Take(limit)
+                .Select(training => new
+                {
+                    training.Id,
+                    training.Notes,
+                    training.StartDate,
+                    training.EndDate,
+                    training.CreatedAtUtc,
+                    training.LastModifiedAtUtc,
+                    Snippet = EF.Functions.TsHeadline(
+                        "english",
+                        training.Notes ?? string.Empty,
+                        searchQuery,
+                        headlineOptions)
+                })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            foreach (var training in trainings)
+            {
+                var titleParts = new List<string>(2);
+                if (training.StartDate.HasValue || training.EndDate.HasValue)
+                {
+                    titleParts.Add(string.Join(" – ", new[]
+                    {
+                        training.StartDate?.ToString("dd MMM", CultureInfo.InvariantCulture),
+                        training.EndDate?.ToString("dd MMM", CultureInfo.InvariantCulture)
+                    }.Where(v => !string.IsNullOrWhiteSpace(v))));
+                }
+
+                if (!string.IsNullOrWhiteSpace(training.Notes))
+                {
+                    titleParts.Add(training.Notes);
+                }
+
+                var title = titleParts.Count == 0
+                    ? "TOT training"
+                    : string.Join(" · ", titleParts);
+
+                hits.Add(new GlobalSearchHit(
+                    Source: "TOT tracker",
+                    Title: title,
+                    Snippet: string.IsNullOrWhiteSpace(training.Snippet) ? training.Notes : training.Snippet,
+                    Url: _urlBuilder.ProjectOfficeTotDetails(training.Id),
+                    Date: training.LastModifiedAtUtc ?? training.CreatedAtUtc,
                     Score: 0.48m,
                     FileType: null,
                     Extra: null));
             }
         }
 
-        // SECTION: Transfer of Technology tracker search
-        private async Task AppendTotAsync(string pattern, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
+        // SECTION: Proliferation survey search
+        private async Task AppendProliferationAsync(NpgsqlTsQuery searchQuery, string headlineOptions, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
-            var rawTots = await _dbContext.ProjectTots
+            var records = await _dbContext.ProliferationSurveys
                 .AsNoTracking()
-                .Include(t => t.Project)
-                .Where(t =>
-                    t.Project != null &&
-                    !t.Project.IsDeleted &&
-                    !t.Project.IsArchived &&
-                    (
-                        EF.Functions.ILike(t.Project.Name, pattern) ||
-                        EF.Functions.ILike(t.MetDetails ?? string.Empty, pattern)
-                    ))
-                .Take(limit * 3)
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            var ordered = rawTots
-                .Select(t =>
+                .Where(record =>
+                    EF.Functions.ToTsVector("english",
+                        (record.Country ?? string.Empty) + " " +
+                        (record.Topic ?? string.Empty) + " " +
+                        (record.Remarks ?? string.Empty))
+                        .Matches(searchQuery))
+                .OrderByDescending(record => record.LastModifiedAtUtc ?? record.CreatedAtUtc)
+                .Take(limit)
+                .Select(record => new
                 {
-                    var pickedDate =
-                        t.LastApprovedOnUtc.HasValue
-                            ? new DateTimeOffset(DateTime.SpecifyKind(t.LastApprovedOnUtc.Value, DateTimeKind.Utc))
-                            : ToDateTimeOffset(t.CompletedOn)
-                              ?? ToDateTimeOffset(t.StartedOn)
-                              ?? DateTimeOffset.MinValue;
-
-                    return new { Tot = t, Date = pickedDate };
+                    record.Id,
+                    record.Topic,
+                    record.Country,
+                    record.Remarks,
+                    record.SurveyDate,
+                    record.CreatedAtUtc,
+                    record.LastModifiedAtUtc,
+                    Snippet = EF.Functions.TsHeadline(
+                        "english",
+                        (record.Country ?? string.Empty) + " " +
+                        (record.Topic ?? string.Empty) + " " +
+                        (record.Remarks ?? string.Empty),
+                        searchQuery,
+                        headlineOptions)
                 })
-                .OrderByDescending(x => x.Date)
-                .Take(limit)
-                .ToList();
-
-            foreach (var item in ordered)
-            {
-                var tot = item.Tot;
-                var title = $"{tot.Project!.Name} · {tot.Status}";
-
-                hits.Add(new GlobalSearchHit(
-                    Source: "ToT tracker",
-                    Title: title,
-                    Snippet: tot.MetDetails,
-                    // use builder – builder must return /ProjectOfficeReports/ToT/{projectId} (your existing method)
-                    Url: _urlBuilder.ProjectOfficeTotTracker(tot.ProjectId),
-                    Date: item.Date,
-                    Score: 0.46m,
-                    FileType: null,
-                    Extra: tot.Status.ToString()));
-            }
-        }
-
-        // SECTION: Proliferation tracker search
-        private async Task AppendProliferationAsync(string pattern, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
-        {
-            await AppendProliferationYearlyAsync(pattern, limit, hits, cancellationToken).ConfigureAwait(false);
-            await AppendProliferationGranularAsync(pattern, limit, hits, cancellationToken).ConfigureAwait(false);
-        }
-
-        private async Task AppendProliferationYearlyAsync(string pattern, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
-        {
-            var yearly = await (from record in _dbContext.ProliferationYearlies.AsNoTracking()
-                                join project in _dbContext.Projects.AsNoTracking() on record.ProjectId equals project.Id
-                                where !project.IsDeleted && !project.IsArchived && (
-                                    EF.Functions.ILike(project.Name, pattern) ||
-                                    EF.Functions.ILike(project.CaseFileNumber ?? string.Empty, pattern) ||
-                                    EF.Functions.ILike(record.Remarks ?? string.Empty, pattern))
-                                orderby record.LastUpdatedOnUtc descending
-                                select new
-                                {
-                                    record.Id,
-                                    record.ProjectId,
-                                    ProjectName = project.Name,
-                                    ProjectCaseFile = project.CaseFileNumber,
-                                    record.Source,
-                                    record.Year,
-                                    record.TotalQuantity,
-                                    record.Remarks,
-                                    record.LastUpdatedOnUtc
-                                })
-                .Take(limit)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            foreach (var record in yearly)
+            foreach (var record in records)
             {
-                var title = $"{record.ProjectName} · {record.Year} {record.Source.ToDisplayName()}";
-                var snippet = string.IsNullOrWhiteSpace(record.Remarks)
-                    ? $"Quantity: {record.TotalQuantity.ToString(CultureInfo.InvariantCulture)}"
-                    : record.Remarks;
+                var date = record.LastModifiedAtUtc ?? record.CreatedAtUtc;
+                var title = record.Topic ?? record.Country;
+
+                if (record.SurveyDate.HasValue)
+                {
+                    title = string.IsNullOrWhiteSpace(title)
+                        ? record.SurveyDate.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
+                        : $"{title} ({record.SurveyDate.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)})";
+                }
 
                 hits.Add(new GlobalSearchHit(
-                    Source: "Proliferation tracker",
+                    Source: "Proliferation survey",
                     Title: title,
-                    Snippet: snippet,
-                    // use builder – it already knows the yearly route signature
-                    Url: _urlBuilder.ProjectOfficeProliferationManage(record.ProjectId, ProliferationRecordKind.Yearly, record.Source, record.Year),
-                    Date: new DateTimeOffset(DateTime.SpecifyKind(record.LastUpdatedOnUtc, DateTimeKind.Utc)),
-                    Score: 0.44m,
-                    FileType: null,
-                    Extra: record.ProjectCaseFile));
-            }
-        }
-
-        private async Task AppendProliferationGranularAsync(string pattern, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
-        {
-            var granular = await (from record in _dbContext.ProliferationGranularEntries.AsNoTracking()
-                                  join project in _dbContext.Projects.AsNoTracking() on record.ProjectId equals project.Id
-                                  where !project.IsDeleted && !project.IsArchived && (
-                                      EF.Functions.ILike(project.Name, pattern) ||
-                                      EF.Functions.ILike(project.CaseFileNumber ?? string.Empty, pattern) ||
-                                      EF.Functions.ILike(record.UnitName, pattern) ||
-                                      EF.Functions.ILike(record.Remarks ?? string.Empty, pattern))
-                                  orderby record.LastUpdatedOnUtc descending
-                                  select new
-                                  {
-                                      record.Id,
-                                      record.ProjectId,
-                                      ProjectName = project.Name,
-                                      ProjectCaseFile = project.CaseFileNumber,
-                                      record.Source,
-                                      record.UnitName,
-                                      record.ProliferationDate,
-                                      record.Quantity,
-                                      record.Remarks,
-                                      record.LastUpdatedOnUtc
-                                  })
-                .Take(limit)
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            foreach (var record in granular)
-            {
-                var title = $"{record.ProjectName} · {record.UnitName}";
-                var date = new DateTimeOffset(DateTime.SpecifyKind(record.LastUpdatedOnUtc, DateTimeKind.Utc));
-                var snippet = string.IsNullOrWhiteSpace(record.Remarks)
-                    ? $"Quantity: {record.Quantity.ToString(CultureInfo.InvariantCulture)}"
-                    : record.Remarks;
-
-                hits.Add(new GlobalSearchHit(
-                    Source: "Proliferation tracker",
-                    Title: title,
-                    Snippet: snippet,
-                    // use builder – it already knows the granular route signature
-                    Url: _urlBuilder.ProjectOfficeProliferationManage(record.ProjectId, ProliferationRecordKind.Granular, record.Source, record.ProliferationDate.Year),
+                    Snippet: string.IsNullOrWhiteSpace(record.Snippet) ? record.Remarks : record.Snippet,
+                    Url: _urlBuilder.ProjectOfficeProliferationDetails(record.Id),
                     Date: date,
-                    Score: 0.43m,
+                    Score: 0.47m,
                     FileType: null,
-                    Extra: record.ProjectCaseFile));
+                    Extra: record.Country));
             }
         }
-
-        // SECTION: Helper utilities
-        private static DateTimeOffset? ToDateTimeOffset(DateOnly? value)
-            => value.HasValue
-                ? new DateTimeOffset(value.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
-                : null;
     }
 }
