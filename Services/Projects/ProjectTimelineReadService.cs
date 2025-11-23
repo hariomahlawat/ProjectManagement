@@ -34,6 +34,12 @@ public sealed class ProjectTimelineReadService
 
     public async Task<TimelineVm> GetAsync(int projectId, CancellationToken ct = default)
     {
+        var workflowVersion = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .Select(p => p.WorkflowVersion)
+            .SingleOrDefaultAsync(ct);
+
         var rows = await _db.ProjectStages
             .AsNoTracking()
             .Where(x => x.ProjectId == projectId)
@@ -112,7 +118,7 @@ public sealed class ProjectTimelineReadService
 
         var items = new List<TimelineItemVm>();
         var index = 0;
-        foreach (var code in StageCodes.All)
+        foreach (var code in ProcurementWorkflow.StageCodesFor(workflowVersion))
         {
             rowLookup.TryGetValue(code, out var r);
             pendingLookup.TryGetValue(code, out var pendingRequest);
