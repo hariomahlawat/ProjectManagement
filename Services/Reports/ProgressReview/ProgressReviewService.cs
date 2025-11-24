@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Models.Execution;
@@ -62,14 +63,21 @@ public sealed class ProgressReviewService : IProgressReviewService
 
         var presentStageLookup = await BuildPresentStageLookupAsync(summaryProjectIds, cancellationToken);
         var remarkLookup = await BuildRemarkSummaryLookupAsync(summaryProjectIds, from, to, cancellationToken);
+        var projectCategoryLookup = await BuildProjectCategoryLookupAsync(summaryProjectIds, cancellationToken);
         var projectSummaryRows = BuildProjectSummaryRows(
             projectFrontRunners,
             projectRemarksOnly,
             projectNonMovers,
             presentStageLookup,
             remarkLookup,
+            projectCategoryLookup,
             from,
             to);
+        var projectCategoryGroups = projectSummaryRows
+            .GroupBy(row => string.IsNullOrWhiteSpace(row.ProjectCategoryName) ? "Uncategorised" : row.ProjectCategoryName)
+            .OrderBy(group => group.Key)
+            .Select(group => new ProjectCategoryGroupVm(group.Key, group.ToList()))
+            .ToList();
         var projectsWithAnyRemarks = remarkLookup
             .Where(pair => !string.IsNullOrWhiteSpace(pair.Value.LatestRemarkSummary))
             .Select(pair => pair.Key)
@@ -112,7 +120,7 @@ public sealed class ProgressReviewService : IProgressReviewService
 
         return new ProgressReviewVm(
             Range: new RangeVm(from, to),
-            Projects: new ProjectSectionVm(projectFrontRunners, projectRemarksOnly, projectNonMovers, projectSummaryRows),
+            Projects: new ProjectSectionVm(projectFrontRunners, projectRemarksOnly, projectNonMovers, projectSummaryRows, projectCategoryGroups),
             Visits: visits,
             SocialMedia: socialMedia,
             Tot: new TotSectionVm(totStage, totRemarks),
@@ -171,13 +179,11 @@ public sealed class ProgressReviewService : IProgressReviewService
                                 && !project.IsArchived
                                 && !project.IsDeleted
                           where
-                              (log.ToActualStart.HasValue && log.ToActualStart.Value >= rangeFrom && log.ToActualStart.Value <= rangeTo)
+                              (log.At >= fromDateTime && log.At <= toDateTime)
+                              || (log.ToActualStart.HasValue && log.ToActualStart.Value >= rangeFrom && log.ToActualStart.Value <= rangeTo)
                               || (log.ToCompletedOn.HasValue && log.ToCompletedOn.Value >= rangeFrom && log.ToCompletedOn.Value <= rangeTo)
                               || (log.FromActualStart.HasValue && log.FromActualStart.Value >= rangeFrom && log.FromActualStart.Value <= rangeTo)
                               || (log.FromCompletedOn.HasValue && log.FromCompletedOn.Value >= rangeFrom && log.FromCompletedOn.Value <= rangeTo)
-                              || (!log.ToActualStart.HasValue && !log.ToCompletedOn.HasValue
-                                  && !log.FromActualStart.HasValue && !log.FromCompletedOn.HasValue
-                                  && log.At >= fromDateTime && log.At <= toDateTime)
                           select new StageChangeProjection(
                               log.ProjectId,
                               project.Name,
@@ -217,12 +223,18 @@ public sealed class ProgressReviewService : IProgressReviewService
             return new Dictionary<int, ProjectRemarkSummaryVm>();
         }
 
+        var fromDateTime = from.ToDateTime(TimeOnly.MinValue);
+        var toDateTime = to.ToDateTime(EndOfDay);
+
         var remarkRows = await _db.Remarks
             .AsNoTracking()
             .Where(r => projectIds.Contains(r.ProjectId))
             .Where(r => !r.IsDeleted)
             .Where(r => r.Scope == RemarkScope.General)
-            .Where(r => r.EventDate >= from && r.EventDate <= to)
+            .Where(r => r.Type == RemarkType.External)
+            .Where(r =>
+                (r.EventDate != default && r.EventDate >= from && r.EventDate <= to)
+                || (r.EventDate == default && r.CreatedAtUtc >= fromDateTime && r.CreatedAtUtc <= toDateTime))
             .Select(r => new
             {
                 r.ProjectId,
@@ -234,10 +246,19 @@ public sealed class ProgressReviewService : IProgressReviewService
             .ToListAsync(cancellationToken);
 
         return remarkRows
+            .Select(r => new
+            {
+                r.ProjectId,
+                EffectiveDate = ResolveRemarkEffectiveDate(r.EventDate, r.CreatedAtUtc),
+                r.CreatedAtUtc,
+                r.Body,
+                r.AuthorRole
+            })
+            .Where(r => r.EffectiveDate >= from && r.EffectiveDate <= to)
             .GroupBy(r => r.ProjectId)
             .ToDictionary(
                 g => g.Key,
-                g => BuildRemarkSummary(g.Select(x => (x.EventDate, x.CreatedAtUtc, x.Body, x.AuthorRole))));
+                g => BuildRemarkSummary(g.Select(x => (x.EffectiveDate, x.CreatedAtUtc, x.Body, x.AuthorRole))));
     }
 
     private async Task<IReadOnlyList<ProjectRemarkOnlyVm>> LoadProjectRemarksOnlyAsync(
@@ -246,11 +267,17 @@ public sealed class ProgressReviewService : IProgressReviewService
         HashSet<int> excludedProjectIds,
         CancellationToken cancellationToken)
     {
+        var fromDateTime = from.ToDateTime(TimeOnly.MinValue);
+        var toDateTime = to.ToDateTime(EndOfDay);
+
         var remarkRows = await _db.Remarks
             .AsNoTracking()
             .Where(r => r.Scope == RemarkScope.General)
+            .Where(r => r.Type == RemarkType.External)
             .Where(r => !r.IsDeleted)
-            .Where(r => r.EventDate >= from && r.EventDate <= to)
+            .Where(r =>
+                (r.EventDate != default && r.EventDate >= from && r.EventDate <= to)
+                || (r.EventDate == default && r.CreatedAtUtc >= fromDateTime && r.CreatedAtUtc <= toDateTime))
             .Where(r => r.Project != null && r.Project.LifecycleStatus == ProjectLifecycleStatus.Active)
             .Where(r => r.Project != null && !r.Project.IsArchived && !r.Project.IsDeleted)
             .Where(r => !excludedProjectIds.Contains(r.ProjectId))
@@ -266,20 +293,30 @@ public sealed class ProgressReviewService : IProgressReviewService
             .ToListAsync(cancellationToken);
 
         return remarkRows
+            .Select(r => new
+            {
+                r.ProjectId,
+                r.ProjectName,
+                EffectiveDate = ResolveRemarkEffectiveDate(r.EventDate, r.CreatedAtUtc),
+                r.CreatedAtUtc,
+                r.Body,
+                r.AuthorRole
+            })
+            .Where(r => r.EffectiveDate >= from && r.EffectiveDate <= to)
             .GroupBy(r => new { r.ProjectId, r.ProjectName })
             .Select(g => new ProjectRemarkOnlyVm(
                 g.Key.ProjectId,
                 g.Key.ProjectName,
-                BuildRemarkSummary(g.Select(x => (x.EventDate, x.CreatedAtUtc, x.Body, x.AuthorRole)))))
+                BuildRemarkSummary(g.Select(x => (x.EffectiveDate, x.CreatedAtUtc, x.Body, x.AuthorRole)))))
             .OrderBy(x => x.ProjectName)
             .ToList();
     }
 
     private static ProjectRemarkSummaryVm BuildRemarkSummary(
-        IEnumerable<(DateOnly EventDate, DateTime CreatedAtUtc, string Body, RemarkActorRole AuthorRole)> remarks)
+        IEnumerable<(DateOnly EffectiveDate, DateTime CreatedAtUtc, string Body, RemarkActorRole AuthorRole)> remarks)
     {
         var ordered = remarks
-            .OrderByDescending(x => x.EventDate)
+            .OrderByDescending(x => x.EffectiveDate)
             .ThenByDescending(x => x.CreatedAtUtc)
             .ToList();
 
@@ -290,7 +327,7 @@ public sealed class ProgressReviewService : IProgressReviewService
 
         var latest = ordered[0];
         return new ProjectRemarkSummaryVm(
-            latest.EventDate,
+            latest.EffectiveDate,
             Truncate(latest.Body, 220),
             latest.AuthorRole,
             Math.Max(0, ordered.Count - 1));
@@ -876,6 +913,7 @@ public sealed class ProgressReviewService : IProgressReviewService
         IReadOnlyList<ProjectNonMoverVm> nonMovers,
         IReadOnlyDictionary<int, PresentStageSnapshot> presentStageLookup,
         IReadOnlyDictionary<int, ProjectRemarkSummaryVm> remarkLookup,
+        IReadOnlyDictionary<int, string?> projectCategoryLookup,
         DateOnly rangeFrom,
         DateOnly rangeTo)
     {
@@ -895,10 +933,14 @@ public sealed class ProgressReviewService : IProgressReviewService
             var remarkSummary = remarkLookup.TryGetValue(projectId, out var summary)
                 ? summary
                 : ProjectRemarkSummaryVm.Empty;
+            var categoryName = projectCategoryLookup.TryGetValue(projectId, out var projectCategory)
+                ? projectCategory
+                : null;
 
             rows[projectId] = new ProjectProgressRowVm(
                 projectId,
                 projectStages.First().ProjectName,
+                categoryName,
                 presentStage,
                 trimmed.Display,
                 trimmed.Overflow,
@@ -924,10 +966,14 @@ public sealed class ProgressReviewService : IProgressReviewService
             var presentStage = presentStageLookup.TryGetValue(remark.ProjectId, out var snapshot)
                 ? snapshot
                 : PresentStageSnapshot.Empty;
+            var categoryName = projectCategoryLookup.TryGetValue(remark.ProjectId, out var projectCategory)
+                ? projectCategory
+                : null;
 
             rows[remark.ProjectId] = new ProjectProgressRowVm(
                 remark.ProjectId,
                 remark.ProjectName,
+                categoryName,
                 presentStage,
                 trimmed.Display,
                 trimmed.Overflow,
@@ -951,10 +997,14 @@ public sealed class ProgressReviewService : IProgressReviewService
             var remarkSummary = remarkLookup.TryGetValue(idle.ProjectId, out var summary)
                 ? summary
                 : ProjectRemarkSummaryVm.Empty;
+            var categoryName = projectCategoryLookup.TryGetValue(idle.ProjectId, out var projectCategory)
+                ? projectCategory
+                : null;
 
             rows[idle.ProjectId] = new ProjectProgressRowVm(
                 idle.ProjectId,
                 idle.ProjectName,
+                categoryName,
                 presentStage,
                 trimmed.Display,
                 trimmed.Overflow,
@@ -1000,6 +1050,28 @@ public sealed class ProgressReviewService : IProgressReviewService
                         stage.SortOrder,
                         stage.ActualStart,
                         stage.CompletedOn)).ToList()));
+    }
+
+    private async Task<IReadOnlyDictionary<int, string?>> BuildProjectCategoryLookupAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Count == 0)
+        {
+            return new Dictionary<int, string?>();
+        }
+
+        var rows = await _db.Projects
+            .AsNoTracking()
+            .Where(project => projectIds.Contains(project.Id))
+            .Select(project => new
+            {
+                project.Id,
+                CategoryName = project.Category != null ? project.Category.Name : null
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(row => row.Id, row => row.CategoryName);
     }
 
     private static Dictionary<int, List<ProjectStageMovementVm>> BuildStageMovementLookup(
@@ -1198,6 +1270,17 @@ public sealed class ProgressReviewService : IProgressReviewService
         }
 
         return null;
+    }
+
+    private static DateOnly ResolveRemarkEffectiveDate(DateOnly eventDate, DateTime createdAtUtc)
+    {
+        if (eventDate != default)
+        {
+            return eventDate;
+        }
+
+        var createdIst = IstClock.ToIst(createdAtUtc);
+        return DateOnly.FromDateTime(createdIst);
     }
 
     private static string? Truncate(string? input, int length)

@@ -1,0 +1,44 @@
+@media print {
+    :root {
+        --pr-border: #d9dfe8;
+        --pr-muted: #555;
+    }
+
+    body {
+        background: #ffffff;
+    }
+
+    .progress-review-shell {
+        padding: 0;
+        background: #ffffff;
+    }
+
+    .progress-review__toolbar,
+    .progress-review__section-meta,
+    .progress-review__section-subtitle {
+        display: none !important;
+    }
+
+    .progress-review__canvas {
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        width: 210mm;
+        margin: 0 auto;
+    }
+
+    .progress-review__category,
+    .progress-review__activity-card {
+        break-inside: avoid;
+    }
+
+    table {
+        page-break-inside: auto;
+    }
+
+    tr,
+    td,
+    th {
+        page-break-inside: avoid;
+    }
+}
