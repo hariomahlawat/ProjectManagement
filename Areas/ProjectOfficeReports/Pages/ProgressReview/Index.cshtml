@@ -375,8 +375,8 @@
                             <div class="pr-section-divider"></div>
                         </div>
                     </header>
-                    <div class="row g-4 progress-review__split">
-                        <div class="col-lg-6">
+                    <div class="progress-review__stack">
+                        <div class="progress-review__block">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <h3 class="progress-review__subheading mb-0">Transfer of Technology</h3>
                                 <span class="text-muted small">@vm.Tot.StageChanges.Count stage changes</span>
@@ -429,7 +429,7 @@
                                 }
                             </div>
                         </div>
-                        <div class="col-lg-6">
+                        <div class="progress-review__block mt-3">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <h3 class="progress-review__subheading mb-0">Patents/ Copyrights updates</h3>
                                 <span class="text-muted small">@vm.Ipr.StatusChanges.Count status changes</span>
@@ -499,8 +499,8 @@
                             <div class="pr-section-divider"></div>
                         </div>
                     </header>
-                    <div class="row g-4 progress-review__split">
-                        <div class="col-lg-6">
+                    <div class="progress-review__stack">
+                        <div class="progress-review__block">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <h3 class="progress-review__subheading mb-0">Simulator training (@vm.Training.Simulator.TotalPersons participants)</h3>
                                 <span class="text-muted small">@vm.Training.Simulator.Rows.Count sessions</span>
@@ -539,7 +539,7 @@
                                 }
                             </div>
                         </div>
-                        <div class="col-lg-6">
+                        <div class="progress-review__block mt-3">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <h3 class="progress-review__subheading mb-0">Drone training (@vm.Training.Drone.TotalPersons participants)</h3>
                                 <span class="text-muted small">@vm.Training.Drone.Rows.Count sessions</span>
@@ -590,8 +590,8 @@
                             <p class="progress-review__section-subtitle">Proloferation of simulators to units and to friendly foreign counteries.</p>
                         </div>
                     </header>
-                    <div class="row g-4 progress-review__split">
-                        <div class="col-lg-7">
+                    <div class="progress-review__stack">
+                        <div class="progress-review__block">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <h3 class="progress-review__subheading mb-0">Proliferation (@vm.Proliferation.Rows.Count records)</h3>
                                 <span class="text-muted small">@vm.Proliferation.Rows.Count entries</span>
@@ -633,7 +633,7 @@
                                 }
                             </div>
                         </div>
-                        <div class="col-lg-5">
+                        <div class="progress-review__block mt-3">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <h3 class="progress-review__subheading mb-0">FFC simulators (@vm.Ffc.Rows.Count milestones)</h3>
                                 <span class="text-muted small">@vm.Ffc.Rows.Count milestones</span>
@@ -680,30 +680,28 @@
                     else
                     {
                         var miscLimit = 10;
-                        <div class="row g-4 progress-review__split">
+                        <div class="progress-review__stack">
                             @foreach (var activity in vm.Misc.Rows.Take(miscLimit))
                             {
-                                <div class="col-md-6">
-                                    <article class="progress-review__activity-card h-100">
-                                        @if (!string.IsNullOrWhiteSpace(activity.PhotoUrl))
-                                        {
-                                            var activityPhotoAlt = string.IsNullOrWhiteSpace(activity.Title)
-                                                ? "Activity photo"
-                                                : $"{activity.Title} photo";
-                                            <img role="img" class="progress-review__activity-photo" src="@activity.PhotoUrl" alt="@activityPhotoAlt" loading="lazy" />
-                                        }
-                                        <p class="text-muted small mb-1"><time datetime="@FormatDateIso(activity.Date)">@FormatDay(activity.Date)</time> · @activity.Location</p>
-                                        <h3 class="h6">@activity.Title</h3>
-                                        @if (!string.IsNullOrWhiteSpace(activity.Summary))
-                                        {
-                                            <p class="text-muted small mb-0">@activity.Summary</p>
-                                        }
-                                        else
-                                        {
-                                            <p class="text-muted small mb-0">No description available.</p>
-                                        }
-                                    </article>
-                                </div>
+                                <article class="progress-review__activity-card w-100 mb-3">
+                                    @if (!string.IsNullOrWhiteSpace(activity.PhotoUrl))
+                                    {
+                                        var activityPhotoAlt = string.IsNullOrWhiteSpace(activity.Title)
+                                            ? "Activity photo"
+                                            : $"{activity.Title} photo";
+                                        <img role="img" class="progress-review__activity-photo" src="@activity.PhotoUrl" alt="@activityPhotoAlt" loading="lazy" />
+                                    }
+                                    <p class="text-muted small mb-1"><time datetime="@FormatDateIso(activity.Date)">@FormatDay(activity.Date)</time> · @activity.Location</p>
+                                    <h3 class="h6">@activity.Title</h3>
+                                    @if (!string.IsNullOrWhiteSpace(activity.Summary))
+                                    {
+                                        <p class="text-muted small mb-0">@activity.Summary</p>
+                                    }
+                                    else
+                                    {
+                                        <p class="text-muted small mb-0">No description available.</p>
+                                    }
+                                </article>
                             }
                         </div>
                         @if (vm.Misc.Rows.Count > miscLimit)
