@@ -47,7 +47,7 @@ namespace ProjectManagement.Services.Projects
             if (projectCategoryId is { } catId && catId > 0)
             {
                 var categoryScopeIds = await GetCategoryScopeIdsAsync(catId, cancellationToken);
-                q = q.Where(p => categoryScopeIds.Contains(p.CategoryId));
+                q = q.Where(p => p.CategoryId.HasValue && categoryScopeIds.Contains(p.CategoryId.Value));
             }
 
             if (!string.IsNullOrWhiteSpace(leadPoUserId))
@@ -299,7 +299,8 @@ namespace ProjectManagement.Services.Projects
                 .ToListAsync(cancellationToken);
 
             var childrenByParent = categories
-                .GroupBy(c => c.ParentId)
+                .Where(c => c.ParentId.HasValue)
+                .GroupBy(c => c.ParentId!.Value)
                 .ToDictionary(g => g.Key, g => g.Select(x => x.Id).ToList());
 
             var collectedIds = new List<int> { rootCategoryId };
