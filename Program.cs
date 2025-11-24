@@ -423,6 +423,7 @@ builder.Services.AddSingleton<IVisitExcelWorkbookBuilder, VisitExcelWorkbookBuil
 builder.Services.AddSingleton<IVisitPdfReportBuilder, VisitPdfReportBuilder>();
 builder.Services.AddSingleton<ISocialMediaExcelWorkbookBuilder, SocialMediaExcelWorkbookBuilder>();
 builder.Services.AddSingleton<ISocialMediaPdfReportBuilder, SocialMediaPdfReportBuilder>();
+builder.Services.AddScoped<IProgressReviewPdfReportBuilder, ProgressReviewPdfReportBuilder>();
 builder.Services.AddSingleton<IProliferationExcelWorkbookBuilder, ProliferationExcelWorkbookBuilder>();
 builder.Services.AddSingleton<IIprExcelWorkbookBuilder, IprExcelWorkbookBuilder>();
 builder.Services.AddSingleton<ICompletedProjectsSummaryExcelBuilder, CompletedProjectsSummaryExcelBuilder>();
@@ -436,6 +437,7 @@ builder.Services.AddScoped<IProliferationExportService, ProliferationExportServi
 builder.Services.AddScoped<IVisitExportService, VisitExportService>();
 builder.Services.AddScoped<ISocialMediaExportService, SocialMediaExportService>();
 builder.Services.AddScoped<IIprExportService, IprExportService>();
+builder.Services.AddScoped<IProgressReviewExportService, ProgressReviewExportService>();
 builder.Services.AddScoped<IVisitPhotoService, VisitPhotoService>();
 builder.Services.AddScoped<ISocialMediaEventPhotoService, SocialMediaEventPhotoService>();
 builder.Services.AddScoped<TrainingTrackerReadService>();

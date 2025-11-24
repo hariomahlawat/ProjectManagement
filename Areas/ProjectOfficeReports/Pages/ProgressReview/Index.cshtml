@@ -141,10 +141,15 @@
             </div>
             <div class="progress-review__toolbar-actions">
                 <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#progress-review-range">Date range</button>
-                <button class="btn btn-primary btn-sm" type="button" data-action="export-pdf">
+                <a class="btn btn-primary btn-sm"
+                   asp-page="./Index"
+                   asp-page-handler="ExportPdf"
+                   asp-route-from="@Model.From"
+                   asp-route-to="@Model.To"
+                   title="Export PDF">
                     <i class="bi bi-file-earmark-pdf me-1"></i>
                     <span class="d-none d-md-inline">Export PDF</span>
-                </button>
+                </a>
                 <button class="btn btn-outline-primary btn-sm" type="button" data-action="print">
                     <i class="bi bi-printer me-1"></i>
                     <span class="d-none d-md-inline">Print</span>

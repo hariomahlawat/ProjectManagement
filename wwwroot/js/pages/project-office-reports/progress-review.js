@@ -52,17 +52,6 @@
   // =========================================================
   // SECTION: Quick action bindings
   // =========================================================
-  const bindExportPdfButton = () => {
-    const button = document.querySelector('[data-action="export-pdf"]');
-    if (!button) {
-      return;
-    }
-
-    button.addEventListener('click', () => {
-      window.print();
-    });
-  };
-
   const bindPrintButton = () => {
     const button = document.querySelector('[data-action="print"]');
     if (!button) {
@@ -81,7 +70,6 @@
     }
 
     ensureDefaultDates(form);
-    bindExportPdfButton();
     bindPrintButton();
   });
 })();

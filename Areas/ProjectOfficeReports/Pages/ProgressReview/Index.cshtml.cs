@@ -14,10 +14,12 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.ProgressReview;
 public sealed class IndexModel : PageModel
 {
     private readonly IProgressReviewService _service;
+    private readonly IProgressReviewExportService _export;
 
-    public IndexModel(IProgressReviewService service)
+    public IndexModel(IProgressReviewService service, IProgressReviewExportService export)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
+        _export = export ?? throw new ArgumentNullException(nameof(export));
     }
 
     [BindProperty(SupportsGet = true)]
@@ -30,6 +32,22 @@ public sealed class IndexModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
+        var (rangeFrom, rangeTo) = BuildRange();
+        Report = await _service.GetAsync(new ProgressReviewRequest(rangeFrom, rangeTo), cancellationToken);
+        return Page();
+    }
+
+    public async Task<IActionResult> OnGetExportPdfAsync(CancellationToken ct)
+    {
+        var (rangeFrom, rangeTo) = BuildRange();
+        var report = await _service.GetAsync(new ProgressReviewRequest(rangeFrom, rangeTo), ct);
+        var pdf = await _export.ExportPdfAsync(report, rangeFrom, rangeTo, ct);
+
+        return File(pdf.Bytes, "application/pdf", pdf.FileName);
+    }
+
+    private (DateOnly RangeFrom, DateOnly RangeTo) BuildRange()
+    {
         var todayIst = IstClock.ToIst(DateTime.UtcNow);
         var today = DateOnly.FromDateTime(todayIst);
         var rangeFrom = From ?? today.AddDays(-29);
@@ -40,7 +58,6 @@ public sealed class IndexModel : PageModel
             (rangeFrom, rangeTo) = (rangeTo, rangeFrom);
         }
 
-        Report = await _service.GetAsync(new ProgressReviewRequest(rangeFrom, rangeTo), cancellationToken);
-        return Page();
+        return (rangeFrom, rangeTo);
     }
 }
