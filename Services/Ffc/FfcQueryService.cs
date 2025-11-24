@@ -22,6 +22,7 @@ public interface IFfcQueryService
         bool incompleteOnly,
         long? countryId = null,
         short? year = null,
+        bool applyYearFilter = true,
         CancellationToken cancellationToken = default);
 }
 
@@ -57,9 +58,10 @@ public sealed class FfcQueryService : IFfcQueryService
         bool incompleteOnly,
         long? countryId = null,
         short? year = null,
+        bool applyYearFilter = true,
         CancellationToken cancellationToken = default)
     {
-        var projects = await BuildBaseQuery(from, to, countryId, year)
+        var projects = await BuildBaseQuery(from, to, countryId, year, applyYearFilter)
             .Select(project => new FfcProjectProjection(
                 project.Id,
                 project.Name,
@@ -198,7 +200,7 @@ public sealed class FfcQueryService : IFfcQueryService
     }
 
     // SECTION: Query builders
-    private IQueryable<FfcProject> BuildBaseQuery(DateOnly from, DateOnly to, long? countryId, short? year)
+    private IQueryable<FfcProject> BuildBaseQuery(DateOnly from, DateOnly to, long? countryId, short? year, bool applyYearFilter)
     {
         var queryable = _db.FfcProjects
             .AsNoTracking()
@@ -212,7 +214,10 @@ public sealed class FfcQueryService : IFfcQueryService
             queryable = queryable.Where(project => project.Record.CountryId == countryId.Value);
         }
 
-        queryable = queryable.Where(project => project.Record.Year >= from.Year && project.Record.Year <= to.Year);
+        if (applyYearFilter)
+        {
+            queryable = queryable.Where(project => project.Record.Year >= from.Year && project.Record.Year <= to.Year);
+        }
 
         if (year.HasValue)
         {
