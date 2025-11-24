@@ -28,26 +28,5 @@
         </div>
     }
 
-    <div class="table-responsive">
-        <table id="ffc-dtable"
-               class="table table-sm align-middle ffc-dtable"
-               data-source-url="@Url.Page("./MapTableDetailed", pageHandler: "Data", values: new { countryId = Model.CountryId, year = Model.Year })">
-            <thead>
-                <tr>
-                    <th scope="col" style="width:4rem;">S. No.</th>
-                    <th scope="col">Project</th>
-                    <th scope="col" class="text-end">Cost (₹ Cr)</th>
-                    <th scope="col" class="text-end">Quantity</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Progress / present status</th>
-                    <th scope="col">Overall remarks</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
+    <partial name="_DetailedTablePartial" model="Model.Groups" />
 </div>
-
-@section Scripts {
-    <script defer src="~/js/pages/project-office-reports/ffc/ffc-map-table-detailed.js" asp-append-version="true"></script>
-}

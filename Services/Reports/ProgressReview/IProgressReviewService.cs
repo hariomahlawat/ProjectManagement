@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models.Remarks;
+using ProjectManagement.Services.Ffc;
 using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.Reports.ProgressReview;
@@ -26,6 +27,7 @@ public sealed record ProgressReviewVm(
     TrainingSectionVm Training,
     ProliferationSectionVm Proliferation,
     FfcSectionVm Ffc,
+    FfcDetailedGroupVm[] FfcDetailedIncompleteGroups,
     MiscSectionVm Misc,
     TotalsVm Totals
 );
