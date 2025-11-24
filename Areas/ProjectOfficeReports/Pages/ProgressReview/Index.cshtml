@@ -647,29 +647,17 @@
                         </div>
                         <div class="progress-review__block mt-3">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h3 class="progress-review__subheading mb-0">FFC simulators (@vm.Ffc.Rows.Count milestones)</h3>
-                                <span class="text-muted small">@vm.Ffc.Rows.Count milestones</span>
+                                <h3 class="progress-review__subheading mb-0">FFC simulators – detailed (incomplete only)</h3>
+                                <span class="text-muted small">@vm.FfcDetailedIncompleteGroups.Length incomplete groups</span>
                             </div>
-                            @if (!vm.Ffc.Rows.Any())
+                            @if (vm.FfcDetailedIncompleteGroups.Any())
                             {
-                                <p class="text-muted mb-0">No milestones in this range.</p>
+                                <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/_DetailedTablePartial.cshtml"
+                                         model="vm.FfcDetailedIncompleteGroups" />
                             }
                             else
                             {
-                                <ul class="list-unstyled small mb-0 progress-review__list">
-                                    @foreach (var row in vm.Ffc.Rows.Take(10))
-                                    {
-                                        <li>
-                                            <strong>@row.Country</strong> — @row.Milestone
-                                            <span class="text-muted">(<time datetime="@FormatDateIso(row.Date)">@FormatDay(row.Date)</time>)</span>
-                                            <div class="text-muted">@row.Remarks</div>
-                                        </li>
-                                    }
-                                </ul>
-                                @if (vm.Ffc.Rows.Count > 10)
-                                {
-                                    <p class="text-muted small mt-2">Showing top 10 of @vm.Ffc.Rows.Count milestones.</p>
-                                }
+                                <p class="text-muted mb-0">No incomplete FFC country-year records in this range.</p>
                             }
                         </div>
                     </div>

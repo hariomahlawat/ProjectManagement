@@ -1,0 +1,67 @@
+@using System.Linq
+@using System.Text.Encodings.Web
+@model IReadOnlyList<ProjectManagement.Services.Ffc.FfcDetailedGroupVm>
+
+@if (Model is null || !Model.Any())
+{
+    <p class="text-muted fst-italic mb-0">No project units found.</p>
+}
+else
+{
+    <div class="table-responsive ffc-detailed-table">
+        <table class="table table-sm align-middle ffc-dtable mb-0">
+            <thead>
+                <tr>
+                    <th scope="col" style="width:4rem;">S. No.</th>
+                    <th scope="col">Project</th>
+                    <th scope="col" class="text-end">Cost (₹ Cr)</th>
+                    <th scope="col" class="text-end">Quantity</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Progress / present status</th>
+                    <th scope="col">Overall remarks</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var group in Model)
+                {
+                    if (group.Rows is null || !group.Rows.Any())
+                    {
+                        continue;
+                    }
+
+                    <tr class="ffc-dtable__group-row">
+                        <td colspan="7">
+                            <div class="ffc-dtable__group ffc-detailed-group">
+                                <div class="ffc-dtable__group-title">@group.CountryName – @group.Year</div>
+                                <span class="ffc-dtable__group-iso">@group.CountryCode</span>
+                            </div>
+                        </td>
+                    </tr>
+
+                    var remarksProvided = !string.IsNullOrWhiteSpace(group.OverallRemarks);
+                    var remarksCell = remarksProvided
+                        ? HtmlEncoder.Default.Encode(group.OverallRemarks)
+                        : "<span class=\"ffc-dtable__remarks-empty\">No overall remarks recorded.</span>";
+                    var rowSpan = group.Rows.Count;
+
+                    for (var index = 0; index < group.Rows.Count; index++)
+                    {
+                        var row = group.Rows[index];
+                        <tr>
+                            <td class="text-muted">@row.Serial</td>
+                            <td>@row.ProjectName</td>
+                            <td class="text-end">@(row.CostInCr.HasValue ? row.CostInCr.Value.ToString("N2") : "—")</td>
+                            <td class="text-end">@row.Quantity</td>
+                            <td>@row.Status</td>
+                            <td>@row.Progress</td>
+                            @if (index == 0)
+                            {
+                                <td rowspan="@rowSpan" class="align-top">@Html.Raw(remarksCell)</td>
+                            }
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}

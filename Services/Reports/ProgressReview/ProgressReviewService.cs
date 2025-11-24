@@ -13,6 +13,7 @@ using ProjectManagement.Models.Activities;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Ffc;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Storage;
 
@@ -30,11 +31,13 @@ public sealed class ProgressReviewService : IProgressReviewService
 
     private readonly ApplicationDbContext _db;
     private readonly IProtectedFileUrlBuilder _fileUrlBuilder;
+    private readonly IFfcQueryService _ffcQueryService;
 
-    public ProgressReviewService(ApplicationDbContext db, IProtectedFileUrlBuilder fileUrlBuilder)
+    public ProgressReviewService(ApplicationDbContext db, IProtectedFileUrlBuilder fileUrlBuilder, IFfcQueryService ffcQueryService)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _fileUrlBuilder = fileUrlBuilder ?? throw new ArgumentNullException(nameof(fileUrlBuilder));
+        _ffcQueryService = ffcQueryService ?? throw new ArgumentNullException(nameof(ffcQueryService));
     }
 
     public async Task<ProgressReviewVm> GetAsync(ProgressReviewRequest request, CancellationToken cancellationToken = default)
@@ -102,6 +105,7 @@ public sealed class ProgressReviewService : IProgressReviewService
         // SECTION: Proliferation, FFC, Misc
         var proliferation = await LoadProliferationAsync(from, to, cancellationToken);
         var ffc = await LoadFfcAsync(from, to, cancellationToken);
+        var ffcDetailedIncompleteGroups = await _ffcQueryService.GetDetailedGroupsAsync(from, to, incompleteOnly: true, cancellationToken: cancellationToken);
         var misc = await LoadMiscActivitiesAsync(from, to, cancellationToken);
 
         var totals = new TotalsVm(
@@ -128,6 +132,7 @@ public sealed class ProgressReviewService : IProgressReviewService
             Training: new TrainingSectionVm(simulatorTraining, droneTraining),
             Proliferation: proliferation,
             Ffc: ffc,
+            FfcDetailedIncompleteGroups: ffcDetailedIncompleteGroups.ToArray(),
             Misc: misc,
             Totals: totals);
     }

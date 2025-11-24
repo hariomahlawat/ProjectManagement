@@ -48,6 +48,7 @@ using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Documents;
+using ProjectManagement.Services.Ffc;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Notifications;
 using ProjectManagement.Services.Search;
@@ -441,6 +442,7 @@ builder.Services.AddScoped<TrainingTrackerReadService>();
 builder.Services.AddScoped<TrainingWriteService>();
 builder.Services.AddScoped<ITrainingNotificationService, TrainingNotificationService>();
 builder.Services.AddScoped<ITrainingExportService, TrainingExportService>();
+builder.Services.AddScoped<IFfcQueryService, FfcQueryService>();
 builder.Services.AddScoped<IProgressReviewService, ProgressReviewService>();
 builder.Services.AddSingleton<ITrainingExcelWorkbookBuilder, TrainingExcelWorkbookBuilder>();
 builder.Services.AddOptions<ProjectPhotoOptions>()

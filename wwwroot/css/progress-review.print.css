@@ -84,4 +84,19 @@
     .progress-review__activity-card {
         page-break-inside: avoid;
     }
+
+    .ffc-detailed-table {
+        font-size: 11px;
+    }
+
+    .ffc-detailed-table th,
+    .ffc-detailed-table td {
+        padding: 4px 6px;
+        vertical-align: top;
+        word-break: break-word;
+    }
+
+    .ffc-detailed-group {
+        page-break-inside: avoid;
+    }
 }
