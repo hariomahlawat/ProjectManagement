@@ -52,16 +52,25 @@
   // =========================================================
   // SECTION: Quick action bindings
   // =========================================================
-  const bindPrintButtons = () => {
-    const buttons = document.querySelectorAll('[data-action="export-pdf"], [data-action="print"]');
-    if (!buttons.length) {
+  const bindExportPdfButton = () => {
+    const button = document.querySelector('[data-action="export-pdf"]');
+    if (!button) {
       return;
     }
 
-    buttons.forEach((button) => {
-      button.addEventListener('click', () => {
-        window.print();
-      });
+    button.addEventListener('click', () => {
+      window.print();
+    });
+  };
+
+  const bindPrintButton = () => {
+    const button = document.querySelector('[data-action="print"]');
+    if (!button) {
+      return;
+    }
+
+    button.addEventListener('click', () => {
+      window.print();
     });
   };
 
@@ -72,6 +81,7 @@
     }
 
     ensureDefaultDates(form);
-    bindPrintButtons();
+    bindExportPdfButton();
+    bindPrintButton();
   });
 })();
