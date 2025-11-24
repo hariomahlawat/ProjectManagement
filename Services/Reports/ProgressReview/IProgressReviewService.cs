@@ -106,7 +106,8 @@ public sealed record VisitSummaryVm(
     string VisitType,
     int Strength,
     string? Remarks,
-    Guid? CoverPhotoId
+    Guid? CoverPhotoId,
+    Guid? DisplayPhotoId
 );
 
 public sealed record SocialMediaSectionVm(IReadOnlyList<SocialMediaPostVm> Items, int TotalCount);
@@ -117,7 +118,8 @@ public sealed record SocialMediaPostVm(
     string Title,
     string Platform,
     string? Description,
-    Guid? CoverPhotoId
+    Guid? CoverPhotoId,
+    Guid? DisplayPhotoId
 );
 
 public sealed record TotSectionVm(
