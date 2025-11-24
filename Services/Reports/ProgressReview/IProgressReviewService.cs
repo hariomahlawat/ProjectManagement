@@ -214,7 +214,8 @@ public sealed record MiscActivityVm(
     string Title,
     string? Summary,
     string? Location,
-    string? PhotoUrl
+    string? PhotoUrl,
+    Guid? DisplayPhotoId
 );
 
 public sealed record TotalsVm(
