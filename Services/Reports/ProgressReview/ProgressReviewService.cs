@@ -465,7 +465,12 @@ public sealed class ProgressReviewService : IProgressReviewService
                 VisitTypeName = v.VisitType != null ? v.VisitType.Name : string.Empty,
                 v.Strength,
                 v.Remarks,
-                v.CoverPhotoId
+                v.CoverPhotoId,
+                DisplayPhotoId = v.CoverPhotoId
+                    ?? v.Photos
+                        .OrderByDescending(p => p.CreatedAtUtc)
+                        .Select(p => (Guid?)p.Id)
+                        .FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
 
@@ -477,7 +482,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                 v.VisitTypeName,
                 v.Strength,
                 Truncate(v.Remarks, 240),
-                v.CoverPhotoId))
+                v.CoverPhotoId,
+                v.DisplayPhotoId))
             .ToList();
 
         return new VisitSectionVm(items, items.Count);
@@ -497,7 +503,12 @@ public sealed class ProgressReviewService : IProgressReviewService
                 e.Title,
                 PlatformName = e.SocialMediaPlatform != null ? e.SocialMediaPlatform.Name : string.Empty,
                 e.Description,
-                e.CoverPhotoId
+                e.CoverPhotoId,
+                DisplayPhotoId = e.CoverPhotoId
+                    ?? e.Photos
+                        .OrderByDescending(p => p.CreatedAtUtc)
+                        .Select(p => (Guid?)p.Id)
+                        .FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
 
@@ -508,7 +519,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                 e.Title,
                 e.PlatformName,
                 Truncate(e.Description, 240),
-                e.CoverPhotoId))
+                e.CoverPhotoId,
+                e.DisplayPhotoId))
             .ToList();
 
         return new SocialMediaSectionVm(posts, posts.Count);

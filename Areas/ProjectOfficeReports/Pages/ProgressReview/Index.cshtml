@@ -98,7 +98,7 @@
         }
 
         return Url.Page(
-            "/ProjectOfficeReports/Visits/ViewPhoto",
+            "/Visits/ViewPhoto",
             new { area = "ProjectOfficeReports", id = visitId, photoId = photoId.Value, size = "xs" });
     }
 
@@ -110,7 +110,7 @@
         }
 
         return Url.Page(
-            "/ProjectOfficeReports/SocialMedia/ViewPhoto",
+            "/SocialMedia/ViewPhoto",
             new { area = "ProjectOfficeReports", id = eventId, photoId = photoId.Value, size = "thumb" });
     }
 }
@@ -274,9 +274,9 @@
                                 <ul class="list-unstyled mb-0 px-3">
                                     @foreach (var visit in vm.Visits.Items.Take(visitLimit))
                                     {
-                                        var visitPhotoUrl = BuildVisitPhotoUrl(visit.Id, visit.CoverPhotoId);
+                                        var visitPhotoUrl = BuildVisitPhotoUrl(visit.Id, visit.DisplayPhotoId);
                                         var visitDetailsUrl = Url.Page(
-                                            "/ProjectOfficeReports/Visits/Details",
+                                            "/Visits/Details",
                                             new { area = "ProjectOfficeReports", id = visit.Id });
                                         var visitPhotoAlt = string.IsNullOrWhiteSpace(visit.VisitorName)
                                             ? "Visit photo"
@@ -326,9 +326,9 @@
                                 <ul class="list-unstyled mb-0 px-3">
                                     @foreach (var post in vm.SocialMedia.Items.Take(socialLimit))
                                     {
-                                        var postPhotoUrl = BuildSocialPhotoUrl(post.Id, post.CoverPhotoId);
+                                        var postPhotoUrl = BuildSocialPhotoUrl(post.Id, post.DisplayPhotoId);
                                         var postDetailsUrl = Url.Page(
-                                            "/ProjectOfficeReports/SocialMedia/Details",
+                                            "/SocialMedia/Details",
                                             new { area = "ProjectOfficeReports", id = post.Id });
                                         var postPhotoAlt = string.IsNullOrWhiteSpace(post.Title)
                                             ? "Social post photo"
