@@ -316,6 +316,13 @@
     margin-top: 4px;
 }
 
+.pr-line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
 .progress-review__media-list {
     margin: 0;
 }

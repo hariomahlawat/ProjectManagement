@@ -113,6 +113,18 @@
             "/SocialMedia/ViewPhoto",
             new { area = "ProjectOfficeReports", id = eventId, photoId = photoId.Value, size = "thumb" });
     }
+
+    string? BuildActivityPhotoUrl(int activityId, Guid? photoId)
+    {
+        if (!photoId.HasValue)
+        {
+            return null;
+        }
+
+        return Url.Page(
+            "/Activities/ViewPhoto",
+            new { area = "ProjectOfficeReports", id = activityId, photoId = photoId.Value, size = "thumb" });
+    }
 }
 
 @section Styles {
@@ -681,33 +693,44 @@
                     {
                         var miscLimit = 10;
                         <div class="progress-review__stack">
-                            @foreach (var activity in vm.Misc.Rows.Take(miscLimit))
+                            @foreach (var act in vm.Misc.Rows.Take(miscLimit))
                             {
-                                <article class="progress-review__activity-card w-100 mb-3">
-                                    @if (!string.IsNullOrWhiteSpace(activity.PhotoUrl))
-                                    {
-                                        var activityPhotoAlt = string.IsNullOrWhiteSpace(activity.Title)
-                                            ? "Activity photo"
-                                            : $"{activity.Title} photo";
-                                        <img role="img" class="progress-review__activity-photo" src="@activity.PhotoUrl" alt="@activityPhotoAlt" loading="lazy" />
-                                    }
-                                    <p class="text-muted small mb-1"><time datetime="@FormatDateIso(activity.Date)">@FormatDay(activity.Date)</time> · @activity.Location</p>
-                                    <h3 class="h6">@activity.Title</h3>
-                                    @if (!string.IsNullOrWhiteSpace(activity.Summary))
-                                    {
-                                        <p class="text-muted small mb-0">@activity.Summary</p>
-                                    }
-                                    else
-                                    {
-                                        <p class="text-muted small mb-0">No description available.</p>
-                                    }
-                                </article>
+                                var photoUrl = BuildActivityPhotoUrl(act.ActivityId, act.DisplayPhotoId) ?? act.PhotoUrl;
+                                <div class="pr-media-item">
+                                    <div class="pr-media-thumb">
+                                        @if (!string.IsNullOrWhiteSpace(photoUrl))
+                                        {
+                                            <img src="@photoUrl" alt="Activity photo" />
+                                        }
+                                    </div>
+
+                                    <div class="pr-media-content">
+                                        <div class="pr-media-title">@act.Title</div>
+                                        <div class="pr-media-sub">
+                                            @act.Date.ToString("dd MMM yyyy")
+                                            @if (!string.IsNullOrWhiteSpace(act.Location))
+                                            {
+                                                <span class="pr-meta"> · @act.Location</span>
+                                            }
+                                        </div>
+
+                                        @if (!string.IsNullOrWhiteSpace(act.Summary))
+                                        {
+                                            <div class="pr-media-text pr-line-clamp-3">
+                                                @act.Summary
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+
+                            @if (vm.Misc.Rows.Count > miscLimit)
+                            {
+                                <div class="pr-meta fst-italic mt-1">
+                                    Showing top @miscLimit of @vm.Misc.Rows.Count activities.
+                                </div>
                             }
                         </div>
-                        @if (vm.Misc.Rows.Count > miscLimit)
-                        {
-                            <p class="text-muted small mt-2">Showing top @miscLimit of @vm.Misc.Rows.Count activities.</p>
-                        }
                     }
                 </section>
             </article>

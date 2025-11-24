@@ -882,6 +882,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 a.Title,
                 a.Description,
                 a.Location,
+                DisplayPhotoId = (Guid?)null,
                 a.ScheduledStartUtc,
                 a.ScheduledEndUtc,
                 PhotoStorageKey = a.Attachments
@@ -910,7 +911,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                 x.Title,
                 Truncate(x.Description, 240),
                 x.Location,
-                BuildAttachmentUrl(x.PhotoStorageKey)))
+                BuildAttachmentUrl(x.PhotoStorageKey),
+                x.DisplayPhotoId))
             .ToList();
 
         return new MiscSectionVm(result);
