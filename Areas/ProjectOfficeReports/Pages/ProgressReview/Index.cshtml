@@ -151,13 +151,14 @@
                 </header>
 
                 @* SECTION: Project progress buckets *@
-                <section class="progress-review__section" id="project-progress">
+                <section class="progress-review__section pr-section" id="project-progress">
                     <header class="progress-review__section-header">
                         <div>
-                            <span class="progress-review__section-label" aria-hidden="true">Section 01</span>
-                            <h2 class="progress-review__section-title">Ongoing projects progress</h2>
+                            <span class="progress-review__section-label pr-section-label" aria-hidden="true">Section 01</span>
+                            <h2 class="progress-review__section-title pr-section-title">Ongoing projects progress</h2>
+                            <div class="pr-section-divider"></div>
                         </div>
-                        <p class="progress-review__section-meta text-muted">@vm.Projects.SummaryRows.Count projects in scope</p>
+                        <p class="progress-review__section-meta pr-meta">@vm.Projects.SummaryRows.Count projects in scope</p>
                     </header>
 
                     @if (!vm.Projects.CategoryGroups.Any())
@@ -166,90 +167,75 @@
                     }
                     else
                     {
-                        <div class="progress-review__category-grid">
+                        <div class="pr-category-stack">
                             @foreach (var group in vm.Projects.CategoryGroups)
                             {
-                                <section class="progress-review__category" aria-label="@group.CategoryName">
-                                    <div class="progress-review__category-header">
-                                        <h3 class="progress-review__category-title">@group.CategoryName</h3>
-                                        <span class="text-muted small">@group.Projects.Count projects</span>
+                                <section class="pr-category-block" aria-label="@group.CategoryName">
+                                    <div class="pr-category-header">
+                                        <span>@group.CategoryName</span>
+                                        <span class="pr-category-count">@group.Projects.Count projects</span>
                                     </div>
-                                    <div class="progress-review__project-list">
+                                    <div class="pr-project-list">
                                         @foreach (var row in group.Projects)
                                         {
                                             var stageMovements = row.StageMovements ?? Array.Empty<ProjectStageMovementVm>();
                                             var projectDetailsUrl = Url.Page("/Projects/Overview", new { id = row.ProjectId });
-                                            <article class="progress-review__project-row">
-                                                <div class="progress-review__project-col">
-                                                    <a class="progress-review__link fw-semibold" href="@projectDetailsUrl">@row.ProjectName</a>
+                                            var stageName = string.IsNullOrWhiteSpace(row.PresentStage.CurrentStageName) ? "Stage pending" : row.PresentStage.CurrentStageName;
+                                            <article class="pr-project-row">
+                                                <div>
+                                                    <a class="progress-review__link pr-project-name" href="@projectDetailsUrl">@row.ProjectName</a>
                                                     @if (!string.IsNullOrWhiteSpace(row.ProjectCategoryName))
                                                     {
-                                                        <div class="text-muted small">@row.ProjectCategoryName</div>
+                                                        <div class="pr-meta">@row.ProjectCategoryName</div>
                                                     }
                                                 </div>
-                                                <div class="progress-review__project-col">
-                                                    @{ var stageName = string.IsNullOrWhiteSpace(row.PresentStage.CurrentStageName) ? "Stage pending" : row.PresentStage.CurrentStageName; }
-                                                    <div class="progress-review__stage-headline">Present stage — <span class="fw-semibold">@stageName</span></div>
-                                                    <div class="text-muted small">@((row.PresentStage.DaysSinceStartOrLastCompletion ?? 0)) days passed</div>
-                                                    @if (stageMovements.Any())
+                                                <div class="pr-stage-line">Present stage — <span class="fw-semibold">@stageName</span></div>
+                                                <div class="pr-meta">@((row.PresentStage.DaysSinceStartOrLastCompletion ?? 0)) days passed</div>
+                                                @if (stageMovements.Any())
+                                                {
+                                                    @foreach (var movement in stageMovements)
                                                     {
-                                                        <ul class="progress-review__history-list">
-                                                            @foreach (var movement in stageMovements)
+                                                        var movementDate = GetMovementDate(movement);
+                                                        var actionText = movement.IsOngoing ? "started on" : "completed on";
+                                                        <div class="pr-movement-line">
+                                                            <strong>@movement.StageName</strong> @actionText
+                                                            @if (movementDate.HasValue)
                                                             {
-                                                                var movementDate = GetMovementDate(movement);
-                                                                var actionText = movement.IsOngoing ? "started on" : "completed on";
-                                                                <li>
-                                                                    <span class="progress-review__history-text">
-                                                                        <strong>@movement.StageName</strong> @actionText
-                                                                        @if (movementDate.HasValue)
-                                                                        {
-                                                                            <time datetime="@FormatDateIso(movementDate.Value)">@FormatDay(movementDate.Value)</time>
-                                                                        }
-                                                                        else
-                                                                        {
-                                                                            <span>date N/A</span>
-                                                                        }
-                                                                    </span>
-                                                                </li>
-                                                            }
-                                                        </ul>
-                                                        @if (row.StageMovementOverflowCount > 0)
-                                                        {
-                                                            <div class="text-muted small">Showing top @stageMovements.Count of @(stageMovements.Count + row.StageMovementOverflowCount) movements</div>
-                                                        }
-                                                    }
-                                                    else
-                                                    {
-                                                        <div class="text-muted small mt-1">No stage movements recorded in this range.</div>
-                                                    }
-                                                </div>
-                                                <div class="progress-review__project-col progress-review__cell-truncate">
-                                                    @if (!string.IsNullOrWhiteSpace(row.RemarkSummary.LatestRemarkSummary))
-                                                    {
-                                                        var remarkHtml = RenderRemarkHtml(row.RemarkSummary.LatestRemarkSummary);
-                                                        var tooltip = BuildRemarkTooltip(row.RemarkSummary);
-                                                        <div class="progress-review__remark" title="@tooltip">
-                                                            @if (row.RemarkSummary.LatestRemarkDate.HasValue)
-                                                            {
-                                                                <span class="text-muted">@FormatDay(row.RemarkSummary.LatestRemarkDate.Value)</span>
+                                                                <time datetime="@FormatDateIso(movementDate.Value)">@FormatDay(movementDate.Value)</time>
                                                             }
                                                             else
                                                             {
-                                                                <span class="text-muted">Date N/A</span>
+                                                                <span>date N/A</span>
                                                             }
-                                                            <span class="progress-review__remark-divider"> — </span>
-                                                            <span class="progress-review__remark-text">@Html.Raw(remarkHtml)</span>
                                                         </div>
-                                                        @if (row.RemarkSummary.MoreRemarkCount > 0)
-                                                        {
-                                                            <div class="text-muted small">Latest external remark shown</div>
-                                                        }
                                                     }
-                                                    else
+                                                    @if (row.StageMovementOverflowCount > 0)
                                                     {
-                                                        <span class="text-muted small">No external remarks in range.</span>
+                                                        <div class="pr-meta">Showing top @stageMovements.Count of @(stageMovements.Count + row.StageMovementOverflowCount) movements</div>
                                                     }
-                                                </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="pr-meta">No stage movements recorded in this range.</div>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(row.RemarkSummary.LatestRemarkSummary))
+                                                {
+                                                    var remarkHtml = RenderRemarkHtml(row.RemarkSummary.LatestRemarkSummary);
+                                                    var tooltip = BuildRemarkTooltip(row.RemarkSummary);
+                                                    <div class="pr-remark-line" title="@tooltip">
+                                                        <span class="pr-meta">@((row.RemarkSummary.LatestRemarkDate.HasValue ? FormatDay(row.RemarkSummary.LatestRemarkDate.Value) : "Date N/A"))</span>
+                                                        <span class="pr-meta">—</span>
+                                                        <span class="pr-body">@Html.Raw(remarkHtml)</span>
+                                                    </div>
+                                                    @if (row.RemarkSummary.MoreRemarkCount > 0)
+                                                    {
+                                                        <div class="pr-meta">Latest external remark shown</div>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <div class="pr-meta fst-italic">No external remarks in range.</div>
+                                                }
                                             </article>
                                         }
                                     </div>
@@ -260,28 +246,29 @@
                 </section>
 
                 @* SECTION: Visits and Social media outreach *@
-                <section class="progress-review__section" id="field-engagement">
+                <section class="progress-review__section pr-section" id="field-engagement">
                     <header class="progress-review__section-header">
                         <div>
-                            <span class="progress-review__section-label" aria-hidden="true">Section 02</span>
-                            <h2 class="progress-review__section-title">Visits to SDD & social media outreach</h2>
-                            <p class="progress-review__section-subtitle">Visits to SDD and social narratives captured for documentation.</p>
+                            <span class="progress-review__section-label pr-section-label" aria-hidden="true">Section 02</span>
+                            <h2 class="progress-review__section-title pr-section-title">Visits to SDD & social media outreach</h2>
+                            <p class="progress-review__section-subtitle pr-meta">Visits to SDD and social narratives captured for documentation.</p>
+                            <div class="pr-section-divider"></div>
                         </div>
                     </header>
-                    <div class="row g-4 progress-review__split">
-                        <div class="col-lg-6">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h3 class="progress-review__subheading mb-0">Visits log</h3>
-                                <span class="text-muted small">@vm.Visits.TotalCount entries</span>
+                    <div class="pr-category-stack">
+                        <section class="pr-category-block" aria-label="Visits log">
+                            <div class="pr-category-header">
+                                <span>Visits log</span>
+                                <span class="pr-category-count">@vm.Visits.TotalCount entries</span>
                             </div>
                             @if (!vm.Visits.Items.Any())
                             {
-                                <p class="text-muted mb-0">No visits recorded in this range.</p>
+                                <p class="pr-meta mb-0 px-3 py-2">No visits recorded in this range.</p>
                             }
                             else
                             {
                                 var visitLimit = 6;
-                                <ul class="list-unstyled mb-0 progress-review__media-list">
+                                <ul class="list-unstyled mb-0 px-3">
                                     @foreach (var visit in vm.Visits.Items.Take(visitLimit))
                                     {
                                         var visitPhotoUrl = BuildVisitPhotoUrl(visit.Id, visit.CoverPhotoId);
@@ -291,24 +278,24 @@
                                         var visitPhotoAlt = string.IsNullOrWhiteSpace(visit.VisitorName)
                                             ? "Visit photo"
                                             : $"{visit.VisitorName} visit photo";
-                                        <li class="progress-review__media-item">
-                                            @if (!string.IsNullOrWhiteSpace(visitPhotoUrl))
-                                            {
-                                                <div class="progress-review__media-thumb">
+                                        <li class="pr-media-item">
+                                            <div class="pr-media-thumb">
+                                                @if (!string.IsNullOrWhiteSpace(visitPhotoUrl))
+                                                {
                                                     <img role="img" src="@visitPhotoUrl" alt="@visitPhotoAlt" loading="lazy" width="72" height="72" />
-                                                </div>
-                                            }
-                                            <div class="progress-review__media-body">
+                                                }
+                                            </div>
+                                            <div class="pr-media-content">
                                                 <a class="progress-review__link progress-review__link--block" href="@visitDetailsUrl">
-                                                    <div class="fw-semibold">@visit.VisitorName <span class="text-muted fw-normal">(@visit.VisitType)</span></div>
-                                                    <div class="small text-muted"><time datetime="@FormatDateIso(visit.Date)">@FormatDay(visit.Date)</time> · Strength @visit.Strength</div>
+                                                    <div class="pr-media-title">@visit.VisitorName <span class="pr-meta">(@visit.VisitType)</span></div>
+                                                    <div class="pr-media-sub"><time datetime="@FormatDateIso(visit.Date)">@FormatDay(visit.Date)</time> · Strength @visit.Strength</div>
                                                     @if (!string.IsNullOrWhiteSpace(visit.Remarks))
                                                     {
-                                                        <div class="text-muted small">@visit.Remarks</div>
+                                                        <div class="pr-media-text">@visit.Remarks</div>
                                                     }
                                                     else
                                                     {
-                                                        <div class="text-muted small">No remarks shared.</div>
+                                                        <div class="pr-meta">No remarks shared.</div>
                                                     }
                                                 </a>
                                             </div>
@@ -317,23 +304,23 @@
                                 </ul>
                                 @if (vm.Visits.TotalCount > visitLimit)
                                 {
-                                    <p class="text-muted small mt-2">Showing top @visitLimit of @vm.Visits.TotalCount visits.</p>
+                                    <p class="pr-meta px-3 pb-2">Showing top @visitLimit of @vm.Visits.TotalCount visits.</p>
                                 }
                             }
-                        </div>
-                        <div class="col-lg-6">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h3 class="progress-review__subheading mb-0">Social media</h3>
-                                <span class="text-muted small">@vm.SocialMedia.TotalCount posts</span>
+                        </section>
+                        <section class="pr-category-block" aria-label="Social media">
+                            <div class="pr-category-header">
+                                <span>Social media</span>
+                                <span class="pr-category-count">@vm.SocialMedia.TotalCount posts</span>
                             </div>
                             @if (!vm.SocialMedia.Items.Any())
                             {
-                                <p class="text-muted mb-0">No social media updates in this range.</p>
+                                <p class="pr-meta mb-0 px-3 py-2">No social media updates in this range.</p>
                             }
                             else
                             {
                                 var socialLimit = 6;
-                                <ul class="list-unstyled mb-0 progress-review__media-list">
+                                <ul class="list-unstyled mb-0 px-3">
                                     @foreach (var post in vm.SocialMedia.Items.Take(socialLimit))
                                     {
                                         var postPhotoUrl = BuildSocialPhotoUrl(post.Id, post.CoverPhotoId);
@@ -343,24 +330,24 @@
                                         var postPhotoAlt = string.IsNullOrWhiteSpace(post.Title)
                                             ? "Social post photo"
                                             : $"{post.Title} social post";
-                                        <li class="progress-review__media-item">
-                                            @if (!string.IsNullOrWhiteSpace(postPhotoUrl))
-                                            {
-                                                <div class="progress-review__media-thumb">
+                                        <li class="pr-media-item">
+                                            <div class="pr-media-thumb">
+                                                @if (!string.IsNullOrWhiteSpace(postPhotoUrl))
+                                                {
                                                     <img role="img" src="@postPhotoUrl" alt="@postPhotoAlt" loading="lazy" width="72" height="72" />
-                                                </div>
-                                            }
-                                            <div class="progress-review__media-body">
+                                                }
+                                            </div>
+                                            <div class="pr-media-content">
                                                 <a class="progress-review__link progress-review__link--block" href="@postDetailsUrl">
-                                                    <div class="fw-semibold">@post.Title</div>
-                                                    <div class="small text-muted"><time datetime="@FormatDateIso(post.Date)">@FormatDay(post.Date)</time> · @post.Platform</div>
+                                                    <div class="pr-media-title">@post.Title</div>
+                                                    <div class="pr-media-sub"><time datetime="@FormatDateIso(post.Date)">@FormatDay(post.Date)</time> · @post.Platform</div>
                                                     @if (!string.IsNullOrWhiteSpace(post.Description))
                                                     {
-                                                        <div class="text-muted small">@post.Description</div>
+                                                        <div class="pr-media-text">@post.Description</div>
                                                     }
                                                     else
                                                     {
-                                                        <div class="text-muted small">No caption provided.</div>
+                                                        <div class="pr-meta">No caption provided.</div>
                                                     }
                                                 </a>
                                             </div>
@@ -369,19 +356,20 @@
                                 </ul>
                                 @if (vm.SocialMedia.TotalCount > socialLimit)
                                 {
-                                    <p class="text-muted small mt-2">Showing top @socialLimit of @vm.SocialMedia.TotalCount posts.</p>
+                                    <p class="pr-meta px-3 pb-2">Showing top @socialLimit of @vm.SocialMedia.TotalCount posts.</p>
                                 }
                             }
-                        </div>
+                        </section>
                     </div>
                 </section>
 
                 @* SECTION: Technology transfer & IPR *@
-                <section class="progress-review__section" id="tech-transfer">
+                <section class="progress-review__section pr-section" id="tech-transfer">
                     <header class="progress-review__section-header">
                         <div>
-                            <span class="progress-review__section-label" aria-hidden="true">Section 03</span>
-                            <h2 class="progress-review__section-title">Transfer of technology & Patent/ Copyrights</h2>
+                            <span class="progress-review__section-label pr-section-label" aria-hidden="true">Section 03</span>
+                            <h2 class="progress-review__section-title pr-section-title">Transfer of technology & Patent/ Copyrights</h2>
+                            <div class="pr-section-divider"></div>
                         </div>
                     </header>
                     <div class="row g-4 progress-review__split">
@@ -499,12 +487,13 @@
                 </section>
 
                 @* SECTION: Training *@
-                <section class="progress-review__section" id="training">
+                <section class="progress-review__section pr-section" id="training">
                     <header class="progress-review__section-header">
                         <div>
-                            <span class="progress-review__section-label" aria-hidden="true">Section 04</span>
-                            <h2 class="progress-review__section-title">Training conducted by SDD</h2>
-                            <p class="progress-review__section-subtitle">Simulator and drone training efforts for the period.</p>
+                            <span class="progress-review__section-label pr-section-label" aria-hidden="true">Section 04</span>
+                            <h2 class="progress-review__section-title pr-section-title">Training conducted by SDD</h2>
+                            <p class="progress-review__section-subtitle pr-meta">Simulator and drone training efforts for the period.</p>
+                            <div class="pr-section-divider"></div>
                         </div>
                     </header>
                     <div class="row g-4 progress-review__split">

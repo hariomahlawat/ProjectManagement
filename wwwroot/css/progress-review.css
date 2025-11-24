@@ -1,12 +1,16 @@
 /* =========================================================
    SECTION: Layout shell
    ========================================================= */
+/* =========================================================
+   SECTION: Tokens & base palette
+   ========================================================= */
 :root {
     --pr-surface: #ffffff;
     --pr-muted: #6c757d;
     --pr-border: #e6e9f0;
     --pr-heading: #1f2a3e;
     --pr-background: #f4f6fb;
+    --pr-accent: #0f172a;
 }
 
 .progress-review-shell {
@@ -60,6 +64,72 @@
 }
 
 /* =========================================================
+   SECTION: Report hierarchy & typography
+   ========================================================= */
+.pr-section {
+    margin-top: 20px;
+}
+
+.pr-section-label {
+    font-size: 11px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin-bottom: 2px;
+    display: inline-block;
+}
+
+.pr-section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 6px;
+}
+
+.pr-section-divider {
+    border-top: 1px solid #e6e8ec;
+    margin-bottom: 10px;
+}
+
+.pr-category-header {
+    background: #f6f7f9;
+    border-left: 3px solid #9aa4b2;
+    padding: 6px 10px;
+    font-weight: 600;
+    font-size: 13.5px;
+    color: #111827;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.pr-category-count {
+    font-size: 11px;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.pr-project-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.pr-meta {
+    font-size: 11.5px;
+    color: #6b7280;
+}
+
+.pr-body {
+    font-size: 12.5px;
+    color: #4b5563;
+}
+
+.pr-divider-soft {
+    border-bottom: 1px solid #eef0f3;
+}
+
+/* =========================================================
    SECTION: Section headings
    ========================================================= */
 .progress-review__section + .progress-review__section {
@@ -109,74 +179,50 @@
 /* =========================================================
    SECTION: Project grouping
    ========================================================= */
-.progress-review__category-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 1rem;
-}
-
-.progress-review__category {
-    border: 1px solid var(--pr-border);
-    border-radius: 0.9rem;
-    padding: 1rem;
-    background: #fafbfe;
-}
-
-.progress-review__category-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--pr-border);
-    padding-bottom: 0.35rem;
-    margin-bottom: 0.75rem;
-}
-
-.progress-review__category-title {
-    font-size: 0.95rem;
-    font-weight: 700;
-    margin: 0;
-}
-
-.progress-review__project-list {
+.pr-category-stack {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
 }
 
-.progress-review__project-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 0.75rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px dashed var(--pr-border);
+.pr-category-block {
+    background: #ffffff;
+    border: 1px solid #edf1f5;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(35, 43, 59, 0.02);
 }
 
-.progress-review__project-row:last-child {
+.pr-project-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.pr-project-row {
+    padding: 8px 10px;
+    border-bottom: 1px solid #eef0f3;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pr-project-row:last-child {
     border-bottom: none;
-    padding-bottom: 0;
 }
 
-.progress-review__project-col {
-    min-width: 0;
+.pr-stage-line {
+    font-size: 12.5px;
 }
 
-.progress-review__stage-headline {
-    font-size: 0.95rem;
-    margin-bottom: 0.25rem;
+.pr-movement-line {
+    font-size: 11.5px;
+    color: #6b7280;
+    margin-top: 2px;
 }
 
-.progress-review__history-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-.progress-review__history-text {
-    font-size: 0.9rem;
-    color: var(--pr-muted);
+.pr-remark-line {
+    font-size: 12.5px;
+    margin-top: 4px;
 }
 
 .progress-review__link {
@@ -189,27 +235,8 @@
     text-decoration: underline;
 }
 
-.progress-review__cell-truncate {
-    word-break: break-word;
-}
-
-.progress-review__remark {
-    line-height: 1.4;
-    color: var(--pr-heading);
-    display: flex;
-    align-items: baseline;
-    gap: 0.35rem;
-}
-
-.progress-review__remark-divider {
-    color: var(--pr-muted);
-}
-
-.progress-review__remark-text {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+.progress-review__link--block {
+    display: block;
 }
 
 /* =========================================================
@@ -242,6 +269,53 @@
 /* =========================================================
    SECTION: Media list
    ========================================================= */
+.pr-media-item {
+    display: flex;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #eef0f3;
+}
+
+.pr-media-item:last-child {
+    border-bottom: none;
+}
+
+.pr-media-thumb {
+    width: 72px;
+    height: 72px;
+    border-radius: 6px;
+    background: #f1f3f5;
+    flex: 0 0 auto;
+    overflow: hidden;
+}
+
+.pr-media-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.pr-media-content {
+    flex: 1;
+}
+
+.pr-media-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: #0f172a;
+}
+
+.pr-media-sub {
+    font-size: 11.5px;
+    color: #6b7280;
+    margin-top: 2px;
+}
+
+.pr-media-text {
+    font-size: 12.5px;
+    margin-top: 4px;
+}
+
 .progress-review__media-list {
     margin: 0;
 }
