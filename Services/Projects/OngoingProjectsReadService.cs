@@ -43,9 +43,11 @@ namespace ProjectManagement.Services.Projects
                             && !p.IsArchived
                             && !p.IsDeleted);
 
+            // -------------------- Category filtering --------------------
             if (projectCategoryId is { } catId && catId > 0)
             {
-                q = q.Where(p => p.CategoryId == catId);
+                var categoryScopeIds = await GetCategoryScopeIdsAsync(catId, cancellationToken);
+                q = q.Where(p => categoryScopeIds.Contains(p.CategoryId));
             }
 
             if (!string.IsNullOrWhiteSpace(leadPoUserId))
@@ -286,6 +288,47 @@ namespace ProjectManagement.Services.Projects
             }
 
             return items;
+        }
+
+        // -------------------- Category scope helpers --------------------
+        private async Task<int[]> GetCategoryScopeIdsAsync(int rootCategoryId, CancellationToken cancellationToken)
+        {
+            var categories = await _db.ProjectCategories
+                .AsNoTracking()
+                .Select(c => new { c.Id, c.ParentId })
+                .ToListAsync(cancellationToken);
+
+            var childrenByParent = categories
+                .GroupBy(c => c.ParentId)
+                .ToDictionary(g => g.Key, g => g.Select(x => x.Id).ToList());
+
+            var collectedIds = new List<int> { rootCategoryId };
+            var collectedSet = new HashSet<int>(collectedIds);
+            var toVisit = new Queue<int>();
+            toVisit.Enqueue(rootCategoryId);
+
+            while (toVisit.Count > 0)
+            {
+                var current = toVisit.Dequeue();
+
+                if (!childrenByParent.TryGetValue(current, out var childIds))
+                {
+                    continue;
+                }
+
+                foreach (var childId in childIds)
+                {
+                    if (!collectedSet.Add(childId))
+                    {
+                        continue;
+                    }
+
+                    collectedIds.Add(childId);
+                    toVisit.Enqueue(childId);
+                }
+            }
+
+            return collectedIds.ToArray();
         }
     }
 
