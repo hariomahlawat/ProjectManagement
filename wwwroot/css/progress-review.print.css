@@ -65,8 +65,15 @@
         height: auto;
     }
 
+    /* SECTION: Pagination behaviour */
     .pr-section {
-        page-break-inside: avoid;
+        page-break-inside: auto;
+        break-inside: auto;
+    }
+
+    .progress-review__section-header {
+        page-break-after: avoid;
+        break-after: avoid;
     }
 
     .pr-category-header {
