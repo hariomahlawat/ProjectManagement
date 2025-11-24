@@ -22,6 +22,7 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.ViewModels.Dashboard;
+using Microsoft.Extensions.Logging;
 
 namespace ProjectManagement.Pages.Dashboard
 {
@@ -34,6 +35,7 @@ namespace ProjectManagement.Pages.Dashboard
         private readonly IProjectPulseService _projectPulse;
         private readonly IOpsSignalsService _opsSignalsService;
         private readonly ISearchHealthService _searchHealthService;
+        private readonly ILogger<IndexModel> _logger;
         private static readonly TimeZoneInfo IST = IstClock.TimeZone;
 
         public IndexModel(
@@ -42,7 +44,8 @@ namespace ProjectManagement.Pages.Dashboard
             Data.ApplicationDbContext db,
             IProjectPulseService projectPulse,
             IOpsSignalsService opsSignalsService,
-            ISearchHealthService searchHealthService)
+            ISearchHealthService searchHealthService,
+            ILogger<IndexModel> logger)
         {
             _todo = todo;
             _users = users;
@@ -50,6 +53,7 @@ namespace ProjectManagement.Pages.Dashboard
             _projectPulse = projectPulse;
             _opsSignalsService = opsSignalsService;
             _searchHealthService = searchHealthService;
+            _logger = logger;
         }
 
         public TodoWidgetResult? TodoWidget { get; set; }
@@ -82,65 +86,105 @@ namespace ProjectManagement.Pages.Dashboard
         public async Task OnGetAsync(CancellationToken cancellationToken)
         {
             var uid = _users.GetUserId(User);
+            // SECTION: Todo widget load with fault isolation
             if (uid != null)
             {
-                TodoWidget = await _todo.GetWidgetAsync(uid, take: 20);
+                try
+                {
+                    TodoWidget = await _todo.GetWidgetAsync(uid, take: 20);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Dashboard widget failed: Todo");
+                    TodoWidget = null;
+                }
             }
+            // END SECTION
 
             var nowUtc = DateTime.UtcNow;
             var rangeEnd = nowUtc.AddDays(30);
 
             var upcoming = new List<(Guid? Id, string Title, DateTime StartUtc, DateTime EndUtc, bool IsAllDay, bool IsHoliday)>();
 
-            var events = await _db.Events.AsNoTracking()
-                .Where(e => !e.IsDeleted && e.StartUtc >= nowUtc && e.StartUtc < rangeEnd)
-                .OrderBy(e => e.StartUtc)
-                .Take(15)
-                .Select(e => new { e.Id, e.Title, e.StartUtc, e.EndUtc, e.IsAllDay })
-                .ToListAsync();
-            foreach (var ev in events)
+            // SECTION: Upcoming events and holidays load
+            try
             {
-                upcoming.Add((ev.Id, ev.Title, ev.StartUtc.UtcDateTime, ev.EndUtc.UtcDateTime, ev.IsAllDay, false));
+                var events = await _db.Events.AsNoTracking()
+                    .Where(e => !e.IsDeleted && e.StartUtc >= nowUtc && e.StartUtc < rangeEnd)
+                    .OrderBy(e => e.StartUtc)
+                    .Take(15)
+                    .Select(e => new { e.Id, e.Title, e.StartUtc, e.EndUtc, e.IsAllDay })
+                    .ToListAsync();
+                foreach (var ev in events)
+                {
+                    upcoming.Add((ev.Id, ev.Title, ev.StartUtc.UtcDateTime, ev.EndUtc.UtcDateTime, ev.IsAllDay, false));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Dashboard widget failed: Upcoming events (Events)");
             }
 
             var todayIst = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(nowUtc, IST));
             var windowEndIst = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(rangeEnd, IST));
-            var celebrations = await _db.Celebrations.AsNoTracking()
-                .Where(c => c.DeletedUtc == null)
-                .ToListAsync();
-
-            foreach (var celebration in celebrations)
+            try
             {
-                var nextOccurrence = CelebrationHelpers.NextOccurrenceLocal(celebration, todayIst);
+                var celebrations = await _db.Celebrations.AsNoTracking()
+                    .Where(c => c.DeletedUtc == null)
+                    .ToListAsync();
 
-                var startLocal = CelebrationHelpers.ToLocalDateTime(nextOccurrence);
-                var startUtc = startLocal.UtcDateTime;
-                if (startUtc >= nowUtc && startUtc < rangeEnd)
+                foreach (var celebration in celebrations)
                 {
-                    var titlePrefix = celebration.EventType switch
+                    try
                     {
-                        CelebrationType.Birthday => "Birthday",
-                        CelebrationType.Anniversary => "Anniversary",
-                        _ => celebration.EventType.ToString()
-                    };
-                    var title = $"{titlePrefix}: {CelebrationHelpers.DisplayName(celebration)}";
-                    var endUtc = CelebrationHelpers.ToLocalDateTime(nextOccurrence.AddDays(1)).UtcDateTime;
-                    upcoming.Add((celebration.Id, title, startUtc, endUtc, true, false));
+                        var nextOccurrence = CelebrationHelpers.NextOccurrenceLocal(celebration, todayIst);
+
+                        var startLocal = CelebrationHelpers.ToLocalDateTime(nextOccurrence);
+                        var startUtc = startLocal.UtcDateTime;
+                        if (startUtc >= nowUtc && startUtc < rangeEnd)
+                        {
+                            var titlePrefix = celebration.EventType switch
+                            {
+                                CelebrationType.Birthday => "Birthday",
+                                CelebrationType.Anniversary => "Anniversary",
+                                _ => celebration.EventType.ToString()
+                            };
+                            var title = $"{titlePrefix}: {CelebrationHelpers.DisplayName(celebration)}";
+                            var endUtc = CelebrationHelpers.ToLocalDateTime(nextOccurrence.AddDays(1)).UtcDateTime;
+                            upcoming.Add((celebration.Id, title, startUtc, endUtc, true, false));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Dashboard widget failed: Celebration {CelebrationId}", celebration.Id);
+                    }
                 }
             }
-
-            var holidays = await _db.Holidays.AsNoTracking()
-                .Where(h => h.Date >= todayIst && h.Date <= windowEndIst)
-                .ToListAsync();
-
-            foreach (var holiday in holidays)
+            catch (Exception ex)
             {
-                var startLocal = DateTime.SpecifyKind(holiday.Date.ToDateTime(TimeOnly.MinValue), DateTimeKind.Unspecified);
-                var endLocal = DateTime.SpecifyKind(holiday.Date.AddDays(1).ToDateTime(TimeOnly.MinValue), DateTimeKind.Unspecified);
-                var startUtc = TimeZoneInfo.ConvertTimeToUtc(startLocal, IST);
-                var endUtc = TimeZoneInfo.ConvertTimeToUtc(endLocal, IST);
-                upcoming.Add((null, $"Holiday: {holiday.Name}", startUtc, endUtc, true, true));
+                _logger.LogError(ex, "Dashboard widget failed: Celebrations block");
             }
+
+            try
+            {
+                var holidays = await _db.Holidays.AsNoTracking()
+                    .Where(h => h.Date >= todayIst && h.Date <= windowEndIst)
+                    .ToListAsync();
+
+                foreach (var holiday in holidays)
+                {
+                    var startLocal = DateTime.SpecifyKind(holiday.Date.ToDateTime(TimeOnly.MinValue), DateTimeKind.Unspecified);
+                    var endLocal = DateTime.SpecifyKind(holiday.Date.AddDays(1).ToDateTime(TimeOnly.MinValue), DateTimeKind.Unspecified);
+                    var startUtc = TimeZoneInfo.ConvertTimeToUtc(startLocal, IST);
+                    var endUtc = TimeZoneInfo.ConvertTimeToUtc(endLocal, IST);
+                    upcoming.Add((null, $"Holiday: {holiday.Name}", startUtc, endUtc, true, true));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Dashboard widget failed: Holidays block");
+            }
+            // END SECTION
 
             foreach (var item in upcoming
                 .OrderBy(x => x.StartUtc)
@@ -204,40 +248,83 @@ namespace ProjectManagement.Pages.Dashboard
 
             if (uid != null && ShowMyProjectsWidget)
             {
-                await LoadMyProjectsAsync(uid, isProjectOfficer, isHod, isComdt || isMco, cancellationToken);
+                try
+                {
+                    await LoadMyProjectsAsync(uid, isProjectOfficer, isHod, isComdt || isMco, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Dashboard widget failed: My Projects");
+                    MyProjectSections = new List<MyProjectsSection>();
+                }
             }
 
-            ProjectPulse = await _projectPulse.GetAsync(cancellationToken);
-            OpsSignals = await _opsSignalsService.GetAsync(
-                from: null,
-                to: null,
-                userId: uid ?? string.Empty,
-                cancellationToken);
-
-            SearchHealth = await _searchHealthService.GetAsync(cancellationToken);
-
-            var ffcRows = await FfcCountryRollupDataSource.LoadAsync(_db, cancellationToken);
-            var ffcCountries = ffcRows
-                .Where(row => row.Installed + row.Delivered > 0)
-                .Select(row => new FfcSimulatorCountryVm
-                {
-                    CountryId = row.CountryId,
-                    Iso3 = row.Iso3,
-                    Name = row.Name,
-                    Installed = row.Installed,
-                    Delivered = row.Delivered,
-                    Planned = row.Planned,
-                    Total = row.Total
-                })
-                .ToList();
-
-            FfcSimulatorMap = new FfcSimulatorMapVm
+            // SECTION: KPI widgets load with fault isolation
+            try
             {
-                Countries = ffcCountries,
-                TotalInstalled = ffcCountries.Sum(country => country.Installed),
-                TotalDelivered = ffcCountries.Sum(country => country.Delivered),
-                TotalPlanned = ffcCountries.Sum(country => country.Planned)
-            };
+                ProjectPulse = await _projectPulse.GetAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Dashboard widget failed: ProjectPulse");
+                ProjectPulse = null;
+            }
+
+            try
+            {
+                OpsSignals = await _opsSignalsService.GetAsync(
+                    from: null,
+                    to: null,
+                    userId: uid ?? string.Empty,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Dashboard widget failed: OpsSignals");
+                OpsSignals = new OpsSignalsVm { Tiles = Array.Empty<OpsTileVm>() };
+            }
+
+            try
+            {
+                SearchHealth = await _searchHealthService.GetAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Dashboard widget failed: SearchHealth");
+                SearchHealth = new SearchHealthVm();
+            }
+
+            try
+            {
+                var ffcRows = await FfcCountryRollupDataSource.LoadAsync(_db, cancellationToken);
+                var ffcCountries = ffcRows
+                    .Where(row => row.Installed + row.Delivered > 0)
+                    .Select(row => new FfcSimulatorCountryVm
+                    {
+                        CountryId = row.CountryId,
+                        Iso3 = row.Iso3,
+                        Name = row.Name,
+                        Installed = row.Installed,
+                        Delivered = row.Delivered,
+                        Planned = row.Planned,
+                        Total = row.Total
+                    })
+                    .ToList();
+
+                FfcSimulatorMap = new FfcSimulatorMapVm
+                {
+                    Countries = ffcCountries,
+                    TotalInstalled = ffcCountries.Sum(country => country.Installed),
+                    TotalDelivered = ffcCountries.Sum(country => country.Delivered),
+                    TotalPlanned = ffcCountries.Sum(country => country.Planned)
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Dashboard widget failed: FFC rollup");
+                FfcSimulatorMap = new FfcSimulatorMapVm();
+            }
+            // END SECTION
         }
 
         private async Task LoadMyProjectsAsync(
