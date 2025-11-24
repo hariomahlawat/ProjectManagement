@@ -1,44 +1,86 @@
+@page {
+    size: A4 portrait;
+    margin: 12mm;
+}
+
+html,
+body {
+    width: 210mm;
+    height: 297mm;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
 @media print {
     :root {
         --pr-border: #d9dfe8;
         --pr-muted: #555;
     }
 
-    body {
-        background: #ffffff;
+    * {
+        box-sizing: border-box;
     }
 
-    .progress-review-shell {
-        padding: 0;
-        background: #ffffff;
+    body,
+    .progress-review-shell,
+    .progress-review__canvas {
+        background: #ffffff !important;
+    }
+
+    .container-xxl,
+    .pr-report-root,
+    .progress-review__canvas {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
     }
 
     .progress-review__toolbar,
+    .pr-toolbar,
+    .top-nav,
+    .btn,
+    .date-range-button,
     .progress-review__section-meta,
     .progress-review__section-subtitle {
         display: none !important;
     }
 
-    .progress-review__canvas {
-        border: none;
-        box-shadow: none;
-        padding: 0;
-        width: 210mm;
-        margin: 0 auto;
-    }
-
-    .progress-review__category,
-    .progress-review__activity-card {
-        break-inside: avoid;
-    }
-
     table {
+        width: 100% !important;
         page-break-inside: auto;
     }
 
     tr,
     td,
     th {
+        page-break-inside: avoid;
+    }
+
+    img {
+        max-width: 100%;
+        height: auto;
+    }
+
+    .pr-section {
+        page-break-inside: avoid;
+    }
+
+    .pr-category-header {
+        background: #f0f0f0 !important;
+    }
+
+    .pr-media-thumb {
+        width: 56px;
+        height: 56px;
+    }
+
+    .pr-project-row,
+    .pr-media-item,
+    .progress-review__category,
+    .progress-review__activity-card {
         page-break-inside: avoid;
     }
 }
