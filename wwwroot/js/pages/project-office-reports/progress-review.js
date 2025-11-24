@@ -52,14 +52,16 @@
   // =========================================================
   // SECTION: Quick action bindings
   // =========================================================
-  const bindPrintButton = () => {
-    const button = document.querySelector('[data-action="export-pdf"], [data-action="print"]');
-    if (!button) {
+  const bindPrintButtons = () => {
+    const buttons = document.querySelectorAll('[data-action="export-pdf"], [data-action="print"]');
+    if (!buttons.length) {
       return;
     }
 
-    button.addEventListener('click', () => {
-      window.print();
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        window.print();
+      });
     });
   };
 
@@ -70,6 +72,6 @@
     }
 
     ensureDefaultDates(form);
-    bindPrintButton();
+    bindPrintButtons();
   });
 })();
