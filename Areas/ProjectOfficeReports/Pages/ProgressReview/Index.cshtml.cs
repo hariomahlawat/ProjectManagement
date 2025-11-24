@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.Reports.ProgressReview;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.ProgressReview;
@@ -29,7 +30,8 @@ public sealed class IndexModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var todayIst = IstClock.ToIst(DateTime.UtcNow);
+        var today = DateOnly.FromDateTime(todayIst);
         var rangeFrom = From ?? today.AddDays(-29);
         var rangeTo = To ?? today;
 

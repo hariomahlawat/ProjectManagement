@@ -87,7 +87,6 @@
 
     DateOnly? GetMovementDate(ProjectStageMovementVm movement) => movement.IsOngoing ? movement.StartedOn : movement.CompletedOn;
 
-
     string? BuildVisitPhotoUrl(Guid visitId, Guid? photoId)
     {
         if (!photoId.HasValue)
@@ -114,549 +113,645 @@
 }
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/pages/progress-review.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/progress-review.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/progress-review.print.css" asp-append-version="true" />
 }
 
-<div class="container-xxl py-4 progress-review" data-page-id="progress-review">
-    @* SECTION: Header & filters *@
-    <section class="progress-review__controls mb-2">
-        <form id="progress-review-filter" method="get">
-            <div class="progress-review__controls-head">
-                
-                    <div class="row gy-2 gx-2 align-items-end progress-review__filter-grid">
-                        <div class="col-12 col-sm-auto">
-                            <label class="form-label form-label-sm text-muted" for="from">From</label>
-                            <input class="form-control" id="from" name="from" type="date" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
-                        </div>
-                        <div class="col-12 col-sm-auto">
-                            <label class="form-label form-label-sm text-muted" for="to">To</label>
-                            <input class="form-control" id="to" name="to" type="date" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
-                        </div>
-                        <div class="col-12 col-sm-auto">
-                            <label class="form-label form-label-sm text-muted d-block">&nbsp;</label>
-                            <button class="btn btn-primary btn-sm w-100" type="submit">Show report</button>
-                        </div>
-                    </div>
-               
-
-                <div class="progress-review__actions">
-                    <button class="btn btn-outline-primary btn-sm" type="button" data-action="export-pdf" aria-label="Print report">
-                        <i class="bi bi-printer me-1"></i>
-                        <span class="d-none d-md-inline">Print</span>
-                    </button>
-                </div>
+<div class="progress-review-shell" data-page-id="progress-review">
+    <div class="container-xxl">
+        <div class="progress-review__toolbar">
+            <div class="progress-review__title-block">
+                <p class="progress-review__eyebrow text-muted">Project office reports</p>
+                <h1 class="h4 mb-0">Progress Review</h1>
             </div>
+            <div class="progress-review__toolbar-actions">
+                <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#progress-review-range">Date range</button>
+                <button class="btn btn-primary btn-sm" type="button" data-action="print">
+                    <i class="bi bi-printer me-1"></i>
+                    <span class="d-none d-md-inline">Print</span>
+                </button>
+            </div>
+        </div>
+    </div>
 
-            
-        </form>
-    </section>
-
-    @if (vm is null)
-    {
-        <div class="alert alert-info">Unable to load progress data for the selected range.</div>
-    }
-    else
-    {
-        <article class="progress-review__document">
-            <header class="progress-review__document-header">
-                <div class="d-lg-flex align-items-baseline gap-2">
-                    <p class="text-uppercase text-muted small fw-semibold mb-0">Reporting period</p>
-                    <h2 class="h6 mb-0">@vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")</h2>
-                </div>
-            </header>
-
-            @* SECTION: Project progress buckets *@
-            <section class="progress-review__section" id="project-progress">
-                <header class="progress-review__section-header">
-                    <span class="progress-review__section-label" aria-hidden="true">Section 01</span>
-                    <h2 class="progress-review__section-title">Ongoing projects progress</h2>
+    <div class="container-xxl">
+        @if (vm is null)
+        {
+            <div class="alert alert-info">Unable to load progress data for the selected range.</div>
+        }
+        else
+        {
+            <article class="progress-review__canvas">
+                <header class="progress-review__document-header">
+                    <div>
+                        <p class="text-uppercase text-muted small fw-semibold mb-0">Reporting period</p>
+                        <h2 class="h6 mb-0">@vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")</h2>
+                    </div>
+                    <div class="text-muted small">@vm.Totals.ProjectsMoved projects moved · @vm.Totals.ProjectsWithRemarks remarks captured</div>
                 </header>
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle progress-review__table">
-                        <thead class="table-light">
-                            <tr>
-                                <th scope="col">Project</th>
-                                <th scope="col">Stage / status</th>
-                                <th scope="col">Remarks</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var row in vm.Projects.SummaryRows)
-                            {
-                                var stageMovements = row.StageMovements ?? Array.Empty<ProjectStageMovementVm>();
-                                var projectDetailsUrl = Url.Page("/Projects/Overview", new { id = row.ProjectId });
 
-                                <tr>
-                                    <th scope="row">
-                                        <div class="progress-review__project-name">
-                                            <a class="progress-review__link" href="@projectDetailsUrl">@row.ProjectName</a>
-                                        </div>
-                                    </th>
-                                    <td>
-                                        <div class="progress-review__stage-summary">
-                                @{
-                                    var presentStageName = string.IsNullOrWhiteSpace(row.PresentStage.CurrentStageName)
-                                        ? "Stage pending"
-                                        : row.PresentStage.CurrentStageName;
-                                    var ageText = row.PresentStage.DaysSinceStartOrLastCompletion.HasValue
-                                        ? $"{row.PresentStage.DaysSinceStartOrLastCompletion.Value} days passed"
-                                        : "N/A";
-                                }
-                                <div class="progress-review__stage-headline">
-                                    Present stage — <span class="fw-semibold">@presentStageName</span> —
-                                                <span class="text-muted">@ageText</span>
-                                            </div>
-                                        </div>
-                                        @if (stageMovements.Any())
+                @* SECTION: Project progress buckets *@
+                <section class="progress-review__section" id="project-progress">
+                    <header class="progress-review__section-header">
+                        <div>
+                            <span class="progress-review__section-label" aria-hidden="true">Section 01</span>
+                            <h2 class="progress-review__section-title">Ongoing projects progress</h2>
+                        </div>
+                        <p class="progress-review__section-meta text-muted">@vm.Projects.SummaryRows.Count projects in scope</p>
+                    </header>
+
+                    @if (!vm.Projects.CategoryGroups.Any())
+                    {
+                        <p class="text-muted small mb-0">No qualifying projects for the selected range.</p>
+                    }
+                    else
+                    {
+                        <div class="progress-review__category-grid">
+                            @foreach (var group in vm.Projects.CategoryGroups)
+                            {
+                                <section class="progress-review__category" aria-label="@group.CategoryName">
+                                    <div class="progress-review__category-header">
+                                        <h3 class="progress-review__category-title">@group.CategoryName</h3>
+                                        <span class="text-muted small">@group.Projects.Count projects</span>
+                                    </div>
+                                    <div class="progress-review__project-list">
+                                        @foreach (var row in group.Projects)
                                         {
-                                            <ul class="progress-review__history-list">
-                                                @foreach (var movement in stageMovements)
-                                                {
-                                                    var stageName = string.IsNullOrWhiteSpace(movement.StageName) ? "Stage update" : movement.StageName!;
-                                                    var movementDate = GetMovementDate(movement);
-                                                    var actionText = movement.IsOngoing ? "started on" : "completed on";
-                                                    <li>
-                                                        <span class="progress-review__history-text">
-                                                            <strong>@stageName</strong> @actionText
-                                                            @if (movementDate.HasValue)
+                                            var stageMovements = row.StageMovements ?? Array.Empty<ProjectStageMovementVm>();
+                                            var projectDetailsUrl = Url.Page("/Projects/Overview", new { id = row.ProjectId });
+                                            <article class="progress-review__project-row">
+                                                <div class="progress-review__project-col">
+                                                    <a class="progress-review__link fw-semibold" href="@projectDetailsUrl">@row.ProjectName</a>
+                                                    @if (!string.IsNullOrWhiteSpace(row.ProjectCategoryName))
+                                                    {
+                                                        <div class="text-muted small">@row.ProjectCategoryName</div>
+                                                    }
+                                                </div>
+                                                <div class="progress-review__project-col">
+                                                    @{ var stageName = string.IsNullOrWhiteSpace(row.PresentStage.CurrentStageName) ? "Stage pending" : row.PresentStage.CurrentStageName; }
+                                                    <div class="progress-review__stage-headline">Present stage — <span class="fw-semibold">@stageName</span></div>
+                                                    <div class="text-muted small">@((row.PresentStage.DaysSinceStartOrLastCompletion ?? 0)) days passed</div>
+                                                    @if (stageMovements.Any())
+                                                    {
+                                                        <ul class="progress-review__history-list">
+                                                            @foreach (var movement in stageMovements)
                                                             {
-                                                                <time datetime="@FormatDateIso(movementDate.Value)">@FormatDay(movementDate.Value)</time>
+                                                                var movementDate = GetMovementDate(movement);
+                                                                var actionText = movement.IsOngoing ? "started on" : "completed on";
+                                                                <li>
+                                                                    <span class="progress-review__history-text">
+                                                                        <strong>@movement.StageName</strong> @actionText
+                                                                        @if (movementDate.HasValue)
+                                                                        {
+                                                                            <time datetime="@FormatDateIso(movementDate.Value)">@FormatDay(movementDate.Value)</time>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span>date N/A</span>
+                                                                        }
+                                                                    </span>
+                                                                </li>
+                                                            }
+                                                        </ul>
+                                                        @if (row.StageMovementOverflowCount > 0)
+                                                        {
+                                                            <div class="text-muted small">Showing top @stageMovements.Count of @(stageMovements.Count + row.StageMovementOverflowCount) movements</div>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="text-muted small mt-1">No stage movements recorded in this range.</div>
+                                                    }
+                                                </div>
+                                                <div class="progress-review__project-col progress-review__cell-truncate">
+                                                    @if (!string.IsNullOrWhiteSpace(row.RemarkSummary.LatestRemarkSummary))
+                                                    {
+                                                        var remarkHtml = RenderRemarkHtml(row.RemarkSummary.LatestRemarkSummary);
+                                                        var tooltip = BuildRemarkTooltip(row.RemarkSummary);
+                                                        <div class="progress-review__remark" title="@tooltip">
+                                                            @if (row.RemarkSummary.LatestRemarkDate.HasValue)
+                                                            {
+                                                                <span class="text-muted">@FormatDay(row.RemarkSummary.LatestRemarkDate.Value)</span>
                                                             }
                                                             else
                                                             {
-                                                                <span>date N/A</span>
+                                                                <span class="text-muted">Date N/A</span>
                                                             }
-                                                        </span>
-                                                    </li>
-                                                }
-                                            </ul>
-                                            @if (row.StageMovementOverflowCount > 0)
-                                            {
-                                                <div class="text-muted small">+ @row.StageMovementOverflowCount more in range</div>
-                                            }
+                                                            <span class="progress-review__remark-divider"> — </span>
+                                                            <span class="progress-review__remark-text">@Html.Raw(remarkHtml)</span>
+                                                        </div>
+                                                        @if (row.RemarkSummary.MoreRemarkCount > 0)
+                                                        {
+                                                            <div class="text-muted small">Latest external remark shown</div>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted small">No external remarks in range.</span>
+                                                    }
+                                                </div>
+                                            </article>
                                         }
-                                        else
-                                        {
-                                            <div class="text-muted small mt-1">No stage movements recorded in this range.</div>
-                                        }
-                                    </td>
-                                    <td class="progress-review__cell-truncate">
-                                        @if (!string.IsNullOrWhiteSpace(row.RemarkSummary.LatestRemarkSummary))
-                                        {
-                                            var remarkHtml = RenderRemarkHtml(row.RemarkSummary.LatestRemarkSummary);
-                                            var tooltip = BuildRemarkTooltip(row.RemarkSummary);
-                                            <div class="progress-review__remark" title="@tooltip">
-                                                @if (row.RemarkSummary.LatestRemarkDate.HasValue)
-                                                {
-                                                    <span class="text-muted">@FormatDay(row.RemarkSummary.LatestRemarkDate.Value)</span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="text-muted">Date N/A</span>
-                                                }
-                                                <span class="progress-review__remark-divider"> — </span>
-                                                <span class="progress-review__remark-text">@Html.Raw(remarkHtml)</span>
-                                            </div>
-                                            @if (row.RemarkSummary.MoreRemarkCount > 0)
-                                            {
-                                                <div class="text-muted small">+ @row.RemarkSummary.MoreRemarkCount more remarks in range</div>
-                                            }
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted small">No remarks captured.</span>
-                                        }
-                                    </td>
-                                </tr>
+                                    </div>
+                                </section>
                             }
-                            @if (!vm.Projects.SummaryRows.Any())
-                            {
-                                <tr>
-                                    <td colspan="3" class="text-muted text-center small">No qualifying projects for the selected range.</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+                        </div>
+                    }
+                </section>
 
-            @* SECTION: Visits and Social media outreach *@
-            <section class="progress-review__section" id="field-engagement">
-                <header class="progress-review__section-header">
-                    <span class="progress-review__section-label" aria-hidden="true">Section 02</span>
-                    <h2 class="progress-review__section-title">Visits to SDD & social media outreach</h2>
-                    <p class="progress-review__section-subtitle">Visits to SDD and social narratives captured for documentation.</p>
-                </header>
-                <div class="row g-4 progress-review__split">
-                    <div class="col-lg-6">
-                        <h3 class="progress-review__subheading">Visits log</h3>
-                        <p class="text-muted small mb-3">@vm.Visits.TotalCount entries reviewed.</p>
-                        @if (!vm.Visits.Items.Any())
-                        {
-                            <p class="text-muted mb-0">No visits recorded in this range.</p>
-                        }
-                        else
-                        {
-                            <ul class="list-unstyled mb-0 progress-review__media-list">
-                                @foreach (var visit in vm.Visits.Items.Take(6))
-                                {
-                                    var visitPhotoUrl = BuildVisitPhotoUrl(visit.Id, visit.CoverPhotoId);
-                                    var visitDetailsUrl = Url.Page(
-                                        "/ProjectOfficeReports/Visits/Details",
-                                        new { area = "ProjectOfficeReports", id = visit.Id });
-                                    var visitPhotoAlt = string.IsNullOrWhiteSpace(visit.VisitorName)
-                                        ? "Visit photo"
-                                        : $"{visit.VisitorName} visit photo";
-                                    <li class="progress-review__media-item">
-                                        @if (!string.IsNullOrWhiteSpace(visitPhotoUrl))
-                                        {
-                                            <div class="progress-review__media-thumb">
-                                                <img role="img" src="@visitPhotoUrl" alt="@visitPhotoAlt" loading="lazy" width="72" height="72" />
-                                            </div>
-                                        }
-                                        <div class="progress-review__media-body">
-                                            <a class="progress-review__link progress-review__link--block" href="@visitDetailsUrl">
-                                                <div class="fw-semibold">@visit.VisitorName <span class="text-muted fw-normal">(@visit.VisitType)</span></div>
-                                                <div class="small text-muted"><time datetime="@FormatDateIso(visit.Date)">@FormatDay(visit.Date)</time> · Strength @visit.Strength</div>
-                                                @if (!string.IsNullOrWhiteSpace(visit.Remarks))
-                                                {
-                                                    <div class="text-muted small">@visit.Remarks</div>
-                                                }
-                                                else
-                                                {
-                                                    <div class="text-muted small">No remarks shared.</div>
-                                                }
-                                            </a>
-                                        </div>
-                                    </li>
-                                }
-                            </ul>
-                        }
-                    </div>
-                    <div class="col-lg-6">
-                        <h3 class="progress-review__subheading">Social media</h3>
-                        <p class="text-muted small mb-3">@vm.SocialMedia.TotalCount posts amplified.</p>
-                        @if (!vm.SocialMedia.Items.Any())
-                        {
-                            <p class="text-muted mb-0">No social media updates in this range.</p>
-                        }
-                        else
-                        {
-                            <ul class="list-unstyled mb-0 progress-review__media-list">
-                                @foreach (var post in vm.SocialMedia.Items.Take(6))
-                                {
-                                    var postPhotoUrl = BuildSocialPhotoUrl(post.Id, post.CoverPhotoId);
-                                    var postDetailsUrl = Url.Page(
-                                        "/ProjectOfficeReports/SocialMedia/Details",
-                                        new { area = "ProjectOfficeReports", id = post.Id });
-                                    var postPhotoAlt = string.IsNullOrWhiteSpace(post.Title)
-                                        ? "Social post photo"
-                                        : $"{post.Title} social post";
-                                    <li class="progress-review__media-item">
-                                        @if (!string.IsNullOrWhiteSpace(postPhotoUrl))
-                                        {
-                                            <div class="progress-review__media-thumb">
-                                                <img role="img" src="@postPhotoUrl" alt="@postPhotoAlt" loading="lazy" width="72" height="72" />
-                                            </div>
-                                        }
-                                        <div class="progress-review__media-body">
-                                            <a class="progress-review__link progress-review__link--block" href="@postDetailsUrl">
-                                                <div class="fw-semibold">@post.Title</div>
-                                                <div class="small text-muted"><time datetime="@FormatDateIso(post.Date)">@FormatDay(post.Date)</time> · @post.Platform</div>
-                                                @if (!string.IsNullOrWhiteSpace(post.Description))
-                                                {
-                                                    <div class="text-muted small">@post.Description</div>
-                                                }
-                                                else
-                                                {
-                                                    <div class="text-muted small">No caption provided.</div>
-                                                }
-                                            </a>
-                                        </div>
-                                    </li>
-                                }
-                            </ul>
-                        }
-                    </div>
-                </div>
-            </section>
-
-            @* SECTION: Technology transfer & IPR *@
-            <section class="progress-review__section" id="tech-transfer">
-                <header class="progress-review__section-header">
-                    <span class="progress-review__section-label" aria-hidden="true">Section 03</span>
-                    <h2 class="progress-review__section-title">Transfer of technology & Patent/ Copyrights</h2>
-                </header>
-                <div class="row g-4 progress-review__split">
-                    <div class="col-lg-6">
-                        <h3 class="progress-review__subheading">Transfer of Technology</h3>
-                        <div class="progress-review__mini-section">
-                            <h4 class="progress-review__mini-heading">Stage changes</h4>
-                            <ul class="list-unstyled small progress-review__list">
-                                @foreach (var entry in vm.Tot.StageChanges.Take(8))
-                                {
-                                    var projectLink = Url.Page("/Projects/Overview", new { id = entry.ProjectId });
-                                    <li>
-                                        <strong><a class="progress-review__link" href="@projectLink">@entry.ProjectName</a></strong>
-                                        <span class="text-muted">(<time datetime="@FormatDateIso(entry.ChangeDate)">@FormatDay(entry.ChangeDate)</time>)</span>
-                                        <div>@entry.StageName: @entry.FromStatus → @entry.ToStatus</div>
-                                    </li>
-                                }
-                                @if (!vm.Tot.StageChanges.Any())
-                                {
-                                    <li class="text-muted">No stage changes recorded.</li>
-                                }
-                            </ul>
+                @* SECTION: Visits and Social media outreach *@
+                <section class="progress-review__section" id="field-engagement">
+                    <header class="progress-review__section-header">
+                        <div>
+                            <span class="progress-review__section-label" aria-hidden="true">Section 02</span>
+                            <h2 class="progress-review__section-title">Visits to SDD & social media outreach</h2>
+                            <p class="progress-review__section-subtitle">Visits to SDD and social narratives captured for documentation.</p>
                         </div>
-                        <div class="progress-review__mini-section">
-                            <h4 class="progress-review__mini-heading">Remarks</h4>
-                            <ul class="list-unstyled small progress-review__list">
-                                @foreach (var entry in vm.Tot.Remarks.Take(8))
-                                {
-                                    var projectLink = Url.Page("/Projects/Overview", new { id = entry.ProjectId });
-                                    <li>
-                                        <strong><a class="progress-review__link" href="@projectLink">@entry.ProjectName</a></strong>
-                                        <span class="text-muted">(<time datetime="@FormatDateIso(entry.Date)">@FormatDay(entry.Date)</time>)</span>
-                                        <div>@entry.Summary</div>
-                                    </li>
-                                }
-                                @if (!vm.Tot.Remarks.Any())
-                                {
-                                    <li class="text-muted">No remarks captured.</li>
-                                }
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="col-lg-6">
-                        <h3 class="progress-review__subheading">Patents/ Copyrights updates</h3>
-                        <div class="progress-review__mini-section">
-                            <h4 class="progress-review__mini-heading">Status changes</h4>
-                            <ul class="list-unstyled small progress-review__list">
-                                @foreach (var entry in vm.Ipr.StatusChanges.Take(8))
-                                {
-                                    var iprRecordUrl = Url.Page(
-                                        "/ProjectOfficeReports/Ipr/Manage",
-                                        new { area = "ProjectOfficeReports", EditId = entry.IprId });
-                                    <li>
-                                        <strong><a class="progress-review__link" href="@iprRecordUrl">@entry.Title</a></strong>
-                                        <span class="text-muted">(<time datetime="@FormatDateIso(entry.EventDate)">@FormatDay(entry.EventDate)</time>)</span>
-                                        <div>@entry.Status — @entry.Notes</div>
-                                    </li>
-                                }
-                                @if (!vm.Ipr.StatusChanges.Any())
-                                {
-                                    <li class="text-muted">No status transitions this period.</li>
-                                }
-                            </ul>
-                        </div>
-                        <div class="progress-review__mini-section">
-                            <h4 class="progress-review__mini-heading">Remarks</h4>
-                            <ul class="list-unstyled small progress-review__list">
-                                @foreach (var entry in vm.Ipr.Remarks.Take(8))
-                                {
-                                    var iprRecordUrl = Url.Page(
-                                        "/ProjectOfficeReports/Ipr/Manage",
-                                        new { area = "ProjectOfficeReports", EditId = entry.IprId });
-                                    <li>
-                                        <strong><a class="progress-review__link" href="@iprRecordUrl">@entry.Title</a></strong>
-                                        <span class="text-muted">(<time datetime="@FormatDateIso(entry.EventDate)">@FormatDay(entry.EventDate)</time>)</span>
-                                        <div>@entry.Summary</div>
-                                    </li>
-                                }
-                                @if (!vm.Ipr.Remarks.Any())
-                                {
-                                    <li class="text-muted">No remarks captured.</li>
-                                }
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            @* SECTION: Training *@
-            <section class="progress-review__section" id="training">
-                <header class="progress-review__section-header">
-                    <span class="progress-review__section-label" aria-hidden="true">Section 04</span>
-                    <h2 class="progress-review__section-title">Training conducted by SDD</h2>
-                    <p class="progress-review__section-subtitle">Simulator and drone training efforts for the period.</p>
-                </header>
-                <div class="row g-4 progress-review__split">
-                    <div class="col-lg-6">
-                        <h3 class="progress-review__subheading">Simulator training (@vm.Training.Simulator.TotalPersons participants)</h3>
-                        <div class="table-responsive">
-                            <table class="table table-sm mb-0 progress-review__table">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th scope="col">Date</th>
-                                        <th scope="col">Title</th>
-                                        <th scope="col">Unit / Org</th>
-                                        <th scope="col">Persons</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var row in vm.Training.Simulator.Rows.Take(8))
-                                    {
-                                        <tr>
-                                            <td><time datetime="@FormatDateIso(row.Date)">@FormatDay(row.Date)</time></td>
-                                            <td>@row.Title</td>
-                                            <td>@row.UnitOrOrg</td>
-                                            <td>@row.Persons</td>
-                                        </tr>
-                                    }
-                                    @if (!vm.Training.Simulator.Rows.Any())
-                                    {
-                                        <tr>
-                                            <td colspan="4" class="text-muted text-center small">No simulator trainings recorded.</td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="col-lg-6">
-                        <h3 class="progress-review__subheading">Drone training (@vm.Training.Drone.TotalPersons participants)</h3>
-                        <div class="table-responsive">
-                            <table class="table table-sm mb-0 progress-review__table">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th scope="col">Date</th>
-                                        <th scope="col">Title</th>
-                                        <th scope="col">Unit / Org</th>
-                                        <th scope="col">Persons</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var row in vm.Training.Drone.Rows.Take(8))
-                                    {
-                                        <tr>
-                                            <td><time datetime="@FormatDateIso(row.Date)">@FormatDay(row.Date)</time></td>
-                                            <td>@row.Title</td>
-                                            <td>@row.UnitOrOrg</td>
-                                            <td>@row.Persons</td>
-                                        </tr>
-                                    }
-                                    @if (!vm.Training.Drone.Rows.Any())
-                                    {
-                                        <tr>
-                                            <td colspan="4" class="text-muted text-center small">No drone trainings recorded.</td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            @* SECTION: Proliferation & FFC *@
-            <section class="progress-review__section" id="proliferation">
-                <header class="progress-review__section-header">
-                    <span class="progress-review__section-label" aria-hidden="true">Section 05</span>
-                    <h2 class="progress-review__section-title">Proliferation & FFC simulators</h2>
-                    <p class="progress-review__section-subtitle">Proloferation of simulators to units and to friendly foreign counteries.</p>
-                </header>
-                <div class="row g-4 progress-review__split">
-                    <div class="col-lg-7">
-                        <h3 class="progress-review__subheading">Proliferation (@vm.Proliferation.Rows.Count records)</h3>
-                        <div class="table-responsive">
-                            <table class="table table-sm mb-0 progress-review__table">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th scope="col">Date</th>
-                                        <th scope="col">Project</th>
-                                        <th scope="col">Unit</th>
-                                        <th scope="col">Qty</th>
-                                        <th scope="col">Source</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var row in vm.Proliferation.Rows.Take(10))
-                                    {
-                                        var projectLink = Url.Page("/Projects/Overview", new { id = row.ProjectId });
-                                        <tr>
-                                            <td><time datetime="@FormatDateIso(row.Date)">@FormatDay(row.Date)</time></td>
-                                            <td><a class="progress-review__link" href="@projectLink">@row.ProjectName</a></td>
-                                            <td>@row.UnitOrCountry</td>
-                                            <td>@row.Quantity</td>
-                                            <td>@row.Source</td>
-                                        </tr>
-                                    }
-                                    @if (!vm.Proliferation.Rows.Any())
-                                    {
-                                        <tr>
-                                            <td colspan="5" class="text-muted text-center small">No proliferation entries for this range.</td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="col-lg-5">
-                        <h3 class="progress-review__subheading">FFC simulators (@vm.Ffc.Rows.Count milestones)</h3>
-                        @if (!vm.Ffc.Rows.Any())
-                        {
-                            <p class="text-muted mb-0">No milestones in this range.</p>
-                        }
-                        else
-                        {
-                            <ul class="list-unstyled small mb-0 progress-review__list">
-                                @foreach (var row in vm.Ffc.Rows.Take(10))
-                                {
-                                    <li>
-                                        <strong>@row.Country</strong> — @row.Milestone
-                                        <span class="text-muted">(<time datetime="@FormatDateIso(row.Date)">@FormatDay(row.Date)</time>)</span>
-                                        <div class="text-muted">@row.Remarks</div>
-                                    </li>
-                                }
-                            </ul>
-                        }
-                    </div>
-                </div>
-            </section>
-
-            @* SECTION: Miscellaneous activities *@
-            <section class="progress-review__section" id="miscellaneous">
-                <header class="progress-review__section-header">
-                    <span class="progress-review__section-label" aria-hidden="true">Section 06</span>
-                    <h2 class="progress-review__section-title">Miscellaneous activities</h2>
-                    <p class="progress-review__section-subtitle">Additional highlights requiring documentation.</p>
-                </header>
-                @if (!vm.Misc.Rows.Any())
-                {
-                    <p class="text-muted mb-0">No activities captured in this range.</p>
-                }
-                else
-                {
+                    </header>
                     <div class="row g-4 progress-review__split">
-                        @foreach (var activity in vm.Misc.Rows.Take(10))
-                        {
-                            <div class="col-md-6">
-                                <article class="progress-review__activity-card h-100">
-                                    @if (!string.IsNullOrWhiteSpace(activity.PhotoUrl))
-                                    {
-                                        var activityPhotoAlt = string.IsNullOrWhiteSpace(activity.Title)
-                                            ? "Activity photo"
-                                            : $"{activity.Title} photo";
-                                        <img role="img" class="progress-review__activity-photo" src="@activity.PhotoUrl" alt="@activityPhotoAlt" loading="lazy" />
-                                    }
-                                    <p class="text-muted small mb-1"><time datetime="@FormatDateIso(activity.Date)">@FormatDay(activity.Date)</time> · @activity.Location</p>
-                                    <h3 class="h6">@activity.Title</h3>
-                                    @if (!string.IsNullOrWhiteSpace(activity.Summary))
-                                    {
-                                        <p class="text-muted small mb-0">@activity.Summary</p>
-                                    }
-                                    else
-                                    {
-                                        <p class="text-muted small mb-0">No description available.</p>
-                                    }
-                                </article>
+                        <div class="col-lg-6">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h3 class="progress-review__subheading mb-0">Visits log</h3>
+                                <span class="text-muted small">@vm.Visits.TotalCount entries</span>
                             </div>
-                        }
+                            @if (!vm.Visits.Items.Any())
+                            {
+                                <p class="text-muted mb-0">No visits recorded in this range.</p>
+                            }
+                            else
+                            {
+                                var visitLimit = 6;
+                                <ul class="list-unstyled mb-0 progress-review__media-list">
+                                    @foreach (var visit in vm.Visits.Items.Take(visitLimit))
+                                    {
+                                        var visitPhotoUrl = BuildVisitPhotoUrl(visit.Id, visit.CoverPhotoId);
+                                        var visitDetailsUrl = Url.Page(
+                                            "/ProjectOfficeReports/Visits/Details",
+                                            new { area = "ProjectOfficeReports", id = visit.Id });
+                                        var visitPhotoAlt = string.IsNullOrWhiteSpace(visit.VisitorName)
+                                            ? "Visit photo"
+                                            : $"{visit.VisitorName} visit photo";
+                                        <li class="progress-review__media-item">
+                                            @if (!string.IsNullOrWhiteSpace(visitPhotoUrl))
+                                            {
+                                                <div class="progress-review__media-thumb">
+                                                    <img role="img" src="@visitPhotoUrl" alt="@visitPhotoAlt" loading="lazy" width="72" height="72" />
+                                                </div>
+                                            }
+                                            <div class="progress-review__media-body">
+                                                <a class="progress-review__link progress-review__link--block" href="@visitDetailsUrl">
+                                                    <div class="fw-semibold">@visit.VisitorName <span class="text-muted fw-normal">(@visit.VisitType)</span></div>
+                                                    <div class="small text-muted"><time datetime="@FormatDateIso(visit.Date)">@FormatDay(visit.Date)</time> · Strength @visit.Strength</div>
+                                                    @if (!string.IsNullOrWhiteSpace(visit.Remarks))
+                                                    {
+                                                        <div class="text-muted small">@visit.Remarks</div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="text-muted small">No remarks shared.</div>
+                                                    }
+                                                </a>
+                                            </div>
+                                        </li>
+                                    }
+                                </ul>
+                                @if (vm.Visits.TotalCount > visitLimit)
+                                {
+                                    <p class="text-muted small mt-2">Showing top @visitLimit of @vm.Visits.TotalCount visits.</p>
+                                }
+                            }
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h3 class="progress-review__subheading mb-0">Social media</h3>
+                                <span class="text-muted small">@vm.SocialMedia.TotalCount posts</span>
+                            </div>
+                            @if (!vm.SocialMedia.Items.Any())
+                            {
+                                <p class="text-muted mb-0">No social media updates in this range.</p>
+                            }
+                            else
+                            {
+                                var socialLimit = 6;
+                                <ul class="list-unstyled mb-0 progress-review__media-list">
+                                    @foreach (var post in vm.SocialMedia.Items.Take(socialLimit))
+                                    {
+                                        var postPhotoUrl = BuildSocialPhotoUrl(post.Id, post.CoverPhotoId);
+                                        var postDetailsUrl = Url.Page(
+                                            "/ProjectOfficeReports/SocialMedia/Details",
+                                            new { area = "ProjectOfficeReports", id = post.Id });
+                                        var postPhotoAlt = string.IsNullOrWhiteSpace(post.Title)
+                                            ? "Social post photo"
+                                            : $"{post.Title} social post";
+                                        <li class="progress-review__media-item">
+                                            @if (!string.IsNullOrWhiteSpace(postPhotoUrl))
+                                            {
+                                                <div class="progress-review__media-thumb">
+                                                    <img role="img" src="@postPhotoUrl" alt="@postPhotoAlt" loading="lazy" width="72" height="72" />
+                                                </div>
+                                            }
+                                            <div class="progress-review__media-body">
+                                                <a class="progress-review__link progress-review__link--block" href="@postDetailsUrl">
+                                                    <div class="fw-semibold">@post.Title</div>
+                                                    <div class="small text-muted"><time datetime="@FormatDateIso(post.Date)">@FormatDay(post.Date)</time> · @post.Platform</div>
+                                                    @if (!string.IsNullOrWhiteSpace(post.Description))
+                                                    {
+                                                        <div class="text-muted small">@post.Description</div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="text-muted small">No caption provided.</div>
+                                                    }
+                                                </a>
+                                            </div>
+                                        </li>
+                                    }
+                                </ul>
+                                @if (vm.SocialMedia.TotalCount > socialLimit)
+                                {
+                                    <p class="text-muted small mt-2">Showing top @socialLimit of @vm.SocialMedia.TotalCount posts.</p>
+                                }
+                            }
+                        </div>
                     </div>
-                }
-            </section>
-        </article>
-    }
+                </section>
+
+                @* SECTION: Technology transfer & IPR *@
+                <section class="progress-review__section" id="tech-transfer">
+                    <header class="progress-review__section-header">
+                        <div>
+                            <span class="progress-review__section-label" aria-hidden="true">Section 03</span>
+                            <h2 class="progress-review__section-title">Transfer of technology & Patent/ Copyrights</h2>
+                        </div>
+                    </header>
+                    <div class="row g-4 progress-review__split">
+                        <div class="col-lg-6">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h3 class="progress-review__subheading mb-0">Transfer of Technology</h3>
+                                <span class="text-muted small">@vm.Tot.StageChanges.Count stage changes</span>
+                            </div>
+                            <div class="progress-review__mini-section">
+                                <h4 class="progress-review__mini-heading">Stage changes</h4>
+                                <ul class="list-unstyled small progress-review__list">
+                                    @foreach (var entry in vm.Tot.StageChanges.Take(8))
+                                    {
+                                        var projectLink = Url.Page("/Projects/Overview", new { id = entry.ProjectId });
+                                        <li>
+                                            <strong><a class="progress-review__link" href="@projectLink">@entry.ProjectName</a></strong>
+                                            <span class="text-muted">(<time datetime="@FormatDateIso(entry.ChangeDate)">@FormatDay(entry.ChangeDate)</time>)</span>
+                                            <div>@entry.StageName: @entry.FromStatus → @entry.ToStatus</div>
+                                        </li>
+                                    }
+                                    @if (!vm.Tot.StageChanges.Any())
+                                    {
+                                        <li class="text-muted">No stage changes recorded.</li>
+                                    }
+                                </ul>
+                                @if (vm.Tot.StageChanges.Count > 8)
+                                {
+                                    <p class="text-muted small mt-2">Showing top 8 of @vm.Tot.StageChanges.Count changes.</p>
+                                }
+                            </div>
+                            <div class="progress-review__mini-section">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <h4 class="progress-review__mini-heading mb-0">Remarks</h4>
+                                    <span class="text-muted small">@vm.Tot.Remarks.Count remarks</span>
+                                </div>
+                                <ul class="list-unstyled small progress-review__list">
+                                    @foreach (var entry in vm.Tot.Remarks.Take(8))
+                                    {
+                                        var projectLink = Url.Page("/Projects/Overview", new { id = entry.ProjectId });
+                                        <li>
+                                            <strong><a class="progress-review__link" href="@projectLink">@entry.ProjectName</a></strong>
+                                            <span class="text-muted">(<time datetime="@FormatDateIso(entry.Date)">@FormatDay(entry.Date)</time>)</span>
+                                            <div>@entry.Summary</div>
+                                        </li>
+                                    }
+                                    @if (!vm.Tot.Remarks.Any())
+                                    {
+                                        <li class="text-muted">No remarks captured.</li>
+                                    }
+                                </ul>
+                                @if (vm.Tot.Remarks.Count > 8)
+                                {
+                                    <p class="text-muted small mt-2">Showing top 8 of @vm.Tot.Remarks.Count remarks.</p>
+                                }
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h3 class="progress-review__subheading mb-0">Patents/ Copyrights updates</h3>
+                                <span class="text-muted small">@vm.Ipr.StatusChanges.Count status changes</span>
+                            </div>
+                            <div class="progress-review__mini-section">
+                                <h4 class="progress-review__mini-heading">Status changes</h4>
+                                <ul class="list-unstyled small progress-review__list">
+                                    @foreach (var entry in vm.Ipr.StatusChanges.Take(8))
+                                    {
+                                        var iprRecordUrl = Url.Page(
+                                            "/ProjectOfficeReports/Ipr/Manage",
+                                            new { area = "ProjectOfficeReports", EditId = entry.IprId });
+                                        <li>
+                                            <strong><a class="progress-review__link" href="@iprRecordUrl">@entry.Title</a></strong>
+                                            <span class="text-muted">(<time datetime="@FormatDateIso(entry.EventDate)">@FormatDay(entry.EventDate)</time>)</span>
+                                            <div>@entry.Status — @entry.Notes</div>
+                                        </li>
+                                    }
+                                    @if (!vm.Ipr.StatusChanges.Any())
+                                    {
+                                        <li class="text-muted">No status transitions this period.</li>
+                                    }
+                                </ul>
+                                @if (vm.Ipr.StatusChanges.Count > 8)
+                                {
+                                    <p class="text-muted small mt-2">Showing top 8 of @vm.Ipr.StatusChanges.Count changes.</p>
+                                }
+                            </div>
+                            <div class="progress-review__mini-section">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <h4 class="progress-review__mini-heading mb-0">Remarks</h4>
+                                    <span class="text-muted small">@vm.Ipr.Remarks.Count remarks</span>
+                                </div>
+                                <ul class="list-unstyled small progress-review__list">
+                                    @foreach (var entry in vm.Ipr.Remarks.Take(8))
+                                    {
+                                        var iprRecordUrl = Url.Page(
+                                            "/ProjectOfficeReports/Ipr/Manage",
+                                            new { area = "ProjectOfficeReports", EditId = entry.IprId });
+                                        <li>
+                                            <strong><a class="progress-review__link" href="@iprRecordUrl">@entry.Title</a></strong>
+                                            <span class="text-muted">(<time datetime="@FormatDateIso(entry.EventDate)">@FormatDay(entry.EventDate)</time>)</span>
+                                            <div>@entry.Summary</div>
+                                        </li>
+                                    }
+                                    @if (!vm.Ipr.Remarks.Any())
+                                    {
+                                        <li class="text-muted">No remarks captured.</li>
+                                    }
+                                </ul>
+                                @if (vm.Ipr.Remarks.Count > 8)
+                                {
+                                    <p class="text-muted small mt-2">Showing top 8 of @vm.Ipr.Remarks.Count remarks.</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                @* SECTION: Training *@
+                <section class="progress-review__section" id="training">
+                    <header class="progress-review__section-header">
+                        <div>
+                            <span class="progress-review__section-label" aria-hidden="true">Section 04</span>
+                            <h2 class="progress-review__section-title">Training conducted by SDD</h2>
+                            <p class="progress-review__section-subtitle">Simulator and drone training efforts for the period.</p>
+                        </div>
+                    </header>
+                    <div class="row g-4 progress-review__split">
+                        <div class="col-lg-6">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h3 class="progress-review__subheading mb-0">Simulator training (@vm.Training.Simulator.TotalPersons participants)</h3>
+                                <span class="text-muted small">@vm.Training.Simulator.Rows.Count sessions</span>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm mb-0 progress-review__table">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col">Date</th>
+                                            <th scope="col">Title</th>
+                                            <th scope="col">Unit / Org</th>
+                                            <th scope="col">Persons</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var row in vm.Training.Simulator.Rows.Take(8))
+                                        {
+                                            <tr>
+                                                <td><time datetime="@FormatDateIso(row.Date)">@FormatDay(row.Date)</time></td>
+                                                <td>@row.Title</td>
+                                                <td>@row.UnitOrOrg</td>
+                                                <td>@row.Persons</td>
+                                            </tr>
+                                        }
+                                        @if (!vm.Training.Simulator.Rows.Any())
+                                        {
+                                            <tr>
+                                                <td colspan="4" class="text-muted text-center small">No simulator trainings recorded.</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                                @if (vm.Training.Simulator.Rows.Count > 8)
+                                {
+                                    <p class="text-muted small mt-2">Showing top 8 of @vm.Training.Simulator.Rows.Count sessions.</p>
+                                }
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h3 class="progress-review__subheading mb-0">Drone training (@vm.Training.Drone.TotalPersons participants)</h3>
+                                <span class="text-muted small">@vm.Training.Drone.Rows.Count sessions</span>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm mb-0 progress-review__table">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col">Date</th>
+                                            <th scope="col">Title</th>
+                                            <th scope="col">Unit / Org</th>
+                                            <th scope="col">Persons</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var row in vm.Training.Drone.Rows.Take(8))
+                                        {
+                                            <tr>
+                                                <td><time datetime="@FormatDateIso(row.Date)">@FormatDay(row.Date)</time></td>
+                                                <td>@row.Title</td>
+                                                <td>@row.UnitOrOrg</td>
+                                                <td>@row.Persons</td>
+                                            </tr>
+                                        }
+                                        @if (!vm.Training.Drone.Rows.Any())
+                                        {
+                                            <tr>
+                                                <td colspan="4" class="text-muted text-center small">No drone trainings recorded.</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                                @if (vm.Training.Drone.Rows.Count > 8)
+                                {
+                                    <p class="text-muted small mt-2">Showing top 8 of @vm.Training.Drone.Rows.Count sessions.</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                @* SECTION: Proliferation & FFC *@
+                <section class="progress-review__section" id="proliferation">
+                    <header class="progress-review__section-header">
+                        <div>
+                            <span class="progress-review__section-label" aria-hidden="true">Section 05</span>
+                            <h2 class="progress-review__section-title">Proliferation & FFC simulators</h2>
+                            <p class="progress-review__section-subtitle">Proloferation of simulators to units and to friendly foreign counteries.</p>
+                        </div>
+                    </header>
+                    <div class="row g-4 progress-review__split">
+                        <div class="col-lg-7">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h3 class="progress-review__subheading mb-0">Proliferation (@vm.Proliferation.Rows.Count records)</h3>
+                                <span class="text-muted small">@vm.Proliferation.Rows.Count entries</span>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm mb-0 progress-review__table">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col">Date</th>
+                                            <th scope="col">Project</th>
+                                            <th scope="col">Unit</th>
+                                            <th scope="col">Qty</th>
+                                            <th scope="col">Source</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var row in vm.Proliferation.Rows.Take(10))
+                                        {
+                                            var projectLink = Url.Page("/Projects/Overview", new { id = row.ProjectId });
+                                            <tr>
+                                                <td><time datetime="@FormatDateIso(row.Date)">@FormatDay(row.Date)</time></td>
+                                                <td><a class="progress-review__link" href="@projectLink">@row.ProjectName</a></td>
+                                                <td>@row.UnitOrCountry</td>
+                                                <td>@row.Quantity</td>
+                                                <td>@row.Source</td>
+                                            </tr>
+                                        }
+                                        @if (!vm.Proliferation.Rows.Any())
+                                        {
+                                            <tr>
+                                                <td colspan="5" class="text-muted text-center small">No proliferation entries for this range.</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                                @if (vm.Proliferation.Rows.Count > 10)
+                                {
+                                    <p class="text-muted small mt-2">Showing top 10 of @vm.Proliferation.Rows.Count proliferation entries.</p>
+                                }
+                            </div>
+                        </div>
+                        <div class="col-lg-5">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h3 class="progress-review__subheading mb-0">FFC simulators (@vm.Ffc.Rows.Count milestones)</h3>
+                                <span class="text-muted small">@vm.Ffc.Rows.Count milestones</span>
+                            </div>
+                            @if (!vm.Ffc.Rows.Any())
+                            {
+                                <p class="text-muted mb-0">No milestones in this range.</p>
+                            }
+                            else
+                            {
+                                <ul class="list-unstyled small mb-0 progress-review__list">
+                                    @foreach (var row in vm.Ffc.Rows.Take(10))
+                                    {
+                                        <li>
+                                            <strong>@row.Country</strong> — @row.Milestone
+                                            <span class="text-muted">(<time datetime="@FormatDateIso(row.Date)">@FormatDay(row.Date)</time>)</span>
+                                            <div class="text-muted">@row.Remarks</div>
+                                        </li>
+                                    }
+                                </ul>
+                                @if (vm.Ffc.Rows.Count > 10)
+                                {
+                                    <p class="text-muted small mt-2">Showing top 10 of @vm.Ffc.Rows.Count milestones.</p>
+                                }
+                            }
+                        </div>
+                    </div>
+                </section>
+
+                @* SECTION: Miscellaneous activities *@
+                <section class="progress-review__section" id="miscellaneous">
+                    <header class="progress-review__section-header">
+                        <div>
+                            <span class="progress-review__section-label" aria-hidden="true">Section 06</span>
+                            <h2 class="progress-review__section-title">Miscellaneous activities</h2>
+                            <p class="progress-review__section-subtitle">Additional highlights requiring documentation.</p>
+                        </div>
+                        <p class="progress-review__section-meta text-muted">@vm.Misc.Rows.Count activities</p>
+                    </header>
+                    @if (!vm.Misc.Rows.Any())
+                    {
+                        <p class="text-muted mb-0">No activities captured in this range.</p>
+                    }
+                    else
+                    {
+                        var miscLimit = 10;
+                        <div class="row g-4 progress-review__split">
+                            @foreach (var activity in vm.Misc.Rows.Take(miscLimit))
+                            {
+                                <div class="col-md-6">
+                                    <article class="progress-review__activity-card h-100">
+                                        @if (!string.IsNullOrWhiteSpace(activity.PhotoUrl))
+                                        {
+                                            var activityPhotoAlt = string.IsNullOrWhiteSpace(activity.Title)
+                                                ? "Activity photo"
+                                                : $"{activity.Title} photo";
+                                            <img role="img" class="progress-review__activity-photo" src="@activity.PhotoUrl" alt="@activityPhotoAlt" loading="lazy" />
+                                        }
+                                        <p class="text-muted small mb-1"><time datetime="@FormatDateIso(activity.Date)">@FormatDay(activity.Date)</time> · @activity.Location</p>
+                                        <h3 class="h6">@activity.Title</h3>
+                                        @if (!string.IsNullOrWhiteSpace(activity.Summary))
+                                        {
+                                            <p class="text-muted small mb-0">@activity.Summary</p>
+                                        }
+                                        else
+                                        {
+                                            <p class="text-muted small mb-0">No description available.</p>
+                                        }
+                                    </article>
+                                </div>
+                            }
+                        </div>
+                        @if (vm.Misc.Rows.Count > miscLimit)
+                        {
+                            <p class="text-muted small mt-2">Showing top @miscLimit of @vm.Misc.Rows.Count activities.</p>
+                        }
+                    }
+                </section>
+            </article>
+        }
+    </div>
+</div>
+
+<div class="modal fade" id="progress-review-range" tabindex="-1" aria-labelledby="progress-review-range-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="progress-review-range-label">Select date range</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="progress-review-filter" method="get">
+                <div class="modal-body">
+                    <div class="row gy-3">
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label form-label-sm text-muted" for="from">From</label>
+                            <input class="form-control" id="from" name="from" type="date" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="form-label form-label-sm text-muted" for="to">To</label>
+                            <input class="form-control" id="to" name="to" type="date" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">Show report</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 @section Scripts {

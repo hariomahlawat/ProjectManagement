@@ -36,7 +36,8 @@ public sealed record ProjectSectionVm(
     IReadOnlyList<ProjectStageChangeVm> FrontRunners,
     IReadOnlyList<ProjectRemarkOnlyVm> WorkInProgress,
     IReadOnlyList<ProjectNonMoverVm> NonMovers,
-    IReadOnlyList<ProjectProgressRowVm> SummaryRows
+    IReadOnlyList<ProjectProgressRowVm> SummaryRows,
+    IReadOnlyList<ProjectCategoryGroupVm> CategoryGroups
 );
 
 public sealed record ProjectStageChangeVm(
@@ -68,10 +69,16 @@ public sealed record ProjectNonMoverVm(
 public sealed record ProjectProgressRowVm(
     int ProjectId,
     string ProjectName,
+    string? ProjectCategoryName,
     PresentStageSnapshot PresentStage,
     IReadOnlyList<ProjectStageMovementVm> StageMovements,
     int StageMovementOverflowCount,
     ProjectRemarkSummaryVm RemarkSummary
+);
+
+public sealed record ProjectCategoryGroupVm(
+    string CategoryName,
+    IReadOnlyList<ProjectProgressRowVm> Projects
 );
 
 public sealed record ProjectStageMovementVm(
