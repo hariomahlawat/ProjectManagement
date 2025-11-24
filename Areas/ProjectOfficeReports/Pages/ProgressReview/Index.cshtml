@@ -9,6 +9,7 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.ProgressReview.IndexModel
 @{
     ViewData["Title"] = "Progress Review";
+    ViewData["UseFullWidth"] = true;
     var vm = Model.Report;
 
     string RenderRemarkHtml(string? text)
