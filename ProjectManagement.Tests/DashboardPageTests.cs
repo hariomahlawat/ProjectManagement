@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.Dashboard.Components.OpsSignals;
@@ -81,7 +82,8 @@ namespace ProjectManagement.Tests
             var projectPulse = new StubProjectPulseService();
             var opsSignals = new StubOpsSignalsService();
             var searchHealth = new StubSearchHealthService();
-            var page = new IndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth)
+            var logger = NullLogger<IndexModel>.Instance;
+            var page = new IndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth, logger)
             {
                 PageContext = new PageContext(new ActionContext(
                     new DefaultHttpContext
@@ -143,7 +145,8 @@ namespace ProjectManagement.Tests
             var projectPulse = new StubProjectPulseService();
             var opsSignals = new StubOpsSignalsService();
             var searchHealth = new StubSearchHealthService();
-            var page = new IndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth)
+            var logger = NullLogger<IndexModel>.Instance;
+            var page = new IndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth, logger)
             {
                 PageContext = new PageContext(new ActionContext(
                     new DefaultHttpContext
@@ -192,7 +195,8 @@ namespace ProjectManagement.Tests
             var projectPulse = new StubProjectPulseService();
             var opsSignals = new StubOpsSignalsService();
             var searchHealth = new StubSearchHealthService();
-            var page = new TestableIndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth, nowIst)
+            var logger = NullLogger<IndexModel>.Instance;
+            var page = new TestableIndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth, logger, nowIst)
             {
                 PageContext = new PageContext(new ActionContext(
                     new DefaultHttpContext
@@ -245,7 +249,8 @@ namespace ProjectManagement.Tests
             var projectPulse = new StubProjectPulseService();
             var opsSignals = new StubOpsSignalsService();
             var searchHealth = new StubSearchHealthService();
-            var page = new TestableIndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth, nowIst)
+            var logger = NullLogger<IndexModel>.Instance;
+            var page = new TestableIndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth, logger, nowIst)
             {
                 PageContext = new PageContext(new ActionContext(
                     new DefaultHttpContext
@@ -350,8 +355,9 @@ namespace ProjectManagement.Tests
                 IProjectPulseService projectPulse,
                 IOpsSignalsService opsSignals,
                 ISearchHealthService searchHealth,
+                ILogger<IndexModel> logger,
                 DateTimeOffset nowIst)
-                : base(todo, users, context, projectPulse, opsSignals, searchHealth)
+                : base(todo, users, context, projectPulse, opsSignals, searchHealth, logger)
             {
                 _nowIst = nowIst;
             }
