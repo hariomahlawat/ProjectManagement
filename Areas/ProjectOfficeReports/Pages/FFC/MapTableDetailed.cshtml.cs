@@ -59,7 +59,7 @@ public class MapTableDetailedModel : PageModel
         FilterSummary = BuildFilterSummary();
 
         var (rangeFrom, rangeTo) = ResolveRange();
-        Groups = await _ffcQueryService.GetDetailedGroupsAsync(rangeFrom, rangeTo, incompleteOnly: false, CountryId, Year, cancellationToken);
+        Groups = await _ffcQueryService.GetDetailedGroupsAsync(rangeFrom, rangeTo, incompleteOnly: false, CountryId, Year, applyYearFilter: true, cancellationToken: cancellationToken);
 
         FfcBreadcrumbs.Set(
             ViewData,
@@ -73,7 +73,7 @@ public class MapTableDetailedModel : PageModel
         Year = year;
 
         var (rangeFrom, rangeTo) = ResolveRange();
-        var groups = await _ffcQueryService.GetDetailedGroupsAsync(rangeFrom, rangeTo, incompleteOnly: false, CountryId, Year, cancellationToken);
+        var groups = await _ffcQueryService.GetDetailedGroupsAsync(rangeFrom, rangeTo, incompleteOnly: false, CountryId, Year, applyYearFilter: true, cancellationToken: cancellationToken);
         return new JsonResult(groups);
     }
 
@@ -83,7 +83,7 @@ public class MapTableDetailedModel : PageModel
         Year = year;
 
         var (rangeFrom, rangeTo) = ResolveRange();
-        var groups = await _ffcQueryService.GetDetailedGroupsAsync(rangeFrom, rangeTo, incompleteOnly: false, CountryId, Year, cancellationToken);
+        var groups = await _ffcQueryService.GetDetailedGroupsAsync(rangeFrom, rangeTo, incompleteOnly: false, CountryId, Year, applyYearFilter: true, cancellationToken: cancellationToken);
 
         using var workbook = new ClosedXML.Excel.XLWorkbook();
         var worksheet = workbook.AddWorksheet("FFC Projects (Detailed)");

@@ -105,7 +105,12 @@ public sealed class ProgressReviewService : IProgressReviewService
         // SECTION: Proliferation, FFC, Misc
         var proliferation = await LoadProliferationAsync(from, to, cancellationToken);
         var ffc = await LoadFfcAsync(from, to, cancellationToken);
-        var ffcDetailedIncompleteGroups = await _ffcQueryService.GetDetailedGroupsAsync(from, to, incompleteOnly: true, cancellationToken: cancellationToken);
+        var ffcDetailedIncompleteGroups = await _ffcQueryService.GetDetailedGroupsAsync(
+            from,
+            to,
+            incompleteOnly: true,
+            applyYearFilter: false,
+            cancellationToken: cancellationToken);
         var misc = await LoadMiscActivitiesAsync(from, to, cancellationToken);
 
         var totals = new TotalsVm(
