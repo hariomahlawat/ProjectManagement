@@ -901,6 +901,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 row.Description,
                 row.Location,
                 row.PhotoStorageKey,
+                row.DisplayPhotoId,
                 Occurrence = ResolveActivityDate(row.ScheduledStartUtc, row.ScheduledEndUtc)
             })
             .Where(x => x.Occurrence.HasValue && x.Occurrence.Value >= from && x.Occurrence.Value <= to)
