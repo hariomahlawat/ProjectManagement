@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="~/css/print.css" asp-append-version="true" media="print" />
     <link rel="icon" href="~/favicon.ico" />
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
     @{
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
