@@ -16,6 +16,7 @@ using System.Text.Json;
 using ProjectManagement.Data;
 using ProjectManagement.Features.Backfill;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Projects;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Infrastructure;
@@ -91,6 +92,7 @@ namespace ProjectManagement.Pages.Projects
         public ProjectDocumentSummaryViewModel DocumentSummary { get; private set; } = ProjectDocumentSummaryViewModel.Empty;
         public ProjectRemarkSummaryViewModel RemarkSummary { get; private set; } = ProjectRemarkSummaryViewModel.Empty;
         public ProjectTotSummaryViewModel TotSummary { get; private set; } = ProjectTotSummaryViewModel.Empty;
+        public ProjectCostSummaryViewModel CostSummary { get; private set; } = ProjectCostSummaryViewModel.Empty;
         public bool CanManageTot { get; private set; }
         public ProjectMediaCollectionViewModel MediaCollections { get; private set; } = ProjectMediaCollectionViewModel.Empty;
         public IReadOnlyCollection<int> AvailableMediaTotIds { get; private set; } = Array.Empty<int>();
@@ -367,6 +369,19 @@ namespace ProjectManagement.Pages.Projects
                 id,
                 connectionHash,
                 draftExists);
+
+            // SECTION: Cost summary
+            var approxProductionCost = await _db.ProjectProductionCostFacts
+                .AsNoTracking()
+                .Where(f => f.ProjectId == id)
+                .Select(f => f.ApproxProductionCost)
+                .FirstOrDefaultAsync(ct);
+
+            CostSummary = new ProjectCostSummaryViewModel
+            {
+                RdCostLakhs = project.CostLakhs,
+                ApproxProductionCost = approxProductionCost
+            };
 
             var pendingMetaRequest = await _db.ProjectMetaChangeRequests
                 .AsNoTracking()
@@ -2391,6 +2406,16 @@ namespace ProjectManagement.Pages.Projects
             public long? DocumentFileSize { get; init; }
 
             public byte[]? RowVersion { get; init; }
+        }
+
+        // SECTION: Project overview view models
+        public sealed class ProjectCostSummaryViewModel
+        {
+            public static ProjectCostSummaryViewModel Empty { get; } = new();
+
+            public decimal? RdCostLakhs { get; init; }
+
+            public decimal? ApproxProductionCost { get; init; }
         }
 
         private sealed record PendingRequestUser(

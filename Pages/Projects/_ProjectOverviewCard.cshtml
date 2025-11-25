@@ -151,6 +151,13 @@
 
                     <dt class="col-sm-4">Project Officer</dt>
                     <dd class="col-sm-8">@FormatUser(project?.LeadPoUser)</dd>
+
+                    @* SECTION: Cost summary *@
+                    <dt class="col-sm-4">R&amp;D / L1 cost</dt>
+                    <dd class="col-sm-8">@FormatCost(Model.CostSummary.RdCostLakhs)</dd>
+
+                    <dt class="col-sm-4">Approx production cost</dt>
+                    <dd class="col-sm-8">@FormatCost(Model.CostSummary.ApproxProductionCost)</dd>
                 </dl>
             </div>
             <div class="col-12">
@@ -186,5 +193,12 @@
         }
 
         return "—";
+    }
+
+    private static string FormatCost(decimal? costLakhs)
+    {
+        return costLakhs.HasValue
+            ? $"{costLakhs.Value:0.##} lakh"
+            : "—";
     }
 }
