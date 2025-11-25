@@ -46,6 +46,20 @@
         <input asp-for="Input.CaseFileNumber" class="form-control" />
         <span asp-validation-for="Input.CaseFileNumber" class="text-danger"></span>
     </div>
+    @* SECTION: Legacy cost fields *@
+    @if (Model.IsLegacyProject)
+    {
+        <div class="mb-3">
+            <label asp-for="Input.RdCostLakhs" class="form-label">R&amp;D / L1 cost (lakh)</label>
+            <input asp-for="Input.RdCostLakhs" class="form-control" type="number" step="0.01" inputmode="decimal" />
+            <span asp-validation-for="Input.RdCostLakhs" class="text-danger"></span>
+        </div>
+        <div class="mb-3">
+            <label asp-for="Input.ApproxProductionCost" class="form-label">Approx production cost (lakh)</label>
+            <input asp-for="Input.ApproxProductionCost" class="form-control" type="number" step="0.01" inputmode="decimal" />
+            <span asp-validation-for="Input.ApproxProductionCost" class="text-danger"></span>
+        </div>
+    }
     <button type="submit" class="btn btn-primary">Save changes</button>
 </form>
 
