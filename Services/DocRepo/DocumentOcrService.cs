@@ -9,18 +9,25 @@ using ProjectManagement.Services.Ocr;
 
 namespace ProjectManagement.Services.DocRepo
 {
+    // SECTION: Contract
+    public interface IDocumentOcrService
+    {
+        Task<bool> ReprocessAsync(Guid documentId, CancellationToken ct = default);
+        Task<int> ReprocessAllFailedAsync(CancellationToken ct = default);
+    }
+
     /// <summary>
     /// Admin-facing helper to re-run OCR for failed documents.
     /// </summary>
-    public sealed class DocumentOcrService
+    public sealed class DocumentOcrService : IDocumentOcrService
     {
         private readonly ApplicationDbContext _db;
         private readonly IDocumentOcrRunner _runner;
 
         public DocumentOcrService(ApplicationDbContext db, IDocumentOcrRunner runner)
         {
-            _db = db;
-            _runner = runner;
+            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _runner = runner ?? throw new ArgumentNullException(nameof(runner));
         }
 
         /// <summary>

@@ -267,7 +267,7 @@ builder.Services
     .ValidateOnStart();
 builder.Services.AddSingleton<IDocStorage, LocalDocStorageService>();
 builder.Services.AddSingleton<IUrlBuilder, UrlBuilder>();
-builder.Services.AddScoped<DocumentOcrService>();
+builder.Services.AddScoped<IDocumentOcrService, DocumentOcrService>();
 builder.Services.AddSingleton<IOcrmypdfInvoker, ProcessOcrmypdfInvoker>();
 builder.Services.AddSingleton<IPdfTextExtractor, PdfPigTextExtractor>();
 builder.Services.AddScoped<OcrmypdfSharedRunner>();
