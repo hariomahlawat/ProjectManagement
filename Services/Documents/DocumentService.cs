@@ -267,7 +267,9 @@ public sealed class DocumentService : IDocumentService
             .WriteAsync(_audit);
 
         document.Project = project;
-        await _notifications.NotifyDocumentPublishedAsync(document, project, performedByUserId, cancellationToken);
+        await NotifySafelyAsync(
+            () => _notifications.NotifyDocumentPublishedAsync(document, project, performedByUserId, cancellationToken),
+            nameof(_notifications.NotifyDocumentPublishedAsync));
 
         return document;
     }
@@ -361,7 +363,9 @@ public sealed class DocumentService : IDocumentService
             .WriteAsync(_audit);
 
         document.Project = project;
-        await _notifications.NotifyDocumentReplacedAsync(document, project, performedByUserId, cancellationToken);
+        await NotifySafelyAsync(
+            () => _notifications.NotifyDocumentReplacedAsync(document, project, performedByUserId, cancellationToken),
+            nameof(_notifications.NotifyDocumentReplacedAsync));
 
         return document;
     }
@@ -398,7 +402,9 @@ public sealed class DocumentService : IDocumentService
             .WriteAsync(_audit);
 
         document.Project = project;
-        await _notifications.NotifyDocumentArchivedAsync(document, project, performedByUserId, cancellationToken);
+        await NotifySafelyAsync(
+            () => _notifications.NotifyDocumentArchivedAsync(document, project, performedByUserId, cancellationToken),
+            nameof(_notifications.NotifyDocumentArchivedAsync));
 
         return document;
     }
@@ -435,7 +441,9 @@ public sealed class DocumentService : IDocumentService
             .WriteAsync(_audit);
 
         document.Project = project;
-        await _notifications.NotifyDocumentRestoredAsync(document, project, performedByUserId, cancellationToken);
+        await NotifySafelyAsync(
+            () => _notifications.NotifyDocumentRestoredAsync(document, project, performedByUserId, cancellationToken),
+            nameof(_notifications.NotifyDocumentRestoredAsync));
 
         return document;
     }
@@ -520,7 +528,9 @@ public sealed class DocumentService : IDocumentService
         if (project is not null)
         {
             document.Project = project;
-            await _notifications.NotifyDocumentDeletedAsync(document, project, performedByUserId, cancellationToken);
+            await NotifySafelyAsync(
+                () => _notifications.NotifyDocumentDeletedAsync(document, project, performedByUserId, cancellationToken),
+                nameof(_notifications.NotifyDocumentDeletedAsync));
         }
     }
 
@@ -611,6 +621,18 @@ public sealed class DocumentService : IDocumentService
     private string ResolveAbsolutePath(string storageKey)
     {
         return _storageResolver.ResolveAbsolutePath(storageKey);
+    }
+
+    private async Task NotifySafelyAsync(Func<Task> publishAsync, string operationName)
+    {
+        try
+        {
+            await publishAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Notification dispatch failed for {Operation}.", operationName);
+        }
     }
 
     private static void SafeDelete(string? path)
