@@ -1718,8 +1718,20 @@ proliferationEffectiveApi.MapGet("", async (
     return Results.Ok(new { projectId, source, year, total });
 });
 
+// -------------------------------------------------------------
+// LOOKUP API
+// -------------------------------------------------------------
+var lookupApiRoles = string.Join(',', new[]
+{
+    RoleNames.Admin,
+    RoleNames.HoD,
+    RoleNames.ProjectOfficer,
+    RoleNames.ProjectOffice,
+    RoleNames.ProjectOfficeAlternate
+});
+
 var lookupApi = app.MapGroup("/api/lookups")
-    .RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,HoD,Project Officer" });
+    .RequireAuthorization(new AuthorizeAttribute { Roles = lookupApiRoles });
 
 lookupApi.MapGet("/sponsoring-units", async (
     ApplicationDbContext db,
