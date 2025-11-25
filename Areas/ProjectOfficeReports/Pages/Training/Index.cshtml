@@ -222,7 +222,7 @@ else
                     </button>
                 </div>
                 <div class="ratio ratio-21x9"
-                     style="max-height: 360px;"
+                     class="pm-util-maxh-360"
                      data-training-year='@System.Text.Json.JsonSerializer.Serialize(Model.TrainingYearChart, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })'>
                     <canvas id="training-year-trend-canvas"></canvas>
                 </div>
@@ -476,7 +476,7 @@ else
                                     <td>
                                         <span class="badge bg-light text-dark fw-normal">@training.Strength</span>
                                     </td>
-                                    <td style="min-width: 180px;">
+                                    <td class="pm-util-minw-180">
                                         @if (training.ProjectNames.Count == 0)
                                         {
                                             <span class="text-muted">None linked</span>
@@ -495,7 +495,7 @@ else
                                             }
                                         }
                                     </td>
-                                    <td class="small text-truncate" style="max-width: 200px;">
+                                    <td class="small text-truncate pm-util-maxw-200">
                                         @if (string.IsNullOrWhiteSpace(training.Notes))
                                         {
                                             <span class="text-muted">None</span>

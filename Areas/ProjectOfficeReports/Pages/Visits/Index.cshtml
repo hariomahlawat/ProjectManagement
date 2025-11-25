@@ -203,7 +203,7 @@
                     </div>
                     <div id="visits-monthly-chart"
                          data-monthly='@System.Text.Json.JsonSerializer.Serialize(monthlyPoints, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })'
-                         class="position-relative" style="min-height: 260px;">
+                         class="position-relative pm-util-minh-260">
                         <canvas id="visits-monthly-canvas" class="w-100 h-100" role="img" aria-labelledby="visits-monthly-title"></canvas>
                     </div>
                 </div>
@@ -232,7 +232,7 @@
                     </div>
                     <div id="visits-type-chart"
                          data-types='@System.Text.Json.JsonSerializer.Serialize(allVisitTypes, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })'
-                         class="flex-grow-1" style="min-height: 240px;">
+                         class="flex-grow-1 pm-util-minh-240">
                         <canvas id="visits-type-canvas" class="w-100 h-100" role="img" aria-labelledby="visits-type-title"></canvas>
                     </div>
                 </div>

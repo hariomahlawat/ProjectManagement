@@ -120,7 +120,7 @@ else
                                 <td>
                                     <span class="badge bg-light text-dark fw-normal">@training.Strength</span>
                                 </td>
-                                <td style="min-width: 180px;">
+                                <td class="pm-util-minw-180">
                                     @if (training.ProjectNames.Count == 0)
                                     {
                                         <span class="text-muted">None linked</span>
@@ -139,7 +139,7 @@ else
                                         }
                                     }
                                 </td>
-                                <td class="small text-truncate" style="max-width: 200px;">
+                                <td class="small text-truncate pm-util-maxw-200">
                                     @if (string.IsNullOrWhiteSpace(training.Notes))
                                     {
                                         <span class="text-muted">None</span>

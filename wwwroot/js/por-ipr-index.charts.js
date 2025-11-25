@@ -13,6 +13,17 @@
 
   const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // SECTION: KPI spark widths
+  function hydrateSparkBars() {
+    document.querySelectorAll('.pm-kpi__spark-bar[data-kpi-width]').forEach(bar => {
+      const widthValue = Number(bar.dataset.kpiWidth);
+      const clampedWidth = Number.isFinite(widthValue) ? Math.min(Math.max(widthValue, 0), 100) : 0;
+      bar.style.setProperty('--pm-kpi-spark-width', `${clampedWidth}%`);
+    });
+  }
+
+  hydrateSparkBars();
+
   function downloadChartPng(canvasId, filenameBase) {
     const canvas = document.getElementById(canvasId);
     if (!canvas || typeof canvas.toDataURL !== 'function') {
