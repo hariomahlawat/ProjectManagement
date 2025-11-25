@@ -429,17 +429,6 @@ public class RoleBasedNavigationProvider : INavigationProvider
             items.Add(activityTypesNavigationItem);
         }
 
-        if (roleSet.Contains("HoD") || roleSet.Contains("Admin"))
-        {
-            items.Add(new NavigationItem
-            {
-                Text = "Approvals",
-                Page = "/Projects/Documents/Approvals/Index",
-                RequiredRoles = new[] { "HoD", "Admin" },
-                Icon = "bi-check2-square"
-            });
-        }
-
         return await TrimNavigationTreeAsync(items, httpContext.User, roleSet);
     }
 
