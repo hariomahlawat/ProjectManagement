@@ -1719,7 +1719,7 @@ proliferationEffectiveApi.MapGet("", async (
 });
 
 var lookupApi = app.MapGroup("/api/lookups")
-    .RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,HoD,Project Officer" });
+    .RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,HoD,Project Officer, Project Office,Comdt,TA,MCO" });
 
 lookupApi.MapGet("/sponsoring-units", async (
     ApplicationDbContext db,
