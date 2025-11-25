@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Models.Projects;
 
 namespace ProjectManagement.Pages.Projects.Meta;
 
@@ -37,6 +38,7 @@ public class EditModel : PageModel
     public IReadOnlyList<SelectListItem> TechnicalCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> SponsoringUnitOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> LineDirectorateOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public bool IsLegacyProject { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
@@ -52,6 +54,9 @@ public class EditModel : PageModel
         await LoadCategoryOptionsAsync(project.CategoryId, cancellationToken);
         await LoadTechnicalCategoryOptionsAsync(project.TechnicalCategoryId, cancellationToken);
         await LoadLookupOptionsAsync(project.SponsoringUnitId, project.SponsoringLineDirectorateId, cancellationToken);
+        IsLegacyProject = project.IsLegacy;
+
+        var approxProductionCost = await LoadApproxProductionCostAsync(project.Id, cancellationToken);
 
         Input = new MetaEditInput
         {
@@ -63,6 +68,8 @@ public class EditModel : PageModel
             TechnicalCategoryId = project.TechnicalCategoryId,
             SponsoringUnitId = project.SponsoringUnitId,
             SponsoringLineDirectorateId = project.SponsoringLineDirectorateId,
+            RdCostLakhs = project.CostLakhs,
+            ApproxProductionCost = approxProductionCost,
             RowVersion = Convert.ToBase64String(project.RowVersion)
         };
 
@@ -120,6 +127,8 @@ public class EditModel : PageModel
             return NotFound();
         }
 
+        IsLegacyProject = project.IsLegacy;
+
         if (isHoD && !isAdmin &&
             !string.Equals(project.HodUserId, userId, StringComparison.OrdinalIgnoreCase))
         {
@@ -133,6 +142,32 @@ public class EditModel : PageModel
             : Input.CaseFileNumber.Trim();
         var selectedCategoryId = Input.CategoryId;
         var selectedTechnicalCategoryId = Input.TechnicalCategoryId;
+        var previousProductionCost = project.IsLegacy
+            ? await LoadApproxProductionCostAsync(project.Id, cancellationToken)
+            : null;
+        ProjectProductionCostFact? productionFact = null;
+
+        // SECTION: Legacy cost validation
+        if (project.IsLegacy)
+        {
+            productionFact = await _db.ProjectProductionCostFacts
+                .SingleOrDefaultAsync(f => f.ProjectId == project.Id, cancellationToken);
+
+            if (Input.RdCostLakhs is < 0)
+            {
+                ModelState.AddModelError("Input.RdCostLakhs", "R&D / L1 cost cannot be negative.");
+            }
+
+            if (Input.ApproxProductionCost is < 0)
+            {
+                ModelState.AddModelError("Input.ApproxProductionCost", "Approx production cost cannot be negative.");
+            }
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return Page();
+        }
 
         if (selectedCategoryId.HasValue)
         {
@@ -210,6 +245,7 @@ public class EditModel : PageModel
         var previousTechnicalCategoryId = project.TechnicalCategoryId;
         var previousSponsoringUnitId = project.SponsoringUnitId;
         var previousSponsoringLineDirectorateId = project.SponsoringLineDirectorateId;
+        var previousRdCostLakhs = project.CostLakhs;
 
         project.Name = trimmedName;
         project.Description = trimmedDescription;
@@ -218,6 +254,26 @@ public class EditModel : PageModel
         project.TechnicalCategoryId = selectedTechnicalCategoryId;
         project.SponsoringUnitId = Input.SponsoringUnitId;
         project.SponsoringLineDirectorateId = Input.SponsoringLineDirectorateId;
+
+        // SECTION: Legacy cost persistence
+        if (project.IsLegacy)
+        {
+            project.CostLakhs = Input.RdCostLakhs;
+
+            productionFact ??= new ProjectProductionCostFact
+            {
+                ProjectId = project.Id
+            };
+
+            if (_db.Entry(productionFact).State == EntityState.Detached)
+            {
+                await _db.ProjectProductionCostFacts.AddAsync(productionFact, cancellationToken);
+            }
+
+            productionFact.ApproxProductionCost = Input.ApproxProductionCost;
+            productionFact.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            productionFact.UpdatedByUserId = userId;
+        }
 
         _db.Entry(project).Property(p => p.RowVersion).OriginalValue = rowVersionBytes;
 
@@ -232,6 +288,11 @@ public class EditModel : PageModel
             await LoadCategoryOptionsAsync(project.CategoryId, cancellationToken);
             await LoadTechnicalCategoryOptionsAsync(project.TechnicalCategoryId, cancellationToken);
             await LoadLookupOptionsAsync(project.SponsoringUnitId, project.SponsoringLineDirectorateId, cancellationToken);
+            IsLegacyProject = project.IsLegacy;
+
+            var updatedProductionCost = project.IsLegacy
+                ? await LoadApproxProductionCostAsync(project.Id, cancellationToken)
+                : null;
 
             Input = new MetaEditInput
             {
@@ -243,6 +304,8 @@ public class EditModel : PageModel
                 TechnicalCategoryId = project.TechnicalCategoryId,
                 SponsoringUnitId = project.SponsoringUnitId,
                 SponsoringLineDirectorateId = project.SponsoringLineDirectorateId,
+                RdCostLakhs = project.CostLakhs,
+                ApproxProductionCost = updatedProductionCost,
                 RowVersion = Convert.ToBase64String(project.RowVersion)
             };
 
@@ -267,7 +330,11 @@ public class EditModel : PageModel
                 ["SponsoringUnitIdBefore"] = previousSponsoringUnitId?.ToString(),
                 ["SponsoringUnitIdAfter"] = project.SponsoringUnitId?.ToString(),
                 ["SponsoringLineDirectorateIdBefore"] = previousSponsoringLineDirectorateId?.ToString(),
-                ["SponsoringLineDirectorateIdAfter"] = project.SponsoringLineDirectorateId?.ToString()
+                ["SponsoringLineDirectorateIdAfter"] = project.SponsoringLineDirectorateId?.ToString(),
+                ["RdCostLakhsBefore"] = previousRdCostLakhs?.ToString(),
+                ["RdCostLakhsAfter"] = project.CostLakhs?.ToString(),
+                ["ApproxProductionCostBefore"] = previousProductionCost?.ToString(),
+                ["ApproxProductionCostAfter"] = productionFact?.ApproxProductionCost?.ToString()
             },
             userId: userId,
             userName: User.Identity?.Name);
@@ -302,7 +369,20 @@ public class EditModel : PageModel
         [Display(Name = "Sponsoring Line Dte")]
         public int? SponsoringLineDirectorateId { get; set; }
 
+        public decimal? RdCostLakhs { get; set; }
+
+        public decimal? ApproxProductionCost { get; set; }
+
         public string RowVersion { get; set; } = string.Empty;
+    }
+
+    private Task<decimal?> LoadApproxProductionCostAsync(int projectId, CancellationToken cancellationToken)
+    {
+        return _db.ProjectProductionCostFacts
+            .AsNoTracking()
+            .Where(f => f.ProjectId == projectId)
+            .Select(f => f.ApproxProductionCost)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     private async Task LoadCategoryOptionsAsync(int? selectedCategoryId, CancellationToken cancellationToken)
