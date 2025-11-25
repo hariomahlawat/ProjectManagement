@@ -1,19 +1,23 @@
 
-/* 2-col layout: map + sidebar */
+/* ----- Layout shell ----- */
 .ffc-map-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem;
   position: relative;
+}
+
+.ffc-map-layout.has-sidebar {
+  grid-template-columns: minmax(0, 1fr) 260px;
 }
 
 .ffc-map-canvas {
   position: relative;
 }
 
+/* ----- Map canvas ----- */
 .ffc-map {
-  height: 70vh;
-  min-height: 520px;
+  height: clamp(520px, 76vh, 840px);
   border-radius: 1rem;
   box-shadow: 0 1px 4px rgba(2, 6, 23, 0.08);
   overflow: hidden;
@@ -26,6 +30,15 @@
 
 .ffc-map-sidebar .card .card-body {
   padding: 0.75rem 0.75rem;
+}
+
+/* ----- Toolbar ----- */
+.ffc-map-toolbar {
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 

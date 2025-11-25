@@ -396,7 +396,8 @@
             savedPreference = null;
           }
 
-          if (savedPreference === 'on') {
+          var datasetPreference = shell.dataset.mapFullwidth === 'on';
+          if (savedPreference === 'on' || (!savedPreference && datasetPreference)) {
             applyFullWidthState(true, true);
           }
         }
