@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -73,6 +74,7 @@ public sealed class ReviewModel : PageModel
         return await DecideAsync(id, requestId, DecisionAction.Reject, cancellationToken);
     }
 
+    // SECTION: Decision handling pipeline
     private async Task<IActionResult> DecideAsync(int projectId, int requestId, DecisionAction action, CancellationToken cancellationToken)
     {
         if (requestId != Input.RequestId)
@@ -162,6 +164,18 @@ public sealed class ReviewModel : PageModel
         catch (DbUpdateConcurrencyException)
         {
             TempData["Error"] = "This request has already been processed.";
+            return RedirectToPage("./Index", new { id = projectId });
+        }
+        catch (FileNotFoundException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Missing staged document for request {RequestId} in project {ProjectId} at {FilePath}",
+                entity.Id,
+                projectId,
+                ex.FileName ?? "<unknown>");
+
+            TempData["Error"] = "The staged file for this request is missing. Ensure the upload storage is shared across servers.";
             return RedirectToPage("./Index", new { id = projectId });
         }
         catch (InvalidOperationException ex)
