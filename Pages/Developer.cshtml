@@ -1,0 +1,59 @@
+@page
+@model ProjectManagement.Pages.DeveloperModel
+@{
+    ViewData["Title"] = "Developer";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/developer.css" asp-append-version="true" />
+}
+
+<!-- ===========================
+     DEVELOPER CARD
+     =========================== -->
+<div class="container-xxl py-4">
+    <div class="developer-card shadow-sm">
+        <div class="developer-header">
+            <img src="~/img/logos/sdd.png" alt="Simulator Development Division logo" class="developer-logo" />
+            <div>
+                <h1 class="developer-name">Hari Om Ahlawat</h1>
+                <div class="developer-tagline">Designed and developed for Simulator Development Division</div>
+            </div>
+        </div>
+
+        <div class="developer-body">
+            <div class="developer-section">
+                <h2>Contact</h2>
+                <ul>
+                    <li><strong>Email:</strong> your.email@domain.com</li>
+                    <li><strong>Phone:</strong> +91-XXXXXXXXXX</li>
+                    <li><strong>Location:</strong> Hyderabad, India</li>
+                </ul>
+            </div>
+
+            <div class="developer-section">
+                <h2>Profile</h2>
+                <p>
+                    Full-stack engineer with focus on offline secure enterprise systems, Razor Pages,
+                    EF Core, PostgreSQL, OCR plus full-text search, and defence domain workflows.
+                </p>
+            </div>
+
+            <div class="developer-section">
+                <h2>Core strengths</h2>
+                <div class="pill-row">
+                    <span class="pill">Offline deployment</span>
+                    <span class="pill">RAG and LLM integration</span>
+                    <span class="pill">OCR and FTS pipelines</span>
+                    <span class="pill">Military workflow design</span>
+                    <span class="pill">UI and analytics</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="developer-footer">
+            <span>ProjectManagement</span>
+            <span class="muted">Version @Model.AppVersion</span>
+        </div>
+    </div>
+</div>

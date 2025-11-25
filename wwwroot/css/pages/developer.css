@@ -1,0 +1,93 @@
+/* ===========================
+   DEVELOPER CARD LAYOUT
+   =========================== */
+.developer-card {
+    background: white;
+    border-radius: 18px;
+    padding: 24px;
+    max-width: 820px;
+    margin: 0 auto;
+    border: 1px solid #e9ecef;
+}
+
+/* ===========================
+   HEADER
+   =========================== */
+.developer-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f1f3f5;
+}
+
+.developer-logo {
+    height: 56px;
+    width: auto;
+    border-radius: 8px;
+}
+
+.developer-name {
+    font-size: 1.8rem;
+    margin: 0;
+    font-weight: 700;
+}
+
+.developer-tagline {
+    color: #6c757d;
+    font-size: 0.95rem;
+}
+
+/* ===========================
+   BODY
+   =========================== */
+.developer-body {
+    padding-top: 16px;
+    display: grid;
+    gap: 16px;
+}
+
+.developer-section h2 {
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.developer-section ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+/* ===========================
+   PILLS
+   =========================== */
+.pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.pill {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+/* ===========================
+   FOOTER
+   =========================== */
+.developer-footer {
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px solid #f1f3f5;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+}
+
+.developer-footer .muted {
+    color: #6c757d;
+}

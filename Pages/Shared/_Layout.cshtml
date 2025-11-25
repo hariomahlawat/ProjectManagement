@@ -89,7 +89,7 @@
     <!-- ===========================
          MAIN CONTENT
          =========================== -->
-    <main role="main" class="pb-5@(useFullWidth ? " analytics-main" : string.Empty)">
+    <main role="main" class="pb-2@(useFullWidth ? " analytics-main" : string.Empty)">
         <div class="@mainContainerClass">
             @await Html.PartialAsync("_Toasts")
             @if (breadcrumbModel is not null)
@@ -103,10 +103,18 @@
     <!-- ===========================
          FOOTER
          =========================== -->
-    <footer class="pm-footer border-top py-3">
-        <div class="container small text-muted d-flex justify-content-between">
-            <span>© @DateTime.UtcNow.Year — ProjectManagement</span>
-            <a class="text-muted" asp-page="/Privacy">Privacy</a>
+    <footer class="pm-footer border-top py-2 mt-auto">
+        <div class="container-xxl">
+            <div class="d-flex flex-column flex-md-row align-items-center justify-content-between gap-2 small">
+                <div class="text-muted">© @DateTime.UtcNow.Year — ProjectManagement</div>
+                <div class="d-flex align-items-center gap-2 fw-semibold">
+                    <img src="~/img/logos/sdd.png" alt="Simulator Development Division logo" style="height:22px; width:auto;" />
+                    <span>A product by Simulator Development Division</span>
+                </div>
+                <div>
+                    <a asp-page="/Developer" class="text-decoration-none">Designed and developed by @hariomahlawat</a>
+                </div>
+            </div>
         </div>
     </footer>
 
