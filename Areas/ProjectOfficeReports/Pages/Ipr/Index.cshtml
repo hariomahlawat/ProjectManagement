@@ -69,8 +69,7 @@
     @if (!string.IsNullOrWhiteSpace(toastMessage) || !string.IsNullOrWhiteSpace(toastError))
     {
         <div id="iprToastContainer"
-             class="toast-container position-fixed top-0 end-0 p-3"
-             style="z-index: 1100;"
+             class="toast-container position-fixed top-0 end-0 p-3 pm-util-z-1100"
              aria-live="polite"
              aria-atomic="true">
             @if (!string.IsNullOrWhiteSpace(toastMessage))
@@ -106,42 +105,55 @@
                     <div class="pm-kpi pm-kpi--total h-100">
                         <div class="pm-kpi__label">Total</div>
                         <div class="pm-kpi__value mt-1">@Model.Kpis.Total</div>
-                        <div class="pm-kpi__spark mt-2" aria-hidden="true"><span style="width:@Math.Clamp(Model.Kpis.TotalPercent, 0, 100)%"></span></div>
+                        <!-- SECTION: KPI spark bar widths -->
+                        <div class="pm-kpi__spark mt-2" aria-hidden="true">
+                            <span class="pm-kpi__spark-bar" data-kpi-width="@Math.Clamp(Model.Kpis.TotalPercent, 0, 100)"></span>
+                        </div>
                     </div>
                 </div>
                 <div class="col-12 col-sm-6 col-lg">
                     <div class="pm-kpi pm-kpi--filing h-100">
                         <div class="pm-kpi__label">Filing under process</div>
                         <div class="pm-kpi__value mt-1">@Model.Kpis.FilingUnderProcess</div>
-                        <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.FilingUnderProcessPercent, 0, 100)%"></span></div>
+                        <div class="pm-kpi__spark mt-2">
+                            <span class="pm-kpi__spark-bar" data-kpi-width="@Math.Clamp(Model.Kpis.FilingUnderProcessPercent, 0, 100)"></span>
+                        </div>
                     </div>
                 </div>
                 <div class="col-12 col-sm-6 col-lg">
                     <div class="pm-kpi pm-kpi--filed h-100">
                         <div class="pm-kpi__label">Filed</div>
                         <div class="pm-kpi__value mt-1">@Model.Kpis.Filed</div>
-                        <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.FiledPercent, 0, 100)%"></span></div>
+                        <div class="pm-kpi__spark mt-2">
+                            <span class="pm-kpi__spark-bar" data-kpi-width="@Math.Clamp(Model.Kpis.FiledPercent, 0, 100)"></span>
+                        </div>
                     </div>
                 </div>
                 <div class="col-12 col-sm-6 col-lg">
                     <div class="pm-kpi pm-kpi--granted h-100">
                         <div class="pm-kpi__label">Granted</div>
                         <div class="pm-kpi__value mt-1">@Model.Kpis.Granted</div>
-                        <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.GrantedPercent, 0, 100)%"></span></div>
+                        <div class="pm-kpi__spark mt-2">
+                            <span class="pm-kpi__spark-bar" data-kpi-width="@Math.Clamp(Model.Kpis.GrantedPercent, 0, 100)"></span>
+                        </div>
                     </div>
                 </div>
                 <div class="col-12 col-sm-6 col-lg">
                     <div class="pm-kpi pm-kpi--rejected h-100">
                         <div class="pm-kpi__label">Rejected</div>
                         <div class="pm-kpi__value mt-1">@Model.Kpis.Rejected</div>
-                        <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.RejectedPercent, 0, 100)%"></span></div>
+                        <div class="pm-kpi__spark mt-2">
+                            <span class="pm-kpi__spark-bar" data-kpi-width="@Math.Clamp(Model.Kpis.RejectedPercent, 0, 100)"></span>
+                        </div>
                     </div>
                 </div>
                 <div class="col-12 col-sm-6 col-lg">
                     <div class="pm-kpi pm-kpi--withdrawn h-100">
                         <div class="pm-kpi__label">Withdrawn</div>
                         <div class="pm-kpi__value mt-1">@Model.Kpis.Withdrawn</div>
-                        <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.WithdrawnPercent, 0, 100)%"></span></div>
+                        <div class="pm-kpi__spark mt-2">
+                            <span class="pm-kpi__spark-bar" data-kpi-width="@Math.Clamp(Model.Kpis.WithdrawnPercent, 0, 100)"></span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -219,7 +231,7 @@
                                    data-totals='@Html.Raw(totalsJson)'>
                                 <thead>
                                 <tr>
-                                    <th style="width:70px">Year</th>
+                                    <th class="pm-util-col-70">Year</th>
                                     <th>Filed</th>
                                     <th>Granted</th>
                                     <th>Rejected</th>
@@ -383,10 +395,10 @@
                     @for (var index = 0; index < 3; index++)
                     {
                         <div class="border rounded-3 p-4 mb-3">
-                            <div class="placeholder col-4 mb-2" style="min-height: 1.4rem;"></div>
-                            <div class="placeholder col-6 mb-2" style="min-height: 1rem;"></div>
-                            <div class="placeholder col-8 mb-2" style="min-height: 0.8rem;"></div>
-                            <div class="placeholder col-5" style="min-height: 0.8rem;"></div>
+                            <div class="placeholder col-4 mb-2 pm-util-minh-14"></div>
+                            <div class="placeholder col-6 mb-2 pm-util-minh-10"></div>
+                            <div class="placeholder col-8 mb-2 pm-util-minh-08"></div>
+                            <div class="placeholder col-5 pm-util-minh-08"></div>
                         </div>
                     }
                 </div>

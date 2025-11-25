@@ -45,7 +45,7 @@ else
                     <td class="text-end">@request.TotalTrainees.ToString("N0", CultureInfo.CurrentCulture)</td>
                     <td>@request.RequestedByDisplayName</td>
                     <td>@request.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy 'at' HH:mm", CultureInfo.CurrentCulture)</td>
-                    <td class="text-break" style="max-width: 320px;">@request.Reason</td>
+                    <td class="text-break pm-util-maxw-320">@request.Reason</td>
                     <td class="text-end">
                         <form method="post" asp-page-handler="Approve" class="d-inline">
                             <input type="hidden" name="requestId" value="@request.Id" />

@@ -42,7 +42,13 @@
 .pm-kpi__label { font-size:.75rem; letter-spacing:.04em; color:var(--bs-secondary-color); opacity:.85; text-transform:uppercase; }
 .pm-kpi__value { font-weight:700; font-size:1.35rem; line-height:1; }
 .pm-kpi__spark { height:6px; background:#e9ecef; border-radius:999px; overflow:hidden; }
-.pm-kpi__spark>span{ display:block; height:100%; background:var(--bs-primary); }
+.pm-kpi__spark-bar {
+    display: block;
+    height: 100%;
+    background: var(--bs-primary);
+    width: var(--pm-kpi-spark-width, 0%);
+    transition: width 0.25s ease;
+}
 
 /* contextual variants (very subtle pastels) */
 .pm-kpi--total      { border-color: var(--bs-border-color); }

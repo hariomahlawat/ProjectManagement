@@ -7122,3 +7122,106 @@ body.has-project-photo-preview-dialog {
 }
 
 /* END SECTION */
+
+/* =============================================================
+   SECTION: Utility helpers for layout and sizing
+   ============================================================= */
+
+.pm-util-z-1100 {
+    z-index: 1100;
+}
+
+.pm-util-col-3rem {
+    width: 3rem;
+}
+
+.pm-util-col-70 {
+    width: 70px;
+}
+
+.pm-util-col-80 {
+    width: 80px;
+}
+
+.pm-util-col-110 {
+    width: 110px;
+}
+
+.pm-util-col-120 {
+    width: 120px;
+}
+
+.pm-util-col-140 {
+    width: 140px;
+}
+
+.pm-util-col-160 {
+    width: 160px;
+}
+
+.pm-util-col-180 {
+    width: 180px;
+}
+
+.pm-util-minw-160 {
+    min-width: 160px;
+}
+
+.pm-util-minw-180 {
+    min-width: 180px;
+}
+
+.pm-util-maxw-200 {
+    max-width: 200px;
+}
+
+.pm-util-maxw-220 {
+    max-width: 220px;
+}
+
+.pm-util-maxw-260 {
+    max-width: 260px;
+}
+
+.pm-util-maxw-320 {
+    max-width: 320px;
+}
+
+.pm-util-minh-14 {
+    min-height: 1.4rem;
+}
+
+.pm-util-minh-10 {
+    min-height: 1rem;
+}
+
+.pm-util-minh-08 {
+    min-height: .8rem;
+}
+
+.pm-util-minh-240 {
+    min-height: 240px;
+}
+
+.pm-util-minh-260 {
+    min-height: 260px;
+}
+
+.pm-util-maxh-360 {
+    max-height: 360px;
+}
+
+.pm-util-mt-025 {
+    margin-top: .25rem;
+}
+
+.pm-util-aspect-60 {
+    --bs-aspect-ratio: 60%;
+}
+
+.pm-util-logo-compact {
+    height: 22px;
+    width: auto;
+}
+
+/* END SECTION */
