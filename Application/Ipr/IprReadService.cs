@@ -162,12 +162,14 @@ public sealed class IprReadService : IIprReadService
 
     private static IQueryable<IprRecord> BuildFilteredQuery(IQueryable<IprRecord> query, IprFilter filter, bool includeStatusFilter = true)
     {
+        // --- Search filtering: use provider-agnostic contains to avoid reliance on ILIKE support ---
         if (!string.IsNullOrWhiteSpace(filter.Query))
         {
-            var trimmed = filter.Query.Trim();
+            var trimmed = filter.Query.Trim().ToLowerInvariant();
+
             query = query.Where(x =>
-                EF.Functions.ILike(x.IprFilingNumber, $"%{trimmed}%") ||
-                (x.Title != null && EF.Functions.ILike(x.Title, $"%{trimmed}%")));
+                (!string.IsNullOrEmpty(x.IprFilingNumber) && x.IprFilingNumber.ToLower().Contains(trimmed)) ||
+                (!string.IsNullOrEmpty(x.Title) && x.Title!.ToLower().Contains(trimmed)));
         }
 
         if (filter.Types is { Count: > 0 })
