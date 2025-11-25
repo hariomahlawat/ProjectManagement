@@ -291,6 +291,7 @@ builder.Services
         options => !string.IsNullOrWhiteSpace(options.WorkRoot),
         "ProjectDocuments:Ocr:WorkRoot must be configured.")
     .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<ProjectDocumentOcrOptions>, ProjectDocumentOcrOptionsValidator>();
 builder.Services.AddSingleton<IProjectDocumentStorageResolver, ProjectDocumentStorageResolver>();
 builder.Services.AddScoped<IProjectDocumentOcrRunner, OcrmypdfProjectOcrRunner>();
 builder.Services.AddScoped<IGlobalProjectDocumentSearchService, GlobalProjectDocumentSearchService>();
@@ -454,7 +455,9 @@ builder.Services.AddOptions<SocialMediaPhotoOptions>()
 builder.Services.AddOptions<TrainingTrackerOptions>()
     .Bind(builder.Configuration.GetSection("ProjectOfficeReports:TrainingTracker"));
 builder.Services.AddOptions<ProjectDocumentOptions>()
-    .Bind(builder.Configuration.GetSection("ProjectDocuments"));
+    .Bind(builder.Configuration.GetSection("ProjectDocuments"))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<ProjectDocumentOptions>, ProjectDocumentOptionsValidator>();
 builder.Services.AddOptions<ProjectVideoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectVideos"));
 builder.Services.AddSingleton<IConfigureOptions<ProjectPhotoOptions>, ProjectPhotoOptionsSetup>();
