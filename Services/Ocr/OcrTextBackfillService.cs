@@ -18,13 +18,13 @@ namespace ProjectManagement.Services.Ocr;
 public sealed class OcrTextBackfillService
 {
     private readonly ApplicationDbContext _db;
-    private readonly DocumentOcrService _docRepoService;
+    private readonly IDocumentOcrService _docRepoService;
     private readonly IProjectDocumentOcrRunner _projectRunner;
     private readonly ILogger<OcrTextBackfillService> _logger;
 
     public OcrTextBackfillService(
         ApplicationDbContext db,
-        DocumentOcrService docRepoService,
+        IDocumentOcrService docRepoService,
         IProjectDocumentOcrRunner projectRunner,
         ILogger<OcrTextBackfillService> logger)
     {

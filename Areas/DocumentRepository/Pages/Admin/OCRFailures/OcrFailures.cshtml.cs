@@ -1,3 +1,4 @@
+using System;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -12,12 +13,12 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin
     public class OcrFailuresModel : PageModel
     {
         private readonly ApplicationDbContext _db;
-        private readonly DocumentOcrService _ocrService;
+        private readonly IDocumentOcrService _ocrService;
 
-        public OcrFailuresModel(ApplicationDbContext db, DocumentOcrService ocrService)
+        public OcrFailuresModel(ApplicationDbContext db, IDocumentOcrService ocrService)
         {
-            _db = db;
-            _ocrService = ocrService;
+            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _ocrService = ocrService ?? throw new ArgumentNullException(nameof(ocrService));
         }
 
         public IList<Document> FailedDocuments { get; private set; } = new List<Document>();
