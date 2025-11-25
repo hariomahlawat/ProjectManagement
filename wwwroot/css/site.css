@@ -60,6 +60,11 @@ body {
     background-color: var(--pm-surface);
 }
 
+/* --- Layout shell --- */
+main[role="main"] {
+    flex: 1 0 auto;
+}
+
 /* --- Page header & spacing --- */
 .pm-page-header {
     display: flex;
