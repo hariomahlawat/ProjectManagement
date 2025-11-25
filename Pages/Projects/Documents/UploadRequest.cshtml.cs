@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -187,6 +188,11 @@ public class UploadRequestModel : PageModel
         {
             _logger.LogWarning(ex, "Validation failed while staging upload request for project {ProjectId}", Input.ProjectId);
             ModelState.AddModelError("Input.File", ex.Message);
+        }
+        catch (IOException ex)
+        {
+            _logger.LogError(ex, "File read failed while staging upload request for project {ProjectId}", Input.ProjectId);
+            ModelState.AddModelError("Input.File", "We couldn't read the uploaded file. Please try again with a fresh upload.");
         }
         catch (Exception ex)
         {
