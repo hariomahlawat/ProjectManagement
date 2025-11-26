@@ -1,8 +1,14 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.SummaryModel
 @using System.Text.Json
+@using System.Linq
 @{
     ViewData["Title"] = "Proliferation dashboard";
+
+    // Ensure yearly data for the chart is ordered from oldest to newest
+    var yearlyOrdered = Model.Summary.ByYear
+        .OrderBy(row => row.Year)
+        .ToList();
 }
 
 <div class="container-xxl py-3" data-page="proliferation-summary">
@@ -89,7 +95,7 @@
             </div>
 
             <div id="proliferation-yearly-chart"
-                 data-yearly='@JsonSerializer.Serialize(Model.Summary.ByYear, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })'>
+                 data-yearly='@JsonSerializer.Serialize(yearlyOrdered, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })'>
                 <div class="ratio ratio-21x9">
                     <canvas id="proliferation-yearly-chart-canvas"></canvas>
                 </div>
