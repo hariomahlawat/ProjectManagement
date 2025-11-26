@@ -180,6 +180,10 @@ namespace ProjectManagement.Pages.Analytics
 
             var byTechnical = await BuildTechnicalCategoryCountsAsync(completedQuery, cancellationToken);
 
+            var perYearByParentCategory = await BuildCompletedPerYearByParentCategoryAsync(
+                completedQuery,
+                cancellationToken);
+
             // SECTION: Completed per-year aggregation
             var completionDates = await completedQuery
                 .Select(p => new { p.CompletedYear, p.CompletedOn })
@@ -199,6 +203,7 @@ namespace ProjectManagement.Pages.Analytics
                 ByCategory = byCategory,
                 ByTechnical = byTechnical,
                 PerYear = perYear,
+                PerYearByParentCategory = perYearByParentCategory,
                 TotalCompletedProjects = await completedQuery.CountAsync(cancellationToken)
             };
             // END SECTION
@@ -604,6 +609,49 @@ namespace ProjectManagement.Pages.Analytics
                 .ToList();
         }
 
+        private async Task<IReadOnlyList<CompletedPerYearByParentCategoryPoint>> BuildCompletedPerYearByParentCategoryAsync(
+            IQueryable<Project> completedQuery,
+            CancellationToken cancellationToken)
+        {
+            var perYearByParentCategory = await completedQuery
+                .Where(p => p.CompletedYear.HasValue || p.CompletedOn.HasValue)
+                .Select(p => new
+                {
+                    Year = p.CompletedYear ?? (p.CompletedOn.HasValue ? p.CompletedOn.Value.Year : (int?)null),
+                    ParentCategoryId = p.CategoryId.HasValue
+                        ? (p.Category!.ParentId ?? p.CategoryId)
+                        : (int?)null
+                })
+                .Where(x => x.Year.HasValue)
+                .GroupBy(x => new { x.Year, x.ParentCategoryId })
+                .Select(g => new CompletedPerYearParentAggregation
+                {
+                    Year = g.Key.Year!.Value,
+                    CategoryId = g.Key.ParentCategoryId,
+                    Count = g.Count()
+                })
+                .OrderBy(x => x.Year)
+                .ThenBy(x => x.CategoryId)
+                .ToListAsync(cancellationToken);
+
+            var parentCategoryNames = await LoadCategoryNamesAsync(
+                perYearByParentCategory.Select(item => new CategoryAggregation
+                {
+                    Id = item.CategoryId,
+                    Count = item.Count
+                }),
+                cancellationToken);
+
+            return perYearByParentCategory
+                .Select(item => new CompletedPerYearByParentCategoryPoint(
+                    item.Year,
+                    ResolveName(item.CategoryId, parentCategoryNames),
+                    item.Count))
+                .OrderBy(point => point.Year)
+                .ThenBy(point => point.CategoryName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
         private async Task<IReadOnlyDictionary<int, string>> LoadCategoryNamesAsync(
             IEnumerable<CategoryAggregation> aggregations,
             CancellationToken cancellationToken)
@@ -807,6 +855,13 @@ namespace ProjectManagement.Pages.Analytics
         private sealed record ProjectStageSnapshot(
             ProjectLifecycleStatus Status,
             IReadOnlyList<StageSnapshot> Stages);
+
+        private sealed class CompletedPerYearParentAggregation
+        {
+            public int Year { get; init; }
+            public int? CategoryId { get; init; }
+            public int Count { get; init; }
+        }
 
         private sealed class CategoryAggregation
         {
