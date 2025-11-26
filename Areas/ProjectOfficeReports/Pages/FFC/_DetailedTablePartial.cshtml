@@ -38,9 +38,10 @@ else
                         </td>
                     </tr>
 
-                    var remarksProvided = !string.IsNullOrWhiteSpace(group.OverallRemarks);
+                    var overallRemarks = group.OverallRemarks ?? string.Empty;
+                    var remarksProvided = !string.IsNullOrWhiteSpace(overallRemarks);
                     var remarksCell = remarksProvided
-                        ? HtmlEncoder.Default.Encode(group.OverallRemarks)
+                        ? HtmlEncoder.Default.Encode(overallRemarks)
                         : "<span class=\"ffc-dtable__remarks-empty\">No overall remarks recorded.</span>";
                     var rowSpan = group.Rows.Count;
 
