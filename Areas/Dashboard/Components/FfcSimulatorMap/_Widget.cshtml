@@ -66,17 +66,13 @@
                     @for (var index = 0; index < topCountries.Count; index++)
                     {
                         var country = topCountries[index];
-                        if (index > 0)
-                        {
-                            <span class="ffc-country-sep" aria-hidden="true">·</span>
-                        }
+
                         <button
                             type="button"
                             class="ffc-country-chip"
                             data-country-chip="@country.Iso3"
                             title="@country.Name"
-                            role="listitem"
-                        >
+                            role="listitem">
                             <span class="ffc-country-chip__name">@country.Name</span>
                             <span class="ffc-country-chip__total">
                                 (<strong>@country.Completed</strong> completed
@@ -88,10 +84,10 @@
                             </span>
                         </button>
                     }
+
                     @if (remainingCount > 0)
                     {
-                        <span class="ffc-country-sep" aria-hidden="true">·</span>
-                        <a class="ffc-country-chip ffc-country-chip--more" href="@fullMapUrl">
+                        <a class="ffc-country-chip ffc-country-chip--more" href="@fullMapUrl" role="listitem">
                             … and @remainingCount more
                         </a>
                     }
