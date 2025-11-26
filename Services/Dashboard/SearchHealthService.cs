@@ -34,7 +34,8 @@ public sealed class SearchHealthService : ISearchHealthService
         // SECTION: Prepare base queries
         var docRepoBaseQuery = _db.Documents
             .AsNoTracking()
-            .Where(document => !document.IsDeleted && !document.IsExternal && document.IsActive);
+            // Align with the global Document Repository search so counts match the searchable corpus users see there.
+            .Where(document => !document.IsDeleted);
 
         var projectDocBaseQuery = _db.ProjectDocuments
             .AsNoTracking()
