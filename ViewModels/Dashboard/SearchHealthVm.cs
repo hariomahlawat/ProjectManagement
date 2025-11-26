@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -7,21 +8,21 @@ namespace ProjectManagement.ViewModels.Dashboard;
 public sealed class SearchHealthVm
 {
     // SECTION: Searchable corpus metrics
-    public long TotalSearchable { get; set; }
-    public long ProjectDocumentsSearchable { get; set; }
-    public long DocRepoSearchable { get; set; }
-    public long ProjectReportsSearchable { get; set; }
-    public bool IncludeProjectReports { get; set; }
+    public long TotalSearchable { get; init; }
+    public long ProjectDocumentsSearchable { get; init; }
+    public long DocRepoSearchable { get; init; }
+    public long ProjectReportsSearchable { get; init; }
+    public bool IncludeProjectReports { get; init; }
     // END SECTION
 
     // SECTION: OCR snapshot metrics
-    public SearchHealthOcrSnapshot Ocr { get; set; } = new();
+    public SearchHealthOcrSnapshot Ocr { get; init; } = new();
     // END SECTION
 
     // SECTION: Trend and queue metrics
-    public IReadOnlyList<int> OcrCompletionsTrend { get; set; } = new List<int>();
-    public string? OldestPendingLabel { get; set; }
-    public bool WorkerActive { get; set; }
+    public IReadOnlyList<int> OcrCompletionsTrend { get; init; } = Array.Empty<int>();
+    public string? OldestPendingLabel { get; init; }
+    public bool WorkerActive { get; init; }
     // END SECTION
 
     // SECTION: Convenience flags
@@ -33,15 +34,15 @@ public sealed class SearchHealthVm
 // SECTION: OCR snapshot breakdown
 public sealed class SearchHealthOcrSnapshot
 {
-    public long Succeeded { get; set; }
-    public long Pending { get; set; }
-    public long Failed { get; set; }
+    public long Succeeded { get; init; }
+    public long Pending { get; init; }
+    public long Failed { get; init; }
 
-    public long ProjectDocumentsSucceeded { get; set; }
-    public long ProjectDocumentsPending { get; set; }
-    public long ProjectDocumentsFailed { get; set; }
+    public long ProjectDocumentsSucceeded { get; init; }
+    public long ProjectDocumentsPending { get; init; }
+    public long ProjectDocumentsFailed { get; init; }
 
-    public long DocRepoSucceeded { get; set; }
-    public long DocRepoPending { get; set; }
-    public long DocRepoFailed { get; set; }
+    public long DocRepoSucceeded { get; init; }
+    public long DocRepoPending { get; init; }
+    public long DocRepoFailed { get; init; }
 }
