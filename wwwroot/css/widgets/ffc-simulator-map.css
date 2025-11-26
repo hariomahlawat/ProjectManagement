@@ -245,33 +245,34 @@
 
 /* SECTION: Country chip strip */
 .ffc-simulator-map__country-strip {
-  margin-top: 1.25rem;
-  overflow-x: auto;
+  margin-top: 0.5rem;
 }
 
 .ffc-country-strip {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 0.15rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
   padding: 0;
   font-size: 0.75rem;
   color: #0f172a;
-  white-space: nowrap;
 }
 
 .ffc-country-chip {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.25rem;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  border-radius: 0;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background-color: #f9fafb;
+  border-radius: 999px;
   color: inherit;
   text-decoration: none;
   cursor: pointer;
   line-height: 1.2;
   transition: color 0.15s ease;
+  white-space: normal;
 }
 
 .ffc-country-chip:hover,
@@ -281,10 +282,8 @@
 }
 
 .ffc-country-chip__name {
-  max-width: 11rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 500;
+  margin-right: 0.25rem;
 }
 
 .ffc-country-chip__total strong {
@@ -300,9 +299,7 @@
 .ffc-country-chip--more {
   padding-left: 0.35rem;
   padding-right: 0.35rem;
+  text-decoration: none;
 }
 
-.ffc-country-sep {
-  color: #94a3b8;
-}
 /* END SECTION */
