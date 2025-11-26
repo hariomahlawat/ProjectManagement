@@ -95,7 +95,7 @@ public class MapTableDetailedModel : PageModel
         worksheet.Cell(1, columnIndex++).Value = "Year";
         worksheet.Cell(1, columnIndex++).Value = "S. No.";
         worksheet.Cell(1, columnIndex++).Value = "Project";
-        worksheet.Cell(1, columnIndex++).Value = "Cost (₹ Cr)";
+        worksheet.Cell(1, columnIndex++).Value = "Cost (₹ Lakh)";
         worksheet.Cell(1, columnIndex++).Value = "Quantity";
         worksheet.Cell(1, columnIndex++).Value = "Status";
         worksheet.Cell(1, columnIndex++).Value = "Progress / present status";
@@ -123,7 +123,8 @@ public class MapTableDetailedModel : PageModel
 
                 if (project.CostInCr.HasValue)
                 {
-                    worksheet.Cell(rowIndex, columnIndex).Value = project.CostInCr.Value;
+                    var costInLakh = project.CostInCr.Value * 100m;
+                    worksheet.Cell(rowIndex, columnIndex).Value = costInLakh;
                     worksheet.Cell(rowIndex, columnIndex).Style.NumberFormat.Format = "0.00";
                 }
                 columnIndex++;

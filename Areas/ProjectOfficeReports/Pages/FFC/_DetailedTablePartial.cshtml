@@ -14,7 +14,7 @@ else
                 <tr>
                     <th scope="col" class="pm-util-col-70">S. No.</th>
                     <th scope="col">Project</th>
-                    <th scope="col" class="text-end">Cost (₹ Cr)</th>
+                    <th scope="col" class="text-end">Cost (₹ Lakh)</th>
                     <th scope="col" class="text-end">Quantity</th>
                     <th scope="col">Status</th>
                     <th scope="col">Progress / present status</th>
@@ -50,7 +50,17 @@ else
                         <tr>
                             <td class="text-muted">@row.Serial</td>
                             <td>@row.ProjectName</td>
-                            <td class="text-end">@(row.CostInCr.HasValue ? row.CostInCr.Value.ToString("N2") : "—")</td>
+                            <td class="text-end">
+                                @if (row.CostInCr.HasValue)
+                                {
+                                    var costInLakh = row.CostInCr.Value * 100m;
+                                    @costInLakh.ToString("N2")
+                                }
+                                else
+                                {
+                                    @:—
+                                }
+                            </td>
                             <td class="text-end">@row.Quantity</td>
                             <td>@row.Status</td>
                             <td>@row.Progress</td>
