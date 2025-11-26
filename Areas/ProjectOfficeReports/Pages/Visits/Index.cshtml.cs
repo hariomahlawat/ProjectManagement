@@ -52,8 +52,20 @@ public class IndexModel : PageModel
     // rows actually shown on this page
     public IReadOnlyList<VisitListItem> Items { get; private set; } = Array.Empty<VisitListItem>();
 
+    // full filtered set for analytics and KPIs
+    public IReadOnlyList<VisitListItem> AllItems { get; private set; } = Array.Empty<VisitListItem>();
+
     // total rows that matched the filter in DB/service
     public int TotalItems { get; private set; }
+
+    // KPI metrics
+    public int VisitsLastYear { get; private set; }
+
+    public int PeopleLastYear { get; private set; }
+
+    public int VisitsLast30 { get; private set; }
+
+    public int PeopleLast30 { get; private set; }
 
     public IReadOnlyList<SelectListItem> VisitTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -67,7 +79,19 @@ public class IndexModel : PageModel
         // get full filtered list once
         var all = await _visitService.SearchAsync(BuildQuery(), cancellationToken);
 
+        // SECTION: KPI calculations
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var last30From = today.AddDays(-29); // inclusive 30-day window
+        var lastYearFrom = today.AddYears(-1);
+
+        AllItems = all;
         TotalItems = all.Count;
+
+        VisitsLastYear = all.Count(v => v.DateOfVisit >= lastYearFrom);
+        PeopleLastYear = all.Where(v => v.DateOfVisit >= lastYearFrom).Sum(v => v.Strength);
+
+        VisitsLast30 = all.Count(v => v.DateOfVisit >= last30From);
+        PeopleLast30 = all.Where(v => v.DateOfVisit >= last30From).Sum(v => v.Strength);
 
         // order the way the UI expects, then take only 20
         Items = all
@@ -108,7 +132,7 @@ public class IndexModel : PageModel
         return RedirectToPage(new { VisitTypeId, From, To, Q });
     }
 
-    // EXPORTS: still export the full filtered set – not just the 20
+    // EXPORTS: still export the full filtered set â€“ not just the 20
     public async Task<IActionResult> OnPostExportAsync(CancellationToken cancellationToken)
     {
         CanManage = IsManager();

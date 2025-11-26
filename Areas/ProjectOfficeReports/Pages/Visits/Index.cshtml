@@ -39,16 +39,9 @@
         selectedTypeLabel = Model.VisitTypeOptions.FirstOrDefault(option => option.Value == Model.VisitTypeId.Value.ToString())?.Text;
     }
 
-    // time-based metrics
+    // SECTION: time-based helpers for charts
     var today = DateOnly.FromDateTime(DateTime.Today);
-    var last30From = today.AddDays(-30);
     var lastYearFrom = today.AddYears(-1);
-
-    var visitsLastYear = Model.Items.Count(item => item.DateOfVisit >= lastYearFrom);
-    var peopleLastYear = Model.Items.Where(item => item.DateOfVisit >= lastYearFrom).Sum(item => item.Strength);
-
-    var visitsLast30 = Model.Items.Count(item => item.DateOfVisit >= last30From);
-    var peopleLast30 = Model.Items.Where(item => item.DateOfVisit >= last30From).Sum(item => item.Strength);
 
     // toasts
     var toastMessages = new List<VisitToastMessage>();
@@ -70,7 +63,7 @@
         .Select(i => startMonth.AddMonths(i))
         .Select(month =>
         {
-            var visitsInMonth = Model.Items
+            var visitsInMonth = Model.AllItems
                 .Where(v => v.DateOfVisit.Year == month.Year && v.DateOfVisit.Month == month.Month)
                 .ToList();
 
@@ -84,7 +77,7 @@
         .ToList();
 
     // pie: visit types
-    var allVisitTypes = Model.Items
+    var allVisitTypes = Model.AllItems
         .GroupBy(v => v.VisitTypeName ?? "Unspecified")
         .OrderByDescending(g => g.Count())
         .Select(g => new
@@ -151,7 +144,7 @@
                 <i class="bi bi-calendar3-week" aria-hidden="true"></i>
                 <span>Visits in last 12 months</span>
             </div>
-            <div class="kpi-card__value">@visitsLastYear</div>
+            <div class="kpi-card__value">@Model.VisitsLastYear</div>
             @if (hasFilters)
             {
                 <div class="kpi-card__hint">based on filtered set</div>
@@ -162,7 +155,7 @@
                 <i class="bi bi-person-fill-check" aria-hidden="true"></i>
                 <span>People in last 12 months</span>
             </div>
-            <div class="kpi-card__value">@peopleLastYear</div>
+            <div class="kpi-card__value">@Model.PeopleLastYear</div>
             @if (hasFilters)
             {
                 <div class="kpi-card__hint">sum of strength</div>
@@ -173,14 +166,14 @@
                 <i class="bi bi-calendar2" aria-hidden="true"></i>
                 <span>Visits in last 30 days</span>
             </div>
-            <div class="kpi-card__value">@visitsLast30</div>
+            <div class="kpi-card__value">@Model.VisitsLast30</div>
         </div>
         <div class="kpi-card kpi-card--amber">
             <div class="kpi-card__top">
                 <i class="bi bi-people-fill" aria-hidden="true"></i>
                 <span>People in last 30 days</span>
             </div>
-            <div class="kpi-card__value">@peopleLast30</div>
+            <div class="kpi-card__value">@Model.PeopleLast30</div>
         </div>
     </section>
 
