@@ -8,20 +8,24 @@
     var geoUrl = Url.Content("~/ffc/maps/world_india_view.geojson");
     var focusBounds = "37,-20|-35,55";
     var fullMapUrl = Url.Page("/FFC/Map", values: new { area = "ProjectOfficeReports" });
-    var sortedCountries = Model.Countries
+
+    // Show all countries, sorted by total then by name.
+    var countriesToShow = Model.Countries
         .OrderByDescending(country => country.Total)
         .ThenBy(country => country.Name)
         .ToList();
-    var topCountries = sortedCountries.Take(5).ToList();
-    var remainingCount = sortedCountries.Count - topCountries.Count;
 }
+
 <section class="ffc-simulator-map-widget pm-card pm-shadow" aria-labelledby="ffc-simulator-map-title">
     <div class="pm-card-body">
         <div class="ffc-simulator-map-widget__header">
             <div>
-                <p class="ffc-simulator-map-widget__eyebrow text-uppercase mb-1">Simulators for Friendly Foreign Countries</p>
+                <p class="ffc-simulator-map-widget__eyebrow text-uppercase mb-1">
+                    Simulators for Friendly Foreign Countries
+                </p>
                 <h2 id="ffc-simulator-map-title" class="h5 mb-1">Simulator footprints across FFCs</h2>
             </div>
+
             <div class="ffc-simulator-map-widget__stats" aria-label="FFC project unit totals">
                 <div class="ffc-simulator-map-widget__stat">
                     <span class="label">Installed units</span>
@@ -36,67 +40,65 @@
                     <strong>@Model.TotalCompleted</strong>
                     @if (Model.TotalPlanned > 0)
                     {
-                        <span class="ffc-simulator-map-widget__stat-note">@Model.TotalPlanned planned units</span>
+                        <span class="ffc-simulator-map-widget__stat-note">
+                            @Model.TotalPlanned planned units
+                        </span>
                     }
                 </div>
             </div>
+
             <a href="@fullMapUrl" class="btn btn-outline-primary btn-sm">View full map</a>
         </div>
+
         @if (Model.HasData)
         {
-            <div
-                class="ffc-simulator-map"
-                data-widget="ffc-simulator-map"
-                data-countries='@Html.Raw(payload)'
-                data-geo-url="@geoUrl"
-                data-focus-bounds="@focusBounds"
-                data-highlight-color="#5b21b6"
-                aria-live="polite"
-            >
-                <div
-                    class="ffc-simulator-map__canvas"
-                    role="img"
-                    aria-label="World map highlighting African FFC project units"
-                ></div>
-                <div class="ffc-simulator-map__status" data-map-status>Loading delivery footprint…</div>
+            <div class="ffc-simulator-map"
+                 data-widget="ffc-simulator-map"
+                 data-countries='@Html.Raw(payload)'
+                 data-geo-url="@geoUrl"
+                 data-focus-bounds="@focusBounds"
+                 data-highlight-color="#5b21b6"
+                 aria-live="polite">
+                <div class="ffc-simulator-map__canvas"
+                     role="img"
+                     aria-label="World map highlighting African FFC project units">
+                </div>
+                <div class="ffc-simulator-map__status" data-map-status>
+                    Loading delivery footprint…
+                </div>
             </div>
+
             @* SECTION: Below-map country chip strip *@
             <div class="ffc-simulator-map__country-strip" aria-label="FFC project unit activity by country">
                 <div class="ffc-country-strip" role="list">
-                    @for (var index = 0; index < topCountries.Count; index++)
+                    @foreach (var country in countriesToShow)
                     {
-                        var country = topCountries[index];
-
-                        <button
-                            type="button"
-                            class="ffc-country-chip"
-                            data-country-chip="@country.Iso3"
-                            title="@country.Name"
-                            role="listitem">
+                        <button type="button"
+                                class="ffc-country-chip"
+                                data-country-chip="@country.Iso3"
+                                title="@country.Name"
+                                role="listitem">
                             <span class="ffc-country-chip__name">@country.Name</span>
                             <span class="ffc-country-chip__total">
                                 (<strong>@country.Completed</strong> completed
                                 @if (country.Planned > 0)
                                 {
-                                    <span class="ffc-country-chip__planned">+@country.Planned planned</span>
+                                    <span class="ffc-country-chip__planned">
+                                        +@country.Planned planned
+                                    </span>
                                 }
                                 )
                             </span>
                         </button>
-                    }
-
-                    @if (remainingCount > 0)
-                    {
-                        <a class="ffc-country-chip ffc-country-chip--more" href="@fullMapUrl" role="listitem">
-                            … and @remainingCount more
-                        </a>
                     }
                 </div>
             </div>
         }
         else
         {
-            <p class="text-secondary small mb-0 mt-3">FFC project unit data is not available right now.</p>
+            <p class="text-secondary small mb-0 mt-3">
+                FFC project unit data is not available right now.
+            </p>
         }
     </div>
 </section>
