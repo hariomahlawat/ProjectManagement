@@ -521,17 +521,21 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             // first: normalise each row to 1 training+1 category with real strength
             var normalised = perTrainingCategory
-                .Select(entry =>
+                .GroupBy(entry => new { entry.TrainingId, entry.CategoryId, entry.CategoryName })
+                .Select(group =>
                 {
-                    var officers = entry.Counters?.Officers ?? entry.LegacyOfficerCount;
-                    var jcos = entry.Counters?.JuniorCommissionedOfficers ?? entry.LegacyJcoCount;
-                    var ors = entry.Counters?.OtherRanks ?? entry.LegacyOrCount;
-                    var total = entry.Counters?.Total ?? (officers + jcos + ors);
+                    var sample = group.First();
+
+                    var officers = sample.Counters?.Officers ?? sample.LegacyOfficerCount;
+                    var jcos = sample.Counters?.JuniorCommissionedOfficers ?? sample.LegacyJcoCount;
+                    var ors = sample.Counters?.OtherRanks ?? sample.LegacyOrCount;
+                    var total = sample.Counters?.Total ?? (officers + jcos + ors);
 
                     return new
                     {
-                        entry.CategoryId,
-                        entry.CategoryName,
+                        group.Key.TrainingId,
+                        group.Key.CategoryId,
+                        group.Key.CategoryName,
                         Officers = officers,
                         Jcos = jcos,
                         Ors = ors,
