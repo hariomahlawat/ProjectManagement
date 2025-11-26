@@ -349,6 +349,91 @@ function getCompletedAnalyticsData() {
   }
 }
 
+// SECTION: Completed analytics chart builders
+function createCompletedPerYearStackedChart(canvas, points) {
+  if (!canvas || !window.Chart || !Array.isArray(points) || !points.length) {
+    return null;
+  }
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    return null;
+  }
+
+  const years = Array.from(new Set(points.map((point) => point.year))).sort(
+    (first, second) => first - second
+  );
+
+  const categories = Array.from(
+    new Set(points.map((point) => point.categoryName))
+  ).sort((first, second) => first.localeCompare(second));
+
+  const datasets = categories.map((category, index) => ({
+    label: category,
+    data: years.map((year) => {
+      const match = points.find(
+        (point) => point.year === year && point.categoryName === category
+      );
+      return ensureNumber(match?.count);
+    }),
+    backgroundColor: palette[index % palette.length],
+    borderWidth: 1
+  }));
+
+  return new window.Chart(context, {
+    type: 'bar',
+    data: {
+      labels: years,
+      datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          position: 'top'
+        },
+        tooltip: {
+          callbacks: {
+            footer(context) {
+              const total = context.reduce(
+                (sum, entry) => sum + ensureNumber(entry.parsed?.y),
+                0
+              );
+              return `Total: ${total}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          stacked: true,
+          title: {
+            display: true,
+            text: 'Year'
+          }
+        },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Number of projects'
+          },
+          ticks: {
+            precision: 0
+          }
+        }
+      }
+    }
+  });
+}
+// END SECTION
+
 function initCompletedAnalytics() {
   const data = getCompletedAnalyticsData();
   if (!data) {
@@ -373,13 +458,17 @@ function initCompletedAnalytics() {
     });
   }
 
-  if (perYearEl && data.perYear?.length) {
-    createBarChart(perYearEl, {
-      labels: data.perYear.map((point) => point.year?.toString() ?? ''),
-      values: data.perYear.map((point) => point.count),
-      label: 'Projects completed',
-      backgroundColor: '#34a853'
-    });
+  if (perYearEl) {
+    if (data.perYearByParentCategory?.length) {
+      createCompletedPerYearStackedChart(perYearEl, data.perYearByParentCategory);
+    } else if (data.perYear?.length) {
+      createBarChart(perYearEl, {
+        labels: data.perYear.map((point) => point.year?.toString() ?? ''),
+        values: data.perYear.map((point) => point.count),
+        label: 'Projects completed',
+        backgroundColor: '#34a853'
+      });
+    }
   }
 }
 // END SECTION
