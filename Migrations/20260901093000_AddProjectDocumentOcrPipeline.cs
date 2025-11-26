@@ -1,6 +1,5 @@
 using System;
 using Microsoft.EntityFrameworkCore.Migrations;
-using NpgsqlTypes;
 
 #nullable disable
 
@@ -62,30 +61,30 @@ WHERE ""OcrStatus"" IN ('None', 'Pending');
                 name: "OcrStatusLegacy",
                 table: "ProjectDocuments");
 
-            migrationBuilder.AddColumn<NpgsqlTsVector>(
-                name: "SearchVector",
-                table: "ProjectDocuments",
-                type: "tsvector",
-                nullable: true);
+            migrationBuilder.Sql(@"
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'ProjectDocuments' AND column_name = 'SearchVector'
+    ) THEN
+        ALTER TABLE ""ProjectDocuments"" ADD COLUMN ""SearchVector"" tsvector;
+    END IF;
+END
+$$;
+");
 
-            migrationBuilder.CreateTable(
-                name: "ProjectDocumentTexts",
-                columns: table => new
-                {
-                    ProjectDocumentId = table.Column<int>(type: "integer", nullable: false),
-                    OcrText = table.Column<string>(type: "text", nullable: true),
-                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'")
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ProjectDocumentTexts", x => x.ProjectDocumentId);
-                    table.ForeignKey(
-                        name: "FK_ProjectDocumentTexts_ProjectDocuments_ProjectDocumentId",
-                        column: x => x.ProjectDocumentId,
-                        principalTable: "ProjectDocuments",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
+            migrationBuilder.Sql(@"
+CREATE TABLE IF NOT EXISTS ""ProjectDocumentTexts"" (
+    ""ProjectDocumentId"" integer PRIMARY KEY,
+    ""OcrText"" text NULL,
+    ""UpdatedAtUtc"" timestamp with time zone NOT NULL DEFAULT now() at time zone 'utc',
+    CONSTRAINT ""FK_ProjectDocumentTexts_ProjectDocuments_ProjectDocumentId""
+        FOREIGN KEY (""ProjectDocumentId"")
+        REFERENCES ""ProjectDocuments""(""Id"")
+        ON DELETE CASCADE
+);
+");
 
             migrationBuilder.Sql(@"
 UPDATE ""ProjectDocuments""
@@ -104,18 +103,18 @@ RETURNS tsvector
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    v_stage_name text;
+    v_stage_code text;
     v_ocr text;
 BEGIN
     IF p_stage_id IS NOT NULL THEN
-        SELECT ""StageName"" INTO v_stage_name FROM ""ProjectStages"" WHERE ""Id"" = p_stage_id;
+        SELECT ""StageCode"" INTO v_stage_code FROM ""ProjectStages"" WHERE ""Id"" = p_stage_id;
     END IF;
 
     SELECT ""OcrText"" INTO v_ocr FROM ""ProjectDocumentTexts"" WHERE ""ProjectDocumentId"" = p_document_id;
 
     RETURN
         setweight(to_tsvector('english', coalesce(p_title, '')), 'A') ||
-        setweight(to_tsvector('english', coalesce(v_stage_name, '')), 'B') ||
+        setweight(to_tsvector('english', coalesce(v_stage_code, '')), 'B') ||
         setweight(to_tsvector('english', coalesce(p_description, '')), 'C') ||
         setweight(to_tsvector('english', coalesce(p_original_file_name, '')), 'C') ||
         setweight(to_tsvector('english', coalesce(v_ocr, '')), 'D');
@@ -193,7 +192,7 @@ SET ""SearchVector"" = project_documents_build_search_vector(
 ");
 
             migrationBuilder.Sql(@"
-CREATE INDEX idx_project_documents_search
+CREATE INDEX IF NOT EXISTS idx_project_documents_search
     ON ""ProjectDocuments""
     USING GIN (""SearchVector"");
 ");
