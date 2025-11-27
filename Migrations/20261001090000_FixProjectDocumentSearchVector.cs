@@ -1,11 +1,14 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using ProjectManagement.Data;
 
 #nullable disable
 
 namespace ProjectManagement.Migrations
 {
-    /// <inheritdoc />
+    [DbContext(typeof(ApplicationDbContext))]
+    [Migration("20261001090000_FixProjectDocumentSearchVector")]
     public partial class FixProjectDocumentSearchVector : Migration
     {
         /// <inheritdoc />
