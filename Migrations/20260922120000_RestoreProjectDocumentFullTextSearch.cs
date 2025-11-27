@@ -1,4 +1,5 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using ProjectManagement.Data;
 
@@ -6,6 +7,8 @@ using ProjectManagement.Data;
 
 namespace ProjectManagement.Migrations
 {
+    [DbContext(typeof(ApplicationDbContext))]
+    [Migration("20260922120000_RestoreProjectDocumentFullTextSearch")]
     public partial class RestoreProjectDocumentFullTextSearch : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -87,7 +90,7 @@ FOR EACH ROW
 EXECUTE FUNCTION project_documents_search_vector_trigger();
 ");
 
-            // 4. AFTER trigger on ProjectDocumentTexts — when OCR text changes, rebuild search vector
+            // 4. AFTER trigger on ProjectDocumentTexts  when OCR text changes, rebuild search vector
             migrationBuilder.Sql(@"
 CREATE OR REPLACE FUNCTION project_document_texts_search_vector_trigger()
 RETURNS trigger

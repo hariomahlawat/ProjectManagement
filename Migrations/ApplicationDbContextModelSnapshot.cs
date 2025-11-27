@@ -1685,10 +1685,11 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset?>("OcrLastTriedUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("OcrStatus")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
+                    b.Property<string>("OcrStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("None");
 
                     b.Property<int>("OfficeCategoryId")
                         .HasColumnType("integer");
