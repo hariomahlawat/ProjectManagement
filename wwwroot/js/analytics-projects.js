@@ -534,6 +534,13 @@ function initOngoingAnalytics() {
 // END SECTION
 
 // SECTION: CoE analytics initialiser
+// Stage label overrides specific to the CoE stage chart
+const coeStageLabelOverrides = {
+  'SOW Vetting': 'SoW',
+  Development: 'Devp',
+  Benchmarking: 'BM'
+};
+
 function initCoeAnalytics() {
   const stageCanvas = document.getElementById('coe-by-stage-chart');
   const subcategoryCanvas = document.getElementById('coe-subcategories-by-lifecycle-chart');
@@ -548,7 +555,10 @@ function initCoeAnalytics() {
       stageCode: point.stageKey || ''
     }));
 
-    const axisLabels = stageAxisPoints.map((point) => getStageAxisLabel(point));
+    const axisLabels = stageAxisPoints.map((point) => {
+      const label = getStageAxisLabel(point);
+      return coeStageLabelOverrides[label] ?? label;
+    });
 
     createBarChart(stageCanvas, {
       labels: axisLabels,
