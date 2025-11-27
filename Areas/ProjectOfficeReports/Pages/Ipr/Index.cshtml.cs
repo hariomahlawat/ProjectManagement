@@ -771,15 +771,15 @@ public sealed class IndexModel : PageModel
         ActiveFilterChips = BuildActiveFilterChips();
     }
 
+    // SECTION: Yearly stats aggregation
     private async Task LoadYearlyStatsAsync(CancellationToken cancellationToken)
     {
         var snapshot = await _db.IprRecords
             .AsNoTracking()
             .Select(r => new
             {
-                CohortYear = r.FiledAtUtc.HasValue
-                    ? r.FiledAtUtc.Value.Year
-                    : (r.GrantedAtUtc.HasValue ? r.GrantedAtUtc.Value.Year : (int?)null),
+                FiledYear = r.FiledAtUtc.HasValue ? (int?)r.FiledAtUtc.Value.Year : null,
+                GrantedYear = r.GrantedAtUtc.HasValue ? (int?)r.GrantedAtUtc.Value.Year : null,
                 r.Status
             })
             .ToListAsync(cancellationToken);
@@ -787,10 +787,33 @@ public sealed class IndexModel : PageModel
         var currentYear = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IstTimeZone).Year;
 
         var yearlyRows = snapshot
-            .Select(item => new
+            .Select(item =>
             {
-                Year = item.CohortYear ?? currentYear,
-                item.Status
+                int year;
+                switch (item.Status)
+                {
+                    case IprStatus.Granted:
+                    case IprStatus.Rejected:
+                    case IprStatus.Withdrawn:
+                        year = item.GrantedYear
+                            ?? item.FiledYear
+                            ?? currentYear;
+                        break;
+
+                    case IprStatus.FilingUnderProcess:
+                    case IprStatus.Filed:
+                    default:
+                        year = item.FiledYear
+                            ?? item.GrantedYear
+                            ?? currentYear;
+                        break;
+                }
+
+                return new
+                {
+                    Year = year,
+                    item.Status
+                };
             })
             .GroupBy(x => x.Year)
             .OrderBy(group => group.Key)
