@@ -1213,7 +1213,7 @@ namespace ProjectManagement.Data
                 else if (Database.IsNpgsql())
                 {
                     e.Property(x => x.OcrText).HasColumnType("text");
-                    e.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                    e.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("timezone('utc', now())");
                 }
                 else
                 {

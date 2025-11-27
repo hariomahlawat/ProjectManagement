@@ -967,7 +967,7 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("now() at time zone 'utc'");
+                        .HasDefaultValueSql("timezone('utc', now())");
 
                     b.HasKey("TrainingId");
 
@@ -1922,7 +1922,7 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("now() at time zone 'utc'");
+                        .HasDefaultValueSql("timezone('utc', now())");
 
                     b.HasKey("ProjectDocumentId");
 

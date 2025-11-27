@@ -131,7 +131,7 @@ BEGIN
         CREATE TABLE ""ProjectDocumentTexts"" (
             ""ProjectDocumentId"" integer PRIMARY KEY,
             ""OcrText"" text NULL,
-            ""UpdatedAtUtc"" timestamp with time zone NOT NULL DEFAULT now() at time zone 'utc',
+            ""UpdatedAtUtc"" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
             CONSTRAINT ""FK_ProjectDocumentTexts_ProjectDocuments_ProjectDocumentId""
                 FOREIGN KEY (""ProjectDocumentId"")
                 REFERENCES ""ProjectDocuments""(""Id"")
@@ -150,7 +150,7 @@ BEGIN
         WHERE table_name = 'ProjectDocumentTexts' AND column_name = 'UpdatedAtUtc'
     ) THEN
         ALTER TABLE ""ProjectDocumentTexts""
-        ADD COLUMN ""UpdatedAtUtc"" timestamp with time zone NOT NULL DEFAULT now() at time zone 'utc';
+        ADD COLUMN ""UpdatedAtUtc"" timestamp with time zone NOT NULL DEFAULT timezone('utc', now());
     END IF;
 END
 $$;
