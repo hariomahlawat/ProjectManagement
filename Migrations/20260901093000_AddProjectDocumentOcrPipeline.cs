@@ -78,7 +78,7 @@ $$;
 CREATE TABLE IF NOT EXISTS ""ProjectDocumentTexts"" (
     ""ProjectDocumentId"" integer PRIMARY KEY,
     ""OcrText"" text NULL,
-    ""UpdatedAtUtc"" timestamp with time zone NOT NULL DEFAULT now() at time zone 'utc',
+    ""UpdatedAtUtc"" timestamp with time zone NOT NULL DEFAULT timezone('utc', now()),
     CONSTRAINT ""FK_ProjectDocumentTexts_ProjectDocuments_ProjectDocumentId""
         FOREIGN KEY (""ProjectDocumentId"")
         REFERENCES ""ProjectDocuments""(""Id"")
