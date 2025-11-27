@@ -73,7 +73,8 @@ namespace ProjectManagement.Services.Projects
                     p.LeadPoUserId,
                     LeadPoName = p.LeadPoUser != null
                         ? (p.LeadPoUser.FullName ?? p.LeadPoUser.UserName)
-                        : null
+                        : null,
+                    p.WorkflowVersion
                 })
                 .ToListAsync(cancellationToken);
 
@@ -113,14 +114,16 @@ namespace ProjectManagement.Services.Projects
                     .Where(s => s.ProjectId == proj.Id)
                     .ToDictionary(s => s.StageCode, s => s);
 
-                var stageDtos = new List<OngoingProjectStageDto>(StageCodes.All.Length);
+                // SECTION: Workflow-aware stage ordering
+                var stageCodes = ProcurementWorkflow.StageCodesFor(proj.WorkflowVersion);
+                var stageDtos = new List<OngoingProjectStageDto>(stageCodes.Length);
 
                 int? inProgressIndex = null;
                 int lastCompletedIndex = -1;
 
-                for (var i = 0; i < StageCodes.All.Length; i++)
+                for (var i = 0; i < stageCodes.Length; i++)
                 {
-                    var code = StageCodes.All[i];
+                    var code = stageCodes[i];
                     stagesForProject.TryGetValue(code, out var stageRow);
 
                     var status = StageStatus.NotStarted;
