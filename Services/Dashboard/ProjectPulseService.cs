@@ -150,17 +150,65 @@ public sealed class ProjectPulseService : IProjectPulseService
 
     private async Task<IReadOnlyList<CategorySlice>> BuildOngoingByCategoryAsync(CancellationToken cancellationToken)
     {
-        var ongoingSeries = await _db.Projects
+        // Identify the parent category for each active project
+        var categorizedProjects = await _db.Projects
             .AsNoTracking()
             .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active)
-            .GroupBy(p => p.Category != null ? p.Category.Name : "Uncategorized")
-            .Select(g => new CategorySlice(g.Key, g.Count()))
+            .Select(p => new
+            {
+                ParentCategoryId = p.CategoryId.HasValue
+                    ? (p.Category!.ParentId ?? p.CategoryId)
+                    : (int?)null
+            })
             .ToListAsync(cancellationToken);
 
-        return ongoingSeries
+        // Group by parent category id and count projects
+        var groupedByParent = categorizedProjects
+            .GroupBy(x => x.ParentCategoryId)
+            .Select(g => new
+            {
+                ParentCategoryId = g.Key,
+                Count = g.Count()
+            })
+            .ToList();
+
+        // Load category names for all parent ids
+        var categoryIds = groupedByParent
+            .Where(x => x.ParentCategoryId.HasValue)
+            .Select(x => x.ParentCategoryId!.Value)
+            .Distinct()
+            .ToList();
+
+        var categoryNames = await _db.ProjectCategories
+            .AsNoTracking()
+            .Where(c => categoryIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
+
+        // Convert grouped data into CategorySlice entries
+        var ongoingSeries = groupedByParent
+            .Select(g =>
+            {
+                string label;
+
+                if (g.ParentCategoryId.HasValue)
+                {
+                    if (!categoryNames.TryGetValue(g.ParentCategoryId.Value, out label))
+                    {
+                        label = "Unknown";
+                    }
+                }
+                else
+                {
+                    label = "Uncategorized";
+                }
+
+                return new CategorySlice(label, g.Count);
+            })
             .OrderByDescending(x => x.Count)
             .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        return ongoingSeries;
     }
     // END SECTION
 
