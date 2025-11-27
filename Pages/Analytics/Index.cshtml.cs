@@ -326,7 +326,10 @@ namespace ProjectManagement.Pages.Analytics
                 .Select(code =>
                 {
                     counts.TryGetValue(code, out var count);
-                    return new CoeStageBucketVm(StageCodes.DisplayNameOf(code), count);
+                    return new CoeStageBucketVm(
+                        StageKey: code,
+                        StageName: StageCodes.DisplayNameOf(code),
+                        ProjectCount: count);
                 })
                 .ToList();
             // END SECTION

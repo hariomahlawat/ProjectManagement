@@ -539,12 +539,30 @@ function initCoeAnalytics() {
   const subcategoryCanvas = document.getElementById('coe-subcategories-by-lifecycle-chart');
 
   renderSeriesChart(stageCanvas, (series) => {
+    if (!window.Chart) {
+      return;
+    }
+
+    const stageAxisPoints = series.map((point) => ({
+      name: point.stageName || '',
+      stageCode: point.stageKey || ''
+    }));
+
+    const axisLabels = stageAxisPoints.map((point) => getStageAxisLabel(point));
+
     createBarChart(stageCanvas, {
-      labels: series.map((point) => point.stageName ?? point.label ?? ''),
+      labels: axisLabels,
       values: series.map((point) => ensureNumber(point.projectCount ?? point.value)),
       label: 'Projects',
       backgroundColor: '#5c6bc0',
       options: {
+        plugins: {
+          tooltip: {
+            callbacks: {
+              title: createStageTooltipTitle(stageAxisPoints)
+            }
+          }
+        },
         scales: {
           y: {
             beginAtZero: true,

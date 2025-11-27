@@ -28,7 +28,10 @@ public sealed class CoeAnalyticsVm
 // END SECTION
 
 // SECTION: CoE stage dataset
-public sealed record CoeStageBucketVm(string StageName, int ProjectCount);
+public sealed record CoeStageBucketVm(
+    string StageKey,
+    string StageName,
+    int ProjectCount);
 // END SECTION
 
 // SECTION: CoE sub-category dataset
