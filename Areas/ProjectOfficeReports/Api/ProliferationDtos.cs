@@ -127,6 +127,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public ProliferationSource? Source { get; set; }
         public int? Year { get; set; }
         public string? Kind { get; set; }
+        public string? ApprovalStatus { get; set; }
         public string? Search { get; set; }
         public int Page { get; set; } = 1;
         public int PageSize { get; set; } = 25;
