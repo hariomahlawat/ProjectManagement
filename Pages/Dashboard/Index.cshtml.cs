@@ -297,7 +297,8 @@ namespace ProjectManagement.Pages.Dashboard
             try
             {
                 var ffcRows = await FfcCountryRollupDataSource.LoadAsync(_db, cancellationToken);
-                var ffcCountries = ffcRows
+                // SECTION: FFC simulator map footprint and totals
+                var ffcFootprintCountries = ffcRows
                     .Where(row => row.Installed + row.Delivered > 0)
                     .Select(row => new FfcSimulatorCountryVm
                     {
@@ -311,12 +312,16 @@ namespace ProjectManagement.Pages.Dashboard
                     })
                     .ToList();
 
+                var totalInstalled = ffcRows.Sum(row => row.Installed);
+                var totalDelivered = ffcRows.Sum(row => row.Delivered);
+                var totalPlanned = ffcRows.Sum(row => row.Planned);
+
                 FfcSimulatorMap = new FfcSimulatorMapVm
                 {
-                    Countries = ffcCountries,
-                    TotalInstalled = ffcCountries.Sum(country => country.Installed),
-                    TotalDelivered = ffcCountries.Sum(country => country.Delivered),
-                    TotalPlanned = ffcCountries.Sum(country => country.Planned)
+                    Countries = ffcFootprintCountries,
+                    TotalInstalled = totalInstalled,
+                    TotalDelivered = totalDelivered,
+                    TotalPlanned = totalPlanned
                 };
             }
             catch (Exception ex)
