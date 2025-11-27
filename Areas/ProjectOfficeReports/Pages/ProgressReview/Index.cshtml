@@ -46,7 +46,7 @@
             : d.ToString("dd MMM yyyy");
     }
 
-    string Plural(int n, string singular, string plural) => n == 1 ? singular : plural;
+
 
     string? FormatRemarkRole(RemarkActorRole? role) => role switch
     {
@@ -162,7 +162,7 @@
                         <p class="text-uppercase text-muted small fw-semibold mb-0">Reporting period</p>
                         <h2 class="h6 mb-0">@vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")</h2>
                     </div>
-                    <div class="text-muted small">@vm.Totals.ProjectsMoved projects moved · @vm.Totals.ProjectsWithRemarks @Plural(vm.Totals.ProjectsWithRemarks, "remark", "remarks") captured</div>
+                    
                 </header>
 
                 @* SECTION: Project progress buckets *@
