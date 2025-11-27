@@ -569,17 +569,22 @@
 
             if (this.listContainer) {
                 this.listContainer.addEventListener('click', (event) => {
-                    const target = event.target;
-                    if (!(target instanceof HTMLElement)) {
+                    const rawTarget = event.target;
+                    if (!(rawTarget instanceof HTMLElement)) {
                         return;
                     }
 
-                    const action = target.getAttribute('data-remark-action');
+                    const actionElement = rawTarget.closest('[data-remark-action]');
+                    if (!actionElement) {
+                        return;
+                    }
+
+                    const action = actionElement.getAttribute('data-remark-action');
                     if (!action) {
                         return;
                     }
 
-                    const article = target.closest('[data-remark-id]');
+                    const article = actionElement.closest('[data-remark-id]');
                     if (!article) {
                         return;
                     }
