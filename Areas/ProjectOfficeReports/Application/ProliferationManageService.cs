@@ -157,6 +157,14 @@ public sealed class ProliferationManageService
             granularQuery = granularQuery.Where(x => x.Year == year);
         }
 
+        // SECTION: Approval status filter
+        if (request.ApprovalStatus.HasValue)
+        {
+            var status = request.ApprovalStatus.Value;
+            yearlyQuery = yearlyQuery.Where(x => x.ApprovalStatus == status);
+            granularQuery = granularQuery.Where(x => x.ApprovalStatus == status);
+        }
+
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
             var trimmed = request.Search.Trim();

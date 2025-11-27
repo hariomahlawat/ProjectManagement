@@ -31,6 +31,19 @@
                 }
             </select>
         </div>
+        @* SECTION: Approval status filter (manage context) *@
+        @if (Model.Context == "manage")
+        {
+            <div class="flex-grow-1 flex-md-grow-0 pf-min-w-160">
+                <label class="visually-hidden" for="pf-filter-status">Approval status</label>
+                <select class="form-select form-select-sm" id="pf-filter-status" aria-label="Filter by approval status">
+                    <option value="">All statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+            </div>
+        }
         <div class="flex-grow-1 flex-md-grow-0 pf-min-w-120">
             <label class="visually-hidden" for="pf-filter-year">Year</label>
             <input class="form-control form-control-sm" id="pf-filter-year" type="number" inputmode="numeric" min="2000" max="3000" placeholder="Year" aria-label="Filter by year" />

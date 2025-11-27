@@ -58,11 +58,13 @@
   const pagerEl = document.querySelector('#pf-pager');
   const countEl = document.querySelector('#pf-count');
 
+  // SECTION: Filter state
   const filters = {
     projectId: '',
     source: '',
     year: '',
     kind: '',
+    status: '',
     search: ''
   };
 
@@ -424,6 +426,7 @@
     source: document.querySelector('#pf-filter-source'),
     year: document.querySelector('#pf-filter-year'),
     kind: document.querySelector('#pf-filter-type'),
+    status: document.querySelector('#pf-filter-status'),
     search: document.querySelector('#pf-filter-search'),
     reset: document.querySelector('#pf-filter-reset'),
     chips: document.querySelector('#pf-filter-chips')
@@ -580,6 +583,7 @@
         filters.source = saved.source ?? '';
         filters.year = saved.year ?? '';
         filters.kind = saved.kind ?? '';
+        filters.status = saved.status ?? '';
         filters.search = saved.search ?? '';
         if (Number.isFinite(saved.pageSize) && saved.pageSize > 0) {
           pager.pageSize = saved.pageSize;
@@ -597,6 +601,7 @@
         source: filters.source,
         year: filters.year,
         kind: filters.kind,
+        status: filters.status,
         search: filters.search,
         pageSize: pager.pageSize
       };
@@ -872,6 +877,9 @@
     if (filterInputs.kind) {
       filterInputs.kind.value = hasOption(filterInputs.kind, filters.kind) ? filters.kind : '';
     }
+    if (filterInputs.status) {
+      filterInputs.status.value = hasOption(filterInputs.status, filters.status) ? filters.status : '';
+    }
     if (filterInputs.year) {
       filterInputs.year.value = filters.year ?? '';
     }
@@ -907,6 +915,12 @@
     if (filters.kind) {
       const label = getOptionLabel(filterInputs.kind, filters.kind) || (filters.kind === 'granular' ? 'Granular' : 'Yearly');
       chips.push({ key: 'kind', label: 'Type', value: label });
+    }
+    if (filters.status) {
+      const label =
+        getOptionLabel(filterInputs.status, filters.status) ||
+        (filters.status.charAt(0).toUpperCase() + filters.status.slice(1));
+      chips.push({ key: 'status', label: 'Status', value: label });
     }
     if (filters.year) {
       chips.push({ key: 'year', label: 'Year', value: filters.year });
@@ -948,6 +962,7 @@
     filters.source = '';
     filters.year = '';
     filters.kind = '';
+    filters.status = '';
     filters.search = '';
     pager.page = 1;
     applyFiltersToInputs();
@@ -973,6 +988,10 @@
       case 'kind':
         if (filterInputs.kind) filterInputs.kind.value = '';
         updateFilter('kind', '');
+        break;
+      case 'status':
+        if (filterInputs.status) filterInputs.status.value = '';
+        updateFilter('status', '');
         break;
       case 'year':
         if (filterInputs.year) filterInputs.year.value = '';
@@ -1499,6 +1518,7 @@
     if (filters.source) params.set('source', filters.source);
     if (filters.year) params.set('year', filters.year);
     if (filters.kind) params.set('kind', filters.kind);
+    if (filters.status) params.set('approvalStatus', filters.status);
     if (filters.search) params.set('search', filters.search);
     params.set('page', String(pager.page));
     params.set('pageSize', String(pager.pageSize));
@@ -2080,7 +2100,8 @@
     const mappings = new Map([
       ['project', 'projectId'],
       ['source', 'source'],
-      ['kind', 'kind']
+      ['kind', 'kind'],
+      ['status', 'status']
     ]);
     mappings.forEach((filterKey, inputKey) => {
       const input = filterInputs[inputKey];

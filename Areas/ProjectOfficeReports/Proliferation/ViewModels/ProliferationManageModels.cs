@@ -45,6 +45,7 @@ public sealed record ProliferationManageListRequest(
     ProliferationSource? Source,
     int? Year,
     ProliferationRecordKind? Kind,
+    ApprovalStatus? ApprovalStatus,
     string? Search,
     int Page,
     int PageSize);

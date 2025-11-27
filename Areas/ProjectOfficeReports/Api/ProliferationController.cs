@@ -56,7 +56,17 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public async Task<ActionResult<ProliferationManageListResponseDto>> GetManageList([FromQuery] ProliferationManageListQueryDto query, CancellationToken ct)
         {
             var kind = ParseKind(query.Kind);
-            var request = new ProliferationManageListRequest(query.ProjectId, query.Source, query.Year, kind, query.Search, query.Page, query.PageSize);
+            var approvalStatus = ParseApprovalStatus(query.ApprovalStatus);
+
+            var request = new ProliferationManageListRequest(
+                query.ProjectId,
+                query.Source,
+                query.Year,
+                kind,
+                approvalStatus,
+                query.Search,
+                query.Page,
+                query.PageSize);
             var result = await _manageSvc.GetListAsync(request, ct);
 
             var items = result.Items
@@ -939,6 +949,34 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
             var escaped = value.Replace("\"", "\"\"");
             return $"\"{escaped}\"";
+        }
+
+        // SECTION: Manage list helpers
+        private static ApprovalStatus? ParseApprovalStatus(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            var text = value.Trim();
+
+            if (text.Equals("pending", StringComparison.OrdinalIgnoreCase))
+            {
+                return ApprovalStatus.Pending;
+            }
+
+            if (text.Equals("approved", StringComparison.OrdinalIgnoreCase))
+            {
+                return ApprovalStatus.Approved;
+            }
+
+            if (text.Equals("rejected", StringComparison.OrdinalIgnoreCase))
+            {
+                return ApprovalStatus.Rejected;
+            }
+
+            return null;
         }
 
         private static ProliferationRecordKind? ParseKind(string? value)
