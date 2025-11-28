@@ -219,7 +219,7 @@ public class MapTableDetailedModel : PageModel
 
         var matchedId = await _db.FfcCountries
             .AsNoTracking()
-            .Where(country => country.Iso3 == iso)
+            .Where(country => country.IsoCode == iso)
             .Select(country => country.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
