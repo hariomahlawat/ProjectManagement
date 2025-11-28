@@ -377,9 +377,20 @@ namespace ProjectManagement.Pages.Projects
                 .Select(f => f.ApproxProductionCost)
                 .FirstOrDefaultAsync(ct);
 
+            decimal? rdOrL1CostLakhs = null;
+
+            if (Procurement.L1Cost.HasValue)
+            {
+                rdOrL1CostLakhs = Procurement.L1Cost.Value / 1_00_000m;
+            }
+            else
+            {
+                rdOrL1CostLakhs = project.CostLakhs;
+            }
+
             CostSummary = new ProjectCostSummaryViewModel
             {
-                RdCostLakhs = project.CostLakhs,
+                RdCostLakhs = rdOrL1CostLakhs,
                 ApproxProductionCost = approxProductionCost
             };
 
