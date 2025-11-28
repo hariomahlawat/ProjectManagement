@@ -8,6 +8,7 @@
     var geoUrl = Url.Content("~/ffc/maps/world_india_view.geojson");
     var focusBounds = "37,-20|-35,55";
     var fullMapUrl = Url.Page("/FFC/Map", values: new { area = "ProjectOfficeReports" });
+    var detailTableUrl = Url.Page("/FFC/MapTableDetailed", values: new { area = "ProjectOfficeReports" });
 
     // Show all countries, sorted by total then by name.
     var countriesToShow = Model.Countries
@@ -92,6 +93,13 @@
                         </button>
                     }
                 </div>
+            </div>
+
+            <div class="mt-2">
+                <a href="@detailTableUrl"
+                   class="btn btn-link btn-sm px-0">
+                    View detailed table →
+                </a>
             </div>
         }
         else
