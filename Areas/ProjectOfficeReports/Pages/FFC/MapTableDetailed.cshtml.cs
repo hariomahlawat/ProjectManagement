@@ -30,11 +30,13 @@ public class MapTableDetailedModel : PageModel
     // SECTION: Filter state
     public long? CountryId { get; private set; }
 
+    public string? CountryIso3 { get; private set; }
+
     public short? Year { get; private set; }
 
     public string? CountryName { get; private set; }
 
-    public bool HasFilters => CountryId.HasValue || Year.HasValue;
+    public bool HasFilters => CountryId.HasValue || Year.HasValue || !string.IsNullOrWhiteSpace(CountryIso3);
 
     public string? FilterSummary { get; private set; }
 
@@ -42,9 +44,10 @@ public class MapTableDetailedModel : PageModel
     public IReadOnlyList<FfcDetailedGroupVm> Groups { get; private set; } = Array.Empty<FfcDetailedGroupVm>();
 
     // SECTION: Request handlers
-    public async Task OnGetAsync(long? countryId, short? year, CancellationToken cancellationToken)
+    public async Task OnGetAsync(long? countryId, short? year, string? countryIso3, CancellationToken cancellationToken)
     {
-        CountryId = countryId;
+        CountryIso3 = string.IsNullOrWhiteSpace(countryIso3) ? null : countryIso3.Trim().ToUpperInvariant();
+        CountryId = await ResolveCountryIdAsync(countryId, CountryIso3, cancellationToken);
         Year = year;
 
         if (CountryId.HasValue)
@@ -67,9 +70,10 @@ public class MapTableDetailedModel : PageModel
             ("Detailed table", null));
     }
 
-    public async Task<IActionResult> OnGetDataAsync(long? countryId, short? year, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetDataAsync(long? countryId, short? year, string? countryIso3, CancellationToken cancellationToken)
     {
-        CountryId = countryId;
+        CountryIso3 = string.IsNullOrWhiteSpace(countryIso3) ? null : countryIso3.Trim().ToUpperInvariant();
+        CountryId = await ResolveCountryIdAsync(countryId, CountryIso3, cancellationToken);
         Year = year;
 
         var (rangeFrom, rangeTo) = ResolveRange();
@@ -77,9 +81,10 @@ public class MapTableDetailedModel : PageModel
         return new JsonResult(groups);
     }
 
-    public async Task<IActionResult> OnGetExportAsync(long? countryId, short? year, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetExportAsync(long? countryId, short? year, string? countryIso3, CancellationToken cancellationToken)
     {
-        CountryId = countryId;
+        CountryIso3 = string.IsNullOrWhiteSpace(countryIso3) ? null : countryIso3.Trim().ToUpperInvariant();
+        CountryId = await ResolveCountryIdAsync(countryId, CountryIso3, cancellationToken);
         Year = year;
 
         var (rangeFrom, rangeTo) = ResolveRange();
@@ -174,6 +179,10 @@ public class MapTableDetailedModel : PageModel
         {
             parts.Add(string.IsNullOrWhiteSpace(CountryName) ? "Selected country" : CountryName!);
         }
+        else if (!string.IsNullOrWhiteSpace(CountryIso3))
+        {
+            parts.Add(CountryIso3);
+        }
 
         if (Year.HasValue)
         {
@@ -191,5 +200,29 @@ public class MapTableDetailedModel : PageModel
         }
 
         return (DateOnly.MinValue, DateOnly.MaxValue);
+    }
+
+    // SECTION: Lookup helpers
+    private async Task<long?> ResolveCountryIdAsync(long? countryId, string? countryIso3, CancellationToken cancellationToken)
+    {
+        if (countryId.HasValue)
+        {
+            return countryId;
+        }
+
+        if (string.IsNullOrWhiteSpace(countryIso3))
+        {
+            return null;
+        }
+
+        var iso = countryIso3.Trim().ToUpperInvariant();
+
+        var matchedId = await _db.FfcCountries
+            .AsNoTracking()
+            .Where(country => country.Iso3 == iso)
+            .Select(country => country.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return matchedId == 0 ? null : matchedId;
     }
 }
