@@ -188,13 +188,13 @@ public sealed class ProjectPulseService : IProjectPulseService
         var ongoingSeries = groupedByParent
             .Select(g =>
             {
-                string label;
+                var label = "Unknown";
 
                 if (g.ParentCategoryId.HasValue)
                 {
-                    if (!categoryNames.TryGetValue(g.ParentCategoryId.Value, out label))
+                    if (categoryNames.TryGetValue(g.ParentCategoryId.Value, out var resolvedLabel))
                     {
-                        label = "Unknown";
+                        label = resolvedLabel;
                     }
                 }
                 else
