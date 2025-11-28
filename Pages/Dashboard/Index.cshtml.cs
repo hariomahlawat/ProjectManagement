@@ -299,7 +299,7 @@ namespace ProjectManagement.Pages.Dashboard
                 var ffcRows = await FfcCountryRollupDataSource.LoadAsync(_db, cancellationToken);
                 // SECTION: FFC simulator map footprint and totals
                 var ffcFootprintCountries = ffcRows
-                    .Where(row => row.Installed + row.Delivered > 0)
+                    .Where(row => row.Total > 0)
                     .Select(row => new FfcSimulatorCountryVm
                     {
                         CountryId = row.CountryId,
