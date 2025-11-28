@@ -56,10 +56,13 @@ namespace ProjectManagement.Services.Projects
                 q = q.Where(p => p.LeadPoUserId == officerId);
             }
 
+            // -------------------- Search filtering (case-insensitive) --------------------
             if (!string.IsNullOrWhiteSpace(search))
             {
                 var term = search.Trim();
-                q = q.Where(p => p.Name.Contains(term));
+                var like = $"%{term}%";
+
+                q = q.Where(p => EF.Functions.ILike(p.Name, like));
             }
 
             var projects = await q
