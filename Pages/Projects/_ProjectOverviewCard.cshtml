@@ -116,28 +116,19 @@
                 </div>
             </div>
             <div class="col-12 col-lg-7 col-xl-8">
+                @* SECTION: Project categories *@
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Category</dt>
                     <dd class="col-sm-8">
-                        @if (Model.CategoryPath.Any())
-                        {
-                            <span class="badge text-bg-light">@string.Join(" › ", Model.CategoryPath.Select(c => c.Name))</span>
-                        }
-                        else
-                        {
-                            <span>—</span>
-                        }
+                        @(Model.CategoryPath.Any()
+                            ? string.Join(" › ", Model.CategoryPath.Select(c => c.Name))
+                            : "—")
                     </dd>
                     <dt class="col-sm-4">Technical Category</dt>
                     <dd class="col-sm-8">
-                        @if (Model.TechnicalCategoryPath.Any())
-                        {
-                            <span class="badge text-bg-primary-subtle text-primary-emphasis">@string.Join(" › ", Model.TechnicalCategoryPath.Select(c => c.Name))</span>
-                        }
-                        else
-                        {
-                            <span>—</span>
-                        }
+                        @(Model.TechnicalCategoryPath.Any()
+                            ? string.Join(" › ", Model.TechnicalCategoryPath.Select(c => c.Name))
+                            : "—")
                     </dd>
 
                     <dt class="col-sm-4">Sponsoring Unit</dt>
