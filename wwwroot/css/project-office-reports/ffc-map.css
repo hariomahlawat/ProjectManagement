@@ -115,6 +115,81 @@
   color: #64748b;
 }
 
+/* ----- Popup cards ----- */
+.ffc-map-popup {
+  min-width: 220px;
+}
+
+.ffc-map-popup__title {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.ffc-map-popup__subtitle {
+  font-size: 0.9rem;
+  color: #475569;
+  margin-bottom: 0.5rem;
+}
+
+.ffc-map-popup__metrics {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.ffc-map-popup__metrics div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ffc-map-popup__metrics dt {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.ffc-map-popup__metrics dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.ffc-map-popup__cta {
+  padding: 0;
+}
+
+.ffc-map-popup__cta:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ----- Legend samples ----- */
+.ffc-legend-note {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.35rem;
+  color: #475569;
+}
+
+.ffc-legend-note__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.ffc-legend-note__sample {
+  width: 26px;
+  height: 12px;
+  border: 2px solid #4b5bb5;
+  border-radius: 6px;
+}
+
+.ffc-legend-note__sample--dashed {
+  border-style: dashed;
+}
+
 @media (max-width: 1200px) {
   .ffc-map-layout {
     grid-template-columns: minmax(0, 1fr);

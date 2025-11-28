@@ -14,9 +14,28 @@
     <div class="pm-page-header">
         <div>
             <h1 class="h4 mb-1">FFC – Simulators footprint</h1>
-            <p class="pm-page-subtitle">
-                Countries shaded by total project/ simulators units (installed, delivered, planned). Drill into a country to see details.
+            <p class="pm-page-subtitle text-muted small mb-2">
+                Countries are shaded by total simulator units (installed, delivered and planned). Click a country to see its breakdown and open the detailed table.
             </p>
+            <div class="d-flex flex-wrap gap-3 mb-2 small text-muted">
+                <span><strong>@Model.TotalCountriesWithUnits</strong> countries with activity</span>
+                <span><strong>@Model.TotalUnits</strong> total units</span>
+                <span><strong>@Model.TotalInstalled</strong> installed</span>
+                <span><strong>@Model.TotalDelivered</strong> delivered (not installed)</span>
+                <span><strong>@Model.TotalPlanned</strong> planned</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-3 mb-2">
+        <span class="text-muted small">Show:</span>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="ffcFilterCompleted" checked>
+            <label class="form-check-label small" for="ffcFilterCompleted">Completed (installed + delivered)</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" id="ffcFilterPlanned" checked>
+            <label class="form-check-label small" for="ffcFilterPlanned">Planned</label>
         </div>
     </div>
 
@@ -55,7 +74,7 @@
                  aria-label="World map showing FFC project unit counts"
                  data-data-url="@Url.Page("./Map", pageHandler: "Data")"
                  data-geo-url="@Url.Content("~/ffc/maps/world_india_view.geojson")"
-                 data-ffc-detail-url="@Url.Page("./MapTableDetailed")"></div>
+                 data-ffc-detail-url="@Url.Page("/FFC/MapTableDetailed", new { area = "ProjectOfficeReports" })"></div>
 
             <div class="ffc-focus-floating card shadow-sm" id="ffc-focus-floating">
                 <div class="card-body">
