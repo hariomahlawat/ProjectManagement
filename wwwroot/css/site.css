@@ -6,7 +6,8 @@
     /* -- SECTION: Brand & core palette -- */
     --pm-primary: #2d6cdf;
     --pm-primary-hover: #2558c6;
-    --pm-primary-strong: #0d6efd;
+    --pm-primary-soft: #e0edff;
+    --pm-primary-strong: #1d4ed8;
 
     /* -- SECTION: Neutrals & surfaces -- */
     --pm-surface: #f5f7fb;

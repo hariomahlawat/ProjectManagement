@@ -8,7 +8,7 @@
   background: var(--pm-surface-elevated);
   border-radius: 18px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-  padding: clamp(var(--pp-gap-md), 3vw, var(--pp-gap-lg));
+  padding: 1rem 1.25rem 0.9rem;
   border: 1px solid var(--pp-border);
 }
 /* END SECTION */
@@ -143,7 +143,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: var(--pp-gap-sm);
+  padding: 0.9rem 1rem 0.75rem;
   text-decoration: none;
   color: inherit;
   border-radius: 12px;
@@ -162,8 +162,8 @@
 }
 
 .ppulse__card-head h3 {
-  margin: 0;
-  font-size: 1rem;
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
   font-weight: 600;
   display: flex;
   align-items: baseline;
@@ -172,17 +172,22 @@
 
 .ppulse__card-head small {
   color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
-  font-weight: 700;
+  font-weight: 600;
+  font-size: 0.78rem;
 }
 
 .ppulse__chart {
   margin: var(--pp-gap-sm) 0;
-  height: 148px;
+  height: 160px;
   padding: 10px 12px 8px;
   border-radius: 12px;
   background: transparent;
   border: 1px solid color-mix(in oklab, var(--pp-border) 45%, white);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.dashboard-project-pulse-card .pulse-chart-container {
+  height: 160px;
 }
 
 .ppulse__chart canvas {

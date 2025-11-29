@@ -34,7 +34,7 @@
 }
 @* END SECTION *@
 
-<section class="ppulse" data-project-pulse>
+<section class="ppulse dashboard-project-pulse-card" data-project-pulse>
   @* SECTION: Header *@
   <div class="ppulse__head">
     <div class="ppulse__title">
@@ -68,13 +68,13 @@
 
   @* SECTION: Content cards *@
   <div class="ppulse__grid">
-    <article class="ppulse__card">
+    <article class="ppulse__card pulse-item-card">
       <a class="ppulse__link" href="@Model.CompletedUrl" title="View completed projects">
         <header class="ppulse__card-head">
           <h3>Completed <small>@Model.CompletedCount</small></h3>
         </header>
         <div
-          class="ppulse__chart"
+          class="ppulse__chart pulse-chart-container"
           data-chart="bar"
           data-x-label="Year"
           data-y-label="Projects completed"
@@ -88,13 +88,13 @@
       </a>
     </article>
 
-    <article class="ppulse__card">
+    <article class="ppulse__card pulse-item-card">
       <a class="ppulse__link" href="@Model.OngoingUrl" title="View ongoing projects">
         <header class="ppulse__card-head">
           <h3>Ongoing <small>@Model.OngoingCount</small></h3>
         </header>
         <div
-          class="ppulse__chart"
+          class="ppulse__chart pulse-chart-container"
           data-chart="donut"
           data-series='@Html.Raw(Serialize(Model.OngoingByProjectCategory))'
           role="img"
@@ -106,13 +106,13 @@
       </a>
     </article>
 
-    <article class="ppulse__card">
+    <article class="ppulse__card pulse-item-card">
       <a class="ppulse__link" href="@Model.RepositoryUrl" title="Explore project repository">
         <header class="ppulse__card-head">
           <h3>All projects <small>@Model.TotalProjects</small></h3>
         </header>
         <div
-          class="ppulse__chart"
+          class="ppulse__chart pulse-chart-container"
           data-chart="bar"
           data-x-label="Technical category"
           data-y-label="Projects"
