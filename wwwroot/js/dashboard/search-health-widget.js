@@ -133,11 +133,6 @@
       }
     });
 
-    window.addEventListener('pm-theme-changed', function () {
-      trendHolders.forEach(function (holder) {
-        hydrate(holder);
-      });
-    });
   }
 
   if (document.readyState === 'loading') {

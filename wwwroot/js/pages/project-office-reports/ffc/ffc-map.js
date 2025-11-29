@@ -459,18 +459,6 @@
         attachZoomControls(map, geoLayer, worldBounds);
         refreshCountryStyles();
 
-        window.addEventListener('pm-theme-changed', function () {
-          mapPalette = refreshMapPalette();
-          legendControlElement.style.background = mapPalette.legendBackground;
-          legendControlElement.style.color = mapPalette.tooltipText;
-          legendControlElement.style.border = '1px solid ' + mapPalette.border;
-          if (mapFrame) {
-            mapFrame.setStyle({ color: mapPalette.border, fillColor: mapPalette.legendBackground });
-          }
-          geoLayer.setStyle(styleFeature);
-          refreshCountryStyles();
-        });
-
         // SECTION: Filters and CTA wiring
         var completedCheckbox = document.getElementById('ffcFilterCompleted');
         var plannedCheckbox = document.getElementById('ffcFilterPlanned');

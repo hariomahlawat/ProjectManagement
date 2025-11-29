@@ -1085,7 +1085,6 @@ function hydrateAnalytics() {
 
 function initAnalyticsBootstrap() {
   hydrateAnalytics();
-  window.addEventListener('pm-theme-changed', hydrateAnalytics);
 }
 
 if (document.readyState === 'loading') {
