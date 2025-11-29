@@ -6,7 +6,7 @@
 /* base card – letter look */
 .doc-card {
     position: relative;
-    background: var(--pm-card)fff;
+    background: var(--pm-card);
     border: 1px solid rgba(15, 23, 42, 0.015);
     border-radius: 18px;
     box-shadow: 0 16px 38px rgba(15, 23, 42, 0.03);
@@ -203,7 +203,7 @@
 
 .docrepo-searchbar {
     width: min(1080px, 100%);
-    background: var(--pm-card)fff;
+    background: var(--pm-card);
     border-radius: 9999px;
     box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04);
     padding: 0.35rem 0.6rem 0.35rem 1rem;
