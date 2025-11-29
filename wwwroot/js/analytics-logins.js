@@ -10,9 +10,40 @@ const formatDisplayDateTime = (date) => {
   return `${formatDisplayDate(d)} ${hh}:${mm}`;
 };
 
+// SECTION: Palette helpers
+function getPalette() {
+  const fallback = {
+    axisColor: '#4b5563',
+    gridColor: '#e5e7eb',
+    accents: ['#2563eb', '#f97316', '#22c55e', '#a855f7']
+  };
+
+  if (window.PMTheme && typeof window.PMTheme.getChartPalette === 'function') {
+    return window.PMTheme.getChartPalette();
+  }
+
+  return fallback;
+}
+
+function withAlpha(color, alpha) {
+  if (!color) return '';
+  const hexMatch = color.match(/^#?([a-f\d]{6})$/i);
+  if (!hexMatch) {
+    return color;
+  }
+  const hex = hexMatch[1];
+  const intVal = parseInt(hex, 16);
+  const r = (intVal >> 16) & 255;
+  const g = (intVal >> 8) & 255;
+  const b = intVal & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+// END SECTION
+
 const BandAndLines = {
   id: 'bandAndLines',
   afterDraw(chart, args, opts) {
+    const palette = getPalette();
     const { workStartMin, workEndMin, p50Min, p90Min } = opts;
     const { ctx, chartArea, scales: { x, y } } = chart;
     if (!x || !y) return;
@@ -20,7 +51,7 @@ const BandAndLines = {
     const yTop = y.getPixelForValue(workEndMin);
     const yBot = y.getPixelForValue(workStartMin);
     ctx.save();
-    ctx.fillStyle = 'rgba(46, 204, 113, 0.12)';
+    ctx.fillStyle = withAlpha(palette.accents[2], 0.18);
     ctx.fillRect(chartArea.left, yTop, chartArea.right - chartArea.left, yBot - yTop);
 
     if (Number.isFinite(p50Min)) drawLine(y.getPixelForValue(p50Min), 'Median');
@@ -30,13 +61,13 @@ const BandAndLines = {
 
     function drawLine(yPix, label) {
       ctx.setLineDash([6,4]);
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.strokeStyle = withAlpha(palette.axisColor, 0.6);
       ctx.beginPath();
       ctx.moveTo(chartArea.left, yPix);
       ctx.lineTo(chartArea.right, yPix);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillStyle = withAlpha(palette.axisColor, 0.85);
       ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
       ctx.textBaseline = 'bottom';
       ctx.fillText(label, chartArea.right - 48, yPix - 4);
@@ -58,6 +89,7 @@ function init() {
   }
 
   let chart;
+  let lastData = null;
 
   async function load() {
     if (!ChartCtor || !elCanvas) {
@@ -68,7 +100,12 @@ function init() {
     const user = elUser.value;
     const res = await fetch(`?handler=Data&days=${days}&weekendOdd=${weekendOdd}&user=${encodeURIComponent(user)}`, { headers: { Accept: 'application/json' } });
     const data = await res.json();
+    lastData = data;
+    renderChart(data);
+  }
 
+  function renderChart(data) {
+    const palette = getPalette();
     const normal = [];
     const odd = [];
     for (const p of data.points) {
@@ -85,8 +122,8 @@ function init() {
       type: 'scatter',
       data: {
         datasets: [
-          { label: 'Normal', data: normal, pointRadius: 3 },
-          { label: 'Odd', data: odd, pointRadius: 4, pointBackgroundColor: '#d9534f' }
+          { label: 'Normal', data: normal, pointRadius: 3, pointBackgroundColor: palette.accents[0] },
+          { label: 'Odd', data: odd, pointRadius: 4, pointBackgroundColor: palette.accents[1] }
         ]
       },
       options: {
@@ -97,23 +134,27 @@ function init() {
           x: {
             type: 'linear',
             ticks: {
-              callback: (v) => formatDisplayDate(new Date(v))
+              callback: (v) => formatDisplayDate(new Date(v)),
+              color: palette.axisColor
             },
-            title: { display: true, text: 'Date' }
+            title: { display: true, text: 'Date', color: palette.axisColor },
+            grid: { color: palette.gridColor }
           },
           y: {
             min: 0,
             max: 1440,
             ticks: {
               stepSize: 60,
-              callback: v => `${String(Math.floor(v/60)).padStart(2,'0')}:00`
+              callback: v => `${String(Math.floor(v/60)).padStart(2,'0')}:00`,
+              color: palette.axisColor
             },
-            title: { display: true, text: 'Time of day' }
+            title: { display: true, text: 'Time of day', color: palette.axisColor },
+            grid: { color: palette.gridColor }
           }
         },
         plugins: {
           decimation: { enabled: true, algorithm: 'min-max' },
-          legend: { position: 'bottom' },
+          legend: { position: 'bottom', labels: { color: palette.axisColor } },
           tooltip: {
             callbacks: {
               label: ctx => {
@@ -168,6 +209,12 @@ function init() {
 
   exportCsv();
   load();
+
+  window.addEventListener('pm-theme-changed', () => {
+    if (lastData) {
+      renderChart(lastData);
+    }
+  });
 }
 
 function renderOddTable(rows) {

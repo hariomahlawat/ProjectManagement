@@ -1,8 +1,8 @@
-const palette = [
-  '#1a73e8',
-  '#fbbc04',
-  '#34a853',
-  '#ea4335',
+const paletteFallback = [
+  '#2563eb',
+  '#f97316',
+  '#22c55e',
+  '#a855f7',
   '#9c27b0',
   '#fb8c00',
   '#00acc1',
@@ -13,11 +13,35 @@ const palette = [
 
 const lifecycleStatuses = ['Ongoing', 'Completed', 'Cancelled'];
 
-const lifecycleColorMap = {
-  Ongoing: '#2563eb',
-  Completed: '#fbbf24',
-  Cancelled: '#16a34a'
-};
+function getPalette() {
+  if (window.PMTheme && typeof window.PMTheme.getChartPalette === 'function') {
+    const palette = window.PMTheme.getChartPalette();
+    if (palette && Array.isArray(palette.accents)) {
+      return palette;
+    }
+  }
+
+  return {
+    axisColor: '#4b5563',
+    gridColor: '#e5e7eb',
+    accents: paletteFallback
+  };
+}
+
+function getAccentColor(index) {
+  const palette = getPalette();
+  const accents = palette.accents && palette.accents.length ? palette.accents : paletteFallback;
+  return accents[index % accents.length];
+}
+
+function getLifecycleColor(status) {
+  const lifecycleColors = {
+    Ongoing: getAccentColor(0),
+    Completed: getAccentColor(1),
+    Cancelled: getAccentColor(2)
+  };
+  return lifecycleColors[status] || getAccentColor(0);
+}
 
 const stageTimeBucketKeys = {
   below: 'Below1Cr',
@@ -113,16 +137,19 @@ function createDoughnutChart(canvas, { labels, values, colors, options }) {
     return null;
   }
 
-  return new window.Chart(canvas.getContext('2d'), {
+  const palette = getPalette();
+  const accentColors = Array.isArray(colors) && colors.length
+    ? colors
+    : values.map((_, idx) => getAccentColor(idx));
+
+  return renderWithTheme(canvas, {
     type: 'doughnut',
     data: {
       labels,
       datasets: [
         {
           data: values,
-          backgroundColor: Array.isArray(colors) && colors.length
-            ? colors
-            : values.map((_, idx) => palette[idx % palette.length]),
+          backgroundColor: accentColors,
           borderWidth: 0
         }
       ]
@@ -131,7 +158,7 @@ function createDoughnutChart(canvas, { labels, values, colors, options }) {
       {
         responsive: true,
         plugins: {
-          legend: { position: 'bottom' }
+          legend: { position: 'bottom', labels: { color: palette.axisColor } }
         }
       },
       options
@@ -141,7 +168,7 @@ function createDoughnutChart(canvas, { labels, values, colors, options }) {
 
 function createBarChart(
   canvas,
-  { labels, values, label = 'Projects', backgroundColor = '#1a73e8', options }
+  { labels, values, label = 'Projects', backgroundColor = null, options }
 ) {
   if (!canvas || !window.Chart) {
     return null;
@@ -149,8 +176,9 @@ function createBarChart(
 
   const rawLabels = Array.isArray(labels) ? labels : [];
   const wrappedLabels = rawLabels.map((l) => wrapLabel(l));
+  const palette = getPalette();
 
-  return new window.Chart(canvas.getContext('2d'), {
+  return renderWithTheme(canvas, {
     type: 'bar',
     data: {
       labels: wrappedLabels,
@@ -158,7 +186,7 @@ function createBarChart(
         {
           label,
           data: values,
-          backgroundColor,
+          backgroundColor: backgroundColor || getAccentColor(0),
           borderRadius: 4
         }
       ]
@@ -168,16 +196,22 @@ function createBarChart(
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: false }
+          legend: { display: false, labels: { color: palette.axisColor } }
         },
         scales: {
           x: {
             ticks: {
               maxRotation: 0,
-              autoSkip: false
-            }
+              autoSkip: false,
+              color: palette.axisColor
+            },
+            grid: { color: palette.gridColor }
           },
-          y: { beginAtZero: true }
+          y: {
+            beginAtZero: true,
+            ticks: { color: palette.axisColor },
+            grid: { color: palette.gridColor }
+          }
         }
       },
       options
@@ -214,6 +248,22 @@ function deepMerge(target, source) {
   });
 
   return output;
+}
+
+function renderWithTheme(canvas, config) {
+  if (!canvas || !window.Chart) {
+    return null;
+  }
+
+  const existing = typeof window.Chart.getChart === 'function'
+    ? window.Chart.getChart(canvas)
+    : null;
+
+  if (existing) {
+    existing.destroy();
+  }
+
+  return new window.Chart(canvas.getContext('2d'), config);
 }
 
 function ensureNumber(value) {
@@ -368,6 +418,9 @@ function createCompletedPerYearStackedChart(canvas, points) {
     new Set(points.map((point) => point.categoryName))
   ).sort((first, second) => first.localeCompare(second));
 
+  const palette = getPalette();
+  const accentColors = palette.accents && palette.accents.length ? palette.accents : paletteFallback;
+
   const datasets = categories.map((category, index) => ({
     label: category,
     data: years.map((year) => {
@@ -376,11 +429,11 @@ function createCompletedPerYearStackedChart(canvas, points) {
       );
       return ensureNumber(match?.count);
     }),
-    backgroundColor: palette[index % palette.length],
+    backgroundColor: accentColors[index % accentColors.length],
     borderWidth: 1
   }));
 
-  return new window.Chart(context, {
+  return renderWithTheme(canvas, {
     type: 'bar',
     data: {
       labels: years,
@@ -395,7 +448,8 @@ function createCompletedPerYearStackedChart(canvas, points) {
       },
       plugins: {
         legend: {
-          position: 'top'
+          position: 'top',
+          labels: { color: palette.axisColor }
         },
         tooltip: {
           callbacks: {
@@ -414,7 +468,8 @@ function createCompletedPerYearStackedChart(canvas, points) {
           stacked: true,
           title: {
             display: true,
-            text: 'Year'
+            text: 'Year',
+            color: palette.axisColor
           }
         },
         y: {
@@ -422,11 +477,14 @@ function createCompletedPerYearStackedChart(canvas, points) {
           beginAtZero: true,
           title: {
             display: true,
-            text: 'Number of projects'
+            text: 'Number of projects',
+            color: palette.axisColor
           },
           ticks: {
-            precision: 0
-          }
+            precision: 0,
+            color: palette.axisColor
+          },
+          grid: { color: palette.gridColor }
         }
       }
     }
@@ -466,7 +524,7 @@ function initCompletedAnalytics() {
         labels: data.perYear.map((point) => point.year?.toString() ?? ''),
         values: data.perYear.map((point) => point.count),
         label: 'Projects completed',
-        backgroundColor: '#34a853'
+        backgroundColor: getAccentColor(2)
       });
     }
   }
@@ -508,7 +566,7 @@ function initOngoingAnalytics() {
         labels,
         values: series.map((point) => point.days),
         label: 'Average days in stage',
-        backgroundColor: '#34a853',
+        backgroundColor: getAccentColor(2),
         options: {
           plugins: {
             tooltip: {
@@ -564,7 +622,7 @@ function initCoeAnalytics() {
       labels: axisLabels,
       values: series.map((point) => ensureNumber(point.projectCount ?? point.value)),
       label: 'Projects',
-      backgroundColor: '#5c6bc0',
+      backgroundColor: getAccentColor(3),
       options: {
         plugins: {
           tooltip: {
@@ -591,6 +649,7 @@ function initCoeAnalytics() {
       return;
     }
 
+    const palette = getPalette();
     const labels = series.map((point) => point.name ?? '');
     const lifecycleKeyMap = {
       Ongoing: 'ongoing',
@@ -605,7 +664,7 @@ function initCoeAnalytics() {
         status,
         key,
         total,
-        color: lifecycleColorMap[status] ?? palette[0],
+        color: getLifecycleColor(status),
         isActive: total > 0
       };
     });
@@ -629,7 +688,7 @@ function initCoeAnalytics() {
 
     const rotation = labels.length > 6 ? 30 : 0;
 
-    new window.Chart(subcategoryCanvas.getContext('2d'), {
+    renderWithTheme(subcategoryCanvas, {
       type: 'bar',
       data: {
         labels,
@@ -643,7 +702,8 @@ function initCoeAnalytics() {
             stacked: true,
             ticks: {
               maxRotation: rotation,
-              minRotation: rotation
+              minRotation: rotation,
+              color: palette.axisColor
             },
             grid: {
               display: false
@@ -654,7 +714,11 @@ function initCoeAnalytics() {
             beginAtZero: true,
             ticks: {
               precision: 0,
-              stepSize: 1
+              stepSize: 1,
+              color: palette.axisColor
+            },
+            grid: {
+              color: palette.gridColor
             }
           }
         },
@@ -663,11 +727,12 @@ function initCoeAnalytics() {
             position: 'bottom',
             labels: {
               usePointStyle: true,
+              color: palette.axisColor,
               generateLabels() {
                 return legendEntries.map((entry) => ({
                   text: `${entry.status} · ${entry.total}`,
-                  fillStyle: entry.isActive ? entry.color : '#cbd5f5',
-                  strokeStyle: entry.isActive ? entry.color : '#cbd5f5',
+                  fillStyle: entry.isActive ? entry.color : palette.gridColor,
+                  strokeStyle: entry.isActive ? entry.color : palette.gridColor,
                   hidden: false,
                   datasetIndex: entry.datasetIndex,
                   lineWidth: entry.isActive ? 1 : 0
@@ -793,9 +858,11 @@ function initStageCycleTimeByCostChart() {
     name: stage.name,
     stageCode: stage.key
   }));
-  const axisLabels = stageAxisPoints.map((point) => getStageAxisLabel(point));
-  const wrappedLabels = axisLabels.map((label) => wrapLabel(label, MAX_STAGE_AXIS_LABEL_LENGTH));
-  // END SECTION
+    const axisLabels = stageAxisPoints.map((point) => getStageAxisLabel(point));
+    const wrappedLabels = axisLabels.map((label) => wrapLabel(label, MAX_STAGE_AXIS_LABEL_LENGTH));
+    // END SECTION
+
+    const palette = getPalette();
 
   function buildDataset(bucketKey, label, color) {
     return {
@@ -812,38 +879,42 @@ function initStageCycleTimeByCostChart() {
   }
 
   const datasets = [
-    buildDataset(stageTimeBucketKeys.below, 'Latest cost below 1 crore', '#1a73e8'),
-    buildDataset(stageTimeBucketKeys.above, 'Latest cost at or above 1 crore', '#34a853')
+    buildDataset(stageTimeBucketKeys.below, 'Latest cost below 1 crore', getAccentColor(0)),
+    buildDataset(stageTimeBucketKeys.above, 'Latest cost at or above 1 crore', getAccentColor(2))
   ];
 
-  new window.Chart(canvas.getContext('2d'), {
-    type: 'bar',
-    data: {
-      labels: wrappedLabels,
-      datasets
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          stacked: false,
-          // SECTION: Ensure all stage labels display on x-axis
-          ticks: {
-            maxRotation: 0,
-            autoSkip: false
-          }
-          // END SECTION
-        },
-        y: {
-          beginAtZero: true,
-          title: { display: true, text: 'Median days in stage' }
-        }
+    renderWithTheme(canvas, {
+      type: 'bar',
+      data: {
+        labels: wrappedLabels,
+        datasets
       },
-      plugins: {
-        legend: {
-          position: 'bottom'
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            stacked: false,
+            // SECTION: Ensure all stage labels display on x-axis
+            ticks: {
+              maxRotation: 0,
+              autoSkip: false,
+              color: palette.axisColor
+            }
+            // END SECTION
+          },
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'Median days in stage', color: palette.axisColor },
+            ticks: { color: palette.axisColor },
+            grid: { color: palette.gridColor }
+          }
         },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: palette.axisColor }
+          },
         tooltip: {
           callbacks: {
             title(items) {
@@ -908,23 +979,24 @@ function initStageHotspotsChart() {
       name: point.stageName || point.stageKey || '',
       stageCode: point.stageKey || ''
     }));
-    const labels = stageAxisPoints
-      .map((point) => getStageAxisLabel(point))
-      .map((label) => wrapLabel(label, MAX_STAGE_AXIS_LABEL_LENGTH));
+      const labels = stageAxisPoints
+        .map((point) => getStageAxisLabel(point))
+        .map((label) => wrapLabel(label, MAX_STAGE_AXIS_LABEL_LENGTH));
 
-    const medianValues = orderedSeries.map((point) => ensureNumber(point.medianDays));
-    const averageValues = orderedSeries.map((point) => ensureNumber(point.averageDays));
-    const projectCounts = orderedSeries.map((point) => Math.max(0, Math.round(point.projectCount ?? 0)));
+      const medianValues = orderedSeries.map((point) => ensureNumber(point.medianDays));
+      const averageValues = orderedSeries.map((point) => ensureNumber(point.averageDays));
+      const projectCounts = orderedSeries.map((point) => Math.max(0, Math.round(point.projectCount ?? 0)));
 
-    const emphasisColors = medianValues.map((_, index) => (index < 3 ? '#1d4ed8' : '#93c5fd'));
-    const emphasisBorders = medianValues.map((_, index) => (index < 3 ? '#1d4ed8' : '#bfdbfe'));
+      const palette = getPalette();
+      const emphasisColors = medianValues.map((_, index) => (index < 3 ? getAccentColor(0) : getAccentColor(1)));
+      const emphasisBorders = medianValues.map((_, index) => (index < 3 ? getAccentColor(0) : getAccentColor(1)));
 
-    new window.Chart(canvas.getContext('2d'), {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [
-          {
+      renderWithTheme(canvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
             label: 'Median days to finish stage',
             data: medianValues,
             backgroundColor: emphasisColors,
@@ -936,26 +1008,29 @@ function initStageHotspotsChart() {
         ]
       },
       options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            beginAtZero: true,
-            title: { display: true, text: 'Median days in stage' },
-            ticks: {
-              precision: 0
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              beginAtZero: true,
+              title: { display: true, text: 'Median days in stage', color: palette.axisColor },
+              ticks: {
+                precision: 0,
+                color: palette.axisColor
+              },
+              grid: { color: palette.gridColor }
+            },
+            y: {
+              grid: { display: false },
+              ticks: {
+                autoSkip: false,
+                color: palette.axisColor
+              }
             }
           },
-          y: {
-            grid: { display: false },
-            ticks: {
-              autoSkip: false
-            }
-          }
-        },
-        plugins: {
-          legend: { display: false },
+          plugins: {
+            legend: { display: false },
           tooltip: {
             callbacks: {
               title: createStageTooltipTitle(stageAxisPoints),
@@ -991,7 +1066,7 @@ function initStageHotspotsChart() {
 // END SECTION
 
 // SECTION: Analytics bootstrap
-document.addEventListener('DOMContentLoaded', () => {
+function hydrateAnalytics() {
   const page = document.querySelector('.analytics-page');
   if (!page) {
     return;
@@ -1006,5 +1081,16 @@ document.addEventListener('DOMContentLoaded', () => {
   } else if (document.querySelector('.analytics-panel--insights')) {
     initStageTimeInsights();
   }
-});
+}
+
+function initAnalyticsBootstrap() {
+  hydrateAnalytics();
+  window.addEventListener('pm-theme-changed', hydrateAnalytics);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initAnalyticsBootstrap, { once: true });
+} else {
+  initAnalyticsBootstrap();
+}
 // END SECTION
