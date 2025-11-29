@@ -232,7 +232,7 @@
 .skeleton {
   position: relative;
   overflow: hidden;
-  background-color: var(--pm-border-subtle);
+  background-color: var(--pm-skeleton);
   border-radius: 0.75rem;
   height: 100%;
 }
