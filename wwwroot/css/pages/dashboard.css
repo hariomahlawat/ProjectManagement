@@ -1,10 +1,32 @@
-﻿/* SECTION: Dashboard layout spacing */
+/* SECTION: Dashboard surface & card shell */
 
 /* Shared vertical rhythm tokens for all four circled gaps */
 .dashboard {
     --dashboard-gap-small: clamp(1.9rem, 2.1vw, 2.3rem); /* 1 & 2 */
     --dashboard-gap-large: clamp(2.4rem, 2.8vw, 3rem); /* 3 & 4 */
 }
+
+/* Base shell for dashboard cards to match Analytics polish */
+.dashboard-card-shell,
+.ppulse,
+.ops-signals__tile,
+.ffc-simulator-map-widget,
+.todo-widget,
+.search-health-card,
+.dashboard-my-projects__projects {
+    background: var(--pm-surface-elevated);
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+/* Light, cool dashboard canvas behind the cards */
+.analytics-main {
+    background: var(--pm-surface-steel);
+}
+/* END SECTION */
+
+/* SECTION: Dashboard layout spacing */
 
 /* Circle 1: header → Project pulse; also kill Bootstrap's vertical gutter */
 .row.dashboard {
@@ -134,6 +156,27 @@
 }
 /* END SECTION */
 
+/* SECTION: Dashboard right column softening */
+.dashboard-sidebar .card-body,
+.dashboard-sidebar .pm-card-body {
+    padding: 1rem 1.25rem;
+}
+
+.dashboard-sidebar .btn-primary {
+    border-radius: 999px;
+    padding-inline: 1.05rem;
+}
+
+.todo-widget .todo-badge {
+    background: var(--pm-chip-bg);
+    color: var(--pm-chip-text, var(--pm-text));
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+/* END SECTION */
+
 /* SECTION: Dashboard - My projects */
 .dashboard-my-projects {
     display: flex;
@@ -145,10 +188,11 @@
 }
 
 .dashboard-my-projects__projects {
-    border: 1px solid var(--pm-border);
-    border-radius: 1rem;
-    background-color: var(--pm-card);
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 18px;
+    background-color: var(--pm-surface-elevated);
     padding: 1rem 1.25rem;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
 }
 
 .dashboard-my-projects__section + .dashboard-my-projects__section {

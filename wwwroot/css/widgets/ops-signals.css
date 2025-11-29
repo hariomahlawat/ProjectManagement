@@ -35,14 +35,15 @@
   display: flex;
   flex-direction: column;
   gap: var(--ops-gap-xs);
-  background: var(--pm-card);
-  border: 1px solid var(--pm-border, var(--pm-border));
-  border-radius: 12px;
-  padding: 12px 14px;
+  background: var(--pm-surface-elevated);
+  border: 1px solid var(--pm-border-muted, var(--pm-border));
+  border-radius: 16px;
+  padding: 1rem 1.1rem;
   color: inherit;
   text-decoration: none;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  min-height: 120px;
 }
 
 .ops-signals__tile:hover {
@@ -76,12 +77,13 @@
   display: flex;
   align-items: baseline;
   gap: 6px;
+  justify-content: space-between;
 }
 
 .ops-signals__num {
   font-weight: 700;
-  font-size: 1.4rem;
-  letter-spacing: 0.02em;
+  font-size: 1.45rem;
+  letter-spacing: 0.01em;
 }
 
 .ops-signals__unit {
@@ -95,7 +97,7 @@
 }
 
 .ops-signals__spark {
-  height: 40px;
+  height: 36px;
 }
 
 .ops-signals__delta {
