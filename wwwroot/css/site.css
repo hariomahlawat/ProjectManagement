@@ -34,6 +34,7 @@
     --pm-surface-mint: #f0f7f3;
     --pm-surface-violet: #f7f1ff;
     --pm-card: #ffffff;
+    --pm-skeleton: #e5e7eb;
 
     /* -- SECTION: Text -- */
     --pm-text: #0b1220;
@@ -216,7 +217,7 @@
     --pm-surface-soft: #020617;
     --pm-surface-subtle: #0b1220;
     --pm-surface-elevated: #0f172a;
-    --pm-surface-contrast: #0f172a;
+    --pm-surface-contrast: #020617;
     --pm-surface-muted: #111827;
     --pm-surface-veil: #111827;
     --pm-surface-plain: #0f172a;
@@ -232,6 +233,7 @@
     --pm-surface-mint: #0f172a;
     --pm-surface-violet: #1e1b4b;
     --pm-card: #020617;
+    --pm-skeleton: #111827;
 
     /* -- SECTION: Text -- */
     --pm-text: #e5e7eb;
@@ -250,7 +252,7 @@
     --pm-text-project-muted: #a5b4fc;
 
     /* -- SECTION: Borders & dividers -- */
-    --pm-border: #374151;
+    --pm-border: #1f2937;
     --pm-border-subtle: #1f2937;
     --pm-border-strong: #4b5563;
     --pm-border-muted: #1f2937;
