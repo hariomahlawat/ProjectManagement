@@ -94,6 +94,25 @@
     --pm-info-soft-border: #bae6fd;
     --pm-info-contrast: #055160;
 
+    /* -- SECTION: Semantic status & chips -- */
+    --pm-status-success-bg: #dcfce7;
+    --pm-status-success-text: #166534;
+
+    --pm-status-warning-bg: #fef3c7;
+    --pm-status-warning-text: #92400e;
+
+    --pm-status-danger-bg: #fee2e2;
+    --pm-status-danger-text: #b91c1c;
+
+    --pm-status-info-bg: #dbeafe;
+    --pm-status-info-text: #1d4ed8;
+
+    --pm-chip-bg: var(--pm-surface-contrast);
+    --pm-chip-text: var(--pm-text-secondary);
+    --pm-chip-border: rgba(148, 163, 184, 0.6);
+
+    --pm-divider: rgba(148, 163, 184, 0.4);
+
     /* -- SECTION: Accents & category colors -- */
     --pm-accent-blue: #3b82f6;
     --pm-accent-blue-strong: #2563eb;
@@ -292,6 +311,25 @@
     --pm-info-soft-text: #bae6fd;
     --pm-info-soft-border: #0ea5e9;
     --pm-info-contrast: #22d3ee;
+
+    /* -- SECTION: Semantic status & chips -- */
+    --pm-status-success-bg: rgba(22, 163, 74, 0.18);
+    --pm-status-success-text: #bbf7d0;
+
+    --pm-status-warning-bg: rgba(245, 158, 11, 0.18);
+    --pm-status-warning-text: #fed7aa;
+
+    --pm-status-danger-bg: rgba(248, 113, 113, 0.2);
+    --pm-status-danger-text: #fecaca;
+
+    --pm-status-info-bg: rgba(59, 130, 246, 0.22);
+    --pm-status-info-text: #bfdbfe;
+
+    --pm-chip-bg: #020617;
+    --pm-chip-text: #e5e7eb;
+    --pm-chip-border: rgba(148, 163, 184, 0.4);
+
+    --pm-divider: rgba(55, 65, 81, 0.8);
 
     /* -- SECTION: Accents & category colors -- */
     --pm-accent-blue: #60a5fa;

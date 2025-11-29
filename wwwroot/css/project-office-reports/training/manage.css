@@ -1,3 +1,23 @@
+/* NOTE:
+   Do not use hard-coded colour values here.
+   Always use CSS variables defined in site.css (var(--pm-…)).
+   If a new colour is needed, define a token in site.css first.
+*/
+
+:root {
+  /* -- SECTION: Training theme tokens -- */
+  --training-primary-veil: color-mix(in srgb, var(--pm-primary) 8%, transparent);
+  --training-primary-wash-soft: color-mix(in srgb, var(--pm-primary) 12%, transparent);
+  --training-primary-wash-strong: color-mix(in srgb, var(--pm-primary) 15%, transparent);
+  --training-primary-ribbon: color-mix(in srgb, var(--pm-primary) 45%, transparent);
+  --training-primary-outline: color-mix(in srgb, var(--pm-primary) 10%, transparent);
+  --training-text-muted: color-mix(in srgb, var(--pm-text) 60%, transparent);
+  --training-divider-subtle: color-mix(in srgb, var(--pm-border-muted) 70%, transparent);
+  --training-shadow-strong: color-mix(in srgb, var(--pm-text) 15%, transparent);
+  --training-control-hover: color-mix(in srgb, var(--pm-text) 12%, transparent);
+}
+
+/* -- SECTION: Async multiselect -- */
 .async-multiselect {
   position: relative;
   display: flex;
@@ -12,7 +32,7 @@
 
 .async-multiselect:focus-within {
   border-color: var(--bs-primary, var(--pm-primary-strong));
-  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+  box-shadow: 0 0 0 0.25rem var(--training-primary-outline);
 }
 
 .async-multiselect__chips {
@@ -30,7 +50,7 @@
   gap: 0.4rem;
   padding: 0.35rem 0.75rem;
   border-radius: 999px;
-  background-color: var(--bs-primary-bg-subtle, rgba(13, 110, 253, 0.15));
+  background-color: var(--bs-primary-bg-subtle, var(--training-primary-wash-strong));
   color: var(--bs-primary-text-emphasis, var(--pm-primary-hover));
   font-size: 0.8125rem;
 }
@@ -55,7 +75,7 @@
 
 .async-multiselect__remove:hover,
 .async-multiselect__remove:focus {
-  background-color: rgba(0, 0, 0, 0.08);
+  background-color: var(--training-control-hover);
   color: inherit;
 }
 
@@ -86,7 +106,7 @@
   background-color: var(--pm-card);
   border: 1px solid var(--bs-border-color, var(--pm-border-alt));
   border-radius: 0.5rem;
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  box-shadow: 0 0.5rem 1rem var(--training-shadow-strong);
   max-height: 16rem;
   overflow-y: auto;
   display: none;
@@ -111,7 +131,7 @@
 .async-multiselect__option:hover,
 .async-multiselect__option:focus,
 .async-multiselect__option--active {
-  background-color: var(--bs-primary-bg-subtle, rgba(13, 110, 253, 0.12));
+  background-color: var(--bs-primary-bg-subtle, var(--training-primary-wash-soft));
 }
 
 .async-multiselect__option[disabled],
@@ -237,8 +257,8 @@
 }
 
 .kpi-card {
-  background: linear-gradient(160deg, rgba(13, 110, 253, 0.08), rgba(13, 110, 253, 0));
-  border: 1px solid rgba(13, 110, 253, 0.1);
+  background: linear-gradient(160deg, var(--training-primary-veil), transparent);
+  border: 1px solid var(--training-primary-outline);
   border-radius: 1rem;
 }
 
@@ -246,7 +266,7 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(33, 37, 41, 0.6);
+  color: var(--training-text-muted);
   margin-bottom: 0.5rem;
 }
 
@@ -262,18 +282,22 @@
 
 .kpi-meta {
   font-size: 0.85rem;
-  color: rgba(33, 37, 41, 0.6);
+  color: var(--training-text-muted);
 }
 
 .section-heading .heading-accent {
   width: 0.5rem;
   height: 2rem;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(13, 110, 253, 0.45), rgba(13, 110, 253, 0));
+  background: linear-gradient(180deg, var(--training-primary-ribbon), transparent);
 }
 
 .empty-state {
-  background: linear-gradient(160deg, rgba(233, 236, 239, 0.5), rgba(233, 236, 239, 0));
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--pm-surface-muted) 50%, transparent),
+    transparent
+  );
   border-radius: 1rem;
 }
 
@@ -282,11 +306,11 @@
   text-transform: uppercase;
   font-size: 0.75rem;
   letter-spacing: 0.08em;
-  color: rgba(33, 37, 41, 0.6);
+  color: var(--training-text-muted);
 }
 
 .training-table tbody tr + tr {
-  border-top: 1px solid rgba(222, 226, 230, 0.7);
+  border-top: 1px solid var(--pm-divider);
 }
 
 .training-table .badge {
@@ -296,7 +320,7 @@
 }
 
 .badge.bg-soft-primary {
-  background-color: rgba(13, 110, 253, 0.1);
+  background-color: var(--training-primary-outline);
   color: var(--bs-primary, var(--pm-primary-strong)) !important;
 }
 
