@@ -71,7 +71,7 @@
 }
 
 .proc-diagram__canvas .flow-connector.is-selected-edge {
-  stroke: #4c7dff;
+  stroke: var(--pm-accent-blue-bolder);
   stroke-width: 1.9;
 }
 
@@ -99,18 +99,18 @@
 }
 
 .proc-diagram__canvas .flow-node--terminator .flow-node__body {
-  fill: #eef4ff;
-  stroke: #94b6ff;
+  fill: var(--pm-accent-blue-tint);
+  stroke: var(--pm-accent-blue-glow);
 }
 
 .proc-diagram__canvas .flow-node--process .flow-node__body {
-  fill: #f0f7f3;
-  stroke: #7cc4a5;
+  fill: var(--pm-surface-mint);
+  stroke: var(--pm-accent-mint);
 }
 
 .proc-diagram__canvas .flow-node--decision .flow-node__body {
-  fill: #f7f1ff;
-  stroke: #b89ce5;
+  fill: var(--pm-surface-violet);
+  stroke: var(--pm-accent-lavender);
 }
 
 .proc-diagram__canvas .flow-node.is-optional .flow-node__body {
@@ -118,7 +118,7 @@
 }
 
 .proc-diagram__canvas .flow-node.is-selected .flow-node__body {
-  stroke: #4c7dff;
+  stroke: var(--pm-accent-blue-bolder);
   fill: rgba(76, 125, 255, 0.12);
 }
 

@@ -38,7 +38,7 @@
   height: 12px;
   border-radius: 50%;
   background: var(--bs-gray-400);
-  border: 2px solid #fff;
+  border: 2px solid var(--pm-card);
   box-shadow: 0 0 0 2px var(--bs-gray-300);
 }
 

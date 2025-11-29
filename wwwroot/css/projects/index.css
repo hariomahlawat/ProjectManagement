@@ -1,8 +1,8 @@
 .projects-hero {
     position: relative;
     border-radius: 1.25rem;
-    background: linear-gradient(120deg, #f6e9ff 0%, #e8f5ff 60%, #fff5e5 100%);
-    color: #2d2a44;
+    background: linear-gradient(120deg, var(--pm-project-hero-gradient-start) 0%, var(--pm-project-hero-gradient-mid) 60%, var(--pm-card)5e5 100%);
+    color: var(--pm-accent-indigo);
     padding: clamp(0.75rem, 1.5vw + 0.65rem, 1.5rem) clamp(1.25rem, 4vw, 2.5rem);
     margin-bottom: 1.5rem;
     overflow: hidden;
@@ -109,7 +109,7 @@
     font-size: 1.25rem;
     font-weight: 700;
     line-height: 1.1;
-    color: #1f1b38;
+    color: var(--pm-text-project);
 }
 
 .projects-stat__hint {
@@ -133,7 +133,7 @@
     border-radius: 999px;
     padding: 0.5rem 1.1rem;
     background-color: rgba(198, 211, 255, 0.35);
-    color: #2c2a42;
+    color: var(--pm-project-ink);
     border: 1px solid rgba(156, 171, 228, 0.4);
     transition: all 0.2s ease-in-out;
 }
@@ -141,19 +141,19 @@
 .projects-tabs__link:hover,
 .projects-tabs__link:focus {
     background-color: rgba(198, 211, 255, 0.6);
-    color: #1f1b38;
+    color: var(--pm-text-project);
 }
 
 .projects-tabs__link.active {
-    background: linear-gradient(120deg, #c8d5ff 0%, #f5d4ff 100%);
-    color: #2d2a44;
+    background: linear-gradient(120deg, var(--pm-project-hero-accent-1) 0%, var(--pm-project-hero-accent-2) 100%);
+    color: var(--pm-accent-indigo);
     box-shadow: 0 0.5rem 1.25rem rgba(198, 213, 255, 0.35);
     border-color: transparent;
 }
 
 .projects-tabs__link.active .projects-tabs__count {
     background-color: rgba(255, 255, 255, 0.65);
-    color: #2d2a44;
+    color: var(--pm-accent-indigo);
 }
 
 .projects-tabs__label {
@@ -171,11 +171,11 @@
     background-color: rgba(198, 211, 255, 0.5);
     font-size: 0.85rem;
     font-weight: 600;
-    color: #2b2a55;
+    color: var(--pm-project-ink-strong);
 }
 
 .projects-filter {
-    background-color: #ffffff;
+    background-color: var(--pm-card)fff;
     border-radius: 1.25rem;
     padding: 1.5rem;
     margin-bottom: 1.5rem;
@@ -271,7 +271,7 @@
 }
 
 .projects-active-filters {
-    background-color: #ffffff;
+    background-color: var(--pm-card)fff;
     border-radius: 1.25rem;
     padding: 1rem 1.25rem;
     display: flex;
@@ -283,7 +283,7 @@
 
 .projects-active-filters__label {
     font-weight: 600;
-    color: #1b1f3b;
+    color: var(--pm-project-ink-deep);
 }
 
 .projects-active-filters__chips {
@@ -304,16 +304,16 @@
     gap: 0.5rem;
     flex-wrap: wrap;
     font-size: 0.95rem;
-    color: #1f223c;
+    color: var(--pm-project-ink-muted);
 }
 
 .projects-empty-state {
     text-align: center;
-    background-color: #ffffff;
+    background-color: var(--pm-card)fff;
     border-radius: 1.5rem;
     padding: 3rem 1.5rem;
     border: 1px dashed rgba(44, 91, 255, 0.4);
-    color: #23264a;
+    color: var(--pm-project-ink-alt);
 }
 
 .projects-empty-state__icon {
@@ -325,7 +325,7 @@
     align-items: center;
     justify-content: center;
     font-size: 1.5rem;
-    color: #2c5bff;
+    color: var(--pm-accent-blue-bolder);
     margin-bottom: 1rem;
 }
 
@@ -337,7 +337,7 @@
 
 .projects-empty-state__subtitle {
     margin: 0;
-    color: #6c7093;
+    color: var(--pm-text-project-muted);
 }
 
 .projects-grid {
@@ -347,7 +347,7 @@
 }
 
 .projects-card {
-    background-color: #ffffff;
+    background-color: var(--pm-card)fff;
     border-radius: 1rem;
     display: flex;
     gap: 1rem;
@@ -366,12 +366,12 @@
     flex: 0 0 92px;
     height: 92px;
     border-radius: 0.75rem;
-    background-color: #f3f5ff;
+    background-color: var(--pm-project-surface);
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    color: #9aa2d8;
+    color: var(--pm-project-muted);
     font-size: 1.75rem;
 }
 
@@ -410,7 +410,7 @@
 
 .projects-card__title a:hover,
 .projects-card__title a:focus {
-    color: #2c5bff;
+    color: var(--pm-accent-blue-bolder);
 }
 
 .projects-card__header {
@@ -436,7 +436,7 @@
     flex-wrap: wrap;
     gap: 0.75rem;
     font-size: 0.82rem;
-    color: #5d6285;
+    color: var(--pm-project-text);
 }
 
 .projects-card__info-item,
@@ -449,12 +449,12 @@
 
 .projects-card__info-item i,
 .projects-card__status-item i {
-    color: #7d85b4;
+    color: var(--pm-project-text-soft);
 }
 
 .projects-card__remark {
     margin-top: 0.2rem;
-    background-color: #f7f8ff;
+    background-color: var(--pm-project-surface);
     border-radius: 0.75rem;
     padding: 0.65rem 0.75rem;
     display: flex;
@@ -470,25 +470,25 @@
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    color: #5860a8;
+    color: var(--pm-project-text-contrast);
 }
 
 .projects-card__remark-text {
     margin: 0;
     font-size: 0.85rem;
-    color: #353a5d;
+    color: var(--pm-project-text-deep);
     line-height: 1.35;
 }
 
 .projects-card__remark-meta {
     font-size: 0.75rem;
-    color: #6c7093;
+    color: var(--pm-text-project-muted);
 }
 
 .projects-card__remark-empty {
     margin: 0;
     font-size: 0.82rem;
-    color: #8b8fb3;
+    color: var(--pm-project-text-fade);
     font-style: italic;
 }
 
@@ -517,7 +517,7 @@
 }
 
 .projects-pagination .page-item.active .page-link {
-    background: linear-gradient(120deg, #2c5bff 0%, #5f2cff 100%);
+    background: linear-gradient(120deg, var(--pm-accent-blue-bolder) 0%, var(--pm-project-royal) 100%);
     border-color: transparent;
 }
 
@@ -538,7 +538,7 @@
 }
 
 /* ===========================
-   Remark preview – styled mentions
+   Remark preview  styled mentions
    =========================== */
 
 .projects-card__remark-text {
@@ -559,7 +559,7 @@
         line-height: 1.25rem;
         border-radius: 999px;
         background: rgba(45,108,223,.12); /* fallback if tokens absent */
-        color: #1f3a93;
+        color: var(--pm-project-link);
         font-weight: 600;
         font-size: .82em; /* a bit smaller than body */
         vertical-align: baseline;
@@ -584,7 +584,7 @@
 @media (prefers-color-scheme: dark) {
     .projects-card__remark-text .remark-mention {
         background: rgba(99,139,255,.18);
-        color: #dfe7ff;
+        color: var(--pm-project-border);
         border-color: rgba(99,139,255,.32);
     }
 }
@@ -593,6 +593,6 @@
 .projects-card__remark-meta {
     margin-top: .25rem;
     font-size: .85rem;
-    color: #6b7280;
+    color: var(--pm-text-muted);
 }
 

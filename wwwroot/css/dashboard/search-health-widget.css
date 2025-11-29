@@ -19,12 +19,12 @@
 
 .search-health__divider {
     border: 0;
-    border-top: 1px solid #e9edf2;
+    border-top: 1px solid var(--pm-project-border-soft);
     opacity: 0.45; /* lighter divider for compact card */
 }
 
 .search-health-empty {
-    color: #475569;
+    color: var(--pm-accent-slate-strong);
 }
 /* END SECTION */
 

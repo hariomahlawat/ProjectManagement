@@ -1,13 +1,161 @@
 /* ---------- Base tokens ---------- */
 :root {
+    /* -- SECTION: Brand & core palette -- */
     --pm-primary: #2d6cdf;
     --pm-primary-hover: #2558c6;
+    --pm-primary-strong: #0d6efd;
+
+    /* -- SECTION: Neutrals & surfaces -- */
+    --pm-surface: #f5f7fb;
+    --pm-surface-soft: #f9fafb;
+    --pm-surface-subtle: #f3f4f6;
+    --pm-surface-elevated: #ffffff;
+    --pm-surface-contrast: #f8fafc;
+    --pm-surface-muted: #f1f3f5;
+    --pm-surface-veil: #eef0f3;
+    --pm-surface-plain: #f5f5f5;
+    --pm-surface-foam: #f5f8ff;
+    --pm-surface-lilac: #ede9fe;
+    --pm-surface-ice: #e6e9f0;
+    --pm-surface-steel: #f4f6fb;
+    --pm-surface-haze: #e6e8ec;
+    --pm-surface-mist: #f2f4f7;
+    --pm-surface-silver: #edf1f5;
+    --pm-surface-ghost: #eef1f7;
+    --pm-surface-porcelain: #eef2f7;
+    --pm-surface-mint: #f0f7f3;
+    --pm-surface-violet: #f7f1ff;
+    --pm-card: #ffffff;
+
+    /* -- SECTION: Text -- */
     --pm-text: #0b1220;
     --pm-text-secondary: #4b5563;
+    --pm-text-muted: #6b7280;
     --pm-muted: #6b7280;
+    --pm-text-contrast: #0f172a;
+    --pm-text-inverted: #ffffff;
+    --pm-text-tertiary: #6c757d;
+    --pm-text-muted-strong: #5c7080;
+    --pm-text-dim: #555555;
+    --pm-text-true: #000000;
+    --pm-text-gray-soft: #7b8794;
+    --pm-text-slate: #374151;
+    --pm-text-project: #1f1b38;
+    --pm-text-project-muted: #6c7093;
+
+    /* -- SECTION: Borders & dividers -- */
     --pm-border: #e5e7eb;
-    --pm-surface: #f5f7fb;
-    --pm-card: #ffffff;
+    --pm-border-subtle: #f3f4f6;
+    --pm-border-strong: #d1d5db;
+    --pm-border-muted: #e2e8f0;
+    --pm-border-faint: #e9ecef;
+    --pm-border-alt: #ced4da;
+    --pm-border-soft: #dadce0;
+    --pm-border-outline: #d9dfe8;
+
+    /* -- SECTION: Status colors -- */
+    --pm-success: #16a34a;
+    --pm-success-strong: #166534;
+    --pm-success-soft-bg: #f0fdf4;
+    --pm-success-soft-text: #166534;
+    --pm-success-soft-border: #bbf7d0;
+    --pm-success-contrast: #15803d;
+
+    --pm-warning: #f59e0b;
+    --pm-warning-strong: #854d0e;
+    --pm-warning-soft-bg: #fef3c7;
+    --pm-warning-soft-text: #854d0e;
+    --pm-warning-soft-border: #fcd34d;
+    --pm-warning-muted: #92400e;
+    --pm-warning-contrast: #664d03;
+
+    --pm-danger: #b91c1c;
+    --pm-danger-strong: #7f1d1d;
+    --pm-danger-soft-bg: #fee2e2;
+    --pm-danger-soft-text: #7f1d1d;
+    --pm-danger-soft-border: #fca5a5;
+    --pm-danger-emphasis: #ef4444;
+    --pm-danger-invert: #842029;
+    --pm-danger-accent: #dc3545;
+
+    --pm-info: #0ea5e9;
+    --pm-info-strong: #0369a1;
+    --pm-info-soft-bg: #e0f2fe;
+    --pm-info-soft-text: #0c4a6e;
+    --pm-info-soft-border: #bae6fd;
+    --pm-info-contrast: #055160;
+
+    /* -- SECTION: Accents & category colors -- */
+    --pm-accent-blue: #3b82f6;
+    --pm-accent-blue-strong: #2563eb;
+    --pm-accent-blue-bolder: #1d4ed8;
+    --pm-accent-blue-soft-1: #9bbdff;
+    --pm-accent-blue-soft-2: #c7dcff;
+    --pm-accent-blue-soft-3: #d7e4ff;
+    --pm-accent-blue-tint: #eef4ff;
+    --pm-accent-blue-muted: #aecbfa;
+    --pm-accent-blue-glow: #94b6ff;
+    --pm-accent-indigo: #3730a3;
+    --pm-accent-indigo-bright: #4f46e5;
+    --pm-accent-indigo-deep: #1e1b4b;
+    --pm-accent-indigo-night: #312e81;
+    --pm-accent-purple: #8b5cf6;
+    --pm-accent-pink-soft: #f472b6;
+    --pm-accent-pink: #ec4899;
+    --pm-accent-teal: #14b8a6;
+    --pm-accent-teal-soft: #bafdf5;
+    --pm-accent-teal-strong: #04505a;
+    --pm-accent-amber: #f59e0b;
+    --pm-accent-amber-soft: #ffe9b0;
+    --pm-accent-slate: #94a3b8;
+    --pm-accent-slate-strong: #475569;
+    --pm-accent-slate-mid: #64748b;
+    --pm-accent-ffc: #5b21b6;
+    --pm-accent-highlight-soft: #ffffcc;
+    --pm-accent-info-muted: #cff4fc;
+    --pm-accent-info-soft: #dbeafe;
+    --pm-accent-success-strong: #2f9e44;
+    --pm-accent-danger-strong: #e03131;
+    --pm-accent-navy: #0b4b94;
+    --pm-accent-navy-strong: #0a3c91;
+    --pm-accent-navy-shadow: #1f2a3e;
+    --pm-accent-gold-dark: #5f4800;
+    --pm-accent-mint: #7cc4a5;
+    --pm-accent-lavender: #b89ce5;
+
+    /* -- SECTION: Project palette -- */
+    --pm-project-hero-gradient-start: #f6e9ff;
+    --pm-project-hero-gradient-mid: #e8f5ff;
+    --pm-project-hero-accent-1: #c8d5ff;
+    --pm-project-hero-accent-2: #f5d4ff;
+    --pm-project-ink: #2c2a42;
+    --pm-project-ink-strong: #2b2a55;
+    --pm-project-ink-deep: #1b1f3b;
+    --pm-project-ink-muted: #1f223c;
+    --pm-project-ink-alt: #23264a;
+    --pm-project-surface: #f3f5ff;
+    --pm-project-muted: #9aa2d8;
+    --pm-project-text: #5d6285;
+    --pm-project-text-soft: #7d85b4;
+    --pm-project-text-contrast: #5860a8;
+    --pm-project-text-deep: #353a5d;
+    --pm-project-text-fade: #8b8fb3;
+    --pm-project-royal: #5f2cff;
+    --pm-project-link: #1f3a93;
+    --pm-project-border: #dfe7ff;
+    --pm-project-border-soft: #e9edf2;
+
+    /* -- SECTION: Charts & widgets -- */
+    --pm-chart-grid: #e5e7eb;
+    --pm-chart-axis: #94a3b8;
+    --pm-chart-accent-1: #3b82f6;
+    --pm-chart-accent-2: #0ea5e9;
+    --pm-chart-accent-3: #f59e0b;
+    --pm-chart-accent-4: #8b5cf6;
+    --pm-chart-accent-5: #ec4899;
+    --pm-chart-accent-6: #14b8a6;
+
+    /* -- SECTION: Effects & typography -- */
     --pm-shadow: 0 8px 20px rgba(0,0,0,.06);
     --pm-font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
     /* GitHub-aligned system font stack and typographic scale */

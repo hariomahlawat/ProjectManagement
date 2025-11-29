@@ -7,7 +7,7 @@
     padding: 24px;
     max-width: 820px;
     margin: 0 auto;
-    border: 1px solid #e9ecef;
+    border: 1px solid var(--pm-border-faint);
 }
 
 /* ===========================
@@ -18,7 +18,7 @@
     align-items: center;
     gap: 16px;
     padding-bottom: 16px;
-    border-bottom: 1px solid #f1f3f5;
+    border-bottom: 1px solid var(--pm-surface-muted);
 }
 
 .developer-logo {
@@ -34,7 +34,7 @@
 }
 
 .developer-tagline {
-    color: #6c757d;
+    color: var(--pm-text-tertiary);
     font-size: 0.95rem;
 }
 
@@ -68,8 +68,8 @@
 }
 
 .pill {
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
+    background: var(--pm-surface-contrast);
+    border: 1px solid var(--pm-border-faint);
     padding: 6px 10px;
     border-radius: 999px;
     font-size: 0.85rem;
@@ -82,12 +82,12 @@
 .developer-footer {
     margin-top: 18px;
     padding-top: 12px;
-    border-top: 1px solid #f1f3f5;
+    border-top: 1px solid var(--pm-surface-muted);
     display: flex;
     justify-content: space-between;
     font-size: 0.85rem;
 }
 
 .developer-footer .muted {
-    color: #6c757d;
+    color: var(--pm-text-tertiary);
 }

@@ -7,8 +7,8 @@
     }
 
     body {
-        background: #ffffff !important;
-        color: #000000;
+        background: var(--pm-card)fff !important;
+        color: var(--pm-text-true);
     }
 
     header.pm-topbar,
@@ -27,7 +27,7 @@
 
     .progress-review .card {
         box-shadow: none !important;
-        border: 1px solid #dfe5ef;
+        border: 1px solid var(--pm-border-outline);
         page-break-inside: avoid;
     }
 
@@ -36,6 +36,6 @@
     }
 
     .progress-review__table thead th {
-        background: #f5f7fb !important;
+        background: var(--pm-surface) !important;
     }
 }

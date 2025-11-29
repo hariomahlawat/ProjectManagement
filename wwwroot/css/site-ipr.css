@@ -3,7 +3,7 @@
     padding: 0.25rem 0.5rem;
     border-radius: 999px;
     border: 1px solid var(--bs-border-color);
-    background: #fff;
+    background: var(--pm-card);
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
@@ -38,10 +38,10 @@
 }
 
 /* --- KPI palette (subtle, accessible) --- */
-.pm-kpi { border:1px solid var(--bs-border-color); border-radius:16px; min-height:108px; padding:12px 14px; background:linear-gradient(180deg,#fff,#f8fafc); }
+.pm-kpi { border:1px solid var(--bs-border-color); border-radius:16px; min-height:108px; padding:12px 14px; background:linear-gradient(180deg,var(--pm-card),var(--pm-surface-contrast)); }
 .pm-kpi__label { font-size:.75rem; letter-spacing:.04em; color:var(--bs-secondary-color); opacity:.85; text-transform:uppercase; }
 .pm-kpi__value { font-weight:700; font-size:1.35rem; line-height:1; }
-.pm-kpi__spark { height:6px; background:#e9ecef; border-radius:999px; overflow:hidden; }
+.pm-kpi__spark { height:6px; background:var(--pm-border-faint); border-radius:999px; overflow:hidden; }
 .pm-kpi__spark-bar {
     display: block;
     height: 100%;
@@ -52,11 +52,11 @@
 
 /* contextual variants (very subtle pastels) */
 .pm-kpi--total      { border-color: var(--bs-border-color); }
-.pm-kpi--filing     { background:linear-gradient(180deg,#f5f8ff 0,#ffffff 85%); border-color:#dfe8ff; }
-.pm-kpi--filed      { background:linear-gradient(180deg,#f3f7ff 0,#ffffff 85%); border-color:#dbe6ff; }
-.pm-kpi--granted    { background:linear-gradient(180deg,#eefaf2 0,#ffffff 85%); border-color:#cfeedd; }
-.pm-kpi--rejected   { background:linear-gradient(180deg,#fff5f5 0,#ffffff 85%); border-color:#ffdede; }
-.pm-kpi--withdrawn  { background:linear-gradient(180deg,#f6f7fa 0,#ffffff 85%); border-color:#e7eaf0; }
+.pm-kpi--filing     { background:linear-gradient(180deg,var(--pm-surface-foam) 0,var(--pm-card)fff 85%); border-color:var(--pm-accent-blue-soft-2); }
+.pm-kpi--filed      { background:linear-gradient(180deg,var(--pm-accent-blue-tint) 0,var(--pm-card)fff 85%); border-color:var(--pm-accent-blue-soft-2); }
+.pm-kpi--granted    { background:linear-gradient(180deg,var(--pm-surface-mint) 0,var(--pm-card)fff 85%); border-color:var(--pm-success-soft-border); }
+.pm-kpi--rejected   { background:linear-gradient(180deg,var(--pm-card)5f5 0,var(--pm-card)fff 85%); border-color:var(--pm-danger-soft-bg); }
+.pm-kpi--withdrawn  { background:linear-gradient(180deg,var(--pm-surface-contrast) 0,var(--pm-card)fff 85%); border-color:var(--pm-border-faint); }
 
 /* Chart container sizing */
 /* Patent tracker – compact twin charts */

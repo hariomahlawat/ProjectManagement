@@ -1,8 +1,8 @@
 :root {
-    --admin-users-bg: var(--bs-primary-bg-subtle, #dbeafe);
-    --admin-analytics-bg: var(--bs-info-bg-subtle, #cff4fc);
-    --admin-logs-bg: var(--bs-warning-bg-subtle, #fef3c7);
-    --admin-card-fg: var(--pm-text, #1f2937);
+    --admin-users-bg: var(--bs-primary-bg-subtle, var(--pm-accent-info-soft));
+    --admin-analytics-bg: var(--bs-info-bg-subtle, var(--pm-accent-info-muted));
+    --admin-logs-bg: var(--bs-warning-bg-subtle, var(--pm-warning-soft-bg));
+    --admin-card-fg: var(--pm-text, var(--pm-text-contrast));
 }
 
 .admin-card {
