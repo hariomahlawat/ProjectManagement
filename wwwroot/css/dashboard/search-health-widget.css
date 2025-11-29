@@ -1,6 +1,7 @@
 /* SECTION: Card layout */
 .search-health-card {
-    border-radius: 0.9rem;
+    border-radius: 18px;
+    border: 1px solid var(--pm-border-muted);
 }
 
 .search-health-card__body {

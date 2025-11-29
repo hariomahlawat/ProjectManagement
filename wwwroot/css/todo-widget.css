@@ -1,16 +1,16 @@
 /* Shared styles for the compact to-do widget used on the dashboard and tasks page */
 .todo-widget {
-    --mission-panel-surface: rgba(255, 255, 255, .95);
-    --mission-panel-border: rgba(13, 110, 253, .22);
-    --mission-panel-shadow: 0 24px 48px -32px rgba(13, 110, 253, .6);
-    --mission-panel-header-bg: linear-gradient(135deg, rgba(13, 110, 253, .12), rgba(25, 135, 84, .08));
+    --mission-panel-surface: var(--pm-surface-elevated);
+    --mission-panel-border: var(--pm-border-muted);
+    --mission-panel-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    --mission-panel-header-bg: linear-gradient(135deg, rgba(13, 110, 253, .08), rgba(25, 135, 84, .05));
     --mission-panel-ring-fill: var(--pm-primary-strong);
     --mission-panel-ring-track: rgba(13, 110, 253, .18);
     --mission-scroll-thumb: rgba(13, 110, 253, .4);
     --todo-row-hover-bg: rgba(13, 110, 253, .08);
     --todo-row-hover-border: rgba(13, 110, 253, .18);
     background-color: var(--mission-panel-surface, var(--pm-card));
-    background-image: linear-gradient(135deg, rgba(13, 110, 253, .08), rgba(111, 66, 193, .05));
+    background-image: none;
     border: 1px solid var(--mission-panel-border);
     box-shadow: var(--mission-panel-shadow);
 }

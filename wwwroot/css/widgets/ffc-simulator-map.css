@@ -1,13 +1,14 @@
 /* SECTION: FFC simulator map widget layout */
 .ffc-simulator-map-widget {
-    border: 0;
-    border-radius: 1rem;
-    background: linear-gradient(135deg, var(--pm-card)fff 0%, var(--pm-project-hero-accent-2) 55%, var(--pm-surface-lilac) 100%);
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 18px;
+    background: var(--pm-surface-elevated);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
     margin-top: 0;
 }
 
     .ffc-simulator-map-widget .pm-card-body {
-        padding: 1.75rem;
+        padding: 1.5rem 1.5rem 1.75rem;
     }
 
 .ffc-simulator-map-widget__header {
@@ -28,6 +29,7 @@
     letter-spacing: 0.08em;
     font-size: 0.75rem;
     color: var(--pm-text-muted);
+    font-weight: 600;
 }
 
 .ffc-simulator-map-widget__stats {
@@ -54,15 +56,17 @@
     font-size: 1.4rem;
     color: var(--pm-accent-indigo-deep);
     line-height: 1.2;
+    letter-spacing: 0.01em;
 }
 
 .ffc-simulator-map {
     position: relative;
     margin-top: 1.5rem;
-    background: var(--pm-surface-contrast);
-    border-radius: 1rem;
+    background: transparent;
+    border-radius: 14px;
     overflow: hidden;
-    border: 1px solid rgba(15, 23, 42, 0.05);
+    border: 1px solid var(--pm-border-muted);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
     min-height: 320px;
 }
 
