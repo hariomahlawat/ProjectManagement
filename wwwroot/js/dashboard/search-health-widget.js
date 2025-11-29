@@ -6,8 +6,29 @@
   }
 
   var ChartCtor = window.Chart;
-  var strokeColor = '#3b82f6';
-  var fillColor = 'rgba(59, 130, 246, 0.06)';
+
+  function getPalette() {
+    if (window.PMTheme && typeof window.PMTheme.getChartPalette === 'function') {
+      return window.PMTheme.getChartPalette();
+    }
+
+    return {
+      axisColor: '#4b5563',
+      gridColor: '#e5e7eb',
+      accents: ['#2563eb', '#f97316', '#22c55e', '#a855f7']
+    };
+  }
+
+  function withAlpha(color, alpha) {
+    var match = (color || '').match(/^#?([a-f\d]{6})$/i);
+    if (!match) { return color; }
+    var hex = match[1];
+    var intVal = parseInt(hex, 16);
+    var r = (intVal >> 16) & 255;
+    var g = (intVal >> 8) & 255;
+    var b = intVal & 255;
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  }
 
   function parseValues(target) {
     try {
@@ -26,6 +47,15 @@
     var canvas = target.querySelector('canvas');
     if (!canvas) {
       return null;
+    }
+
+    var palette = getPalette();
+    var strokeColor = palette.accents[0] || '#2563eb';
+    var fillColor = withAlpha(strokeColor, 0.12);
+
+    var existing = typeof ChartCtor.getChart === 'function' ? ChartCtor.getChart(canvas) : null;
+    if (existing) {
+      existing.destroy();
     }
 
     var min = Math.min.apply(null, values);
@@ -101,6 +131,12 @@
       } else {
         hydrate(holder);
       }
+    });
+
+    window.addEventListener('pm-theme-changed', function () {
+      trendHolders.forEach(function (holder) {
+        hydrate(holder);
+      });
     });
   }
 

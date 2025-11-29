@@ -20,6 +20,36 @@
     return Number(value || 0).toLocaleString(undefined);
   }
 
+  function applyAlpha(color, alpha) {
+    var match = (color || '').match(/^#?([a-f\d]{6})$/i);
+    if (!match) { return color; }
+    var hex = match[1];
+    var intVal = parseInt(hex, 16);
+    var r = (intVal >> 16) & 255;
+    var g = (intVal >> 8) & 255;
+    var b = intVal & 255;
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  }
+
+  function refreshMapPalette() {
+    if (window.PMTheme && typeof window.PMTheme.getMapPalette === 'function') {
+      return window.PMTheme.getMapPalette();
+    }
+
+    return {
+      fillInstalled: '#2563eb',
+      fillDelivered: '#f97316',
+      fillPlanned: '#22c55e',
+      border: '#cbd5e1',
+      highlightBorder: '#4f46e5',
+      legendBackground: '#f8fafc',
+      tooltipBackground: '#ffffff',
+      tooltipText: '#111827'
+    };
+  }
+
+  var mapPalette = refreshMapPalette();
+
   function buildColorScale(maxValue) {
     var safeMax = Math.max(1, maxValue);
     var stops = [
@@ -30,7 +60,15 @@
       Math.ceil(safeMax * 0.65),
       safeMax
     ];
-    var colors = ['#eef2ff', '#c7d2fe', '#a5b4fc', '#818cf8', '#6366f1', '#4f46e5'];
+    var baseFill = mapPalette.fillInstalled || '#4f46e5';
+    var colors = [
+      applyAlpha(baseFill, 0.16),
+      applyAlpha(baseFill, 0.32),
+      applyAlpha(baseFill, 0.48),
+      applyAlpha(baseFill, 0.64),
+      applyAlpha(baseFill, 0.8),
+      baseFill
+    ];
 
     function colorFor(value) {
       var index = 0;
@@ -249,6 +287,9 @@
 
         var legendControlElement = document.createElement('div');
         legendControlElement.className = 'ffc-legend-floating card shadow-sm';
+        legendControlElement.style.background = mapPalette.legendBackground;
+        legendControlElement.style.color = mapPalette.tooltipText;
+        legendControlElement.style.border = '1px solid ' + mapPalette.border;
 
         var legendControlBody = document.createElement('div');
         legendControlBody.className = 'card-body';
@@ -290,17 +331,18 @@
 
         map.addControl(new LegendControl());
 
-        L.rectangle([[-85, -179.9], [85, 179.9]], {
-          color: '#f1f5f9',
+        var mapFrame = L.rectangle([[-85, -179.9], [85, 179.9]], {
+          color: mapPalette.border,
           weight: 1,
-          fillOpacity: 1
+          fillOpacity: 1,
+          fillColor: mapPalette.legendBackground
         }).addTo(map);
 
         function styleFeature() {
           return {
             weight: 1,
-            color: '#cbd5e1',
-            fillColor: '#e2e8f0',
+            color: mapPalette.border,
+            fillColor: mapPalette.legendBackground,
             fillOpacity: 0.2,
             dashArray: '2 2'
           };
@@ -332,7 +374,7 @@
           var scaleValue = valueForScale(entry.data);
           var hasCompleted = totals.completed > 0;
           var hasPlanned = totals.planned > 0;
-          var strokeColor = hasCompleted || hasPlanned ? '#4b5bb5' : '#cbd5e1';
+          var strokeColor = hasCompleted || hasPlanned ? mapPalette.highlightBorder : mapPalette.border;
           var dashArray = hasCompleted ? null : (hasPlanned ? '4 3' : '2 2');
 
           entry.layer.setStyle({
@@ -387,14 +429,14 @@
           layer.bindPopup(popupHtml, { maxWidth: 260, closeButton: true });
           layer.on({
             mouseover: function (event) {
-              event.target.setStyle({ weight: 1.2, color: '#475569' });
+              event.target.setStyle({ weight: 1.2, color: mapPalette.highlightBorder });
             },
             mouseout: function (event) {
               var countryMatch = countries.find(function (entry) { return entry.layer === event.target; });
               if (countryMatch) {
                 applyCountryStyle(countryMatch);
               } else {
-                event.target.setStyle({ weight: 1, color: '#cbd5e1', dashArray: '2 2' });
+                event.target.setStyle({ weight: 1, color: mapPalette.border, dashArray: '2 2' });
               }
             }
           });
@@ -416,6 +458,18 @@
         focusMap(map, 'africa', worldBounds);
         attachZoomControls(map, geoLayer, worldBounds);
         refreshCountryStyles();
+
+        window.addEventListener('pm-theme-changed', function () {
+          mapPalette = refreshMapPalette();
+          legendControlElement.style.background = mapPalette.legendBackground;
+          legendControlElement.style.color = mapPalette.tooltipText;
+          legendControlElement.style.border = '1px solid ' + mapPalette.border;
+          if (mapFrame) {
+            mapFrame.setStyle({ color: mapPalette.border, fillColor: mapPalette.legendBackground });
+          }
+          geoLayer.setStyle(styleFeature);
+          refreshCountryStyles();
+        });
 
         // SECTION: Filters and CTA wiring
         var completedCheckbox = document.getElementById('ffcFilterCompleted');

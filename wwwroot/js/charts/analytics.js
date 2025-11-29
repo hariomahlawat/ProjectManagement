@@ -1,21 +1,48 @@
-export function initCharts() {
-  const el = document.getElementById('loginsPerDayChart');
-  if (!el) return;
+// SECTION: Palette helpers
+function getPalette() {
+  const fallback = {
+    axisColor: '#4b5563',
+    gridColor: '#e5e7eb',
+    accents: ['#2563eb', '#f97316', '#22c55e', '#a855f7']
+  };
 
-  // read serialized arrays from data-* attributes
+  if (window.PMTheme && typeof window.PMTheme.getChartPalette === 'function') {
+    return window.PMTheme.getChartPalette();
+  }
+
+  return fallback;
+}
+// END SECTION
+
+// SECTION: Chart initialiser
+let chartInstance = null;
+
+function initCharts() {
+  const el = document.getElementById('loginsPerDayChart');
+  if (!el || !window.Chart) return;
+
   let labels = [];
   let values = [];
   try {
     labels = JSON.parse(el.dataset.labels || '[]');
     values = JSON.parse(el.dataset.values || '[]');
-  } catch {}
+  } catch {
+    // ignore JSON parsing errors and keep empty arrays
+  }
 
-  // pad to two points so the chart doesn’t look empty on day 1
-  if (labels.length === 1) { labels = [labels[0], labels[0]]; values = [values[0], values[0]]; }
+  if (labels.length === 1) {
+    labels = [labels[0], labels[0]];
+    values = [values[0], values[0]];
+  }
 
-  const ctx = el.getContext('2d');
-  // eslint-disable-next-line no-undef
-  new Chart(ctx, {
+  const palette = getPalette();
+  const lineColor = palette.accents[0] || '#2563eb';
+
+  if (chartInstance) {
+    chartInstance.destroy();
+  }
+
+  chartInstance = new window.Chart(el.getContext('2d'), {
     type: 'line',
     data: {
       labels,
@@ -27,24 +54,42 @@ export function initCharts() {
         pointRadius: 2,
         pointHoverRadius: 3,
         fill: false,
+        borderColor: lineColor,
+        pointBackgroundColor: lineColor
       }]
     },
     options: {
       responsive: true,
-      maintainAspectRatio: false, // use container height
-      plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
-      scales: {
-        x: { grid: { display: false } },
-        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,.06)' }, ticks: { precision: 0 } }
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { mode: 'index', intersect: false }
       },
-      elements: { line: { borderColor: '#1a73e8' }, point: { backgroundColor: '#1a73e8' } }
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: palette.axisColor }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: palette.gridColor },
+          ticks: { precision: 0, color: palette.axisColor }
+        }
+      }
     }
   });
 }
+// END SECTION
 
-// run once DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initCharts, { once: true });
-} else {
+// SECTION: Bootstrap and theme change
+function boot() {
   initCharts();
+  window.addEventListener('pm-theme-changed', initCharts);
 }
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', boot, { once: true });
+} else {
+  boot();
+}
+// END SECTION
