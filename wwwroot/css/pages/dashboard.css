@@ -323,7 +323,7 @@
     height: 40px;
     border-radius: 12px;
     background: rgba(45, 108, 223, 0.08);
-    color: var(--pm-primary, #2d6cdf);
+    color: var(--pm-primary, var(--pm-primary));
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -335,7 +335,7 @@
     margin: 0;
     font-size: 1.05rem;
     letter-spacing: .01em;
-    color: var(--pm-body, #0f172a);
+    color: var(--pm-body, var(--pm-text-contrast));
     font-weight: 700;
 }
 
@@ -349,7 +349,7 @@
     letter-spacing: .04em;
     text-transform: uppercase;
     background: rgba(45, 108, 223, 0.08);
-    color: var(--pm-primary, #2d6cdf);
+    color: var(--pm-primary, var(--pm-primary));
     border: 1px solid rgba(45, 108, 223, 0.35);
     white-space: nowrap;
 }

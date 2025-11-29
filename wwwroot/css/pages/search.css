@@ -19,11 +19,11 @@
 }
 
     .pm-gs-hero__logo span {
-        color: #2d6cdf
+        color: var(--pm-primary)
     }
 
 .pm-gs-hero__tag {
-    color: #6b7280;
+    color: var(--pm-text-muted);
     margin-bottom: 1.75rem
 }
 
@@ -37,14 +37,14 @@
     margin: 0 auto;
     height: 56px;
     padding: 0 8px 0 40px;
-    background: #fff;
-    border: 1px solid #dadce0;
+    background: var(--pm-card);
+    border: 1px solid var(--pm-border-soft);
     border-radius: 9999px;
     box-shadow: none; /* removed */
 }
 
     .pm-gs-search:focus-within {
-        border-color: #aecbfa;
+        border-color: var(--pm-accent-blue-muted);
         box-shadow: 0 0 0 3px rgba(66,133,244,.18); /* single, clean ring */
     }
 
@@ -54,7 +54,7 @@
     top: 50%;
     transform: translateY(-50%);
     font-size: 1rem;
-    color: #9ca3af
+    color: var(--pm-accent-slate)
 }
 
 .pm-gs-search__input {
@@ -78,8 +78,8 @@
     height: 26px;
     border: 0;
     border-radius: 50%;
-    background: #f3f4f6;
-    color: #6b7280;
+    background: var(--pm-border-subtle);
+    color: var(--pm-text-muted);
     line-height: 1;
     cursor: pointer;
     visibility: hidden;
@@ -99,8 +99,8 @@
     padding: 0 18px;
     border: 0;
     border-radius: 999px;
-    background: #216239;
-    color: #fff;
+    background: var(--pm-success-contrast);
+    color: var(--pm-card);
     font-weight: 600;
     box-shadow: none;
     outline: 0
@@ -108,12 +108,12 @@
 
 .pm-gs-top__button {
     height: 44px;
-    background: #2d6cdf
+    background: var(--pm-primary)
 }
 
 /* ---------- TOP BAR (results state) ---------- */
 .pm-gs-top {
-    border-bottom: 1px solid #eef1f5
+    border-bottom: 1px solid var(--pm-surface-silver)
 }
 
 .pm-gs-top__inner {
@@ -136,14 +136,14 @@
     min-width: 320px;
     height: 44px;
     padding: 0 36px 0 40px;
-    background: #fff;
-    border: 1px solid #dadce0;
+    background: var(--pm-card);
+    border: 1px solid var(--pm-border-soft);
     border-radius: 9999px;
     box-shadow: none;
 }
 
     .pm-gs-top__search:focus-within {
-        border-color: #aecbfa;
+        border-color: var(--pm-accent-blue-muted);
         box-shadow: 0 0 0 3px rgba(66,133,244,.18);
     }
 
@@ -153,7 +153,7 @@
     top: 50%;
     transform: translateY(-50%);
     font-size: 1rem;
-    color: #9ca3af
+    color: var(--pm-accent-slate)
 }
 
 .pm-gs-top__input {
@@ -182,17 +182,17 @@
     padding: 0 10px;
     border-radius: 8px;
     font-size: .93rem;
-    color: #374151;
+    color: var(--pm-text-slate);
     text-decoration: none
 }
 
     .pm-gs-tab:hover {
-        background: #f5f7fb
+        background: var(--pm-surface)
     }
 
     .pm-gs-tab.is-active {
-        color: #1f2937;
-        border-bottom: 2px solid #2d6cdf;
+        color: var(--pm-text-contrast);
+        border-bottom: 2px solid var(--pm-primary);
         border-radius: 0
     }
 
@@ -204,20 +204,20 @@
 }
 
 .pm-gs-meta {
-    color: #6b7280;
+    color: var(--pm-text-muted);
     font-size: .9rem;
     margin: .25rem 0 1rem
 }
 
 .pm-gs-hit {
     padding: 1rem 0;
-    border-bottom: 1px solid #f1f3f6
+    border-bottom: 1px solid var(--pm-surface-muted)
 }
 
 .pm-gs-hit__title {
     font-size: 1.25rem;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--pm-text-contrast);
     text-decoration: none
 }
 
@@ -227,7 +227,7 @@
 
 .pm-gs-hit__meta {
     margin-top: .25rem;
-    color: #6b7280;
+    color: var(--pm-text-muted);
     font-size: .92rem;
     display: flex;
     align-items: center;
@@ -236,16 +236,16 @@
 }
 
 .pm-gs-hit__source {
-    color: #2563eb
+    color: var(--pm-accent-blue-strong)
 }
 
 .pm-gs-hit__sep {
-    color: #c0c4cc
+    color: var(--pm-border-alt)
 }
 
 .pm-gs-hit__snippet {
     margin: .35rem 0 0;
-    color: #374151;
+    color: var(--pm-text-slate);
     line-height: 1.55
 }
 
@@ -255,10 +255,10 @@
 }
 
 .pm-gs-nores__box {
-    border: 1px dashed #e5e7eb;
+    border: 1px dashed var(--pm-border);
     border-radius: 12px;
     padding: 1.25rem;
-    background: #fff
+    background: var(--pm-card)
 }
 
 .pm-gs-nores__title {
@@ -269,7 +269,7 @@
 .pm-gs-nores__tips {
     margin: 0;
     padding-left: 1rem;
-    color: #6b7280
+    color: var(--pm-text-muted)
 }
 
 /* ===== Left-leaned layout for results (Google-like) ===== */

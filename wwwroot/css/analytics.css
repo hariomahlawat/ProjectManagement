@@ -5,7 +5,7 @@
 
 /* Analytics */
 .analytics-main {
-  background-color: var(--bs-body-bg, #fff);
+  background-color: var(--bs-body-bg, var(--pm-card));
 }
 
 .analytics-shell {
@@ -323,7 +323,7 @@
 }
 
 .analytics-roadmap__column {
-  background: var(--bs-secondary-bg, #f5f5f5);
+  background: var(--bs-secondary-bg, var(--pm-surface-plain));
   border-radius: 0.9rem;
   padding: 0.85rem 1rem;
 }
@@ -384,7 +384,7 @@
 
 /* SECTION: Analytics header */
 .analytics-header {
-  background: linear-gradient(90deg, #eef3ff 0%, #f5f8ff 60%, #ffffff 100%);
+  background: linear-gradient(90deg, var(--pm-accent-blue-tint) 0%, var(--pm-surface-foam) 60%, var(--pm-card)fff 100%);
   border-radius: 1rem;
   padding: 0.9rem 1.5rem;
   margin-bottom: 1.25rem;
@@ -407,7 +407,7 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #6b7280;
+  color: var(--pm-text-muted);
 }
 
 .analytics-header__title {
@@ -415,14 +415,14 @@
   font-size: 1.35rem;
   font-weight: 700;
   letter-spacing: 0.01em;
-  color: #0f172a;
+  color: var(--pm-text-contrast);
 }
 
 .analytics-header__subtitle {
   margin: 0.25rem 0 0;
   font-size: 0.9rem;
   line-height: 1.5;
-  color: #4b5563;
+  color: var(--pm-text-secondary);
 }
 
 /* Remove or keep for future: metrics layout - currently unused
@@ -598,7 +598,7 @@
 }
 
 .analytics-kpis div {
-  background: var(--bs-secondary-bg, #f5f5f5);
+  background: var(--bs-secondary-bg, var(--pm-surface-plain));
   border-radius: 0.75rem;
   padding: 0.75rem 1rem;
 }
@@ -641,11 +641,11 @@ ul.analytics-top-overdue-list {
   grid-template-columns: 1fr auto;
   gap: 0.25rem 1rem;
   width: 100%;
-  border: 1px solid var(--bs-border-color, #dee2e6);
+  border: 1px solid var(--bs-border-color, var(--pm-border-faint));
   border-radius: 0.75rem;
   padding: 0.75rem 1rem;
   text-align: left;
-  background: #fff;
+  background: var(--pm-card);
   color: inherit;
 }
 

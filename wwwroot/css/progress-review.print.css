@@ -14,8 +14,8 @@
     }
 
     :root {
-        --pr-border: #d9dfe8;
-        --pr-muted: #555;
+        --pr-border: var(--pm-border-outline);
+        --pr-muted: var(--pm-text-dim);
     }
 
     * {
@@ -25,7 +25,7 @@
     body,
     .progress-review-shell,
     .progress-review__canvas {
-        background: #ffffff !important;
+        background: var(--pm-card)fff !important;
     }
 
     .container-xxl,
@@ -77,7 +77,7 @@
     }
 
     .pr-category-header {
-        background: #f0f0f0 !important;
+        background: var(--pm-surface-plain) !important;
     }
 
     .pr-media-thumb {

@@ -11,7 +11,7 @@
 .kpi-card {
     border-radius: 1.25rem;
     padding: 1rem 1.1rem;
-    background: #f8fafc;
+    background: var(--pm-surface-contrast);
     display: flex;
     flex-direction: column;
     gap: .35rem;
@@ -35,27 +35,27 @@
 
 .kpi-card__hint {
     font-size: .65rem;
-    color: #94a3b8;
+    color: var(--pm-accent-slate);
 }
 
 .kpi-card--blue {
-    background: linear-gradient(135deg,#e0edff 0%,#fff 60%);
+    background: linear-gradient(135deg,var(--pm-accent-blue-soft-2) 0%,var(--pm-card) 60%);
 }
 
 .kpi-card--teal {
-    background: linear-gradient(135deg,#d8f3ff 0%,#fff 60%);
+    background: linear-gradient(135deg,var(--pm-accent-info-soft) 0%,var(--pm-card) 60%);
 }
 
 .kpi-card--green {
-    background: linear-gradient(135deg,#dcfce7 0%,#fff 60%);
+    background: linear-gradient(135deg,var(--pm-success-soft-bg) 0%,var(--pm-card) 60%);
 }
 
 .kpi-card--amber {
-    background: linear-gradient(135deg,#fef9c3 0%,#fff 60%);
+    background: linear-gradient(135deg,var(--pm-warning-soft-bg) 0%,var(--pm-card) 60%);
 }
 
 .visit-pill {
-    background: #fff;
+    background: var(--pm-card);
     border: 1px solid rgba(148,163,184,.35);
     border-radius: 9999px;
     padding: .25rem .75rem;

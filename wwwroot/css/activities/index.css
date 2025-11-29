@@ -49,7 +49,7 @@
   font-size: 0.75rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--bs-secondary-color, #6c757d);
+  color: var(--bs-secondary-color, var(--pm-text-tertiary));
 }
 
 .activities-summary__value {
@@ -85,7 +85,7 @@
 
 .activities-type-badge {
   background-color: rgba(32, 94, 203, 0.12);
-  color: #205ecb;
+  color: var(--pm-primary-hover);
   font-weight: 500;
 }
 
@@ -102,7 +102,7 @@
 
 .activities-empty__icon {
   font-size: 3rem;
-  color: var(--bs-tertiary-color, #b1b5ba);
+  color: var(--bs-tertiary-color, var(--pm-text-gray-soft));
 }
 
 .activities-sort-link {
