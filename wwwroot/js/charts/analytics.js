@@ -81,10 +81,9 @@ function initCharts() {
 }
 // END SECTION
 
-// SECTION: Bootstrap and theme change
+// SECTION: Bootstrap
 function boot() {
   initCharts();
-  window.addEventListener('pm-theme-changed', initCharts);
 }
 
 if (document.readyState === 'loading') {

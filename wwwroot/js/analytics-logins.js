@@ -210,11 +210,6 @@ function init() {
   exportCsv();
   load();
 
-  window.addEventListener('pm-theme-changed', () => {
-    if (lastData) {
-      renderChart(lastData);
-    }
-  });
 }
 
 function renderOddTable(rows) {
