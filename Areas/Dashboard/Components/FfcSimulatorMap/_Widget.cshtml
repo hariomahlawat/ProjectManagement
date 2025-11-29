@@ -69,37 +69,39 @@
                 </div>
             </div>
 
-            @* SECTION: Below-map country chip strip *@
-            <div class="ffc-simulator-map__country-strip" aria-label="FFC project unit activity by country">
-                <div class="ffc-country-strip" role="list">
-                    @foreach (var country in countriesToShow)
-                    {
-                        <button type="button"
-                                class="ffc-country-chip"
-                                data-country-chip="@country.Iso3"
-                                title="@country.Name"
-                                role="listitem">
-                            <span class="ffc-country-chip__name">@country.Name</span>
-                            <span class="ffc-country-chip__total">
-                                (<strong>@country.Completed</strong> completed
-                                @if (country.Planned > 0)
-                                {
-                                    <span class="ffc-country-chip__planned">
-                                        +@country.Planned planned
-                                    </span>
-                                }
-                                )
-                            </span>
-                        </button>
-                    }
+            <div class="dashboard-ffc-footnotes">
+                @* SECTION: Below-map country chip strip *@
+                <div class="ffc-simulator-map__country-strip" aria-label="FFC project unit activity by country">
+                    <div class="ffc-country-strip" role="list">
+                        @foreach (var country in countriesToShow)
+                        {
+                            <button type="button"
+                                    class="ffc-country-chip"
+                                    data-country-chip="@country.Iso3"
+                                    title="@country.Name"
+                                    role="listitem">
+                                <span class="ffc-country-chip__name">@country.Name</span>
+                                <span class="ffc-country-chip__total">
+                                    (<strong>@country.Completed</strong> completed
+                                    @if (country.Planned > 0)
+                                    {
+                                        <span class="ffc-country-chip__planned">
+                                            +@country.Planned planned
+                                        </span>
+                                    }
+                                    )
+                                </span>
+                            </button>
+                        }
+                    </div>
                 </div>
-            </div>
 
-            <div class="mt-2">
-                <a href="@detailTableUrl"
-                   class="btn btn-link btn-sm px-0">
-                    View detailed table →
-                </a>
+                <div class="mt-2">
+                    <a href="@detailTableUrl"
+                       class="btn btn-link btn-sm px-0">
+                        View detailed table →
+                    </a>
+                </div>
             </div>
         }
         else

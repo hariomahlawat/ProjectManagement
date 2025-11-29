@@ -75,11 +75,22 @@
         plugins: { legend: { display: false } },
         scales: {
           x: {
-            grid: { display: false },
-            ticks: { display: false },
+            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' },
+            ticks: {
+              color: '#6b7280',
+              font: { size: 10 }
+            },
             title: { display: true, text: 'Stages' }
           },
-          y: { beginAtZero: true, ticks: { precision: 0 } }
+          y: {
+            beginAtZero: true,
+            ticks: {
+              precision: 0,
+              color: '#9ca3af',
+              font: { size: 10 }
+            },
+            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' }
+          }
         }
       }
     });
@@ -113,13 +124,22 @@
         plugins: { legend: { display: false } },
         scales: {
           x: {
-            grid: { display: false },
-            ticks: { display: false },
+            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' },
+            ticks: {
+              display: true,
+              color: '#6b7280',
+              font: { size: 10 }
+            },
             title: { display: Boolean(xLabel), text: xLabel }
           },
           y: {
             beginAtZero: true,
-            ticks: { precision: 0 },
+            ticks: {
+              precision: 0,
+              color: '#9ca3af',
+              font: { size: 10 }
+            },
+            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' },
             title: { display: Boolean(yLabel), text: yLabel }
           }
         }

@@ -40,17 +40,17 @@
         : $"{totalCount} task{(totalCount == 1 ? string.Empty : "s")} · {overdueCount} overdue · {dueTodayCount} today";
 
     // Chip classes (muted when count is zero)
-    var overdueChipClass = "mission-panel__kpi badge rounded-pill bg-warning text-dark text-nowrap";
-    if (overdueCount == 0) overdueChipClass += " mission-panel__kpi--muted";
+    var overdueChipClass = "todo-filter-pill todo-filter-pill--overdue";
+    if (overdueCount == 0) overdueChipClass += " todo-filter-pill--muted";
 
-    var todayChipClass = "mission-panel__kpi badge rounded-pill bg-info text-dark text-nowrap";
-    if (dueTodayCount == 0) todayChipClass += " mission-panel__kpi--muted";
+    var todayChipClass = "todo-filter-pill todo-filter-pill--due-today";
+    if (dueTodayCount == 0) todayChipClass += " todo-filter-pill--muted";
 
-    var nextChipClass = "mission-panel__kpi badge rounded-pill bg-primary text-white text-nowrap";
-    if (nextSevenCount == 0) nextChipClass += " mission-panel__kpi--muted";
+    var nextChipClass = "todo-filter-pill todo-filter-pill--next-7";
+    if (nextSevenCount == 0) nextChipClass += " todo-filter-pill--muted";
 }
 
-<div class="card shadow-sm todo-widget@attentionClass">
+<div class="card shadow-sm todo-widget dashboard-todo-card@attentionClass">
     <div class="card-header mission-panel__header d-flex flex-wrap align-items-center justify-content-between gap-3 py-2">
         <div class="d-flex flex-column gap-1">
             <div class="d-flex flex-wrap align-items-center gap-3">

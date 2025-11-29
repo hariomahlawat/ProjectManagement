@@ -8,7 +8,7 @@
 }
 
     .ffc-simulator-map-widget .pm-card-body {
-        padding: 1.5rem 1.5rem 1.75rem;
+        padding: 1.25rem 1.25rem 1.5rem;
     }
 
 .ffc-simulator-map-widget__header {
@@ -307,4 +307,20 @@
     text-decoration: none;
 }
 
+/* END SECTION */
+
+/* SECTION: Dashboard footnotes alignment */
+.dashboard-ffc-footnotes {
+    margin-top: 0.75rem;
+    padding: 0 1.25rem 0.75rem;
+    font-size: 0.78rem;
+    color: var(--pm-text-secondary);
+    line-height: 1.4;
+}
+
+.dashboard-ffc-footnotes a {
+    color: var(--pm-accent-indigo-bright);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
 /* END SECTION */

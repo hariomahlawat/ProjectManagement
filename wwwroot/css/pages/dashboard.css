@@ -2,8 +2,8 @@
 
 /* Shared vertical rhythm tokens for all four circled gaps */
 .dashboard {
-    --dashboard-gap-small: clamp(1.9rem, 2.1vw, 2.3rem); /* 1 & 2 */
-    --dashboard-gap-large: clamp(2.4rem, 2.8vw, 3rem); /* 3 & 4 */
+    --dashboard-gap-small: 1.5rem; /* 1 & 2 */
+    --dashboard-gap-large: 1.5rem; /* 3 & 4 */
 }
 
 /* Base shell for dashboard cards to match Analytics polish */
@@ -38,6 +38,11 @@
 .dashboard-main-content {
     display: flex;
     flex-direction: column;
+}
+
+/* Align major dashboard sections with consistent rhythm */
+.dashboard-main-content > .dashboard-section + .dashboard-section {
+    margin-top: 1.5rem;
 }
 
     /* Normalise section margins so spacing is owned by gap tokens */
@@ -167,6 +172,27 @@
     padding-inline: 1.05rem;
 }
 
+.dashboard-ocr-card .btn-primary {
+    background-color: var(--pm-primary-strong);
+    border-color: var(--pm-primary-strong);
+    border-radius: 999px;
+    padding-inline: 1.25rem;
+    font-weight: 500;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
+}
+
+.dashboard-ocr-card .btn-primary:hover,
+.dashboard-ocr-card .btn-primary:focus-visible {
+    background-color: #2563eb;
+    border-color: #2563eb;
+    box-shadow: 0 6px 14px rgba(37, 99, 235, 0.22);
+}
+
+.dashboard-right-column .card-body,
+.dashboard-right-column .pm-card-body {
+    padding: 1rem 1.25rem;
+}
+
 .todo-widget .todo-badge {
     background: var(--pm-chip-bg);
     color: var(--pm-chip-text, var(--pm-text));
@@ -174,6 +200,45 @@
     padding: 0.1rem 0.55rem;
     font-size: 0.7rem;
     font-weight: 600;
+}
+
+.dashboard-todo-card .todo-filter-pill {
+    background: var(--pm-chip-bg);
+    color: var(--pm-chip-text);
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    border: 1px solid var(--pm-chip-border);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.dashboard-todo-card .todo-filter-pill--muted {
+    opacity: 0.6;
+}
+
+.dashboard-todo-card .todo-filter-pill--overdue::before,
+.dashboard-todo-card .todo-filter-pill--due-today::before,
+.dashboard-todo-card .todo-filter-pill--next-7::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+}
+
+.dashboard-todo-card .todo-filter-pill--overdue::before {
+    background: #f97373;
+}
+
+.dashboard-todo-card .todo-filter-pill--due-today::before {
+    background: #fbbf24;
+}
+
+.dashboard-todo-card .todo-filter-pill--next-7::before {
+    background: #38bdf8;
 }
 /* END SECTION */
 
