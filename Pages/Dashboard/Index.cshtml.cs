@@ -444,6 +444,8 @@ namespace ProjectManagement.Pages.Dashboard
                         : "Uncategorised",
                     CoverPhotoId = p.CoverPhotoId,
                     CoverPhotoVersion = p.CoverPhotoVersion,
+                    LeadPoUserId = p.LeadPoUserId,
+                    HodUserId = p.HodUserId,
                     CurrentStageCode = p.ProjectStages
                         .Where(stage => stage.Status == StageStatus.InProgress)
                         .OrderBy(stage => stage.SortOrder)
@@ -628,6 +630,8 @@ namespace ProjectManagement.Pages.Dashboard
             public string CategoryName { get; init; } = string.Empty;
             public int? CoverPhotoId { get; init; }
             public int CoverPhotoVersion { get; init; }
+            public string? LeadPoUserId { get; init; }
+            public string? HodUserId { get; init; }
             public string CurrentStageCode { get; init; } = string.Empty;
         }
 
