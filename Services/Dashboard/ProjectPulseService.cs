@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Areas.Dashboard.Components.ProjectPulse;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -29,12 +30,17 @@ public sealed class ProjectPulseService : IProjectPulseService
 
     private readonly ApplicationDbContext _db;
     private readonly IMemoryCache _cache;
+    private readonly ILogger<ProjectPulseService> _logger;
     // END SECTION
 
-    public ProjectPulseService(ApplicationDbContext db, IMemoryCache cache)
+    public ProjectPulseService(
+        ApplicationDbContext db,
+        IMemoryCache cache,
+        ILogger<ProjectPulseService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     // SECTION: Public API
@@ -153,18 +159,30 @@ public sealed class ProjectPulseService : IProjectPulseService
     private async Task<IReadOnlyList<OngoingCategorySlice>> BuildOngoingByCategoryAsync(CancellationToken cancellationToken)
     {
         // Identify the parent category for each active project and group counts
-        var ongoingSeries = await _db.Projects
-            .AsNoTracking()
-            .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active)
-            .GroupBy(p => p.Category != null
-                ? (p.Category.Parent != null ? p.Category.Parent.Name : p.Category.Name)
-                : "Uncategorised")
-            .Select(g => new OngoingCategorySlice(g.Key, g.Count()))
-            .OrderByDescending(x => x.ProjectCount)
-            .ThenBy(x => x.CategoryName, StringComparer.OrdinalIgnoreCase)
-            .ToListAsync(cancellationToken);
+        try
+        {
+            var slices = await _db.Projects
+                .AsNoTracking()
+                .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active)
+                .GroupBy(p => p.Category != null
+                    ? (p.Category.Parent != null ? p.Category.Parent.Name : p.Category.Name)
+                    : "Uncategorised")
+                .Select(g => new OngoingCategorySlice(g.Key, g.Count()))
+                .ToListAsync(cancellationToken);
 
-        return ongoingSeries;
+            return slices
+                .OrderByDescending(x => x.ProjectCount)
+                .ThenBy(x => x.CategoryName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "ProjectPulse: failed to build ongoing-by-category series. Falling back to empty set.");
+
+            return Array.Empty<OngoingCategorySlice>();
+        }
     }
     // END SECTION
 

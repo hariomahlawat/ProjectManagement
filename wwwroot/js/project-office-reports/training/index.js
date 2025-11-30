@@ -1,6 +1,10 @@
-﻿// wwwroot/js/project-office-reports/training/index.js
+// wwwroot/js/project-office-reports/training/index.js
 
+import { getChartPalette } from '../../theme/chart-palette.js';
 import { initAsyncMultiselect } from '../../widgets/async-multiselect.js';
+
+// SECTION: Shared palette
+const palette = getChartPalette();
 
 // ================================================================
 // bootstrap modal helpers
@@ -143,14 +147,14 @@ function initTrainingYearChart() {
                 {
                     label: 'Simulator',
                     data: simulatorData,
-                    backgroundColor: 'rgba(59,130,246,0.85)',
+                    backgroundColor: palette.primarySoft,
                     borderRadius: 6,
                     stack: 'values'
                 },
                 {
                     label: 'Drone',
                     data: droneData,
-                    backgroundColor: 'rgba(14,165,233,0.85)',
+                    backgroundColor: palette.accentTeal,
                     borderRadius: 6,
                     stack: 'values'
                 }
