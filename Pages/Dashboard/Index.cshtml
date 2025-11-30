@@ -136,7 +136,7 @@
                                     </div>
                                     @if (Model.HasMyProjects)
                                     {
-                                        var totalProjects = Model.MyProjectSections.Sum(section => section.Items.Count);
+                                        var totalProjects = Model.MyProjectSections.Sum(projectSection => projectSection.Items.Count);
                                         <span class="badge rounded-pill text-bg-primary">
                                             @totalProjects project@(totalProjects == 1 ? string.Empty : "s")
                                         </span>
@@ -146,16 +146,16 @@
                                 @if (Model.HasMyProjects)
                                 {
                                     <div class="dashboard-my-projects__sections pm-scroll" role="list">
-                                        @foreach (var section in Model.MyProjectSections.Where(section => section.Items.Count > 0))
+                                        @foreach (var projectSection in Model.MyProjectSections.Where(projectSection => projectSection.Items.Count > 0))
                                         {
-                                            <section class="dashboard-my-projects__section" aria-label="@section.Title projects" role="listitem">
+                                            <section class="dashboard-my-projects__section" aria-label="@projectSection.Title projects" role="listitem">
                                                 <div class="d-flex align-items-center justify-content-between mb-2">
-                                                    <h3 class="dashboard-my-projects__section-title h6 mb-0">@section.Title</h3>
-                                                    <span class="badge rounded-pill text-bg-light text-secondary">@section.Items.Count</span>
+                                                    <h3 class="dashboard-my-projects__section-title h6 mb-0">@projectSection.Title</h3>
+                                                    <span class="badge rounded-pill text-bg-light text-secondary">@projectSection.Items.Count</span>
                                                 </div>
 
                                                 <div class="dashboard-my-projects__list" role="list">
-                                                    @foreach (var project in section.Items)
+                                                    @foreach (var project in projectSection.Items)
                                                     {
                                                         var stage = project.StageSummary;
                                                         <a asp-page="/Projects/Overview"
@@ -235,10 +235,10 @@
                                 @if (Model.HasMyProjects)
                                 {
                                     var categorySummary = Model.MyProjectSections
-                                        .Select(section => new
+                                        .Select(projectSection => new
                                         {
-                                            section.Title,
-                                            Count = section.Items.Count
+                                            projectSection.Title,
+                                            Count = projectSection.Items.Count
                                         })
                                         .Where(x => x.Count > 0)
                                         .OrderByDescending(x => x.Count)
@@ -270,7 +270,7 @@
                                 @* SECTION: Critical PDC alerts *@
                                 @if (Model.HasMyProjects)
                                 {
-                                    var pdcProjects = Model.MyProjectSections.SelectMany(section => section.Items).ToList();
+                                    var pdcProjects = Model.MyProjectSections.SelectMany(projectSection => projectSection.Items).ToList();
                                     var overdueProjects = pdcProjects
                                         .Where(project => project.StageSummary?.IsOverdue == true)
                                         .ToList();
