@@ -132,7 +132,6 @@
                                 <header class="d-flex align-items-start justify-content-between mb-3">
                                     <div>
                                         <p class="text-uppercase text-secondary fw-semibold small mb-1">Projects overview</p>
-                                        <p class="text-muted small mb-0">Browse your ongoing projects with consistent styling.</p>
                                     </div>
                                     @if (Model.HasMyProjects)
                                     {
@@ -176,7 +175,7 @@
                                                             <div class="dashboard-project-card__content">
                                                                 <div class="dashboard-project-card__title" title="@project.Name">@project.Name</div>
                                                                 <div class="dashboard-project-card__meta">
-                                                                    <span class="badge bg-light text-secondary border">@project.Category ?? "Uncategorized"</span>
+                                                                    <span class="badge bg-light text-secondary border">@project.Category</span>
                                                                     @if (stage is not null)
                                                                     {
                                                                         <div class="text-muted small">
@@ -226,9 +225,6 @@
                                  aria-label="My projects summary and ongoing PDC alerts">
                                 <div class="dashboard-my-projects__pdc-header d-flex flex-column gap-1">
                                     <p class="text-uppercase text-secondary fw-semibold small mb-0">My projects</p>
-                                    <p class="text-muted small mb-0">
-                                        Category wise summary and critical PDC alerts for your projects.
-                                    </p>
                                 </div>
 
                                 @* SECTION: Category summary strip *@
