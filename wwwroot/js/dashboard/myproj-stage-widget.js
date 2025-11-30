@@ -9,7 +9,7 @@
         const projectCards = widget.querySelectorAll('[data-project-id].dashboard-project-card');
         const pdcRows = widget.querySelectorAll('.myproj-stage-widget__pdc-row[data-project-id]');
 
-        if (!projectCards.length || !pdcRows.length) {
+        if (!pdcRows.length) {
             return;
         }
 
@@ -19,20 +19,24 @@
         });
 
         const cardById = new Map();
-        projectCards.forEach((card) => {
-            cardById.set(card.dataset.projectId, card);
-        });
+        if (projectCards.length) {
+            projectCards.forEach((card) => {
+                cardById.set(card.dataset.projectId, card);
+            });
+        }
 
         function setActive(projectId, options = { scrollToCard: false }) {
             pdcRows.forEach((row) => {
                 row.classList.toggle('is-active', row.dataset.projectId === projectId);
             });
 
-            projectCards.forEach((card) => {
-                card.classList.toggle('is-active', card.dataset.projectId === projectId);
-            });
+            if (projectCards.length) {
+                projectCards.forEach((card) => {
+                    card.classList.toggle('is-active', card.dataset.projectId === projectId);
+                });
+            }
 
-            if (options.scrollToCard) {
+            if (options.scrollToCard && projectCards.length) {
                 const card = cardById.get(projectId);
                 if (card) {
                     card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });

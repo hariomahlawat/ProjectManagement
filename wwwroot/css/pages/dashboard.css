@@ -458,11 +458,10 @@
 
 /* SECTION: Dashboard - My projects + Stage PDC widget */
 .myproj-stage-widget {
-    border-radius: 1.25rem;
+    border-radius: 1.5rem;
     box-shadow: var(--pm-shadow);
     background: var(--pm-card-soft);
     padding: 1.25rem 1.5rem 1.5rem;
-    /* no extra margin-top; spacing handled by layout rules */
 }
 
 .myproj-stage-widget__header {
@@ -518,44 +517,143 @@
 
 .myproj-stage-widget__body {
     display: flex;
-    align-items: flex-start;
-    gap: 1.5rem;
-}
-
-.myproj-stage-widget__projects {
-    flex: 2;
-    min-width: 0;
+    flex-direction: column;
+    gap: 1rem;
 }
 
 .myproj-stage-widget__pdc {
-    flex: 1.35;
-    min-width: 300px;
+    width: 100%;
 }
 
 .myproj-stage-widget__divider {
-    width: 1px;
-    background: linear-gradient(to bottom, transparent, rgba(15, 23, 42, .06), transparent);
+    display: none;
+}
+
+/* SECTION: My projects category summary */
+.myproj-summary {
+    margin-top: 0.75rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.9rem;
+    background: rgba(148, 163, 184, 0.12);
+}
+
+.myproj-summary__chips {
+    display: inline-flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.myproj-summary__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    background: #ffffff;
+}
+
+.myproj-summary__chip-label {
+    font-size: 0.72rem;
+    color: var(--pm-text-muted);
+}
+
+.myproj-summary__chip-count {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--pm-text-strong);
+}
+
+.myproj-summary__chip--total {
+    border-color: rgba(37, 99, 235, 0.7);
+    background: rgba(37, 99, 235, 0.06);
+}
+
+/* SECTION: My projects PDC groups */
+.dashboard-my-projects__pdc-groups {
+    margin-top: 0.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.dashboard-my-projects__pdc-group-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--pm-text-secondary);
+}
+
+.dashboard-my-projects__pdc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+/* SECTION: My projects PDC alert rows */
+.myproj-stage-widget__pdc-row {
+    border: none;
+}
+
+.dashboard-my-projects__pdc-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.9rem;
+    background: rgba(148, 163, 184, 0.16);
+    text-decoration: none;
+    color: inherit;
+    transition:
+        background 0.16s ease,
+        box-shadow 0.16s ease,
+        transform 0.12s ease;
+}
+
+.dashboard-my-projects__pdc-link:hover,
+.dashboard-my-projects__pdc-link:focus-visible {
+    background: rgba(148, 163, 184, 0.24);
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.12);
+    transform: translateY(-1px);
+}
+
+.dashboard-my-projects__pdc-text {
+    min-width: 0;
+}
+
+.dashboard-my-projects__pdc-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dashboard-my-projects__pdc-stage {
+    font-size: 0.75rem;
+    color: var(--pm-text-muted);
+}
+
+.dashboard-my-projects__pdc-meta {
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.dashboard-my-projects__pdc-meta .badge {
+    font-size: 0.7rem;
 }
 
 .myproj-stage-widget__pdc-row.is-active .dashboard-my-projects__pdc-link {
-    background: rgba(37, 99, 235, .16);
-    box-shadow: 0 12px 30px rgba(15, 23, 42, .16);
+    background: rgba(37, 99, 235, 0.16);
 }
 
-.dashboard-project-card.is-active {
-    border-color: rgba(45, 108, 223, .65);
-    box-shadow: 0 24px 36px -26px rgba(45, 108, 223, .45);
-    background-color: rgba(37, 99, 235, .04);
-}
-
-@media (max-width: 992px) {
-    .myproj-stage-widget__body {
-        flex-direction: column;
-    }
-
-    .myproj-stage-widget__divider {
-        display: none;
-    }
+.myproj-stage-widget__pdc-row.is-active .dashboard-my-projects__pdc-name {
+    font-weight: 600;
 }
 
 @media (max-width: 576px) {
