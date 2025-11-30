@@ -179,6 +179,12 @@
     --pm-chart-accent-5: #ec4899;
     --pm-chart-accent-6: #14b8a6;
 
+    /* -- SECTION: Dashboard / Analytics chart palette -- */
+    --pm-chart-accent-primary: #2563eb;
+    --pm-chart-accent-muted: #cbd5f5;
+    --pm-chart-neutral-strong: #64748b;
+    --pm-chart-neutral-soft: rgba(148, 163, 184, 0.2);
+
     /* -- SECTION: Effects & typography -- */
     --pm-shadow: 0 8px 20px rgba(0,0,0,.06);
     --pm-font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";

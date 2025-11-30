@@ -1,4 +1,5 @@
 @model ProjectManagement.Areas.Dashboard.Components.ProjectPulse.ProjectPulseVm
+@using System
 @using System.Collections.Generic
 @using System.Linq
 @using System.Text.Json
@@ -8,6 +9,13 @@
 @{
     var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
     string Serialize<T>(IReadOnlyList<T> source) => JsonSerializer.Serialize(source, jsonOptions);
+
+    var ongoingRemainder = Math.Max(0, Model.TotalProjects - Model.OngoingCount);
+    var ongoingRingSeries = new List<CategorySlice>
+    {
+        new("Ongoing projects", Model.OngoingCount),
+        new("Other", ongoingRemainder)
+    };
 
     string DescribeCategories(string heading, IReadOnlyList<CategorySlice> slices)
     {
@@ -96,12 +104,21 @@
         <div
           class="ppulse__chart pulse-chart-container"
           data-chart="donut"
-          data-series='@Html.Raw(Serialize(Model.OngoingByProjectCategory))'
+          data-series='@Html.Raw(Serialize(ongoingRingSeries))'
           role="img"
-          aria-label='@DescribeCategories("Ongoing projects by category", Model.OngoingByProjectCategory)'
+          aria-label='@DescribeCategories("Ongoing projects split", ongoingRingSeries)'
         >
           <canvas aria-hidden="true"></canvas>
         </div>
+        @if (Model.OngoingByProjectCategory?.Any() == true)
+        {
+            <div class="ppulse__breakdown" aria-label="Ongoing projects by category">
+                @foreach (var slice in Model.OngoingByProjectCategory)
+                {
+                    <span class="ppulse__breakdown-item">@slice.Label: @slice.Count</span>
+                }
+            </div>
+        }
         <footer class="ppulse__foot">View ongoing →</footer>
       </a>
     </article>

@@ -8,8 +8,19 @@
 
   // SECTION: Utilities
   var ChartCtor = window.Chart;
-  var palette = ['#475569', '#94a3b8', '#cbd5f5', '#d4d4d8', '#e2e8f0', '#c4b5fd'];
-  var accent = '#2d6cdf';
+  var palette = (window.PMTheme && typeof window.PMTheme.getChartPalette === 'function')
+    ? window.PMTheme.getChartPalette()
+    : {
+        accentPrimary: '#2563eb',
+        accentMuted: '#cbd5f5',
+        neutralStrong: '#64748b',
+        neutralSoft: 'rgba(148, 163, 184, 0.2)',
+        axisColor: '#64748b',
+        gridColor: 'rgba(148, 163, 184, 0.2)'
+      };
+
+  var textColor = getCssVar('--pm-text', '#0b1220');
+  var textSecondary = getCssVar('--pm-text-secondary', '#4b5563');
 
   function safeParse(el, attr) {
     try {
@@ -19,6 +30,51 @@
       return [];
     }
   }
+
+  function getCssVar(name, fallback) {
+    if (typeof window === 'undefined' || !window.getComputedStyle) {
+      return fallback;
+    }
+    var styles = getComputedStyle(document.documentElement);
+    return styles.getPropertyValue(name).trim() || fallback;
+  }
+  // END SECTION
+
+  // SECTION: Plugins
+  var ongoingCenterLabelPlugin = {
+    id: 'ongoingCenterLabel',
+    afterDraw: function (chart) {
+      var dataset = chart.data && chart.data.datasets && chart.data.datasets[0];
+      if (!dataset || !dataset.data || !dataset.data.length) {
+        return;
+      }
+
+      var totalOngoing = dataset.data[0];
+      var area = chart.chartArea;
+      var ctx = chart.ctx;
+
+      if (!area) {
+        return;
+      }
+
+      var centerX = (area.left + area.right) / 2;
+      var centerY = (area.top + area.bottom) / 2;
+
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      ctx.fillStyle = textColor;
+      ctx.font = '600 18px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.fillText(totalOngoing, centerX, centerY - 6);
+
+      ctx.fillStyle = textSecondary;
+      ctx.font = '400 10px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.fillText('ongoing projects', centerX, centerY + 12);
+
+      ctx.restore();
+    }
+  };
   // END SECTION
 
   // SECTION: Chart builders
@@ -34,8 +90,15 @@
         labels: labels,
         datasets: [{
           data: data,
-          backgroundColor: labels.map(function (_, idx) { return palette[idx % palette.length]; }),
-          hoverBackgroundColor: labels.map(function () { return accent; }),
+          backgroundColor: [
+            palette.accentPrimary || '#2563eb',
+            palette.neutralSoft || 'rgba(148, 163, 184, 0.18)'
+          ],
+          hoverBackgroundColor: [
+            palette.accentPrimary || '#2563eb',
+            palette.neutralSoft || 'rgba(148, 163, 184, 0.18)'
+          ],
+          borderWidth: 0,
           cutout: '60%'
         }]
       },
@@ -43,8 +106,21 @@
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
-        plugins: { legend: { display: false }, tooltip: { enabled: true } }
-      }
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: true,
+            callbacks: {
+              label: function (context) {
+                var value = context.parsed || 0;
+                var label = context.label ? context.label + ': ' : '';
+                return label + value + ' projects';
+              }
+            }
+          }
+        }
+      },
+      plugins: [ongoingCenterLabelPlugin]
     });
   }
 
@@ -62,10 +138,10 @@
           data: data,
           tension: 0.35,
           pointRadius: 2,
-          pointBackgroundColor: accent,
+          pointBackgroundColor: palette.accentPrimary || '#2563eb',
           pointHoverRadius: 4,
           fill: false,
-          borderColor: palette[0]
+          borderColor: palette.accentPrimary || '#2563eb'
         }]
       },
       options: {
@@ -75,9 +151,9 @@
         plugins: { legend: { display: false } },
         scales: {
           x: {
-            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' },
+            grid: { display: true, color: palette.neutralSoft || 'rgba(148, 163, 184, 0.18)' },
             ticks: {
-              color: '#6b7280',
+              color: palette.neutralStrong || '#6b7280',
               font: { size: 10 }
             },
             title: { display: true, text: 'Stages' }
@@ -86,10 +162,10 @@
             beginAtZero: true,
             ticks: {
               precision: 0,
-              color: '#9ca3af',
+              color: palette.neutralStrong || '#9ca3af',
               font: { size: 10 }
             },
-            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' }
+            grid: { display: true, color: palette.neutralSoft || 'rgba(148, 163, 184, 0.18)' }
           }
         }
       }
@@ -111,10 +187,11 @@
         labels: labels,
         datasets: [{
           data: data,
-          borderRadius: 6,
+          borderRadius: 4,
           maxBarThickness: 22,
-          backgroundColor: palette[1],
-          hoverBackgroundColor: accent
+          backgroundColor: palette.accentPrimary || '#2563eb',
+          borderColor: palette.accentPrimary || '#2563eb',
+          borderWidth: 1
         }]
       },
       options: {
@@ -124,10 +201,10 @@
         plugins: { legend: { display: false } },
         scales: {
           x: {
-            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' },
+            grid: { display: true, color: palette.neutralSoft || 'rgba(148, 163, 184, 0.18)' },
             ticks: {
               display: true,
-              color: '#6b7280',
+              color: palette.neutralStrong || '#6b7280',
               font: { size: 10 }
             },
             title: { display: Boolean(xLabel), text: xLabel }
@@ -136,10 +213,10 @@
             beginAtZero: true,
             ticks: {
               precision: 0,
-              color: '#9ca3af',
+              color: palette.neutralStrong || '#9ca3af',
               font: { size: 10 }
             },
-            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' },
+            grid: { display: true, color: palette.neutralSoft || 'rgba(148, 163, 184, 0.18)' },
             title: { display: Boolean(yLabel), text: yLabel }
           }
         }
