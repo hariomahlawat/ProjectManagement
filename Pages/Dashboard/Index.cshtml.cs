@@ -17,6 +17,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models.Stages;
@@ -432,14 +433,6 @@ namespace ProjectManagement.Pages.Dashboard
             }
             // END SECTION
 
-            static ProjectAssignmentSummary ProjectSummarySelector(Project project) => new()
-            {
-                Id = project.Id,
-                Name = project.Name,
-                Category = project.Category != null ? project.Category.Name : null,
-                CoverPhotoId = project.CoverPhotoId,
-                CoverPhotoVersion = project.CoverPhotoVersion
-            };
         }
 
         private async Task AttachStageSummariesAsync(List<MyProjectsSection> sections, CancellationToken cancellationToken)
@@ -542,6 +535,15 @@ namespace ProjectManagement.Pages.Dashboard
         }
 
         // SECTION: My Projects helpers
+        private static readonly Expression<Func<Project, ProjectAssignmentSummary>> ProjectSummarySelector = project => new ProjectAssignmentSummary
+        {
+            Id = project.Id,
+            Name = project.Name,
+            Category = project.Category != null ? project.Category.Name : null,
+            CoverPhotoId = project.CoverPhotoId,
+            CoverPhotoVersion = project.CoverPhotoVersion
+        };
+
         private static IQueryable<Project> OnlyOngoing(IQueryable<Project> query)
         {
             return query.Where(p => !p.IsDeleted
