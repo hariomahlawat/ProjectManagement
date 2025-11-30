@@ -610,8 +610,20 @@
 
 .myprojects-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: .6rem;
+}
+
+@media (min-width: 768px) {
+    .myprojects-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1200px) {
+    .myprojects-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
 }
 
 .myproject-tile {
@@ -714,22 +726,26 @@
 }
 
 .myprojects-alert-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: .5rem;
-    padding: .45rem .1rem;
-    border-radius: .5rem;
+    margin-bottom: .25rem;
 }
 
 .myprojects-alert-item.is-active {
     background: rgba(37, 99, 235, .06);
 }
 
-.myprojects-alert-item__main {
+.myprojects-alert-item__link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .35rem 0;
     text-decoration: none;
     color: inherit;
+}
+
+.myprojects-alert-item__main {
     flex: 1 1 auto;
+    min-width: 0;
 }
 
 .myprojects-alert-item__name {
@@ -744,6 +760,9 @@
 .myprojects-alert-item__meta {
     font-size: .75rem;
     color: var(--pm-accent-slate-mid);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .myprojects-alert-item__pdc {
@@ -751,6 +770,12 @@
     padding: .15rem .45rem;
     border-radius: 999px;
     white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+.myprojects-alert-item__link:hover {
+    background-color: rgba(15, 23, 42, .02);
+    border-radius: .5rem;
 }
 
 .myprojects-alert-item__pdc.is-overdue {
