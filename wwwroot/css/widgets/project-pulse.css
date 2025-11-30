@@ -196,6 +196,20 @@
   background: transparent;
 }
 
+/* SECTION: Breakdown */
+.ppulse__breakdown {
+  font-size: 0.78rem;
+  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ppulse__breakdown-item:not(:last-child) {
+  margin-right: 12px;
+}
+/* END SECTION */
+
 .ppulse__foot {
   margin-top: auto;
   color: var(--pm-primary, var(--pm-primary));

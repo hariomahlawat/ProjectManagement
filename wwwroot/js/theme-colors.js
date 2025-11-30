@@ -13,11 +13,19 @@
 
   // SECTION: Chart palette
   function getChartPalette() {
+    var accentPrimary = getCssVar('--pm-chart-accent-primary') || getCssVar('--pm-chart-accent-1');
+    var neutralStrong = getCssVar('--pm-chart-neutral-strong') || getCssVar('--pm-chart-axis');
+    var neutralSoft = getCssVar('--pm-chart-neutral-soft') || getCssVar('--pm-chart-grid');
+
     return {
-      axisColor: getCssVar('--pm-chart-axis'),
-      gridColor: getCssVar('--pm-chart-grid'),
+      accentPrimary: accentPrimary,
+      accentMuted: getCssVar('--pm-chart-accent-muted') || getCssVar('--pm-chart-grid'),
+      neutralStrong: neutralStrong,
+      neutralSoft: neutralSoft,
+      axisColor: neutralStrong,
+      gridColor: neutralSoft,
       accents: [
-        getCssVar('--pm-chart-accent-1'),
+        accentPrimary,
         getCssVar('--pm-chart-accent-2'),
         getCssVar('--pm-chart-accent-3'),
         getCssVar('--pm-chart-accent-4')
