@@ -123,72 +123,55 @@
                 </header>
                 @* END SECTION *@
 
-                @* SECTION: My Projects + Stage PDC split widget *@
+                @* SECTION: My Projects summary and Stage PDC widget *@
                 <div class="myproj-stage-widget__body">
-                    <div class="myproj-stage-widget__projects" data-role="myproj-projects-pane">
-                        @* SECTION: My Projects listing *@
+                    <aside class="myproj-stage-widget__pdc"
+                           data-role="myproj-pdc-pane"
+                           aria-label="My projects summary and ongoing PDC alerts">
+                        <div class="dashboard-my-projects__pdc-header d-flex flex-column gap-1">
+                            <p class="text-uppercase text-secondary fw-semibold small mb-0">My projects</p>
+                            <p class="text-muted small mb-0">
+                                Category wise summary and critical PDC alerts for your projects.
+                            </p>
+                        </div>
+
+                        @* SECTION: Category summary strip *@
                         @if (Model.HasMyProjects)
                         {
-                            <div class="dashboard-my-projects__projects">
-                                @foreach (var projectSection in Model.MyProjectSections)
+                            var categorySummary = Model.MyProjectSections
+                                .Select(section => new
                                 {
-                                    <div class="dashboard-my-projects__section">
-                                        <h3 class="dashboard-my-projects__section-title text-uppercase text-secondary fw-semibold small mb-2">
-                                            @projectSection.Title
-                                        </h3>
-                                        <div class="dashboard-my-projects__list" role="list">
-                                            @foreach (var project in projectSection.Items)
-                                            {
-                                                <a asp-page="/Projects/Overview"
-                                                   asp-route-id="@project.ProjectId"
-                                                   class="dashboard-project-card"
-                                                   role="listitem"
-                                                   data-project-id="@project.ProjectId">
-                                                    <div class="dashboard-project-card__cover" aria-hidden="true">
-                                                        @if (!string.IsNullOrEmpty(project.CoverImageUrl))
-                                                        {
-                                                            <img src="@project.CoverImageUrl"
-                                                                 alt=""
-                                                                 loading="lazy" />
-                                                        }
-                                                        else
-                                                        {
-                                                            <span class="dashboard-project-card__cover-placeholder">No cover</span>
-                                                        }
-                                                    </div>
-                                                    <div class="dashboard-project-card__content">
-                                                        <div class="dashboard-project-card__title" title="@project.Name">
-                                                            @project.Name
-                                                        </div>
-                                                        <div class="dashboard-project-card__meta text-truncate">
-                                                            @(string.IsNullOrWhiteSpace(project.Category) ? "No category" : project.Category)
-                                                        </div>
-                                                    </div>
-                                                    <span class="dashboard-project-card__chevron" aria-hidden="true">
-                                                        <i class="bi bi-arrow-right-short"></i>
-                                                    </span>
-                                                </a>
-                                            }
+                                    section.Title,
+                                    Count = section.Items.Count
+                                })
+                                .Where(x => x.Count > 0)
+                                .OrderByDescending(x => x.Count)
+                                .ToList();
+
+                            var totalCount = categorySummary.Sum(x => x.Count);
+
+                            <div class="myproj-summary pm-scroll-x">
+                                <div class="myproj-summary__chips">
+                                    @foreach (var cat in categorySummary)
+                                    {
+                                        <div class="myproj-summary__chip">
+                                            <span class="myproj-summary__chip-label">@cat.Title</span>
+                                            <span class="myproj-summary__chip-count">@cat.Count</span>
                                         </div>
-                                    </div>
-                                }
+                                    }
+
+                                    @if (totalCount > 0)
+                                    {
+                                        <div class="myproj-summary__chip myproj-summary__chip--total">
+                                            <span class="myproj-summary__chip-label">Total</span>
+                                            <span class="myproj-summary__chip-count">@totalCount</span>
+                                        </div>
+                                    }
+                                </div>
                             </div>
                         }
-                        else if (Model.ShowEmptyMyProjectsMessage)
-                        {
-                            <p class="text-secondary small mb-0">
-                                You are not currently assigned to any projects.
-                            </p>
-                        }
-                        @* END SECTION *@
-                    </div>
 
-                    <div class="myproj-stage-widget__divider" aria-hidden="true"></div>
-
-                    <aside class="myproj-stage-widget__pdc" data-role="myproj-pdc-pane" aria-label="Ongoing stage PDC">
-                        <div class="dashboard-my-projects__pdc-header d-flex flex-column gap-1">
-                            <p class="text-uppercase text-secondary fw-semibold small mb-0">Stage &amp; PDC alerts</p>
-                        </div>
+                        @* SECTION: Critical PDC alerts *@
                         @if (Model.HasMyProjects)
                         {
                             var pdcProjects = Model.MyProjectSections.SelectMany(section => section.Items).ToList();
