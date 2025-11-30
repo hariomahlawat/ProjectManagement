@@ -125,147 +125,120 @@
 
                 @* SECTION: My Projects + Stage PDC split widget *@
                 <div class="myproj-stage-widget__body">
-                    <div class="myproj-stage-widget__projects" data-role="myproj-projects-pane">
-                        @* SECTION: My Projects listing *@
-                        @if (Model.HasMyProjects)
-                        {
-                            <div class="dashboard-my-projects__projects">
-                                @foreach (var projectSection in Model.MyProjectSections)
+                    <div class="myprojects-card">
+                        <div class="myprojects-card__left" data-role="myproj-projects-pane">
+                            <div class="myprojects-header">
+                                <span class="myprojects-header__label">Head of Department</span>
+                            </div>
+
+                            @if (Model.HasMyProjects)
+                            {
+                                foreach (var section in Model.MyProjects.Sections)
                                 {
-                                    <div class="dashboard-my-projects__section">
-                                        <h3 class="dashboard-my-projects__section-title text-uppercase text-secondary fw-semibold small mb-2">
-                                            @projectSection.Title
-                                        </h3>
-                                        <div class="dashboard-my-projects__list" role="list">
-                                            @foreach (var project in projectSection.Items)
+                                    <section class="myprojects-section">
+                                        <header class="myprojects-section__header">
+                                            <span class="myprojects-section__title">@section.CategoryName</span>
+                                            <span class="myprojects-section__count">
+                                                @section.ProjectCount project@(section.ProjectCount == 1 ? string.Empty : "s")
+                                            </span>
+                                        </header>
+
+                                        <div class="myprojects-grid" role="list">
+                                            @foreach (var project in section.Projects)
                                             {
                                                 <a asp-page="/Projects/Overview"
                                                    asp-route-id="@project.ProjectId"
-                                                   class="dashboard-project-card"
+                                                   class="myproject-tile"
                                                    role="listitem"
-                                                   data-project-id="@project.ProjectId">
-                                                    <div class="dashboard-project-card__cover" aria-hidden="true">
-                                                        @if (!string.IsNullOrEmpty(project.CoverImageUrl))
+                                                   data-project-id="@project.ProjectId"
+                                                   title="@project.Name">
+                                                    <div class="myproject-tile__cover" aria-hidden="true">
+                                                        @if (!string.IsNullOrEmpty(project.CoverUrl))
                                                         {
-                                                            <img src="@project.CoverImageUrl"
+                                                            <img src="@project.CoverUrl"
                                                                  alt=""
                                                                  loading="lazy" />
                                                         }
                                                         else
                                                         {
-                                                            <span class="dashboard-project-card__cover-placeholder">No cover</span>
+                                                            <span class="myproject-tile__cover-label">No cover</span>
                                                         }
                                                     </div>
-                                                    <div class="dashboard-project-card__content">
-                                                        <div class="dashboard-project-card__title text-truncate" title="@project.Name">
-                                                            @project.Name
-                                                        </div>
-                                                        <div class="dashboard-project-card__meta text-truncate">
-                                                            @(string.IsNullOrWhiteSpace(project.Category) ? "No category" : project.Category)
-                                                        </div>
+
+                                                    <div class="myproject-tile__body">
+                                                        <div class="myproject-tile__name">@project.Name</div>
+                                                        <div class="myproject-tile__category">@project.CategoryName</div>
                                                     </div>
-                                                    <span class="dashboard-project-card__chevron" aria-hidden="true">
+
+                                                    <div class="myproject-tile__chevron" aria-hidden="true">
                                                         <i class="bi bi-arrow-right-short"></i>
-                                                    </span>
+                                                    </div>
                                                 </a>
                                             }
                                         </div>
-                                    </div>
+
+                                        <hr class="myprojects-section__divider" />
+                                    </section>
                                 }
-                            </div>
-                        }
-                        else if (Model.ShowEmptyMyProjectsMessage)
-                        {
-                            <p class="text-secondary small mb-0">
-                                You are not currently assigned to any projects.
-                            </p>
-                        }
-                        @* END SECTION *@
-                    </div>
-
-                    <div class="myproj-stage-widget__divider" aria-hidden="true"></div>
-
-                    <aside class="myproj-stage-widget__pdc" data-role="myproj-pdc-pane" aria-label="Ongoing stage PDC">
-                        <div class="dashboard-my-projects__pdc-header d-flex flex-column gap-1">
-                            <p class="text-uppercase text-secondary fw-semibold small mb-0">Ongoing stage PDC</p>
-                            <p class="text-muted small mb-0">Live PDC status for projects shown on the left.</p>
-                        </div>
-                        @if (Model.HasMyProjects)
-                        {
-                            var pdcProjects = Model.MyProjectSections.SelectMany(section => section.Items).ToList();
-                            if (pdcProjects.Count > 0)
+                            }
+                            else if (Model.ShowEmptyMyProjectsMessage)
                             {
-                                <ul class="dashboard-my-projects__pdc-list list-unstyled mb-0" role="list">
-                                    @foreach (var project in pdcProjects)
-                                    {
-                                        var stage = project.StageSummary;
-                                        <li class="dashboard-my-projects__pdc-item myproj-stage-widget__pdc-row"
-                                            data-project-id="@project.ProjectId"
-                                            role="listitem"
-                                            tabindex="0">
-                                            <div class="d-flex justify-content-between align-items-start gap-2">
-                                                <div class="dashboard-my-projects__pdc-label text-truncate">
-                                                    <div class="fw-semibold text-truncate" title="@project.Name">@project.Name</div>
-                                                    <div class="text-muted small text-truncate">
-                                                        @if (stage is not null)
-                                                        {
-                                                            @:Stage: @stage.StageName (@stage.StageCode)
-                                                        }
-                                                        else
-                                                        {
-                                                            <span class="text-muted">Stage data unavailable</span>
-                                                        }
-                                                    </div>
-                                                </div>
-                                                <div class="text-end">
-                                                    @if (stage?.PlannedDue is { } plannedDue)
-                                                    {
-                                                        var badgeClass = stage.IsOverdue ? "text-bg-danger" : "text-bg-success";
-                                                        <span class=$"badge rounded-pill {badgeClass}">
-                                                            @plannedDue.ToString("dd-MMM-yyyy")
-                                                        </span>
-                                                        <div class="dashboard-my-projects__pdc-meta small">
-                                                            @if (stage.DaysToPdc.HasValue)
-                                                            {
-                                                                if (stage.IsOverdue)
-                                                                {
-                                                                    <span class="text-danger">
-                                                                        Overdue by @stage.DaysToPdc.Value day@(stage.DaysToPdc == 1 ? "" : "s")
-                                                                    </span>
-                                                                }
-                                                                else
-                                                                {
-                                                                    <span class="text-success">
-                                                                        @stage.DaysToPdc.Value day@(stage.DaysToPdc == 1 ? "" : "s") to PDC
-                                                                    </span>
-                                                                }
-                                                            }
-                                                        </div>
-                                                    }
-                                                    else if (stage is not null)
-                                                    {
-                                                        <span class="badge rounded-pill text-bg-secondary">PDC not set</span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="badge rounded-pill text-bg-secondary">Unavailable</span>
-                                                    }
-                                                </div>
-                                            </div>
-                                        </li>
-                                    }
-                                </ul>
+                                <p class="text-secondary small mb-0">
+                                    You are not currently assigned to any projects.
+                                </p>
                             }
                             else
                             {
-                                <p class="text-secondary small mb-0">No projects available for PDC tracking.</p>
+                                <p class="text-secondary small mb-0">Add yourself to a project to see it here.</p>
                             }
-                        }
-                        else
-                        {
-                            <p class="text-secondary small mb-0">Add yourself to a project to see its PDC.</p>
-                        }
-                    </aside>
+                        </div>
+
+                        <div class="myprojects-card__right" data-role="myproj-pdc-pane" aria-label="Ongoing stage PDC">
+                            <div class="myprojects-right-header">
+                                <span class="myprojects-right-header__title">Stage &amp; PDC alerts</span>
+                                <a asp-page="/Projects/StagePdc" class="btn btn-link btn-sm">View full Stage &amp; PDC →</a>
+                            </div>
+
+                            @if (!Model.MyProjects.StagePdcAlerts.Any())
+                            {
+                                <p class="text-muted small mb-0">No projects with urgent Stage &amp; PDC issues.</p>
+                            }
+                            else
+                            {
+                                var groupedAlerts = Model.MyProjects.StagePdcAlerts
+                                    .GroupBy(alert => alert.AlertType)
+                                    .OrderBy(group => group.Key);
+
+                                foreach (var group in groupedAlerts)
+                                {
+                                    <section class="myprojects-alert-group">
+                                        <header class="myprojects-alert-group__header">
+                                            <span>@IndexModel.GetAlertGroupTitle(group.Key)</span>
+                                        </header>
+
+                                        <ul class="myprojects-alert-list">
+                                            @foreach (var alert in group)
+                                            {
+                                                <li class="myprojects-alert-item" data-project-id="@alert.ProjectId">
+                                                    <a asp-page="/Projects/StagePdc"
+                                                       asp-route-id="@alert.ProjectId"
+                                                       class="myprojects-alert-item__main">
+                                                        <div class="myprojects-alert-item__name">@alert.ProjectName</div>
+                                                        <div class="myprojects-alert-item__meta">
+                                                            Stage @alert.CurrentStageCode · @alert.CategoryName
+                                                        </div>
+                                                    </a>
+                                                    <span class=$"myprojects-alert-item__pdc @IndexModel.GetAlertTypeCss(alert.AlertType)">
+                                                        @IndexModel.GetAlertPdcLabel(alert)
+                                                    </span>
+                                                </li>
+                                            }
+                                        </ul>
+                                    </section>
+                                }
+                            }
+                        </div>
+                    </div>
                 </div>
                 @* END SECTION *@
             </section>
