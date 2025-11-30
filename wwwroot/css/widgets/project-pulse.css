@@ -4,10 +4,10 @@
   --pp-gap-sm: 12px;
   --pp-gap-md: 16px;
   --pp-gap-lg: 24px;
-  --pp-border: var(--pm-border-muted, var(--pm-border));
-  background: var(--pm-surface-elevated);
-  border-radius: 18px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  --pp-border: var(--pm-border-soft, var(--pm-border));
+  background: var(--pm-surface-card);
+  border-radius: 20px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
   padding: 1rem 1.25rem 0.9rem;
   border: 1px solid var(--pp-border);
 }

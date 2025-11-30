@@ -8,19 +8,57 @@
 
   // SECTION: Utilities
   var ChartCtor = window.Chart;
-  var palette = (window.PMTheme && typeof window.PMTheme.getChartPalette === 'function')
-    ? window.PMTheme.getChartPalette()
-    : {
-        accentPrimary: '#2563eb',
-        accentMuted: '#cbd5f5',
-        neutralStrong: '#64748b',
-        neutralSoft: 'rgba(148, 163, 184, 0.2)',
-        axisColor: '#64748b',
-        gridColor: 'rgba(148, 163, 184, 0.2)'
-      };
 
-  var textColor = getCssVar('--pm-text', '#0b1220');
-  var textSecondary = getCssVar('--pm-text-secondary', '#4b5563');
+  var chartPalette = {
+    green: getCssVar('--pm-chart-green', '#22c55e'),
+    amber: getCssVar('--pm-chart-amber', '#f59e0b'),
+    violet: getCssVar('--pm-chart-violet', '#a855f7'),
+    slate: getCssVar('--pm-chart-slate', '#94a3b8'),
+    legend: '#4b5563',
+    ticks: '#6b7280',
+    gridLight: 'rgba(15, 23, 42, 0.05)',
+    gridDark: 'rgba(15, 23, 42, 0.08)',
+    tooltipBg: '#111827',
+    tooltipTitle: '#f9fafb',
+    tooltipBody: '#e5e7eb'
+  };
+
+  var neutralChartOptions = {
+    plugins: {
+      legend: {
+        labels: {
+          color: chartPalette.legend
+        }
+      },
+      tooltip: {
+        backgroundColor: chartPalette.tooltipBg,
+        titleColor: chartPalette.tooltipTitle,
+        bodyColor: chartPalette.tooltipBody,
+        borderWidth: 0
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          color: chartPalette.gridLight
+        },
+        ticks: {
+          color: chartPalette.ticks
+        }
+      },
+      y: {
+        grid: {
+          color: chartPalette.gridDark
+        },
+        ticks: {
+          color: chartPalette.ticks
+        }
+      }
+    }
+  };
+
+  var textColor = getCssVar('--pm-text-main', getCssVar('--pm-text', '#0b1220'));
+  var textSecondary = getCssVar('--pm-text-muted', getCssVar('--pm-text-secondary', '#4b5563'));
 
   function safeParse(el, attr) {
     try {
@@ -91,12 +129,14 @@
         datasets: [{
           data: data,
           backgroundColor: [
-            palette.accentPrimary || '#2563eb',
-            palette.neutralSoft || 'rgba(148, 163, 184, 0.18)'
+            'rgba(245, 158, 11, 0.85)',
+            'rgba(148, 163, 184, 0.9)',
+            'rgba(168, 85, 247, 0.85)'
           ],
           hoverBackgroundColor: [
-            palette.accentPrimary || '#2563eb',
-            palette.neutralSoft || 'rgba(148, 163, 184, 0.18)'
+            'rgba(245, 158, 11, 0.85)',
+            'rgba(148, 163, 184, 0.9)',
+            'rgba(168, 85, 247, 0.85)'
           ],
           borderWidth: 0,
           cutout: '60%'
@@ -106,9 +146,9 @@
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
-        plugins: {
+        plugins: Object.assign({}, neutralChartOptions.plugins, {
           legend: { display: false },
-          tooltip: {
+          tooltip: Object.assign({}, neutralChartOptions.plugins.tooltip, {
             enabled: true,
             callbacks: {
               label: function (context) {
@@ -117,8 +157,8 @@
                 return label + value + ' projects';
               }
             }
-          }
-        }
+          })
+        })
       },
       plugins: [ongoingCenterLabelPlugin]
     });
@@ -138,35 +178,28 @@
           data: data,
           tension: 0.35,
           pointRadius: 2,
-          pointBackgroundColor: palette.accentPrimary || '#2563eb',
+          pointBackgroundColor: chartPalette.violet,
           pointHoverRadius: 4,
+          pointBorderColor: chartPalette.violet,
           fill: false,
-          borderColor: palette.accentPrimary || '#2563eb'
+          borderColor: chartPalette.violet
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
-        plugins: { legend: { display: false } },
+        plugins: Object.assign({}, neutralChartOptions.plugins, { legend: { display: false } }),
         scales: {
-          x: {
-            grid: { display: true, color: palette.neutralSoft || 'rgba(148, 163, 184, 0.18)' },
-            ticks: {
-              color: palette.neutralStrong || '#6b7280',
-              font: { size: 10 }
-            },
+          x: Object.assign({}, neutralChartOptions.scales.x, {
+            grid: Object.assign({}, neutralChartOptions.scales.x.grid, { display: true }),
+            ticks: Object.assign({}, neutralChartOptions.scales.x.ticks, { font: { size: 10 } }),
             title: { display: true, text: 'Stages' }
-          },
-          y: {
+          }),
+          y: Object.assign({}, neutralChartOptions.scales.y, {
             beginAtZero: true,
-            ticks: {
-              precision: 0,
-              color: palette.neutralStrong || '#9ca3af',
-              font: { size: 10 }
-            },
-            grid: { display: true, color: palette.neutralSoft || 'rgba(148, 163, 184, 0.18)' }
-          }
+            ticks: Object.assign({}, neutralChartOptions.scales.y.ticks, { precision: 0, font: { size: 10 } })
+          })
         }
       }
     });
@@ -187,38 +220,32 @@
         labels: labels,
         datasets: [{
           data: data,
-          borderRadius: 4,
+          borderRadius: 6,
           maxBarThickness: 22,
-          backgroundColor: palette.accentPrimary || '#2563eb',
-          borderColor: palette.accentPrimary || '#2563eb',
-          borderWidth: 1
+          backgroundColor: 'rgba(34, 197, 94, 0.75)',
+          borderColor: chartPalette.green,
+          borderWidth: 1.5
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
-        plugins: { legend: { display: false } },
+        plugins: Object.assign({}, neutralChartOptions.plugins, { legend: { display: false } }),
         scales: {
-          x: {
-            grid: { display: true, color: palette.neutralSoft || 'rgba(148, 163, 184, 0.18)' },
-            ticks: {
+          x: Object.assign({}, neutralChartOptions.scales.x, {
+            grid: Object.assign({}, neutralChartOptions.scales.x.grid, { display: true }),
+            ticks: Object.assign({}, neutralChartOptions.scales.x.ticks, {
               display: true,
-              color: palette.neutralStrong || '#6b7280',
               font: { size: 10 }
-            },
+            }),
             title: { display: Boolean(xLabel), text: xLabel }
-          },
-          y: {
+          }),
+          y: Object.assign({}, neutralChartOptions.scales.y, {
             beginAtZero: true,
-            ticks: {
-              precision: 0,
-              color: palette.neutralStrong || '#9ca3af',
-              font: { size: 10 }
-            },
-            grid: { display: true, color: palette.neutralSoft || 'rgba(148, 163, 184, 0.18)' },
+            ticks: Object.assign({}, neutralChartOptions.scales.y.ticks, { precision: 0, font: { size: 10 } }),
             title: { display: Boolean(yLabel), text: yLabel }
-          }
+          })
         }
       }
     });

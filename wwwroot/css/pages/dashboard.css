@@ -1,5 +1,17 @@
 /* SECTION: Dashboard surface & card shell */
 
+/* SECTION: Dashboard shell background */
+body,
+.layout-main,
+.dashboard {
+    background-color: var(--pm-shell-bg);
+}
+
+.dashboard-main-content,
+.dashboard-sidebar {
+    background-color: transparent;
+}
+
 /* Shared vertical rhythm tokens for all four circled gaps */
 .dashboard {
     --dashboard-gap-small: 1.5rem; /* 1 & 2 */
@@ -14,15 +26,31 @@
 .todo-widget,
 .search-health-card,
 .dashboard-my-projects__projects {
-    background: var(--pm-surface-elevated);
-    border: 1px solid var(--pm-border-muted);
-    border-radius: 18px;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    background: var(--pm-surface-card);
+    border: 1px solid var(--pm-border-soft);
+    border-radius: 20px;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
 }
 
 /* Light, cool dashboard canvas behind the cards */
 .analytics-main {
-    background: var(--pm-surface-steel);
+    background: var(--pm-shell-bg);
+}
+/* END SECTION */
+
+/* SECTION: Dashboard card surfaces */
+.dashboard-section,
+.dashboard-card,
+.todo-widget,
+.search-health-widget,
+.myproj-stage-widget,
+.ops-signals,
+.pm-card,
+.pm-panel {
+    background-color: var(--pm-surface-card);
+    border: 1px solid var(--pm-border-soft);
+    border-radius: 20px;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
 }
 /* END SECTION */
 
