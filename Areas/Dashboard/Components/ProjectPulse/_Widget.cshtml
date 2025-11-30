@@ -8,14 +8,7 @@
 @* SECTION: Serialization helpers *@
 @{
     var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-    string Serialize<T>(IReadOnlyList<T> source) => JsonSerializer.Serialize(source, jsonOptions);
-
-    var ongoingRemainder = Math.Max(0, Model.TotalProjects - Model.OngoingCount);
-    var ongoingRingSeries = new List<CategorySlice>
-    {
-        new("Ongoing projects", Model.OngoingCount),
-        new("Other", ongoingRemainder)
-    };
+    string projectPulseJson = JsonSerializer.Serialize(Model, jsonOptions);
 
     string DescribeCategories(string heading, IReadOnlyList<CategorySlice> slices)
     {
@@ -25,6 +18,17 @@
         }
 
         var details = string.Join(", ", slices.Select(slice => $"{slice.Label} {slice.Count}"));
+        return $"{heading}: {details}";
+    }
+
+    string DescribeOngoingCategories(string heading, IReadOnlyList<OngoingCategorySlice> slices)
+    {
+        if (slices.Count == 0)
+        {
+            return $"{heading} data is not available";
+        }
+
+        var details = string.Join(", ", slices.Select(slice => $"{slice.CategoryName} {slice.ProjectCount}"));
         return $"{heading}: {details}";
     }
 
@@ -42,7 +46,10 @@
 }
 @* END SECTION *@
 
-<section class="ppulse dashboard-project-pulse-card" data-project-pulse>
+<section
+    id="project-pulse-root"
+    class="ppulse dashboard-project-pulse-card"
+    data-project-pulse='@Html.Raw(projectPulseJson)'>
   @* SECTION: Header *@
   <div class="ppulse__head">
     <div class="ppulse__title">
@@ -83,10 +90,7 @@
         </header>
         <div
           class="ppulse__chart pulse-chart-container"
-          data-chart="bar"
-          data-x-label="Year"
-          data-y-label="Projects completed"
-          data-series='@Html.Raw(Serialize(Model.CompletedByYear))'
+          data-chart-role="completed"
           role="img"
           aria-label='@DescribeYearlyCounts("Completed projects by year", Model.CompletedByYear)'
         >
@@ -103,19 +107,18 @@
         </header>
         <div
           class="ppulse__chart pulse-chart-container"
-          data-chart="donut"
-          data-series='@Html.Raw(Serialize(ongoingRingSeries))'
+          data-chart-role="ongoing"
           role="img"
-          aria-label='@DescribeCategories("Ongoing projects split", ongoingRingSeries)'
+          aria-label='@DescribeOngoingCategories("Ongoing projects split", Model.OngoingByCategory)'
         >
           <canvas aria-hidden="true"></canvas>
         </div>
-        @if (Model.OngoingByProjectCategory?.Any() == true)
+        @if (Model.OngoingByCategory?.Any() == true)
         {
             <div class="ppulse__breakdown" aria-label="Ongoing projects by category">
-                @foreach (var slice in Model.OngoingByProjectCategory)
+                @foreach (var slice in Model.OngoingByCategory)
                 {
-                    <span class="ppulse__breakdown-item">@slice.Label: @slice.Count</span>
+                    <span class="ppulse__breakdown-item">@slice.CategoryName: @slice.ProjectCount</span>
                 }
             </div>
         }
@@ -130,10 +133,7 @@
         </header>
         <div
           class="ppulse__chart pulse-chart-container"
-          data-chart="bar"
-          data-x-label="Technical category"
-          data-y-label="Projects"
-          data-series='@Html.Raw(Serialize(Model.AllByTechnicalCategoryTop))'
+          data-chart-role="all-projects"
           role="img"
           aria-label='@DescribeCategories("Top technical categories", Model.AllByTechnicalCategoryTop)'
         >

@@ -9,49 +9,51 @@
   // SECTION: Utilities
   var ChartCtor = window.Chart;
 
-  var chartPalette = {
-    green: getCssVar('--pm-chart-green', '#22c55e'),
-    amber: getCssVar('--pm-chart-amber', '#f59e0b'),
-    violet: getCssVar('--pm-chart-violet', '#a855f7'),
-    slate: getCssVar('--pm-chart-slate', '#94a3b8'),
-    legend: '#4b5563',
-    ticks: '#6b7280',
-    gridLight: 'rgba(15, 23, 42, 0.05)',
-    gridDark: 'rgba(15, 23, 42, 0.08)',
-    tooltipBg: '#111827',
-    tooltipTitle: '#f9fafb',
-    tooltipBody: '#e5e7eb'
+  var PulsePalette = {
+    // Completed (success)
+    completed: 'rgba(52, 199, 89, 0.8)',
+    completedBorder: 'rgba(52, 199, 89, 1)',
+
+    // Ongoing (in progress)
+    ongoing: 'rgba(255, 159, 10, 0.85)',
+    ongoingBorder: 'rgba(255, 159, 10, 1)',
+
+    // Neutral bars / breakdowns
+    neutralBar: 'rgba(148, 163, 184, 0.9)',
+    neutralBorder: 'rgba(148, 163, 184, 1)',
+
+    // Optional softer variants for cycling donut colours
+    neutralSoft: 'rgba(207, 212, 228, 0.9)'
   };
 
   var neutralChartOptions = {
     plugins: {
       legend: {
         labels: {
-          color: chartPalette.legend
+          color: '#4B5563'
         }
       },
       tooltip: {
-        backgroundColor: chartPalette.tooltipBg,
-        titleColor: chartPalette.tooltipTitle,
-        bodyColor: chartPalette.tooltipBody,
-        borderWidth: 0
+        backgroundColor: '#111827',
+        titleColor: '#F9FAFB',
+        bodyColor: '#E5E7EB'
       }
     },
     scales: {
       x: {
         grid: {
-          color: chartPalette.gridLight
+          color: 'rgba(15, 23, 42, 0.05)'
         },
         ticks: {
-          color: chartPalette.ticks
+          color: '#6B7280'
         }
       },
       y: {
         grid: {
-          color: chartPalette.gridDark
+          color: 'rgba(15, 23, 42, 0.08)'
         },
         ticks: {
-          color: chartPalette.ticks
+          color: '#6B7280'
         }
       }
     }
@@ -60,40 +62,12 @@
   var textColor = getCssVar('--pm-text-main', getCssVar('--pm-text', '#0b1220'));
   var textSecondary = getCssVar('--pm-text-muted', getCssVar('--pm-text-secondary', '#4b5563'));
 
-  // SECTION: Palette helpers
-  function resolveBarPalette(xLabel, yLabel) {
-    var normalizedY = (yLabel || '').toLowerCase();
-    var normalizedX = (xLabel || '').toLowerCase();
-
-    if (normalizedY.indexOf('completed') !== -1) {
-      return {
-        fill: 'rgba(74, 222, 128, 0.9)',
-        border: 'rgba(34, 197, 94, 1)',
-        borderWidth: 1
-      };
-    }
-
-    if (normalizedX.indexOf('technical category') !== -1) {
-      return {
-        fill: 'rgba(148, 163, 184, 0.95)',
-        border: 'rgba(100, 116, 139, 1)',
-        borderWidth: 1
-      };
-    }
-
-    return {
-      fill: 'rgba(34, 197, 94, 0.75)',
-      border: chartPalette.green,
-      borderWidth: 1.5
-    };
-  }
-  
   function safeParse(el, attr) {
     try {
-      return JSON.parse(el.getAttribute(attr) || '[]');
+      return JSON.parse(el.getAttribute(attr) || 'null');
     } catch (err) {
       console.warn('Project pulse chart parsing failed', err); // eslint-disable-line no-console
-      return [];
+      return null;
     }
   }
 
@@ -104,56 +78,130 @@
     var styles = getComputedStyle(document.documentElement);
     return styles.getPropertyValue(name).trim() || fallback;
   }
+
+  function mergeOptions(base, overrides) {
+    var merged = {
+      plugins: Object.assign({}, base.plugins, overrides && overrides.plugins),
+      scales: Object.assign({}, base.scales)
+    };
+
+    if (overrides && overrides.scales) {
+      merged.scales.x = Object.assign({}, base.scales.x, overrides.scales.x);
+      merged.scales.y = Object.assign({}, base.scales.y, overrides.scales.y);
+    }
+
+    Object.keys(overrides || {}).forEach(function (key) {
+      if (key !== 'plugins' && key !== 'scales') {
+        merged[key] = overrides[key];
+      }
+    });
+
+    return merged;
+  }
   // END SECTION
 
   // SECTION: Plugins
-  var ongoingCenterLabelPlugin = {
-    id: 'ongoingCenterLabel',
-    afterDraw: function (chart) {
-      var dataset = chart.data && chart.data.datasets && chart.data.datasets[0];
-      if (!dataset || !dataset.data || !dataset.data.length) {
-        return;
+  function createOngoingCenterLabelPlugin(totalOngoing) {
+    return {
+      id: 'ongoingCenterLabel',
+      afterDraw: function (chart) {
+        var dataset = chart.data && chart.data.datasets && chart.data.datasets[0];
+        if (!dataset || !dataset.data || dataset.data.length === 0) {
+          return;
+        }
+
+        var area = chart.chartArea;
+        var ctx = chart.ctx;
+
+        if (!area) {
+          return;
+        }
+
+        var centerX = (area.left + area.right) / 2;
+        var centerY = (area.top + area.bottom) / 2;
+
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = textColor;
+        ctx.font = '600 16px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        ctx.fillText(totalOngoing.toString(), centerX, centerY - 6);
+
+        ctx.fillStyle = textSecondary;
+        ctx.font = '400 10px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        ctx.fillText('ongoing projects', centerX, centerY + 12);
+
+        ctx.restore();
       }
-
-      var totalOngoing = dataset.data[0];
-      var area = chart.chartArea;
-      var ctx = chart.ctx;
-
-      if (!area) {
-        return;
-      }
-
-      var centerX = (area.left + area.right) / 2;
-      var centerY = (area.top + area.bottom) / 2;
-
-      ctx.save();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      ctx.fillStyle = textColor;
-      ctx.font = '600 18px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-      ctx.fillText(totalOngoing, centerX, centerY - 6);
-
-      ctx.fillStyle = textSecondary;
-      ctx.font = '400 10px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-      ctx.fillText('ongoing projects', centerX, centerY + 12);
-
-      ctx.restore();
-    }
-  };
+    };
+  }
   // END SECTION
 
   // SECTION: Chart builders
-  function buildDonut(ctx, series) {
+  function buildCompletedChart(ctx, series) {
+    if (!series || !series.length) {
+      return null;
+    }
+
     var labels = series.map(function (s) { return s && (s.label || s.Label) ? (s.label || s.Label) : ''; });
     var data = series.map(function (s) {
       var value = s && (typeof s.count !== 'undefined' ? s.count : (typeof s.Count !== 'undefined' ? s.Count : 0));
       return Number(value) || 0;
     });
 
-    var donutColors = series.map(function (_slice, index) {
-      return index === 0 ? 'rgba(251, 146, 60, 0.95)' : 'rgba(229, 231, 235, 1)';
+    var options = mergeOptions(neutralChartOptions, {
+      plugins: Object.assign({}, neutralChartOptions.plugins, { legend: { display: false } }),
+      scales: {
+        x: Object.assign({}, neutralChartOptions.scales.x, {
+          grid: Object.assign({}, neutralChartOptions.scales.x.grid, { display: true }),
+          ticks: Object.assign({}, neutralChartOptions.scales.x.ticks, { font: { size: 10 } }),
+          title: { display: true, text: 'Year' }
+        }),
+        y: Object.assign({}, neutralChartOptions.scales.y, {
+          beginAtZero: true,
+          ticks: Object.assign({}, neutralChartOptions.scales.y.ticks, { precision: 0, font: { size: 10 } }),
+          title: { display: true, text: 'Projects completed' }
+        })
+      }
     });
+
+    return new ChartCtor(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Completed',
+          data: data,
+          backgroundColor: PulsePalette.completed,
+          borderColor: PulsePalette.completedBorder,
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      options: options
+    });
+  }
+
+  function buildOngoingDonut(ctx, vm) {
+    var slices = (vm && vm.ongoingByCategory) || [];
+    if (!slices.length) {
+      return null;
+    }
+
+    var labels = slices.map(function (slice) { return slice.categoryName || ''; });
+    var data = slices.map(function (slice) { return Number(slice.projectCount || 0); });
+    var donutBaseColors = [
+      PulsePalette.ongoing,
+      PulsePalette.completed,
+      PulsePalette.neutralBar,
+      PulsePalette.neutralSoft
+    ];
+    var donutColors = data.map(function (_value, index) {
+      return donutBaseColors[index % donutBaseColors.length];
+    });
+    var totalOngoing = typeof vm.totalOngoingProjects === 'number'
+      ? vm.totalOngoingProjects
+      : data.reduce(function (sum, value) { return sum + value; }, 0);
 
     return new ChartCtor(ctx, {
       type: 'doughnut',
@@ -162,118 +210,73 @@
         datasets: [{
           data: data,
           backgroundColor: donutColors,
-          hoverBackgroundColor: donutColors,
           borderWidth: 0,
-          cutout: '60%'
+          hoverBackgroundColor: donutColors,
+          cutout: '70%'
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
-        plugins: Object.assign({}, neutralChartOptions.plugins, {
+        plugins: {
           legend: { display: false },
           tooltip: Object.assign({}, neutralChartOptions.plugins.tooltip, {
-            enabled: true,
             callbacks: {
               label: function (context) {
                 var value = context.parsed || 0;
                 var label = context.label ? context.label + ': ' : '';
-                return label + value + ' projects';
+                return label + value + ' project' + (value === 1 ? '' : 's');
               }
             }
           })
-        })
-      },
-      plugins: [ongoingCenterLabelPlugin]
-    });
-  }
-
-  function buildLine(ctx, series) {
-    var labels = series.map(function (s) { return s && (s.stage || s.Stage) ? (s.stage || s.Stage) : ''; });
-    var data = series.map(function (s) {
-      var value = s && (typeof s.count !== 'undefined' ? s.count : (typeof s.Count !== 'undefined' ? s.Count : 0));
-      return Number(value) || 0;
-    });
-    return new ChartCtor(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: data,
-          tension: 0.35,
-          pointRadius: 2,
-          pointBackgroundColor: chartPalette.violet,
-          pointHoverRadius: 4,
-          pointBorderColor: chartPalette.violet,
-          fill: false,
-          borderColor: chartPalette.violet
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        plugins: Object.assign({}, neutralChartOptions.plugins, { legend: { display: false } }),
-        scales: {
-          x: Object.assign({}, neutralChartOptions.scales.x, {
-            grid: Object.assign({}, neutralChartOptions.scales.x.grid, { display: true }),
-            ticks: Object.assign({}, neutralChartOptions.scales.x.ticks, { font: { size: 10 } }),
-            title: { display: true, text: 'Stages' }
-          }),
-          y: Object.assign({}, neutralChartOptions.scales.y, {
-            beginAtZero: true,
-            ticks: Object.assign({}, neutralChartOptions.scales.y.ticks, { precision: 0, font: { size: 10 } })
-          })
         }
-      }
+      },
+      plugins: [createOngoingCenterLabelPlugin(totalOngoing)]
     });
   }
 
-  function buildBar(ctx, series, axisLabels) {
-    axisLabels = axisLabels || {};
-    var xLabel = axisLabels.x || axisLabels.X || '';
-    var yLabel = axisLabels.y || axisLabels.Y || '';
+  function buildAllProjectsChart(ctx, series) {
+    if (!series || !series.length) {
+      return null;
+    }
+
     var labels = series.map(function (s) { return s && (s.label || s.Label) ? (s.label || s.Label) : ''; });
     var data = series.map(function (s) {
       var value = s && (typeof s.count !== 'undefined' ? s.count : (typeof s.Count !== 'undefined' ? s.Count : 0));
       return Number(value) || 0;
     });
-    var palette = resolveBarPalette(xLabel, yLabel);
+
+    var options = mergeOptions(neutralChartOptions, {
+      plugins: Object.assign({}, neutralChartOptions.plugins, { legend: { display: false } }),
+      scales: {
+        x: Object.assign({}, neutralChartOptions.scales.x, {
+          grid: Object.assign({}, neutralChartOptions.scales.x.grid, { display: true }),
+          ticks: Object.assign({}, neutralChartOptions.scales.x.ticks, { font: { size: 10 } }),
+          title: { display: true, text: 'Technical category' }
+        }),
+        y: Object.assign({}, neutralChartOptions.scales.y, {
+          beginAtZero: true,
+          ticks: Object.assign({}, neutralChartOptions.scales.y.ticks, { precision: 0, font: { size: 10 } }),
+          title: { display: true, text: 'Projects' }
+        })
+      }
+    });
+
     return new ChartCtor(ctx, {
       type: 'bar',
       data: {
         labels: labels,
         datasets: [{
+          label: 'Projects',
           data: data,
-          borderRadius: 6,
-          maxBarThickness: 22,
-          backgroundColor: palette.fill,
-          borderColor: palette.border,
-          borderWidth: palette.borderWidth
+          backgroundColor: PulsePalette.neutralBar,
+          borderColor: PulsePalette.neutralBorder,
+          borderWidth: 1,
+          borderRadius: 4
         }]
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        plugins: Object.assign({}, neutralChartOptions.plugins, { legend: { display: false } }),
-        scales: {
-          x: Object.assign({}, neutralChartOptions.scales.x, {
-            grid: Object.assign({}, neutralChartOptions.scales.x.grid, { display: true }),
-            ticks: Object.assign({}, neutralChartOptions.scales.x.ticks, {
-              display: true,
-              font: { size: 10 }
-            }),
-            title: { display: Boolean(xLabel), text: xLabel }
-          }),
-          y: Object.assign({}, neutralChartOptions.scales.y, {
-            beginAtZero: true,
-            ticks: Object.assign({}, neutralChartOptions.scales.y.ticks, { precision: 0, font: { size: 10 } }),
-            title: { display: Boolean(yLabel), text: yLabel }
-          })
-        }
-      }
+      options: options
     });
   }
   // END SECTION
@@ -284,38 +287,42 @@
       return;
     }
 
-    var charts = [];
-    var hosts = Array.prototype.slice.call(root.querySelectorAll('.ppulse__chart'));
-
-    function hydrateChart(host) {
-      var canvas = host.querySelector('canvas');
-      if (!canvas) {
-        return;
-      }
-      var kind = host.getAttribute('data-chart');
-      var series = safeParse(host, 'data-series');
-      if (!series.length) {
-        return;
-      }
-      var chart;
-      if (kind === 'donut') {
-        chart = buildDonut(canvas.getContext('2d'), series);
-      } else if (kind === 'line') {
-        chart = buildLine(canvas.getContext('2d'), series);
-      } else if (kind === 'bar') {
-        chart = buildBar(canvas.getContext('2d'), series, {
-          x: host.getAttribute('data-x-label') || '',
-          y: host.getAttribute('data-y-label') || ''
-        });
-      }
-      if (chart) {
-        charts.push(chart);
-      }
+    var vm = safeParse(root, 'data-project-pulse');
+    if (!vm) {
+      return;
     }
 
-    function hydrateAll() {
-      hosts.forEach(hydrateChart);
-      hosts = [];
+    var rendered = false;
+
+    function renderCharts() {
+      if (rendered) {
+        return;
+      }
+      rendered = true;
+
+      var completedHost = root.querySelector('[data-chart-role="completed"]');
+      if (completedHost) {
+        var completedCanvas = completedHost.querySelector('canvas');
+        if (completedCanvas) {
+          buildCompletedChart(completedCanvas.getContext('2d'), vm.completedByYear || []);
+        }
+      }
+
+      var ongoingHost = root.querySelector('[data-chart-role="ongoing"]');
+      if (ongoingHost) {
+        var ongoingCanvas = ongoingHost.querySelector('canvas');
+        if (ongoingCanvas) {
+          buildOngoingDonut(ongoingCanvas.getContext('2d'), vm);
+        }
+      }
+
+      var allProjectsHost = root.querySelector('[data-chart-role="all-projects"]');
+      if (allProjectsHost) {
+        var allProjectsCanvas = allProjectsHost.querySelector('canvas');
+        if (allProjectsCanvas) {
+          buildAllProjectsChart(allProjectsCanvas.getContext('2d'), vm.allByTechnicalCategoryTop || []);
+        }
+      }
     }
 
     if ('IntersectionObserver' in window) {
@@ -325,12 +332,12 @@
             return;
           }
           observer.unobserve(entry.target);
-          hydrateAll();
+          renderCharts();
         });
       }, { rootMargin: '80px' });
       observer.observe(root);
     } else {
-      hydrateAll();
+      renderCharts();
     }
   }
   // END SECTION
