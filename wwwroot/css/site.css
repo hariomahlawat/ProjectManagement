@@ -10,6 +10,7 @@
     --pm-primary-strong: #1d4ed8;
 
     /* -- SECTION: Neutrals & surfaces -- */
+    --pm-shell-bg: #f7f3eb;
     --pm-surface: #f5f7fb;
     --pm-surface-soft: #f9fafb;
     --pm-surface-subtle: #f3f4f6;
@@ -29,18 +30,20 @@
     --pm-surface-porcelain: #eef2f7;
     --pm-surface-mint: #f0f7f3;
     --pm-surface-violet: #f7f1ff;
+    --pm-surface-card: #ffffff;
     --pm-card: #ffffff;
     --pm-skeleton: #e5e7eb;
 
     /* -- SECTION: Text -- */
     --pm-text: #0b1220;
+    --pm-text-main: #0f172a;
     --pm-text-secondary: #4b5563;
     --pm-text-muted: #6b7280;
+    --pm-text-muted-strong: #5c7080;
     --pm-muted: #6b7280;
     --pm-text-contrast: #0f172a;
     --pm-text-inverted: #ffffff;
     --pm-text-tertiary: #6c757d;
-    --pm-text-muted-strong: #5c7080;
     --pm-text-dim: #555555;
     --pm-text-true: #000000;
     --pm-text-gray-soft: #7b8794;
@@ -55,7 +58,7 @@
     --pm-border-muted: #e2e8f0;
     --pm-border-faint: #e9ecef;
     --pm-border-alt: #ced4da;
-    --pm-border-soft: #dadce0;
+    --pm-border-soft: rgba(15, 23, 42, 0.06);
     --pm-border-outline: #d9dfe8;
 
     /* -- SECTION: Status colors -- */
@@ -172,6 +175,10 @@
     /* -- SECTION: Charts & widgets -- */
     --pm-chart-grid: #e5e7eb;
     --pm-chart-axis: #4b5563;
+    --pm-chart-green: #22c55e;
+    --pm-chart-amber: #f59e0b;
+    --pm-chart-violet: #a855f7;
+    --pm-chart-slate: #94a3b8;
     --pm-chart-accent-1: #2563eb;
     --pm-chart-accent-2: #f97316;
     --pm-chart-accent-3: #22c55e;
