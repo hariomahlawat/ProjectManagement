@@ -58,8 +58,8 @@ namespace ProjectManagement.Pages.Dashboard
 
         public TodoWidgetResult? TodoWidget { get; set; }
         public List<UpcomingEventVM> UpcomingEvents { get; set; } = new();
-        public List<MyProjectsSection> MyProjectSections { get; private set; } = new();
-        public bool HasMyProjects => MyProjectSections.Any(section => section.Items.Count > 0);
+        public MyProjectsVm MyProjects { get; private set; } = new();
+        public bool HasMyProjects => MyProjects.Sections.Any(section => section.Projects.Count > 0);
         // SECTION: Dashboard KPI widgets
         public ProjectPulseVm? ProjectPulse { get; private set; }
         public OpsSignalsVm OpsSignals { get; private set; } = new() { Tiles = Array.Empty<OpsTileVm>() };
@@ -250,12 +250,12 @@ namespace ProjectManagement.Pages.Dashboard
             {
                 try
                 {
-                    await LoadMyProjectsAsync(uid, isProjectOfficer, isHod, isComdt || isMco, cancellationToken);
+                    MyProjects = await LoadMyProjectsAsync(uid, isProjectOfficer, isHod, isComdt || isMco, cancellationToken);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Dashboard widget failed: My Projects");
-                    MyProjectSections = new List<MyProjectsSection>();
+                    MyProjects = new MyProjectsVm();
                 }
             }
 
@@ -332,93 +332,85 @@ namespace ProjectManagement.Pages.Dashboard
             // END SECTION
         }
 
-        private async Task LoadMyProjectsAsync(
+        private async Task<MyProjectsVm> LoadMyProjectsAsync(
             string userId,
             bool includeOfficerSection,
             bool includeHodSection,
             bool includeAllOngoingSection,
             CancellationToken cancellationToken)
         {
-            var sections = new List<MyProjectsSection>();
+            var projects = new List<ProjectAssignmentSummary>();
+            var uniqueProjects = new HashSet<int>();
 
-            if (includeOfficerSection)
+            void AddProjects(IEnumerable<ProjectAssignmentSummary> source)
             {
-                var officerProjects = await OnlyOngoing(_db.Projects.AsNoTracking())
-                    .Where(p => p.LeadPoUserId == userId)
-                    .OrderBy(p => p.Name)
-                    .Select(p => new ProjectAssignmentSummary
-                    {
-                        Id = p.Id,
-                        Name = p.Name,
-                        Category = p.Category != null ? p.Category.Name : null,
-                        CoverPhotoId = p.CoverPhotoId,
-                        CoverPhotoVersion = p.CoverPhotoVersion
-                    })
-                    .ToListAsync(cancellationToken);
-
-                if (officerProjects.Count > 0)
+                foreach (var summary in source)
                 {
-                    sections.Add(new MyProjectsSection
+                    if (uniqueProjects.Add(summary.Id))
                     {
-                        Title = "Project Officer",
-                        Items = officerProjects.Select(CreateProjectItem).ToList()
-                    });
-                }
-            }
-
-            if (includeHodSection)
-            {
-                var hodProjects = await OnlyOngoing(_db.Projects.AsNoTracking())
-                    .Where(p => p.HodUserId == userId)
-                    .OrderBy(p => p.Name)
-                    .Select(p => new ProjectAssignmentSummary
-                    {
-                        Id = p.Id,
-                        Name = p.Name,
-                        Category = p.Category != null ? p.Category.Name : null,
-                        CoverPhotoId = p.CoverPhotoId,
-                        CoverPhotoVersion = p.CoverPhotoVersion
-                    })
-                    .ToListAsync(cancellationToken);
-
-                if (hodProjects.Count > 0)
-                {
-                    sections.Add(new MyProjectsSection
-                    {
-                        Title = "Head of Department",
-                        Items = hodProjects.Select(CreateProjectItem).ToList()
-                    });
+                        projects.Add(summary);
+                    }
                 }
             }
 
             if (includeAllOngoingSection)
             {
-                var allOngoingProjects = await OnlyOngoing(_db.Projects.AsNoTracking())
+                var allOngoingProjects = await BuildAssignmentQuery(_db.Projects.AsNoTracking())
                     .OrderBy(p => p.Name)
-                    .Select(p => new ProjectAssignmentSummary
-                    {
-                        Id = p.Id,
-                        Name = p.Name,
-                        Category = p.Category != null ? p.Category.Name : null,
-                        CoverPhotoId = p.CoverPhotoId,
-                        CoverPhotoVersion = p.CoverPhotoVersion
-                    })
                     .ToListAsync(cancellationToken);
-
-                if (allOngoingProjects.Count > 0)
+                AddProjects(allOngoingProjects);
+            }
+            else
+            {
+                if (includeOfficerSection)
                 {
-                    sections.Add(new MyProjectsSection
-                    {
-                        Title = "All ongoing projects",
-                        Items = allOngoingProjects.Select(CreateProjectItem).ToList()
-                    });
+                    var officerProjects = await BuildAssignmentQuery(_db.Projects.AsNoTracking())
+                        .Where(p => p.LeadPoUserId == userId)
+                        .OrderBy(p => p.Name)
+                        .ToListAsync(cancellationToken);
+                    AddProjects(officerProjects);
+                }
+
+                if (includeHodSection)
+                {
+                    var hodProjects = await BuildAssignmentQuery(_db.Projects.AsNoTracking())
+                        .Where(p => p.HodUserId == userId)
+                        .OrderBy(p => p.Name)
+                        .ToListAsync(cancellationToken);
+                    AddProjects(hodProjects);
                 }
             }
 
-            MyProjectSections = sections;
-            await AttachStageSummariesAsync(MyProjectSections, cancellationToken);
+            if (projects.Count == 0)
+            {
+                return new MyProjectsVm();
+            }
 
-            MyProjectItem CreateProjectItem(ProjectAssignmentSummary summary)
+            var tiles = projects
+                .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(CreateTile)
+                .ToList();
+
+            var sections = tiles
+                .GroupBy(tile => tile.CategoryName)
+                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new MyProjectCategorySectionVm
+                {
+                    CategoryName = group.Key,
+                    ProjectCount = group.Count(),
+                    Projects = group.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase).ToList()
+                })
+                .ToList();
+
+            var stageAlerts = await BuildStagePdcAlertsAsync(tiles, cancellationToken);
+
+            return new MyProjectsVm
+            {
+                Sections = sections,
+                StagePdcAlerts = stageAlerts
+            };
+
+            MyProjectTileVm CreateTile(ProjectAssignmentSummary summary)
             {
                 string? coverImageUrl = summary.CoverPhotoId.HasValue
                     ? Url.Page("/Projects/Photos/View", new
@@ -430,27 +422,44 @@ namespace ProjectManagement.Pages.Dashboard
                     })
                     : null;
 
-                return new MyProjectItem
+                return new MyProjectTileVm
                 {
                     ProjectId = summary.Id,
                     Name = summary.Name,
-                    Category = string.IsNullOrWhiteSpace(summary.Category) ? null : summary.Category,
-                    CoverImageUrl = coverImageUrl
+                    CategoryName = summary.CategoryName,
+                    CoverUrl = coverImageUrl
                 };
             }
         }
 
-        private async Task AttachStageSummariesAsync(List<MyProjectsSection> sections, CancellationToken cancellationToken)
+        private IQueryable<ProjectAssignmentSummary> BuildAssignmentQuery(IQueryable<Project> baseQuery)
         {
-            var projectIds = sections
-                .SelectMany(section => section.Items)
-                .Select(item => item.ProjectId)
-                .Distinct()
-                .ToArray();
+            return OnlyOngoing(baseQuery)
+                .Select(p => new ProjectAssignmentSummary
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    CategoryName = p.Category != null
+                        ? (p.Category.Parent != null ? p.Category.Parent.Name : p.Category.Name)
+                        : "Uncategorised",
+                    CoverPhotoId = p.CoverPhotoId,
+                    CoverPhotoVersion = p.CoverPhotoVersion,
+                    CurrentStageCode = p.ProjectStages
+                        .Where(stage => stage.Status == StageStatus.InProgress)
+                        .OrderBy(stage => stage.SortOrder)
+                        .Select(stage => stage.StageCode)
+                        .FirstOrDefault() ?? string.Empty
+                });
+        }
 
+        private async Task<IReadOnlyList<StagePdcAlertVm>> BuildStagePdcAlertsAsync(
+            IReadOnlyList<MyProjectTileVm> projects,
+            CancellationToken cancellationToken)
+        {
+            var projectIds = projects.Select(p => p.ProjectId).Distinct().ToArray();
             if (projectIds.Length == 0)
             {
-                return;
+                return Array.Empty<StagePdcAlertVm>();
             }
 
             var stageRows = await _db.ProjectStages
@@ -459,18 +468,53 @@ namespace ProjectManagement.Pages.Dashboard
                 .ToListAsync(cancellationToken);
 
             var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+            var soonThreshold = today.AddDays(60);
 
-            foreach (var item in sections.SelectMany(section => section.Items))
+            var alerts = new List<StagePdcAlertVm>();
+
+            foreach (var project in projects)
             {
-                var summary = BuildStageSummary(item.ProjectId, stageRows, today);
-                if (summary is not null)
+                var stageSummary = BuildStageSnapshot(project.ProjectId, stageRows, today);
+                var plannedDue = stageSummary?.PlannedDue;
+
+                StagePdcAlertType alertType;
+
+                if (plannedDue is null)
                 {
-                    item.StageSummary = summary;
+                    alertType = StagePdcAlertType.NotSet;
                 }
+                else if (plannedDue.Value < today)
+                {
+                    alertType = StagePdcAlertType.Overdue;
+                }
+                else if (plannedDue.Value <= soonThreshold)
+                {
+                    alertType = StagePdcAlertType.DueSoon;
+                }
+                else
+                {
+                    continue;
+                }
+
+                alerts.Add(new StagePdcAlertVm
+                {
+                    ProjectId = project.ProjectId,
+                    ProjectName = project.Name,
+                    CategoryName = project.CategoryName,
+                    CurrentStageCode = stageSummary?.StageCode ?? string.Empty,
+                    PdcDate = plannedDue?.ToDateTime(TimeOnly.MinValue),
+                    AlertType = alertType
+                });
             }
+
+            return alerts
+                .OrderByDescending(alert => alert.AlertType == StagePdcAlertType.Overdue)
+                .ThenByDescending(alert => alert.AlertType == StagePdcAlertType.DueSoon)
+                .ThenBy(alert => alert.PdcDate ?? DateTime.MaxValue)
+                .ToList();
         }
 
-        private static MyProjectStageSummary? BuildStageSummary(int projectId, List<ProjectStage> allStages, DateOnly today)
+        private static StageSnapshot? BuildStageSnapshot(int projectId, List<ProjectStage> allStages, DateOnly today)
         {
             if (StageCodes.All.Length == 0)
             {
@@ -528,7 +572,7 @@ namespace ProjectManagement.Pages.Dashboard
                 }
             }
 
-            return new MyProjectStageSummary
+            return new StageSnapshot
             {
                 StageCode = currentStageCode,
                 StageName = StageCodes.DisplayNameOf(currentStageCode),
@@ -549,22 +593,45 @@ namespace ProjectManagement.Pages.Dashboard
         }
         // END SECTION
 
-        public sealed class MyProjectsSection
+        // SECTION: Stage & PDC helper labels
+        public static string GetAlertGroupTitle(StagePdcAlertType type) => type switch
         {
-            public string Title { get; init; } = string.Empty;
-            public List<MyProjectItem> Items { get; init; } = new();
+            StagePdcAlertType.Overdue => "Overdue PDC",
+            StagePdcAlertType.DueSoon => "PDC due in next 60 days",
+            StagePdcAlertType.NotSet => "PDC not set",
+            _ => "Stage & PDC"
+        };
+
+        public static string GetAlertPdcLabel(StagePdcAlertVm alert)
+        {
+            return alert.AlertType switch
+            {
+                StagePdcAlertType.NotSet => "PDC not set",
+                _ when alert.PdcDate.HasValue => alert.PdcDate.Value.ToString("dd-MMM-yyyy"),
+                _ => "—"
+            };
         }
 
-        public sealed class MyProjectItem
+        public static string GetAlertTypeCss(StagePdcAlertType type) => type switch
         {
-            public int ProjectId { get; init; }
+            StagePdcAlertType.Overdue => "is-overdue",
+            StagePdcAlertType.DueSoon => "is-due-soon",
+            StagePdcAlertType.NotSet => "is-not-set",
+            _ => string.Empty
+        };
+        // END SECTION
+
+        private sealed class ProjectAssignmentSummary
+        {
+            public int Id { get; init; }
             public string Name { get; init; } = string.Empty;
-            public string? Category { get; init; }
-            public string? CoverImageUrl { get; init; }
-            public MyProjectStageSummary? StageSummary { get; set; }
+            public string CategoryName { get; init; } = string.Empty;
+            public int? CoverPhotoId { get; init; }
+            public int CoverPhotoVersion { get; init; }
+            public string CurrentStageCode { get; init; } = string.Empty;
         }
 
-        public sealed class MyProjectStageSummary
+        private sealed class StageSnapshot
         {
             public string StageCode { get; init; } = string.Empty;
             public string StageName { get; init; } = string.Empty;
@@ -572,15 +639,6 @@ namespace ProjectManagement.Pages.Dashboard
             public StageStatus Status { get; init; }
             public bool IsOverdue { get; init; }
             public int? DaysToPdc { get; init; }
-        }
-
-        private sealed class ProjectAssignmentSummary
-        {
-            public int Id { get; init; }
-            public string Name { get; init; } = string.Empty;
-            public string? Category { get; init; }
-            public int? CoverPhotoId { get; init; }
-            public int CoverPhotoVersion { get; init; }
         }
 
         public async Task<IActionResult> OnPostAddAsync()

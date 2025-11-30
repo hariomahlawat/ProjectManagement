@@ -6,8 +6,8 @@
             return;
         }
 
-        const projectCards = widget.querySelectorAll('[data-project-id].dashboard-project-card');
-        const pdcRows = widget.querySelectorAll('.myproj-stage-widget__pdc-row[data-project-id]');
+        const projectCards = widget.querySelectorAll('[data-project-id].myproject-tile');
+        const pdcRows = widget.querySelectorAll('.myprojects-alert-item[data-project-id]');
 
         if (!projectCards.length || !pdcRows.length) {
             return;
