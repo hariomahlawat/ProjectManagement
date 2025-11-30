@@ -5,7 +5,7 @@
   --pp-gap-md: 16px;
   --pp-gap-lg: 24px;
   --pp-border: var(--pm-border-soft, var(--pm-border));
-  background: var(--pm-surface-card);
+  background: var(--pm-pulse-bg, var(--pm-surface-card));
   border-radius: 20px;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
   padding: 1rem 1.25rem 0.9rem;

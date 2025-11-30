@@ -187,6 +187,22 @@
     --pm-chart-accent-5: #ec4899;
     --pm-chart-accent-6: #14b8a6;
 
+    /* -- SECTION: Project pulse palette -- */
+    --pm-pulse-bg: var(--pm-card);
+
+    /* Completed bar chart */
+    --pm-pulse-completed-bar-fill: #d1fae5;
+    --pm-pulse-completed-bar-stroke: #059669;
+
+    /* Ongoing donut */
+    --pm-pulse-ongoing-main: #22c55e;
+    --pm-pulse-ongoing-muted: #e5e7eb;
+    --pm-pulse-ongoing-hover: #16a34a;
+
+    /* All projects bar chart */
+    --pm-pulse-allprojects-bar: #9ca3af;
+    --pm-pulse-allprojects-bar-alt: #6b7280;
+
     /* -- SECTION: Dashboard / Analytics chart palette -- */
     --pm-chart-accent-primary: #2563eb;
     --pm-chart-accent-muted: #cbd5f5;

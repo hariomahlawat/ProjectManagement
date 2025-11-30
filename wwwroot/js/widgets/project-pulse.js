@@ -9,22 +9,31 @@
   // SECTION: Utilities
   var ChartCtor = window.Chart;
 
-  var PulsePalette = {
-    // Completed (success)
-    completed: 'rgba(52, 199, 89, 0.8)',
-    completedBorder: 'rgba(52, 199, 89, 1)',
+  function getPulsePalette() {
+    var style = getComputedStyle(document.documentElement);
 
-    // Ongoing (in progress)
-    ongoing: 'rgba(255, 159, 10, 0.85)',
-    ongoingBorder: 'rgba(255, 159, 10, 1)',
+    var completedFill = style.getPropertyValue('--pm-pulse-completed-bar-fill').trim() || '#d1fae5';
+    var completedStroke = style.getPropertyValue('--pm-pulse-completed-bar-stroke').trim() || '#059669';
 
-    // Neutral bars / breakdowns
-    neutralBar: 'rgba(148, 163, 184, 0.9)',
-    neutralBorder: 'rgba(148, 163, 184, 1)',
+    var ongoingMain = style.getPropertyValue('--pm-pulse-ongoing-main').trim() || '#22c55e';
+    var ongoingMuted = style.getPropertyValue('--pm-pulse-ongoing-muted').trim() || '#e5e7eb';
+    var ongoingHover = style.getPropertyValue('--pm-pulse-ongoing-hover').trim() || '#16a34a';
 
-    // Optional softer variants for cycling donut colours
-    neutralSoft: 'rgba(207, 212, 228, 0.9)'
-  };
+    var allProjectsBar = style.getPropertyValue('--pm-pulse-allprojects-bar').trim() || '#9ca3af';
+    var allProjectsBarAlt = style.getPropertyValue('--pm-pulse-allprojects-bar-alt').trim() || '#6b7280';
+
+    return {
+      completedFill: completedFill,
+      completedStroke: completedStroke,
+      ongoingMain: ongoingMain,
+      ongoingMuted: ongoingMuted,
+      ongoingHover: ongoingHover,
+      allProjectsBar: allProjectsBar,
+      allProjectsBarAlt: allProjectsBarAlt
+    };
+  }
+
+  var pulsePalette = getPulsePalette();
 
   var neutralChartOptions = {
     plugins: {
@@ -172,8 +181,8 @@
         datasets: [{
           label: 'Completed',
           data: data,
-          backgroundColor: PulsePalette.completed,
-          borderColor: PulsePalette.completedBorder,
+          backgroundColor: pulsePalette.completedFill,
+          borderColor: pulsePalette.completedStroke,
           borderWidth: 1,
           borderRadius: 4
         }]
@@ -190,14 +199,11 @@
 
     var labels = slices.map(function (slice) { return slice.categoryName || ''; });
     var data = slices.map(function (slice) { return Number(slice.projectCount || 0); });
-    var donutBaseColors = [
-      PulsePalette.ongoing,
-      PulsePalette.completed,
-      PulsePalette.neutralBar,
-      PulsePalette.neutralSoft
-    ];
-    var donutColors = data.map(function (_value, index) {
-      return donutBaseColors[index % donutBaseColors.length];
+    var ongoingBackgrounds = data.map(function (_value, index) {
+      return index === 0 ? pulsePalette.ongoingMain : pulsePalette.ongoingMuted;
+    });
+    var ongoingHoverBackgrounds = ongoingBackgrounds.map(function (color) {
+      return color === pulsePalette.ongoingMain ? pulsePalette.ongoingHover : color;
     });
     var totalOngoing = typeof vm.totalOngoingProjects === 'number'
       ? vm.totalOngoingProjects
@@ -209,16 +215,16 @@
         labels: labels,
         datasets: [{
           data: data,
-          backgroundColor: donutColors,
+          backgroundColor: ongoingBackgrounds,
           borderWidth: 0,
-          hoverBackgroundColor: donutColors,
-          cutout: '70%'
+          hoverBackgroundColor: ongoingHoverBackgrounds
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         animation: false,
+        cutout: '70%',
         plugins: {
           legend: { display: false },
           tooltip: Object.assign({}, neutralChartOptions.plugins.tooltip, {
@@ -270,8 +276,8 @@
         datasets: [{
           label: 'Projects',
           data: data,
-          backgroundColor: PulsePalette.neutralBar,
-          borderColor: PulsePalette.neutralBorder,
+          backgroundColor: pulsePalette.allProjectsBar,
+          borderColor: pulsePalette.allProjectsBarAlt,
           borderWidth: 1,
           borderRadius: 4
         }]
