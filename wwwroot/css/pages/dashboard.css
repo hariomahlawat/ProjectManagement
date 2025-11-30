@@ -557,8 +557,10 @@
 /* SECTION: Dashboard - My projects grouped grid and alerts */
 .myprojects-card {
     display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1.6fr);
-    gap: 1.25rem;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: flex-start;
+    width: 100%;
 }
 
 .myprojects-card__left,
@@ -566,6 +568,7 @@
     max-height: 420px;
     overflow-y: auto;
     padding-right: .25rem;
+    min-width: 0;
 }
 
 .myprojects-header__label {
