@@ -13,12 +13,13 @@ public sealed class ProjectPulseVm
     // SECTION: Counts
     public required int CompletedCount { get; init; }
     public required int OngoingCount { get; init; }
+    public required int TotalOngoingProjects { get; init; }
     public required int TotalProjects { get; init; }
     // END SECTION
 
     // SECTION: Chart series
     public required IReadOnlyList<BarPoint> CompletedByYear { get; init; }
-    public required IReadOnlyList<CategorySlice> OngoingByProjectCategory { get; init; }
+    public required IReadOnlyList<OngoingCategorySlice> OngoingByCategory { get; init; }
     public required IReadOnlyList<CategorySlice> AllByTechnicalCategoryTop { get; init; }
     public required int RemainingTechCategories { get; init; }
     // END SECTION
@@ -33,6 +34,10 @@ public sealed class ProjectPulseVm
 
 // SECTION: Category slice contract
 public sealed record CategorySlice(string Label, int Count);
+// END SECTION
+
+// SECTION: Ongoing category slice contract
+public sealed record OngoingCategorySlice(string CategoryName, int ProjectCount);
 // END SECTION
 
 // SECTION: Bar point contract

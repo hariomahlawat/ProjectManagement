@@ -10,9 +10,9 @@
     --pm-primary-strong: #1d4ed8;
 
     /* -- SECTION: Neutrals & surfaces -- */
-    --pm-page-bg: #f9f4ee;
+    --pm-page-bg: #f7f3eb;
     --pm-shell-bg: var(--pm-page-bg);
-    --pm-surface: #f5f7fb;
+    --pm-surface: #ffffff;
     --pm-surface-soft: #f9fafb;
     --pm-surface-subtle: #f3f4f6;
     --pm-surface-elevated: #ffffff;
@@ -237,6 +237,14 @@ body {
     font-size: var(--bs-body-font-size);
     line-height: var(--bs-body-line-height);
     color: var(--pm-text);
+    background-color: var(--pm-page-bg);
+}
+
+/* --- Application shell background --- */
+.pm-layout,
+.pm-shell,
+.pm-main-content,
+.analytics-main {
     background-color: var(--pm-page-bg);
 }
 

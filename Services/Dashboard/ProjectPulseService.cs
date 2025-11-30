@@ -65,6 +65,7 @@ public sealed class ProjectPulseService : IProjectPulseService
 
         var completedByYear = await BuildCompletedByYearAsync(cancellationToken);
         var ongoingByCategory = await BuildOngoingByCategoryAsync(cancellationToken);
+        var totalOngoing = ongoingByCategory.Sum(x => x.ProjectCount);
         var (technicalTop, remainingTechnical) = await BuildTechnicalCategorySeriesAsync(cancellationToken);
         var availableForProliferation = await CountProliferationEligibleAsync(cancellationToken);
 
@@ -74,9 +75,10 @@ public sealed class ProjectPulseService : IProjectPulseService
             AnalyticsUrl = AnalyticsPage,
             CompletedCount = completed,
             OngoingCount = ongoing,
+            TotalOngoingProjects = totalOngoing,
             TotalProjects = total,
             CompletedByYear = completedByYear,
-            OngoingByProjectCategory = ongoingByCategory,
+            OngoingByCategory = ongoingByCategory,
             AllByTechnicalCategoryTop = technicalTop,
             RemainingTechCategories = remainingTechnical,
             CompletedUrl = CompletedPage,
@@ -148,65 +150,19 @@ public sealed class ProjectPulseService : IProjectPulseService
         return (top, remaining);
     }
 
-    private async Task<IReadOnlyList<CategorySlice>> BuildOngoingByCategoryAsync(CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<OngoingCategorySlice>> BuildOngoingByCategoryAsync(CancellationToken cancellationToken)
     {
-        // Identify the parent category for each active project
-        var categorizedProjects = await _db.Projects
+        // Identify the parent category for each active project and group counts
+        var ongoingSeries = await _db.Projects
             .AsNoTracking()
             .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active)
-            .Select(p => new
-            {
-                ParentCategoryId = p.CategoryId.HasValue
-                    ? (p.Category!.ParentId ?? p.CategoryId)
-                    : (int?)null
-            })
+            .GroupBy(p => p.Category != null
+                ? (p.Category.Parent != null ? p.Category.Parent.Name : p.Category.Name)
+                : "Uncategorised")
+            .Select(g => new OngoingCategorySlice(g.Key, g.Count()))
+            .OrderByDescending(x => x.ProjectCount)
+            .ThenBy(x => x.CategoryName, StringComparer.OrdinalIgnoreCase)
             .ToListAsync(cancellationToken);
-
-        // Group by parent category id and count projects
-        var groupedByParent = categorizedProjects
-            .GroupBy(x => x.ParentCategoryId)
-            .Select(g => new
-            {
-                ParentCategoryId = g.Key,
-                Count = g.Count()
-            })
-            .ToList();
-
-        // Load category names for all parent ids
-        var categoryIds = groupedByParent
-            .Where(x => x.ParentCategoryId.HasValue)
-            .Select(x => x.ParentCategoryId!.Value)
-            .Distinct()
-            .ToList();
-
-        var categoryNames = await _db.ProjectCategories
-            .AsNoTracking()
-            .Where(c => categoryIds.Contains(c.Id))
-            .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
-
-        // Convert grouped data into CategorySlice entries
-        var ongoingSeries = groupedByParent
-            .Select(g =>
-            {
-                var label = "Unknown";
-
-                if (g.ParentCategoryId.HasValue)
-                {
-                    if (categoryNames.TryGetValue(g.ParentCategoryId.Value, out var resolvedLabel))
-                    {
-                        label = resolvedLabel;
-                    }
-                }
-                else
-                {
-                    label = "Uncategorized";
-                }
-
-                return new CategorySlice(label, g.Count);
-            })
-            .OrderByDescending(x => x.Count)
-            .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
-            .ToList();
 
         return ongoingSeries;
     }
