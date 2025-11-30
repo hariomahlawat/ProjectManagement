@@ -137,9 +137,9 @@
                                 {
                                     <section class="myprojects-section">
                                         <header class="myprojects-section__header">
-                                            <span class="myprojects-section__title">@section.CategoryName</span>
+                                            <span class="myprojects-section__title">@(section.CategoryName)</span>
                                             <span class="myprojects-section__count">
-                                                @section.ProjectCount project@(section.ProjectCount == 1 ? string.Empty : "s")
+                                                @(section.ProjectCount) project@(section.ProjectCount == 1 ? string.Empty : "s")
                                             </span>
                                         </header>
 
