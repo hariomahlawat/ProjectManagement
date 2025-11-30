@@ -10,7 +10,8 @@
     --pm-primary-strong: #1d4ed8;
 
     /* -- SECTION: Neutrals & surfaces -- */
-    --pm-shell-bg: #f7f3eb;
+    --pm-page-bg: #f9f4ee;
+    --pm-shell-bg: var(--pm-page-bg);
     --pm-surface: #f5f7fb;
     --pm-surface-soft: #f9fafb;
     --pm-surface-subtle: #f3f4f6;
@@ -225,7 +226,7 @@
     --remarks-role-mco-text: var(--bs-primary-text-emphasis, #052c65);
 
     /* -- SECTION: Bootstrap mappings -- */
-    --bs-body-bg: var(--pm-surface);
+    --bs-body-bg: var(--pm-page-bg);
     --bs-body-color: var(--pm-text);
     --bs-border-color: var(--pm-border);
     --bs-card-bg: var(--pm-card);
@@ -236,7 +237,7 @@ body {
     font-size: var(--bs-body-font-size);
     line-height: var(--bs-body-line-height);
     color: var(--pm-text);
-    background-color: var(--pm-surface);
+    background-color: var(--pm-page-bg);
 }
 
 /* --- Layout shell --- */

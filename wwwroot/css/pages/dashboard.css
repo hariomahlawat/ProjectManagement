@@ -4,7 +4,11 @@
 body,
 .layout-main,
 .dashboard {
-    background-color: var(--pm-shell-bg);
+    background-color: var(--pm-page-bg);
+}
+
+.dashboard {
+    padding-top: 1.75rem;
 }
 
 .dashboard-main-content,
@@ -29,7 +33,7 @@ body,
     background: var(--pm-surface-card);
     border: 1px solid var(--pm-border-soft);
     border-radius: 20px;
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
 }
 
 /* Light, cool dashboard canvas behind the cards */
@@ -50,7 +54,7 @@ body,
     background-color: var(--pm-surface-card);
     border: 1px solid var(--pm-border-soft);
     border-radius: 20px;
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
 }
 /* END SECTION */
 

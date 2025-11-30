@@ -60,6 +60,34 @@
   var textColor = getCssVar('--pm-text-main', getCssVar('--pm-text', '#0b1220'));
   var textSecondary = getCssVar('--pm-text-muted', getCssVar('--pm-text-secondary', '#4b5563'));
 
+  // SECTION: Palette helpers
+  function resolveBarPalette(xLabel, yLabel) {
+    var normalizedY = (yLabel || '').toLowerCase();
+    var normalizedX = (xLabel || '').toLowerCase();
+
+    if (normalizedY.indexOf('completed') !== -1) {
+      return {
+        fill: 'rgba(74, 222, 128, 0.9)',
+        border: 'rgba(34, 197, 94, 1)',
+        borderWidth: 1
+      };
+    }
+
+    if (normalizedX.indexOf('technical category') !== -1) {
+      return {
+        fill: 'rgba(148, 163, 184, 0.95)',
+        border: 'rgba(100, 116, 139, 1)',
+        borderWidth: 1
+      };
+    }
+
+    return {
+      fill: 'rgba(34, 197, 94, 0.75)',
+      border: chartPalette.green,
+      borderWidth: 1.5
+    };
+  }
+  
   function safeParse(el, attr) {
     try {
       return JSON.parse(el.getAttribute(attr) || '[]');
@@ -122,22 +150,19 @@
       var value = s && (typeof s.count !== 'undefined' ? s.count : (typeof s.Count !== 'undefined' ? s.Count : 0));
       return Number(value) || 0;
     });
+
+    var donutColors = series.map(function (_slice, index) {
+      return index === 0 ? 'rgba(251, 146, 60, 0.95)' : 'rgba(229, 231, 235, 1)';
+    });
+
     return new ChartCtor(ctx, {
       type: 'doughnut',
       data: {
         labels: labels,
         datasets: [{
           data: data,
-          backgroundColor: [
-            'rgba(245, 158, 11, 0.85)',
-            'rgba(148, 163, 184, 0.9)',
-            'rgba(168, 85, 247, 0.85)'
-          ],
-          hoverBackgroundColor: [
-            'rgba(245, 158, 11, 0.85)',
-            'rgba(148, 163, 184, 0.9)',
-            'rgba(168, 85, 247, 0.85)'
-          ],
+          backgroundColor: donutColors,
+          hoverBackgroundColor: donutColors,
           borderWidth: 0,
           cutout: '60%'
         }]
@@ -214,6 +239,7 @@
       var value = s && (typeof s.count !== 'undefined' ? s.count : (typeof s.Count !== 'undefined' ? s.Count : 0));
       return Number(value) || 0;
     });
+    var palette = resolveBarPalette(xLabel, yLabel);
     return new ChartCtor(ctx, {
       type: 'bar',
       data: {
@@ -222,9 +248,9 @@
           data: data,
           borderRadius: 6,
           maxBarThickness: 22,
-          backgroundColor: 'rgba(34, 197, 94, 0.75)',
-          borderColor: chartPalette.green,
-          borderWidth: 1.5
+          backgroundColor: palette.fill,
+          borderColor: palette.border,
+          borderWidth: palette.borderWidth
         }]
       },
       options: {
