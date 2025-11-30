@@ -220,17 +220,19 @@
                                             @foreach (var alert in group)
                                             {
                                                 <li class="myprojects-alert-item" data-project-id="@alert.ProjectId">
-                                                    <a asp-page="/Projects/StagePdc"
+                                                    <a asp-page="/Projects/Overview"
                                                        asp-route-id="@alert.ProjectId"
-                                                       class="myprojects-alert-item__main">
-                                                        <div class="myprojects-alert-item__name">@alert.ProjectName</div>
-                                                        <div class="myprojects-alert-item__meta">
-                                                            Stage @alert.CurrentStageCode · @alert.CategoryName
+                                                       class="myprojects-alert-item__link">
+                                                        <div class="myprojects-alert-item__main">
+                                                            <div class="myprojects-alert-item__name">@alert.ProjectName</div>
+                                                            <div class="myprojects-alert-item__meta">
+                                                                Stage @alert.CurrentStageCode · @alert.CategoryName
+                                                            </div>
                                                         </div>
+                                                        <span class="myprojects-alert-item__pdc @IndexModel.GetAlertTypeCss(alert.AlertType)">
+                                                            @IndexModel.GetAlertPdcLabel(alert)
+                                                        </span>
                                                     </a>
-                                                    <span class=$"myprojects-alert-item__pdc @IndexModel.GetAlertTypeCss(alert.AlertType)">
-                                                        @IndexModel.GetAlertPdcLabel(alert)
-                                                    </span>
                                                 </li>
                                             }
                                         </ul>
