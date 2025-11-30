@@ -339,84 +339,76 @@ namespace ProjectManagement.Pages.Dashboard
             bool includeAllOngoingSection,
             CancellationToken cancellationToken)
         {
-            var sections = new List<MyProjectsSection>();
-
-            if (includeOfficerSection)
-            {
-                var officerProjects = await OnlyOngoing(_db.Projects.AsNoTracking())
-                    .Where(p => p.LeadPoUserId == userId)
-                    .OrderBy(p => p.Name)
-                    .Select(p => new ProjectAssignmentSummary
-                    {
-                        Id = p.Id,
-                        Name = p.Name,
-                        Category = p.Category != null ? p.Category.Name : null,
-                        CoverPhotoId = p.CoverPhotoId,
-                        CoverPhotoVersion = p.CoverPhotoVersion
-                    })
-                    .ToListAsync(cancellationToken);
-
-                if (officerProjects.Count > 0)
-                {
-                    sections.Add(new MyProjectsSection
-                    {
-                        Title = "Project Officer",
-                        Items = officerProjects.Select(CreateProjectItem).ToList()
-                    });
-                }
-            }
-
-            if (includeHodSection)
-            {
-                var hodProjects = await OnlyOngoing(_db.Projects.AsNoTracking())
-                    .Where(p => p.HodUserId == userId)
-                    .OrderBy(p => p.Name)
-                    .Select(p => new ProjectAssignmentSummary
-                    {
-                        Id = p.Id,
-                        Name = p.Name,
-                        Category = p.Category != null ? p.Category.Name : null,
-                        CoverPhotoId = p.CoverPhotoId,
-                        CoverPhotoVersion = p.CoverPhotoVersion
-                    })
-                    .ToListAsync(cancellationToken);
-
-                if (hodProjects.Count > 0)
-                {
-                    sections.Add(new MyProjectsSection
-                    {
-                        Title = "Head of Department",
-                        Items = hodProjects.Select(CreateProjectItem).ToList()
-                    });
-                }
-            }
+            // SECTION: Aggregate accessible projects by category for My Projects widget
+            var projectSummaries = new List<ProjectAssignmentSummary>();
 
             if (includeAllOngoingSection)
             {
-                var allOngoingProjects = await OnlyOngoing(_db.Projects.AsNoTracking())
+                projectSummaries = await OnlyOngoing(_db.Projects.AsNoTracking())
                     .OrderBy(p => p.Name)
-                    .Select(p => new ProjectAssignmentSummary
-                    {
-                        Id = p.Id,
-                        Name = p.Name,
-                        Category = p.Category != null ? p.Category.Name : null,
-                        CoverPhotoId = p.CoverPhotoId,
-                        CoverPhotoVersion = p.CoverPhotoVersion
-                    })
+                    .Select(ProjectSummarySelector)
                     .ToListAsync(cancellationToken);
-
-                if (allOngoingProjects.Count > 0)
+            }
+            else
+            {
+                if (includeOfficerSection)
                 {
-                    sections.Add(new MyProjectsSection
-                    {
-                        Title = "All ongoing projects",
-                        Items = allOngoingProjects.Select(CreateProjectItem).ToList()
-                    });
+                    var officerProjects = await OnlyOngoing(_db.Projects.AsNoTracking())
+                        .Where(p => p.LeadPoUserId == userId)
+                        .OrderBy(p => p.Name)
+                        .Select(ProjectSummarySelector)
+                        .ToListAsync(cancellationToken);
+
+                    projectSummaries.AddRange(officerProjects);
+                }
+
+                if (includeHodSection)
+                {
+                    var hodProjects = await OnlyOngoing(_db.Projects.AsNoTracking())
+                        .Where(p => p.HodUserId == userId)
+                        .OrderBy(p => p.Name)
+                        .Select(ProjectSummarySelector)
+                        .ToListAsync(cancellationToken);
+
+                    projectSummaries.AddRange(hodProjects);
                 }
             }
 
-            MyProjectSections = sections;
+            var distinctSummaries = projectSummaries
+                .GroupBy(project => project.Id)
+                .Select(group => group.First())
+                .ToList();
+
+            var groupedSections = distinctSummaries
+                .GroupBy(summary => NormalizeCategory(summary.Category))
+                .OrderBy(group => CategoryOrderKey(group.Key))
+                .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new MyProjectsSection
+                {
+                    Title = group.Key,
+                    Items = group
+                        .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+                        .Select(CreateProjectItem)
+                        .ToList()
+                })
+                .ToList();
+
+            MyProjectSections = groupedSections;
             await AttachStageSummariesAsync(MyProjectSections, cancellationToken);
+            // END SECTION
+
+            // SECTION: Local helpers
+            string NormalizeCategory(string? category) => string.IsNullOrWhiteSpace(category)
+                ? "Other R&D Projects"
+                : category;
+
+            int CategoryOrderKey(string category) => category switch
+            {
+                "CoE" => 0,
+                "DCD Projects" => 1,
+                "Other R&D Projects" => 2,
+                _ => 5
+            };
 
             MyProjectItem CreateProjectItem(ProjectAssignmentSummary summary)
             {
@@ -438,6 +430,16 @@ namespace ProjectManagement.Pages.Dashboard
                     CoverImageUrl = coverImageUrl
                 };
             }
+            // END SECTION
+
+            static ProjectAssignmentSummary ProjectSummarySelector(Project project) => new()
+            {
+                Id = project.Id,
+                Name = project.Name,
+                Category = project.Category != null ? project.Category.Name : null,
+                CoverPhotoId = project.CoverPhotoId,
+                CoverPhotoVersion = project.CoverPhotoVersion
+            };
         }
 
         private async Task AttachStageSummariesAsync(List<MyProjectsSection> sections, CancellationToken cancellationToken)
