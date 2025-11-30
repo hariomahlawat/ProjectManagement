@@ -1,23 +1,26 @@
 // wwwroot/js/theme/chart-palette.js
 
 // SECTION: Palette helpers
-export function getChartPalette() {
+export function getAppChartPalette() {
     const style = getComputedStyle(document.documentElement);
 
-    const primary = style.getPropertyValue('--pm-primary').trim() || '#2d6cdf';
-    const primarySoft = style.getPropertyValue('--pm-primary-soft').trim() || '#e0edff';
-    const accentGreen = style.getPropertyValue('--pm-success').trim() || '#22c55e';
-    const accentAmber = style.getPropertyValue('--pm-warning').trim() || '#fbbf24';
-    const accentTeal = style.getPropertyValue('--pm-accent-teal').trim() || '#14b8a6';
-    const textContrast = style.getPropertyValue('--pm-text-contrast').trim() || '#0f172a';
+    function css(name, fallback) {
+        const val = style.getPropertyValue(name).trim();
+        return val || fallback;
+    }
 
     return {
-        primary,
-        primarySoft,
-        accentGreen,
-        accentAmber,
-        accentTeal,
-        textContrast
+        primary: css('--pm-chart-primary', '#e0edff'),
+        secondary: css('--pm-chart-secondary', '#2563eb'),
+        neutral: css('--pm-chart-neutral', '#d1d5db'),
+        success: css('--pm-success', '#22c55e'),
+        warning: css('--pm-warning', '#fbbf24'),
+        danger: css('--pm-danger', '#ef4444')
     };
+}
+
+// Maintain backward compatibility with older imports.
+export function getChartPalette() {
+    return getAppChartPalette();
 }
 // END SECTION

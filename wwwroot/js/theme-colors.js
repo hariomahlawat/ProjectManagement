@@ -13,22 +13,25 @@
 
   // SECTION: Chart palette
   function getChartPalette() {
-    var accentPrimary = getCssVar('--pm-chart-accent-primary') || getCssVar('--pm-chart-accent-1');
-    var neutralStrong = getCssVar('--pm-chart-neutral-strong') || getCssVar('--pm-chart-axis');
-    var neutralSoft = getCssVar('--pm-chart-neutral-soft') || getCssVar('--pm-chart-grid');
+    var primary = getCssVar('--pm-chart-primary') || '#e0edff';
+    var secondary = getCssVar('--pm-chart-secondary') || '#2563eb';
+    var neutral = getCssVar('--pm-chart-neutral') || '#d1d5db';
 
     return {
-      accentPrimary: accentPrimary,
-      accentMuted: getCssVar('--pm-chart-accent-muted') || getCssVar('--pm-chart-grid'),
-      neutralStrong: neutralStrong,
-      neutralSoft: neutralSoft,
-      axisColor: neutralStrong,
-      gridColor: neutralSoft,
+      primary: primary,
+      secondary: secondary,
+      neutral: neutral,
+      success: getCssVar('--pm-success') || '#22c55e',
+      warning: getCssVar('--pm-warning') || '#fbbf24',
+      danger: getCssVar('--pm-danger') || '#ef4444',
+      axisColor: getCssVar('--pm-chart-axis') || '#4b5563',
+      gridColor: getCssVar('--pm-chart-grid') || '#e5e7eb',
       accents: [
-        accentPrimary,
-        getCssVar('--pm-chart-accent-2'),
-        getCssVar('--pm-chart-accent-3'),
-        getCssVar('--pm-chart-accent-4')
+        primary,
+        secondary,
+        getCssVar('--pm-chart-accent-2') || '#f97316',
+        getCssVar('--pm-chart-accent-3') || '#22c55e',
+        getCssVar('--pm-chart-accent-4') || '#a855f7'
       ]
     };
   }

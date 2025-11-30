@@ -1,21 +1,32 @@
 /* ---------- Theme tokens ---------- */
 /* -- SECTION: Canonical light theme tokens -- */
+/* -- SECTION: Canonical light theme tokens -- */
 :root {
     --pm-theme-name: light;
 
-    /* -- SECTION: Brand & core palette -- */
-    --pm-primary: #2d6cdf;
-    --pm-primary-hover: #2558c6;
-    --pm-primary-soft: #e0edff;
-    --pm-primary-strong: #1d4ed8;
+    /* -- SECTION: Base color primitives -- */
+    --pm-base-warm-0: #f9f3e7;
+    --pm-base-warm-1: #f4ebdd;
+    --pm-base-neutral-0: #ffffff;
+    --pm-base-neutral-1: #f3f4f6;
+    --pm-base-neutral-2: #e5e7eb;
 
-    /* -- SECTION: Neutrals & surfaces -- */
-    --pm-page-bg: #f7f3eb;
+    --pm-base-blue: #2563eb;
+    --pm-base-blue-soft: #e0edff;
+    --pm-base-green: #22c55e;
+    --pm-base-amber: #fbbf24;
+    --pm-base-red: #ef4444;
+
+    /* -- SECTION: Surfaces -- */
+    --pm-page-bg: var(--pm-base-warm-0);
     --pm-shell-bg: var(--pm-page-bg);
-    --pm-surface: #ffffff;
-    --pm-surface-soft: #f9fafb;
+    --pm-card-bg: var(--pm-base-neutral-0);
+    --pm-card-border: rgba(15, 23, 42, 0.04);
+    --pm-card-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    --pm-surface: var(--pm-card-bg);
+    --pm-surface-soft: var(--pm-base-neutral-1);
     --pm-surface-subtle: #f3f4f6;
-    --pm-surface-elevated: #ffffff;
+    --pm-surface-elevated: var(--pm-card-bg);
     --pm-surface-contrast: #f8fafc;
     --pm-surface-muted: #f1f3f5;
     --pm-surface-veil: #eef0f3;
@@ -31,13 +42,13 @@
     --pm-surface-porcelain: #eef2f7;
     --pm-surface-mint: #f0f7f3;
     --pm-surface-violet: #f7f1ff;
-    --pm-surface-card: #ffffff;
-    --pm-card: #ffffff;
-    --pm-skeleton: #e5e7eb;
+    --pm-surface-card: var(--pm-card-bg);
+    --pm-card: var(--pm-card-bg);
+    --pm-skeleton: var(--pm-base-neutral-2);
 
     /* -- SECTION: Text -- */
     --pm-text: #0b1220;
-    --pm-text-main: #0f172a;
+    --pm-text-main: #111827;
     --pm-text-secondary: #4b5563;
     --pm-text-muted: #6b7280;
     --pm-text-muted-strong: #5c7080;
@@ -62,15 +73,21 @@
     --pm-border-soft: rgba(15, 23, 42, 0.06);
     --pm-border-outline: #d9dfe8;
 
+    /* -- SECTION: Brand & core palette -- */
+    --pm-primary: var(--pm-base-blue);
+    --pm-primary-hover: #1f4fbf;
+    --pm-primary-soft: var(--pm-base-blue-soft);
+    --pm-primary-strong: #1d4ed8;
+
     /* -- SECTION: Status colors -- */
-    --pm-success: #16a34a;
+    --pm-success: var(--pm-base-green);
     --pm-success-strong: #166534;
     --pm-success-soft-bg: #f0fdf4;
     --pm-success-soft-text: #166534;
     --pm-success-soft-border: #bbf7d0;
     --pm-success-contrast: #15803d;
 
-    --pm-warning: #f59e0b;
+    --pm-warning: var(--pm-base-amber);
     --pm-warning-strong: #854d0e;
     --pm-warning-soft-bg: #fef3c7;
     --pm-warning-soft-text: #854d0e;
@@ -78,7 +95,7 @@
     --pm-warning-muted: #92400e;
     --pm-warning-contrast: #664d03;
 
-    --pm-danger: #b91c1c;
+    --pm-danger: var(--pm-base-red);
     --pm-danger-strong: #7f1d1d;
     --pm-danger-soft-bg: #fee2e2;
     --pm-danger-soft-text: #7f1d1d;
@@ -174,6 +191,9 @@
     --pm-project-border-soft: #e9edf2;
 
     /* -- SECTION: Charts & widgets -- */
+    --pm-chart-primary: var(--pm-base-blue-soft);
+    --pm-chart-secondary: var(--pm-base-blue);
+    --pm-chart-neutral: #d1d5db;
     --pm-chart-grid: #e5e7eb;
     --pm-chart-axis: #4b5563;
     --pm-chart-green: #22c55e;
@@ -256,6 +276,23 @@ body {
     background-color: var(--pm-page-bg);
 }
 
+/* ---------- Layout primitives ---------- */
+.pm-page {
+    background-color: var(--pm-page-bg);
+    min-height: 100vh;
+    padding: 24px 0 32px;
+}
+
+.pm-main {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 0 24px;
+}
+
+.pm-main--fluid {
+    max-width: none;
+}
+
 /* --- Application shell background --- */
 .pm-layout,
 .pm-shell,
@@ -302,11 +339,23 @@ main[role="main"] {
 
 /* ---------- Cards ---------- */
 .pm-card {
-    border: 1px solid rgba(15, 23, 42, .08);
-    border-radius: 1rem;
-    background-color: var(--pm-card);
-    box-shadow: 0 18px 30px -24px rgba(15, 23, 42, .2);
+    background-color: var(--pm-card-bg);
+    border-radius: 16px;
+    border: 1px solid var(--pm-card-border);
+    box-shadow: var(--pm-card-shadow);
     overflow: visible;
+}
+
+.pm-card--flat {
+    box-shadow: none;
+}
+
+.pm-card__header {
+    padding: 16px 24px 8px;
+}
+
+.pm-card__body {
+    padding: 0 24px 24px;
 }
 
 .pm-card-header {
@@ -325,6 +374,62 @@ main[role="main"] {
     align-items: center;
     gap: .75rem;
     min-width: 0;
+}
+
+/* ---------- Metric tiles ---------- */
+.pm-metric-tile {
+    background-color: var(--pm-card-bg);
+    border-radius: 16px;
+    border: 1px solid var(--pm-card-border);
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pm-metric-tile__label {
+    font-size: 0.875rem;
+    color: var(--pm-text-muted);
+}
+
+.pm-metric-tile__value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--pm-text-main);
+}
+
+.pm-section-heading {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--pm-text-main);
+}
+
+/* ---------- Buttons ---------- */
+.pm-btn-primary {
+    background-color: var(--pm-primary);
+    color: var(--pm-text-inverted);
+    border-radius: 999px;
+    padding: 8px 18px;
+    font-size: 0.875rem;
+    border: none;
+}
+
+.pm-btn-secondary {
+    background-color: var(--pm-card-bg);
+    color: var(--pm-primary);
+    border-radius: 999px;
+    padding: 8px 18px;
+    font-size: 0.875rem;
+    border: 1px solid var(--pm-primary-soft);
+}
+
+.pm-btn-danger {
+    background-color: var(--pm-danger);
+    color: var(--pm-text-inverted);
+    border-radius: 999px;
+    padding: 8px 18px;
+    font-size: 0.875rem;
+    border: none;
 }
 
 .pm-card-icon {

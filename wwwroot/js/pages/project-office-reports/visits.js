@@ -1,9 +1,9 @@
 // wwwroot/js/pages/project-office-reports/visits.js
 
-import { getChartPalette } from '../../theme/chart-palette.js';
+import { getAppChartPalette } from '../../theme/chart-palette.js';
 
 // SECTION: Shared palette
-const palette = getChartPalette();
+const palette = getAppChartPalette();
 const toastContainerId = 'visitsToastContainer';
 
 function ensureBootstrap() {
@@ -326,7 +326,7 @@ function initVisitsCharts() {
                 {
                     label: 'Visits',
                     data: monthVisits,
-                    backgroundColor: palette.primarySoft,
+                    backgroundColor: palette.primary,
                     borderRadius: 6,
                     maxBarThickness: 28
                 },
@@ -334,7 +334,7 @@ function initVisitsCharts() {
                     label: 'People (strength)',
                     data: monthStrength,
                     type: 'line',
-                    borderColor: palette.textContrast,
+                    borderColor: palette.secondary,
                     borderWidth: 2,
                     tension: 0.35,
                     pointRadius: 3,
@@ -404,12 +404,12 @@ function initVisitsCharts() {
             datasets: [{
                 data: initial.values,
                 backgroundColor: [
+                    palette.secondary,
                     palette.primary,
-                    palette.accentTeal,
-                    palette.accentGreen,
-                    palette.accentAmber,
-                    palette.primarySoft,
-                    palette.textContrast
+                    palette.success,
+                    palette.warning,
+                    palette.neutral,
+                    palette.danger
                 ]
             }]
         },

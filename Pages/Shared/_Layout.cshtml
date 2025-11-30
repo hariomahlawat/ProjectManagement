@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="~/css/print.css" asp-append-version="true" media="print" />
     <link rel="icon" href="~/favicon.ico" />
 </head>
-<body class="d-flex flex-column min-vh-100">
+<body class="pm-page d-flex flex-column min-vh-100">
     @{
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
@@ -24,8 +24,8 @@
         && string.Equals(currentPage, "/ProgressReview/Index", StringComparison.OrdinalIgnoreCase);
         var useFullWidth = (ViewData["UseFullWidth"] as bool?) == true;
         var mainContainerClass = useFullWidth
-            ? "container-fluid analytics-shell px-3 px-lg-4 px-xxl-5"
-            : "container";
+            ? "pm-main pm-main--fluid analytics-shell px-3 px-lg-4 px-xxl-5"
+            : "pm-main";
         var breadcrumbModel = ViewData["Breadcrumb"] as BreadcrumbModel;
     }
     <!-- ===========================
