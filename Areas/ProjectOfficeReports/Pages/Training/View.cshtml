@@ -1,0 +1,138 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.ViewModel
+@{
+    // ------------------------------------------------------------
+    // page metadata
+    // ------------------------------------------------------------
+    ViewData["Title"] = "Training details";
+    ViewData["UseFullWidth"] = false;
+}
+
+<!-- ============================================================
+     PAGE HEADER
+     ============================================================ -->
+<div class="container-fluid py-3 px-0 px-lg-2">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
+        <div class="d-flex flex-column gap-1">
+            <a asp-page="./Index" class="text-decoration-none text-muted small d-inline-flex align-items-center gap-1">
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                <span>Back to training tracker</span>
+            </a>
+            <div>
+                <p class="text-uppercase text-muted small mb-1">Project office reports</p>
+                <h1 class="h4 mb-0">@Model.Training.TrainingTypeName</h1>
+            </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-dark">@Model.Training.SourceDisplay</span>
+            @if (Model.CanManageTrainingTracker)
+            {
+                <a asp-page="./Manage"
+                   asp-route-id="@Model.Training.Id"
+                   class="btn btn-primary btn-sm">
+                    Manage
+                </a>
+            }
+        </div>
+    </div>
+
+    @if (!Model.IsFeatureEnabled)
+    {
+        <div class="alert alert-warning" role="alert">
+            The training tracker is currently disabled. Details may be out of date.
+        </div>
+    }
+
+    <!-- ========================================================
+         DETAILS GRID
+         ======================================================== -->
+    <div class="row g-4">
+        <div class="col-12 col-xl-8">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <!-- SECTION: At-a-glance metrics -->
+                    <div class="d-flex flex-wrap gap-3 mb-4">
+                        <div>
+                            <div class="fw-semibold text-uppercase small text-muted">Period</div>
+                            <div class="fw-semibold">
+                                @Model.Training.PeriodDisplay
+                                @if (!string.IsNullOrWhiteSpace(Model.Training.PeriodDayCountDisplay))
+                                {
+                                    <span class="text-muted ms-2">@Model.Training.PeriodDayCountDisplay</span>
+                                }
+                            </div>
+                        </div>
+                        <div>
+                            <div class="fw-semibold text-uppercase small text-muted">Total trainees</div>
+                            <div class="fw-semibold">@Model.Training.TotalTrainees.ToString("N0")</div>
+                        </div>
+                        <div>
+                            <div class="fw-semibold text-uppercase small text-muted">Strength (O – JCO – OR)</div>
+                            <div class="fw-semibold">@Model.Training.StrengthDisplay</div>
+                        </div>
+                    </div>
+
+                    <hr />
+
+                    <!-- SECTION: Project links -->
+                    <div class="mb-4">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <h2 class="h6 mb-0">Linked projects</h2>
+                        </div>
+                        @if (Model.Training.ProjectNames.Count == 0)
+                        {
+                            <p class="text-muted mb-0">No projects linked to this training.</p>
+                        }
+                        else
+                        {
+                            <ul class="list-unstyled mb-0">
+                                @foreach (var name in Model.Training.ProjectNames)
+                                {
+                                    <li class="small">@name</li>
+                                }
+                            </ul>
+                        }
+                    </div>
+
+                    <hr />
+
+                    <!-- SECTION: Notes -->
+                    <div>
+                        <h2 class="h6 mb-2">Notes / remarks</h2>
+                        @if (string.IsNullOrWhiteSpace(Model.Training.Notes))
+                        {
+                            <p class="text-muted mb-0">No notes recorded for this training.</p>
+                        }
+                        else
+                        {
+                            <p class="mb-0">@Model.Training.Notes</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <!-- SECTION: Metadata -->
+                    <h2 class="h6 mb-3">Metadata</h2>
+                    <dl class="row mb-0 small">
+                        <dt class="col-5 text-muted">Created by</dt>
+                        <dd class="col-7 mb-2">@Model.Training.CreatedByDisplayName</dd>
+
+                        <dt class="col-5 text-muted">Created at</dt>
+                        <dd class="col-7 mb-2">@Model.Training.CreatedAt.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</dd>
+
+                        <dt class="col-5 text-muted">Last modified by</dt>
+                        <dd class="col-7 mb-2">@(Model.Training.LastModifiedByDisplayName ?? "Not available")</dd>
+
+                        <dt class="col-5 text-muted">Last modified at</dt>
+                        <dd class="col-7">@(Model.Training.LastModifiedAt?.ToLocalTime().ToString("dd-MMM-yyyy HH:mm") ?? "Not available")</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

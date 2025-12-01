@@ -162,6 +162,97 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         }
 
         // ============================================================
+        // DETAIL LOAD
+        // ============================================================
+        public async Task<TrainingDetailsVm?> GetDetailsAsync(Guid id, CancellationToken cancellationToken)
+        {
+            var projection = await _db.Trainings
+                .AsNoTracking()
+                .Where(training => training.Id == id)
+                .Select(training => new TrainingDetailsProjection(
+                    training.Id,
+                    training.TrainingType != null ? training.TrainingType.Name : string.Empty,
+                    training.StartDate,
+                    training.EndDate,
+                    training.TrainingMonth,
+                    training.TrainingYear,
+                    training.LegacyOfficerCount,
+                    training.LegacyJcoCount,
+                    training.LegacyOrCount,
+                    training.Counters != null ? training.Counters.Officers : (int?)null,
+                    training.Counters != null ? training.Counters.JuniorCommissionedOfficers : (int?)null,
+                    training.Counters != null ? training.Counters.OtherRanks : (int?)null,
+                    training.Counters != null ? training.Counters.Total : (int?)null,
+                    training.Counters != null ? training.Counters.Source : (TrainingCounterSource?)null,
+                    training.Notes,
+                    training.CreatedByUserId,
+                    training.CreatedAtUtc,
+                    training.LastModifiedByUserId,
+                    training.LastModifiedAtUtc,
+                    training.ProjectLinks
+                        .OrderBy(link => link.Project != null ? link.Project.Name : string.Empty)
+                        .Select(link => link.Project != null ? link.Project.Name : string.Empty)
+                        .ToList()))
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (projection is null)
+            {
+                return null;
+            }
+
+            var officers = projection.CounterOfficers ?? projection.LegacyOfficerCount;
+            var jcos = projection.CounterJcos ?? projection.LegacyJcoCount;
+            var ors = projection.CounterOrs ?? projection.LegacyOrCount;
+            var total = projection.CounterTotal ?? officers + jcos + ors;
+            var source = projection.CounterSource ?? TrainingCounterSource.Legacy;
+
+            var (periodDisplay, periodDayCount) = FormatPeriodForDetails(
+                projection.StartDate,
+                projection.EndDate,
+                projection.TrainingMonth,
+                projection.TrainingYear);
+
+            var projectNames = projection.ProjectNames
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToList();
+
+            var userIds = new[] { projection.CreatedByUserId, projection.LastModifiedByUserId }
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct()
+                .ToArray();
+
+            var userLookup = userIds.Length == 0
+                ? new Dictionary<string, UserDisplayProjection>()
+                : await _db.Users
+                    .AsNoTracking()
+                    .Where(user => userIds.Contains(user.Id))
+                    .Select(user => new UserDisplayProjection(user.Id, user.FullName, user.UserName, user.Email))
+                    .ToDictionaryAsync(user => user.Id, cancellationToken);
+
+            var createdByDisplayName = ResolveDisplayName(userLookup, projection.CreatedByUserId) ?? "System";
+            var lastModifiedByDisplayName = ResolveDisplayName(userLookup, projection.LastModifiedByUserId);
+
+            return new TrainingDetailsVm
+            {
+                Id = projection.Id,
+                TrainingTypeName = projection.TrainingTypeName,
+                StartDate = projection.StartDate ?? projection.EndDate ?? default,
+                EndDate = projection.EndDate ?? projection.StartDate ?? default,
+                PeriodDisplay = periodDisplay,
+                PeriodDayCountDisplay = periodDayCount,
+                SourceDisplay = source == TrainingCounterSource.Roster ? "Roster" : "Legacy",
+                TotalTrainees = total,
+                StrengthDisplay = FormatStrength(officers, jcos, ors),
+                ProjectNames = projectNames,
+                Notes = projection.Notes ?? string.Empty,
+                CreatedByDisplayName = createdByDisplayName,
+                CreatedAt = projection.CreatedAtUtc,
+                LastModifiedByDisplayName = lastModifiedByDisplayName,
+                LastModifiedAt = projection.LastModifiedAtUtc
+            };
+        }
+
+        // ============================================================
         // MAIN LIST SEARCH
         // ============================================================
         public async Task<IReadOnlyList<TrainingListItem>> SearchAsync(TrainingTrackerQuery? query, CancellationToken cancellationToken)
@@ -769,6 +860,74 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 projection.RowVersion);
         }
 
+        private static string FormatStrength(int officers, int jcos, int ors)
+            => string.Format(CultureInfo.CurrentCulture, "{0:N0} – {1:N0} – {2:N0}", officers, jcos, ors);
+
+        private static (string Period, string DayCount) FormatPeriodForDetails(
+            DateOnly? startDate,
+            DateOnly? endDate,
+            int? trainingMonth,
+            int? trainingYear)
+        {
+            if (startDate.HasValue || endDate.HasValue)
+            {
+                var normalizedEnd = endDate ?? startDate;
+
+                var start = startDate?.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture) ?? "(not set)";
+                var end = endDate?.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture) ?? start;
+                var period = start == end ? start : string.Concat(start, " – ", end);
+
+                if (startDate.HasValue && normalizedEnd.HasValue)
+                {
+                    var dayCount = normalizedEnd.Value.DayNumber - startDate.Value.DayNumber + 1;
+                    var dayCountText = FormatDayCount(dayCount);
+                    return (period, string.Concat("(", dayCountText, ")"));
+                }
+
+                return (period, string.Empty);
+            }
+
+            if (trainingYear.HasValue && trainingMonth.HasValue)
+            {
+                var monthName = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(trainingMonth.Value);
+                return (string.Concat(monthName, " ", trainingYear.Value), string.Empty);
+            }
+
+            return ("(unspecified)", string.Empty);
+        }
+
+        private static string? ResolveDisplayName(
+            IReadOnlyDictionary<string, UserDisplayProjection> userLookup,
+            string? userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return null;
+            }
+
+            if (!userLookup.TryGetValue(userId, out var user))
+            {
+                return userId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.FullName))
+            {
+                return user.FullName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.UserName))
+            {
+                return user.UserName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.Email))
+            {
+                return user.Email;
+            }
+
+            return userId;
+        }
+
         private static bool TryGetTrainingYearStart(TrainingListItem item, out int startYear)
         {
             if (item.StartDate.HasValue)
@@ -853,6 +1012,28 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         // ============================================================
         // INTERNAL RECORDS
         // ============================================================
+        private sealed record TrainingDetailsProjection(
+            Guid Id,
+            string TrainingTypeName,
+            DateOnly? StartDate,
+            DateOnly? EndDate,
+            int? TrainingMonth,
+            int? TrainingYear,
+            int LegacyOfficerCount,
+            int LegacyJcoCount,
+            int LegacyOrCount,
+            int? CounterOfficers,
+            int? CounterJcos,
+            int? CounterOrs,
+            int? CounterTotal,
+            TrainingCounterSource? CounterSource,
+            string? Notes,
+            string CreatedByUserId,
+            DateTimeOffset CreatedAtUtc,
+            string? LastModifiedByUserId,
+            DateTimeOffset? LastModifiedAtUtc,
+            IReadOnlyList<string> ProjectNames);
+
         private sealed record TrainingDeleteRequestProjection(
             Guid Id,
             Guid TrainingId,
@@ -868,6 +1049,12 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             string RequestedByUserId,
             DateTimeOffset RequestedAtUtc,
             string Reason);
+
+        private sealed record UserDisplayProjection(
+            string Id,
+            string? FullName,
+            string? UserName,
+            string? Email);
 
         // ============================================================
         // SHARED PAGED RESULT
