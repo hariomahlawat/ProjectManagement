@@ -1,112 +1,146 @@
+/* Progress Review – print styles
+ * This file only overrides layout/colour for printing.
+ * Screen styles continue to come from progress-review.css.
+ */
+
 @page {
     size: A4 portrait;
     margin: 12mm;
 }
 
 @media print {
-    /* SECTION: Page sizing and colour accuracy */
+
+    /* 1. Base page setup: plain white, no app background */
+
     html,
     body {
-        width: 210mm;
-        height: 297mm;
+        margin: 0;
+        padding: 0;
+        background: #ffffff !important;
+        color: #000000;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
-    }
-
-    :root {
-        /* Use a flat white surface and proper border tokens in print */
-        --pr-surface: #ffffff;
-        --pr-border: var(--pm-border-outline);
-        --pr-muted: var(--pm-text-dim);
-    }
-
-    * {
         box-sizing: border-box;
     }
 
-    body,
-    .progress-review-shell,
-    .progress-review__canvas {
-        background: var(--pm-card) !important;
+    *,
+    *::before,
+    *::after {
+        box-sizing: inherit;
     }
 
+    /* 2. Hide chrome / navigation / buttons */
+
+    /* App frame (header / sidebar / footer) – class names are defensive */
+    .pm-app-shell__header,
+    .pm-app-shell__sidebar,
+    .pm-app-shell__footer,
+    .pm-navbar,
+    .pm-main-nav,
+    .pm-global-nav,
+    .pm-topbar,
+    .site-header,
+    .site-footer,
+    .navbar,
+    .sidebar,
+    .app-toolbar,
+    .dashboard-header,
+    .progress-review__toolbar,
+    .btn,
+    .btn-group,
+    [data-hide-in-print] {
+        display: none !important;
+    }
+
+    /* 3. Make the report canvas fill the printable area */
+
+    .progress-review-shell {
+        background: #ffffff !important;
+        padding: 0 !important;
+    }
+
+    .container,
+    .container-fluid,
+    .container-lg,
+    .container-xl,
     .container-xxl,
     .pr-report-root,
     .progress-review__canvas {
         max-width: 100% !important;
         width: 100% !important;
-        padding: 0 !important;
         margin: 0 !important;
-        box-shadow: none !important;
+        padding: 0 !important;
+    }
+
+    .progress-review__canvas {
         border: none !important;
+        box-shadow: none !important;
     }
 
-    /* Hide navigation, toolbar chrome etc in print */
-    .progress-review__toolbar,
-    .pr-toolbar,
-    .top-nav,
-    .btn,
-    .date-range-button,
-    .progress-review__section-meta,
-    .progress-review__section-subtitle {
-        display: none !important;
+    /* 4. Lighten backgrounds so they don't become dark blocks */
+
+    .pr-category-block,
+    .progress-review__mini-section,
+    .pr-media-thumb,
+    .pr-media-item,
+    .pr-section,
+    .pr-category-header {
+        background: #ffffff !important;
     }
 
-    /* Make headings, labels and body copy print friendly */
+    .pr-category-header {
+        border-bottom: 1px solid #dddddd !important;
+        border-left-color: #000000 !important;
+    }
+
+    /* 5. Typography: keep headings dark, meta slightly muted */
+
     .progress-review__title,
     .progress-review__section-title,
-    .progress-review__subheading {
-        color: #000 !important;
+    .pr-section-title,
+    .pr-project-name {
+        color: #000000 !important;
     }
 
     .progress-review__section-label,
     .pr-section-label,
     .pr-meta {
-        color: #444 !important;
+        color: #555555 !important;
     }
 
-    .pr-category-header {
-        background: var(--pm-surface-plain) !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }
+    /* 6. Page-break behaviour
+     * Let the browser break naturally; only small blocks are protected.
+     * Do NOT set page-break-inside on the whole canvas – that caused blanks.
+     */
 
     .pr-category-block,
-    .pr-media-item,
-    .pr-project-row {
-        border-color: var(--pr-border) !important;
-    }
-
-    /* Avoid awkward breaks inside important blocks */
-    .progress-review__canvas,
-    .pr-section,
-    .pr-category-block {
+    .progress-review__mini-section,
+    .pr-media-item {
         page-break-inside: avoid;
         break-inside: avoid;
     }
 
-    .progress-review__section-header {
-        page-break-after: avoid;
-        break-after: avoid;
-    }
-
-    /* Tighter layout for print */
+    /* Avoid large vertical gaps between sections in print */
     .progress-review__section {
-        margin-top: 1.1rem;
+        margin-top: 12px;
     }
 
     .pr-project-row {
-        padding: 6px 6px 7px;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        border-top: 1px solid #e0e0e0;
     }
 
-    .pr-media-item {
-        padding: 4px 0;
-    }
+        .pr-project-row:first-child {
+            border-top: none;
+        }
 
-    /* Remove shadows in print */
+    /* 7. Remove any remaining shadows / rounded-corner illusions in print */
+
     .progress-review__canvas,
     .pr-category-block,
     .progress-review__mini-section {
         box-shadow: none !important;
+        border-radius: 0 !important;
     }
 }
