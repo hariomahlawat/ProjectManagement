@@ -5,7 +5,7 @@
 
 /* Analytics */
 .analytics-main {
-  background-color: var(--bs-body-bg, var(--pm-card));
+  background-color: var(--pm-surface-soft, var(--bs-body-bg, var(--pm-card)));
 }
 
 .analytics-shell {

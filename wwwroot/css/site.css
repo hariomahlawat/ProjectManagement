@@ -10,22 +10,22 @@
     --pm-primary-strong: #1d4ed8;
 
     /* -- SECTION: Neutrals & surfaces -- */
-    --pm-surface: #f5f7fb;
-    --pm-surface-soft: #f9fafb;
+    --pm-surface: #f3f4f6;
+    --pm-surface-soft: #f6f7fb;
     --pm-surface-subtle: #f3f4f6;
     --pm-surface-elevated: #ffffff;
     --pm-surface-contrast: #f8fafc;
-    --pm-surface-muted: #f1f3f5;
-    --pm-surface-veil: #eef0f3;
+    --pm-surface-muted: #e5e7eb;
+    --pm-surface-veil: #f9fafb;
     --pm-surface-plain: #f5f5f5;
     --pm-surface-foam: #f5f8ff;
     --pm-surface-lilac: #ede9fe;
     --pm-surface-ice: #e6e9f0;
     --pm-surface-steel: #f4f6fb;
     --pm-surface-haze: #e6e8ec;
-    --pm-surface-mist: #f2f4f7;
+    --pm-surface-mist: #f5f7fa;
     --pm-surface-silver: #edf1f5;
-    --pm-surface-ghost: #eef1f7;
+    --pm-surface-ghost: #f1f5f9;
     --pm-surface-porcelain: #eef2f7;
     --pm-surface-mint: #f0f7f3;
     --pm-surface-violet: #f7f1ff;
@@ -212,7 +212,7 @@
     --remarks-role-mco-text: var(--bs-primary-text-emphasis, #052c65);
 
     /* -- SECTION: Bootstrap mappings -- */
-    --bs-body-bg: var(--pm-surface);
+    --bs-body-bg: var(--pm-surface-soft);
     --bs-body-color: var(--pm-text);
     --bs-border-color: var(--pm-border);
     --bs-card-bg: var(--pm-card);
@@ -223,7 +223,7 @@ body {
     font-size: var(--bs-body-font-size);
     line-height: var(--bs-body-line-height);
     color: var(--pm-text);
-    background-color: var(--pm-surface);
+    background-color: var(--pm-surface-soft);
 }
 
 /* --- Layout shell --- */
@@ -264,11 +264,16 @@ main[role="main"] {
 
 /* ---------- Cards ---------- */
 .pm-card {
-    border: 1px solid rgba(15, 23, 42, .08);
+    border: 1px solid var(--pm-border-subtle, #e5e7eb);
     border-radius: 1rem;
-    background-color: var(--pm-card);
+    background-color: var(--pm-card, #ffffff);
     box-shadow: 0 18px 30px -24px rgba(15, 23, 42, .2);
     overflow: visible;
+}
+
+.card.pm-card {
+    background-color: var(--pm-card, #ffffff);
+    border: 1px solid var(--pm-border-subtle, #e5e7eb);
 }
 
 .pm-card-header {
@@ -5800,7 +5805,7 @@ body.has-project-photo-preview-dialog {
 
 /* --- Records card & table --- */
 .pm-card {
-    border: 0;
+    border: 1px solid var(--pm-border-subtle, #e5e7eb);
     box-shadow: 0 .5rem 1rem -.75rem rgba(0, 0, 0, .15);
 }
 
