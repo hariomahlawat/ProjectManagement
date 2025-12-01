@@ -1,15 +1,20 @@
 /* =========================================================
    SECTION: Layout shell
    ========================================================= */
-/* =========================================================
-   SECTION: Tokens & base palette
-   ========================================================= */
+
+/* Tokens just for the Progress Review page */
 :root {
-    --pr-surface: var(--pm-card)fff;
+    /* Main report surface (the big white card) */
+    --pr-surface: var(--pm-surface-elevated, var(--pm-card));
+    /* Muted text for meta and helper labels */
     --pr-muted: var(--pm-text-tertiary);
-    --pr-border: var(--pm-surface-ice);
+    /* Borders for the report card and inner lists */
+    --pr-border: var(--pm-border-muted, var(--pm-surface-ice));
+    /* Section headings and important labels */
     --pr-heading: var(--pm-accent-navy-shadow);
+    /* Canvas background behind the report card */
     --pr-background: var(--pm-surface-steel);
+    /* Accent text when we need emphasis */
     --pr-accent: var(--pm-text-contrast);
 }
 
@@ -18,6 +23,7 @@
     padding: 1.5rem 0 3rem;
 }
 
+/* Toolbar at the top (title, range selector, print) */
 .progress-review__toolbar {
     display: flex;
     align-items: center;
@@ -37,6 +43,14 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     margin-bottom: 0;
+    color: var(--pr-muted);
+}
+
+.progress-review__title {
+    font-size: 1.35rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--pm-text-contrast);
 }
 
 .progress-review__toolbar-actions {
@@ -45,6 +59,7 @@
     gap: 0.5rem;
 }
 
+/* Main report canvas card */
 .progress-review__canvas {
     background: var(--pr-surface);
     border: 1px solid var(--pr-border);
@@ -53,6 +68,7 @@
     box-shadow: 0 20px 50px rgba(15, 30, 65, 0.08);
 }
 
+/* Header with reporting period and any meta */
 .progress-review__document-header {
     display: flex;
     align-items: baseline;
@@ -63,9 +79,67 @@
     margin-bottom: 1.25rem;
 }
 
+    .progress-review__document-header h2 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+    }
+
+.progress-review__section-label {
+    display: block;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--pr-muted);
+}
+
+.progress-review__section-title {
+    margin: 0;
+    font-size: 1.25rem;
+    color: var(--pr-heading);
+}
+
+.progress-review__section-subtitle {
+    margin: 0.35rem 0 0;
+    color: var(--pr-muted);
+    font-size: 0.9rem;
+}
+
+.progress-review__section-meta {
+    margin: 0;
+    align-self: flex-start;
+    font-size: 0.85rem;
+    color: var(--pr-muted);
+}
+
+.progress-review__section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.progress-review__section {
+    margin-top: 1.75rem;
+}
+
+.progress-review__stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.progress-review__subheading {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--pr-heading);
+}
+
 /* =========================================================
-   SECTION: Report hierarchy & typography
+   SECTION: Report hierarchy & typography helper classes
    ========================================================= */
+
 .pr-section {
     margin-top: 20px;
 }
@@ -91,94 +165,10 @@
     margin-bottom: 10px;
 }
 
-.pr-category-header {
-    background: var(--pm-surface-mist);
-    border-left: 3px solid var(--pm-text-gray-soft);
-    padding: 6px 10px;
-    font-weight: 600;
-    font-size: 13.5px;
-    color: var(--pm-text-contrast);
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-}
-
-.pr-category-count {
-    font-size: 11px;
-    color: var(--pm-text-muted);
-    font-weight: 500;
-}
-
-.pr-project-name {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--pm-text-contrast);
-}
-
-.pr-meta {
-    font-size: 11.5px;
-    color: var(--pm-text-muted);
-}
-
-.pr-body {
-    font-size: 12.5px;
-    color: var(--pm-text-secondary);
-}
-
-.pr-divider-soft {
-    border-bottom: 1px solid var(--pm-surface-veil);
-}
-
 /* =========================================================
-   SECTION: Section headings
+   SECTION: Ongoing project lists by category
    ========================================================= */
-.progress-review__section + .progress-review__section {
-    margin-top: 2rem;
-}
 
-.progress-review__section-header {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--pr-border);
-    margin-bottom: 1rem;
-}
-
-.progress-review__section-label {
-    display: block;
-    font-size: 0.75rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--pr-muted);
-}
-
-.progress-review__section-title {
-    margin: 0;
-    font-size: 1.25rem;
-    color: var(--pr-heading);
-}
-
-.progress-review__section-subtitle {
-    margin: 0.35rem 0 0;
-    color: var(--pr-muted);
-}
-
-.progress-review__section-meta {
-    margin: 0;
-    align-self: flex-start;
-}
-
-.progress-review__subheading {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--pr-heading);
-}
-
-/* =========================================================
-   SECTION: Project grouping
-   ========================================================= */
 .pr-category-stack {
     display: flex;
     flex-direction: column;
@@ -186,11 +176,32 @@
 }
 
 .pr-category-block {
-    background: var(--pm-card)fff;
+    background: var(--pm-card);
     border: 1px solid var(--pm-surface-silver);
     border-radius: 10px;
     overflow: hidden;
     box-shadow: inset 0 0 0 1px rgba(35, 43, 59, 0.02);
+}
+
+.pr-category-header {
+    background: var(--pm-surface-mist);
+    border-left: 3px solid var(--pm-text-gray-soft);
+    padding: 6px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+
+    .pr-category-header h3 {
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin: 0;
+    }
+
+.pr-category-count {
+    font-size: 0.8rem;
+    color: var(--pr-muted);
 }
 
 .pr-project-list {
@@ -199,49 +210,133 @@
 }
 
 .pr-project-row {
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--pm-surface-veil);
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    padding: 10px 12px 12px;
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 4fr);
+    column-gap: 1.25rem;
+    row-gap: 0.15rem;
+    border-top: 1px solid var(--pm-surface-ice);
 }
 
-.pr-project-row:last-child {
-    border-bottom: none;
+    .pr-project-row:first-child {
+        border-top: none;
+    }
+
+.pr-project-name {
+    font-weight: 600;
+    color: var(--pm-text-contrast);
+    text-decoration: none;
 }
 
-.pr-stage-line {
-    font-size: 12.5px;
+    .pr-project-name:hover,
+    .pr-project-name:focus-visible {
+        text-decoration: underline;
+    }
+
+.pr-meta {
+    font-size: 0.8rem;
+    color: var(--pr-muted);
 }
 
+.pr-body {
+    font-size: 0.9rem;
+    color: var(--pm-text);
+}
+
+/* One line clamping for remarks or text */
+.pr-line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Movement / stage lines inside a project row */
 .pr-movement-line {
-    font-size: 11.5px;
-    color: var(--pm-text-muted);
-    margin-top: 2px;
+    font-size: 0.85rem;
+    color: var(--pm-text);
 }
 
+/* Remark summary line */
 .pr-remark-line {
-    font-size: 12.5px;
-    margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    font-size: 0.85rem;
 }
+
+/* =========================================================
+   SECTION: Media lists (visits, social media, etc)
+   ========================================================= */
+
+.pr-media-item {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.6rem 0;
+    border-top: 1px solid var(--pm-surface-ice);
+}
+
+    .pr-media-item:first-child {
+        border-top: none;
+    }
+
+.pr-media-thumb {
+    flex: 0 0 72px;
+    height: 72px;
+    border-radius: 0.75rem;
+    background: var(--pm-surface-mist);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .pr-media-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+.pr-media-content {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.pr-media-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--pm-text-contrast);
+}
+
+.pr-media-sub {
+    font-size: 0.8rem;
+    color: var(--pr-muted);
+}
+
+.pr-media-text {
+    margin-top: 0.25rem;
+    font-size: 0.9rem;
+}
+
+/* =========================================================
+   SECTION: Generic links + lists + tables
+   ========================================================= */
 
 .progress-review__link {
     color: inherit;
     text-decoration: none;
 }
 
-.progress-review__link:hover,
-.progress-review__link:focus-visible {
-    text-decoration: underline;
-}
+    .progress-review__link:hover,
+    .progress-review__link:focus-visible {
+        text-decoration: underline;
+    }
 
 .progress-review__link--block {
     display: block;
 }
 
-/* =========================================================
-   SECTION: Lists & tables
-   ========================================================= */
 .progress-review__table thead th {
     text-transform: uppercase;
     font-size: 0.8rem;
@@ -257,151 +352,80 @@
     margin: 0;
 }
 
-.progress-review__list li {
-    padding: 0.4rem 0;
-    border-bottom: 1px dashed var(--pr-border);
+    .progress-review__list li {
+        padding: 0.25rem 0;
+    }
+
+/* Small two column blocks like ToT / IPR sections */
+.progress-review__mini-section {
+    background: var(--pm-surface-plain);
+    border-radius: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--pm-surface-ice);
 }
 
-.progress-review__list li:last-child {
-    border-bottom: none;
-}
-
-/* =========================================================
-   SECTION: Media list
-   ========================================================= */
-.pr-media-item {
-    display: flex;
-    gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--pm-surface-veil);
-}
-
-.pr-media-item:last-child {
-    border-bottom: none;
-}
-
-.pr-media-thumb {
-    width: 72px;
-    height: 72px;
-    border-radius: 6px;
-    background: var(--pm-surface-muted);
-    flex: 0 0 auto;
-    overflow: hidden;
-}
-
-.pr-media-thumb img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.pr-media-content {
-    flex: 1;
-}
-
-.pr-media-title {
+.progress-review__mini-heading {
+    font-size: 0.9rem;
     font-weight: 600;
-    font-size: 13px;
-    color: var(--pm-text-contrast);
-}
-
-.pr-media-sub {
-    font-size: 11.5px;
-    color: var(--pm-text-muted);
-    margin-top: 2px;
-}
-
-.pr-media-text {
-    font-size: 12.5px;
-    margin-top: 4px;
-}
-
-.pr-line-clamp-3 {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.progress-review__media-list {
-    margin: 0;
-}
-
-.progress-review__media-item {
-    display: flex;
-    gap: 0.85rem;
-    padding: 0.75rem 0;
-    border-bottom: 1px solid var(--pr-border);
-}
-
-.progress-review__media-item:last-child {
-    border-bottom: none;
-}
-
-.progress-review__media-thumb {
-    width: 72px;
-    height: 72px;
-    border-radius: 0.75rem;
-    overflow: hidden;
-    background: var(--pm-surface-ghost);
-    flex-shrink: 0;
-}
-
-.progress-review__media-thumb img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.progress-review__media-body {
-    flex: 1;
+    margin-bottom: 0.35rem;
 }
 
 /* =========================================================
-   SECTION: Activity cards
+   SECTION: Utilities and helpers
    ========================================================= */
-.progress-review__activity-card {
-    background: var(--pr-surface);
-    border: 1px solid var(--pr-border);
-    border-radius: 0.85rem;
-    padding: 1rem;
-    box-shadow: inset 0 0 0 1px rgba(64, 80, 102, 0.02);
+
+.pr-report-root {
+    max-width: 900px;
+    margin: 0 auto;
 }
 
-.progress-review__activity-photo {
-    width: 100%;
-    height: 160px;
-    object-fit: cover;
-    border-radius: 0.75rem;
-    margin-bottom: 0.65rem;
-    border: 1px solid var(--pm-surface-porcelain);
-}
+    /* Make any generic list inside the report a bit tighter */
+    .pr-report-root ul {
+        padding-left: 1.1rem;
+    }
 
-/* =========================================================
-   SECTION: Stack helpers
-   ========================================================= */
-.progress-review__stack {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.progress-review__block {
-    width: 100%;
-}
+    .pr-report-root li {
+        margin-bottom: 0.25rem;
+    }
 
 /* =========================================================
    SECTION: Responsive
    ========================================================= */
-@media (max-width: 767.98px) {
+
+@media (max-width: 991.98px) {
     .progress-review__document-header,
     .progress-review__section-header {
         flex-direction: column;
         align-items: flex-start;
     }
 
+    .progress-review__canvas {
+        padding: 1.25rem 1.25rem;
+    }
+
+    .pr-project-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 767.98px) {
     .progress-review__toolbar {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .progress-review__toolbar-actions {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .pr-media-item {
+        flex-direction: row;
+    }
+
+    .pr-media-thumb {
+        flex: 0 0 56px;
+        height: 56px;
     }
 }

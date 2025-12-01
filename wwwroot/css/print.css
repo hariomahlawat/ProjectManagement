@@ -1,41 +1,112 @@
-/* =========================================================
-   SECTION: Global print overrides
-   ========================================================= */
+@page {
+    size: A4 portrait;
+    margin: 12mm;
+}
+
 @media print {
-    @page {
-        margin: 12mm;
-    }
-
+    /* SECTION: Page sizing and colour accuracy */
+    html,
     body {
-        background: var(--pm-card)fff !important;
-        color: var(--pm-text-true);
+        width: 210mm;
+        height: 297mm;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 
-    header.pm-topbar,
-    .pm-footer,
-    .pm-top-tabs,
-    .pm-top-search,
-    .progress-review__filter-card,
-    .progress-review__quick-actions,
-    .progress-review__activity-photo,
-    .progress-review__media-thumb,
-    .progress-review__activity-card img,
-    .progress-review button,
-    .progress-review [data-action] {
+    :root {
+        /* Use a flat white surface and proper border tokens in print */
+        --pr-surface: #ffffff;
+        --pr-border: var(--pm-border-outline);
+        --pr-muted: var(--pm-text-dim);
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body,
+    .progress-review-shell,
+    .progress-review__canvas {
+        background: var(--pm-card) !important;
+    }
+
+    .container-xxl,
+    .pr-report-root,
+    .progress-review__canvas {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+
+    /* Hide navigation, toolbar chrome etc in print */
+    .progress-review__toolbar,
+    .pr-toolbar,
+    .top-nav,
+    .btn,
+    .date-range-button,
+    .progress-review__section-meta,
+    .progress-review__section-subtitle {
         display: none !important;
     }
 
-    .progress-review .card {
-        box-shadow: none !important;
-        border: 1px solid var(--pm-border-outline);
+    /* Make headings, labels and body copy print friendly */
+    .progress-review__title,
+    .progress-review__section-title,
+    .progress-review__subheading {
+        color: #000 !important;
+    }
+
+    .progress-review__section-label,
+    .pr-section-label,
+    .pr-meta {
+        color: #444 !important;
+    }
+
+    .pr-category-header {
+        background: var(--pm-surface-plain) !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .pr-category-block,
+    .pr-media-item,
+    .pr-project-row {
+        border-color: var(--pr-border) !important;
+    }
+
+    /* Avoid awkward breaks inside important blocks */
+    .progress-review__canvas,
+    .pr-section,
+    .pr-category-block {
         page-break-inside: avoid;
+        break-inside: avoid;
     }
 
-    .progress-review__table {
-        font-size: 0.85rem;
+    .progress-review__section-header {
+        page-break-after: avoid;
+        break-after: avoid;
     }
 
-    .progress-review__table thead th {
-        background: var(--pm-surface) !important;
+    /* Tighter layout for print */
+    .progress-review__section {
+        margin-top: 1.1rem;
+    }
+
+    .pr-project-row {
+        padding: 6px 6px 7px;
+    }
+
+    .pr-media-item {
+        padding: 4px 0;
+    }
+
+    /* Remove shadows in print */
+    .progress-review__canvas,
+    .pr-category-block,
+    .progress-review__mini-section {
+        box-shadow: none !important;
     }
 }
