@@ -1,74 +1,323 @@
-.visit-shell--tight {
-    padding-top: .5rem;
+/* -------------------------------------------------
+   Project Office Reports – Visits & Social media
+   Layout aligned with Analytics page
+-------------------------------------------------- */
+
+:root {
+    --visit-shell-bg: transparent;
+    --visit-card-bg: #ffffff;
+    --visit-card-radius: 18px;
+    --visit-card-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+    --visit-border-soft: #e3e7f2;
+    --visit-border-subtle: #eef1fb;
+    --visit-text-muted: #6b7280;
+    --visit-text-heading: #111827;
+    --visit-kpi-accent-blue: #3b82f6;
+    --visit-kpi-accent-teal: #0ea5e9;
+    --visit-kpi-accent-green: #22c55e;
+    --visit-kpi-accent-amber: #f59e0b;
+    --visit-row-hover: #f5f7ff;
 }
+
+/* -------------------------------------------------
+   Shell – follow Analytics page horizontal rhythm
+-------------------------------------------------- */
+
+.visit-shell {
+    background: var(--visit-shell-bg);
+    padding: 24px 32px 32px;
+}
+
+    .visit-shell.visit-shell--tight {
+        padding-top: 16px;
+    }
+
+    /* top spacing helpers */
+
+    .visit-shell h1,
+    .visit-shell h2,
+    .visit-shell h3,
+    .visit-shell h4 {
+        color: var(--visit-text-heading);
+    }
+
+/* breadcrumb */
+
+.visit-breadcrumb .breadcrumb {
+    font-size: 0.875rem;
+}
+
+.visit-breadcrumb .breadcrumb-item + .breadcrumb-item::before {
+    color: var(--visit-text-muted);
+}
+
+/* -------------------------------------------------
+   KPI strip – mirror Analytics card look
+-------------------------------------------------- */
 
 .kpi-strip {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+}
+
+@media (max-width: 992px) {
+    .kpi-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 576px) {
+    .kpi-strip {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 .kpi-card {
-    border-radius: 1.25rem;
-    padding: 1rem 1.1rem;
-    background: var(--pm-surface-contrast);
+    position: relative;
+    background: var(--visit-card-bg);
+    border-radius: 16px;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+    padding: 14px 18px 16px;
     display: flex;
     flex-direction: column;
-    gap: .35rem;
+    justify-content: space-between;
+    border: 1px solid var(--visit-border-soft);
+}
+
+    .kpi-card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        border-top: 3px solid transparent;
+        pointer-events: none;
+    }
+
+.kpi-card--blue::before {
+    border-top-color: var(--visit-kpi-accent-blue);
+}
+
+.kpi-card--teal::before {
+    border-top-color: var(--visit-kpi-accent-teal);
+}
+
+.kpi-card--green::before {
+    border-top-color: var(--visit-kpi-accent-green);
+}
+
+.kpi-card--amber::before {
+    border-top-color: var(--visit-kpi-accent-amber);
 }
 
 .kpi-card__top {
     display: flex;
     align-items: center;
-    gap: .5rem;
-    font-size: .7rem;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    opacity: .8;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--visit-text-muted);
 }
 
+    .kpi-card__top i {
+        font-size: 1rem;
+    }
+
 .kpi-card__value {
-    font-size: 1.8rem;
+    font-size: 1.7rem;
     font-weight: 600;
-    line-height: 1.1;
+    margin-top: 6px;
+    color: var(--visit-text-heading);
 }
 
 .kpi-card__hint {
-    font-size: .65rem;
-    color: var(--pm-accent-slate);
+    font-size: 0.75rem;
+    color: var(--visit-text-muted);
+    margin-top: 2px;
 }
 
-.kpi-card--blue {
-    background: linear-gradient(135deg,var(--pm-accent-blue-soft-2) 0%,var(--pm-card) 60%);
+/* -------------------------------------------------
+   Empty state
+-------------------------------------------------- */
+
+.visit-empty {
+    background: #f9fafb;
+    border-radius: 18px;
+    border: 1px dashed var(--visit-border-soft);
+    padding: 32px 24px;
 }
 
-.kpi-card--teal {
-    background: linear-gradient(135deg,var(--pm-accent-info-soft) 0%,var(--pm-card) 60%);
+.visit-empty__icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 8px;
+    background: #e5edff;
+    color: #1d4ed8;
 }
 
-.kpi-card--green {
-    background: linear-gradient(135deg,var(--pm-success-soft-bg) 0%,var(--pm-card) 60%);
+.visit-empty__title {
+    font-size: 1.05rem;
+    margin-bottom: 4px;
 }
 
-.kpi-card--amber {
-    background: linear-gradient(135deg,var(--pm-warning-soft-bg) 0%,var(--pm-card) 60%);
+.visit-empty__subtitle {
+    font-size: 0.9rem;
+    color: var(--visit-text-muted);
 }
+
+/* -------------------------------------------------
+   Pills for active filters
+-------------------------------------------------- */
 
 .visit-pill {
-    background: var(--pm-card);
-    border: 1px solid rgba(148,163,184,.35);
-    border-radius: 9999px;
-    padding: .25rem .75rem;
     display: inline-flex;
-    gap: .5rem;
     align-items: center;
-    font-size: .7rem;
+    gap: 6px;
+    font-size: 0.8rem;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.05);
+    color: #1d4ed8;
+    border: 1px solid rgba(59, 130, 246, 0.12);
 }
 
-.visit-shell.visit-tracker {
-    gap: 0;
+/* -------------------------------------------------
+   Table – analytics style, horizontal rules only
+-------------------------------------------------- */
+
+.visit-table {
+    width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+    background: #ffffff;
+    font-size: 0.9rem;
 }
 
-.kpi-strip {
-    row-gap: .75rem;
+    .visit-table thead {
+        background-color: #f9fafb;
+    }
+
+        .visit-table thead th {
+            border-bottom: 1px solid var(--visit-border-subtle);
+            font-weight: 600;
+            color: var(--visit-text-muted);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.04em;
+            padding: 0.75rem 1.25rem;
+        }
+
+            /* no vertical lines */
+            .visit-table thead th + th,
+            .visit-table tbody td + td {
+                border-left: none;
+            }
+
+    .visit-table tbody tr {
+        border-bottom: 1px solid var(--visit-border-subtle);
+    }
+
+        .visit-table tbody tr:last-child {
+            border-bottom: 0;
+        }
+
+    .visit-table tbody td {
+        padding: 0.8rem 1.25rem;
+        vertical-align: middle;
+        color: #111827;
+        background-color: #ffffff;
+    }
+
+    .visit-table tbody tr:hover td {
+        background-color: var(--visit-row-hover);
+    }
+
+    /* date stacked layout (visits & social both use similar pattern) */
+
+    .visit-table td .fw-semibold + small,
+    .visit-table td small {
+        display: block;
+        font-size: 0.75rem;
+        color: var(--visit-text-muted);
+    }
+
+    /* Actions column alignment */
+
+    .visit-table th.text-end,
+    .visit-table td.text-end {
+        text-align: right;
+    }
+
+/* -------------------------------------------------
+   Cards wrapper around table & charts
+-------------------------------------------------- */
+
+.visit-shell .card {
+    border-radius: var(--visit-card-radius);
+    border: 1px solid var(--visit-border-soft);
+    box-shadow: var(--visit-card-shadow);
+    background: var(--visit-card-bg);
+}
+
+    .visit-shell .card .card-body {
+        padding: 18px 20px;
+    }
+
+/* -------------------------------------------------
+   Charts wrappers – force white background
+-------------------------------------------------- */
+
+.visit-chart-card {
+    border-radius: var(--visit-card-radius);
+    border: 1px solid var(--visit-border-soft);
+    box-shadow: var(--visit-card-shadow);
+    background: #ffffff;
+    padding: 18px 20px 20px;
+}
+
+    .visit-chart-card canvas {
+        background-color: #ffffff !important;
+    }
+
+/* Sometimes charts live directly in .card – normalise */
+.visit-shell canvas {
+    background-color: #ffffff;
+}
+
+/* -------------------------------------------------
+   Modals – keep close to default but slightly softer
+-------------------------------------------------- */
+
+.modal-content {
+    border-radius: 18px;
+    border: 1px solid var(--visit-border-soft);
+}
+
+/* -------------------------------------------------
+   Toasts (used by visits + social)
+-------------------------------------------------- */
+
+.toast-container {
+    z-index: 1080;
+}
+
+.toast {
+    border-radius: 12px;
+}
+
+/* -------------------------------------------------
+   Small utilities
+-------------------------------------------------- */
+
+.visit-shell .text-muted {
+    color: var(--visit-text-muted) !important;
+}
+
+.visit-shell .section-divider {
+    margin: 24px 0 16px;
+    border-top: 1px solid var(--visit-border-soft);
 }
