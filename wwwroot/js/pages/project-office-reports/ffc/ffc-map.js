@@ -60,13 +60,14 @@
       Math.ceil(safeMax * 0.65),
       safeMax
     ];
+    // Use a much stronger fill gradient so active countries stand out
     var baseFill = mapPalette.fillInstalled || '#4f46e5';
     var colors = [
-      applyAlpha(baseFill, 0.16),
-      applyAlpha(baseFill, 0.32),
-      applyAlpha(baseFill, 0.48),
-      applyAlpha(baseFill, 0.64),
-      applyAlpha(baseFill, 0.8),
+      applyAlpha(baseFill, 0.35),
+      applyAlpha(baseFill, 0.55),
+      applyAlpha(baseFill, 0.70),
+      applyAlpha(baseFill, 0.85),
+      baseFill,
       baseFill
     ];
 
@@ -382,7 +383,8 @@
             color: strokeColor,
             dashArray: dashArray,
             fillColor: scale.colorFor(scaleValue),
-            fillOpacity: scaleValue > 0 ? 0.75 : 0.1
+            // Make active countries clearly visible, keep inactive very faint
+            fillOpacity: scaleValue > 0 ? 0.9 : 0.12
           });
         }
 
