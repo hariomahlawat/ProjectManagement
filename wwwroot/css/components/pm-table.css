@@ -2,25 +2,26 @@
    Reusable data-table component
    ----------------------------------------------------------------
    Goals:
-   - White card, same feel as Social media / Visits tables
+   - White card, similar feel to Visits tables
    - Only horizontal dividers (no vertical grid lines)
    - Comfortable padding for readability
    - No hard-coded colours where we can reasonably use tokens
    ================================================================ */
 
 :root {
-    --pm-table-header-bg: var(--pm-card);
-    --pm-table-header-text: var(--pm-text-tertiary);
+    --pm-table-header-bg: var(--pm-surface-soft);
+    --pm-table-header-text: var(--pm-text-muted);
     --pm-table-row-border: var(--pm-divider);
     --pm-table-row-hover-bg: var(--pm-surface-contrast);
 }
 
-/* Card shell for tables (white card) */
+/* Card shell for tables */
+
 .pm-card-table {
     background-color: var(--pm-card);
     border-radius: 1rem;
     border: 1px solid var(--pm-border-muted);
-    box-shadow: 0 10px 30px var(--pm-shadow-soft, rgba(15, 23, 42, 0.04));
+    box-shadow: 0 18px 30px -24px rgba(15, 23, 42, 0.25);
 }
 
     .pm-card-table .table {
@@ -28,6 +29,7 @@
     }
 
 /* Core table */
+
 table.pm-table {
     width: 100%;
     border-collapse: separate;
@@ -35,44 +37,75 @@ table.pm-table {
     background-color: var(--pm-card);
 }
 
-    /* Remove vertical grid lines */
-    table.pm-table th,
-    table.pm-table td {
-        border-left: 0;
-        border-right: 0;
+    /* Remove vertical borders from Bootstrap, keep only horizontal rules */
+    table.pm-table > :not(caption) > * > * {
+        border-left: 0 !important;
+        border-right: 0 !important;
     }
 
     /* Header */
-    table.pm-table thead th {
+
+    table.pm-table thead tr {
         background-color: var(--pm-table-header-bg);
-        color: var(--pm-table-header-text);
+    }
+
+    table.pm-table thead th {
+        padding: 0.75rem 1.25rem;
         font-size: 0.75rem;
+        font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        padding: 0.75rem 1.5rem;
+        color: var(--pm-table-header-text);
         border-bottom: 1px solid var(--pm-table-row-border);
         white-space: nowrap;
     }
 
     /* Body rows */
-    table.pm-table tbody td {
-        padding: 1rem 1.5rem;
-        border-top: 0;
+
+    table.pm-table tbody tr {
         border-bottom: 1px solid var(--pm-table-row-border);
-        vertical-align: middle;
     }
 
-    /* Last row: no extra border at the bottom */
+    table.pm-table tbody td {
+        padding: 0.9rem 1.25rem;
+        vertical-align: middle;
+        background-color: var(--pm-card);
+    }
+
     table.pm-table tbody tr:last-child td {
         border-bottom: 0;
     }
 
-    /* Hover state – very light */
-    table.pm-table tbody tr:hover {
+    /* Hover state */
+
+    table.pm-table tbody tr:hover td {
         background-color: var(--pm-table-row-hover-bg);
     }
 
-/* Optional utility: two-line truncation (used in Projects column) */
+    /* Compact variant */
+
+    table.pm-table.pm-table-sm thead th,
+    table.pm-table.pm-table-sm tbody td {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+
+/* Plain border utility (table without outer card wrapper) */
+
+.pm-table-plain {
+    border-radius: 0.75rem;
+    border: 1px solid var(--pm-border-muted);
+    background-color: var(--pm-card);
+}
+
+/* Monospace helper for numeric columns */
+
+table.pm-table td.text-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Optional utility: two-line truncation */
+
 .text-truncate-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
