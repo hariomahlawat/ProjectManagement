@@ -44,7 +44,7 @@
         </div>
     }
 
-    <!-- ========================================================
+        <!-- ========================================================
          DETAILS GRID
          ======================================================== -->
     <div class="row g-4">
@@ -109,6 +109,69 @@
                             <p class="mb-0">@Model.Training.Notes</p>
                         }
                     </div>
+                </div>
+            </div>
+
+            <!-- SECTION: Roster -->
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="fw-semibold text-uppercase small">Roster</div>
+
+                        <div class="d-flex flex-wrap align-items-center gap-2 small text-muted">
+                            <span class="badge bg-light text-dark">
+                                Officers: @Model.Training.OfficersCount
+                            </span>
+                            <span class="badge bg-light text-dark">
+                                JCOs: @Model.Training.JcosCount
+                            </span>
+                            <span class="badge bg-light text-dark">
+                                ORs: @Model.Training.OrsCount
+                            </span>
+                            <span class="badge bg-secondary-subtle text-dark">
+                                Total: @Model.Training.TotalCount
+                            </span>
+
+                            <span class="ms-2 text-muted">
+                                Source: @Model.Training.RosterSourceDisplay
+                            </span>
+                        </div>
+                    </div>
+
+                    @if (Model.Training.Roster.Count == 0)
+                    {
+                        <p class="text-muted small mb-0">
+                            No roster is available for this training.
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table pm-table pm-table-sm align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Army number</th>
+                                        <th scope="col">Rank</th>
+                                        <th scope="col">Name</th>
+                                        <th scope="col">Unit</th>
+                                        <th scope="col">Category</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in Model.Training.Roster)
+                                    {
+                                        <tr>
+                                            <td class="text-mono">@row.ArmyNumber</td>
+                                            <td>@row.Rank</td>
+                                            <td>@row.Name</td>
+                                            <td>@row.UnitName</td>
+                                            <td>@row.CategoryLabel</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
                 </div>
             </div>
         </div>

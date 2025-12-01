@@ -192,6 +192,21 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                     training.ProjectLinks
                         .OrderBy(link => link.Project != null ? link.Project.Name : string.Empty)
                         .Select(link => link.Project != null ? link.Project.Name : string.Empty)
+                        .ToList(),
+                    training.Trainees
+                        .OrderBy(trainee => trainee.Category)
+                        .ThenBy(trainee => trainee.Rank)
+                        .ThenBy(trainee => trainee.Name)
+                        .ThenBy(trainee => trainee.Id)
+                        .Select(trainee => new TrainingRosterRow
+                        {
+                            Id = trainee.Id,
+                            ArmyNumber = trainee.ArmyNumber,
+                            Rank = trainee.Rank,
+                            Name = trainee.Name,
+                            UnitName = trainee.UnitName,
+                            Category = trainee.Category
+                        })
                         .ToList()))
                 .FirstOrDefaultAsync(cancellationToken);
 
@@ -205,6 +220,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             var ors = projection.CounterOrs ?? projection.LegacyOrCount;
             var total = projection.CounterTotal ?? officers + jcos + ors;
             var source = projection.CounterSource ?? TrainingCounterSource.Legacy;
+
+            var rosterRows = projection.Roster ?? Array.Empty<TrainingRosterRow>();
+            var rosterOfficers = rosterRows.Count(row => row.Category == 0);
+            var rosterJcos = rosterRows.Count(row => row.Category == 1);
+            var rosterOrs = rosterRows.Count - rosterOfficers - rosterJcos;
 
             var (periodDisplay, periodDayCount) = FormatPeriodForDetails(
                 projection.StartDate,
@@ -232,6 +252,21 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             var createdByDisplayName = ResolveDisplayName(userLookup, projection.CreatedByUserId) ?? "System";
             var lastModifiedByDisplayName = ResolveDisplayName(userLookup, projection.LastModifiedByUserId);
 
+            var rosterSourceDisplay = source == TrainingCounterSource.Roster || rosterRows.Count > 0
+                ? "Roster"
+                : "Legacy counts";
+
+            var roster = rosterRows
+                .Select(row => new TrainingTraineeVm
+                {
+                    ArmyNumber = row.ArmyNumber ?? string.Empty,
+                    Rank = row.Rank ?? string.Empty,
+                    Name = row.Name ?? string.Empty,
+                    UnitName = row.UnitName ?? string.Empty,
+                    CategoryLabel = FormatTraineeCategory(row.Category)
+                })
+                .ToList();
+
             return new TrainingDetailsVm
             {
                 Id = projection.Id,
@@ -243,6 +278,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 SourceDisplay = source == TrainingCounterSource.Roster ? "Roster" : "Legacy",
                 TotalTrainees = total,
                 StrengthDisplay = FormatStrength(officers, jcos, ors),
+                OfficersCount = rosterOfficers,
+                JcosCount = rosterJcos,
+                OrsCount = rosterOrs,
+                RosterSourceDisplay = rosterSourceDisplay,
+                Roster = roster,
                 ProjectNames = projectNames,
                 Notes = projection.Notes ?? string.Empty,
                 CreatedByDisplayName = createdByDisplayName,
@@ -863,6 +903,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         private static string FormatStrength(int officers, int jcos, int ors)
             => string.Format(CultureInfo.CurrentCulture, "{0:N0} – {1:N0} – {2:N0}", officers, jcos, ors);
 
+        private static string FormatTraineeCategory(byte category)
+            => category switch
+            {
+                0 => "Officer",
+                1 => "JCO",
+                _ => "OR"
+            };
+
         private static (string Period, string DayCount) FormatPeriodForDetails(
             DateOnly? startDate,
             DateOnly? endDate,
@@ -1032,7 +1080,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             DateTimeOffset CreatedAtUtc,
             string? LastModifiedByUserId,
             DateTimeOffset? LastModifiedAtUtc,
-            IReadOnlyList<string> ProjectNames);
+            IReadOnlyList<string> ProjectNames,
+            IReadOnlyList<TrainingRosterRow> Roster);
 
         private sealed record TrainingDeleteRequestProjection(
             Guid Id,
