@@ -270,6 +270,21 @@
     background-color: rgba(var(--bs-primary-rgb), 0.05);
 }
 
+/* Proliferation manager cards */
+.pf-manage-card {
+    background-color: var(--pm-card);
+    border: 1px solid var(--pm-border);
+    border-radius: 1rem;
+    box-shadow: var(--pm-shadow);
+}
+
+.pf-manage-card .card-header,
+.pf-manage-card .card-body,
+.pf-manage-card .list-group-item,
+.pf-manage-card .card-footer {
+    background-color: var(--pm-card);
+}
+
 @media (min-width: 992px) {
     .pf-manage-layout {
         display: grid;
