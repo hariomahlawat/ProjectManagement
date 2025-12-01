@@ -115,3 +115,29 @@
 @media (min-width: 1200px){
   .ipr-grid-xl { display:grid; grid-template-columns: 1fr 0.9fr; gap: 1.25rem; align-items: start; }
 }
+
+/* ------------------------------------------------------------------
+   Patent tracker – make all cards use the standard white card surface
+   ------------------------------------------------------------------ */
+
+/* 1. KPI cards: remove tinted gradients / pastels and use plain card bg */
+.pm-kpi,
+.pm-kpi--total,
+.pm-kpi--filing,
+.pm-kpi--filed,
+.pm-kpi--granted,
+.pm-kpi--rejected,
+.pm-kpi--withdrawn {
+    background: var(--pm-card);
+    border-color: var(--pm-border-faint);
+}
+
+/* 2. All Bootstrap cards on the patent tracker page */
+.container-fluid .card {
+    background-color: var(--pm-card);
+}
+
+/* 3. Chart cards – keep for clarity (inherits from .card above, but explicit) */
+.ipr-chart-card-sm {
+    background-color: var(--pm-card);
+}
