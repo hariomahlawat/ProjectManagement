@@ -37,11 +37,14 @@
     }
 
     return {
-      fillInstalled: '#2563eb',
+      // Use teal/green for installed footprint instead of pure blue
+      fillInstalled: '#0f766e',
       fillDelivered: '#f97316',
       fillPlanned: '#22c55e',
-      border: '#cbd5e1',
-      highlightBorder: '#4f46e5',
+
+      // Darker border so country outlines are visible from a distance
+      border: '#94a3b8',
+      highlightBorder: '#1d4ed8',
       legendBackground: '#f8fafc',
       tooltipBackground: '#ffffff',
       tooltipText: '#111827'
@@ -341,10 +344,10 @@
 
         function styleFeature() {
           return {
-            weight: 1,
+            weight: 1.3,
             color: mapPalette.border,
             fillColor: mapPalette.legendBackground,
-            fillOpacity: 0.2,
+            fillOpacity: 0.18,
             dashArray: '2 2'
           };
         }
