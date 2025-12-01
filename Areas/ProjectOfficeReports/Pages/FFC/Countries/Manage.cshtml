@@ -2,6 +2,7 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Countries.ManageModel
 @{
     ViewData["Title"] = "FFC Proposals – Manage countries";
+    ViewData["UseFullWidth"] = true;
 }
 
 <div class="container-fluid py-3">
@@ -9,20 +10,27 @@
         <div>
             <p class="text-uppercase text-muted small mb-1">FFC Proposals</p>
             <h1 class="h4 mb-2">Manage FFC countries</h1>
-            <p class="text-muted mb-0 mt-2">Review the full ISO-3166 country list and toggle availability for FFC reporting.</p>
+            <p class="text-muted mb-0 mt-2">
+                Review the full ISO-3166 country list and toggle availability for FFC reporting.
+            </p>
         </div>
 
         <div class="d-flex flex-wrap gap-2">
-            <a asp-area="ProjectOfficeReports" asp-page="/FFC/Index" class="btn btn-outline-secondary btn-sm">
+            <a asp-area="ProjectOfficeReports"
+               asp-page="/FFC/Index"
+               class="btn btn-outline-secondary btn-sm">
                 View overview
             </a>
-            <a asp-area="ProjectOfficeReports" asp-page="/FFC/Records/Manage" class="btn btn-outline-secondary btn-sm">
+            <a asp-area="ProjectOfficeReports"
+               asp-page="/FFC/Records/Manage"
+               class="btn btn-outline-secondary btn-sm">
                 Manage records
             </a>
         </div>
     </div>
 
     <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+
     <div class="row g-4">
         <div class="col-lg-7">
             <div class="card pm-card pm-shadow h-100">
@@ -30,20 +38,31 @@
                     <form method="get" class="row gy-2 gx-2 align-items-end">
                         <div class="col-md-6">
                             <label class="form-label" for="country-search">Search</label>
-                            <input type="search" class="form-control" id="country-search" name="q" value="@Model.Query" />
+                            <input type="search"
+                                   class="form-control"
+                                   id="country-search"
+                                   name="q"
+                                   value="@Model.Query" />
                         </div>
+
                         <input type="hidden" name="p" value="1" />
                         <input type="hidden" name="sort" value="@Model.CurrentSort" />
                         <input type="hidden" name="dir" value="@Model.CurrentSortDirection" />
+
                         <div class="col-md-auto">
                             <button type="submit" class="btn btn-outline-primary">Search</button>
                             @if (Model.HasQuery)
                             {
-                                <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(p: 1, query: string.Empty)" class="btn btn-link">Clear</a>
+                                <a asp-page="./Manage"
+                                   asp-all-route-data="Model.BuildRoute(p: 1, query: string.Empty)"
+                                   class="btn btn-link">
+                                    Clear
+                                </a>
                             }
                         </div>
                     </form>
                 </div>
+
                 <div class="card-body pm-card-body pt-0">
                     <partial name="_CountryTable" model="Model" />
                 </div>
@@ -56,8 +75,8 @@
                     <h2 class="h5">About this list</h2>
                     <p class="text-muted">
                         Countries are synchronised with the ISO-3166 dataset and kept up to date automatically.
-                        Administrators and heads of department can deactivate a country when it should be hidden from
-                        FFC records and filters.
+                        Administrators and heads of department can deactivate a country when it should be hidden
+                        from FFC records and filters.
                     </p>
                     <p class="text-muted mb-0">
                         To request a correction, edit the canonical dataset instead of adding custom entries.

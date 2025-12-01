@@ -2,6 +2,7 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.ManageModel
 @{
     ViewData["Title"] = "Proliferation Manager";
+    ViewData["UseFullWidth"] = true;
 }
 
 <div class="container-xxl my-4" data-page="proliferation-manage" data-can-approve="@(Model.CanApproveRecords ? "true" : "false")">
