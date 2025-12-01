@@ -263,6 +263,10 @@ main[role="main"] {
 }
 
 /* ---------- Cards ---------- */
+.card {
+    background-color: var(--bs-card-bg);
+}
+
 .pm-card {
     border: 1px solid var(--pm-border-subtle, #e5e7eb);
     border-radius: 1rem;
@@ -2915,6 +2919,18 @@ summary::marker {
 
 .card-action-link .bi {
     font-size: var(--pm-font-size-md);
+}
+
+/* Soft panel helpers */
+.pm-panel-soft {
+    background-color: var(--pm-surface-veil);
+    border: 1px solid var(--pm-border-subtle);
+    border-radius: 1rem;
+}
+
+.pm-panel-soft--info {
+    background-color: var(--pm-accent-info-soft);
+    border-color: var(--pm-info-soft-border);
 }
 
 /* ---------- Project gallery ---------- */
