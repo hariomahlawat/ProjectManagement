@@ -2,22 +2,24 @@
 /* -- SECTION: Canonical light theme tokens -- */
 :root {
     --pm-theme-name: light;
-
     /* -- SECTION: Brand & core palette -- */
     --pm-primary: #2d6cdf;
     --pm-primary-hover: #2558c6;
     --pm-primary-soft: #e0edff;
     --pm-primary-strong: #1d4ed8;
-
     /* -- SECTION: Neutrals & surfaces -- */
-    --pm-surface: #f3f4f6;
-    --pm-surface-soft: #f6f7fb;
-    --pm-surface-subtle: #f3f4f6;
-    --pm-surface-elevated: #ffffff;
-    --pm-surface-contrast: #f8fafc;
-    --pm-surface-muted: #e5e7eb;
-    --pm-surface-veil: #f9fafb;
-    --pm-surface-plain: #f5f5f5;
+    /* Canonical neutrals (structural surfaces) */
+    --pm-surface-soft: #f6f7fb; /* primary page background */
+    --pm-surface-bg: #ffffff; /* canonical card / sheet background */
+    --pm-card: var(--pm-surface-bg);
+    --pm-surface-subtle: #f8fafc; /* subtle insets on top of cards */
+    --pm-surface: #f3f4f6; /* base muted neutral surface */
+    --pm-surface-muted: #e5e7eb; /* muted / disabled blocks, skeleton tracks */
+    --pm-surface-elevated: var(--pm-surface-bg);
+    --pm-surface-contrast: var(--pm-surface-subtle);
+    --pm-surface-veil: #f9fafb; /* light veil / overlay backgrounds */
+    --pm-surface-plain: #f5f5f5; /* generic grey background option */
+    /* Accent surfaces – for tags, small banners, highlights, not primary cards */
     --pm-surface-foam: #f5f8ff;
     --pm-surface-lilac: #ede9fe;
     --pm-surface-ice: #e6e9f0;
@@ -30,16 +32,13 @@
     --pm-surface-mint: #f0f7f3;
     --pm-surface-violet: #f7f1ff;
     /* Page / surface tokens */
-    --pm-page-bg: var(--pm-surface-soft);
-    --pm-surface-bg: #ffffff;
-    --pm-card: var(--pm-surface-bg);
+    --pm-page-bg: var(--pm-surface-soft); /* body background */
     --pm-skeleton: #e5e7eb;
-
     /* -- SECTION: Text -- */
     --pm-text: #0b1220;
     --pm-text-secondary: #4b5563;
     --pm-text-muted: #6b7280;
-    --pm-muted: #6b7280;
+    --pm-muted: var(--pm-text-muted);
     --pm-text-contrast: #0f172a;
     --pm-text-inverted: #ffffff;
     --pm-text-tertiary: #6c757d;
@@ -50,7 +49,6 @@
     --pm-text-slate: #374151;
     --pm-text-project: #1f1b38;
     --pm-text-project-muted: #6c7093;
-
     /* -- SECTION: Borders & dividers -- */
     --pm-border: #e5e7eb;
     --pm-border-subtle: #f3f4f6;
@@ -60,7 +58,6 @@
     --pm-border-alt: #ced4da;
     --pm-border-soft: #dadce0;
     --pm-border-outline: #d9dfe8;
-
     /* -- SECTION: Status colors -- */
     --pm-success: #16a34a;
     --pm-success-strong: #166534;
@@ -68,7 +65,6 @@
     --pm-success-soft-text: #166534;
     --pm-success-soft-border: #bbf7d0;
     --pm-success-contrast: #15803d;
-
     --pm-warning: #f59e0b;
     --pm-warning-strong: #854d0e;
     --pm-warning-soft-bg: #fef3c7;
@@ -76,7 +72,6 @@
     --pm-warning-soft-border: #fcd34d;
     --pm-warning-muted: #92400e;
     --pm-warning-contrast: #664d03;
-
     --pm-danger: #b91c1c;
     --pm-danger-strong: #7f1d1d;
     --pm-danger-soft-bg: #fee2e2;
@@ -85,33 +80,25 @@
     --pm-danger-emphasis: #ef4444;
     --pm-danger-invert: #842029;
     --pm-danger-accent: #dc3545;
-
     --pm-info: #0ea5e9;
     --pm-info-strong: #0369a1;
     --pm-info-soft-bg: #e0f2fe;
     --pm-info-soft-text: #0c4a6e;
     --pm-info-soft-border: #bae6fd;
     --pm-info-contrast: #055160;
-
     /* -- SECTION: Semantic status & chips -- */
     --pm-status-success-bg: #dcfce7;
     --pm-status-success-text: #166534;
-
     --pm-status-warning-bg: #fef3c7;
     --pm-status-warning-text: #92400e;
-
     --pm-status-danger-bg: #fee2e2;
     --pm-status-danger-text: #b91c1c;
-
     --pm-status-info-bg: #dbeafe;
     --pm-status-info-text: #1d4ed8;
-
     --pm-chip-bg: var(--pm-surface-contrast);
     --pm-chip-text: var(--pm-text-secondary);
     --pm-chip-border: rgba(148, 163, 184, 0.6);
-
     --pm-divider: rgba(148, 163, 184, 0.4);
-
     /* -- SECTION: Accents & category colors -- */
     --pm-accent-blue: #3b82f6;
     --pm-accent-blue-strong: #2563eb;
@@ -149,7 +136,6 @@
     --pm-accent-gold-dark: #5f4800;
     --pm-accent-mint: #7cc4a5;
     --pm-accent-lavender: #b89ce5;
-
     /* -- SECTION: Project palette -- */
     --pm-project-hero-gradient-start: #f6e9ff;
     --pm-project-hero-gradient-mid: #e8f5ff;
@@ -171,7 +157,6 @@
     --pm-project-link: #1f3a93;
     --pm-project-border: #dfe7ff;
     --pm-project-border-soft: #e9edf2;
-
     /* -- SECTION: Charts & widgets -- */
     --pm-chart-grid: #e5e7eb;
     --pm-chart-axis: #4b5563;
@@ -181,24 +166,23 @@
     --pm-chart-accent-4: #a855f7;
     --pm-chart-accent-5: #ec4899;
     --pm-chart-accent-6: #14b8a6;
-
     /* -- SECTION: Effects & typography -- */
     --pm-shadow: 0 8px 20px rgba(0,0,0,.06);
     --pm-font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
     /* GitHub-aligned system font stack and typographic scale */
-    --pm-font-size-xxs: 0.6875rem;   /* 11px */
-    --pm-font-size-xs: 0.75rem;      /* 12px */
-    --pm-font-size-sm: 0.8125rem;    /* 13px */
+    --pm-font-size-xxs: 0.6875rem; /* 11px */
+    --pm-font-size-xs: 0.75rem; /* 12px */
+    --pm-font-size-sm: 0.8125rem; /* 13px */
     --pm-font-size-compact: 0.85rem; /* compact text */
-    --pm-font-size-base: 0.875rem;   /* 14px */
-    --pm-font-size-tight: 0.9rem;    /* dense body */
+    --pm-font-size-base: 0.875rem; /* 14px */
+    --pm-font-size-tight: 0.9rem; /* dense body */
     --pm-font-size-comfortable: 0.95rem; /* spacious body */
-    --pm-font-size-md: 1rem;         /* 16px */
-    --pm-font-size-lg: 1.125rem;     /* 18px */
-    --pm-font-size-xl: 1.25rem;      /* 20px */
-    --pm-font-size-2xl: 1.5rem;      /* 24px */
-    --pm-font-size-3xl: 1.75rem;     /* 28px */
-    --pm-font-size-4xl: 2rem;        /* 32px */
+    --pm-font-size-md: 1rem; /* 16px */
+    --pm-font-size-lg: 1.125rem; /* 18px */
+    --pm-font-size-xl: 1.25rem; /* 20px */
+    --pm-font-size-2xl: 1.5rem; /* 24px */
+    --pm-font-size-3xl: 1.75rem; /* 28px */
+    --pm-font-size-4xl: 2rem; /* 32px */
     --pm-line-height-base: 1.5;
     --bs-font-sans-serif: var(--pm-font-stack);
     --bs-body-font-family: var(--pm-font-stack);
@@ -213,7 +197,6 @@
     --remarks-role-mco-bg: var(--bs-primary-bg-subtle, #cfe2ff);
     --remarks-role-mco-border: var(--bs-primary-border-subtle, #9ec5fe);
     --remarks-role-mco-text: var(--bs-primary-text-emphasis, #052c65);
-
     /* -- SECTION: Bootstrap mappings -- */
     --bs-body-bg: var(--pm-page-bg);
     --bs-body-color: var(--pm-text);
