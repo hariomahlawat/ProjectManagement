@@ -93,7 +93,7 @@ public class ActivityAttachmentManagerTests : IDisposable
 
         var metadata = _manager.CreateMetadata(activity);
         var item = Assert.Single(metadata);
-        Assert.Equal($"/files/signed/{FakeStorage.StorageKey}", item.DownloadUrl);
+        Assert.Equal($"/files/signed?t={FakeStorage.StorageKey}", item.DownloadUrl);
         Assert.Equal(ActivityAttachmentValidator.SanitizeFileName(upload.FileName), item.FileName);
     }
 
@@ -178,12 +178,12 @@ public class ActivityAttachmentManagerTests : IDisposable
     {
         public string CreateDownloadUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
         {
-            return string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/signed/{storageKey}";
+            return string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/signed?t={storageKey}";
         }
 
         public string CreateInlineUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
         {
-            return string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/signed/{storageKey}?mode=inline";
+            return string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/signed?t={storageKey}&mode=inline";
         }
     }
 

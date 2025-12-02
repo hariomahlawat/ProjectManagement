@@ -423,7 +423,7 @@ public class ActivityServiceTests : IDisposable
         var metadata = await _service.GetAttachmentMetadataAsync(created.Id);
         var item = Assert.Single(metadata);
         Assert.Equal(ActivityAttachmentValidator.SanitizeFileName(upload.FileName), item.FileName);
-        Assert.StartsWith("/files/", item.DownloadUrl, StringComparison.Ordinal);
+        Assert.StartsWith("/files?t=", item.DownloadUrl, StringComparison.Ordinal);
         Assert.False(string.IsNullOrWhiteSpace(item.DownloadUrl));
         Assert.Equal(attachment.Id, item.Id);
     }
@@ -566,10 +566,10 @@ internal sealed class StubDocRepoIngestionService : IDocRepoIngestionService
 internal sealed class FakeFileUrlBuilder : IProtectedFileUrlBuilder
 {
     public string CreateDownloadUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
-        => string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/{storageKey}";
+        => string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files?t={storageKey}";
 
     public string CreateInlineUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
-        => string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/{storageKey}?mode=inline";
+        => string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files?t={storageKey}&mode=inline";
 }
 
 internal sealed class TestUploadRootProvider : IUploadRootProvider, IDisposable

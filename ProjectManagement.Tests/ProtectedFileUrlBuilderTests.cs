@@ -25,7 +25,7 @@ public sealed class ProtectedFileUrlBuilderTests
         var inlineUrl = builder.CreateInlineUrl("activities/1/example.pdf", "example.pdf", "application/pdf");
 
         // SECTION: Assert
-        Assert.Equal("/pm/files/token-123?mode=inline", inlineUrl);
+        Assert.Equal("/pm/files?t=token-123&mode=inline", inlineUrl);
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class ProtectedFileUrlBuilderTests
         var downloadUrl = builder.CreateDownloadUrl("activities/2/photo.jpg", "photo.jpg", "image/jpeg");
 
         // SECTION: Assert
-        Assert.Equal("/files/token-abc", downloadUrl);
+        Assert.Equal("/files?t=token-abc", downloadUrl);
     }
 
     private sealed class StubFileAccessTokenService : IFileAccessTokenService

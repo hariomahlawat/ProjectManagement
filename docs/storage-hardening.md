@@ -5,7 +5,7 @@ This document records the cross-cutting changes that were made to close the gaps
 ## Signed download URLs & `/files` gateway
 
 * All download links are now generated via `IProtectedFileUrlBuilder`. It wraps a short-lived token produced by `IFileAccessTokenService` (Data Protection + `FileDownload` options) and ties it to the current user when `BindTokensToUser` is true.
-* `/files/{token}` is handled by `FilesController`. The controller validates the token, re-hydrates the storage key via `IUploadPathResolver`, enforces authorization, and streams the file with range support. Direct static-file exposure of the upload root was removed from `Program.cs`.
+* `/files?t={token}` is handled by `FilesController` (legacy `/files/{token}` links continue to work when the segment is short enough). The controller validates the token, re-hydrates the storage key via `IUploadPathResolver`, enforces authorization, and streams the file with range support. Direct static-file exposure of the upload root was removed from `Program.cs`.
 * Any feature that needs a download link should request `IProtectedFileUrlBuilder` (for example `ActivityAttachmentManager`, `ProgressReviewService`). The builder ensures consistent URLs and lets us change the transport in one place if we need to move to pre-signed CDN links later.
 
 ## Storage key normalization
