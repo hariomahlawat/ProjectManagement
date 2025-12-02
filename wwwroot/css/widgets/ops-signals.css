@@ -35,7 +35,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--ops-gap-xs);
-  background: var(--pm-surface-elevated);
+  background-color: var(--pm-card);
   border: 1px solid var(--pm-border-muted, var(--pm-border));
   border-radius: 16px;
   padding: 1rem 1.1rem;

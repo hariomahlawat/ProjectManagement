@@ -2,7 +2,7 @@
 .ffc-simulator-map-widget {
     border: 1px solid var(--pm-border-muted);
     border-radius: 18px;
-    background: var(--pm-surface-elevated);
+    background-color: var(--pm-card);
     box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
     margin-top: 0;
 }
