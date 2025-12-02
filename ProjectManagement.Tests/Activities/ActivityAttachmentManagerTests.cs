@@ -183,7 +183,7 @@ public class ActivityAttachmentManagerTests : IDisposable
 
         public string CreateInlineUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
         {
-            return string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/inline/{storageKey}";
+            return string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/signed/{storageKey}?mode=inline";
         }
     }
 

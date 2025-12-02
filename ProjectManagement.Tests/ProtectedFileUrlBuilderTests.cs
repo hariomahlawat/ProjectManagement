@@ -25,7 +25,7 @@ public sealed class ProtectedFileUrlBuilderTests
         var inlineUrl = builder.CreateInlineUrl("activities/1/example.pdf", "example.pdf", "application/pdf");
 
         // SECTION: Assert
-        Assert.Equal("/pm/files/inline/token-123", inlineUrl);
+        Assert.Equal("/pm/files/token-123?mode=inline", inlineUrl);
     }
 
     [Fact]
