@@ -61,7 +61,7 @@
 .proc-diagram__canvas .flow-connector {
   fill: none;
   stroke: var(--bs-border-color);
-  stroke-width: 1.5;
+  stroke-width: 1.5px;
   marker-end: url(#pm-flow-arrow);
   transition: stroke 0.2s ease, opacity 0.2s ease;
 }
@@ -72,7 +72,7 @@
 
 .proc-diagram__canvas .flow-connector.is-selected-edge {
   stroke: var(--pm-accent-blue-bolder);
-  stroke-width: 1.9;
+  stroke-width: 1.9px;
 }
 
 .proc-diagram__canvas .flow-connector.is-predecessor-edge {
@@ -94,7 +94,7 @@
 }
 
 .proc-diagram__canvas .flow-node__body {
-  stroke-width: 1.6;
+  stroke-width: 1.6px;
   transition: stroke 0.2s ease, fill 0.2s ease;
 }
 

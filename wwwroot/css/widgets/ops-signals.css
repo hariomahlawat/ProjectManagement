@@ -46,16 +46,20 @@
   min-height: 120px;
 }
 
-.ops-signals__tile:hover {
-  border-color: color-mix(in oklab, var(--pm-primary, var(--pm-primary)) 30%, var(--pm-border, var(--pm-border)));
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
-}
+    .ops-signals__tile:hover {
+        /* Fallback for tools / old browsers */
+        border-color: var(--pm-primary);
+        /* Modern browsers */
+        border-color: color-mix(in srgb, var(--pm-primary) 30%, var(--pm-border));
+    }
 
-.ops-signals__tile:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--pm-primary, var(--pm-primary)) 50%, white);
-  outline-offset: 2px;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
-}
+    .ops-signals__tile:focus-visible {
+        /* Fallback */
+        outline: 2px solid var(--pm-primary);
+        /* Modern browsers */
+        outline: 2px solid color-mix(in srgb, var(--pm-primary) 50%, white);
+    }
+
 
 .ops-signals__head {
   display: flex;

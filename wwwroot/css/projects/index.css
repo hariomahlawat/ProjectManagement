@@ -175,7 +175,7 @@
 }
 
 .projects-filter {
-    background-color: var(--pm-card)fff;
+    background-color: var(--pm-card);
     border-radius: 1.25rem;
     padding: 1.5rem;
     margin-bottom: 1.5rem;
@@ -271,7 +271,7 @@
 }
 
 .projects-active-filters {
-    background-color: var(--pm-card)fff;
+    background-color: var(--pm-card);
     border-radius: 1.25rem;
     padding: 1rem 1.25rem;
     display: flex;
@@ -309,7 +309,7 @@
 
 .projects-empty-state {
     text-align: center;
-    background-color: var(--pm-card)fff;
+    background-color: var(--pm-card);
     border-radius: 1.5rem;
     padding: 3rem 1.5rem;
     border: 1px dashed rgba(44, 91, 255, 0.4);
@@ -347,7 +347,7 @@
 }
 
 .projects-card {
-    background-color: var(--pm-card)fff;
+    background-color: var(--pm-card);
     border-radius: 1rem;
     display: flex;
     gap: 1rem;

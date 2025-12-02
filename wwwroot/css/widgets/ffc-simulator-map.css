@@ -181,7 +181,7 @@
     pointer-events: none;
     min-width: 220px;
     max-width: 260px;
-    background: var(--pm-card)fff;
+    background: var(--pm-card);
     border: 1px solid rgba(59, 130, 246, 0.15);
     border-radius: 0.75rem;
     box-shadow: 0 14px 35px rgba(17, 24, 39, 0.15);
@@ -200,7 +200,7 @@
         transform: translateX(-50%);
         border-width: 9px 9px 0 9px;
         border-style: solid;
-        border-color: var(--pm-card)fff transparent transparent transparent;
+        border-color: var(--pm-card) transparent transparent transparent;
         filter: drop-shadow(0 -2px 2px rgba(15, 23, 42, 0.08));
     }
 
