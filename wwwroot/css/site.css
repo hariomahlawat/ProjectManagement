@@ -9,6 +9,7 @@
     --pm-primary-strong: #1d4ed8;
     /* -- SECTION: Neutrals & surfaces -- */
     /* Canonical neutrals (structural surfaces) */
+    --pm-main-bg: #f6f7fb;
     --pm-surface-soft: #ffffff; /* primary page background updated for full-white canvas */
     --pm-surface-bg: #ffffff; /* canonical card / sheet background */
     --pm-card: var(--pm-surface-bg);
@@ -32,7 +33,7 @@
     --pm-surface-mint: #f0f7f3;
     --pm-surface-violet: #f7f1ff;
     /* Page / surface tokens */
-    --pm-page-bg: var(--pm-surface-soft); /* body background */
+    --pm-page-bg: #f6f7fb; /* body background */
     --pm-skeleton: #e5e7eb;
     /* -- SECTION: Text -- */
     --pm-text: #0b1220;
