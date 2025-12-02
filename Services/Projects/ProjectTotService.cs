@@ -7,6 +7,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Utilities;
+using ProjectManagement.Utilities.PartialDates;
 
 namespace ProjectManagement.Services.Projects;
 
@@ -172,7 +173,9 @@ public sealed class ProjectTotService
             var updateRequest = new ProjectTotUpdateRequest(
                 request.ProposedStatus,
                 request.ProposedStartedOn,
+                PartialDatePrecision.Day,
                 request.ProposedCompletedOn,
+                PartialDatePrecision.Day,
                 request.ProposedMetDetails,
                 request.ProposedMetCompletedOn,
                 request.ProposedFirstProductionModelManufactured,
@@ -206,6 +209,19 @@ public sealed class ProjectTotService
     private DateOnly GetTodayInIst() => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(
         _clock.UtcNow.UtcDateTime,
         TimeZoneHelper.GetIst()));
+
+    private static bool IsEntireDateRangeInFuture(DateOnly value, PartialDatePrecision precision, DateOnly today)
+    {
+        var earliestDate = GetEarliestDate(value, precision);
+        return earliestDate > today;
+    }
+
+    private static DateOnly GetEarliestDate(DateOnly value, PartialDatePrecision precision) => precision switch
+    {
+        PartialDatePrecision.Year => new DateOnly(value.Year, 1, 1),
+        PartialDatePrecision.Month => new DateOnly(value.Year, value.Month, 1),
+        _ => value
+    };
 
     private ProjectTotUpdateResult ValidateRequest(
         ProjectTotUpdateRequest request,
@@ -334,11 +350,14 @@ public sealed class ProjectTotService
                     return ProjectTotUpdateResult.ValidationFailed("Completion date (year or month and year) is required when ToT is completed.");
                 }
 
-                if (normalizedRequest.CompletedOn.Value > todayLocal)
+                if (IsEntireDateRangeInFuture(
+                        normalizedRequest.CompletedOn.Value,
+                        normalizedRequest.CompletionDatePrecision,
+                        todayLocal))
                 {
                     return ProjectTotUpdateResult.ValidationFailed("Completion date cannot be in the future.");
                 }
-
+                
                 if (normalizedRequest.StartedOn.HasValue)
                 {
                     if (normalizedRequest.CompletedOn.Value < normalizedRequest.StartedOn.Value)

@@ -71,7 +71,13 @@ public class EditModel : PageModel
         public DateOnly? StartedOn { get; set; }
 
         [BindNever]
+        public PartialDatePrecision StartDatePrecision { get; set; }
+
+        [BindNever]
         public DateOnly? CompletedOn { get; set; }
+
+        [BindNever]
+        public PartialDatePrecision CompletionDatePrecision { get; set; }
 
         // SECTION: Partial date inputs
         [Range(1900, 2100)]
@@ -187,7 +193,9 @@ public class EditModel : PageModel
         var request = new ProjectTotUpdateRequest(
             Input.Status,
             Input.StartedOn,
+            Input.StartDatePrecision,
             Input.CompletedOn,
+            Input.CompletionDatePrecision,
             Input.MetDetails,
             Input.MetCompletedOn,
             Input.FirstProductionModelManufactured,
@@ -351,7 +359,13 @@ public class EditModel : PageModel
         Input.ProjectId = project.Id;
         Input.Status = project.Tot?.Status ?? ProjectTotStatus.NotStarted;
         Input.StartedOn = project.Tot?.StartedOn;
+        Input.StartDatePrecision = Input.StartedOn.HasValue
+            ? PartialDatePrecision.Day
+            : PartialDatePrecision.None;
         Input.CompletedOn = project.Tot?.CompletedOn;
+        Input.CompletionDatePrecision = Input.CompletedOn.HasValue
+            ? PartialDatePrecision.Day
+            : PartialDatePrecision.None;
         Input.MetDetails = project.Tot?.MetDetails;
         Input.MetCompletedOn = project.Tot?.MetCompletedOn;
         Input.FirstProductionModelManufactured = project.Tot?.FirstProductionModelManufactured;
@@ -377,6 +391,9 @@ public class EditModel : PageModel
         // SECTION: Partial date validation
         var startPartial = input.GetStartPartial();
         var completionPartial = input.GetCompletionPartial();
+
+        input.StartDatePrecision = startPartial.GetPrecision();
+        input.CompletionDatePrecision = completionPartial.GetPrecision();
 
         input.StartedOn = null;
         input.CompletedOn = null;

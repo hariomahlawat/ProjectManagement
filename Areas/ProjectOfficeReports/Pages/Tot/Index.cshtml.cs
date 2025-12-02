@@ -127,7 +127,13 @@ public sealed class IndexModel : PageModel
         public DateOnly? StartedOn { get; set; }
 
         [BindNever]
+        public PartialDatePrecision StartDatePrecision { get; set; }
+
+        [BindNever]
         public DateOnly? CompletedOn { get; set; }
+
+        [BindNever]
+        public PartialDatePrecision CompletionDatePrecision { get; set; }
 
         [Range(1900, 2100)]
         public int? StartYear { get; set; }
@@ -322,7 +328,9 @@ public sealed class IndexModel : PageModel
         var request = new ProjectTotUpdateRequest(
             SubmitInput.Status,
             SubmitInput.StartedOn,
+            SubmitInput.StartDatePrecision,
             SubmitInput.CompletedOn,
+            SubmitInput.CompletionDatePrecision,
             SubmitInput.MetDetails,
             SubmitInput.MetCompletedOn,
             SubmitInput.FirstProductionModelManufactured,
@@ -626,7 +634,13 @@ public sealed class IndexModel : PageModel
                 ProjectId = selected.ProjectId,
                 Status = selected.RequestedStatus ?? selected.TotStatus ?? ProjectTotStatus.NotStarted,
                 StartedOn = selected.RequestedStartedOn ?? selected.TotStartedOn,
+                StartDatePrecision = (selected.RequestedStartedOn ?? selected.TotStartedOn) is null
+                    ? PartialDatePrecision.None
+                    : PartialDatePrecision.Day,
                 CompletedOn = selected.RequestedCompletedOn ?? selected.TotCompletedOn,
+                CompletionDatePrecision = (selected.RequestedCompletedOn ?? selected.TotCompletedOn) is null
+                    ? PartialDatePrecision.None
+                    : PartialDatePrecision.Day,
                 MetDetails = selected.RequestedMetDetails ?? selected.TotMetDetails,
                 MetCompletedOn = selected.RequestedMetCompletedOn ?? selected.TotMetCompletedOn,
                 FirstProductionModelManufactured = selected.RequestedFirstProductionModelManufactured ?? selected.TotFirstProductionModelManufactured,
@@ -828,6 +842,9 @@ public sealed class IndexModel : PageModel
             Month = input.CompletionMonth,
             Day = input.CompletionDay
         };
+
+        input.StartDatePrecision = startPartial.GetPrecision();
+        input.CompletionDatePrecision = completionPartial.GetPrecision();
 
         input.StartedOn = null;
         input.CompletedOn = null;
