@@ -567,6 +567,9 @@ internal sealed class FakeFileUrlBuilder : IProtectedFileUrlBuilder
 {
     public string CreateDownloadUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
         => string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/{storageKey}";
+
+    public string CreateInlineUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
+        => string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/inline/{storageKey}";
 }
 
 internal sealed class TestUploadRootProvider : IUploadRootProvider, IDisposable

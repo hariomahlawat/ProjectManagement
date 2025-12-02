@@ -148,6 +148,7 @@ public sealed class ActivityAttachmentManager : IActivityAttachmentManager
 
         var fileName = ActivityAttachmentValidator.SanitizeFileName(attachment.OriginalFileName);
         var downloadUrl = _fileUrlBuilder.CreateDownloadUrl(attachment.StorageKey, attachment.OriginalFileName, attachment.ContentType);
+        var inlineUrl = _fileUrlBuilder.CreateInlineUrl(attachment.StorageKey, attachment.OriginalFileName, attachment.ContentType);
 
         return new ActivityAttachmentMetadata(
             attachment.Id,
@@ -155,6 +156,7 @@ public sealed class ActivityAttachmentManager : IActivityAttachmentManager
             attachment.ContentType,
             attachment.FileSize,
             downloadUrl,
+            inlineUrl,
             attachment.StorageKey,
             attachment.UploadedAtUtc,
             attachment.UploadedByUserId);
