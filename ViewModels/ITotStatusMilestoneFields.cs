@@ -5,6 +5,9 @@ namespace ProjectManagement.ViewModels;
 
 public interface ITotStatusMilestoneFields
 {
+    // SECTION: Identifiers
+    int ProjectId { get; set; }
+
     // SECTION: Status and derived date values
     ProjectTotStatus Status { get; set; }
 
