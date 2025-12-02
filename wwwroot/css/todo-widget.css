@@ -256,6 +256,11 @@
     }
 }
 
+/* Row content alignment */
+.todo-row__content {
+    align-items: flex-start;
+}
+
 /* Priority dot */
 .todo-dot {
     display: inline-block;
@@ -279,9 +284,13 @@
 
 .todo-title {
     font-weight: 500;
-    white-space: nowrap;
+    flex: 1 1 auto;
+    min-width: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
 }
 
 .todo-widget .todo-badge {

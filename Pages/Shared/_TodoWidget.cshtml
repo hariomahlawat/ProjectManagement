@@ -120,7 +120,7 @@
                         <li class="list-group-item d-flex align-items-center justify-content-between py-1 todo-row @(t.Status == TodoStatus.Done ? "done" : "")"
                             data-priority="@t.Priority"
                             data-status="@status">
-                            <div class="d-flex align-items-center gap-2">
+                            <div class="d-flex align-items-start gap-2 todo-row__content">
                                 <form method="post"
                                       asp-page="/Dashboard/Index"
                                       asp-page-handler="Toggle"
