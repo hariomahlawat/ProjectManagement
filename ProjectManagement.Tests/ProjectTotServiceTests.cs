@@ -6,6 +6,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Utilities.PartialDates;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -645,7 +646,9 @@ public sealed class ProjectTotServiceTests
     private static ProjectTotUpdateRequest CreateRequest(
         ProjectTotStatus status,
         DateOnly? startedOn = null,
+        PartialDatePrecision startPrecision = PartialDatePrecision.Day,
         DateOnly? completedOn = null,
+        PartialDatePrecision completionPrecision = PartialDatePrecision.Day,
         string? metDetails = null,
         DateOnly? metCompletedOn = null,
         bool? firstProductionModelManufactured = null,
@@ -653,7 +656,9 @@ public sealed class ProjectTotServiceTests
         new(
             status,
             startedOn,
+            startPrecision,
             completedOn,
+            completionPrecision,
             metDetails,
             metCompletedOn,
             firstProductionModelManufactured,

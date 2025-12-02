@@ -1,5 +1,6 @@
 using System;
 using ProjectManagement.Models;
+using ProjectManagement.Utilities.PartialDates;
 
 namespace ProjectManagement.Services.Projects;
 
@@ -13,7 +14,9 @@ public enum ProjectTotUpdateStatus
 public sealed record ProjectTotUpdateRequest(
     ProjectTotStatus Status,
     DateOnly? StartedOn,
+    PartialDatePrecision StartDatePrecision,
     DateOnly? CompletedOn,
+    PartialDatePrecision CompletionDatePrecision,
     string? MetDetails,
     DateOnly? MetCompletedOn,
     bool? FirstProductionModelManufactured,
