@@ -130,6 +130,26 @@
     gap: 1.5rem;
 }
 
+/* =========================================================
+   SECTION: Content blocks
+   ========================================================= */
+
+.progress-review__block {
+    background: var(--pm-card);
+    border: 1px solid var(--pr-border);
+    border-radius: 0.9rem;
+    padding: 1.25rem 1.5rem;
+    box-shadow: var(--pm-shadow);
+}
+
+.progress-review__block .progress-review__subheading {
+    margin-bottom: 0.5rem;
+}
+
+.progress-review__block .table-responsive {
+    margin-bottom: 0;
+}
+
 .progress-review__subheading {
     font-size: 1rem;
     font-weight: 600;
