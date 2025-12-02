@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,7 @@ using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Remarks;
 using ProjectManagement.ViewModels;
+using ProjectManagement.Utilities.PartialDates;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot;
 
@@ -121,9 +123,29 @@ public sealed class IndexModel : PageModel
 
         public ProjectTotStatus Status { get; set; } = ProjectTotStatus.NotStarted;
 
+        [BindNever]
         public DateOnly? StartedOn { get; set; }
 
+        [BindNever]
         public DateOnly? CompletedOn { get; set; }
+
+        [Range(1900, 2100)]
+        public int? StartYear { get; set; }
+
+        [Range(1, 12)]
+        public int? StartMonth { get; set; }
+
+        [Range(1, 31)]
+        public int? StartDay { get; set; }
+
+        [Range(1900, 2100)]
+        public int? CompletionYear { get; set; }
+
+        [Range(1, 12)]
+        public int? CompletionMonth { get; set; }
+
+        [Range(1, 31)]
+        public int? CompletionDay { get; set; }
 
         public string? MetDetails { get; set; }
 
@@ -132,6 +154,20 @@ public sealed class IndexModel : PageModel
         public bool? FirstProductionModelManufactured { get; set; }
 
         public DateOnly? FirstProductionModelManufacturedOn { get; set; }
+
+        public PartialDateInput GetStartPartial() => new()
+        {
+            Year = StartYear,
+            Month = StartMonth,
+            Day = StartDay
+        };
+
+        public PartialDateInput GetCompletionPartial() => new()
+        {
+            Year = CompletionYear,
+            Month = CompletionMonth,
+            Day = CompletionDay
+        };
     }
 
     public sealed class DecideRequestInput
@@ -247,15 +283,21 @@ public sealed class IndexModel : PageModel
         var submitContext = NormalizeRemarkBody(SubmitContextBody);
         if (!ValidateRemarkBody(submitContext, nameof(SubmitContextBody)))
         {
+            var preservedInput = SubmitInput;
             await PopulateAsync(cancellationToken);
+            SubmitInput = preservedInput;
             SubmitContextBody = submitContext ?? SubmitContextBody;
             ShowSubmitModal = true;
             return Page();
         }
 
+        ValidatePartialDates(SubmitInput);
+
         if (!ModelState.IsValid)
         {
+            var preservedInput = SubmitInput;
             await PopulateAsync(cancellationToken);
+            SubmitInput = preservedInput;
             SubmitContextBody = submitContext;
             ShowSubmitModal = true;
             return Page();
@@ -591,6 +633,20 @@ public sealed class IndexModel : PageModel
                 FirstProductionModelManufacturedOn = selected.RequestedFirstProductionModelManufacturedOn ?? selected.TotFirstProductionModelManufacturedOn
             };
 
+            if (SubmitInput.StartedOn is { } start)
+            {
+                SubmitInput.StartYear = start.Year;
+                SubmitInput.StartMonth = start.Month;
+                SubmitInput.StartDay = start.Day;
+            }
+
+            if (SubmitInput.CompletedOn is { } completion)
+            {
+                SubmitInput.CompletionYear = completion.Year;
+                SubmitInput.CompletionMonth = completion.Month;
+                SubmitInput.CompletionDay = completion.Day;
+            }
+
             DecideInput = new DecideRequestInput
             {
                 ProjectId = selected.ProjectId,
@@ -755,6 +811,92 @@ public sealed class IndexModel : PageModel
 
         var trimmed = value.Trim();
         return string.IsNullOrEmpty(trimmed) ? null : trimmed;
+    }
+
+    private void ValidatePartialDates(ITotStatusMilestoneFields input)
+    {
+        // SECTION: Partial date validation
+        var startPartial = new PartialDateInput
+        {
+            Year = input.StartYear,
+            Month = input.StartMonth,
+            Day = input.StartDay
+        };
+        var completionPartial = new PartialDateInput
+        {
+            Year = input.CompletionYear,
+            Month = input.CompletionMonth,
+            Day = input.CompletionDay
+        };
+
+        input.StartedOn = null;
+        input.CompletedOn = null;
+
+        switch (input.Status)
+        {
+            case ProjectTotStatus.InProgress:
+                if (!PartialDateHelper.TryToStartDate(startPartial, out var inProgressStart, out var startError))
+                {
+                    ModelState.AddModelError(nameof(input.StartYear), startError ?? "Start date is required when ToT is in progress.");
+                }
+                else
+                {
+                    input.StartedOn = inProgressStart;
+                }
+
+                if (completionPartial.GetPrecision() != PartialDatePrecision.None)
+                {
+                    ModelState.AddModelError(nameof(input.CompletionYear), "Completion must be empty while ToT is in progress.");
+                }
+
+                break;
+            case ProjectTotStatus.Completed:
+                if (!PartialDateHelper.TryToCompletionDate(completionPartial, out var completionDate, out var completionError))
+                {
+                    ModelState.AddModelError(nameof(input.CompletionYear), completionError ?? "Completion date is required when ToT is completed.");
+                }
+                else
+                {
+                    input.CompletedOn = completionDate;
+                }
+
+                if (startPartial.GetPrecision() != PartialDatePrecision.None)
+                {
+                    if (!PartialDateHelper.TryToStartDate(startPartial, out var completedStart, out var startError))
+                    {
+                        ModelState.AddModelError(nameof(input.StartYear), startError ?? "Invalid start date.");
+                    }
+                    else
+                    {
+                        input.StartedOn = completedStart;
+                    }
+                }
+
+                break;
+            case ProjectTotStatus.NotStarted:
+            case ProjectTotStatus.NotRequired:
+                if (startPartial.GetPrecision() != PartialDatePrecision.None)
+                {
+                    ModelState.AddModelError(nameof(input.StartYear), "Start date must be empty when ToT is not started or not required.");
+                }
+
+                if (completionPartial.GetPrecision() != PartialDatePrecision.None)
+                {
+                    ModelState.AddModelError(nameof(input.CompletionYear), "Completion date must be empty when ToT is not started or not required.");
+                }
+
+                break;
+        }
+
+        if (ModelState.IsValid)
+        {
+            _logger.LogInformation(
+                "TOT/TRACKER PARTIAL DATES: ProjectId={ProjectId}, Status={Status}, StartedOn={StartedOn}, CompletedOn={CompletedOn}",
+                input.ProjectId,
+                input.Status,
+                input.StartedOn,
+                input.CompletedOn);
+        }
     }
 
     private bool ValidateRemarkBody(string? body, string modelStateKey)
