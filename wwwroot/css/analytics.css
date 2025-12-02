@@ -5,7 +5,7 @@
 
 /* Analytics */
 .analytics-main {
-  background-color: var(--pm-surface-soft, var(--bs-body-bg, var(--pm-card)));
+  background-color: var(--pm-page-bg);
 }
 
 .analytics-shell {
@@ -323,7 +323,7 @@
 }
 
 .analytics-roadmap__column {
-  background: var(--bs-secondary-bg, var(--pm-surface-plain));
+  background-color: var(--pm-card);
   border-radius: 0.9rem;
   padding: 0.85rem 1rem;
 }
@@ -384,7 +384,7 @@
 
 /* SECTION: Analytics header */
 .analytics-header {
-  background: linear-gradient(90deg, var(--pm-accent-blue-tint) 0%, var(--pm-surface-foam) 60%, var(--pm-card)fff 100%);
+  background: linear-gradient(90deg, var(--pm-accent-blue-tint) 0%, var(--pm-surface-foam) 60%, var(--pm-card) 100%);
   border-radius: 1rem;
   padding: 0.9rem 1.5rem;
   margin-bottom: 1.25rem;
@@ -598,7 +598,7 @@
 }
 
 .analytics-kpis div {
-  background: var(--bs-secondary-bg, var(--pm-surface-plain));
+  background-color: var(--pm-card);
   border-radius: 0.75rem;
   padding: 0.75rem 1rem;
 }

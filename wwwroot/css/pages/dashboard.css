@@ -14,7 +14,7 @@
 .todo-widget,
 .search-health-card,
 .dashboard-my-projects__projects {
-    background: var(--pm-surface-elevated);
+    background-color: var(--pm-card);
     border: 1px solid var(--pm-border-muted);
     border-radius: 18px;
     box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
@@ -22,7 +22,7 @@
 
 /* Light, cool dashboard canvas behind the cards */
 .analytics-main {
-    background: var(--pm-surface-steel);
+    background-color: var(--pm-page-bg);
 }
 /* END SECTION */
 
@@ -255,7 +255,7 @@
 .dashboard-my-projects__projects {
     border: 1px solid var(--pm-border-muted);
     border-radius: 18px;
-    background-color: var(--pm-surface-elevated);
+    background-color: var(--pm-card);
     padding: 1rem 1.25rem;
     box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
     display: flex;
@@ -473,7 +473,7 @@
 .myproj-stage-widget {
     border-radius: 1.5rem;
     box-shadow: var(--pm-shadow);
-    background: var(--pm-card-soft);
+    background-color: var(--pm-card);
     padding: 1.25rem 1.5rem 1.5rem;
 }
 
