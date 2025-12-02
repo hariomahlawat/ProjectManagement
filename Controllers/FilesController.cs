@@ -32,7 +32,7 @@ public sealed class FilesController : ControllerBase
     }
 
     [HttpGet("{token}")]
-    public IActionResult Download(string token)
+    public IActionResult Get(string token, [FromQuery] string? mode)
     {
         var errorResult = TryResolveFileRequest(token, out var resolvedRequest);
         if (errorResult is not null || resolvedRequest is null)
@@ -41,21 +41,14 @@ public sealed class FilesController : ControllerBase
         }
 
         Response.Headers["Cache-Control"] = "private, no-store";
+
+        var isInline = string.Equals(mode, "inline", StringComparison.OrdinalIgnoreCase);
+        if (isInline)
+        {
+            return File(resolvedRequest.Stream, resolvedRequest.ContentType, enableRangeProcessing: true);
+        }
+
         return File(resolvedRequest.Stream, resolvedRequest.ContentType, resolvedRequest.FileName, enableRangeProcessing: true);
-    }
-
-    [HttpGet("inline/{token}")]
-    public IActionResult Inline(string token)
-    {
-        var errorResult = TryResolveFileRequest(token, out var resolvedRequest);
-        if (errorResult is not null || resolvedRequest is null)
-        {
-            return errorResult ?? NotFound();
-        }
-
-        Response.Headers["Cache-Control"] = "private, no-store";
-        Response.Headers["Content-Disposition"] = $"inline; filename=\"{resolvedRequest.FileName}\"";
-        return File(resolvedRequest.Stream, resolvedRequest.ContentType, enableRangeProcessing: true);
     }
 
     // SECTION: Request resolution helpers

@@ -35,16 +35,16 @@ public sealed class ProtectedFileUrlBuilder : IProtectedFileUrlBuilder
 
     public string CreateDownloadUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
     {
-        return CreateUrl("files", storageKey, fileName, contentType, lifetime);
+        return CreateUrl("files", storageKey, fileName, contentType, lifetime, inline: false);
     }
 
     public string CreateInlineUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
     {
-        return CreateUrl("files/inline", storageKey, fileName, contentType, lifetime);
+        return CreateUrl("files", storageKey, fileName, contentType, lifetime, inline: true);
     }
 
     // SECTION: URL creation helpers
-    private string CreateUrl(string basePath, string storageKey, string? fileName, string? contentType, TimeSpan? lifetime)
+    private string CreateUrl(string basePath, string storageKey, string? fileName, string? contentType, TimeSpan? lifetime, bool inline)
     {
         if (string.IsNullOrWhiteSpace(storageKey))
         {
@@ -69,6 +69,12 @@ public sealed class ProtectedFileUrlBuilder : IProtectedFileUrlBuilder
         var pathBase = _httpContextAccessor.HttpContext?.Request.PathBase ?? PathString.Empty;
         var normalizedBase = pathBase.HasValue ? pathBase.Value!.TrimEnd('/') : string.Empty;
 
-        return $"{normalizedBase}/{trimmedBasePath}/{encoded}";
+        var url = $"{normalizedBase}/{trimmedBasePath}/{encoded}";
+        if (inline)
+        {
+            url += "?mode=inline";
+        }
+
+        return url;
     }
 }
