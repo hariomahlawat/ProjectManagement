@@ -69,10 +69,10 @@ public sealed class ProtectedFileUrlBuilder : IProtectedFileUrlBuilder
         var pathBase = _httpContextAccessor.HttpContext?.Request.PathBase ?? PathString.Empty;
         var normalizedBase = pathBase.HasValue ? pathBase.Value!.TrimEnd('/') : string.Empty;
 
-        var url = $"{normalizedBase}/{trimmedBasePath}/{encoded}";
+        var url = $"{normalizedBase}/{trimmedBasePath}?t={encoded}";
         if (inline)
         {
-            url += "?mode=inline";
+            url += "&mode=inline";
         }
 
         return url;

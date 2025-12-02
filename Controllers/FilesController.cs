@@ -31,10 +31,17 @@ public sealed class FilesController : ControllerBase
         _logger = logger;
     }
 
+    [HttpGet]
     [HttpGet("{token}")]
-    public IActionResult Get(string token, [FromQuery] string? mode)
+    public IActionResult Get([FromRoute] string? token, [FromQuery(Name = "t")] string? queryToken, [FromQuery] string? mode)
     {
-        var errorResult = TryResolveFileRequest(token, out var resolvedRequest);
+        var effectiveToken = string.IsNullOrWhiteSpace(queryToken) ? token : queryToken;
+        if (string.IsNullOrWhiteSpace(effectiveToken))
+        {
+            return NotFound();
+        }
+
+        var errorResult = TryResolveFileRequest(effectiveToken, out var resolvedRequest);
         if (errorResult is not null || resolvedRequest is null)
         {
             return errorResult ?? NotFound();
