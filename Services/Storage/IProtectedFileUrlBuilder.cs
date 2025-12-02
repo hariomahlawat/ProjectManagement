@@ -1,5 +1,6 @@
 using System;
 using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services.Security;
@@ -18,15 +19,18 @@ public sealed class ProtectedFileUrlBuilder : IProtectedFileUrlBuilder
     private readonly IFileAccessTokenService _tokenService;
     private readonly IUserContext _userContext;
     private readonly FileDownloadOptions _options;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     public ProtectedFileUrlBuilder(
         IFileAccessTokenService tokenService,
         IUserContext userContext,
-        IOptions<FileDownloadOptions> options)
+        IOptions<FileDownloadOptions> options,
+        IHttpContextAccessor httpContextAccessor)
     {
         _tokenService = tokenService ?? throw new ArgumentNullException(nameof(tokenService));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
     }
 
     public string CreateDownloadUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
@@ -62,6 +66,9 @@ public sealed class ProtectedFileUrlBuilder : IProtectedFileUrlBuilder
 
         var encoded = UrlEncoder.Default.Encode(token);
         var trimmedBasePath = basePath.Trim('/');
-        return $"/{trimmedBasePath}/{encoded}";
+        var pathBase = _httpContextAccessor.HttpContext?.Request.PathBase ?? PathString.Empty;
+        var normalizedBase = pathBase.HasValue ? pathBase.Value!.TrimEnd('/') : string.Empty;
+
+        return $"{normalizedBase}/{trimmedBasePath}/{encoded}";
     }
 }
