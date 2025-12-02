@@ -862,9 +862,9 @@ public sealed class IndexModel : PageModel
 
                 if (startPartial.GetPrecision() != PartialDatePrecision.None)
                 {
-                    if (!PartialDateHelper.TryToStartDate(startPartial, out var completedStart, out var startError))
+                    if (!PartialDateHelper.TryToStartDate(startPartial, out var completedStart, out var completedStartError))
                     {
-                        ModelState.AddModelError(nameof(input.StartYear), startError ?? "Invalid start date.");
+                        ModelState.AddModelError(nameof(input.StartYear), completedStartError ?? "Invalid start date.");
                     }
                     else
                     {
