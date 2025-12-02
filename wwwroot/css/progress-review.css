@@ -13,7 +13,7 @@
     /* Section headings and important labels */
     --pr-heading: var(--pm-accent-navy-shadow);
     /* Canvas background behind the report card */
-    --pr-background: var(--pm-surface-steel);
+    --pr-background: var(--pm-surface-bg);
     /* Accent text when we need emphasis */
     --pr-accent: var(--pm-text-contrast);
 }

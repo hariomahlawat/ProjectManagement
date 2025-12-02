@@ -9,7 +9,7 @@
     --pm-primary-strong: #1d4ed8;
     /* -- SECTION: Neutrals & surfaces -- */
     /* Canonical neutrals (structural surfaces) */
-    --pm-surface-soft: #f6f7fb; /* primary page background */
+    --pm-surface-soft: #ffffff; /* primary page background updated for full-white canvas */
     --pm-surface-bg: #ffffff; /* canonical card / sheet background */
     --pm-card: var(--pm-surface-bg);
     --pm-surface-subtle: #f8fafc; /* subtle insets on top of cards */
@@ -23,7 +23,7 @@
     --pm-surface-foam: #f5f8ff;
     --pm-surface-lilac: #ede9fe;
     --pm-surface-ice: #e6e9f0;
-    --pm-surface-steel: #f4f6fb;
+    --pm-surface-steel: #ffffff;
     --pm-surface-haze: #e6e8ec;
     --pm-surface-mist: #f5f7fa;
     --pm-surface-silver: #edf1f5;
