@@ -905,7 +905,7 @@ main[role="main"] {
 }
 
 .ffc-dtable__group-row {
-    background-color: #f8fafc;
+    background-color: #ffffff;
     font-size: 0.95rem;
 }
 
@@ -938,6 +938,17 @@ main[role="main"] {
     color: #94a3b8;
     font-style: italic;
 }
+
+.ffc-dtable {
+    background-color: #ffffff;
+}
+
+    .ffc-dtable thead th,
+    .ffc-dtable tbody td,
+    .ffc-dtable tbody tr {
+        background-color: #ffffff;
+    }
+
 
 .ffc-record-card__section-title {
     font-size: .75rem;
