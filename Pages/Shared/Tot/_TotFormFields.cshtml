@@ -29,22 +29,46 @@
 
 <div class="row g-3">
     <div class="col-md-6">
-        <label asp-for="StartedOn" class="form-label">Start date</label>
-        <input asp-for="StartedOn" class="form-control" type="date" />
+        <label class="form-label" for="@Html.IdFor(m => m.StartYear)">Start date</label>
+        <div class="row g-2">
+            <div class="col-4">
+                <input asp-for="StartYear" class="form-control" type="number" min="1900" max="2100" placeholder="yyyy" inputmode="numeric" />
+                <span asp-validation-for="StartYear" class="text-danger"></span>
+            </div>
+            <div class="col-4">
+                <input asp-for="StartMonth" class="form-control" type="number" min="1" max="12" placeholder="mm" inputmode="numeric" />
+                <span asp-validation-for="StartMonth" class="text-danger"></span>
+            </div>
+            <div class="col-4">
+                <input asp-for="StartDay" class="form-control" type="number" min="1" max="31" placeholder="dd" inputmode="numeric" />
+                <span asp-validation-for="StartDay" class="text-danger"></span>
+            </div>
+        </div>
         @if (showMilestoneHelp)
         {
-            <div class="form-text">Required when ToT is in progress or completed.</div>
+            <div class="form-text">Required (at least the year) when ToT is in progress. Optional when ToT is completed.</div>
         }
-        <span asp-validation-for="StartedOn" class="text-danger"></span>
     </div>
     <div class="col-md-6">
-        <label asp-for="CompletedOn" class="form-label">Completion date</label>
-        <input asp-for="CompletedOn" class="form-control" type="date" />
+        <label class="form-label" for="@Html.IdFor(m => m.CompletionYear)">Completion date</label>
+        <div class="row g-2">
+            <div class="col-4">
+                <input asp-for="CompletionYear" class="form-control" type="number" min="1900" max="2100" placeholder="yyyy" inputmode="numeric" />
+                <span asp-validation-for="CompletionYear" class="text-danger"></span>
+            </div>
+            <div class="col-4">
+                <input asp-for="CompletionMonth" class="form-control" type="number" min="1" max="12" placeholder="mm" inputmode="numeric" />
+                <span asp-validation-for="CompletionMonth" class="text-danger"></span>
+            </div>
+            <div class="col-4">
+                <input asp-for="CompletionDay" class="form-control" type="number" min="1" max="31" placeholder="dd" inputmode="numeric" />
+                <span asp-validation-for="CompletionDay" class="text-danger"></span>
+            </div>
+        </div>
         @if (showMilestoneHelp)
         {
-            <div class="form-text">Required when ToT is completed.</div>
+            <div class="form-text">Required (at least the year) when ToT is completed.</div>
         }
-        <span asp-validation-for="CompletedOn" class="text-danger"></span>
     </div>
 </div>
 

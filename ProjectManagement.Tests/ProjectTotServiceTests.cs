@@ -236,7 +236,7 @@ public sealed class ProjectTotServiceTests
             "actor");
 
         Assert.Equal(ProjectTotUpdateStatus.ValidationFailed, result.Status);
-        Assert.Equal("Start date is required when ToT is in progress.", result.ErrorMessage);
+        Assert.Equal("Start date (year or month and year) is required when ToT is in progress.", result.ErrorMessage);
 
         var tot = await db.ProjectTots.SingleAsync(t => t.ProjectId == 5);
         Assert.Equal(ProjectTotStatus.NotStarted, tot.Status);
@@ -287,6 +287,93 @@ public sealed class ProjectTotServiceTests
         Assert.Equal(new DateOnly(2024, 3, 5), tot.MetCompletedOn);
         Assert.True(tot.FirstProductionModelManufactured);
         Assert.Equal(new DateOnly(2024, 4, 1), tot.FirstProductionModelManufacturedOn);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CompletedAllowsCompletionWithoutStart()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 8,
+            Name = "Project Nova",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator"
+        });
+
+        await db.SaveChangesAsync();
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero));
+        var service = new ProjectTotService(db, clock);
+
+        var result = await service.UpdateAsync(
+            8,
+            CreateRequest(
+                ProjectTotStatus.Completed,
+                completedOn: new DateOnly(2023, 12, 31)),
+            "actor");
+
+        Assert.True(result.IsSuccess);
+        var tot = await db.ProjectTots.SingleAsync(t => t.ProjectId == 8);
+        Assert.Equal(ProjectTotStatus.Completed, tot.Status);
+        Assert.Null(tot.StartedOn);
+        Assert.Equal(new DateOnly(2023, 12, 31), tot.CompletedOn);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CompletedRequiresCompletionDate()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 8,
+            Name = "Project Vega",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator"
+        });
+
+        await db.SaveChangesAsync();
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero));
+        var service = new ProjectTotService(db, clock);
+
+        var result = await service.UpdateAsync(
+            8,
+            CreateRequest(ProjectTotStatus.Completed),
+            "actor");
+
+        Assert.Equal(ProjectTotUpdateStatus.ValidationFailed, result.Status);
+        Assert.Equal("Completion date (year or month and year) is required when ToT is completed.", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_InProgressAcceptsYearOnlyStart()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 9,
+            Name = "Project Orion",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator"
+        });
+
+        await db.SaveChangesAsync();
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero));
+        var service = new ProjectTotService(db, clock);
+
+        var result = await service.UpdateAsync(
+            9,
+            CreateRequest(
+                ProjectTotStatus.InProgress,
+                startedOn: new DateOnly(2022, 1, 1)),
+            "actor");
+
+        Assert.True(result.IsSuccess);
+        var tot = await db.ProjectTots.SingleAsync(t => t.ProjectId == 9);
+        Assert.Equal(new DateOnly(2022, 1, 1), tot.StartedOn);
+        Assert.Null(tot.CompletedOn);
     }
 
     [Fact]

@@ -311,7 +311,7 @@ public sealed class ProjectTotService
             {
                 if (normalizedRequest.StartedOn is null)
                 {
-                    return ProjectTotUpdateResult.ValidationFailed("Start date is required when ToT is in progress.");
+                    return ProjectTotUpdateResult.ValidationFailed("Start date (year or month and year) is required when ToT is in progress.");
                 }
 
                 if (normalizedRequest.StartedOn.Value > todayLocal)
@@ -329,30 +329,28 @@ public sealed class ProjectTotService
             }
             case ProjectTotStatus.Completed:
             {
-                if (normalizedRequest.StartedOn is null)
-                {
-                    return ProjectTotUpdateResult.ValidationFailed("Start date is required when ToT is completed.");
-                }
-
                 if (normalizedRequest.CompletedOn is null)
                 {
-                    return ProjectTotUpdateResult.ValidationFailed("Completion date is required when ToT is completed.");
-                }
-
-                if (normalizedRequest.CompletedOn.Value < normalizedRequest.StartedOn.Value)
-                {
-                    return ProjectTotUpdateResult.ValidationFailed(
-                        "Completion date cannot be earlier than the start date.");
-                }
-
-                if (normalizedRequest.StartedOn.Value > todayLocal)
-                {
-                    return ProjectTotUpdateResult.ValidationFailed("Start date cannot be in the future.");
+                    return ProjectTotUpdateResult.ValidationFailed("Completion date (year or month and year) is required when ToT is completed.");
                 }
 
                 if (normalizedRequest.CompletedOn.Value > todayLocal)
                 {
                     return ProjectTotUpdateResult.ValidationFailed("Completion date cannot be in the future.");
+                }
+
+                if (normalizedRequest.StartedOn.HasValue)
+                {
+                    if (normalizedRequest.CompletedOn.Value < normalizedRequest.StartedOn.Value)
+                    {
+                        return ProjectTotUpdateResult.ValidationFailed(
+                            "Completion date cannot be earlier than the start date.");
+                    }
+
+                    if (normalizedRequest.StartedOn.Value > todayLocal)
+                    {
+                        return ProjectTotUpdateResult.ValidationFailed("Start date cannot be in the future.");
+                    }
                 }
 
                 break;
