@@ -34,6 +34,35 @@ public sealed class FilesController : ControllerBase
     [HttpGet("{token}")]
     public IActionResult Download(string token)
     {
+        var errorResult = TryResolveFileRequest(token, out var resolvedRequest);
+        if (errorResult is not null || resolvedRequest is null)
+        {
+            return errorResult ?? NotFound();
+        }
+
+        Response.Headers["Cache-Control"] = "private, no-store";
+        return File(resolvedRequest.Stream, resolvedRequest.ContentType, resolvedRequest.FileName, enableRangeProcessing: true);
+    }
+
+    [HttpGet("inline/{token}")]
+    public IActionResult Inline(string token)
+    {
+        var errorResult = TryResolveFileRequest(token, out var resolvedRequest);
+        if (errorResult is not null || resolvedRequest is null)
+        {
+            return errorResult ?? NotFound();
+        }
+
+        Response.Headers["Cache-Control"] = "private, no-store";
+        Response.Headers["Content-Disposition"] = $"inline; filename=\"{resolvedRequest.FileName}\"";
+        return File(resolvedRequest.Stream, resolvedRequest.ContentType, enableRangeProcessing: true);
+    }
+
+    // SECTION: Request resolution helpers
+    private IActionResult? TryResolveFileRequest(string token, out ResolvedFileRequest? resolvedRequest)
+    {
+        resolvedRequest = null;
+
         if (!_tokenService.TryValidate(token, out var payload) || payload is null)
         {
             return NotFound();
@@ -77,7 +106,9 @@ public sealed class FilesController : ControllerBase
             fileName = Path.GetFileName(absolutePath);
         }
 
-        Response.Headers["Cache-Control"] = "private, no-store";
-        return File(stream, contentType!, fileName, enableRangeProcessing: true);
+        resolvedRequest = new ResolvedFileRequest(stream, contentType!, fileName);
+        return null;
     }
+
+    private sealed record ResolvedFileRequest(FileStream Stream, string ContentType, string FileName);
 }

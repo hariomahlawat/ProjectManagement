@@ -8,6 +8,7 @@ public sealed record ActivityAttachmentMetadata(
     string ContentType,
     long FileSize,
     string DownloadUrl,
+    string InlineUrl,
     string StorageKey,
     DateTimeOffset UploadedAtUtc,
     string UploadedByUserId);

@@ -9,6 +9,8 @@ namespace ProjectManagement.Services.Storage;
 public interface IProtectedFileUrlBuilder
 {
     string CreateDownloadUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null);
+
+    string CreateInlineUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null);
 }
 
 public sealed class ProtectedFileUrlBuilder : IProtectedFileUrlBuilder
@@ -29,6 +31,17 @@ public sealed class ProtectedFileUrlBuilder : IProtectedFileUrlBuilder
 
     public string CreateDownloadUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
     {
+        return CreateUrl("files", storageKey, fileName, contentType, lifetime);
+    }
+
+    public string CreateInlineUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
+    {
+        return CreateUrl("files/inline", storageKey, fileName, contentType, lifetime);
+    }
+
+    // SECTION: URL creation helpers
+    private string CreateUrl(string basePath, string storageKey, string? fileName, string? contentType, TimeSpan? lifetime)
+    {
         if (string.IsNullOrWhiteSpace(storageKey))
         {
             return string.Empty;
@@ -48,6 +61,7 @@ public sealed class ProtectedFileUrlBuilder : IProtectedFileUrlBuilder
             lifetime));
 
         var encoded = UrlEncoder.Default.Encode(token);
-        return $"/files/{encoded}";
+        var trimmedBasePath = basePath.Trim('/');
+        return $"/{trimmedBasePath}/{encoded}";
     }
 }

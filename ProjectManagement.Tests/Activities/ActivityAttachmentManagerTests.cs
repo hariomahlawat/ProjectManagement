@@ -180,6 +180,11 @@ public class ActivityAttachmentManagerTests : IDisposable
         {
             return string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/signed/{storageKey}";
         }
+
+        public string CreateInlineUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
+        {
+            return string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/inline/{storageKey}";
+        }
     }
 
     private sealed class StubDocRepoIngestionService : IDocRepoIngestionService
