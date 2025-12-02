@@ -29,7 +29,10 @@
     --pm-surface-porcelain: #eef2f7;
     --pm-surface-mint: #f0f7f3;
     --pm-surface-violet: #f7f1ff;
-    --pm-card: #ffffff;
+    /* Page / surface tokens */
+    --pm-page-bg: var(--pm-surface-soft);
+    --pm-surface-bg: #ffffff;
+    --pm-card: var(--pm-surface-bg);
     --pm-skeleton: #e5e7eb;
 
     /* -- SECTION: Text -- */
@@ -212,7 +215,7 @@
     --remarks-role-mco-text: var(--bs-primary-text-emphasis, #052c65);
 
     /* -- SECTION: Bootstrap mappings -- */
-    --bs-body-bg: var(--pm-surface-soft);
+    --bs-body-bg: var(--pm-page-bg);
     --bs-body-color: var(--pm-text);
     --bs-border-color: var(--pm-border);
     --bs-card-bg: var(--pm-card);
@@ -223,7 +226,7 @@ body {
     font-size: var(--bs-body-font-size);
     line-height: var(--bs-body-line-height);
     color: var(--pm-text);
-    background-color: var(--pm-surface-soft);
+    background-color: var(--pm-page-bg);
 }
 
 /* --- Layout shell --- */
