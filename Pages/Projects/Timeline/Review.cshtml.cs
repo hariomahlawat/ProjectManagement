@@ -88,15 +88,6 @@ public class ReviewModel : PageModel
 
             if (string.Equals(Input.Decision, "Approve", StringComparison.OrdinalIgnoreCase))
             {
-                var hasBackfill = await _timeline.HasBackfillAsync(id, ct);
-                if (hasBackfill)
-                {
-                    TempData["Error"] = "Resolve required procurement backfill before approval.";
-                    TempData["OpenOffcanvas"] = "plan-review";
-                    _logger.LogInformation("Plan approval blocked for project {ProjectId} due to pending backfill.", id);
-                    return RedirectToPage("/Projects/Overview", new { id });
-                }
-
                 var approved = await _approval.ApproveLatestDraftAsync(id, userId, ct);
                 if (approved)
                 {

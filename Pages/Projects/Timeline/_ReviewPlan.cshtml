@@ -49,9 +49,9 @@ else
     {
         <div class="alert alert-info">No draft has been submitted for approval.</div>
     }
-    else if (requiresBackfill)
+    if (requiresBackfill)
     {
-        <div class="alert alert-warning">Resolve required procurement backfill before approval.</div>
+        <div class="alert alert-warning">Some earlier stages were auto-completed and still need dates or costs (procurement backfill pending). This does not block approval of the timeline, but should be addressed separately in the procurement details.</div>
     }
 
     var hasChanges = Model.Any(row => row.NewStart != row.OldStart || row.NewDue != row.OldDue);
@@ -124,7 +124,7 @@ else
         <input type="hidden" name="Input.ProjectId" value="@ViewBag.ProjectId" />
         <div class="d-flex gap-2 justify-content-end">
             <button name="Input.Decision" value="Reject" class="btn btn-outline-secondary" @(isPending ? null : "disabled") data-plan-review-reject="true">Reject</button>
-            <button name="Input.Decision" value="Approve" class="btn btn-primary" @((!isPending || requiresBackfill) ? "disabled" : null)>Approve plan</button>
+            <button name="Input.Decision" value="Approve" class="btn btn-primary" @(!isPending ? "disabled" : null)>Approve plan</button>
         </div>
         <div class="mt-1" data-plan-review-note hidden>
             <label class="form-label" for="plan-review-reject-note">Reason (optional)</label>
