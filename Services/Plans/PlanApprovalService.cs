@@ -302,126 +302,45 @@ public class PlanApprovalService
                 .SingleAsync(cancellationToken);
         workflowVersion ??= PlanConstants.StageTemplateVersionV1;
 
-        var templates = await _db.StageTemplates
-            .AsNoTracking()
-            .Where(t => t.Version == workflowVersion)
-            .OrderBy(t => t.Sequence)
-            .ToListAsync(cancellationToken);
+        var allowedStageCodes = new HashSet<string>(
+            ProcurementWorkflow.StageCodesFor(workflowVersion),
+            StringComparer.OrdinalIgnoreCase);
 
-        var templateNames = templates.ToDictionary(t => t.Code, t => t.Name, StringComparer.OrdinalIgnoreCase);
-        var sequenceByCode = templates.ToDictionary(t => t.Code, t => t.Sequence, StringComparer.OrdinalIgnoreCase);
+        var stagePlans = plan.StagePlans
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+            .ToDictionary(stage => stage.StageCode!, StringComparer.OrdinalIgnoreCase);
 
-        var dependencies = await _db.StageDependencyTemplates
-            .AsNoTracking()
-            .Where(d => d.Version == workflowVersion)
-            .ToListAsync(cancellationToken);
-
-        var dependenciesByStage = dependencies
-            .GroupBy(d => d.FromStageCode, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
-
-        var stagePlans = plan.StagePlans.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
-
-        var anchorCode = plan.AnchorStageCode ?? PlanConstants.DefaultAnchorStageCode;
-        var anchorSequence = sequenceByCode.TryGetValue(anchorCode, out var anchorSeq)
-            ? anchorSeq
-            : int.MinValue;
-
-        var includedStages = new HashSet<string>(templates.Select(t => t.Code), StringComparer.OrdinalIgnoreCase);
-        if (!plan.PncApplicable)
+        foreach (var (code, stage) in stagePlans)
         {
-            includedStages.Remove("PNC");
-        }
+            var stageName = StageCodes.DisplayNameOf(code);
 
-        foreach (var template in templates)
-        {
-            if (template.Sequence < anchorSequence)
+            if (!allowedStageCodes.Contains(code))
+            {
+                errors.Add($"Stage {stageName} ({code}) is not part of this workflow.");
+                continue;
+            }
+
+            var start = stage.PlannedStart;
+            var due = stage.PlannedDue;
+
+            if (start is null && due is null)
             {
                 continue;
             }
 
-            if (!includedStages.Contains(template.Code))
+            if (start is null || due is null)
             {
-                continue;
-            }
-
-            if (!stagePlans.TryGetValue(template.Code, out var stage))
-            {
-                errors.Add($"Stage {template.Name} ({template.Code}) is missing from the plan.");
-                continue;
-            }
-
-            if (stage.PlannedStart is not DateOnly start || stage.PlannedDue is not DateOnly due)
-            {
-                errors.Add($"Stage {template.Name} must have both a planned start and due date.");
+                errors.Add($"Stage {stageName} must have both a planned start and due date or be left blank.");
                 continue;
             }
 
             if (due < start)
             {
-                errors.Add($"Stage {template.Name} must end on or after its planned start date.");
-            }
-
-            if (!dependenciesByStage.TryGetValue(template.Code, out var stageDependencies))
-            {
-                continue;
-            }
-
-            foreach (var dependency in stageDependencies)
-            {
-                var dependencyCode = dependency.DependsOnStageCode;
-
-                if (!includedStages.Contains(dependencyCode))
-                {
-                    continue;
-                }
-
-                if (sequenceByCode.TryGetValue(dependencyCode, out var dependencySequence) && dependencySequence < anchorSequence)
-                {
-                    continue;
-                }
-
-                var dependencyName = templateNames.TryGetValue(dependencyCode, out var friendlyName)
-                    ? friendlyName
-                    : dependencyCode;
-
-                if (!stagePlans.TryGetValue(dependencyCode, out var prerequisite) || prerequisite.PlannedDue is not DateOnly prerequisiteDue)
-                {
-                    errors.Add($"Stage {template.Name} requires {dependencyName} to have a planned due date before submission.");
-                    continue;
-                }
-
-                var minimumStart = prerequisiteDue;
-
-                if (plan.TransitionRule == PlanTransitionRule.NextWorkingDay)
-                {
-                    minimumStart = minimumStart.AddDays(1);
-                }
-
-                if (plan.SkipWeekends)
-                {
-                    minimumStart = NextWorkday(minimumStart);
-                }
-
-                if (start < minimumStart)
-                {
-                    errors.Add($"Stage {template.Name} must start on or after {dependencyName}'s planned due date ({prerequisiteDue:dd MMM yyyy}) when applying the transition rule.");
-                }
+                errors.Add($"Stage {stageName} must end on or after its planned start date.");
             }
         }
 
         return errors;
-    }
-
-    private static DateOnly NextWorkday(DateOnly date)
-    {
-        var current = date;
-        while (current.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
-        {
-            current = current.AddDays(1);
-        }
-
-        return current;
     }
 }
 

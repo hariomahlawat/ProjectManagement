@@ -799,7 +799,11 @@
                                 Another plan is already awaiting approval. You can keep editing your draft, but submitting is disabled until the review is complete.
                             </div>
                         }
-                        @{ ViewBag.IsProjectOfficerForProject = isThisProjectsPo; }
+                        @{
+                            ViewBag.IsProjectOfficerForProject = isThisProjectsPo;
+                            ViewBag.CanEditPlan = canEditTimelinePlan;
+                            ViewBag.PlanEditLocked = Model.PlanEdit.State?.IsLocked ?? false;
+                        }
                         <partial name="_ProjectTimeline" model="Model.Timeline" />
                     </div>
                     <div class="d-none" data-panel="remarks" id="project-panel-body-remarks" role="region" aria-labelledby="project-panel-toggle-remarks" aria-hidden="true">
