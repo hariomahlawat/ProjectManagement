@@ -476,35 +476,33 @@ namespace ProjectManagement.Pages.Dashboard
                 .Where(stage => stage.ProjectId == projectId)
                 .ToDictionary(stage => stage.StageCode, stage => stage, StringComparer.OrdinalIgnoreCase);
 
-            int? inProgressIndex = null;
-            int lastCompletedIndex = -1;
+            // SECTION: Determine current stage
+            var orderedStages = StageCodes.All
+                .Select(code =>
+                {
+                    stagesForProject.TryGetValue(code, out var stageRow);
+                    return new
+                    {
+                        Code = code,
+                        Row = stageRow,
+                        Status = stageRow?.Status ?? StageStatus.NotStarted,
+                        stageRow?.PlannedDue
+                    };
+                })
+                .ToList();
 
-            for (var i = 0; i < StageCodes.All.Length; i++)
+            var currentStage = orderedStages.FirstOrDefault(stage => stage.Status == StageStatus.InProgress)
+                               ?? orderedStages.FirstOrDefault(stage => stage.Status == StageStatus.NotStarted && stage.PlannedDue is not null);
+
+            if (currentStage is null)
             {
-                var code = StageCodes.All[i];
-                stagesForProject.TryGetValue(code, out var stageRow);
-
-                var status = stageRow?.Status ?? StageStatus.NotStarted;
-
-                if (status == StageStatus.InProgress && inProgressIndex == null)
-                {
-                    inProgressIndex = i;
-                }
-
-                if (status == StageStatus.Completed)
-                {
-                    lastCompletedIndex = i;
-                }
+                return null;
             }
+            // END SECTION
 
-            var currentIndex = inProgressIndex ?? (lastCompletedIndex >= 0 && lastCompletedIndex + 1 < StageCodes.All.Length
-                ? lastCompletedIndex + 1
-                : 0);
-
-            var currentStageCode = StageCodes.All[currentIndex];
-            stagesForProject.TryGetValue(currentStageCode, out var currentStageRow);
-            var plannedDue = currentStageRow?.PlannedDue;
-            var currentStatus = currentStageRow?.Status ?? StageStatus.NotStarted;
+            // SECTION: PDC calculations
+            var plannedDue = currentStage.PlannedDue;
+            var currentStatus = currentStage.Status;
 
             int? daysToPdc = null;
             var isOverdue = false;
@@ -514,7 +512,7 @@ namespace ProjectManagement.Pages.Dashboard
                 var diffDays = (plannedDue.Value.ToDateTime(TimeOnly.MinValue) - today.ToDateTime(TimeOnly.MinValue)).Days;
                 if (diffDays < 0)
                 {
-                    isOverdue = true;
+                    isOverdue = currentStatus != StageStatus.Completed;
                     daysToPdc = Math.Abs(diffDays);
                 }
                 else
@@ -522,16 +520,19 @@ namespace ProjectManagement.Pages.Dashboard
                     daysToPdc = diffDays;
                 }
             }
+            // END SECTION
 
+            // SECTION: Build summary
             return new MyProjectStageSummary
             {
-                StageCode = currentStageCode,
-                StageName = StageCodes.DisplayNameOf(currentStageCode),
+                StageCode = currentStage.Code,
+                StageName = StageCodes.DisplayNameOf(currentStage.Code),
                 PlannedDue = plannedDue,
                 Status = currentStatus,
                 IsOverdue = isOverdue,
                 DaysToPdc = daysToPdc
             };
+            // END SECTION
         }
 
         // SECTION: My Projects helpers
