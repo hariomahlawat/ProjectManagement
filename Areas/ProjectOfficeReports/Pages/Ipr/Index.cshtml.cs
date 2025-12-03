@@ -307,11 +307,18 @@ public sealed class IndexModel : PageModel
         }
 
         var rowVersion = DecodeRowVersion(Input.RowVersion);
-        if (rowVersion is null)
+        if (rowVersion is null && Input.Id.HasValue)
         {
-            ModelState.AddModelError(string.Empty, "We could not verify your request. Please reload and try again.");
-            await LoadPageAsync(cancellationToken, loadRecordInput: false);
-            return Page();
+            rowVersion = await GetRowVersionAsync(Input.Id.Value, cancellationToken);
+
+            if (rowVersion is null)
+            {
+                ModelState.AddModelError(string.Empty, "We could not verify your request. Please reload and try again.");
+                await LoadPageAsync(cancellationToken, loadRecordInput: false);
+                return Page();
+            }
+
+            Input.RowVersion = Convert.ToBase64String(rowVersion);
         }
 
         try
@@ -1100,6 +1107,7 @@ public sealed class IndexModel : PageModel
         return fallback;
     }
 
+    // SECTION: Row version helpers
     private static byte[]? DecodeRowVersion(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -1115,6 +1123,15 @@ public sealed class IndexModel : PageModel
         {
             return null;
         }
+    }
+
+    private Task<byte[]?> GetRowVersionAsync(int recordId, CancellationToken cancellationToken)
+    {
+        return _db.IprRecords
+            .AsNoTracking()
+            .Where(record => record.Id == recordId)
+            .Select(record => record.RowVersion)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     private static IprRecord ToEntity(RecordInput input)
