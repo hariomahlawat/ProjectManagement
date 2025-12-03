@@ -349,7 +349,13 @@ public class PlanApprovalService
 
         foreach (var optionalTemplate in templates.Where(t => t.Optional))
         {
-            if (!stagePlans.ContainsKey(optionalTemplate.Code))
+            if (!stagePlans.TryGetValue(optionalTemplate.Code, out var optionalPlan))
+            {
+                includedStages.Remove(optionalTemplate.Code);
+                continue;
+            }
+
+            if (optionalPlan.PlannedStart is null && optionalPlan.PlannedDue is null)
             {
                 includedStages.Remove(optionalTemplate.Code);
             }
