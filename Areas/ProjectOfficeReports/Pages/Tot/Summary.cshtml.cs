@@ -37,8 +37,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
             var projects = await _trackerService.GetAsync(new ProjectTotTrackerFilter(), cancellationToken);
 
             var data = projects
-                .Where(p => p.TotStatus == ProjectTotStatus.Completed && p.ProjectCompletedYear.HasValue)
-                .GroupBy(p => p.ProjectCompletedYear!.Value)
+                .Where(p => p.TotStatus == ProjectTotStatus.Completed && p.TotCompletedOn.HasValue)
+                .GroupBy(p => p.TotCompletedOn!.Value.Year)
                 .OrderBy(g => g.Key)
                 .Select(g => new
                 {
@@ -92,7 +92,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
                         row.ProjectId,
                         row.ProjectName,
                         row.ProjectCompletedOn,
-                        row.ProjectCompletedYear);
+                        row.ProjectCompletedYear,
+                        row.TotCompletedOn);
 
                     switch (status)
                     {
@@ -140,14 +141,27 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
 
             public static string? FormatCompletionLabel(TotSummaryEntry entry)
             {
-                if (entry.ProjectCompletedOn.HasValue)
+                var projectYear = entry.ProjectCompletedOn?.Year ?? entry.ProjectCompletedYear;
+                var totYear = entry.TotCompletedOn?.Year;
+
+                if (projectYear.HasValue && totYear.HasValue && projectYear.Value != totYear.Value)
                 {
-                    return entry.ProjectCompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+                    return $"{projectYear.Value} (ToT {totYear.Value})";
                 }
 
-                if (entry.ProjectCompletedYear.HasValue)
+                if (projectYear.HasValue && totYear.HasValue)
                 {
-                    return entry.ProjectCompletedYear.Value.ToString(CultureInfo.InvariantCulture);
+                    return projectYear.Value.ToString(CultureInfo.InvariantCulture);
+                }
+
+                if (projectYear.HasValue)
+                {
+                    return projectYear.Value.ToString(CultureInfo.InvariantCulture);
+                }
+
+                if (totYear.HasValue)
+                {
+                    return $"ToT {totYear.Value.ToString(CultureInfo.InvariantCulture)}";
                 }
 
                 return null;
@@ -229,6 +243,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
             int ProjectId,
             string ProjectName,
             DateOnly? ProjectCompletedOn,
-            int? ProjectCompletedYear);
+            int? ProjectCompletedYear,
+            DateOnly? TotCompletedOn);
     }
 }
