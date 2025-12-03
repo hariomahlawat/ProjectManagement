@@ -373,7 +373,7 @@ public class EditPlanModel : PageModel
         var optionalStageCodes = await _db.StageTemplates
             .AsNoTracking()
             .Where(template => template.Optional &&
-                               (workflowVersion is null || template.Version == workflowVersion))
+                               (workflowVersion == null || template.Version == workflowVersion))
             .Select(template => template.Code)
             .ToListAsync(ct);
 
