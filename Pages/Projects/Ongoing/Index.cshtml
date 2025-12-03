@@ -6,6 +6,7 @@
 @model ProjectManagement.Pages.Projects.Ongoing.IndexModel
 @{
     ViewData["Title"] = "Ongoing projects – progress & timelines";
+    ViewData["UseFullWidth"] = true;
 
     // turn <span class="remark-mention">…</span> into a small pill
     string RenderRemark(string? text)
