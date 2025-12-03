@@ -322,6 +322,15 @@ public class PlanApprovalService
 
         var stagePlans = plan.StagePlans.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
 
+        // SECTION: Skipped Stage Resolution
+        var skippedStageCodes = await _db.ProjectStages
+            .AsNoTracking()
+            .Where(ps => ps.ProjectId == plan.ProjectId && ps.Status == StageStatus.Skipped)
+            .Select(ps => ps.StageCode)
+            .ToListAsync(cancellationToken);
+
+        var skippedStageSet = new HashSet<string>(skippedStageCodes, StringComparer.OrdinalIgnoreCase);
+
         var anchorCode = plan.AnchorStageCode ?? PlanConstants.DefaultAnchorStageCode;
         var anchorSequence = sequenceByCode.TryGetValue(anchorCode, out var anchorSeq)
             ? anchorSeq
@@ -331,6 +340,11 @@ public class PlanApprovalService
         if (!plan.PncApplicable)
         {
             includedStages.Remove("PNC");
+        }
+
+        foreach (var skippedCode in skippedStageSet)
+        {
+            includedStages.Remove(skippedCode);
         }
 
         foreach (var template in templates)
