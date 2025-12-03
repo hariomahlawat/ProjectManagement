@@ -25,6 +25,13 @@ public sealed class PlanReadService
 
     public async Task<PlanEditorVm> GetAsync(int projectId, string? currentUserId, CancellationToken cancellationToken = default)
     {
+        // SECTION: Project & workflow
+        var workflowVersion = await _db.Projects
+            .Where(p => p.Id == projectId)
+            .Select(p => p.WorkflowVersion)
+            .SingleOrDefaultAsync(cancellationToken);
+        workflowVersion ??= PlanConstants.StageTemplateVersionV1;
+
         var stages = await _db.ProjectStages
             .Where(stage => stage.ProjectId == projectId)
             .ToListAsync(cancellationToken);
@@ -94,7 +101,8 @@ public sealed class PlanReadService
             .ToDictionary(sp => sp.StageCode!, sp => sp, StringComparer.OrdinalIgnoreCase)
             ?? new Dictionary<string, StagePlan>(StringComparer.OrdinalIgnoreCase);
 
-        var knownCodes = new HashSet<string>(StageCodes.All, StringComparer.OrdinalIgnoreCase);
+        var stageCodes = ProcurementWorkflow.StageCodesFor(workflowVersion);
+        var knownCodes = new HashSet<string>(stageCodes, StringComparer.OrdinalIgnoreCase);
         var extraCodes = new List<(string Code, int Sort)>();
         var seenExtras = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -107,11 +115,11 @@ public sealed class PlanReadService
 
             var sort = durationMap.TryGetValue(code, out var duration)
                 ? duration.SortOrder
-                : StageCodes.All.Length + extraCodes.Count;
+                : stageCodes.Length + extraCodes.Count;
             extraCodes.Add((code, sort));
         }
 
-        foreach (var code in StageCodes.All)
+        foreach (var code in stageCodes)
         {
             stageMap.TryGetValue(code, out var stage);
             durationMap.TryGetValue(code, out var duration);

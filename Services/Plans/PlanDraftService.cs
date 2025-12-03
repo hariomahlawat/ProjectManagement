@@ -37,6 +37,19 @@ public class PlanDraftService
     {
         var userId = GetCurrentUserId();
 
+        return await CreateOrGetDraftAsync(projectId, userId, cancellationToken);
+    }
+
+    public async Task<PlanVersion> CreateOrGetDraftAsync(
+        int projectId,
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new InvalidOperationException("Missing user id");
+        }
+
         var myDraft = await _db.PlanVersions
             .Include(p => p.StagePlans)
             .Where(p => p.ProjectId == projectId &&
@@ -128,6 +141,62 @@ public class PlanDraftService
         await Audit.Events.DraftDeleted(projectId, plan.Id, userId, deletedAt).WriteAsync(_audit);
 
         return PlanDraftDeleteResult.Success;
+    }
+
+    public async Task SavePlanAsync(
+        int projectId,
+        IEnumerable<StagePlanInput> stageInputs,
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new InvalidOperationException("A valid user id is required to save the plan.");
+        }
+
+        // SECTION: Resolve or create draft
+        var draft = await CreateOrGetDraftAsync(projectId, userId, cancellationToken);
+
+        var stageMap = draft.StagePlans
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+            .ToDictionary(stage => stage.StageCode!, stage => stage, StringComparer.OrdinalIgnoreCase);
+
+        // SECTION: Apply provided stage inputs only
+        foreach (var input in stageInputs)
+        {
+            if (string.IsNullOrWhiteSpace(input.StageCode))
+            {
+                continue;
+            }
+
+            if (!stageMap.TryGetValue(input.StageCode, out var stagePlan))
+            {
+                stagePlan = new StagePlan
+                {
+                    PlanVersionId = draft.Id,
+                    StageCode = input.StageCode
+                };
+
+                draft.StagePlans.Add(stagePlan);
+                stageMap[input.StageCode] = stagePlan;
+            }
+
+            stagePlan.PlannedStart = input.PlannedStart;
+            stagePlan.PlannedDue = input.PlannedDue;
+            stagePlan.DurationDays = CalculateDuration(input.PlannedStart, input.PlannedDue);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static int CalculateDuration(DateOnly? start, DateOnly? due)
+    {
+        if (start is DateOnly startDate && due is DateOnly dueDate && dueDate >= startDate)
+        {
+            return dueDate.DayNumber - startDate.DayNumber + 1;
+        }
+
+        return 0;
     }
 
     private async Task<PlanVersion> CreateDraftAsync(int projectId, string userId, CancellationToken cancellationToken)

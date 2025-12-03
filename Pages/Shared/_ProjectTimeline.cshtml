@@ -2,10 +2,12 @@
 @using System.Globalization
 @using ProjectManagement.Models.Execution
 @using Microsoft.AspNetCore.Mvc.Rendering
-@{
+@{ 
     var isHod = User.IsInRole("HoD");
     var isProjectOfficer = ViewBag?.IsProjectOfficerForProject is bool b && b;
     var canRequestChange = isProjectOfficer || isHod;
+    var canEditPlan = ViewBag?.CanEditPlan is bool c && c;
+    var isPlanLocked = ViewBag?.PlanEditLocked is bool l && l;
 }
 @functions {
     string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
@@ -192,6 +194,23 @@
                               data-status="Reopen">
                         Reopen
                       </button>
+                    </li>
+                    @if (canRequestChange)
+                    {
+                      <li><hr class="dropdown-divider" /></li>
+                    }
+                  }
+                  @if (canEditPlan)
+                  {
+                    <li>
+                      <a class="dropdown-item@(isPlanLocked ? " disabled" : string.Empty)"
+                         asp-page="/Projects/Timeline/StagePlanEdit"
+                         asp-route-id="@Model.ProjectId"
+                         asp-route-stageCode="@s.Code"
+                         aria-disabled="@(isPlanLocked ? "true" : "false")"
+                         tabindex="@(isPlanLocked ? "-1" : "0")">
+                        Edit planned dates
+                      </a>
                     </li>
                     @if (canRequestChange)
                     {

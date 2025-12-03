@@ -1,0 +1,48 @@
+@page "{id:int}"
+@model ProjectManagement.Pages.Projects.Timeline.StagePlanEditModel
+@{
+    ViewData["Title"] = "Edit stage plan";
+}
+
+<section class="container py-4">
+    <header class="mb-4">
+        <p class="text-muted mb-1">Stage-wise planning</p>
+        <h1 class="h3 mb-1">@Model.StageName (@Model.Input.StageCode)</h1>
+        <p class="mb-0">
+            Project ID: @Model.Input.ProjectId
+            @if (!string.IsNullOrWhiteSpace(Model.ProjectName))
+            {
+                <text> • @Model.ProjectName</text>
+            }
+        </p>
+        <p class="text-muted mb-0">Update planned dates for this stage without changing other stages.</p>
+    </header>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <form method="post" class="card shadow-sm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="Input.ProjectId" />
+                <input type="hidden" asp-for="Input.StageCode" />
+
+                <div class="card-body">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                    <div class="mb-3">
+                        <label asp-for="Input.PlannedStart" class="form-label">Planned start</label>
+                        <input asp-for="Input.PlannedStart" class="form-control" type="date" />
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Input.PlannedDue" class="form-label">Planned due</label>
+                        <input asp-for="Input.PlannedDue" class="form-control" type="date" />
+                    </div>
+                    <p class="text-muted small mb-0">Provide both planned dates or leave both empty to mark the stage as unplanned.</p>
+                </div>
+
+                <div class="card-footer d-flex justify-content-end gap-2">
+                    <a class="btn btn-outline-secondary" asp-page="/Projects/Overview" asp-route-id="@Model.Input.ProjectId">Cancel</a>
+                    <button class="btn btn-primary" type="submit">Save stage plan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
