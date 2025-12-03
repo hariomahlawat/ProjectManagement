@@ -308,9 +308,128 @@ else
     <!-- ============================================================
          FILTERS MODAL
          ============================================================ -->
-    <!-- (unchanged – keeping your existing filters + export modals) -->
-    @* ... filters modal markup ... *@
-    @* ... export modal markup ... *@
+    <div class="modal fade"
+         id="trainingFiltersModal"
+         tabindex="-1"
+         aria-labelledby="trainingFiltersModalLabel"
+         aria-hidden="true"
+         data-bs-focus="true">
+        <div class="modal-dialog modal-dialog-scrollable modal-lg modal-fullscreen-sm-down">
+            <div class="modal-content">
+                <form method="get" class="w-100">
+                    <div class="modal-header">
+                        <h2 class="modal-title h5" id="trainingFiltersModalLabel">Filters</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-lg-4">
+                                <label asp-for="Filter.TypeId" class="form-label small text-uppercase text-secondary fw-semibold"></label>
+                                <select asp-for="Filter.TypeId" asp-items="Model.TrainingTypes" class="form-select"></select>
+                            </div>
+                            <div class="col-lg-4">
+                                <label asp-for="Filter.ProjectTechnicalCategoryId" class="form-label small text-uppercase text-secondary fw-semibold"></label>
+                                <select asp-for="Filter.ProjectTechnicalCategoryId" asp-items="Model.ProjectTechnicalCategoryOptions" class="form-select"></select>
+                            </div>
+                            <div class="col-lg-4">
+                                <label asp-for="Filter.Category" class="form-label small text-uppercase text-secondary fw-semibold"></label>
+                                <select asp-for="Filter.Category" asp-items="Model.CategoryOptions" class="form-select"></select>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="Filter.From" class="form-label small text-uppercase text-secondary fw-semibold"></label>
+                                <input asp-for="Filter.From" class="form-control" />
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="Filter.To" class="form-label small text-uppercase text-secondary fw-semibold"></label>
+                                <input asp-for="Filter.To" class="form-control" />
+                            </div>
+                            <div class="col-md-6 col-lg-4">
+                                <label asp-for="Filter.Search" class="form-label small text-uppercase text-secondary fw-semibold"></label>
+                                <input asp-for="Filter.Search" class="form-control" placeholder="Search notes or projects" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer gap-2 justify-content-between">
+                        <a asp-page="./Index" class="btn btn-link btn-sm px-0">Reset filters</a>
+                        <button type="submit" class="btn btn-primary btn-sm">Apply filters</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         EXPORT MODAL
+         ============================================================ -->
+    <div class="modal fade"
+         id="trainingExportModal"
+         tabindex="-1"
+         aria-labelledby="trainingExportModalLabel"
+         aria-hidden="true"
+         data-bs-focus="true"
+         data-training-export-auto-show="@(showExportModal.ToString().ToLowerInvariant())">
+        <div class="modal-dialog modal-dialog-scrollable modal-lg modal-fullscreen-sm-down">
+            <div class="modal-content">
+                <form method="post" asp-page-handler="Export" class="w-100 training-export-form">
+                    <div class="modal-header">
+                        <h2 class="modal-title h5" id="trainingExportModalLabel">Export trainings</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                        <div class="row g-3">
+                            <div class="col-lg-4">
+                                <label asp-for="Export.TypeId" class="form-label small text-uppercase text-secondary fw-semibold"></label>
+                                <select asp-for="Export.TypeId" asp-items="Model.TrainingTypes" class="form-select"></select>
+                                <span asp-validation-for="Export.TypeId" class="text-danger small"></span>
+                            </div>
+                            <div class="col-lg-4">
+                                <label asp-for="Export.ProjectTechnicalCategoryId" class="form-label small text-uppercase text-secondary fw-semibold"></label>
+                                <select asp-for="Export.ProjectTechnicalCategoryId" asp-items="Model.ProjectTechnicalCategoryOptions" class="form-select"></select>
+                                <span asp-validation-for="Export.ProjectTechnicalCategoryId" class="text-danger small"></span>
+                            </div>
+                            <div class="col-lg-4">
+                                <label asp-for="Export.Category" class="form-label small text-uppercase text-secondary fw-semibold"></label>
+                                <select asp-for="Export.Category" asp-items="Model.CategoryOptions" class="form-select"></select>
+                                <span asp-validation-for="Export.Category" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="Export.From" class="form-label small text-uppercase text-secondary fw-semibold"></label>
+                                <input asp-for="Export.From" class="form-control" />
+                                <span asp-validation-for="Export.From" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="Export.To" class="form-label small text-uppercase text-secondary fw-semibold"></label>
+                                <input asp-for="Export.To" class="form-control" />
+                                <span asp-validation-for="Export.To" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6 col-lg-4">
+                                <label asp-for="Export.Search" class="form-label small text-uppercase text-secondary fw-semibold"></label>
+                                <input asp-for="Export.Search" class="form-control" placeholder="Search notes or projects" />
+                                <span asp-validation-for="Export.Search" class="text-danger small"></span>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input asp-for="Export.IncludeRoster" class="form-check-input" />
+                                    <label asp-for="Export.IncludeRoster" class="form-check-label"></label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer gap-2 justify-content-between flex-wrap">
+                        <p class="text-muted small mb-0">Your export will use the filters above. Default values match the current view.</p>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary btn-sm" data-training-busy-label="Preparing...">
+                                <i class="bi bi-download" aria-hidden="true"></i>
+                                <span>Export</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <!-- ============================================================
      TABLE / EMPTY
