@@ -207,7 +207,7 @@
                                     <strong>@r.Name</strong>
                                     <div>
                                         <span class="text-muted small">@r.Code</span>
-                                        @if (string.Equals(r.Code, StageCodes.PNC, System.StringComparison.OrdinalIgnoreCase))
+                                        @if (r.IsOptional)
                                         {
                                             <span class="badge text-bg-info ms-2">Optional</span>
                                         }
@@ -220,9 +220,9 @@
                                            value="@(r.DurationDays?.ToString() ?? "")"
                                            @(disableAttr) />
                                 </div>
-                                @if (string.Equals(r.Code, StageCodes.PNC, System.StringComparison.OrdinalIgnoreCase))
+                                @if (r.IsOptional)
                                 {
-                                    <div class="form-text">Leave blank if PNC is not applicable.</div>
+                                    <div class="form-text">Leave blank if this optional stage is not applicable.</div>
                                 }
                                 @if (r.PreviewStart.HasValue || r.PreviewDue.HasValue)
                                 {
