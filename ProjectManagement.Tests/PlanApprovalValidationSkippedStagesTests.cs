@@ -103,6 +103,77 @@ public class PlanApprovalValidationSkippedStagesTests
     }
 
     [Fact]
+    public async Task SubmitForApproval_AllowsMissingPlanForOptionalStageWithoutDuration()
+    {
+        // SECTION: Arrange
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        db.StageTemplates.AddRange(
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = StageCodes.FS,
+                Name = "Feasibility Study",
+                Sequence = 10
+            },
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = StageCodes.TOT,
+                Name = "Transfer of Technology",
+                Sequence = 20,
+                Optional = true
+            });
+
+        db.Projects.Add(new Project
+        {
+            Id = 2,
+            Name = "Optional Stage Project",
+            LeadPoUserId = "owner",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
+        });
+
+        var plan = new PlanVersion
+        {
+            ProjectId = 2,
+            VersionNo = 1,
+            Title = "Draft",
+            Status = PlanVersionStatus.Draft,
+            CreatedByUserId = "owner",
+            OwnerUserId = "owner",
+            CreatedOn = DateTimeOffset.UtcNow
+        };
+
+        plan.StagePlans.Add(new StagePlan
+        {
+            StageCode = StageCodes.FS,
+            PlannedStart = new DateOnly(2024, 4, 1),
+            PlannedDue = new DateOnly(2024, 4, 10)
+        });
+
+        db.PlanVersions.Add(plan);
+        await db.SaveChangesAsync();
+
+        var approval = new PlanApprovalService(
+            db,
+            new TestClock(),
+            NullLogger<PlanApprovalService>.Instance,
+            new PlanSnapshotService(db),
+            new NullPlanNotificationService());
+
+        // SECTION: Act
+        await approval.SubmitForApprovalAsync(2, "owner");
+
+        // SECTION: Assert
+        var updatedPlan = await db.PlanVersions.SingleAsync(p => p.ProjectId == 2);
+        Assert.Equal(PlanVersionStatus.PendingApproval, updatedPlan.Status);
+    }
+
+    [Fact]
     public async Task SubmitForApproval_SkipsDependencyValidationWhenDependencyStageIsSkipped()
     {
         // SECTION: Arrange
