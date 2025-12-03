@@ -347,6 +347,14 @@ public class PlanApprovalService
             includedStages.Remove(skippedCode);
         }
 
+        foreach (var optionalTemplate in templates.Where(t => t.Optional))
+        {
+            if (!stagePlans.ContainsKey(optionalTemplate.Code))
+            {
+                includedStages.Remove(optionalTemplate.Code);
+            }
+        }
+
         foreach (var template in templates)
         {
             if (template.Sequence < anchorSequence)
