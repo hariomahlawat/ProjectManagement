@@ -26,6 +26,7 @@
 }
 /* END SECTION */
 
+
 /* SECTION: Dashboard layout spacing */
 
 /* Circle 1: header → Project pulse; also kill Bootstrap's vertical gutter */
@@ -40,10 +41,10 @@
     flex-direction: column;
 }
 
-/* Align major dashboard sections with consistent rhythm */
-.dashboard-main-content > .dashboard-section + .dashboard-section {
-    margin-top: 1.5rem;
-}
+    /* Align major dashboard sections with consistent rhythm */
+    .dashboard-main-content > .dashboard-section + .dashboard-section {
+        margin-top: 1.5rem;
+    }
 
     /* Normalise section margins so spacing is owned by gap tokens */
     .dashboard-main-content > .dashboard-section {
@@ -67,12 +68,14 @@
 
 /* Circle 4: FFC map → My projects row */
 .dashboard-my-projects {
-    margin-top: var(--dashboard-gap-large);
+    margin-top: 2rem; /* slightly more separation from the map */
 }
 
 /* END SECTION */
 
+
 /* SECTION: Dashboard events & sidebar */
+
 .dashboard-events-card {
     display: inline-flex;
     align-items: center;
@@ -90,16 +93,11 @@
     margin-left: auto;
 }
 
-/* SECTION: Dashboard sidebar alignment helpers */
+/* Dashboard sidebar alignment helpers */
 .dashboard-sidebar {
     position: relative;
     display: flex;
     flex-direction: column;
-}
-
-/* SECTION: Dashboard quick actions (floating buttons) */
-.dashboard-sidebar {
-    position: relative;
 }
 
 /* Wrapper for all floating actions on the sidebar */
@@ -107,7 +105,7 @@
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    margin-right:-6px;
+    margin-right: -6px;
     gap: .75rem;
     z-index: 5;
 }
@@ -130,7 +128,6 @@
         margin-right: 0px;
     }
 }
-
 
 .dashboard-events-card:hover {
     transform: translateY(-2px);
@@ -161,7 +158,9 @@
 }
 /* END SECTION */
 
+
 /* SECTION: Dashboard right column softening */
+
 .dashboard-sidebar .card-body,
 .dashboard-sidebar .pm-card-body {
     padding: 1rem 1.25rem;
@@ -181,12 +180,12 @@
     box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
 }
 
-.dashboard-ocr-card .btn-primary:hover,
-.dashboard-ocr-card .btn-primary:focus-visible {
-    background-color: #2563eb;
-    border-color: #2563eb;
-    box-shadow: 0 6px 14px rgba(37, 99, 235, 0.22);
-}
+    .dashboard-ocr-card .btn-primary:hover,
+    .dashboard-ocr-card .btn-primary:focus-visible {
+        background-color: #2563eb;
+        border-color: #2563eb;
+        box-shadow: 0 6px 14px rgba(37, 99, 235, 0.22);
+    }
 
 .dashboard-right-column .card-body,
 .dashboard-right-column .pm-card-body {
@@ -242,7 +241,9 @@
 }
 /* END SECTION */
 
-/* SECTION: Dashboard - My projects */
+
+/* SECTION: Dashboard - My projects (general structure) */
+
 .dashboard-my-projects {
     display: flex;
     flex-direction: column;
@@ -284,16 +285,6 @@
 
     .dashboard-my-projects__list::-webkit-scrollbar {
         display: none;
-    }
-
-    .dashboard-my-projects__list::-webkit-scrollbar-thumb {
-        background-color: rgba(15, 23, 42, .15);
-        border-radius: 999px;
-    }
-
-    .dashboard-my-projects__list::-webkit-scrollbar-track {
-        background-color: rgba(15, 23, 42, .06);
-        border-radius: 999px;
     }
 
 .dashboard-my-projects__empty {
@@ -350,13 +341,13 @@
         display: block;
     }
 
-    .dashboard-project-card__cover-placeholder {
-        padding-inline: .25rem;
-        text-align: center;
-        text-transform: uppercase;
-        letter-spacing: .6px;
-        font-size: var(--pm-font-size-xxs);
-    }
+.dashboard-project-card__cover-placeholder {
+    padding-inline: .25rem;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    font-size: var(--pm-font-size-xxs);
+}
 
 .dashboard-project-card__content {
     flex: 1 1 auto;
@@ -366,7 +357,6 @@
 .dashboard-project-card__title {
     font-weight: 600;
     letter-spacing: .1px;
-
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -379,75 +369,6 @@
     color: var(--pm-text-secondary);
 }
 
-.dashboard-my-projects__pdc-groups {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    margin-top: .5rem;
-}
-
-.dashboard-my-projects__pdc-group {
-    display: flex;
-    flex-direction: column;
-    gap: .5rem;
-}
-
-.dashboard-my-projects__pdc-group-title {
-    letter-spacing: .04em;
-}
-
-.dashboard-my-projects__pdc-list {
-    display: flex;
-    flex-direction: column;
-    gap: .5rem;
-}
-
-.dashboard-my-projects__pdc-link {
-    display: flex;
-    justify-content: space-between;
-    gap: .75rem;
-    padding: .5rem .75rem;
-    border-radius: .9rem;
-    background: rgba(148, 163, 184, .14);
-    text-decoration: none;
-    color: inherit;
-    transition: background .16s ease, box-shadow .16s ease, transform .12s ease;
-}
-
-.dashboard-my-projects__pdc-link:hover {
-    background: rgba(148, 163, 184, .22);
-    box-shadow: 0 10px 24px rgba(15, 23, 42, .12);
-    transform: translateY(-1px);
-}
-
-.dashboard-my-projects__pdc-text {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: .15rem;
-}
-
-.dashboard-my-projects__pdc-name {
-    font-weight: 600;
-    line-height: 1.35;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.dashboard-my-projects__pdc-stage {
-    line-height: 1.2;
-}
-
-.dashboard-my-projects__pdc-meta {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: .1rem;
-    white-space: nowrap;
-}
-
 .dashboard-project-card__chevron {
     color: var(--pm-primary);
     font-size: 1.35rem;
@@ -456,9 +377,9 @@
 
 .dashboard-my-projects__pdc-card {
     border: 1px solid var(--pm-border);
-    border-radius: 1rem;
+    border-radius: 1.5rem;
     background-color: var(--pm-card);
-    padding: 1rem 1.25rem;
+    padding: 1rem 1.25rem 1.25rem;
     display: flex;
     flex-direction: column;
     gap: .75rem;
@@ -469,7 +390,9 @@
 }
 /* END SECTION */
 
+
 /* SECTION: Dashboard - My projects + Stage PDC widget */
+
 .myproj-stage-widget {
     border-radius: 1.5rem;
     box-shadow: var(--pm-shadow);
@@ -542,7 +465,7 @@
     display: none;
 }
 
-/* SECTION: My projects category summary */
+/* My projects category summary */
 .myproj-summary {
     margin-top: 0.75rem;
     margin-bottom: 0.5rem;
@@ -583,14 +506,14 @@
     background: rgba(37, 99, 235, 0.06);
 }
 
-/* SECTION: My projects PDC groups */
+/* My projects PDC groups */
 .dashboard-my-projects__pdc-groups {
     margin-top: 0.25rem;
     display: flex;
     flex-direction: column;
     gap: 0.85rem;
-    max-height: 420px;
-    overflow-y: auto;
+    max-height: none !important; /* override pm-scroll */
+    overflow-y: visible !important; /* override pm-scroll */
 }
 
 .dashboard-my-projects__pdc-group-title {
@@ -601,74 +524,95 @@
     color: var(--pm-text-secondary);
 }
 
+/* 2-column grid of PDC cards */
 .dashboard-my-projects__pdc-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
 }
 
-/* SECTION: My projects PDC alert rows */
+/* Collapse to 1 column on smaller viewports */
+@media (max-width: 991.98px) {
+    .dashboard-my-projects__pdc-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* PDC alert rows – white cards */
 .myproj-stage-widget__pdc-row {
-    border: none;
+    background-color: var(--pm-card);
+    border-radius: 1rem;
+    border: 1px solid var(--pm-border-muted);
+    padding: 0.75rem 1rem;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.10s ease;
 }
 
+    .myproj-stage-widget__pdc-row:hover,
+    .myproj-stage-widget__pdc-row:focus-within {
+        background-color: rgba(37, 99, 235, 0.02);
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+        transform: translateY(-1px);
+    }
+
+/* Make the whole card clickable; no extra grey background */
 .dashboard-my-projects__pdc-link {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 0.6rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.9rem;
-    background: rgba(148, 163, 184, 0.16);
     text-decoration: none;
     color: inherit;
-    transition:
-        background 0.16s ease,
-        box-shadow 0.16s ease,
-        transform 0.12s ease;
-}
-
-.dashboard-my-projects__pdc-link:hover,
-.dashboard-my-projects__pdc-link:focus-visible {
-    background: rgba(148, 163, 184, 0.24);
-    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.12);
-    transform: translateY(-1px);
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
 }
 
 .dashboard-my-projects__pdc-text {
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
 }
 
 .dashboard-my-projects__pdc-name {
-    font-size: 0.82rem;
+    font-size: 0.9rem;
     font-weight: 600;
-    white-space: nowrap;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .dashboard-my-projects__pdc-stage {
-    font-size: 0.75rem;
+    font-size: 0.78rem;
     color: var(--pm-text-muted);
 }
 
 .dashboard-my-projects__pdc-meta {
     flex-shrink: 0;
     text-align: right;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    white-space: nowrap;
 }
 
-.dashboard-my-projects__pdc-meta .badge {
-    font-size: 0.7rem;
+    .dashboard-my-projects__pdc-meta .badge {
+        font-size: 0.7rem;
+    }
+
+/* Active row highlight (optional) */
+.myproj-stage-widget__pdc-row.is-active {
+    border-color: rgba(37, 99, 235, 0.65);
 }
 
-.myproj-stage-widget__pdc-row.is-active .dashboard-my-projects__pdc-link {
-    background: rgba(37, 99, 235, 0.16);
-}
+    .myproj-stage-widget__pdc-row.is-active .dashboard-my-projects__pdc-name {
+        font-weight: 600;
+    }
 
-.myproj-stage-widget__pdc-row.is-active .dashboard-my-projects__pdc-name {
-    font-weight: 600;
-}
-
+/* Responsive header tweaks */
 @media (max-width: 576px) {
     .myproj-stage-widget__header {
         align-items: flex-start;
@@ -680,12 +624,14 @@
     }
 }
 
+/* Old project grid: single column on small devices */
 @media (max-width: 767.98px) {
     .dashboard-my-projects__list {
         grid-template-columns: 1fr;
     }
 }
 
+/* Keep existing floating actions positioning */
 @media (min-width: 992px) {
     .dashboard-floating-actions {
         position: absolute;
@@ -702,7 +648,9 @@
 }
 /* END SECTION */
 
+
 /* SECTION: Dashboard widget helpers */
+
 .pm-scroll {
     max-height: 340px;
     overflow-y: auto;
@@ -726,3 +674,141 @@
     overflow: visible;
 }
 /* END SECTION */
+
+/* === PDC widget refinements ======================================= */
+
+/* Give the whole PDC alerts area a proper card shell */
+.dashboard-my-projects__pdc-groups {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    /* card shell */
+    border: 1px solid var(--pm-border-muted);
+    border-radius: 1.5rem;
+    padding: 1rem 1.25rem 1.25rem;
+    background-color: var(--pm-card);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    max-height: none; /* ensure no internal scroll */
+    overflow-y: visible;
+}
+
+/* Visually separate the three logical groups:
+   - PDC overdue
+   - PDC in next 30 days
+   - PDC not set */
+.dashboard-my-projects__pdc-group {
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--pm-border-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+    /* First group should not have a top divider */
+    .dashboard-my-projects__pdc-group:first-child {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
+    }
+
+/* Group title styling (header-like) */
+.dashboard-my-projects__pdc-group-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--pm-text-secondary);
+}
+
+/* Two-column layout of PDC rows */
+.dashboard-my-projects__pdc-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+/* Collapse to one column on smaller viewports */
+@media (max-width: 991.98px) {
+    .dashboard-my-projects__pdc-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Each PDC row as a clean white card */
+.myproj-stage-widget__pdc-row {
+    background-color: var(--pm-card);
+    border-radius: 1rem;
+    border: 1px solid var(--pm-border-muted);
+    padding: 0.7rem 1rem;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.10s ease;
+}
+
+    .myproj-stage-widget__pdc-row:hover,
+    .myproj-stage-widget__pdc-row:focus-within {
+        background-color: rgba(37, 99, 235, 0.02);
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+        transform: translateY(-1px);
+    }
+
+/* Make the anchor just a flex container, no extra background */
+.dashboard-my-projects__pdc-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.8rem; /* more gap between name and badge column */
+    text-decoration: none;
+    color: inherit;
+}
+
+/* Left column: name + stage */
+.dashboard-my-projects__pdc-text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+}
+
+.dashboard-my-projects__pdc-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.dashboard-my-projects__pdc-stage {
+    font-size: 0.78rem;
+    color: var(--pm-text-muted);
+}
+
+/* Right column: chip + any extra meta */
+.dashboard-my-projects__pdc-meta {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.2rem;
+    padding-top: 0.1rem; /* loosen from name baseline */
+    white-space: nowrap;
+}
+
+    /* Extra breathing space around the chip so it does not hug the name */
+    .dashboard-my-projects__pdc-meta .badge {
+        font-size: 0.7rem;
+        padding-inline: 0.6rem;
+        margin-top: 0.05rem;
+    }
+
+/* Optional: stronger highlight for the currently selected project, if used */
+.myproj-stage-widget__pdc-row.is-active {
+    border-color: rgba(37, 99, 235, 0.65);
+}
+
+    .myproj-stage-widget__pdc-row.is-active .dashboard-my-projects__pdc-name {
+        font-weight: 600;
+    }
