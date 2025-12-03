@@ -10,10 +10,13 @@
 @functions {
     string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
 
+    // SECTION: Stage pill rendering helpers
     string StatusPillClass(StageStatus s) => s switch
     {
         StageStatus.Completed  => "pm-pill pm-pill-success",
         StageStatus.InProgress => "pm-pill pm-pill-primary",
+        StageStatus.Blocked    => "pm-pill pm-pill-warning",
+        StageStatus.Skipped    => "pm-pill pm-pill-muted",
         _                      => "pm-pill pm-pill-muted"
     };
 
@@ -21,7 +24,10 @@
     {
         StageStatus.Completed  => "Completed",
         StageStatus.InProgress => "In progress",
-        _                      => "Not started"
+        StageStatus.Blocked    => "Blocked",
+        StageStatus.Skipped    => "Skipped",
+        StageStatus.NotStarted => "Not started",
+        _                      => "Unknown"
     };
 
     (string text, string description, string cssClass) VarianceToken(string name, int value)

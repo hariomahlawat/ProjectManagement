@@ -104,6 +104,10 @@
         return 'pm-pill pm-pill-success';
       case 'inprogress':
         return 'pm-pill pm-pill-primary';
+      case 'blocked':
+        return 'pm-pill pm-pill-warning';
+      case 'skipped':
+        return 'pm-pill pm-pill-muted';
       default:
         return 'pm-pill pm-pill-muted';
     }
