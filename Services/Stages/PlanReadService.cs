@@ -36,13 +36,20 @@ public sealed class PlanReadService
             .Where(template => template.Version == workflowVersion)
             .ToListAsync(cancellationToken);
 
+        var stages = await _db.ProjectStages
+            .Where(stage => stage.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+
+        // SECTION: Optional stage aggregation
         var optionalStages = new HashSet<string>(
             stageTemplates.Where(template => template.Optional).Select(template => template.Code),
             StringComparer.OrdinalIgnoreCase);
 
-        var stages = await _db.ProjectStages
-            .Where(stage => stage.ProjectId == projectId)
-            .ToListAsync(cancellationToken);
+        var skippedStageCodes = stages
+            .Where(stage => stage.Status == StageStatus.Skipped)
+            .Select(stage => stage.StageCode);
+
+        optionalStages.UnionWith(skippedStageCodes);
 
         var scheduleSettings = await _db.ProjectScheduleSettings
             .AsNoTracking()
