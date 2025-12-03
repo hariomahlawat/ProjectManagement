@@ -265,6 +265,101 @@ public class PlanDraftAndApprovalServiceTests
     }
 
     [Fact]
+    public async Task ApproveLatestDraftAsHodAsync_AllowsSelfApprovalForProjectHod()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        db.Projects.Add(new Project
+        {
+            Id = 10,
+            Name = "HoD Self Approve",
+            LeadPoUserId = "po-user",
+            HodUserId = "hod-user"
+        });
+
+        var plan = new PlanVersion
+        {
+            ProjectId = 10,
+            VersionNo = 1,
+            Title = "Pending",
+            Status = PlanVersionStatus.PendingApproval,
+            CreatedByUserId = "po-user",
+            OwnerUserId = "hod-user",
+            SubmittedByUserId = "hod-user",
+            SubmittedOn = DateTimeOffset.UtcNow,
+            CreatedOn = DateTimeOffset.UtcNow.AddDays(-1)
+        };
+
+        plan.StagePlans.Add(new StagePlan
+        {
+            StageCode = StageCodes.FS,
+            PlannedStart = DateOnly.FromDateTime(DateTime.Today),
+            PlannedDue = DateOnly.FromDateTime(DateTime.Today.AddDays(4))
+        });
+
+        db.PlanVersions.Add(plan);
+        await db.SaveChangesAsync();
+
+        var approval = new PlanApprovalService(db, new TestClock(), NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullPlanNotificationService());
+
+        var approved = await approval.ApproveLatestDraftAsHodAsync(10, "hod-user");
+
+        Assert.True(approved);
+        var updatedPlan = await db.PlanVersions.SingleAsync(p => p.Id == plan.Id);
+        Assert.Equal(PlanVersionStatus.Approved, updatedPlan.Status);
+        Assert.Equal("hod-user", updatedPlan.ApprovedByUserId);
+    }
+
+    [Fact]
+    public async Task ApproveLatestDraftAsHodAsync_BlocksSelfApprovalForNonHod()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        db.Projects.Add(new Project
+        {
+            Id = 11,
+            Name = "Non Hod",
+            LeadPoUserId = "po-user",
+            HodUserId = "actual-hod"
+        });
+
+        var plan = new PlanVersion
+        {
+            ProjectId = 11,
+            VersionNo = 1,
+            Title = "Pending",
+            Status = PlanVersionStatus.PendingApproval,
+            CreatedByUserId = "po-user",
+            OwnerUserId = "not-hod",
+            SubmittedByUserId = "not-hod",
+            SubmittedOn = DateTimeOffset.UtcNow,
+            CreatedOn = DateTimeOffset.UtcNow.AddDays(-1)
+        };
+
+        plan.StagePlans.Add(new StagePlan
+        {
+            StageCode = StageCodes.FS,
+            PlannedStart = DateOnly.FromDateTime(DateTime.Today),
+            PlannedDue = DateOnly.FromDateTime(DateTime.Today.AddDays(2))
+        });
+
+        db.PlanVersions.Add(plan);
+        await db.SaveChangesAsync();
+
+        var approval = new PlanApprovalService(db, new TestClock(), NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullPlanNotificationService());
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => approval.ApproveLatestDraftAsHodAsync(11, "not-hod"));
+    }
+
+    [Fact]
     public async Task DeleteDraftAsync_RemovesDraftForOwner()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

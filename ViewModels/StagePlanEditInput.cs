@@ -13,4 +13,6 @@ public sealed class StagePlanEditInput
 
     public DateOnly? PlannedStart { get; set; }
     public DateOnly? PlannedDue { get; set; }
+
+    public string? Action { get; set; }
 }

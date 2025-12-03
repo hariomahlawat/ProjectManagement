@@ -94,7 +94,17 @@ public class PlanApprovalService
     public Task SubmitForApprovalAsync(int projectId, string userId, CancellationToken cancellationToken = default)
         => SubmitAsync(projectId, userId, cancellationToken);
 
-    public async Task<bool> ApproveLatestDraftAsync(int projectId, string hodUserId, CancellationToken cancellationToken = default)
+    public Task<bool> ApproveLatestDraftAsync(int projectId, string hodUserId, CancellationToken cancellationToken = default)
+        => ApproveLatestDraftInternalAsync(projectId, hodUserId, allowSelfApproval: false, cancellationToken);
+
+    public Task<bool> ApproveLatestDraftAsHodAsync(int projectId, string hodUserId, CancellationToken cancellationToken = default)
+        => ApproveLatestDraftInternalAsync(projectId, hodUserId, allowSelfApproval: true, cancellationToken);
+
+    private async Task<bool> ApproveLatestDraftInternalAsync(
+        int projectId,
+        string hodUserId,
+        bool allowSelfApproval,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(hodUserId))
         {
@@ -114,15 +124,22 @@ public class PlanApprovalService
             return false;
         }
 
+        var project = await _db.Projects
+            .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
+            ?? throw new InvalidOperationException("Project not found.");
+
         var submitterId = plan.OwnerUserId ?? plan.SubmittedByUserId;
-        if (!string.IsNullOrEmpty(submitterId) && string.Equals(submitterId, hodUserId, StringComparison.Ordinal))
+        var isSelfApproval = !string.IsNullOrEmpty(submitterId) && string.Equals(submitterId, hodUserId, StringComparison.Ordinal);
+
+        if (isSelfApproval && !allowSelfApproval)
         {
             throw new ForbiddenException("The submitter cannot approve their own plan.");
         }
 
-        var project = await _db.Projects
-            .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
-            ?? throw new InvalidOperationException("Project not found.");
+        if (isSelfApproval && allowSelfApproval && !string.Equals(project.HodUserId, hodUserId, StringComparison.Ordinal))
+        {
+            throw new ForbiddenException("Only the project's HoD can self-approve a plan update.");
+        }
 
         var now = _clock.UtcNow;
 

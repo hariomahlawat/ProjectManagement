@@ -38,9 +38,12 @@
                     <p class="text-muted small mb-0">Provide both planned dates or leave both empty to mark the stage as unplanned.</p>
                 </div>
 
-                <div class="card-footer d-flex justify-content-end gap-2">
-                    <a class="btn btn-outline-secondary" asp-page="/Projects/Overview" asp-route-id="@Model.Input.ProjectId">Cancel</a>
-                    <button class="btn btn-primary" type="submit">Save stage plan</button>
+                <div class="card-footer d-flex flex-column flex-md-row justify-content-end gap-2">
+                    <div class="d-flex flex-column flex-md-row gap-2">
+                        <a class="btn btn-outline-secondary" asp-page="/Projects/Overview" asp-route-id="@Model.Input.ProjectId">Cancel</a>
+                        <button class="btn btn-outline-primary" type="submit" name="Input.Action" value="save">Save draft</button>
+                        <button class="btn btn-primary" type="submit" name="Input.Action" value="submit">Save &amp; request approval</button>
+                    </div>
                 </div>
             </form>
         </div>

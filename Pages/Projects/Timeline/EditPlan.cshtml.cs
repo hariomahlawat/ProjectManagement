@@ -99,10 +99,10 @@ public class EditPlanModel : PageModel
 
         if (string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
         {
-            return await HandleDurationsAsync(id, userId, cancellationToken, workflowVersion);
+            return await HandleDurationsAsync(id, userId, cancellationToken, workflowVersion, isProjectsHod);
         }
 
-        return await HandleExactAsync(id, userId, principal, cancellationToken, workflowVersion);
+        return await HandleExactAsync(id, userId, principal, cancellationToken, workflowVersion, isProjectsHod);
     }
 
     public async Task<IActionResult> OnGetValidateAsync(int id, CancellationToken cancellationToken)
@@ -190,7 +190,7 @@ public class EditPlanModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    private async Task<IActionResult> HandleExactAsync(int id, string userId, ClaimsPrincipal principal, CancellationToken cancellationToken, string? workflowVersion)
+    private async Task<IActionResult> HandleExactAsync(int id, string userId, ClaimsPrincipal principal, CancellationToken cancellationToken, string? workflowVersion, bool isProjectHod)
     {
         var rows = Input.Rows ??= new List<PlanEditInputRow>();
 
@@ -320,6 +320,16 @@ public class EditPlanModel : PageModel
             try
             {
                 await _planApproval.SubmitForApprovalAsync(id, userId, cancellationToken);
+
+                if (isProjectHod)
+                {
+                    var approved = await _planApproval.ApproveLatestDraftAsHodAsync(id, userId, cancellationToken);
+
+                    if (!approved)
+                    {
+                        throw new InvalidOperationException("No submission was available to approve.");
+                    }
+                }
             }
             catch (PlanApprovalValidationException ex)
             {
@@ -343,7 +353,9 @@ public class EditPlanModel : PageModel
                 return RedirectToPage("/Projects/Overview", new { id });
             }
 
-            TempData["Flash"] = "Plan submitted for HoD review.";
+            TempData["Flash"] = isProjectHod
+                ? "Plan submitted and approved as HoD."
+                : "Plan submitted for HoD review.";
         }
         else
         {
@@ -362,7 +374,7 @@ public class EditPlanModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    private async Task<IActionResult> HandleDurationsAsync(int id, string userId, CancellationToken ct, string? workflowVersion)
+    private async Task<IActionResult> HandleDurationsAsync(int id, string userId, CancellationToken ct, string? workflowVersion, bool isProjectHod)
     {
         var action = NormalizeAction(Input.Action);
         var calculateOnly = string.Equals(action, PlanEditActions.Calculate, StringComparison.OrdinalIgnoreCase);
@@ -514,6 +526,16 @@ public class EditPlanModel : PageModel
             try
             {
                 await _planApproval.SubmitForApprovalAsync(id, userId, ct);
+
+                if (isProjectHod)
+                {
+                    var approved = await _planApproval.ApproveLatestDraftAsHodAsync(id, userId, ct);
+
+                    if (!approved)
+                    {
+                        throw new InvalidOperationException("No submission was available to approve.");
+                    }
+                }
             }
             catch (PlanApprovalValidationException ex)
             {
@@ -549,7 +571,9 @@ public class EditPlanModel : PageModel
 
         if (submitForApproval)
         {
-            TempData["Flash"] = "Plan submitted for HoD review.";
+            TempData["Flash"] = isProjectHod
+                ? "Plan submitted and approved as HoD."
+                : "Plan submitted for HoD review.";
         }
         else
         {
