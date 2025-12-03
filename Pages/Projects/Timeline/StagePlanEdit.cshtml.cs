@@ -89,7 +89,7 @@ public class StagePlanEditModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id });
         }
 
-        var loadResult = await LoadAsync(id, stageCode, cancellationToken);
+        var loadResult = await LoadAsync(id, stageCode, cancellationToken, populatePlanFromExisting: false);
         if (loadResult is not null)
         {
             return loadResult;
@@ -156,7 +156,7 @@ public class StagePlanEditModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    private async Task<IActionResult?> LoadAsync(int projectId, string stageCode, CancellationToken cancellationToken)
+    private async Task<IActionResult?> LoadAsync(int projectId, string stageCode, CancellationToken cancellationToken, bool populatePlanFromExisting = true)
     {
         var userId = _userContext.UserId;
         if (string.IsNullOrWhiteSpace(userId))
@@ -204,8 +204,12 @@ public class StagePlanEditModel : PageModel
 
         Input.ProjectId = projectId;
         Input.StageCode = stageCode;
-        Input.PlannedStart = draftStage?.PlannedStart ?? stage?.PlannedStart;
-        Input.PlannedDue = draftStage?.PlannedDue ?? stage?.PlannedDue;
+
+        if (populatePlanFromExisting)
+        {
+            Input.PlannedStart = draftStage?.PlannedStart ?? stage?.PlannedStart;
+            Input.PlannedDue = draftStage?.PlannedDue ?? stage?.PlannedDue;
+        }
 
         IsLocked = await _db.PlanVersions
             .AsNoTracking()
