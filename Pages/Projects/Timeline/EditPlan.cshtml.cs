@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
@@ -370,6 +371,7 @@ public class EditPlanModel : PageModel
         var saveDraft = string.Equals(action, PlanEditActions.SaveDraft, StringComparison.OrdinalIgnoreCase) ||
                         (!calculateOnly && !submitForApproval);
 
+        // SECTION: Optional stage aggregation
         var optionalStageCodes = await _db.StageTemplates
             .AsNoTracking()
             .Where(template => template.Optional &&
@@ -377,7 +379,15 @@ public class EditPlanModel : PageModel
             .Select(template => template.Code)
             .ToListAsync(ct);
 
+        var skippedStageCodes = await _db.ProjectStages
+            .AsNoTracking()
+            .Where(stage => stage.ProjectId == id && stage.Status == StageStatus.Skipped)
+            .Select(stage => stage.StageCode)
+            .ToListAsync(ct);
+
         var optionalStages = new HashSet<string>(optionalStageCodes, StringComparer.OrdinalIgnoreCase);
+        optionalStages.UnionWith(skippedStageCodes);
+
         if (optionalStages.Count == 0)
         {
             optionalStages.Add(StageCodes.PNC);
