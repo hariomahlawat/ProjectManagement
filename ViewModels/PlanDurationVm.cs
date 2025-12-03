@@ -21,4 +21,5 @@ public sealed class PlanDurationRowVm
     public int? DurationDays { get; set; }
     public DateOnly? PreviewStart { get; set; }
     public DateOnly? PreviewDue { get; set; }
+    public bool IsOptional { get; set; }
 }

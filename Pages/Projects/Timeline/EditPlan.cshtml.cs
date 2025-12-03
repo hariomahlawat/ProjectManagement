@@ -370,10 +370,18 @@ public class EditPlanModel : PageModel
         var saveDraft = string.Equals(action, PlanEditActions.SaveDraft, StringComparison.OrdinalIgnoreCase) ||
                         (!calculateOnly && !submitForApproval);
 
-        var optionalStages = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        var optionalStageCodes = await _db.StageTemplates
+            .AsNoTracking()
+            .Where(template => template.Optional &&
+                               (workflowVersion is null || template.Version == workflowVersion))
+            .Select(template => template.Code)
+            .ToListAsync(ct);
+
+        var optionalStages = new HashSet<string>(optionalStageCodes, StringComparer.OrdinalIgnoreCase);
+        if (optionalStages.Count == 0)
         {
-            StageCodes.PNC
-        };
+            optionalStages.Add(StageCodes.PNC);
+        }
 
         if (Input.AnchorStart is null)
         {

@@ -25,6 +25,21 @@ public sealed class PlanReadService
 
     public async Task<PlanEditorVm> GetAsync(int projectId, string? currentUserId, CancellationToken cancellationToken = default)
     {
+        var workflowVersion = await _db.Projects
+            .AsNoTracking()
+            .Where(project => project.Id == projectId)
+            .Select(project => project.WorkflowVersion)
+            .FirstOrDefaultAsync(cancellationToken) ?? PlanConstants.DefaultStageTemplateVersion;
+
+        var stageTemplates = await _db.StageTemplates
+            .AsNoTracking()
+            .Where(template => template.Version == workflowVersion)
+            .ToListAsync(cancellationToken);
+
+        var optionalStages = new HashSet<string>(
+            stageTemplates.Where(template => template.Optional).Select(template => template.Code),
+            StringComparer.OrdinalIgnoreCase);
+
         var stages = await _db.ProjectStages
             .Where(stage => stage.ProjectId == projectId)
             .ToListAsync(cancellationToken);
@@ -131,7 +146,8 @@ public sealed class PlanReadService
                 Name = StageCodes.DisplayNameOf(code),
                 DurationDays = duration?.DurationDays,
                 PreviewStart = draftStage?.PlannedStart,
-                PreviewDue = draftStage?.PlannedDue
+                PreviewDue = draftStage?.PlannedDue,
+                IsOptional = optionalStages.Contains(code)
             });
         }
 
@@ -165,7 +181,8 @@ public sealed class PlanReadService
                 Name = StageCodes.DisplayNameOf(code),
                 DurationDays = duration?.DurationDays,
                 PreviewStart = draftStage?.PlannedStart,
-                PreviewDue = draftStage?.PlannedDue
+                PreviewDue = draftStage?.PlannedDue,
+                IsOptional = optionalStages.Contains(code)
             });
         }
 

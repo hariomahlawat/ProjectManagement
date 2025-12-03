@@ -86,6 +86,64 @@ public class EditPlanPncOptionalityTests
     }
 
     [Fact]
+    public async Task DurationsFlow_OptionalStageAllowsBlankDuration()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        SeedStageTemplates(db);
+
+        db.Projects.Add(new Project
+        {
+            Id = 3,
+            Name = "Optional Stage",
+            LeadPoUserId = "po-user",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV1
+        });
+
+        await db.SaveChangesAsync();
+
+        var clock = new TestClock(new DateTimeOffset(2024, 4, 1, 0, 0, 0, TimeSpan.Zero));
+        var audit = new RecordingAudit();
+        var userContext = new PrincipalUserContext(CreatePrincipal("po-user", "Project Officer"));
+        var planDraft = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit, userContext);
+        var planApproval = new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullPlanNotificationService());
+        var planGeneration = new PlanGenerationService(db);
+
+        var page = new EditPlanModel(db, audit, planGeneration, planDraft, planApproval, NullLogger<EditPlanModel>.Instance, userContext)
+        {
+            Input = new PlanEditInput
+            {
+                ProjectId = 3,
+                Mode = PlanEditorModes.Durations,
+                Action = PlanEditActions.SaveDraft,
+                AnchorStart = new DateOnly(2024, 4, 1),
+                IncludeWeekends = false,
+                SkipHolidays = false,
+                NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay,
+                Rows = new List<PlanEditInputRow>
+                {
+                    new() { Code = StageCodes.IPA, Name = "IPA", DurationDays = 5 },
+                    new() { Code = StageCodes.TOT, Name = "TOT", DurationDays = 0 }
+                }
+            }
+        };
+
+        ConfigurePageContext(page, userContext);
+
+        var result = await page.OnPostAsync(3, CancellationToken.None);
+
+        Assert.True(page.ModelState.IsValid);
+        Assert.IsType<RedirectToPageResult>(result);
+
+        var totDuration = await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == StageCodes.TOT);
+        Assert.Null(totDuration.DurationDays);
+    }
+
+    [Fact]
     public async Task ExactFlow_WithDatesMarksPlanAsApplicable()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -152,7 +210,16 @@ public class EditPlanPncOptionalityTests
                 Version = PlanConstants.StageTemplateVersionV1,
                 Code = StageCodes.PNC,
                 Name = "PNC",
-                Sequence = 20
+                Sequence = 20,
+                Optional = true
+            },
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = StageCodes.TOT,
+                Name = "Transfer of Technology",
+                Sequence = 30,
+                Optional = true
             });
     }
 
