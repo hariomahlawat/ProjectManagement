@@ -721,7 +721,7 @@ private static RecordInput MapToInput(IprRecord record)
         public int AttachmentId { get; set; }
 
         [Required]
-        public int RecordId { get; set; }
+        public int? RecordId { get; set; }
 
         [Required]
         public string RowVersion { get; set; } = string.Empty;
