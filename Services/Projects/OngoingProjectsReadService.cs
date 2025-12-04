@@ -133,6 +133,7 @@ namespace ProjectManagement.Services.Projects
                     DateOnly? actualStart = null;
                     DateOnly? actualCompleted = null;
                     DateOnly? plannedDue = null;
+                    int? actualDurationDays = null;
                     var isDataMissing = false;
 
                     if (stageRow != null)
@@ -141,6 +142,13 @@ namespace ProjectManagement.Services.Projects
                         actualStart = stageRow.ActualStart;
                         actualCompleted = stageRow.CompletedOn;
                         plannedDue = stageRow.PlannedDue;
+
+                        // SECTION: Duration calculation for timeline display
+                        if (actualStart.HasValue && actualCompleted.HasValue)
+                        {
+                            var rawDuration = actualCompleted.Value.DayNumber - actualStart.Value.DayNumber + 1;
+                            actualDurationDays = rawDuration > 0 ? rawDuration : null;
+                        }
                     }
                     else
                     {
@@ -165,6 +173,7 @@ namespace ProjectManagement.Services.Projects
                         ActualStart = actualStart,
                         ActualCompletedOn = actualCompleted,
                         PlannedDue = plannedDue,
+                        ActualDurationDays = actualDurationDays,
                         IsDataMissing = isDataMissing,
                         IsCurrent = false
                     });
@@ -370,6 +379,7 @@ namespace ProjectManagement.Services.Projects
         public DateOnly? ActualStart { get; init; }
         public DateOnly? ActualCompletedOn { get; init; }
         public DateOnly? PlannedDue { get; init; }
+        public int? ActualDurationDays { get; init; }
         public bool IsDataMissing { get; init; }
         public bool IsCurrent { get; set; }
     }
