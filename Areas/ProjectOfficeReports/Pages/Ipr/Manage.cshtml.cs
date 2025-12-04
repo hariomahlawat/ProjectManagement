@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Application.Ipr;
 using ProjectManagement.Configuration;
@@ -475,7 +476,7 @@ public sealed class ManageModel : PageModel
                 ? DateOnly.FromDateTime(record.GrantedAtUtc.Value.UtcDateTime)
                 : null,
             ProjectId = record.ProjectId,
-            RowVersion = Convert.ToBase64String(record.RowVersion)
+            RowVersion = EncodeRowVersion(record.RowVersion)
         };
     }
 
@@ -495,7 +496,7 @@ public sealed class ManageModel : PageModel
         }
         else if (string.IsNullOrWhiteSpace(Input.RowVersion))
         {
-            Input.RowVersion = Convert.ToBase64String(record.RowVersion);
+            Input.RowVersion = EncodeRowVersion(record.RowVersion);
         }
 
         SetAttachmentState(record);
@@ -519,7 +520,7 @@ public sealed class ManageModel : PageModel
                 a.FileSize,
                 FormatUserDisplay(a.UploadedByUser, a.UploadedByUserId),
                 a.UploadedAtUtc,
-                Convert.ToBase64String(a.RowVersion)))
+                EncodeRowVersion(a.RowVersion)))
             .ToList();
     }
 
@@ -640,12 +641,26 @@ public sealed class ManageModel : PageModel
 
         try
         {
-            return Convert.FromBase64String(value);
+            return WebEncoders.Base64UrlDecode(value);
         }
         catch (FormatException)
         {
-            return null;
+            try
+            {
+                return Convert.FromBase64String(value.Replace(' ', '+'));
+            }
+            catch (FormatException)
+            {
+                return null;
+            }
         }
+    }
+
+    private static string EncodeRowVersion(byte[] bytes)
+    {
+        return bytes is { Length: > 0 }
+            ? WebEncoders.Base64UrlEncode(bytes)
+            : string.Empty;
     }
 
     public sealed record RecordRow(
