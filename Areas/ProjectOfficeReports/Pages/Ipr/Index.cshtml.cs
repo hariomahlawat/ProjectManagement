@@ -1,25 +1,20 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Application.Ipr;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.ViewModels;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
-using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Utilities;
 
@@ -28,42 +23,22 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr;
 [Authorize(Policy = Policies.Ipr.View)]
 public sealed class IndexModel : PageModel
 {
-    private static readonly IReadOnlyDictionary<string, string[]> ValidationErrorFieldMap =
-        new Dictionary<string, string[]>(StringComparer.Ordinal)
-        {
-            ["Filed date cannot be in the future."] = new[] { nameof(RecordInput.FiledOn) },
-            ["Grant date cannot be in the future."] = new[] { nameof(RecordInput.GrantedOn) },
-            ["Filed date is required once the record is not under filing."] = new[] { nameof(RecordInput.FiledOn) },
-            ["Grant date is required once the record is granted."] = new[] { nameof(RecordInput.GrantedOn) },
-            ["Grant date cannot be provided without a filing date."] = new[] { nameof(RecordInput.FiledOn), nameof(RecordInput.GrantedOn) },
-            ["Grant date cannot be earlier than the filing date."] = new[] { nameof(RecordInput.FiledOn), nameof(RecordInput.GrantedOn) },
-            ["A patent record with the same filing number and type already exists."] = new[] { nameof(RecordInput.FilingNumber) },
-            ["Filing number is required."] = new[] { nameof(RecordInput.FilingNumber) }
-        };
-
     private readonly ApplicationDbContext _db;
     private readonly IIprReadService _readService;
-    private readonly IIprWriteService _writeService;
     private readonly IAuthorizationService _authorizationService;
-    private readonly UserManager<ApplicationUser> _userManager;
     private readonly IIprExportService _exportService;
 
     private string? _query;
-    private string? _mode;
 
     public IndexModel(
         ApplicationDbContext db,
         IIprReadService readService,
-        IIprWriteService writeService,
         IAuthorizationService authorizationService,
-        UserManager<ApplicationUser> userManager,
         IIprExportService exportService)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
-        _writeService = writeService ?? throw new ArgumentNullException(nameof(writeService));
         _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
-        _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
     }
 
@@ -92,39 +67,11 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public int PageSize { get; set; } = 25;
 
-    [BindProperty(SupportsGet = true)]
-    public string? Mode
-    {
-        get => _mode;
-        set => _mode = value;
-    }
-
-    [BindProperty(SupportsGet = true)]
-    public int? Id { get; set; }
-
-    [BindProperty]
-    public RecordInput Input { get; set; } = new();
-
-    [BindProperty]
-    public DeleteInput DeleteRequest { get; set; } = new();
-
-    [BindProperty]
-    public UploadAttachmentInput UploadInput { get; set; } = new();
-
-    [BindProperty]
-    public RemoveAttachmentInput RemoveAttachment { get; set; } = new();
-
     public IReadOnlyList<SelectListItem> TypeOptions { get; private set; } = Array.Empty<SelectListItem>();
-
-    public IReadOnlyList<SelectListItem> TypeFormOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     public IReadOnlyList<SelectListItem> StatusOptions { get; private set; } = Array.Empty<SelectListItem>();
 
-    public IReadOnlyList<SelectListItem> StatusFormOptions { get; private set; } = Array.Empty<SelectListItem>();
-
     public IReadOnlyList<SelectListItem> ProjectOptions { get; private set; } = Array.Empty<SelectListItem>();
-
-    public IReadOnlyList<SelectListItem> ProjectFormOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     public IReadOnlyList<SelectListItem> YearOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -172,10 +119,6 @@ public sealed class IndexModel : PageModel
 
     public PatentTotals OverallTotals { get; set; } = new();
 
-    public IReadOnlyList<AttachmentViewModel> Attachments { get; private set; } = Array.Empty<AttachmentViewModel>();
-
-    public string? EditingProjectName { get; private set; }
-
     public int TotalCount { get; private set; }
 
     public int TotalPages { get; private set; }
@@ -197,8 +140,7 @@ public sealed class IndexModel : PageModel
     {
         NormalizeFilters();
         await EvaluateAuthorizationAsync();
-        NormalizeMode();
-        await LoadPageAsync(cancellationToken, loadRecordInput: true);
+        await LoadPageAsync(cancellationToken);
         return Page();
     }
 
@@ -225,288 +167,7 @@ public sealed class IndexModel : PageModel
         return File(file.Content, file.ContentType, file.FileName);
     }
 
-    public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken)
-    {
-        Mode = "create";
-
-        var authResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.Edit);
-        if (!authResult.Succeeded)
-        {
-            return Forbid();
-        }
-
-        await EvaluateAuthorizationAsync();
-        NormalizeFilters();
-
-        if (!ModelState.IsValid)
-        {
-            await LoadPageAsync(cancellationToken, loadRecordInput: false);
-            return Page();
-        }
-
-        if (Input.Type is null)
-        {
-            ModelState.AddModelError(nameof(Input.Type), "Select a type.");
-            await LoadPageAsync(cancellationToken, loadRecordInput: false);
-            return Page();
-        }
-
-        if (Input.Status is null)
-        {
-            ModelState.AddModelError(nameof(Input.Status), "Select a status.");
-            await LoadPageAsync(cancellationToken, loadRecordInput: false);
-            return Page();
-        }
-
-        try
-        {
-            var entity = ToEntity(Input);
-            var created = await _writeService.CreateAsync(entity, cancellationToken);
-            TempData["ToastMessage"] = "Patent record created.";
-            return RedirectToPage(null, GetRouteValues(new { mode = "edit", id = created.Id }, includePage: true, includeModeAndId: false));
-        }
-        catch (InvalidOperationException ex)
-        {
-            if (!TryAddInputValidationErrors(ex.Message))
-            {
-                ModelState.AddModelError(string.Empty, ex.Message);
-            }
-
-            await LoadPageAsync(cancellationToken, loadRecordInput: false);
-            return Page();
-        }
-    }
-
-    public async Task<IActionResult> OnPostEditAsync(CancellationToken cancellationToken)
-    {
-        Mode = "edit";
-
-        // Section: Defensive identifier assignment
-        if (!Input.Id.HasValue && Id.HasValue)
-        {
-            Input.Id = Id;
-        }
-
-        if (Input.Id.HasValue)
-        {
-            Id = Input.Id;
-        }
-
-        var authResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.Edit);
-        if (!authResult.Succeeded)
-        {
-            return Forbid();
-        }
-
-        await EvaluateAuthorizationAsync();
-        NormalizeFilters();
-
-        if (!ModelState.IsValid)
-        {
-            await LoadPageAsync(cancellationToken, loadRecordInput: false);
-            return Page();
-        }
-
-        if (!Input.Id.HasValue)
-        {
-            ModelState.AddModelError(string.Empty, "The record could not be found.");
-            await LoadPageAsync(cancellationToken, loadRecordInput: false);
-            return Page();
-        }
-
-        // Section: Row version resolution
-        var rowVersion = DecodeRowVersion(Input.RowVersion);
-        if (rowVersion is null && Input.Id.HasValue)
-        {
-            rowVersion = await GetRowVersionAsync(Input.Id.Value, cancellationToken);
-
-            if (rowVersion is null)
-            {
-                ModelState.AddModelError(string.Empty, "We could not verify your request. Please reload and try again.");
-                await LoadPageAsync(cancellationToken, loadRecordInput: false);
-                return Page();
-            }
-
-            Input.RowVersion = Convert.ToBase64String(rowVersion);
-        }
-
-        try
-        {
-            var entity = ToEntity(Input);
-            entity.RowVersion = rowVersion;
-            var updated = await _writeService.UpdateAsync(entity, cancellationToken);
-            if (updated is null)
-            {
-                ModelState.AddModelError(string.Empty, "The record could not be found.");
-                await LoadPageAsync(cancellationToken, loadRecordInput: false);
-                return Page();
-            }
-
-            TempData["ToastMessage"] = "Patent record updated.";
-            return RedirectToPage(null, GetRouteValues(new { mode = "edit", id = updated.Id }, includePage: true, includeModeAndId: false));
-        }
-        catch (InvalidOperationException ex)
-        {
-            if (!TryAddInputValidationErrors(ex.Message))
-            {
-                ModelState.AddModelError(string.Empty, ex.Message);
-            }
-
-            await LoadPageAsync(cancellationToken, loadRecordInput: false);
-            return Page();
-        }
-    }
-
-    public async Task<IActionResult> OnPostDeleteAsync(CancellationToken cancellationToken)
-    {
-        var authResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.Edit);
-        if (!authResult.Succeeded)
-        {
-            return Forbid();
-        }
-
-        NormalizeFilters();
-        await EvaluateAuthorizationAsync();
-
-        var rowVersion = DecodeRowVersion(DeleteRequest.RowVersion);
-        if (rowVersion is null)
-        {
-            TempData["ToastError"] = "We could not verify your request. Please reload and try again.";
-            return RedirectToPage(null, GetRouteValues(includePage: true, includeModeAndId: false));
-        }
-
-        try
-        {
-            var deleted = await _writeService.DeleteAsync(DeleteRequest.Id, rowVersion, cancellationToken);
-            if (deleted)
-            {
-                TempData["ToastMessage"] = "Patent record deleted.";
-            }
-            else
-            {
-                TempData["ToastError"] = "The record could not be found.";
-            }
-        }
-        catch (InvalidOperationException ex)
-        {
-            TempData["ToastError"] = ex.Message;
-        }
-
-        Mode = null;
-        Id = null;
-        return RedirectToPage(null, GetRouteValues(includePage: true, includeModeAndId: false));
-    }
-
-    public async Task<IActionResult> OnPostAttachAsync(CancellationToken cancellationToken)
-    {
-        Mode = "edit";
-        if (UploadInput.RecordId.HasValue)
-        {
-            Id = UploadInput.RecordId;
-        }
-
-        var authResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.Edit);
-        if (!authResult.Succeeded)
-        {
-            return Forbid();
-        }
-
-        await EvaluateAuthorizationAsync();
-        NormalizeFilters();
-
-        if (!UploadInput.RecordId.HasValue)
-        {
-            ModelState.AddModelError(string.Empty, "Select a record before uploading attachments.");
-            await LoadPageAsync(cancellationToken, loadRecordInput: false);
-            return Page();
-        }
-
-        if (UploadInput.File is null || UploadInput.File.Length == 0)
-        {
-            ModelState.AddModelError(nameof(UploadInput.File), "Choose a file to upload.");
-            await LoadPageAsync(cancellationToken, loadRecordInput: false);
-            return Page();
-        }
-
-        var userId = await GetCurrentUserIdAsync();
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            return Challenge();
-        }
-
-        try
-        {
-            await using var stream = UploadInput.File.OpenReadStream();
-            await _writeService.AddAttachmentAsync(
-                UploadInput.RecordId.Value,
-                stream,
-                UploadInput.File.FileName,
-                UploadInput.File.ContentType,
-                userId,
-                cancellationToken);
-
-            TempData["ToastMessage"] = "Attachment uploaded.";
-            return RedirectToPage(null, GetRouteValues(new { mode = "edit", id = UploadInput.RecordId.Value }, includePage: true, includeModeAndId: false));
-        }
-        catch (InvalidOperationException ex)
-        {
-            ModelState.AddModelError(string.Empty, ex.Message);
-            await LoadPageAsync(cancellationToken, loadRecordInput: false);
-            return Page();
-        }
-    }
-
-    public async Task<IActionResult> OnPostRemoveAttachmentAsync(CancellationToken cancellationToken)
-    {
-        Mode = "edit";
-        if (RemoveAttachment.RecordId.HasValue)
-        {
-            Id = RemoveAttachment.RecordId;
-        }
-
-        var authResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.Edit);
-        if (!authResult.Succeeded)
-        {
-            return Forbid();
-        }
-
-        await EvaluateAuthorizationAsync();
-        NormalizeFilters();
-
-        if (!RemoveAttachment.RecordId.HasValue)
-        {
-            TempData["ToastError"] = "We could not verify your request. Please reload and try again.";
-            return RedirectToPage(null, GetRouteValues(includePage: true, includeModeAndId: false));
-        }
-
-        var rowVersion = DecodeRowVersion(RemoveAttachment.RowVersion);
-        if (rowVersion is null)
-        {
-            TempData["ToastError"] = "We could not verify your request. Please reload and try again.";
-            return RedirectToPage(null, GetRouteValues(new { mode = "edit", id = RemoveAttachment.RecordId.Value }, includePage: true, includeModeAndId: false));
-        }
-
-        try
-        {
-            var deleted = await _writeService.DeleteAttachmentAsync(RemoveAttachment.AttachmentId, rowVersion, cancellationToken);
-            if (deleted)
-            {
-                TempData["ToastMessage"] = "Attachment removed.";
-            }
-            else
-            {
-                TempData["ToastError"] = "Attachment not found.";
-            }
-        }
-        catch (InvalidOperationException ex)
-        {
-            TempData["ToastError"] = ex.Message;
-        }
-
-        return RedirectToPage(null, GetRouteValues(new { mode = "edit", id = RemoveAttachment.RecordId.Value }, includePage: true, includeModeAndId: false));
-    }
-
-    public RouteValueDictionary GetRouteValues(object? additionalValues = null, bool includePage = true, bool includeModeAndId = true)
+    public RouteValueDictionary GetRouteValues(object? additionalValues = null, bool includePage = true)
     {
         var values = new RouteValueDictionary();
 
@@ -541,19 +202,6 @@ public sealed class IndexModel : PageModel
             values["pageSize"] = PageSize;
         }
 
-        if (includeModeAndId)
-        {
-            if (!string.IsNullOrEmpty(Mode))
-            {
-                values["mode"] = Mode;
-            }
-
-            if (Id.HasValue)
-            {
-                values["id"] = Id.Value;
-            }
-        }
-
         if (additionalValues is not null)
         {
             foreach (var kvp in new RouteValueDictionary(additionalValues))
@@ -567,10 +215,9 @@ public sealed class IndexModel : PageModel
 
     public IDictionary<string, string?> GetRouteValuesForLinks(
         object? additionalValues = null,
-        bool includePage = true,
-        bool includeModeAndId = true)
+        bool includePage = true)
     {
-        var values = GetRouteValues(additionalValues, includePage, includeModeAndId);
+        var values = GetRouteValues(additionalValues, includePage);
         var result = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (key, value) in values)
@@ -742,7 +389,7 @@ public sealed class IndexModel : PageModel
         return chips;
     }
 
-    private async Task LoadPageAsync(CancellationToken cancellationToken, bool loadRecordInput)
+    private async Task LoadPageAsync(CancellationToken cancellationToken)
     {
         NormalizePaging();
 
@@ -755,30 +402,6 @@ public sealed class IndexModel : PageModel
         TotalPages = PageSize > 0 ? (int)Math.Ceiling(result.Total / (double)PageSize) : 0;
 
         Kpis = await _readService.GetKpisAsync(filter, cancellationToken);
-
-        if (string.Equals(Mode, "edit", StringComparison.OrdinalIgnoreCase) && Id.HasValue && CanEdit)
-        {
-            var record = await LoadRecordAsync(Id.Value, cancellationToken, loadRecordInput);
-            if (record is null)
-            {
-                TempData["ToastError"] = "The selected patent record could not be found.";
-                Mode = null;
-                Id = null;
-                Attachments = Array.Empty<AttachmentViewModel>();
-            }
-        }
-        else
-        {
-            Attachments = Array.Empty<AttachmentViewModel>();
-            if (string.Equals(Mode, "create", StringComparison.OrdinalIgnoreCase))
-            {
-                Input = new RecordInput
-                {
-                    Type = IprType.Patent,
-                    Status = IprStatus.FilingUnderProcess
-                };
-            }
-        }
 
         await PopulateSelectListsAsync(cancellationToken);
 
@@ -868,24 +491,10 @@ public sealed class IndexModel : PageModel
             })
             .ToList();
 
-        TypeFormOptions = supportedTypes
-            .Select(type => new SelectListItem(GetTypeLabel(type), type.ToString())
-            {
-                Selected = Input.Type.HasValue && Input.Type.Value == type
-            })
-            .ToList();
-
         StatusOptions = Enum.GetValues<IprStatus>()
             .Select(status => new SelectListItem(GetStatusLabel(status), status.ToString())
             {
                 Selected = Statuses.Contains(status)
-            })
-            .ToList();
-
-        StatusFormOptions = Enum.GetValues<IprStatus>()
-            .Select(status => new SelectListItem(GetStatusLabel(status), status.ToString())
-            {
-                Selected = Input.Status.HasValue && Input.Status.Value == status
             })
             .ToList();
 
@@ -906,27 +515,6 @@ public sealed class IndexModel : PageModel
         };
         projectOptions.AddRange(projectItems);
         ProjectOptions = projectOptions;
-
-        var projectFormOptions = new List<SelectListItem>
-        {
-            new("No project", string.Empty)
-            {
-                Selected = !Input.ProjectId.HasValue
-            }
-        };
-
-        foreach (var option in projectItems)
-        {
-            var isSelected = Input.ProjectId.HasValue &&
-                option.Value == Input.ProjectId.Value.ToString(CultureInfo.InvariantCulture);
-
-            projectFormOptions.Add(new SelectListItem(option.Text, option.Value)
-            {
-                Selected = isSelected
-            });
-        }
-
-        ProjectFormOptions = projectFormOptions;
 
         var years = await _db.IprRecords.AsNoTracking()
             .Where(r => r.FiledAtUtc != null)
@@ -981,27 +569,6 @@ public sealed class IndexModel : PageModel
         {
             Year = null;
         }
-
-        if (Id.HasValue && Id.Value <= 0)
-        {
-            Id = null;
-        }
-    }
-
-    private void NormalizeMode()
-    {
-        if (string.Equals(_mode, "create", StringComparison.OrdinalIgnoreCase))
-        {
-            _mode = CanEdit ? "create" : null;
-        }
-        else if (string.Equals(_mode, "edit", StringComparison.OrdinalIgnoreCase))
-        {
-            _mode = CanEdit ? "edit" : null;
-        }
-        else
-        {
-            _mode = null;
-        }
     }
 
     private void NormalizePaging()
@@ -1037,147 +604,6 @@ public sealed class IndexModel : PageModel
         return filter;
     }
 
-    private async Task<IprRecord?> LoadRecordAsync(int id, CancellationToken cancellationToken, bool overwriteInput)
-    {
-        var record = await _readService.GetAsync(id, cancellationToken);
-        if (record is null)
-        {
-            return null;
-        }
-
-        EditingProjectName = record.Project?.Name;
-
-        var rowVersion = EncodeRowVersion(record.RowVersion);
-
-        if (overwriteInput || !Input.Id.HasValue || Input.Id.Value != record.Id)
-        {
-            Input = new RecordInput
-            {
-                Id = record.Id,
-                FilingNumber = record.IprFilingNumber,
-                Title = record.Title,
-                Notes = record.Notes,
-                Type = record.Type,
-                Status = record.Status,
-                FiledBy = record.FiledBy,
-                FiledOn = record.FiledAtUtc.HasValue
-                    ? DateOnly.FromDateTime(record.FiledAtUtc.Value.UtcDateTime)
-                    : null,
-                GrantedOn = record.GrantedAtUtc.HasValue
-                    ? DateOnly.FromDateTime(record.GrantedAtUtc.Value.UtcDateTime)
-                    : null,
-                ProjectId = record.ProjectId,
-                RowVersion = rowVersion
-            };
-        }
-        else if (string.IsNullOrWhiteSpace(Input.RowVersion))
-        {
-            Input.RowVersion = rowVersion;
-        }
-
-        DeleteRequest = new DeleteInput
-        {
-            Id = record.Id,
-            RowVersion = rowVersion
-        };
-
-        UploadInput = new UploadAttachmentInput
-        {
-            RecordId = record.Id
-        };
-
-        Attachments = record.Attachments
-            .Where(a => !a.IsArchived)
-            .OrderByDescending(a => a.UploadedAtUtc)
-            .Select(a => new AttachmentViewModel(
-                a.Id,
-                a.OriginalFileName,
-                a.FileSize,
-                FormatUserDisplay(a.UploadedByUser, a.UploadedByUserId),
-                a.UploadedAtUtc,
-                EncodeRowVersion(a.RowVersion)))
-            .ToList();
-
-        return record;
-    }
-
-    private static string FormatUserDisplay(ApplicationUser? user, string fallback)
-    {
-        if (user is { FullName: { Length: > 0 } fullName })
-        {
-            return fullName;
-        }
-
-        if (user is { UserName: { Length: > 0 } userName })
-        {
-            return userName;
-        }
-
-        return fallback;
-    }
-
-    // SECTION: Row version helpers
-    private static byte[]? DecodeRowVersion(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        try
-        {
-            return WebEncoders.Base64UrlDecode(value);
-        }
-        catch (FormatException)
-        {
-            try
-            {
-                return Convert.FromBase64String(value.Replace(' ', '+'));
-            }
-            catch (FormatException)
-            {
-                return null;
-            }
-        }
-    }
-
-    private Task<byte[]?> GetRowVersionAsync(int recordId, CancellationToken cancellationToken)
-    {
-        return _db.IprRecords
-            .AsNoTracking()
-            .Where(record => record.Id == recordId)
-            .Select(record => record.RowVersion)
-            .SingleOrDefaultAsync(cancellationToken);
-    }
-
-    private static IprRecord ToEntity(RecordInput input)
-    {
-        return new IprRecord
-        {
-            Id = input.Id ?? 0,
-            IprFilingNumber = input.FilingNumber?.Trim() ?? string.Empty,
-            Title = string.IsNullOrWhiteSpace(input.Title) ? null : input.Title.Trim(),
-            Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),
-            Type = input.Type ?? IprType.Patent,
-            Status = input.Status ?? IprStatus.FilingUnderProcess,
-            FiledBy = string.IsNullOrWhiteSpace(input.FiledBy) ? null : input.FiledBy.Trim(),
-            FiledAtUtc = input.FiledOn.HasValue
-                ? new DateTimeOffset(input.FiledOn.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
-                : null,
-            GrantedAtUtc = input.GrantedOn.HasValue
-                ? new DateTimeOffset(input.GrantedOn.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
-                : null,
-            ProjectId = input.ProjectId
-        };
-    }
-
-    private static string EncodeRowVersion(byte[] bytes)
-    {
-        return bytes is { Length: > 0 }
-            ? WebEncoders.Base64UrlEncode(bytes)
-            : string.Empty;
-    }
-
     private static string GetTypeLabel(IprType type)
         => type switch
         {
@@ -1196,112 +622,4 @@ public sealed class IndexModel : PageModel
             IprStatus.Withdrawn => "Withdrawn",
             _ => status.ToString()
         };
-
-    private async Task<string?> GetCurrentUserIdAsync()
-    {
-        var user = await _userManager.GetUserAsync(User);
-        return user?.Id;
-    }
-
-    public sealed class RecordInput
-    {
-        [HiddenInput]
-        public int? Id { get; set; }
-
-        [Display(Name = "Filing number")]
-        [Required]
-        [StringLength(128)]
-        public string? FilingNumber { get; set; }
-
-        [Display(Name = "Title")]
-        [StringLength(256)]
-        public string? Title { get; set; }
-
-        [Display(Name = "Notes")]
-        [StringLength(2000)]
-        public string? Notes { get; set; }
-
-        [Display(Name = "Type")]
-        [Required]
-        public IprType? Type { get; set; }
-
-        [Display(Name = "Status")]
-        [Required]
-        public IprStatus? Status { get; set; }
-
-        [Display(Name = "Filed by")]
-        [StringLength(128)]
-        public string? FiledBy { get; set; }
-
-        [Display(Name = "Filed on")]
-        [DataType(DataType.Date)]
-        public DateOnly? FiledOn { get; set; }
-
-        [Display(Name = "Granted on")]
-        [DataType(DataType.Date)]
-        public DateOnly? GrantedOn { get; set; }
-
-        [Display(Name = "Project")]
-        public int? ProjectId { get; set; }
-
-        public string? RowVersion { get; set; }
-    }
-
-    private bool TryAddInputValidationErrors(string? message)
-    {
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            return false;
-        }
-
-        if (!ValidationErrorFieldMap.TryGetValue(message, out var fields))
-        {
-            return false;
-        }
-
-        foreach (var field in fields)
-        {
-            ModelState.AddModelError($"{nameof(Input)}.{field}", message);
-        }
-
-        return true;
-    }
-
-    public sealed class DeleteInput
-    {
-        [HiddenInput]
-        public int Id { get; set; }
-
-        [HiddenInput]
-        public string RowVersion { get; set; } = string.Empty;
-    }
-
-    public sealed class UploadAttachmentInput
-    {
-        [HiddenInput]
-        public int? RecordId { get; set; }
-
-        [Display(Name = "Attachment")]
-        public IFormFile? File { get; set; }
-    }
-
-    public sealed class RemoveAttachmentInput
-    {
-        [HiddenInput]
-        public int AttachmentId { get; set; }
-
-        [HiddenInput]
-        public int? RecordId { get; set; }
-
-        [HiddenInput]
-        public string RowVersion { get; set; } = string.Empty;
-    }
-
-    public sealed record AttachmentViewModel(
-        int Id,
-        string FileName,
-        long FileSize,
-        string UploadedBy,
-        DateTimeOffset UploadedAtUtc,
-        string RowVersion);
 }

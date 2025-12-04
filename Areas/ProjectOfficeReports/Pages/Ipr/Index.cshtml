@@ -7,9 +7,7 @@
     var toastMessage = TempData["ToastMessage"] as string;
     var toastError = TempData["ToastError"] as string;
 
-    var isCreateMode = string.Equals(Model.Mode, "create", StringComparison.OrdinalIgnoreCase);
-    var isEditMode = string.Equals(Model.Mode, "edit", StringComparison.OrdinalIgnoreCase);
-    var exportRouteValues = Model.GetRouteValuesForLinks(includeModeAndId: false);
+    var exportRouteValues = Model.GetRouteValuesForLinks();
 
     var hasRecords = Model.TotalCount > 0;
     var firstItem = hasRecords ? ((Model.PageNumber - 1) * Model.PageSize) + 1 : 0;
@@ -331,42 +329,6 @@
         </div>
     </div>
 
-    @if (Model.CanEdit)
-    {
-        <div class="offcanvas offcanvas-end"
-             tabindex="-1"
-             id="iprRecordOffcanvas"
-             aria-labelledby="iprRecordOffcanvasLabel"
-             aria-hidden="true"
-             data-ipr-mode="@(Model.Mode ?? string.Empty)"
-             data-ipr-has-form="@(
-                 string.Equals(Model.Mode, "create", StringComparison.OrdinalIgnoreCase)
-                 || string.Equals(Model.Mode, "edit", StringComparison.OrdinalIgnoreCase)
-                     ? "true"
-                     : "false")">
-            <div class="offcanvas-header">
-                <div>
-                    <h2 class="offcanvas-title h5 mb-1" id="iprRecordOffcanvasLabel">
-                        @(isCreateMode ? "Create patent record" : isEditMode ? "Edit patent record" : "Patent record")
-                    </h2>
-                    <p class="text-muted small mb-0">
-                        @(isCreateMode || isEditMode
-                            ? "Capture filing information, track status, and associate the record with a project."
-                            : "Use the available actions to add or manage records.")
-                    </p>
-                </div>
-                <a class="btn-close text-reset"
-                   asp-page="./Index"
-                   asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)"
-                   data-bs-dismiss="offcanvas"
-                   aria-label="Close"></a>
-            </div>
-            <div class="offcanvas-body">
-                <partial name="_RecordFormPartial" model="Model" />
-            </div>
-        </div>
-    }
-
     <section class="card">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
@@ -436,7 +398,7 @@
                     var startPage = Math.Max(1, Model.PageNumber - 2);
                     var endPage = Math.Min(Model.TotalPages, startPage + maxPages - 1);
                     startPage = Math.Max(1, endPage - maxPages + 1);
-                    var baseRoutes = Model.GetRouteValuesForLinks(new { pageSize = Model.PageSize }, includePage: false, includeModeAndId: false);
+                    var baseRoutes = Model.GetRouteValuesForLinks(new { pageSize = Model.PageSize }, includePage: false);
 
                     <nav aria-label="Patent pagination">
                         <ul class="pagination pagination-sm mb-0">
