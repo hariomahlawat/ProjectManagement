@@ -74,16 +74,30 @@ else
     <div class="row g-3">
         @foreach (var item in Model.Items)
         {
-            // find current stage index
+            // SECTION: Identify current stage index using the present snapshot first
             var currentIdx = -1;
-            for (var i = 0; i < item.Stages.Count; i++)
+            if (!string.IsNullOrWhiteSpace(item.PresentStage.CurrentStageCode))
             {
-                if (item.Stages[i].IsCurrent)
+                currentIdx = item.Stages
+                    .Select((stage, idx) => new { stage, idx })
+                    .FirstOrDefault(x => string.Equals(
+                        x.stage.Code,
+                        item.PresentStage.CurrentStageCode,
+                        StringComparison.OrdinalIgnoreCase))?.idx ?? -1;
+            }
+
+            if (currentIdx == -1)
+            {
+                for (var i = 0; i < item.Stages.Count; i++)
                 {
-                    currentIdx = i;
-                    break;
+                    if (item.Stages[i].IsCurrent)
+                    {
+                        currentIdx = i;
+                        break;
+                    }
                 }
             }
+
             if (currentIdx == -1)
             {
                 currentIdx = 0;
@@ -271,19 +285,12 @@ else
                                     // connector + days between completed stages
                                     if (i < currentIdx)
                                     {
-                                        var next = item.Stages[i + 1];
-                                        int? days = null;
-
-                                        if (stage.ActualCompletedOn.HasValue && next.ActualCompletedOn.HasValue)
-                                        {
-                                            days = (next.ActualCompletedOn.Value.ToDateTime(TimeOnly.MinValue)
-                                            - stage.ActualCompletedOn.Value.ToDateTime(TimeOnly.MinValue)).Days;
-                                        }
+                                        var durationDays = stage.ActualDurationDays;
 
                                         <div class="d-flex align-items-center gap-1 ongoing-timeline__connector">
                                             <div class="ongoing-timeline__line"></div>
                                             <div class="badge bg-light text-muted border small">
-                                                @(days.HasValue ? $"{days.Value} days" : "—")
+                                                @(durationDays.HasValue ? $"{durationDays.Value} day{(durationDays.Value == 1 ? "" : "s")}" : "—")
                                             </div>
                                             <div class="ongoing-timeline__connector-gap"></div>
                                         </div>
