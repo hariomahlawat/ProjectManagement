@@ -3,6 +3,12 @@
 @{
     var isCreateMode = string.Equals(Model.Mode, "create", StringComparison.OrdinalIgnoreCase);
     var isEditMode = string.Equals(Model.Mode, "edit", StringComparison.OrdinalIgnoreCase);
+
+    // Section: Form route preservation
+    var editRoutes = Model.GetRouteValuesForLinks(
+        new { mode = "edit", id = Model.Input.Id },
+        includePage: true,
+        includeModeAndId: true);
 }
 
 @if (isCreateMode)
@@ -76,7 +82,7 @@ else if (isEditMode)
           asp-area="ProjectOfficeReports"
           asp-page="/Ipr/Index"
           asp-page-handler="Edit"
-          asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "edit", id = Model.Input.Id }, includeModeAndId: false)"
+          asp-all-route-data="editRoutes"
           class="row g-3"
           id="iprEditForm">
         <div class="col-12 d-flex justify-content-end">
@@ -87,6 +93,8 @@ else if (isEditMode)
         <div class="col-12">
             <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
         </div>
+        @* Section: Hidden record metadata *@
+        <input type="hidden" asp-for="Id" />
         <input type="hidden" asp-for="Input.Id" />
         <input type="hidden" asp-for="Input.RowVersion" />
         <div class="col-12 col-md-6">
