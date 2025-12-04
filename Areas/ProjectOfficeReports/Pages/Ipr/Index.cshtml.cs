@@ -314,6 +314,7 @@ public sealed class IndexModel : PageModel
             return Page();
         }
 
+        // Section: Row version resolution
         var rowVersion = DecodeRowVersion(Input.RowVersion);
         if (rowVersion is null && Input.Id.HasValue)
         {
