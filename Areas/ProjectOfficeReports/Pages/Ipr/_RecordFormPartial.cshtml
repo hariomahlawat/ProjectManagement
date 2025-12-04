@@ -72,7 +72,13 @@
 }
 else if (isEditMode)
 {
-    <form method="post" asp-page-handler="Edit" asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "edit", id = Model.Input.Id }, includeModeAndId: false)" class="row g-3" id="iprEditForm">
+    <form method="post"
+          asp-area="ProjectOfficeReports"
+          asp-page="/Ipr/Index"
+          asp-page-handler="Edit"
+          asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "edit", id = Model.Input.Id }, includeModeAndId: false)"
+          class="row g-3"
+          id="iprEditForm">
         <div class="col-12 d-flex justify-content-end">
             <a class="btn btn-outline-secondary" asp-page="./Index" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)">
                 Cancel
