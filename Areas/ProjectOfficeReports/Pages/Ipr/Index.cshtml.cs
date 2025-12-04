@@ -280,6 +280,13 @@ public sealed class IndexModel : PageModel
     public async Task<IActionResult> OnPostEditAsync(CancellationToken cancellationToken)
     {
         Mode = "edit";
+
+        // Section: Defensive identifier assignment
+        if (!Input.Id.HasValue && Id.HasValue)
+        {
+            Input.Id = Id;
+        }
+
         if (Input.Id.HasValue)
         {
             Id = Input.Id;
