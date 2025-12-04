@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -26,14 +28,14 @@ public sealed class ManageModel : PageModel
     private static readonly IReadOnlyDictionary<string, string[]> ValidationErrorFieldMap =
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            ["Filed date cannot be in the future."] = new[] { nameof(IndexModel.RecordInput.FiledOn) },
-            ["Grant date cannot be in the future."] = new[] { nameof(IndexModel.RecordInput.GrantedOn) },
-            ["Filed date is required once the record is not under filing."] = new[] { nameof(IndexModel.RecordInput.FiledOn) },
-            ["Grant date is required once the record is granted."] = new[] { nameof(IndexModel.RecordInput.GrantedOn) },
-            ["Grant date cannot be provided without a filing date."] = new[] { nameof(IndexModel.RecordInput.FiledOn), nameof(IndexModel.RecordInput.GrantedOn) },
-            ["Grant date cannot be earlier than the filing date."] = new[] { nameof(IndexModel.RecordInput.FiledOn), nameof(IndexModel.RecordInput.GrantedOn) },
-            ["A patent record with the same filing number and type already exists."] = new[] { nameof(IndexModel.RecordInput.FilingNumber) },
-            ["Filing number is required."] = new[] { nameof(IndexModel.RecordInput.FilingNumber) }
+            ["Filed date cannot be in the future."] = new[] { nameof(RecordInput.FiledOn) },
+            ["Grant date cannot be in the future."] = new[] { nameof(RecordInput.GrantedOn) },
+            ["Filed date is required once the record is not under filing."] = new[] { nameof(RecordInput.FiledOn) },
+            ["Grant date is required once the record is granted."] = new[] { nameof(RecordInput.GrantedOn) },
+            ["Grant date cannot be provided without a filing date."] = new[] { nameof(RecordInput.FiledOn), nameof(RecordInput.GrantedOn) },
+            ["Grant date cannot be earlier than the filing date."] = new[] { nameof(RecordInput.FiledOn), nameof(RecordInput.GrantedOn) },
+            ["A patent record with the same filing number and type already exists."] = new[] { nameof(RecordInput.FilingNumber) },
+            ["Filing number is required."] = new[] { nameof(RecordInput.FilingNumber) }
         };
 
     private readonly ApplicationDbContext _db;
@@ -66,13 +68,13 @@ public sealed class ManageModel : PageModel
     public int? EditId { get; set; }
 
     [BindProperty]
-    public IndexModel.RecordInput Input { get; set; } = CreateDefaultInput();
+    public RecordInput Input { get; set; } = CreateDefaultInput();
 
     [BindProperty]
-    public IndexModel.UploadAttachmentInput UploadInput { get; set; } = new();
+    public UploadAttachmentInput UploadInput { get; set; } = new();
 
     [BindProperty]
-    public IndexModel.RemoveAttachmentInput RemoveAttachment { get; set; } = new();
+    public RemoveAttachmentInput RemoveAttachment { get; set; } = new();
 
     public IReadOnlyList<RecordRow> Records { get; private set; } = Array.Empty<RecordRow>();
 
@@ -82,7 +84,7 @@ public sealed class ManageModel : PageModel
 
     public IReadOnlyList<SelectListItem> ProjectOptions { get; private set; } = Array.Empty<SelectListItem>();
 
-    public IReadOnlyList<IndexModel.AttachmentViewModel> Attachments { get; private set; } = Array.Empty<IndexModel.AttachmentViewModel>();
+    public IReadOnlyList<AttachmentViewModel> Attachments { get; private set; } = Array.Empty<AttachmentViewModel>();
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -99,8 +101,8 @@ public sealed class ManageModel : PageModel
         }
         else
         {
-            Attachments = Array.Empty<IndexModel.AttachmentViewModel>();
-            UploadInput = new IndexModel.UploadAttachmentInput();
+            Attachments = Array.Empty<AttachmentViewModel>();
+            UploadInput = new UploadAttachmentInput();
         }
 
         await LoadSelectListsAsync(cancellationToken);
@@ -117,8 +119,8 @@ public sealed class ManageModel : PageModel
         {
             await LoadSelectListsAsync(cancellationToken);
             await LoadRecordsAsync(cancellationToken);
-            Attachments = Array.Empty<IndexModel.AttachmentViewModel>();
-            UploadInput = new IndexModel.UploadAttachmentInput();
+            Attachments = Array.Empty<AttachmentViewModel>();
+            UploadInput = new UploadAttachmentInput();
             return Page();
         }
 
@@ -142,8 +144,8 @@ public sealed class ManageModel : PageModel
             }
             else
             {
-                Attachments = Array.Empty<IndexModel.AttachmentViewModel>();
-                UploadInput = new IndexModel.UploadAttachmentInput();
+                Attachments = Array.Empty<AttachmentViewModel>();
+                UploadInput = new UploadAttachmentInput();
             }
             return Page();
         }
@@ -164,8 +166,8 @@ public sealed class ManageModel : PageModel
 
             await LoadSelectListsAsync(cancellationToken);
             await LoadRecordsAsync(cancellationToken);
-            Attachments = Array.Empty<IndexModel.AttachmentViewModel>();
-            UploadInput = new IndexModel.UploadAttachmentInput();
+            Attachments = Array.Empty<AttachmentViewModel>();
+            UploadInput = new UploadAttachmentInput();
             return Page();
         }
     }
@@ -296,8 +298,8 @@ public sealed class ManageModel : PageModel
             ModelState.AddModelError(string.Empty, "Select a record before uploading attachments.");
             await LoadSelectListsAsync(cancellationToken);
             await LoadRecordsAsync(cancellationToken);
-            Attachments = Array.Empty<IndexModel.AttachmentViewModel>();
-            UploadInput = new IndexModel.UploadAttachmentInput();
+            Attachments = Array.Empty<AttachmentViewModel>();
+            UploadInput = new UploadAttachmentInput();
             return Page();
         }
 
@@ -449,21 +451,21 @@ public sealed class ManageModel : PageModel
         ProjectOptions = options;
     }
 
-    private static IndexModel.RecordInput CreateDefaultInput()
+private static RecordInput CreateDefaultInput()
+{
+    return new RecordInput
     {
-        return new IndexModel.RecordInput
-        {
-            Type = IprType.Patent,
-            Status = IprStatus.FilingUnderProcess
-        };
-    }
+        Type = IprType.Patent,
+        Status = IprStatus.FilingUnderProcess
+    };
+}
 
-    private static IndexModel.RecordInput MapToInput(IprRecord record)
+private static RecordInput MapToInput(IprRecord record)
+{
+    return new RecordInput
     {
-        return new IndexModel.RecordInput
-        {
-            Id = record.Id,
-            FilingNumber = record.IprFilingNumber,
+        Id = record.Id,
+        FilingNumber = record.IprFilingNumber,
             Title = record.Title,
             Notes = record.Notes,
             Type = record.Type,
@@ -485,8 +487,8 @@ public sealed class ManageModel : PageModel
         var record = await _readService.GetAsync(id, cancellationToken);
         if (record is null)
         {
-            Attachments = Array.Empty<IndexModel.AttachmentViewModel>();
-            UploadInput = new IndexModel.UploadAttachmentInput();
+            Attachments = Array.Empty<AttachmentViewModel>();
+            UploadInput = new UploadAttachmentInput();
             return null;
         }
 
@@ -506,7 +508,7 @@ public sealed class ManageModel : PageModel
 
     private void SetAttachmentState(IprRecord record)
     {
-        UploadInput = new IndexModel.UploadAttachmentInput
+        UploadInput = new UploadAttachmentInput
         {
             RecordId = record.Id
         };
@@ -514,7 +516,7 @@ public sealed class ManageModel : PageModel
         Attachments = record.Attachments
             .Where(a => !a.IsArchived)
             .OrderByDescending(a => a.UploadedAtUtc)
-            .Select(a => new IndexModel.AttachmentViewModel(
+            .Select(a => new AttachmentViewModel(
                 a.Id,
                 a.OriginalFileName,
                 a.FileSize,
@@ -524,7 +526,7 @@ public sealed class ManageModel : PageModel
             .ToList();
     }
 
-    private static IprRecord ToEntity(IndexModel.RecordInput input)
+    private static IprRecord ToEntity(RecordInput input)
     {
         return new IprRecord
         {
@@ -662,6 +664,76 @@ public sealed class ManageModel : PageModel
             ? WebEncoders.Base64UrlEncode(bytes)
             : string.Empty;
     }
+
+    // SECTION: Page input and view models
+    public sealed class RecordInput
+    {
+        public int? Id { get; set; }
+
+        [Required]
+        [Display(Name = "Filing number")]
+        [StringLength(128)]
+        public string? FilingNumber { get; set; }
+
+        [Display(Name = "Title")]
+        [StringLength(256)]
+        public string? Title { get; set; }
+
+        [Display(Name = "Notes")]
+        [StringLength(2000)]
+        public string? Notes { get; set; }
+
+        [Display(Name = "Type")]
+        public IprType? Type { get; set; }
+
+        [Display(Name = "Status")]
+        public IprStatus? Status { get; set; }
+
+        [Display(Name = "Filed by")]
+        [StringLength(128)]
+        public string? FiledBy { get; set; }
+
+        [Display(Name = "Filed on")]
+        public DateOnly? FiledOn { get; set; }
+
+        [Display(Name = "Granted on")]
+        public DateOnly? GrantedOn { get; set; }
+
+        [Display(Name = "Project")]
+        public int? ProjectId { get; set; }
+
+        public string RowVersion { get; set; } = string.Empty;
+    }
+
+    public sealed class UploadAttachmentInput
+    {
+        [Required]
+        [Display(Name = "Record")]
+        public int? RecordId { get; set; }
+
+        [Display(Name = "Attachment")]
+        public IFormFile? File { get; set; }
+    }
+
+    public sealed class RemoveAttachmentInput
+    {
+        [Required]
+        public int AttachmentId { get; set; }
+
+        [Required]
+        public int RecordId { get; set; }
+
+        [Required]
+        public string RowVersion { get; set; } = string.Empty;
+    }
+
+    public sealed record AttachmentViewModel(
+        int Id,
+        string FileName,
+        long FileSize,
+        string UploadedBy,
+        DateTimeOffset UploadedAtUtc,
+        string RowVersion);
 
     public sealed record RecordRow(
         int Id,
