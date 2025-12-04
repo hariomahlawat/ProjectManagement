@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Application.Ipr;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
@@ -1038,7 +1039,7 @@ public sealed class IndexModel : PageModel
 
         EditingProjectName = record.Project?.Name;
 
-        var rowVersion = Convert.ToBase64String(record.RowVersion);
+        var rowVersion = EncodeRowVersion(record.RowVersion);
 
         if (overwriteInput || !Input.Id.HasValue || Input.Id.Value != record.Id)
         {
@@ -1086,7 +1087,7 @@ public sealed class IndexModel : PageModel
                 a.FileSize,
                 FormatUserDisplay(a.UploadedByUser, a.UploadedByUserId),
                 a.UploadedAtUtc,
-                Convert.ToBase64String(a.RowVersion)))
+                EncodeRowVersion(a.RowVersion)))
             .ToList();
 
         return record;
@@ -1117,11 +1118,18 @@ public sealed class IndexModel : PageModel
 
         try
         {
-            return Convert.FromBase64String(value);
+            return WebEncoders.Base64UrlDecode(value);
         }
         catch (FormatException)
         {
-            return null;
+            try
+            {
+                return Convert.FromBase64String(value.Replace(' ', '+'));
+            }
+            catch (FormatException)
+            {
+                return null;
+            }
         }
     }
 
@@ -1153,6 +1161,13 @@ public sealed class IndexModel : PageModel
                 : null,
             ProjectId = input.ProjectId
         };
+    }
+
+    private static string EncodeRowVersion(byte[] bytes)
+    {
+        return bytes is { Length: > 0 }
+            ? WebEncoders.Base64UrlEncode(bytes)
+            : string.Empty;
     }
 
     private static string GetTypeLabel(IprType type)
