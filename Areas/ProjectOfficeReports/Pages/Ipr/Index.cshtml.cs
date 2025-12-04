@@ -15,6 +15,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.ViewModels;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Utilities;
 
