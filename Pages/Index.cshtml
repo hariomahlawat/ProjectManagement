@@ -25,31 +25,39 @@
                     <img src="~/img/logos/sdd.png"
                          class="pm-hero__brandlogo pm-hero__brandlogo--company me-2"
                          alt="Simulator Development Division logo" />
-                    <span class="pm-hero__brandtext small text-muted">
-                        Simulator Development Division
-                    </span>
+                    <span class="pm-hero__brandtext">Simulator Development Division</span>
                 </div>
 
                 <!-- Product name and taglines -->
-                <h1 class="display-5 fw-semibold mb-1">PRISM ERP</h1>
-                <p class="lead fw-semibold mb-2">Plan. Track. Deliver.</p>
+                <div class="pm-hero__eyebrow">Mission-ready enterprise platform</div>
+                <h1 class="pm-hero__headline fw-semibold mb-2">PRISM ERP</h1>
+                <p class="pm-hero__tagline fw-semibold mb-3">Plan. Track. Deliver.</p>
 
                 <!-- Acronym expansion -->
-                <p class="small text-uppercase text-muted mb-3">
-                    PRISM · <strong>Project Reporting, Intelligence and Systems Management</strong>
+                <p class="pm-hero__acronym text-uppercase mb-3">
+                    PRISM  <strong>Project Reporting, Intelligence and Systems Management</strong>
                 </p>
 
                 <!-- Secondary tagline -->
-                <p class="lead mb-4">
+                <p class="pm-hero__summary lead mb-4">
                     Project analytics, AI powered search and office automation in a single PRISM,
                     designed for secure, offline deployment.
                 </p>
 
                 <!-- Key bullets -->
-                <ul class="mb-4 ps-3">
-                    <li>End to end visibility from concept note to fielded simulator.</li>
-                    <li>ML based OCR and full text search across projects, reports and files.</li>
-                    <li>Structured approvals and digitised office workflows with audit ready trails.</li>
+                <ul class="pm-hero__highlights mb-4 ps-0">
+                    <li class="d-flex align-items-start gap-2">
+                        <i class="bi bi-check-circle-fill text-primary small"></i>
+                        <span>End to end visibility from concept note to fielded simulator.</span>
+                    </li>
+                    <li class="d-flex align-items-start gap-2">
+                        <i class="bi bi-check-circle-fill text-primary small"></i>
+                        <span>ML based OCR and full text search across projects, reports and files.</span>
+                    </li>
+                    <li class="d-flex align-items-start gap-2">
+                        <i class="bi bi-check-circle-fill text-primary small"></i>
+                        <span>Structured approvals and digitised office workflows with audit ready trails.</span>
+                    </li>
                 </ul>
 
                 <!-- CTAs -->
@@ -79,7 +87,7 @@
 
             <!-- RIGHT: Image, fills its column -->
             <div class="col-12 col-lg-6 d-flex justify-content-center justify-content-lg-end">
-                <figure class="mb-0 w-100 d-flex justify-content-center justify-content-lg-end">
+                <figure class="mb-0 w-100 d-flex justify-content-center justify-content-lg-end pm-hero__art-card">
                     <img src="~/img/prism.png"
                          class="img-fluid pm-hero__image--prism"
                          alt="PRISM ERP illustration showing project management, office automation and AI search" />
@@ -93,20 +101,21 @@
      THREE PILLARS
      =========================== -->
 <section id="pillars" class="container-xxl pm-section pb-5">
-    <div class="pm-section__header mb-4">
-        <h2 class="pm-section__title h4 mb-1">Three pillars of PRISM ERP</h2>
+    <div class="pm-section__header mb-4 text-center">
+        <span class="pm-section__eyebrow">Platform pillars</span>
+        <h2 class="pm-section__title h4 mb-2">Three pillars of PRISM ERP</h2>
         <p class="pm-section__subtitle text-muted mb-0">
             Project management, office automation and AI powered information retrieval on a single,
             secure platform.
         </p>
     </div>
 
-    <div class="row g-3 g-lg-4">
+    <div class="row g-3 g-lg-4 pm-pillars-grid">
         <!-- Pillar 1 -->
         <div class="col-12 col-md-4">
-            <article class="pm-pillar-card pm-card pm-shadow h-100 p-3 p-lg-4 bg-white rounded-3">
-                <div class="pm-pillar-card__icon mb-2">
-                    <i class="bi bi-kanban fs-3"></i>
+            <article class="pm-pillar-card pm-card pm-shadow h-100 p-3 p-lg-4 bg-white rounded-4">
+                <div class="pm-pillar-card__icon mb-3 text-primary">
+                    <span class="pm-pillar-card__icon-wrap"><i class="bi bi-kanban"></i></span>
                 </div>
                 <h3 class="pm-pillar-card__title h6 mb-2">Project management &amp; analytics</h3>
                 <p class="pm-pillar-card__text text-muted mb-0 small">
@@ -118,9 +127,9 @@
 
         <!-- Pillar 2 -->
         <div class="col-12 col-md-4">
-            <article class="pm-pillar-card pm-card pm-shadow h-100 p-3 p-lg-4 bg-white rounded-3">
-                <div class="pm-pillar-card__icon mb-2">
-                    <i class="bi bi-diagram-3 fs-3"></i>
+            <article class="pm-pillar-card pm-card pm-shadow h-100 p-3 p-lg-4 bg-white rounded-4">
+                <div class="pm-pillar-card__icon mb-3 text-primary">
+                    <span class="pm-pillar-card__icon-wrap"><i class="bi bi-diagram-3"></i></span>
                 </div>
                 <h3 class="pm-pillar-card__title h6 mb-2">Office automation</h3>
                 <p class="pm-pillar-card__text text-muted mb-0 small">
@@ -133,9 +142,9 @@
 
         <!-- Pillar 3 -->
         <div class="col-12 col-md-4">
-            <article class="pm-pillar-card pm-card pm-shadow h-100 p-3 p-lg-4 bg-white rounded-3">
-                <div class="pm-pillar-card__icon mb-2">
-                    <i class="bi bi-search fs-3"></i>
+            <article class="pm-pillar-card pm-card pm-shadow h-100 p-3 p-lg-4 bg-white rounded-4">
+                <div class="pm-pillar-card__icon mb-3 text-primary">
+                    <span class="pm-pillar-card__icon-wrap"><i class="bi bi-search"></i></span>
                 </div>
                 <h3 class="pm-pillar-card__title h6 mb-2">Document repository &amp; AI search</h3>
                 <p class="pm-pillar-card__text text-muted mb-0 small">
