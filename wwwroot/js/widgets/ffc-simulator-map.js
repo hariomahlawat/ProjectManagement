@@ -62,7 +62,7 @@
       planned: planned,
       completed: completed,
       total: total,
-      displayCount: delivered > 0 ? delivered : installed
+      displayCount: completed
     };
   }
 

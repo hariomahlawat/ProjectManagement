@@ -34,7 +34,7 @@ public sealed class FfcSimulatorCountryVm
 
     public int Planned { get; init; }
 
-    public int Total { get; init; }
+    public int TotalUnits { get; init; }
 
     public int Completed => Installed + Delivered;
 }
