@@ -11,281 +11,141 @@
 <!-- ===========================
      HERO
      =========================== -->
-<section class="pm-hero">
-    <div class="pm-hero__art" aria-hidden="true">
-        <img src="~/img/logos/sdd.png" alt="" />
-    </div>
+<section class="pm-hero pm-hero--prism py-5">
+    <div class="container-xxl">
+        <div class="row align-items-center g-4 g-lg-5">
+            <!-- LEFT: Copy -->
+            <div class="col-12 col-lg-6">
 
-    <div class="container-xxl pm-hero__inner">
-        <div class="pm-hero__left">
+                <!-- Brand line -->
+                <div class="d-flex align-items-center mb-3 pm-hero__brandline" aria-label="Branding">
+                    <img src="~/img/logos/artrac.png"
+                         class="pm-hero__brandlogo pm-hero__brandlogo--parent me-2"
+                         alt="ARTRAC crest" />
+                    <img src="~/img/logos/sdd.png"
+                         class="pm-hero__brandlogo pm-hero__brandlogo--company me-2"
+                         alt="Simulator Development Division logo" />
+                    <span class="pm-hero__brandtext small text-muted">
+                        Simulator Development Division
+                    </span>
+                </div>
 
-            <div class="pm-hero__brandline" aria-label="Branding">
-                <img src="~/img/logos/artrac.png"
-                     class="pm-hero__brandlogo pm-hero__brandlogo--parent"
-                     alt="ARTRAC crest" />
-                <img src="~/img/logos/sdd.png"
-                     class="pm-hero__brandlogo pm-hero__brandlogo--company"
-                     alt="Simulator Development Division logo" />
-                <span class="pm-hero__brandtext">Simulator Development Division</span>
+                <!-- Product name and taglines -->
+                <h1 class="display-5 fw-semibold mb-1">PRISM ERP</h1>
+                <p class="lead fw-semibold mb-2">Plan. Track. Deliver.</p>
+
+                <!-- Acronym expansion -->
+                <p class="small text-uppercase text-muted mb-3">
+                    PRISM · <strong>Project Reporting, Intelligence and Systems Management</strong>
+                </p>
+
+                <!-- Secondary tagline -->
+                <p class="lead mb-4">
+                    Project analytics, AI powered search and office automation in a single PRISM,
+                    designed for secure, offline deployment.
+                </p>
+
+                <!-- Key bullets -->
+                <ul class="mb-4 ps-3">
+                    <li>End to end visibility from concept note to fielded simulator.</li>
+                    <li>ML based OCR and full text search across projects, reports and files.</li>
+                    <li>Structured approvals and digitised office workflows with audit ready trails.</li>
+                </ul>
+
+                <!-- CTAs -->
+                <div class="d-flex flex-wrap gap-2 pm-hero__cta">
+                    @if (signedIn)
+                    {
+                        <a class="btn btn-primary btn-lg" asp-page="/Dashboard/Index">
+                            Go to your dashboard
+                        </a>
+                        <a class="btn btn-outline-secondary btn-lg"
+                           asp-area="Common" asp-page="/Search/Index">
+                            Open global search
+                        </a>
+                    }
+                    else
+                    {
+                        <a class="btn btn-primary btn-lg" asp-area="Identity" asp-page="/Account/Login">
+                            Sign in
+                        </a>
+                        <a class="btn btn-outline-secondary btn-lg" href="#pillars">
+                            Explore PRISM ERP
+                        </a>
+                    }
+                </div>
+
             </div>
 
-            <h1 class="pm-hero__title">Plan. Track. Deliver.</h1>
-
-            <p class="pm-hero__subtitle">
-                End-to-end project management for Simulator Development Division workflows.
-                Role-based dashboards, stage timelines, Project Office Reports,
-                and a searchable document corpus with OCR, Full text search and customised ranking.
-            </p>
-
-            <div class="pm-hero__highlights">
-                <div class="pm-highlight">
-                    <div class="pm-highlight__icon"><i class="bi bi-kanban"></i></div>
-                    <div>
-                        <div class="pm-highlight__title">Lifecycle boards and timelines</div>
-                        <div class="pm-highlight__text">Track stages, approvals, slippages, and PDCs clearly.</div>
-                    </div>
-                </div>
-                <div class="pm-highlight">
-                    <div class="pm-highlight__icon"><i class="bi bi-file-earmark-text"></i></div>
-                    <div>
-                        <div class="pm-highlight__title">Document Repository with OCR</div>
-                        <div class="pm-highlight__text">Upload, tag, OCR, and search everything in one place.</div>
-                    </div>
-                </div>
-                <div class="pm-highlight">
-                    <div class="pm-highlight__icon"><i class="bi bi-search"></i></div>
-                    <div>
-                        <div class="pm-highlight__title">Global Search across modules</div>
-                        <div class="pm-highlight__text">Projects, reports, trackers, and documents via ranked FTS.</div>
-                    </div>
-                </div>
+            <!-- RIGHT: Image, fills its column -->
+            <div class="col-12 col-lg-6 d-flex justify-content-center justify-content-lg-end">
+                <figure class="mb-0 w-100 d-flex justify-content-center justify-content-lg-end">
+                    <img src="~/img/prism.png"
+                         class="img-fluid pm-hero__image--prism"
+                         alt="PRISM ERP illustration showing project management, office automation and AI search" />
+                </figure>
             </div>
-
-            <div class="pm-hero__cta">
-                @if (signedIn)
-                {
-                    <a class="btn btn-primary btn-lg" asp-page="/Dashboard/Index">Go to your dashboard</a>
-                    <a class="btn btn-outline-secondary btn-lg" asp-area="Common" asp-page="/Search/Index">Open global search</a>
-                }
-                else
-                {
-                    <a class="btn btn-primary btn-lg" href="#login-card">Sign in</a>
-                    <a class="btn btn-outline-secondary btn-lg" href="#modules">Explore modules</a>
-                }
-            </div>
-
         </div>
-
-        <aside class="pm-hero__right">
-            @if (!signedIn)
-            {
-                <div class="pm-login-card" id="login-card">
-                    <div class="pm-login-card__header">
-                        <div class="pm-login-card__title">Sign in</div>
-                        <div class="pm-login-card__subtitle text-muted small">
-                            Use credentials issued by administrator
-                        </div>
-                    </div>
-
-                    <partial name="_LoginCard" />
-
-                    <div class="pm-powered-by">
-                        <span>Powered by</span>
-                        <img src="~/img/logos/sdd.png" class="pm-powered-by__logo" alt="Simulator Development Division logo" />
-                        <span>Simulator Development Division</span>
-                    </div>
-                </div>
-            }
-            else
-            {
-                @* <div class="pm-hero-panel">
-                    <div class="pm-hero-panel__title">Welcome back</div>
-                    <div class="pm-hero-panel__text text-muted">Jump straight into ongoing work.</div>
-
-                    <div class="pm-hero-panel__actions">
-                        <a class="btn btn-sm btn-primary w-100" asp-page="/Dashboard/Index">Open dashboard</a>
-                        <a class="btn btn-sm btn-outline-secondary w-100" asp-page="/Projects/Create">Create project</a>
-                        <a class="btn btn-sm btn-outline-secondary w-100" asp-area="DocumentRepository" asp-page="/Documents/Upload">Upload document</a>
-                    </div>
-
-                    <div class="pm-powered-by pm-powered-by--compact">
-                        <img src="~/img/logos/sdd.png" class="pm-powered-by__logo" alt="Simulator Development Division logo" />
-                        <span>Built by Simulator Development Division</span>
-                    </div>
-                </div> *@
-            }
-        </aside>
     </div>
 </section>
 
 <!-- ===========================
-     MODULES GRID
+     THREE PILLARS
      =========================== -->
-<section id="modules" class="container-xxl pm-section">
-    <div class="pm-section__header">
-        <h2 class="pm-section__title">Core modules</h2>
-        <p class="pm-section__subtitle text-muted">
-            Everything needed to run defence R&amp;D projects from concept to completion.
+<section id="pillars" class="container-xxl pm-section pb-5">
+    <div class="pm-section__header mb-4">
+        <h2 class="pm-section__title h4 mb-1">Three pillars of PRISM ERP</h2>
+        <p class="pm-section__subtitle text-muted mb-0">
+            Project management, office automation and AI powered information retrieval on a single,
+            secure platform.
         </p>
     </div>
 
     <div class="row g-3 g-lg-4">
-        <div class="col-12 col-md-6 col-lg-4">
-            <a class="pm-module-card" asp-page="/Projects/Index">
-                <div class="pm-module-card__icon"><i class="bi bi-folder2-open"></i></div>
-                <div class="pm-module-card__body">
-                    <div class="pm-module-card__title">Projects</div>
-                    <div class="pm-module-card__text">
-                        Stage timelines, PDC tracking, approvals, and role-wise ownership.
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <div class="col-12 col-md-6 col-lg-4">
-            <a class="pm-module-card" asp-area="ProjectOfficeReports" asp-page="/Index">
-                <div class="pm-module-card__icon"><i class="bi bi-clipboard-data"></i></div>
-                <div class="pm-module-card__body">
-                    <div class="pm-module-card__title">Project Office Reports</div>
-                    <div class="pm-module-card__text">
-                        FFC, IPR, Proliferation, ToT, training, and decision support tables.
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <div class="col-12 col-md-6 col-lg-4">
-            <a class="pm-module-card" asp-area="DocumentRepository" asp-page="/Documents/Index">
-                <div class="pm-module-card__icon"><i class="bi bi-archive"></i></div>
-                <div class="pm-module-card__body">
-                    <div class="pm-module-card__title">Document Repository</div>
-                    <div class="pm-module-card__text">
-                        Upload, tag, OCR, version, and manage a living knowledge base.
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <div class="col-12 col-md-6 col-lg-4">
-            <a class="pm-module-card" asp-area="Common" asp-page="/Search/Index">
-                <div class="pm-module-card__icon"><i class="bi bi-search"></i></div>
-                <div class="pm-module-card__body">
-                    <div class="pm-module-card__title">Global Search</div>
-                    <div class="pm-module-card__text">
-                        Full-text search across modules with weighted ranking and OCR body.
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <div class="col-12 col-md-6 col-lg-4">
-            <a class="pm-module-card" asp-page="/Dashboard/Analytics">
-                <div class="pm-module-card__icon"><i class="bi bi-bar-chart"></i></div>
-                <div class="pm-module-card__body">
-                    <div class="pm-module-card__title">Analytics and Logs</div>
-                    <div class="pm-module-card__text">
-                        Stage cycle time insights, hotspots, trends, and audit trails.
-                    </div>
-                </div>
-            </a>
-        </div>
-
-        <div class="col-12 col-md-6 col-lg-4">
-            <div class="pm-module-card pm-module-card--static">
-                <div class="pm-module-card__icon"><i class="bi bi-shield-check"></i></div>
-                <div class="pm-module-card__body">
-                    <div class="pm-module-card__title">Secure and role controlled</div>
-                    <div class="pm-module-card__text">
-                        Offline deployment, granular permissions, and traceable updates.
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ===========================
-     FLOW EXPLANATION
-     =========================== -->
-<section class="container-xxl pm-section pm-section--soft">
-    <div class="row g-4 align-items-center">
-        <div class="col-12 col-lg-4">
-            <h2 class="pm-section__title">How work flows through the system</h2>
-            <p class="text-muted mb-3">
-                A single source of truth that links timelines, approvals, data, and documents.
-            </p>
-            <ol class="pm-flow">
-                <li><strong>Create or update projects</strong> with stage plans, responsibilities, and PDCs.</li>
-                <li><strong>Capture progress</strong> via reports and trackers used by Project Office.</li>
-                <li><strong>Attach documents</strong> to projects or the repository and let OCR index them.</li>
-                <li><strong>Search globally</strong> with ranked results spanning every module.</li>
-            </ol>
-
-            @if (!signedIn)
-            {
-                <a class="btn btn-primary mt-2" href="#login-card">Sign in to begin</a>
-            }
-        </div>
-
-        <div class="col-12 col-lg-8">
-            <div class="pm-features-shell">
-                <partial name="_FeatureGrid" />
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ===========================
-     OPERATIONAL ADVANTAGES
-     =========================== -->
-<section class="container-xxl pm-section">
-    <div class="pm-section__header">
-        <h2 class="pm-section__title">Operational advantages</h2>
-        <p class="pm-section__subtitle text-muted">
-            Find out bottlenecks and take actions to bring projects on track.
-        </p>
-    </div>
-
-    <div class="row g-3 g-lg-4">
+        <!-- Pillar 1 -->
         <div class="col-12 col-md-4">
-            <div class="pm-adv-card">
-                <div class="pm-adv-card__title">Faster decisions</div>
-                <div class="pm-adv-card__text text-muted">
-                    Live dashboards show stage health, slippages, and completion signals.
+            <article class="pm-pillar-card pm-card pm-shadow h-100 p-3 p-lg-4 bg-white rounded-3">
+                <div class="pm-pillar-card__icon mb-2">
+                    <i class="bi bi-kanban fs-3"></i>
                 </div>
-            </div>
+                <h3 class="pm-pillar-card__title h6 mb-2">Project management &amp; analytics</h3>
+                <p class="pm-pillar-card__text text-muted mb-0 small">
+                    Stage timelines, PDC tracking, lifecycle actions and role aware dashboards that
+                    surface slippages, bottlenecks and completion signals at a glance.
+                </p>
+            </article>
         </div>
+
+        <!-- Pillar 2 -->
         <div class="col-12 col-md-4">
-            <div class="pm-adv-card">
-                <div class="pm-adv-card__title">Searchable institutional memory</div>
-                <div class="pm-adv-card__text text-muted">
-                    OCR + FTS makes even scanned PDFs discoverable across years.
+            <article class="pm-pillar-card pm-card pm-shadow h-100 p-3 p-lg-4 bg-white rounded-3">
+                <div class="pm-pillar-card__icon mb-2">
+                    <i class="bi bi-diagram-3 fs-3"></i>
                 </div>
-            </div>
+                <h3 class="pm-pillar-card__title h6 mb-2">Office automation</h3>
+                <p class="pm-pillar-card__text text-muted mb-0 small">
+                    Digitised office procedures for FFC, ToT, IPR, training and other reports.
+                    Structured workflows replace emails and spreadsheets with auditable,
+                    repeatable processes.
+                </p>
+            </article>
         </div>
+
+        <!-- Pillar 3 -->
         <div class="col-12 col-md-4">
-            <div class="pm-adv-card">
-                <div class="pm-adv-card__title">Audit and compliance</div>
-                <div class="pm-adv-card__text text-muted">
-                    Traceable changes, role gates, and structured records for every action.
+            <article class="pm-pillar-card pm-card pm-shadow h-100 p-3 p-lg-4 bg-white rounded-3">
+                <div class="pm-pillar-card__icon mb-2">
+                    <i class="bi bi-search fs-3"></i>
                 </div>
-            </div>
+                <h3 class="pm-pillar-card__title h6 mb-2">Document repository &amp; AI search</h3>
+                <p class="pm-pillar-card__text text-muted mb-0 small">
+                    ML based OCR plus full text, metadata and tag search for a Google like experience
+                    across scanned files, reports and project artefacts with ranked, relevance
+                    aware results.
+                </p>
+            </article>
         </div>
     </div>
-</section>
-
-<!-- ===========================
-     HOW IT WORKS
-     =========================== -->
-<section class="pm-section container-xxl">
-    <partial name="_HowItWorks" />
-</section>
-
-<!-- ===========================
-     SECURITY STRIP
-     =========================== -->
-<section id="security" class="pm-section container-xxl">
-    <partial name="_SecurityStrip" />
 </section>
 
 @section Scripts {

@@ -7431,3 +7431,112 @@ body.has-project-photo-preview-dialog {
 }
 
 /* END SECTION */
+
+/* ===========================
+   GLOBAL TOKENS (safe offline fonts)
+   =========================== */
+
+:root {
+    /* Page / section backgrounds */
+    --pm-page-bg: #f4f6fb; /* overall shell */
+    --pm-hero-bg: #ffffff; /* PRISM hero */
+    /* Typography */
+    --pm-font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --pm-font-heading: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+body {
+    font-family: var(--pm-font-body);
+    background-color: var(--pm-page-bg);
+}
+
+/* ===========================
+   PRISM HERO BACKGROUND
+   =========================== */
+
+.pm-hero--prism {
+    background-color: var(--pm-hero-bg);
+    /* a very light divider so hero feels intentional */
+    border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+    padding-top: 3.5rem;
+    padding-bottom: 3.5rem;
+}
+
+    /* Remove any gradient on hero that may clash with the image */
+    .pm-hero--prism::before,
+    .pm-hero--prism::after {
+        content: none;
+    }
+
+    /* Make sure the layout uses the full width of the container */
+    .pm-hero--prism .row {
+        align-items: center;
+    }
+
+/* Image: let it fill its column and keep rounded corners */
+.pm-hero__image--prism {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 1.5rem;
+}
+
+/* ===========================
+   PRISM HERO TYPOGRAPHY
+   =========================== */
+
+.pm-hero--prism h1 {
+    font-family: var(--pm-font-heading);
+    font-weight: 650;
+    font-size: 2.6rem;
+    line-height: 1.1;
+    letter-spacing: 0.01em;
+    margin-bottom: 0.35rem;
+}
+
+.pm-hero--prism .lead {
+    font-size: 1.05rem;
+    line-height: 1.5;
+}
+
+/* “Plan. Track. Deliver.” */
+.pm-hero--prism .pm-hero__tagline {
+    font-weight: 600;
+    font-size: 1.15rem;
+}
+
+/* Acronym line: small, tight, clearly secondary */
+.pm-hero--prism .pm-hero__acronym {
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin-bottom: 1rem;
+}
+
+    .pm-hero--prism .pm-hero__acronym strong {
+        color: #111827;
+    }
+
+/* Main paragraph under acronym */
+.pm-hero--prism .pm-hero__summary {
+    margin-bottom: 1.5rem;
+}
+
+/* Bullets under summary */
+.pm-hero--prism ul {
+    font-size: 0.9rem;
+    margin-bottom: 1.75rem;
+}
+
+/* Brand line above H1 */
+.pm-hero__brandline {
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+
+/* Buttons spacing */
+.pm-hero__cta .btn-lg {
+    padding-inline: 1.5rem;
+}
+
