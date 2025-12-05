@@ -10,9 +10,9 @@
     var fullMapUrl = Url.Page("/FFC/Map", values: new { area = "ProjectOfficeReports" });
     var detailTableUrl = Url.Page("/FFC/MapTableDetailed", values: new { area = "ProjectOfficeReports" });
 
-    // Show all countries, sorted by total then by name.
+    // Show all countries, sorted by completed units then by name.
     var countriesToShow = Model.Countries
-        .OrderByDescending(country => country.Total)
+        .OrderByDescending(country => country.Completed)
         .ThenBy(country => country.Name)
         .ToList();
 }

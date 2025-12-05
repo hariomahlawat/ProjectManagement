@@ -309,7 +309,7 @@ namespace ProjectManagement.Pages.Dashboard
                         Installed = row.Installed,
                         Delivered = row.Delivered,
                         Planned = row.Planned,
-                        Total = row.Total
+                        TotalUnits = row.Total
                     })
                     .ToList();
 
