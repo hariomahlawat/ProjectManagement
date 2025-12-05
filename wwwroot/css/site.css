@@ -7441,8 +7441,8 @@ body.has-project-photo-preview-dialog {
     --pm-page-bg: #f4f6fb; /* overall shell */
     --pm-hero-bg: #ffffff; /* PRISM hero */
     /* Typography */
-    --pm-font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    --pm-font-heading: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --pm-font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Ubuntu", sans-serif;
+    --pm-font-heading: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Ubuntu", sans-serif;
 }
 
 body {
@@ -7455,11 +7455,12 @@ body {
    =========================== */
 
 .pm-hero--prism {
-    background-color: var(--pm-hero-bg);
-    /* a very light divider so hero feels intentional */
+    background: radial-gradient(circle at 20% 20%, rgba(45, 108, 223, 0.08), transparent 35%),
+                radial-gradient(circle at 80% 0%, rgba(111, 91, 249, 0.08), transparent 35%),
+                var(--pm-hero-bg);
     border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-    padding-top: 3.5rem;
-    padding-bottom: 3.5rem;
+    padding-top: 3.75rem;
+    padding-bottom: 3.75rem;
 }
 
     /* Remove any gradient on hero that may clash with the image */
@@ -7481,15 +7482,46 @@ body {
     border-radius: 1.5rem;
 }
 
+.pm-hero__art-card {
+    background: #f8fbff;
+    border-radius: 1.5rem;
+    border: 1px solid rgba(37, 88, 198, 0.08);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+    padding: 1.25rem;
+}
+
 /* ===========================
    PRISM HERO TYPOGRAPHY
    =========================== */
 
+.pm-hero__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(45, 108, 223, 0.08);
+    color: #1f2a44;
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+}
+
+.pm-hero__headline {
+    font-family: var(--pm-font-heading);
+    font-weight: 700;
+    font-size: 2.75rem;
+    line-height: 1.08;
+    color: #0f172a;
+}
+
+.pm-hero__tagline {
+    color: #1f2a44;
+    font-size: 1.15rem;
+    letter-spacing: 0.01em;
+}
+
 .pm-hero--prism h1 {
     font-family: var(--pm-font-heading);
-    font-weight: 650;
-    font-size: 2.6rem;
-    line-height: 1.1;
     letter-spacing: 0.01em;
     margin-bottom: 0.35rem;
 }
@@ -7524,19 +7556,98 @@ body {
 }
 
 /* Bullets under summary */
-.pm-hero--prism ul {
-    font-size: 0.9rem;
+.pm-hero__highlights {
+    list-style: none;
+    font-size: 0.95rem;
     margin-bottom: 1.75rem;
+}
+
+.pm-hero__highlights li {
+    background: #f9fafb;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 0.85rem;
+    padding: 0.6rem 0.85rem;
+}
+
+.pm-hero__highlights li + li {
+    margin-top: 0.5rem;
 }
 
 /* Brand line above H1 */
 .pm-hero__brandline {
-    font-size: 0.8rem;
-    color: #6b7280;
+    font-size: 0.85rem;
+    color: #475569;
+    gap: 0.5rem;
 }
 
 /* Buttons spacing */
 .pm-hero__cta .btn-lg {
     padding-inline: 1.5rem;
+}
+
+.pm-hero__brandtext {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.65rem;
+    background: #f3f4f6;
+    border-radius: 999px;
+    border: 1px solid #e5e7eb;
+    color: #1f2937;
+    font-weight: 600;
+}
+
+/* ===========================
+   PILLAR CARDS
+   =========================== */
+
+.pm-section__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(45, 108, 223, 0.08);
+    color: #1d4ed8;
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.pm-pillars-grid {
+    margin-top: 1.5rem;
+}
+
+.pm-pillar-card {
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.pm-pillar-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(45, 108, 223, 0.35);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.pm-pillar-card__icon-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.85rem;
+    background: #e8f0ff;
+    border: 1px solid rgba(45, 108, 223, 0.15);
+    color: #1d4ed8;
+    font-size: 1.25rem;
+}
+
+.pm-pillar-card__title {
+    color: #0f172a;
+}
+
+.pm-pillar-card__text {
+    color: #475569 !important;
+    line-height: 1.6;
 }
 
