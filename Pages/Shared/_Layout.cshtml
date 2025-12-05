@@ -7,7 +7,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - ProjectManagement</title>
+    <title>@ViewData["Title"] - PRISM ERP</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
@@ -36,11 +36,11 @@
             <div class="pm-topbar__left">
                 @await Component.InvokeAsync("NavigationDrawer")
 
-                <a class="pm-brand" asp-area="" asp-page="/Index" aria-label="ProjectManagement Home">
+                <a class="pm-brand" asp-area="" asp-page="/Index" aria-label="PRISM ERP Home">
                     <img src="~/img/logos/artrac.png"
                          class="pm-nav-logo"
                          alt="ARTRAC crest" />
-                    <span class="pm-brand__text">ProjectManagement</span>
+                    <span class="pm-brand__text">PRISM ERP</span>
                 </a>
 
                 @* ===== Top Navigation Tabs ===== *@
@@ -106,7 +106,7 @@
     <footer class="pm-footer border-top py-2 mt-auto">
         <div class="container-xxl">
             <div class="d-flex flex-column flex-md-row align-items-center justify-content-between gap-2 small">
-                <div class="text-muted">© @DateTime.UtcNow.Year — ProjectManagement</div>
+                <div class="text-muted">© @DateTime.UtcNow.Year — PRISM ERP</div>
                 <div class="d-flex align-items-center gap-2 fw-semibold">
                     <img src="~/img/logos/sdd.png" alt="Simulator Development Division logo" class="pm-util-logo-compact" />
                     <span>Simulator Development Division</span>

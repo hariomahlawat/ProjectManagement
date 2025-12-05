@@ -48,7 +48,7 @@ public class NavigationDrawerViewComponent : ViewComponent
 
         return new NavigationDrawerViewModel
         {
-            Brand = ViewContext.ViewData["AppName"] as string ?? "ProjectManagement",
+            Brand = ViewContext.ViewData["AppName"] as string ?? "PRISM ERP",
             UserName = HttpContext.User.Identity?.IsAuthenticated == true ? HttpContext.User.Identity?.Name : null,
             Items = nodes
         };
@@ -162,7 +162,7 @@ public sealed record class NavigationDrawerViewModel
 {
     public required IReadOnlyList<NavigationDrawerNode> Items { get; init; }
 
-    public string Brand { get; init; } = "ProjectManagement";
+    public string Brand { get; init; } = "PRISM ERP";
 
     public string? UserName { get; init; }
 }
