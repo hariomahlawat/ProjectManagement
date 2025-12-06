@@ -11,14 +11,14 @@
 <!-- ===========================
      HERO
      =========================== -->
-<section class="pm-hero pm-hero--prism py-2">
+<section class="pm-hero pm-hero--prism">
     <div class="container-xxl">
-        <div class="row align-items-center g-4 g-lg-5">
+        <div class="pm-hero__inner">
             <!-- LEFT: Copy -->
-            <div class="col-12 col-lg-6">
+            <div class="pm-hero__left">
 
                 <!-- Brand line -->
-                <div class="d-flex align-items-center mb-3 pm-hero__brandline" aria-label="Branding">
+                <div class="d-flex align-items-center pm-hero__brandline" aria-label="Branding">
                     <img src="~/img/logos/artrac.png"
                          class="pm-hero__brandlogo pm-hero__brandlogo--parent me-2"
                          alt="ARTRAC crest" />
@@ -29,21 +29,21 @@
                 </div>
 
                 @* <!-- Product name and taglines -->*@
-                <h1 class="pm-hero__headline fw-semibold mb-2">PRISM ERP</h1>
-                <p class="pm-hero__tagline fw-semibold mb-3">Plan. Track. Deliver.</p>
+                <h1 class="pm-hero__headline fw-semibold">PRISM ERP</h1>
+                <p class="pm-hero__tagline fw-semibold">Plan. Track. Deliver.</p>
 
                 <!-- Acronym expansion -->
-                <p class="pm-hero__acronym text-uppercase mb-3">
+                <p class="pm-hero__acronym text-uppercase">
                     PRISM  <strong>Project Reporting, Intelligence and Systems Management</strong>
                 </p>
 
                 <!-- Secondary tagline -->
-                <p class="pm-hero__summary lead mb-4">
+                <p class="pm-hero__summary lead">
                     Project analytics, AI powered search and office automation in a single PRISM
                 </p>
 
                 <!-- Key bullets -->
-                <ul class="pm-hero__highlights mb-4 ps-0">
+                <ul class="pm-hero__highlights ps-0">
                     <li class="d-flex align-items-start gap-2">
                         <i class="bi bi-check-circle-fill text-primary small"></i>
                         <span>End to end visibility from concept note to fielded simulator.</span>
@@ -84,8 +84,8 @@
             </div>
 
             <!-- RIGHT: Image, fills its column -->
-            <div class="col-12 col-lg-6 d-flex justify-content-center justify-content-lg-end">
-                <figure class="mb-0 w-100 d-flex justify-content-center justify-content-lg-end pm-hero__art-card">
+            <div class="pm-hero__right">
+                <figure class="mb-0 w-100 d-flex justify-content-center justify-content-lg-end pm-hero__image-shell">
                     <img src="~/img/prism.png"
                          class="img-fluid pm-hero__image--prism"
                          alt="PRISM ERP illustration showing project management, office automation and AI search" />
