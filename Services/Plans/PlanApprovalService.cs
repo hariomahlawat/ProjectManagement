@@ -114,12 +114,6 @@ public class PlanApprovalService
             return false;
         }
 
-        var submitterId = plan.OwnerUserId ?? plan.SubmittedByUserId;
-        if (!string.IsNullOrEmpty(submitterId) && string.Equals(submitterId, hodUserId, StringComparison.Ordinal))
-        {
-            throw new ForbiddenException("The submitter cannot approve their own plan.");
-        }
-
         var project = await _db.Projects
             .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
             ?? throw new InvalidOperationException("Project not found.");
