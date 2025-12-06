@@ -1,5 +1,5 @@
 ﻿/* ===================================================================
-   Global Search (Google–style) — single-outline pills
+   Global Search (Google-style) — single-outline pills
    =================================================================== */
 
 /* ---------- HERO (no-query) ---------- */
@@ -8,23 +8,52 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 5.5rem 1rem 4rem
+    padding: 5.5rem 1rem 4rem;
 }
 
+/* PRISM Google-style logo */
 .pm-gs-hero__logo {
-    font-weight: 800;
-    font-size: 2.25rem;
-    letter-spacing: .2px;
-    margin-bottom: .5rem
+    display: inline-flex;
+    align-items: baseline;
+    margin-bottom: 0.75rem;
+    /* Bigger, closer to Google size */
+    font-size: clamp(3.25rem, 4vw, 5.5rem);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: inherit !important; /* do not force a single colour */
 }
 
-    .pm-gs-hero__logo span {
-        color: var(--pm-primary)
+
+    .pm-gs-hero__logo .pm-gs-logo-letter {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1;
+        color: inherit !important; /* clear any theme colour */
+    }
+
+    /* Colour each letter similar to Google */
+    .pm-gs-hero__logo .pm-gs-logo-letter--p { /* P */
+        color: #4285f4 !important; /* blue */
+    }
+
+    .pm-gs-hero__logo .pm-gs-logo-letter--r { /* R */
+        color: #ea4335 !important; /* red */
+    }
+
+    .pm-gs-hero__logo .pm-gs-logo-letter--i { /* I */
+        color: #fbbc05 !important; /* yellow */
+    }
+
+    .pm-gs-hero__logo .pm-gs-logo-letter--s { /* S */
+        color: #34a853 !important; /* green */
+    }
+
+    .pm-gs-hero__logo .pm-gs-logo-letter--m { /* M */
+        color: #ea4335 !important; /* red again */
     }
 
 .pm-gs-hero__tag {
     color: var(--pm-text-muted);
-    margin-bottom: 1.75rem
+    margin-bottom: 1.75rem;
 }
 
 /* Pill wrapper owns border + focus ring (no base shadow = no double outline) */
@@ -40,12 +69,12 @@
     background: var(--pm-card);
     border: 1px solid var(--pm-border-soft);
     border-radius: 9999px;
-    box-shadow: none; /* removed */
+    box-shadow: none;
 }
 
     .pm-gs-search:focus-within {
         border-color: var(--pm-accent-blue-muted);
-        box-shadow: 0 0 0 3px rgba(66,133,244,.18); /* single, clean ring */
+        box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.18);
     }
 
 .pm-gs-search__icon {
@@ -54,7 +83,7 @@
     top: 50%;
     transform: translateY(-50%);
     font-size: 1rem;
-    color: var(--pm-accent-slate)
+    color: var(--pm-accent-slate);
 }
 
 .pm-gs-search__input {
@@ -64,7 +93,7 @@
     outline: 0;
     box-shadow: none;
     background: transparent;
-    padding: 0
+    padding: 0;
 }
 
 /* Clear “x” inside pill */
@@ -83,13 +112,13 @@
     line-height: 1;
     cursor: pointer;
     visibility: hidden;
-    z-index: 3; /* ensure clickable above input */
+    z-index: 3;
 }
 
 .pm-gs-top__clear {
     right: 8px;
     width: 24px;
-    height: 24px
+    height: 24px;
 }
 
 /* Submit button */
@@ -103,30 +132,30 @@
     color: var(--pm-card);
     font-weight: 600;
     box-shadow: none;
-    outline: 0
+    outline: 0;
 }
 
 .pm-gs-top__button {
     height: 44px;
-    background: var(--pm-primary)
+    background: var(--pm-primary);
 }
 
 /* ---------- TOP BAR (results state) ---------- */
 .pm-gs-top {
-    border-bottom: 1px solid var(--pm-surface-silver)
+    border-bottom: 1px solid var(--pm-surface-silver);
 }
 
 .pm-gs-top__inner {
     max-width: 1140px;
     margin: 0 auto;
-    padding: .75rem 16px 0
+    padding: 0.75rem 16px 0;
 }
 
 .pm-gs-top__form {
     display: flex;
     align-items: center;
-    gap: .75rem;
-    flex-wrap: wrap
+    gap: 0.75rem;
+    flex-wrap: wrap;
 }
 
 /* Single pill wrapper (no base shadow) */
@@ -144,7 +173,7 @@
 
     .pm-gs-top__search:focus-within {
         border-color: var(--pm-accent-blue-muted);
-        box-shadow: 0 0 0 3px rgba(66,133,244,.18);
+        box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.18);
     }
 
 .pm-gs-top__icon {
@@ -153,7 +182,7 @@
     top: 50%;
     transform: translateY(-50%);
     font-size: 1rem;
-    color: var(--pm-accent-slate)
+    color: var(--pm-accent-slate);
 }
 
 .pm-gs-top__input {
@@ -163,16 +192,16 @@
     outline: 0;
     box-shadow: none;
     background: transparent;
-    padding: 0
+    padding: 0;
 }
 
 /* ---------- Tabs (nav like Google) ---------- */
 .pm-gs-tabs {
     display: flex;
     gap: 6px;
-    margin-top: .5rem;
+    margin-top: 0.5rem;
     padding-left: 4px;
-    flex-wrap: wrap
+    flex-wrap: wrap;
 }
 
 .pm-gs-tab {
@@ -181,95 +210,95 @@
     height: 34px;
     padding: 0 10px;
     border-radius: 8px;
-    font-size: .93rem;
+    font-size: 0.93rem;
     color: var(--pm-text-slate);
-    text-decoration: none
+    text-decoration: none;
 }
 
     .pm-gs-tab:hover {
-        background: var(--pm-surface)
+        background: var(--pm-surface);
     }
 
     .pm-gs-tab.is-active {
         color: var(--pm-text-contrast);
         border-bottom: 2px solid var(--pm-primary);
-        border-radius: 0
+        border-radius: 0;
     }
 
 /* ---------- Results body ---------- */
 .pm-gs-body__inner {
     max-width: 760px;
     margin: 0 auto;
-    padding: 1.25rem 16px 3rem
+    padding: 1.25rem 16px 3rem;
 }
 
 .pm-gs-meta {
     color: var(--pm-text-muted);
-    font-size: .9rem;
-    margin: .25rem 0 1rem
+    font-size: 0.9rem;
+    margin: 0.25rem 0 1rem;
 }
 
 .pm-gs-hit {
     padding: 1rem 0;
-    border-bottom: 1px solid var(--pm-surface-muted)
+    border-bottom: 1px solid var(--pm-surface-muted);
 }
 
 .pm-gs-hit__title {
     font-size: 1.25rem;
     font-weight: 600;
     color: var(--pm-text-contrast);
-    text-decoration: none
+    text-decoration: none;
 }
 
     .pm-gs-hit__title:hover {
-        text-decoration: underline
+        text-decoration: underline;
     }
 
 .pm-gs-hit__meta {
-    margin-top: .25rem;
+    margin-top: 0.25rem;
     color: var(--pm-text-muted);
-    font-size: .92rem;
+    font-size: 0.92rem;
     display: flex;
     align-items: center;
-    gap: .5rem;
-    flex-wrap: wrap
+    gap: 0.5rem;
+    flex-wrap: wrap;
 }
 
 .pm-gs-hit__source {
-    color: var(--pm-accent-blue-strong)
+    color: var(--pm-accent-blue-strong);
 }
 
 .pm-gs-hit__sep {
-    color: var(--pm-border-alt)
+    color: var(--pm-border-alt);
 }
 
 .pm-gs-hit__snippet {
-    margin: .35rem 0 0;
+    margin: 0.35rem 0 0;
     color: var(--pm-text-slate);
-    line-height: 1.55
+    line-height: 1.55;
 }
 
 /* ---------- No results ---------- */
 .pm-gs-nores {
-    padding: 2rem 0
+    padding: 2rem 0;
 }
 
 .pm-gs-nores__box {
     border: 1px dashed var(--pm-border);
     border-radius: 12px;
     padding: 1.25rem;
-    background: var(--pm-card)
+    background: var(--pm-card);
 }
 
 .pm-gs-nores__title {
     font-weight: 600;
-    margin-bottom: .5rem
+    margin-bottom: 0.5rem;
 }
 
 .pm-gs-nores__tips {
     margin: 0;
     padding-left: 1rem;
-    color: var(--pm-text-muted)
+    color: var(--pm-text-muted);
 }
 
 /* ===== Left-leaned layout for results (Google-like) ===== */
@@ -280,30 +309,30 @@
 
 /* Top bar container aligns to the same left gutter */
 .pm-gs-top__inner {
-    max-width: none; /* let it span the page */
+    max-width: none;
     padding-left: calc(var(--gs-left-gutter) + 16px);
     padding-right: 16px;
-    padding-top: .75rem;
+    padding-top: 0.75rem;
 }
 
 /* Tabs row sits on the same left edge */
 .pm-gs-tabs {
-    margin-top: .5rem;
+    margin-top: 0.5rem;
     padding-left: 0;
     margin-left: var(--gs-left-gutter);
 }
 
 /* Results column: left anchored, fixed readable width */
 .pm-gs-body__inner {
-    max-width: 820px; /* was 760; a bit wider reads better */
+    max-width: 820px;
     margin-left: var(--gs-left-gutter);
-    margin-right: 16px; /* keep some breathing room on the right */
-    padding: 1.25rem 0 3rem; /* remove side padding since we control margins */
+    margin-right: 16px;
+    padding: 1.25rem 0 3rem;
 }
 
 /* Keep the input pill comfortable on wide screens */
 .pm-gs-top__search {
-    flex: 0 1 720px; /* allow to grow up to ~Google width */
+    flex: 0 1 720px;
 }
 
 /* ---------- Responsive: recentre on smaller screens ---------- */
