@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
@@ -38,6 +39,92 @@ public class StageRequestService
         string userId,
         CancellationToken cancellationToken = default)
     {
+        var operation = await CreateInternalAsync(input, userId, saveImmediately: true, cancellationToken);
+        return operation.Result;
+    }
+
+    public async Task<BatchStageRequestResult> CreateBatchAsync(
+        BatchStageChangeRequestInput input,
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        if (input is null)
+        {
+            throw new ArgumentNullException(nameof(input));
+        }
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("A valid user identifier is required.", nameof(userId));
+        }
+
+        if (input.ProjectId <= 0)
+        {
+            return BatchStageRequestResult.Invalid(new[] { "A valid project is required." });
+        }
+
+        var stages = input.Stages?.ToArray() ?? Array.Empty<StageChangeRequestItemInput>();
+        if (stages.Length == 0)
+        {
+            return BatchStageRequestResult.Invalid(new[] { "At least one stage must be included." });
+        }
+
+        var responses = new List<StageRequestItemResult>();
+        var operations = new List<StageRequestOperationResult>();
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        foreach (var stageInput in stages)
+        {
+            var single = new StageChangeRequestInput
+            {
+                ProjectId = input.ProjectId,
+                StageCode = stageInput.StageCode,
+                RequestedStatus = stageInput.RequestedStatus,
+                RequestedDate = stageInput.RequestedDate,
+                Note = stageInput.Note
+            };
+
+            var operation = await CreateInternalAsync(single, userId, saveImmediately: false, cancellationToken);
+
+            responses.Add(new StageRequestItemResult(stageInput.StageCode, operation.Result));
+            operations.Add(operation);
+
+            if (operation.Result.Outcome != StageRequestOutcome.Success)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                _db.ChangeTracker.Clear();
+                return BatchStageRequestResult.FromResponses(responses);
+            }
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        var finalized = new List<StageRequestItemResult>(responses.Count);
+        for (var i = 0; i < responses.Count; i++)
+        {
+            var response = responses[i];
+            var operation = operations[i];
+            if (response.Result.Outcome == StageRequestOutcome.Success && operation.Request is not null)
+            {
+                finalized.Add(new StageRequestItemResult(response.StageCode, StageRequestResult.Success(operation.Request.Id)));
+            }
+            else
+            {
+                finalized.Add(response);
+            }
+        }
+
+        return BatchStageRequestResult.FromResponses(finalized);
+    }
+
+    private async Task<StageRequestOperationResult> CreateInternalAsync(
+        StageChangeRequestInput input,
+        string userId,
+        bool saveImmediately,
+        CancellationToken cancellationToken)
+    {
         if (input is null)
         {
             throw new ArgumentNullException(nameof(input));
@@ -50,7 +137,7 @@ public class StageRequestService
 
         if (string.IsNullOrWhiteSpace(input.StageCode))
         {
-            return StageRequestResult.ValidationFailed(new[] { "A stage code is required." });
+            return StageRequestOperationResult.From(StageRequestResult.ValidationFailed(new[] { "A stage code is required." }));
         }
 
         var stageCode = input.StageCode.Trim().ToUpperInvariant();
@@ -63,12 +150,12 @@ public class StageRequestService
 
         if (stage is null)
         {
-            return StageRequestResult.StageNotFound();
+            return StageRequestOperationResult.From(StageRequestResult.StageNotFound());
         }
 
         if (!string.Equals(stage.Project?.LeadPoUserId, userId, StringComparison.Ordinal))
         {
-            return StageRequestResult.NotProjectOfficer();
+            return StageRequestOperationResult.From(StageRequestResult.NotProjectOfficer());
         }
 
         var validation = await _validationService.ValidateAsync(
@@ -98,7 +185,7 @@ public class StageRequestService
                 errors.Add("Validation failed.");
             }
 
-            return StageRequestResult.ValidationFailed(errors, validation.MissingPredecessors);
+            return StageRequestOperationResult.From(StageRequestResult.ValidationFailed(errors, validation.MissingPredecessors));
         }
 
         var requestedDate = input.RequestedDate;
@@ -175,19 +262,14 @@ public class StageRequestService
 
         await _db.StageChangeRequests.AddAsync(request, cancellationToken);
         await _db.StageChangeLogs.AddAsync(log, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
 
-        return StageRequestResult.Success(request.Id);
+        if (saveImmediately)
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        return StageRequestOperationResult.Success(request);
     }
-}
-
-public sealed record StageChangeRequestInput
-{
-    public int ProjectId { get; set; }
-    public string StageCode { get; set; } = string.Empty;
-    public string RequestedStatus { get; set; } = string.Empty;
-    public DateOnly? RequestedDate { get; set; }
-    public string? Note { get; set; }
 }
 
 public sealed record StageRequestResult
@@ -267,6 +349,82 @@ public sealed record StageRequestResult
 
         return copy;
     }
+}
+
+internal sealed record StageRequestOperationResult(StageRequestResult Result, StageChangeRequest? Request)
+{
+    public static StageRequestOperationResult Success(StageChangeRequest request)
+        => new(StageRequestResult.Success(request.Id), request);
+
+    public static StageRequestOperationResult From(StageRequestResult result)
+        => new(result, null);
+}
+
+// SECTION: Batch request result contracts
+public sealed record StageRequestItemResult(string StageCode, StageRequestResult Result);
+
+public sealed record BatchStageRequestResult
+{
+    public BatchStageRequestOutcome Outcome { get; init; }
+
+    public IReadOnlyList<StageRequestItemResult> Items { get; init; }
+        = Array.Empty<StageRequestItemResult>();
+
+    public IReadOnlyList<string> Errors { get; init; } = Array.Empty<string>();
+
+    private BatchStageRequestResult(
+        BatchStageRequestOutcome outcome,
+        IReadOnlyList<StageRequestItemResult> items,
+        IReadOnlyList<string> errors)
+    {
+        Outcome = outcome;
+        Items = items;
+        Errors = errors;
+    }
+
+    public static BatchStageRequestResult FromResponses(IReadOnlyList<StageRequestItemResult> responses)
+    {
+        if (responses.Count == 0)
+        {
+            return Invalid(new[] { "No requests were processed." });
+        }
+
+        var blocking = responses.FirstOrDefault(r => r.Result.Outcome != StageRequestOutcome.Success);
+
+        if (blocking is null)
+        {
+            return Success(responses);
+        }
+
+        var errorMessages = blocking.Result.Errors;
+        if (errorMessages.Count == 0 && !string.IsNullOrWhiteSpace(blocking.Result.Error))
+        {
+            errorMessages = new[] { blocking.Result.Error };
+        }
+
+        var outcome = blocking.Result.Outcome switch
+        {
+            StageRequestOutcome.NotProjectOfficer => BatchStageRequestOutcome.NotProjectOfficer,
+            StageRequestOutcome.StageNotFound => BatchStageRequestOutcome.StageNotFound,
+            _ => BatchStageRequestOutcome.ValidationFailed
+        };
+
+        return new BatchStageRequestResult(outcome, responses, errorMessages);
+    }
+
+    public static BatchStageRequestResult Success(IReadOnlyList<StageRequestItemResult> responses)
+        => new(BatchStageRequestOutcome.Success, responses, Array.Empty<string>());
+
+    public static BatchStageRequestResult Invalid(IReadOnlyList<string> errors)
+        => new(BatchStageRequestOutcome.ValidationFailed, Array.Empty<StageRequestItemResult>(), errors);
+}
+
+public enum BatchStageRequestOutcome
+{
+    Success,
+    NotProjectOfficer,
+    StageNotFound,
+    ValidationFailed
 }
 
 public enum StageRequestOutcome

@@ -734,6 +734,7 @@
     });
   }
 
+
   function bootStageRequest() {
     const modalEl = document.getElementById('stageRequestModal');
     if (!modalEl) {
@@ -742,54 +743,161 @@
 
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     const form = modalEl.querySelector('[data-stage-request-form]');
-    const stageLabel = modalEl.querySelector('[data-stage-request-stage]');
-    const statusLabelEl = modalEl.querySelector('[data-stage-request-status]');
     const projectInput = modalEl.querySelector('input[name="projectId"]');
-    const stageInput = modalEl.querySelector('input[name="stageCode"]');
-    const targetSelect = modalEl.querySelector('[data-stage-request-target]');
-    const dateInput = modalEl.querySelector('[data-stage-request-date]');
-    const dateHint = modalEl.querySelector('[data-stage-request-date-hint]');
-    const reopenHint = modalEl.querySelector('[data-stage-request-reopen-hint]');
-    const noteInput = modalEl.querySelector('[data-stage-request-note]');
     const tokenInput = modalEl.querySelector('input[name="__RequestVerificationToken"]');
+    const rowsContainer = modalEl.querySelector('[data-stage-request-rows]');
+    const rowTemplate = modalEl.querySelector('[data-stage-request-row-template]');
+    const addButton = modalEl.querySelector('[data-stage-request-add]');
     const errorContainer = modalEl.querySelector('[data-stage-request-errors]');
     const conflictContainer = modalEl.querySelector('[data-stage-request-conflict]');
-    const missingContainer = modalEl.querySelector('[data-stage-request-missing]');
+    const summaryList = modalEl.querySelector('[data-stage-request-summary]');
     const submitButton = modalEl.querySelector('[data-stage-request-submit]');
-    let activeStageCurrentStatus = '';
 
-    function updateReopenHint(status) {
-      if (!reopenHint) return;
-      const shouldShow = status === 'InProgress' && activeStageCurrentStatus === 'Completed';
-      reopenHint.classList.toggle('d-none', !shouldShow);
+    const stageOptions = Array.from(document.querySelectorAll('[data-stage-request-button]'))
+      .map((button) => ({
+        code: button.getAttribute('data-stage') || '',
+        name: button.getAttribute('data-stage-name') || '',
+        currentStatus: button.getAttribute('data-current-status') || ''
+      }))
+      .filter((opt) => Boolean(opt.code));
+
+    function renderSummary() {
+      if (!summaryList) return;
+      summaryList.innerHTML = '';
+      const rows = rowsContainer ? rowsContainer.querySelectorAll('[data-stage-request-row]') : [];
+      const items = [];
+      rows.forEach((row) => {
+        const stageSelect = row.querySelector('[data-stage-request-stage]');
+        const statusSelect = row.querySelector('[data-stage-request-target]');
+        const dateInput = row.querySelector('[data-stage-request-date]');
+        if (!stageSelect || !statusSelect || !stageSelect.value) return;
+        const code = stageSelect.value;
+        const stageName = stageSelect.options[stageSelect.selectedIndex]?.textContent || code;
+        const label = statusLabel(statusSelect.value) || statusSelect.value || 'Target';
+        const dateText = dateInput?.value ? formatDate(dateInput.value) : '—';
+        const item = document.createElement('li');
+        item.textContent = `${stageName} (${code}) → ${label}${dateText ? ` · ${dateText}` : ''}`;
+        items.push(item);
+      });
+
+      if (items.length === 0) {
+        const empty = document.createElement('li');
+        empty.textContent = 'No stages selected yet.';
+        summaryList.appendChild(empty);
+        return;
+      }
+
+      items.forEach((item) => summaryList.appendChild(item));
     }
 
-    function applyDateState(status, { resetValue = false } = {}) {
-      if (!dateInput) return false;
+    function setDateState(row, status, { resetValue = false } = {}) {
+      const dateInput = row.querySelector('[data-stage-request-date]');
+      const hint = row.querySelector('[data-stage-request-date-hint]');
       const requiresDate = REQUEST_DATE_REQUIRED_STATUSES.has(status);
-      dateInput.required = requiresDate;
-      if (resetValue) {
-        dateInput.value = requiresDate ? todayIso() : '';
+      if (dateInput) {
+        dateInput.required = requiresDate;
+        if (resetValue) {
+          dateInput.value = requiresDate ? todayIso() : '';
+        }
       }
-      if (dateHint) {
-        const hintText = status === 'InProgress' || status === 'Completed' ? 'Required' : 'Optional';
-        dateHint.textContent = hintText;
+      if (hint) {
+        const hintText = requiresDate ? 'Required' : 'Optional';
+        hint.textContent = hintText;
       }
-      updateReopenHint(status);
-      return requiresDate;
     }
 
-    function updateStatusSummary() {
-      if (!statusLabelEl) return;
-      const targetStatus = targetSelect ? targetSelect.value : '';
-      const targetLabelRaw = statusLabel(targetStatus);
-      const targetLabel = targetLabelRaw || (targetStatus ? targetStatus : 'Select a status');
-      const currentLabel = statusLabel(activeStageCurrentStatus);
-      if (currentLabel) {
-        statusLabelEl.textContent = `Request change to ${targetLabel} (current: ${currentLabel})`;
-      } else {
-        statusLabelEl.textContent = `Request change to ${targetLabel}`;
+    function setRemoveButtonsState() {
+      if (!rowsContainer) return;
+      const rows = Array.from(rowsContainer.querySelectorAll('[data-stage-request-row]'));
+      rows.forEach((row) => {
+        const removeButton = row.querySelector('[data-stage-request-remove]');
+        if (removeButton) {
+          removeButton.disabled = rows.length === 1;
+        }
+      });
+    }
+
+    function populateStageSelect(select, selectedCode) {
+      if (!select) return;
+      select.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Select a stage';
+      select.appendChild(placeholder);
+      stageOptions.forEach((opt) => {
+        const option = document.createElement('option');
+        option.value = opt.code;
+        option.textContent = `${opt.code} — ${opt.name}`.trim();
+        option.selected = selectedCode === opt.code;
+        select.appendChild(option);
+      });
+    }
+
+    function createRow(initialStageCode = '', initialStatus = '') {
+      if (!rowsContainer || !rowTemplate) return null;
+      const fragment = rowTemplate.content.cloneNode(true);
+      const row = fragment.querySelector('[data-stage-request-row]');
+      if (!row) return null;
+
+      const stageSelect = row.querySelector('[data-stage-request-stage]');
+      const statusSelect = row.querySelector('[data-stage-request-target]');
+      const dateInput = row.querySelector('[data-stage-request-date]');
+      populateStageSelect(stageSelect, initialStageCode);
+      const normalizedStatus = initialStatus || 'NotStarted';
+      if (statusSelect) {
+        statusSelect.value = normalizedStatus;
+        if (statusSelect.value !== normalizedStatus) {
+          statusSelect.value = 'NotStarted';
+        }
       }
+
+      setDateState(row, statusSelect ? statusSelect.value : '', { resetValue: true });
+      if (statusSelect && statusSelect.value && REQUEST_DATE_REQUIRED_STATUSES.has(statusSelect.value) && dateInput && !dateInput.value) {
+        dateInput.value = todayIso();
+      }
+
+      rowsContainer.appendChild(fragment);
+      setRemoveButtonsState();
+      renderSummary();
+
+      const removeButton = row.querySelector('[data-stage-request-remove]');
+      if (removeButton) {
+        removeButton.addEventListener('click', () => {
+          row.remove();
+          setRemoveButtonsState();
+          renderSummary();
+        });
+      }
+
+      if (stageSelect) {
+        stageSelect.addEventListener('change', () => {
+          renderSummary();
+        });
+      }
+
+      if (statusSelect) {
+        statusSelect.addEventListener('change', () => {
+          setDateState(row, statusSelect.value);
+          if (REQUEST_DATE_REQUIRED_STATUSES.has(statusSelect.value) && dateInput && !dateInput.value) {
+            dateInput.value = todayIso();
+          }
+          if (!REQUEST_DATE_REQUIRED_STATUSES.has(statusSelect.value) && dateInput) {
+            dateInput.value = '';
+          }
+          renderSummary();
+        });
+      }
+
+      if (dateInput) {
+        dateInput.addEventListener('input', renderSummary);
+      }
+
+      const noteInput = row.querySelector('[data-stage-request-note]');
+      if (noteInput) {
+        noteInput.addEventListener('input', renderSummary);
+      }
+
+      return row;
     }
 
     document.addEventListener('click', (event) => {
@@ -806,28 +914,13 @@
 
       const projectId = trigger.getAttribute('data-project') || '';
       const stageCode = trigger.getAttribute('data-stage') || '';
-      const stageName = trigger.getAttribute('data-stage-name') || '';
       const currentStatus = trigger.getAttribute('data-current-status') || '';
-      activeStageCurrentStatus = currentStatus;
 
       if (projectInput) projectInput.value = projectId;
-      if (stageInput) stageInput.value = stageCode;
-      if (stageLabel) stageLabel.textContent = `${stageCode ? stageCode + ' — ' : ''}${stageName}`.trim();
-
-      if (targetSelect) {
-        targetSelect.value = currentStatus;
-        if (currentStatus && targetSelect.value !== currentStatus) {
-          targetSelect.value = 'NotStarted';
-        }
-        if (!currentStatus && targetSelect.value === '') {
-          targetSelect.value = 'NotStarted';
-        }
+      if (rowsContainer) {
+        rowsContainer.innerHTML = '';
+        createRow(stageCode, currentStatus || 'NotStarted');
       }
-
-      const selectedStatus = targetSelect ? targetSelect.value : '';
-      applyDateState(selectedStatus, { resetValue: true });
-
-      updateStatusSummary();
 
       if (errorContainer) {
         errorContainer.classList.add('d-none');
@@ -836,29 +929,16 @@
       if (conflictContainer) {
         conflictContainer.classList.add('d-none');
       }
-      renderMissingPredecessors(missingContainer, []);
-      if (noteInput) {
-        noteInput.value = '';
-      }
-
       if (submitButton) {
         submitButton.disabled = false;
       }
-
+      renderSummary();
       modal.show();
     });
 
-    if (targetSelect) {
-      targetSelect.addEventListener('change', () => {
-        const status = targetSelect.value;
-        const requiresDate = applyDateState(status);
-        if (requiresDate && dateInput && !dateInput.value) {
-          dateInput.value = todayIso();
-        }
-        if (!requiresDate && dateInput) {
-          dateInput.value = '';
-        }
-        updateStatusSummary();
+    if (addButton) {
+      addButton.addEventListener('click', () => {
+        createRow();
       });
     }
 
@@ -868,7 +948,7 @@
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      if (!projectInput || !stageInput || !targetSelect || !tokenInput) {
+      if (!projectInput || !rowsContainer || !tokenInput) {
         return;
       }
 
@@ -883,35 +963,62 @@
       if (conflictContainer) {
         conflictContainer.classList.add('d-none');
       }
-      renderMissingPredecessors(missingContainer, []);
+
+      const stagesPayload = [];
+      const rows = rowsContainer.querySelectorAll('[data-stage-request-row]');
+      rows.forEach((row) => {
+        const stageSelect = row.querySelector('[data-stage-request-stage]');
+        const statusSelect = row.querySelector('[data-stage-request-target]');
+        const dateInput = row.querySelector('[data-stage-request-date]');
+        const noteInput = row.querySelector('[data-stage-request-note]');
+        if (!stageSelect || !statusSelect) return;
+        const stageCode = stageSelect.value;
+        const requestedStatus = statusSelect.value;
+        if (!stageCode || !requestedStatus) return;
+        stagesPayload.push({
+          stageCode,
+          requestedStatus,
+          requestedDate: dateInput && dateInput.value ? dateInput.value : null,
+          note: noteInput && noteInput.value ? noteInput.value.trim() : null
+        });
+      });
+
+      if (stagesPayload.length === 0) {
+        renderErrors(errorContainer, ['Select at least one stage to request.']);
+        if (submitButton) submitButton.disabled = false;
+        return;
+      }
 
       const payload = {
-        projectId: Number.parseInt(projectInput.value, 10),
-        stageCode: stageInput.value,
-        requestedStatus: targetSelect.value,
-        requestedDate: dateInput && dateInput.value ? dateInput.value : null,
-        note: noteInput && noteInput.value ? noteInput.value.trim() : null
+        projectId: Number.parseInt(projectInput.value, 10) || 0,
+        stages: stagesPayload
       };
-
-      if (!payload.projectId) {
-        payload.projectId = 0;
-      }
-
-      const stageCodeValue = stageInput.value;
-      const row = stageCodeValue ? document.querySelector(`[data-stage-row="${escapeSelector(stageCodeValue)}"]`) : null;
-      if (row) {
-        row.setAttribute('data-loading', 'true');
-      }
 
       try {
         const response = await postJson('/Projects/Stages/RequestChange', payload, tokenInput.value);
 
         if (response.status === 422) {
           const data = await response.json().catch(() => null);
-          const messages = data?.details || ['Validation failed.'];
+          const details = Array.isArray(data?.details) ? data.details : [];
+          const messages = details.length > 0
+            ? details.flatMap((item) => {
+              const stageCode = item?.stageCode || 'Stage';
+              const errs = Array.isArray(item?.errors) && item.errors.length > 0
+                ? item.errors
+                : ['Validation failed.'];
+              const missing = Array.isArray(item?.missingPredecessors) ? item.missingPredecessors : [];
+              const combined = errs.map((err) => `${stageCode}: ${err}`);
+              if (missing.length > 0) {
+                combined.push(`${stageCode}: Complete required predecessor stages first (${missing.join(', ')})`);
+              }
+              return combined;
+            })
+            : ['Validation failed.'];
+          const extraErrors = Array.isArray(data?.errors) ? data.errors : [];
+          if (extraErrors.length > 0) {
+            messages.push(...extraErrors);
+          }
           renderErrors(errorContainer, messages);
-          const missing = Array.isArray(data?.missingPredecessors) ? data.missingPredecessors : [];
-          renderMissingPredecessors(missingContainer, missing);
           if (submitButton) submitButton.disabled = false;
           return;
         }
@@ -937,22 +1044,24 @@
           return;
         }
 
+        const created = Array.isArray(data.items) ? data.items : [];
+        created.forEach((item) => {
+          const stageCode = item?.stageCode || '';
+          const source = stagesPayload.find((s) => s.stageCode === stageCode);
+          updatePendingBadge(stageCode, source?.requestedStatus || null, source?.requestedDate || null);
+          disableRequestButton(stageCode);
+        });
+
         modal.hide();
         showToast('Request submitted.', 'success');
-        updatePendingBadge(stageInput.value, payload.requestedStatus, payload.requestedDate);
-        disableRequestButton(stageInput.value);
       } catch (error) {
         console.error(error);
         renderErrors(errorContainer, ['Unable to submit the request right now.']);
       } finally {
         if (submitButton) submitButton.disabled = false;
-        if (row) {
-          row.removeAttribute('data-loading');
-        }
       }
     });
   }
-
   function bootInlineStageDecisions() {
     document.addEventListener('click', async (event) => {
       const button = event.target.closest('[data-stage-decision-inline]');
