@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
@@ -158,6 +159,56 @@ public class StageProgressServiceTests
         Assert.Null(ipa.CompletedOn);
         Assert.False(ipa.IsAutoCompleted);
         Assert.False(ipa.RequiresBackfill);
+    }
+
+    [Fact]
+    public async Task UpdateStageStatusAsync_DoesNotAutoCompleteOptionalStages()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(
+            db,
+            (StageCodes.FS, StageStatus.NotStarted),
+            (StageCodes.IPA, StageStatus.NotStarted),
+            (StageCodes.SOW, StageStatus.NotStarted),
+            (StageCodes.AON, StageStatus.NotStarted),
+            (StageCodes.BM, StageStatus.NotStarted),
+            (StageCodes.COB, StageStatus.NotStarted),
+            (StageCodes.PNC, StageStatus.NotStarted),
+            (StageCodes.SO, StageStatus.NotStarted));
+
+        db.StageTemplates.Add(new StageTemplate
+        {
+            Version = PlanConstants.StageTemplateVersionV2,
+            Code = StageCodes.PNC,
+            Name = "Price Negotiation Committee",
+            Sequence = 80,
+            Optional = true
+        });
+
+        db.ProjectSupplyOrderFacts.Add(new ProjectSupplyOrderFact
+        {
+            ProjectId = 1,
+            SupplierName = "Vendor",
+            CreatedByUserId = "seed",
+            CreatedOnUtc = clock.UtcNow.UtcDateTime
+        });
+
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, clock);
+
+        var completedOn = new DateOnly(2024, 6, 15);
+        await service.UpdateStageStatusAsync(1, StageCodes.SO, StageStatus.Completed, completedOn, "tester");
+
+        var pnc = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC);
+        Assert.Equal(StageStatus.Skipped, pnc.Status);
+        Assert.False(pnc.IsAutoCompleted);
+
+        var cob = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.COB);
+        Assert.Equal(StageStatus.Completed, cob.Status);
+        Assert.True(cob.IsAutoCompleted);
+        Assert.Equal(StageCodes.SO, cob.AutoCompletedFromCode);
     }
 
     private static StageProgressService CreateService(ApplicationDbContext db, TestClock clock)
