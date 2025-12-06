@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -14,6 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
@@ -195,6 +195,128 @@ public class EditPlanPncOptionalityTests
         Assert.True(draft.PncApplicable);
     }
 
+    [Fact]
+    public async Task DurationsFlow_WorkflowVersionWithoutOptionalStageRequiresDuration()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        SeedStageTemplatesWithOptionalDifferences(db);
+
+        db.Projects.Add(new Project
+        {
+            Id = 4,
+            Name = "Versioned Optionality",
+            LeadPoUserId = "po-user",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV2
+        });
+
+        await db.SaveChangesAsync();
+
+        var clock = new TestClock(new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
+        var audit = new RecordingAudit();
+        var userContext = new PrincipalUserContext(CreatePrincipal("po-user", "Project Officer"));
+        var planDraft = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit, userContext);
+        var planApproval = new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullPlanNotificationService());
+        var planGeneration = new PlanGenerationService(db);
+
+        var page = new EditPlanModel(db, audit, planGeneration, planDraft, planApproval, NullLogger<EditPlanModel>.Instance, userContext)
+        {
+            Input = new PlanEditInput
+            {
+                ProjectId = 4,
+                Mode = PlanEditorModes.Durations,
+                Action = PlanEditActions.SaveDraft,
+                AnchorStart = new DateOnly(2024, 5, 1),
+                IncludeWeekends = false,
+                SkipHolidays = false,
+                NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay,
+                Rows = new List<PlanEditInputRow>
+                {
+                    new() { Code = StageCodes.IPA, Name = "IPA", DurationDays = 4 },
+                    new() { Code = StageCodes.PNC, Name = "PNC", DurationDays = 0 }
+                }
+            }
+        };
+
+        ConfigurePageContext(page, userContext);
+
+        var result = await page.OnPostAsync(4, CancellationToken.None);
+
+        Assert.False(page.ModelState.IsValid);
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Contains(page.ModelState[string.Empty].Errors, error => error.ErrorMessage.Contains("PNC", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task DurationsFlow_SkippedStageIsExemptFromDurationValidation()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        SeedStageTemplatesWithOptionalDifferences(db);
+
+        db.Projects.Add(new Project
+        {
+            Id = 5,
+            Name = "Skipped Stage",
+            LeadPoUserId = "po-user",
+            WorkflowVersion = PlanConstants.StageTemplateVersionV2
+        });
+
+        db.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = 5,
+            StageCode = StageCodes.PNC,
+            SortOrder = 20,
+            Status = StageStatus.Skipped
+        });
+
+        await db.SaveChangesAsync();
+
+        var clock = new TestClock(new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
+        var audit = new RecordingAudit();
+        var userContext = new PrincipalUserContext(CreatePrincipal("po-user", "Project Officer"));
+        var planDraft = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit, userContext);
+        var planApproval = new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullPlanNotificationService());
+        var planGeneration = new PlanGenerationService(db);
+
+        var page = new EditPlanModel(db, audit, planGeneration, planDraft, planApproval, NullLogger<EditPlanModel>.Instance, userContext)
+        {
+            Input = new PlanEditInput
+            {
+                ProjectId = 5,
+                Mode = PlanEditorModes.Durations,
+                Action = PlanEditActions.SaveDraft,
+                AnchorStart = new DateOnly(2024, 6, 1),
+                IncludeWeekends = false,
+                SkipHolidays = false,
+                NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay,
+                Rows = new List<PlanEditInputRow>
+                {
+                    new() { Code = StageCodes.IPA, Name = "IPA", DurationDays = 3 },
+                    new() { Code = StageCodes.PNC, Name = "PNC", DurationDays = 0 }
+                }
+            }
+        };
+
+        ConfigurePageContext(page, userContext);
+
+        var result = await page.OnPostAsync(5, CancellationToken.None);
+
+        Assert.True(page.ModelState.IsValid);
+        Assert.IsType<RedirectToPageResult>(result);
+
+        var savedDuration = await db.ProjectPlanDurations.SingleAsync(d => d.StageCode == StageCodes.PNC);
+        Assert.Null(savedDuration.DurationDays);
+    }
+
     private static void SeedStageTemplates(ApplicationDbContext db)
     {
         db.StageTemplates.AddRange(
@@ -220,6 +342,41 @@ public class EditPlanPncOptionalityTests
                 Name = "Transfer of Technology",
                 Sequence = 30,
                 Optional = true
+            });
+    }
+
+    private static void SeedStageTemplatesWithOptionalDifferences(ApplicationDbContext db)
+    {
+        db.StageTemplates.AddRange(
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = StageCodes.IPA,
+                Name = "IPA",
+                Sequence = 10
+            },
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV2,
+                Code = StageCodes.IPA,
+                Name = "IPA",
+                Sequence = 10
+            },
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV1,
+                Code = StageCodes.PNC,
+                Name = "Price Negotiation Committee",
+                Sequence = 20,
+                Optional = true
+            },
+            new StageTemplate
+            {
+                Version = PlanConstants.StageTemplateVersionV2,
+                Code = StageCodes.PNC,
+                Name = "Price Negotiation Committee",
+                Sequence = 20,
+                Optional = false
             });
     }
 
