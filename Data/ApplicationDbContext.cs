@@ -1659,6 +1659,7 @@ namespace ProjectManagement.Data
                 ConfigureRowVersion(e);
                 e.Property(x => x.ProjectId).IsRequired();
                 e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
+                e.Property(x => x.SupplierName).HasMaxLength(200).IsRequired();
                 e.HasIndex(x => x.ProjectId);
                 e.Property(x => x.SupplyOrderDate).HasColumnType("date");
                 e.HasOne<Project>()

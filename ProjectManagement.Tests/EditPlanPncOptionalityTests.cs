@@ -248,7 +248,10 @@ public class EditPlanPncOptionalityTests
 
         Assert.False(page.ModelState.IsValid);
         Assert.IsType<RedirectToPageResult>(result);
-        Assert.Contains(page.ModelState[string.Empty].Errors, error => error.ErrorMessage.Contains("PNC", StringComparison.OrdinalIgnoreCase));
+        var hasPncValidationError = page.ModelState.TryGetValue(string.Empty, out var modelStateEntry)
+            && modelStateEntry.Errors.Any(error => error.ErrorMessage.Contains("PNC", StringComparison.OrdinalIgnoreCase));
+
+        Assert.True(hasPncValidationError);
     }
 
     [Fact]
