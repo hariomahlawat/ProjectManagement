@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,9 @@ public class StageRequestService
 {
     private const string PendingDecisionStatus = "Pending";
     private const string RequestedLogAction = "Requested";
+    private const string SupersededDecisionStatus = "Superseded";
+    private const string SupersededLogAction = "Superseded";
+    private const string SupersededNote = "Superseded by newer request";
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
@@ -102,19 +106,44 @@ public class StageRequestService
 
         var trimmedNote = string.IsNullOrWhiteSpace(input.Note) ? null : input.Note.Trim();
 
-        var hasPending = await _db.StageChangeRequests
-            .AnyAsync(
+        // SECTION: Supersede existing pending requests
+        var pendingRequests = await _db.StageChangeRequests
+            .Where(
                 r => r.ProjectId == stage.ProjectId
                     && r.StageCode == stage.StageCode
-                    && r.DecisionStatus == PendingDecisionStatus,
-                cancellationToken);
-
-        if (hasPending)
-        {
-            return StageRequestResult.DuplicatePending();
-        }
+                    && r.DecisionStatus == PendingDecisionStatus)
+            .ToListAsync(cancellationToken);
 
         var now = _clock.UtcNow;
+
+        if (pendingRequests.Count > 0)
+        {
+            foreach (var pending in pendingRequests)
+            {
+                pending.DecisionStatus = SupersededDecisionStatus;
+                pending.DecidedByUserId = userId;
+                pending.DecidedOn = now;
+                pending.DecisionNote = SupersededNote;
+
+                var supersededLog = new StageChangeLog
+                {
+                    ProjectId = stage.ProjectId,
+                    StageCode = stage.StageCode,
+                    Action = SupersededLogAction,
+                    FromStatus = stage.Status.ToString(),
+                    ToStatus = pending.RequestedStatus,
+                    FromActualStart = stage.ActualStart,
+                    ToActualStart = stage.ActualStart,
+                    FromCompletedOn = stage.CompletedOn,
+                    ToCompletedOn = stage.CompletedOn,
+                    UserId = userId,
+                    At = now,
+                    Note = SupersededNote
+                };
+
+                await _db.StageChangeLogs.AddAsync(supersededLog, cancellationToken);
+            }
+        }
 
         var request = new StageChangeRequest
         {

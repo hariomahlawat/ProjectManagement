@@ -93,8 +93,14 @@ public sealed class ProjectTimelineReadService
                 StringComparer.Ordinal);
         }
 
-        var pendingRequestVms = pendingRequests
+        // SECTION: Pending request normalization
+        var latestPendingByStage = pendingRequests
+            .GroupBy(r => r.StageCode, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderByDescending(r => r.RequestedOn).First())
             .OrderByDescending(r => r.RequestedOn)
+            .ToList();
+
+        var pendingRequestVms = latestPendingByStage
             .Select(r =>
             {
                 rowLookup.TryGetValue(r.StageCode, out var stageRow);
@@ -119,12 +125,8 @@ public sealed class ProjectTimelineReadService
             })
             .ToList();
 
-        var pendingLookup = pendingRequests
-            .GroupBy(r => r.StageCode, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(
-                g => g.Key,
-                g => g.OrderByDescending(r => r.RequestedOn).First(),
-                StringComparer.OrdinalIgnoreCase);
+        var pendingLookup = latestPendingByStage
+            .ToDictionary(r => r.StageCode, StringComparer.OrdinalIgnoreCase);
 
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, IndiaTimeZone).Date);
 
