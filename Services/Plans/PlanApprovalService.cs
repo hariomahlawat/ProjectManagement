@@ -361,7 +361,8 @@ public class PlanApprovalService
 
             if (stage.PlannedStart is not DateOnly start || stage.PlannedDue is not DateOnly due)
             {
-                errors.Add($"Stage {template.Name} must have both a planned start and due date.");
+                // SECTION: Partial timeline support
+                // Allow submission even when planned dates are missing; validation only applies when both are provided.
                 continue;
             }
 
@@ -395,7 +396,6 @@ public class PlanApprovalService
 
                 if (!stagePlans.TryGetValue(dependencyCode, out var prerequisite) || prerequisite.PlannedDue is not DateOnly prerequisiteDue)
                 {
-                    errors.Add($"Stage {template.Name} requires {dependencyName} to have a planned due date before submission.");
                     continue;
                 }
 
