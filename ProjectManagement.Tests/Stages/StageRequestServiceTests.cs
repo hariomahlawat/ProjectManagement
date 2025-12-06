@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -113,6 +114,74 @@ public class StageRequestServiceTests
         Assert.Equal(StageStatus.InProgress.ToString(), call.TargetStatus);
         Assert.Equal(new DateOnly(2025, 2, 4), call.TargetDate);
         Assert.False(call.IsHoD);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ReplacesPendingRequest_SupersedesExisting()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 2, 5, 6, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.NotStarted);
+
+        db.StageChangeRequests.Add(new StageChangeRequest
+        {
+            ProjectId = 1,
+            StageCode = StageCodes.IPA,
+            RequestedStatus = StageStatus.Completed.ToString(),
+            RequestedDate = new DateOnly(2025, 2, 3),
+            Note = "First request",
+            RequestedByUserId = "po-1",
+            RequestedOn = clock.UtcNow.AddDays(-1),
+            DecisionStatus = "Pending"
+        });
+
+        await db.SaveChangesAsync();
+
+        var validator = new StubStageValidationService();
+
+        var service = new StageRequestService(db, clock, validator);
+
+        var result = await service.CreateAsync(
+            new StageChangeRequestInput
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.IPA,
+                RequestedStatus = StageStatus.InProgress.ToString(),
+                RequestedDate = new DateOnly(2025, 2, 4)
+            },
+            "po-1");
+
+        Assert.Equal(StageRequestOutcome.Success, result.Outcome);
+
+        var requests = await db.StageChangeRequests
+            .OrderBy(r => r.RequestedOn)
+            .ToListAsync();
+
+        Assert.Equal(2, requests.Count);
+
+        var superseded = requests.First();
+        Assert.Equal("Superseded", superseded.DecisionStatus);
+        Assert.Equal("po-1", superseded.DecidedByUserId);
+        Assert.Equal(clock.UtcNow, superseded.DecidedOn);
+        Assert.Equal("Superseded by newer request", superseded.DecisionNote);
+
+        var latest = requests.Last();
+        Assert.Equal(StageStatus.InProgress.ToString(), latest.RequestedStatus);
+        Assert.Equal("Pending", latest.DecisionStatus);
+        Assert.True(latest.RequestedOn >= superseded.RequestedOn);
+
+        var logs = await db.StageChangeLogs
+            .OrderBy(l => l.At)
+            .ToListAsync();
+
+        Assert.Equal(2, logs.Count);
+
+        var supersededLog = logs[0];
+        Assert.Equal("Superseded", supersededLog.Action);
+        Assert.Equal(StageStatus.NotStarted.ToString(), supersededLog.FromStatus);
+        Assert.Equal(StageStatus.Completed.ToString(), supersededLog.ToStatus);
+        Assert.Equal(clock.UtcNow, supersededLog.At);
+        Assert.Equal("Superseded by newer request", supersededLog.Note);
     }
 
     private static async Task SeedStageAsync(ApplicationDbContext db, StageStatus status)
