@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Services.Search;
 
 namespace ProjectManagement.Areas.Common.Pages.Search;
 
+[Authorize]
 public class IndexModel : PageModel
 {
     // SECTION: Dependencies
