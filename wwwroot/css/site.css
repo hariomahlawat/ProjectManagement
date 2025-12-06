@@ -6677,16 +6677,16 @@ body.has-project-photo-preview-dialog {
    =========================== */
 
 .pm-hero {
-    background: radial-gradient(1200px circle at 12% -20%, rgba(45,108,223,0.10), transparent 55%), radial-gradient(1000px circle at 90% 10%, rgba(75,85,99,0.08), transparent 52%), linear-gradient(180deg, #f7f9fd 0%, #f3f6fb 100%);
+    background: radial-gradient(circle at top left, #eef3ff 0, #f8fafc 45%, #ffffff 100%);
     border-bottom: 1px solid var(--pm-border);
-    padding: clamp(2rem, 4vw, 3.5rem) 0;
+    padding: 3.5rem 0 3rem;
 }
 
 .pm-hero__inner {
     display: grid;
-    grid-template-columns: 1.3fr 0.7fr;
-    gap: clamp(1.25rem, 3vw, 2rem);
-    align-items: start;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    align-items: center;
+    column-gap: 2.75rem;
 }
 
 .pm-hero__eyebrow {
@@ -6771,8 +6771,8 @@ body.has-project-photo-preview-dialog {
 .pm-hero__cta {
     display: flex;
     flex-wrap: wrap;
-    gap: .6rem;
-    margin-bottom: 1.25rem;
+    gap: .75rem;
+    margin-bottom: 0;
 }
 
 .pm-hero__quicklinks {
@@ -6945,19 +6945,25 @@ body.has-project-photo-preview-dialog {
 }
 
 /* Responsive */
-@media (max-width: 1199.98px) {
-    .pm-hero__highlights {
-        grid-template-columns: 1fr;
-    }
-}
-
 @media (max-width: 991.98px) {
     .pm-hero__inner {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 2.5rem;
+        justify-items: center;
+        text-align: center;
+    }
+
+    .pm-hero__left {
+        max-width: 40rem;
+    }
+
+    .pm-hero__cta {
+        justify-content: center;
     }
 
     .pm-hero__right {
         position: static;
+        justify-content: center;
     }
 }
 /* Hero art watermark */
@@ -7057,10 +7063,10 @@ body.has-project-photo-preview-dialog {
 .pm-hero__brandline {
     display: flex;
     align-items: center;
-    gap: .6rem;
-    margin: .6rem 0 1rem 0;
-    color: var(--pm-text-secondary);
-    font-size: .95rem;
+    gap: 0.5rem;
+    margin: 0 0 0.75rem 0;
+    color: #475569;
+    font-size: 0.85rem;
     font-weight: 600;
 }
 
@@ -7455,12 +7461,10 @@ body {
    =========================== */
 
 .pm-hero--prism {
-    background: radial-gradient(circle at 20% 20%, rgba(45, 108, 223, 0.08), transparent 35%),
-                radial-gradient(circle at 80% 0%, rgba(111, 91, 249, 0.08), transparent 35%),
-                var(--pm-hero-bg);
+    background: radial-gradient(circle at top left, #eef3ff 0, #f8fafc 45%, #ffffff 100%);
     border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-    padding-top: 3.75rem;
-    padding-bottom: 3.75rem;
+    padding-top: 3.5rem;
+    padding-bottom: 3rem;
 }
 
     /* Remove any gradient on hero that may clash with the image */
@@ -7490,6 +7494,19 @@ body {
     padding: 1.25rem;
 }
 
+.pm-hero__image-shell {
+    background: #ffffff;
+    border-radius: 1.5rem;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+    padding: 1.25rem;
+    max-width: 480px;
+    width: 100%;
+}
+
+.pm-hero__image-shell .pm-hero__image--prism {
+    border-radius: 1.1rem;
+}
+
 /* ===========================
    PRISM HERO TYPOGRAPHY
    =========================== */
@@ -7516,14 +7533,15 @@ body {
 
 .pm-hero__tagline {
     color: #1f2a44;
-    font-size: 1.15rem;
-    letter-spacing: 0.01em;
+    font-size: 1rem;
+    letter-spacing: 0.02em;
+    margin-bottom: 0.35rem;
 }
 
 .pm-hero--prism h1 {
     font-family: var(--pm-font-heading);
     letter-spacing: 0.01em;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.5rem;
 }
 
 .pm-hero--prism .lead {
@@ -7534,13 +7552,13 @@ body {
 /* “Plan. Track. Deliver.” */
 .pm-hero--prism .pm-hero__tagline {
     font-weight: 600;
-    font-size: 1.15rem;
+    font-size: 1rem;
 }
 
 /* Acronym line: small, tight, clearly secondary */
 .pm-hero--prism .pm-hero__acronym {
-    font-size: 0.78rem;
-    letter-spacing: 0.08em;
+    font-size: 0.85rem;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: #6b7280;
     margin-bottom: 1rem;
@@ -7552,13 +7570,18 @@ body {
 
 /* Main paragraph under acronym */
 .pm-hero--prism .pm-hero__summary {
-    margin-bottom: 1.5rem;
+    line-height: 1.55;
+    margin-bottom: 1.25rem;
+    max-width: 36rem;
 }
 
 /* Bullets under summary */
 .pm-hero__highlights {
     list-style: none;
     font-size: 0.95rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
     margin-bottom: 1.75rem;
 }
 
@@ -7569,15 +7592,27 @@ body {
     padding: 0.6rem 0.85rem;
 }
 
-.pm-hero__highlights li + li {
-    margin-top: 0.5rem;
-}
-
 /* Brand line above H1 */
 .pm-hero__brandline {
     font-size: 0.85rem;
     color: #475569;
     gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+/* Hero layout helpers */
+.pm-hero__left {
+    max-width: 44rem;
+}
+
+.pm-hero__right {
+    display: flex;
+    justify-content: center;
+    margin-top: 0;
+}
+
+.pm-hero__highlights {
+    margin-bottom: 1.75rem;
 }
 
 /* Buttons spacing */
