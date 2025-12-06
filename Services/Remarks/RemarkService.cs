@@ -165,7 +165,14 @@ public sealed class RemarkService : IRemarkService
 
         if (!string.IsNullOrWhiteSpace(request.StageRef))
         {
-            var stageRef = NormalizeStageRef(request.StageRef);
+            var workflowVersion = await _db.Projects
+                .AsNoTracking()
+                .Where(project => project.Id == request.ProjectId)
+                .Select(project => project.WorkflowVersion)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var stageDefinitions = _workflowStageMetadataProvider.GetStages(workflowVersion);
+            var stageRef = NormalizeStageRef(request.StageRef, stageDefinitions);
             query = query.Where(r => r.StageRef == stageRef);
         }
 

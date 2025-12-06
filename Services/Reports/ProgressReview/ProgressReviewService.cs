@@ -1079,15 +1079,20 @@ public sealed class ProgressReviewService : IProgressReviewService
             .GroupBy(stage => stage.ProjectId)
             .ToDictionary(
                 g => g.Key,
-                g => PresentStageHelper.ComputePresentStageAndAge(
-                    g.Select(stage => new ProjectStageStatusSnapshot(
-                        stage.StageCode,
-                        stage.Status,
-                        stage.SortOrder,
-                        stage.ActualStart,
-                        stage.CompletedOn)).ToList(),
-                    _workflowStageMetadataProvider,
-                    workflowVersions));
+                g =>
+                {
+                    workflowVersions.TryGetValue(g.Key, out var workflowVersion);
+
+                    return PresentStageHelper.ComputePresentStageAndAge(
+                        g.Select(stage => new ProjectStageStatusSnapshot(
+                            stage.StageCode,
+                            stage.Status,
+                            stage.SortOrder,
+                            stage.ActualStart,
+                            stage.CompletedOn)).ToList(),
+                        _workflowStageMetadataProvider,
+                        workflowVersion);
+                });
     }
 
     private async Task<IReadOnlyDictionary<int, string?>> BuildProjectCategoryLookupAsync(

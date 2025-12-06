@@ -468,7 +468,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
         return points;
     }
 
-    private static List<StageTimeBucketRowVm> EnsureAllStageBuckets(List<StageTimeBucketRowVm> rows)
+    private List<StageTimeBucketRowVm> EnsureAllStageBuckets(List<StageTimeBucketRowVm> rows)
     {
         var comparer = StringComparer.OrdinalIgnoreCase;
 
