@@ -32,12 +32,18 @@ public sealed class ProgressReviewService : IProgressReviewService
     private readonly ApplicationDbContext _db;
     private readonly IProtectedFileUrlBuilder _fileUrlBuilder;
     private readonly IFfcQueryService _ffcQueryService;
+    private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
 
-    public ProgressReviewService(ApplicationDbContext db, IProtectedFileUrlBuilder fileUrlBuilder, IFfcQueryService ffcQueryService)
+    public ProgressReviewService(
+        ApplicationDbContext db,
+        IProtectedFileUrlBuilder fileUrlBuilder,
+        IFfcQueryService ffcQueryService,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _fileUrlBuilder = fileUrlBuilder ?? throw new ArgumentNullException(nameof(fileUrlBuilder));
         _ffcQueryService = ffcQueryService ?? throw new ArgumentNullException(nameof(ffcQueryService));
+        _workflowStageMetadataProvider = workflowStageMetadataProvider ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
     }
 
     public async Task<ProgressReviewVm> GetAsync(ProgressReviewRequest request, CancellationToken cancellationToken = default)
@@ -1050,6 +1056,11 @@ public sealed class ProgressReviewService : IProgressReviewService
             return new Dictionary<int, PresentStageSnapshot>();
         }
 
+        var workflowVersions = await _db.Projects
+            .AsNoTracking()
+            .Where(project => projectIds.Contains(project.Id))
+            .ToDictionaryAsync(project => project.Id, project => project.WorkflowVersion, cancellationToken);
+
         var stageRows = await _db.ProjectStages
             .AsNoTracking()
             .Where(stage => projectIds.Contains(stage.ProjectId))
@@ -1074,7 +1085,9 @@ public sealed class ProgressReviewService : IProgressReviewService
                         stage.Status,
                         stage.SortOrder,
                         stage.ActualStart,
-                        stage.CompletedOn)).ToList()));
+                        stage.CompletedOn)).ToList(),
+                    _workflowStageMetadataProvider,
+                    workflowVersions));
     }
 
     private async Task<IReadOnlyDictionary<int, string?>> BuildProjectCategoryLookupAsync(

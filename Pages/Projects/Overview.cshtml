@@ -903,10 +903,11 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
-            @{
+            @{ 
                 ViewBag.ProjectId = Model.Project!.Id;
                 ViewBag.HasBackfill = Model.HasBackfill;
                 ViewBag.PlanState = planState;
+                ViewBag.WorkflowVersion = Model.Project!.WorkflowVersion;
                 var diffs = await Model.PlanCompare.GetDraftVsCurrentAsync(Model.Project!.Id);
                 await Html.RenderPartialAsync("~/Pages/Projects/Timeline/_ReviewPlan.cshtml", diffs ?? Array.Empty<ProjectManagement.Services.Stages.PlanDiffRow>());
             }

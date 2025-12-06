@@ -89,6 +89,14 @@ public sealed class PlanCompareService
             .ThenBy(s => s.StageCode)
             .ToListAsync(ct);
 
+        var workflowVersion = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .Select(p => p.WorkflowVersion)
+            .FirstOrDefaultAsync(ct);
+
+        var stageOrderLookup = ProcurementWorkflow.BuildOrderLookup(workflowVersion);
+
         var currentLookup = currentStages
             .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
             .ToDictionary(s => s.StageCode!, s => s, StringComparer.OrdinalIgnoreCase);
@@ -97,8 +105,7 @@ public sealed class PlanCompareService
             .Union(draftLookup.Keys, StringComparer.OrdinalIgnoreCase)
             .OrderBy(code =>
             {
-                var index = Array.IndexOf(StageCodes.All, code);
-                return index < 0 ? int.MaxValue : index;
+                return stageOrderLookup.TryGetValue(code, out var index) ? index : int.MaxValue;
             })
             .ThenBy(code => code, StringComparer.OrdinalIgnoreCase)
             .ToList();

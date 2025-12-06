@@ -19,11 +19,16 @@ public sealed class ProjectRemarksPanelService
 {
     private readonly UserManager<ApplicationUser> _users;
     private readonly IClock _clock;
+    private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
 
-    public ProjectRemarksPanelService(UserManager<ApplicationUser> users, IClock clock)
+    public ProjectRemarksPanelService(
+        UserManager<ApplicationUser> users,
+        IClock clock,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider)
     {
         _users = users;
         _clock = clock;
+        _workflowStageMetadataProvider = workflowStageMetadataProvider ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
     }
 
     public async Task<ProjectRemarksPanelViewModel> BuildAsync(
@@ -38,7 +43,7 @@ public sealed class ProjectRemarksPanelService
             .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
             .Select(s => s.StageCode!)
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(code => new ProjectRemarksPanelViewModel.RemarkStageOption(code, BuildStageDisplayName(code)))
+            .Select(code => new ProjectRemarksPanelViewModel.RemarkStageOption(code, BuildStageDisplayName(code, project.WorkflowVersion)))
             .OrderBy(option => option.Label, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -46,8 +51,8 @@ public sealed class ProjectRemarksPanelService
 
         if (stageOptions.Count == 0)
         {
-            stageOptions = StageCodes.All
-                .Select(code => new ProjectRemarksPanelViewModel.RemarkStageOption(code, BuildStageDisplayName(code)))
+            stageOptions = ProcurementWorkflow.StageCodesFor(project.WorkflowVersion)
+                .Select(code => new ProjectRemarksPanelViewModel.RemarkStageOption(code, BuildStageDisplayName(code, project.WorkflowVersion)))
                 .OrderBy(option => option.Label, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
@@ -301,14 +306,14 @@ public sealed class ProjectRemarksPanelService
             _ => role.ToString()
         };
 
-    private static string BuildStageDisplayName(string? stageCode)
+    private string BuildStageDisplayName(string? stageCode, string? workflowVersion)
     {
         if (string.IsNullOrWhiteSpace(stageCode))
         {
             return "General";
         }
 
-        return string.Format(CultureInfo.InvariantCulture, "{0} ({1})", StageCodes.DisplayNameOf(stageCode), stageCode);
+        return string.Format(CultureInfo.InvariantCulture, "{0} ({1})", _workflowStageMetadataProvider.GetDisplayName(workflowVersion, stageCode), stageCode);
     }
 
     private static string DisplayName(ApplicationUser user)

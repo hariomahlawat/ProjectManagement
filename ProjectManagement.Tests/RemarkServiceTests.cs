@@ -533,7 +533,7 @@ public sealed class RemarkServiceTests
         notifier = new TestRemarkNotificationService();
         metrics = new TestRemarkMetrics();
         var userManager = CreateUserManager(db);
-        return new RemarkService(db, clock, NullLogger<RemarkService>.Instance, notifier, metrics, userManager);
+        return new RemarkService(db, clock, NullLogger<RemarkService>.Instance, notifier, metrics, new WorkflowStageMetadataProvider(), userManager);
     }
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)

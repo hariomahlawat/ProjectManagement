@@ -21,6 +21,7 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
@@ -348,11 +349,12 @@ public sealed class ProjectOverviewLifecycleTests
     private static ProjectsOverviewModel CreateOverviewPage(ApplicationDbContext db, IClock clock)
     {
         var procure = new ProjectProcurementReadService(db);
-        var timeline = new ProjectTimelineReadService(db, clock);
+        var workflowMetadata = new WorkflowStageMetadataProvider();
+        var timeline = new ProjectTimelineReadService(db, clock, workflowMetadata);
         var planRead = new PlanReadService(db);
         var planCompare = new PlanCompareService(db);
         var userManager = CreateUserManager(db);
-        var remarksPanel = new ProjectRemarksPanelService(userManager, clock);
+        var remarksPanel = new ProjectRemarksPanelService(userManager, clock, workflowMetadata);
         var lifecycle = new ProjectLifecycleService(db, new NoOpAuditService(), clock);
         var mediaAggregator = new ProjectMediaAggregator();
         return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, mediaAggregator);

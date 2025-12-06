@@ -362,6 +362,7 @@ builder.Services.AddScoped<ProliferationOverviewService>();
 builder.Services.AddScoped<IProliferationSummaryReadService, ProliferationSummaryReadService>();
 builder.Services.AddScoped<ProliferationSubmissionService>();
 builder.Services.AddScoped<ProliferationManageService>();
+builder.Services.AddSingleton<IWorkflowStageMetadataProvider, WorkflowStageMetadataProvider>();
 builder.Services.AddScoped<StageRulesService>();
 builder.Services.AddScoped<StageProgressService>();
 builder.Services.AddScoped<IStageValidationService, StageValidationService>();

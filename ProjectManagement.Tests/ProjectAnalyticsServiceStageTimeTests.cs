@@ -83,7 +83,7 @@ public class ProjectAnalyticsServiceStageTimeTests
         await db.SaveChangesAsync();
 
         var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
-        var service = new ProjectAnalyticsService(db, clock, new ProjectCategoryHierarchyService(db));
+        var service = new ProjectAnalyticsService(db, clock, new ProjectCategoryHierarchyService(db), new WorkflowStageMetadataProvider());
 
         var result = await service.GetStageTimeInsightsAsync();
 
@@ -177,7 +177,7 @@ public class ProjectAnalyticsServiceStageTimeTests
         await db.SaveChangesAsync();
 
         var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
-        var service = new ProjectAnalyticsService(db, clock, new ProjectCategoryHierarchyService(db));
+        var service = new ProjectAnalyticsService(db, clock, new ProjectCategoryHierarchyService(db), new WorkflowStageMetadataProvider());
 
         var result = await service.GetStageTimeInsightsAsync(designCategoryId);
 
@@ -250,7 +250,7 @@ public class ProjectAnalyticsServiceStageTimeTests
         await db.SaveChangesAsync();
 
         var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
-        var service = new ProjectAnalyticsService(db, clock, new ProjectCategoryHierarchyService(db));
+        var service = new ProjectAnalyticsService(db, clock, new ProjectCategoryHierarchyService(db), new WorkflowStageMetadataProvider());
 
         var result = await service.GetStageTimeInsightsAsync();
 
@@ -300,7 +300,7 @@ public class ProjectAnalyticsServiceStageTimeTests
         await db.SaveChangesAsync();
 
         var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
-        var service = new ProjectAnalyticsService(db, clock, new ProjectCategoryHierarchyService(db));
+        var service = new ProjectAnalyticsService(db, clock, new ProjectCategoryHierarchyService(db), new WorkflowStageMetadataProvider());
 
         var result = await service.GetStageTimeInsightsAsync();
 

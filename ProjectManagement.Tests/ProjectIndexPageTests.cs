@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Pages.Projects;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Analytics;
@@ -362,7 +363,7 @@ namespace ProjectManagement.Tests
         private static IndexModel CreateModel(ApplicationDbContext context)
         {
             var categories = new ProjectCategoryHierarchyService(context);
-            var analytics = new ProjectAnalyticsService(context, new TestClock(), categories);
+            var analytics = new ProjectAnalyticsService(context, new TestClock(), categories, new WorkflowStageMetadataProvider());
             return new IndexModel(context, analytics, categories);
         }
 

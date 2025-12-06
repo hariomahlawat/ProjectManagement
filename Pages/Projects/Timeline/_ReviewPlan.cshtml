@@ -1,4 +1,9 @@
 @model IReadOnlyList<ProjectManagement.Services.Stages.PlanDiffRow>
+@inject ProjectManagement.Models.Stages.IWorkflowStageMetadataProvider WorkflowStageMetadataProvider
+
+@{
+    var workflowVersion = ViewBag.WorkflowVersion as string;
+}
 @using System.Linq
 @using ProjectManagement.Models.Plans
 @using ProjectManagement.Models.Stages
@@ -76,7 +81,7 @@ else
                     var changed = row.OldStart != row.NewStart || row.OldDue != row.NewDue;
                     <tr class="@(changed ? "table-warning" : "table-secondary")">
                         <td>
-                            <span class="fw-semibold">@StageCodes.DisplayNameOf(row.StageCode)</span>
+                            <span class="fw-semibold">@WorkflowStageMetadataProvider.GetDisplayName(workflowVersion, row.StageCode)</span>
                             <div class="text-muted small">@row.StageCode</div>
                         </td>
                         <td class="text-center">

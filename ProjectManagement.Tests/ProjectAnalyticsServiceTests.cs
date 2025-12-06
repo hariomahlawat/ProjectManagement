@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Projects;
@@ -36,7 +37,7 @@ public class ProjectAnalyticsServiceTests : IDisposable
 
         _clock = new TestClock(new DateTimeOffset(2024, 6, 15, 0, 0, 0, TimeSpan.Zero));
         _categories = new ProjectCategoryHierarchyService(_db);
-        _service = new ProjectAnalyticsService(_db, _clock, _categories);
+        _service = new ProjectAnalyticsService(_db, _clock, _categories, new WorkflowStageMetadataProvider());
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using ProjectManagement.Models.Plans;
 
 namespace ProjectManagement.Models.Stages;
@@ -11,49 +12,52 @@ public static class ProcurementWorkflow
     public const string VersionV2 = PlanConstants.StageTemplateVersionV2;
 
     // SECTION: Stage Sequences
-    public static readonly string[] V1Stages =
+    public static readonly WorkflowStageDefinition[] V1Stages =
     {
-        StageCodes.FS,
-        StageCodes.IPA,
-        StageCodes.SOW,
-        StageCodes.AON,
-        StageCodes.BID,
-        StageCodes.TEC,
-        StageCodes.BM,
-        StageCodes.COB,
-        StageCodes.PNC,
-        StageCodes.EAS,
-        StageCodes.SO,
-        StageCodes.DEVP,
-        StageCodes.ATP,
-        StageCodes.PAYMENT,
-        StageCodes.TOT
+        new(StageCodes.FS, "Feasibility Study"),
+        new(StageCodes.IPA, "In-Principle Approval"),
+        new(StageCodes.SOW, "SOW Vetting"),
+        new(StageCodes.AON, "Acceptance of Necessity"),
+        new(StageCodes.BID, "Bidding/ Tendering"),
+        new(StageCodes.TEC, "Technical Evaluation"),
+        new(StageCodes.BM, "Benchmarking"),
+        new(StageCodes.COB, "Commercial Bid Opening"),
+        new(StageCodes.PNC, "PNC"),
+        new(StageCodes.EAS, "EAS Approval"),
+        new(StageCodes.SO, "Supply Order"),
+        new(StageCodes.DEVP, "Development"),
+        new(StageCodes.ATP, "Acceptance Testing/ Trials"),
+        new(StageCodes.PAYMENT, "Payment"),
+        new(StageCodes.TOT, "Transfer of Technology")
     };
 
-    public static readonly string[] V2Stages =
+    public static readonly WorkflowStageDefinition[] V2Stages =
     {
-        StageCodes.FS,
-        StageCodes.SOW,
-        StageCodes.IPA,
-        StageCodes.AON,
-        StageCodes.BID,
-        StageCodes.TEC,
-        StageCodes.BM,
-        StageCodes.COB,
-        StageCodes.PNC,
-        StageCodes.EAS,
-        StageCodes.SO,
-        StageCodes.DEVP,
-        StageCodes.ATP,
-        StageCodes.PAYMENT,
-        StageCodes.TOT
+        new(StageCodes.FS, "Feasibility Study"),
+        new(StageCodes.SOW, "SOW Vetting"),
+        new(StageCodes.IPA, "In-Principle Approval"),
+        new(StageCodes.AON, "Acceptance of Necessity"),
+        new(StageCodes.BID, "Bidding/ Tendering"),
+        new(StageCodes.TEC, "Technical Evaluation"),
+        new(StageCodes.BM, "Benchmarking"),
+        new(StageCodes.COB, "Commercial Bid Opening"),
+        new(StageCodes.PNC, "PNC"),
+        new(StageCodes.EAS, "EAS Approval"),
+        new(StageCodes.SO, "Supply Order"),
+        new(StageCodes.DEVP, "Development"),
+        new(StageCodes.ATP, "Acceptance Testing/ Trials"),
+        new(StageCodes.PAYMENT, "Payment"),
+        new(StageCodes.TOT, "Transfer of Technology")
     };
 
     // SECTION: Helpers
-    public static string[] StageCodesFor(string? workflowVersion) =>
+    public static WorkflowStageDefinition[] StageDefinitionsFor(string? workflowVersion) =>
         string.Equals(workflowVersion, VersionV1, StringComparison.OrdinalIgnoreCase)
             ? V1Stages
             : V2Stages;
+
+    public static string[] StageCodesFor(string? workflowVersion)
+        => StageDefinitionsFor(workflowVersion).Select(stage => stage.Code).ToArray();
 
     public static int OrderOf(string? workflowVersion, string? stageCode)
     {
@@ -69,12 +73,12 @@ public static class ProcurementWorkflow
 
     public static Dictionary<string, int> BuildOrderLookup(string? workflowVersion)
     {
-        var codes = StageCodesFor(workflowVersion);
+        var definitions = StageDefinitionsFor(workflowVersion);
         var lookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-        for (var i = 0; i < codes.Length; i++)
+        for (var i = 0; i < definitions.Length; i++)
         {
-            lookup[codes[i]] = i;
+            lookup[definitions[i].Code] = i;
         }
 
         return lookup;

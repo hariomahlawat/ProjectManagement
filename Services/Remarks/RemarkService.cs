@@ -25,6 +25,7 @@ public sealed class RemarkService : IRemarkService
     private readonly ILogger<RemarkService> _logger;
     private readonly IRemarkNotificationService _notification;
     private readonly IRemarkMetrics _metrics;
+    private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
     private readonly UserManager<ApplicationUser> _userManager;
 
     public const string ConcurrencyConflictMessage = "This remark was changed by someone else. Reload to continue.";
@@ -42,6 +43,7 @@ public sealed class RemarkService : IRemarkService
         ILogger<RemarkService> logger,
         IRemarkNotificationService notification,
         IRemarkMetrics metrics,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
         UserManager<ApplicationUser> userManager)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
@@ -49,6 +51,7 @@ public sealed class RemarkService : IRemarkService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _notification = notification ?? throw new ArgumentNullException(nameof(notification));
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
+        _workflowStageMetadataProvider = workflowStageMetadataProvider ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
     }
 
@@ -543,8 +546,18 @@ public sealed class RemarkService : IRemarkService
             return (null, null);
         }
 
-        var normalizedRef = NormalizeStageRef(stageRef);
-        var name = !string.IsNullOrWhiteSpace(stageName) ? stageName.Trim() : StageCodes.DisplayNameOf(normalizedRef);
+        var workflowVersion = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .Select(p => p.WorkflowVersion)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var stageDefinitions = _workflowStageMetadataProvider.GetStages(workflowVersion);
+        var normalizedRef = NormalizeStageRef(stageRef, stageDefinitions);
+
+        var name = !string.IsNullOrWhiteSpace(stageName)
+            ? stageName.Trim()
+            : _workflowStageMetadataProvider.GetDisplayName(workflowVersion, normalizedRef);
 
         var projectStages = _db.ProjectStages
             .AsNoTracking()
@@ -567,9 +580,9 @@ public sealed class RemarkService : IRemarkService
         return (normalizedRef, name);
     }
 
-    private static string NormalizeStageRef(string stageRef)
+    private string NormalizeStageRef(string stageRef, IReadOnlyList<WorkflowStageDefinition> allowedStages)
     {
-        if (!StageCodes.All.Contains(stageRef, StringComparer.OrdinalIgnoreCase))
+        if (!allowedStages.Any(stage => string.Equals(stage.Code, stageRef, StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException("Stage reference is not recognised.");
         }
