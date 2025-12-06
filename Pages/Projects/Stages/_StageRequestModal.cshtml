@@ -3,48 +3,68 @@
 }
 
 <div class="modal fade" id="stageRequestModal" tabindex="-1" aria-labelledby="stageRequestLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form method="post" data-stage-request-form novalidate>
                 <div class="modal-header">
-                    <h5 class="modal-title" id="stageRequestLabel">Request stage change</h5>
+                    <h5 class="modal-title" id="stageRequestLabel">Request stage changes</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <input type="hidden" name="projectId" />
-                    <input type="hidden" name="stageCode" />
                     @Html.AntiForgeryToken()
-
-                    <div class="mb-3">
-                        <div class="fw-semibold" data-stage-request-stage></div>
-                        <div class="text-muted" data-stage-request-status></div>
-                    </div>
 
                     <div class="alert alert-danger d-none" role="alert" data-stage-request-errors></div>
                     <div class="alert alert-warning d-none" role="alert" data-stage-request-conflict>A pending request already exists…</div>
-                    <div class="alert alert-warning d-none" role="alert" data-stage-request-missing></div>
 
                     <div class="mb-3">
-                        <label class="form-label" for="stageRequestTarget">Target status</label>
-                        <select class="form-select" id="stageRequestTarget" name="status" data-stage-request-target>
-                            <option value="NotStarted">Not started</option>
-                            <option value="InProgress">In progress</option>
-                            <option value="Completed">Completed</option>
-                            <option value="Skipped">Skipped</option>
-                            <option value="Blocked">Blocked</option>
-                        </select>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <div class="fw-semibold">Stages and targets</div>
+                                <div class="text-muted small">Edit multiple stages at once. Dates are required for in-progress or completed statuses.</div>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" type="button" data-stage-request-add>Add another stage</button>
+                        </div>
+
+                        <div class="d-flex flex-column gap-3" data-stage-request-rows></div>
+                        <template data-stage-request-row-template>
+                            <div class="border rounded-3 p-3" data-stage-request-row>
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div class="fw-semibold" data-stage-request-row-title>Stage</div>
+                                    <button class="btn btn-sm btn-outline-danger" type="button" data-stage-request-remove>Remove</button>
+                                </div>
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-lg-5">
+                                        <label class="form-label mb-1">Stage</label>
+                                        <select class="form-select" data-stage-request-stage></select>
+                                    </div>
+                                    <div class="col-lg-4">
+                                        <label class="form-label mb-1">Target status</label>
+                                        <select class="form-select" data-stage-request-target>
+                                            <option value="NotStarted">Not started</option>
+                                            <option value="InProgress">In progress</option>
+                                            <option value="Completed">Completed</option>
+                                            <option value="Skipped">Skipped</option>
+                                            <option value="Blocked">Blocked</option>
+                                        </select>
+                                        <div class="form-text" data-stage-request-date-hint>Optional</div>
+                                    </div>
+                                    <div class="col-lg-3">
+                                        <label class="form-label mb-1">Requested date</label>
+                                        <input type="date" class="form-control" data-stage-request-date />
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <label class="form-label mb-1">Note <span class="text-muted">(optional)</span></label>
+                                    <textarea class="form-control" rows="2" maxlength="1024" data-stage-request-note></textarea>
+                                </div>
+                            </div>
+                        </template>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label" for="stageRequestDate">Requested date</label>
-                        <input type="date" class="form-control" id="stageRequestDate" name="date" data-stage-request-date />
-                        <div class="form-text" data-stage-request-date-hint>Optional</div>
-                        <div class="form-text text-warning d-none" data-stage-request-reopen-hint>Start date required to reopen.</div>
-                    </div>
-
-                    <div class="mb-0">
-                        <label class="form-label" for="stageRequestNote">Note <span class="text-muted">(optional)</span></label>
-                        <textarea class="form-control" id="stageRequestNote" name="note" rows="3" maxlength="1024" data-stage-request-note></textarea>
+                    <div class="border rounded-3 p-3 bg-light" data-stage-request-preview>
+                        <div class="fw-semibold mb-2">Preview</div>
+                        <ul class="mb-0 small" data-stage-request-summary></ul>
                     </div>
                 </div>
                 <div class="modal-footer">

@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Helpers;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
@@ -26,7 +29,7 @@ public class RequestChangeModel : PageModel
 
     public IActionResult OnGet() => NotFound();
 
-    public async Task<IActionResult> OnPostAsync([FromBody] StageChangeRequestInput input, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostAsync([FromBody] BatchStageChangeRequestInput input, CancellationToken cancellationToken)
     {
         if (input is null)
         {
@@ -39,30 +42,44 @@ public class RequestChangeModel : PageModel
             return Forbid();
         }
 
-        var result = await _stageRequestService.CreateAsync(input, userId, cancellationToken);
+        var result = await _stageRequestService.CreateBatchAsync(input, userId, cancellationToken);
 
         return result.Outcome switch
         {
-            StageRequestOutcome.Success when result.RequestId is int requestId => HttpContext.SetSuccess(new { ok = true, id = requestId }),
-            StageRequestOutcome.NotProjectOfficer => Forbid(),
-            StageRequestOutcome.StageNotFound => HttpContext.SetStatusCode(
+            BatchStageRequestOutcome.Success => HttpContext.SetSuccess(new
+            {
+                ok = true,
+                items = result.Items
+                    .Select(item => new
+                    {
+                        stageCode = item.StageCode,
+                        id = item.Result.RequestId
+                    })
+                    .ToArray()
+            }),
+            BatchStageRequestOutcome.NotProjectOfficer => Forbid(),
+            BatchStageRequestOutcome.StageNotFound => HttpContext.SetStatusCode(
                 StatusCodes.Status404NotFound,
                 new { ok = false, error = "Stage not found." }),
-            StageRequestOutcome.DuplicatePending => HttpContext.SetStatusCode(
-                StatusCodes.Status409Conflict,
-                new { ok = false, error = "duplicate" }),
-            StageRequestOutcome.ValidationFailed => HttpContext.SetStatusCode(
+            BatchStageRequestOutcome.ValidationFailed => HttpContext.SetStatusCode(
                 StatusCodes.Status422UnprocessableEntity,
                 new
                 {
                     ok = false,
                     error = "validation",
-                    details = result.Errors is { Count: > 0 }
-                        ? result.Errors.ToArray()
-                        : Array.Empty<string>(),
-                    missingPredecessors = result.MissingPredecessors is { Count: > 0 }
-                        ? result.MissingPredecessors.ToArray()
-                        : Array.Empty<string>()
+                    details = result.Items
+                        .Select(item => new
+                        {
+                            stageCode = item.StageCode,
+                            errors = item.Result.Errors is { Count: > 0 }
+                                ? item.Result.Errors.ToArray()
+                                : Array.Empty<string>(),
+                            missingPredecessors = item.Result.MissingPredecessors is { Count: > 0 }
+                                ? item.Result.MissingPredecessors.ToArray()
+                                : Array.Empty<string>()
+                        })
+                        .ToArray(),
+                    errors = result.Errors.ToArray()
                 }),
             _ => HttpContext.SetInternalServerError()
         };

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
@@ -184,6 +185,118 @@ public class StageRequestServiceTests
         Assert.Equal("Superseded by newer request", supersededLog.Note);
     }
 
+    [Fact]
+    public async Task CreateBatchAsync_AllValid_CreatesRequestsForEachStage()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 2, 5, 6, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db,
+            (StageCodes.FS, StageStatus.NotStarted),
+            (StageCodes.IPA, StageStatus.NotStarted));
+
+        var validator = new StubStageValidationService();
+        var service = new StageRequestService(db, clock, validator);
+
+        var batch = new BatchStageChangeRequestInput
+        {
+            ProjectId = 1,
+            Stages = new[]
+            {
+                new StageChangeRequestItemInput
+                {
+                    StageCode = StageCodes.FS,
+                    RequestedStatus = StageStatus.InProgress.ToString(),
+                    RequestedDate = new DateOnly(2025, 2, 4)
+                },
+                new StageChangeRequestItemInput
+                {
+                    StageCode = StageCodes.IPA,
+                    RequestedStatus = StageStatus.Completed.ToString(),
+                    RequestedDate = new DateOnly(2025, 2, 5)
+                }
+            }
+        };
+
+        var result = await service.CreateBatchAsync(batch, "po-1");
+
+        Assert.Equal(BatchStageRequestOutcome.Success, result.Outcome);
+        Assert.Equal(2, result.Items.Count);
+
+        var requests = await db.StageChangeRequests
+            .OrderBy(r => r.StageCode)
+            .ToListAsync();
+
+        Assert.Collection(
+            requests,
+            r =>
+            {
+                Assert.Equal(StageCodes.FS, r.StageCode);
+                Assert.Equal(StageStatus.InProgress.ToString(), r.RequestedStatus);
+                Assert.Equal(new DateOnly(2025, 2, 4), r.RequestedDate);
+            },
+            r =>
+            {
+                Assert.Equal(StageCodes.IPA, r.StageCode);
+                Assert.Equal(StageStatus.Completed.ToString(), r.RequestedStatus);
+                Assert.Equal(new DateOnly(2025, 2, 5), r.RequestedDate);
+            });
+
+        var calls = validator.Calls;
+        Assert.Equal(2, calls.Count);
+        Assert.Contains(calls, c => c.StageCode == StageCodes.FS && c.TargetStatus == StageStatus.InProgress.ToString());
+        Assert.Contains(calls, c => c.StageCode == StageCodes.IPA && c.TargetStatus == StageStatus.Completed.ToString());
+    }
+
+    [Fact]
+    public async Task CreateBatchAsync_InvalidStage_RollsBackPendingChanges()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 2, 5, 6, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db,
+            (StageCodes.FS, StageStatus.NotStarted),
+            (StageCodes.IPA, StageStatus.NotStarted));
+
+        var validator = new StubStageValidationService
+        {
+            Resolver = call => call.StageCode == StageCodes.FS
+                ? new StageValidationResult(true, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), null)
+                : new StageValidationResult(false, new[] { "Complete required predecessor stages first." }, Array.Empty<string>(), new[] { StageCodes.FS }, null)
+        };
+
+        var service = new StageRequestService(db, clock, validator);
+
+        var batch = new BatchStageChangeRequestInput
+        {
+            ProjectId = 1,
+            Stages = new[]
+            {
+                new StageChangeRequestItemInput
+                {
+                    StageCode = StageCodes.FS,
+                    RequestedStatus = StageStatus.Completed.ToString(),
+                    RequestedDate = new DateOnly(2025, 2, 4)
+                },
+                new StageChangeRequestItemInput
+                {
+                    StageCode = StageCodes.IPA,
+                    RequestedStatus = StageStatus.Completed.ToString(),
+                    RequestedDate = new DateOnly(2025, 2, 5)
+                }
+            }
+        };
+
+        var result = await service.CreateBatchAsync(batch, "po-1");
+
+        Assert.Equal(BatchStageRequestOutcome.ValidationFailed, result.Outcome);
+        Assert.NotEmpty(result.Items);
+        Assert.Equal(0, await db.StageChangeRequests.CountAsync());
+        Assert.Equal(0, await db.StageChangeLogs.CountAsync());
+
+        var blocking = Assert.Single(result.Items.Where(i => i.Result.Outcome != StageRequestOutcome.Success));
+        Assert.Equal(StageCodes.IPA, blocking.StageCode);
+        Assert.Contains("Complete required predecessor stages first.", blocking.Result.Errors);
+    }
+
     private static async Task SeedStageAsync(ApplicationDbContext db, StageStatus status)
     {
         db.Projects.Add(new Project
@@ -201,6 +314,33 @@ public class StageRequestServiceTests
             SortOrder = 1,
             Status = status
         });
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedStagesAsync(
+        ApplicationDbContext db,
+        params (string Code, StageStatus Status)[] stages)
+    {
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Project",
+            CreatedByUserId = "seed",
+            LeadPoUserId = "po-1"
+        });
+
+        var sort = 1;
+        foreach (var (code, status) in stages)
+        {
+            db.ProjectStages.Add(new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = code,
+                SortOrder = sort++,
+                Status = status
+            });
+        }
 
         await db.SaveChangesAsync();
     }
@@ -223,6 +363,8 @@ public class StageRequestServiceTests
             Array.Empty<string>(),
             null);
 
+        public Func<(int ProjectId, string StageCode, string TargetStatus, DateOnly? TargetDate, bool IsHoD), StageValidationResult>? Resolver { get; set; }
+        
         public List<(int ProjectId, string StageCode, string TargetStatus, DateOnly? TargetDate, bool IsHoD)> Calls { get; } = new();
 
         public Task<StageValidationResult> ValidateAsync(
@@ -234,6 +376,11 @@ public class StageRequestServiceTests
             CancellationToken ct = default)
         {
             Calls.Add((projectId, stageCode, targetStatus, targetDate, isHoD));
+            if (Resolver is not null)
+            {
+                return Task.FromResult(Resolver((projectId, stageCode, targetStatus, targetDate, isHoD)));
+            }
+
             return Task.FromResult(Result);
         }
     }
