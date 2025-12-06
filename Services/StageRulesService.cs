@@ -143,24 +143,32 @@ public class StageRulesService
 
     public StageGuardResult CanSkip(StageRulesContext context, string stageCode)
     {
-        if (!string.Equals(stageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase))
-        {
-            return StageGuardResult.Deny("Only PNC can be skipped.");
-        }
-
         if (!context.TryGetStage(stageCode, out var stage))
         {
-            return StageGuardResult.Deny("PNC stage is not configured for this project.");
+            return StageGuardResult.Deny($"Stage {stageCode} is not configured for this project.");
         }
 
         if (stage.Status == StageStatus.Completed)
         {
-            return StageGuardResult.Deny("PNC is already completed.");
+            return StageGuardResult.Deny($"Stage {stage.Code} is already completed.");
         }
 
         if (stage.Status == StageStatus.Skipped)
         {
-            return StageGuardResult.Deny("PNC has already been skipped.");
+            return StageGuardResult.Deny($"Stage {stage.Code} has already been skipped.");
+        }
+
+        foreach (var dependencyCode in context.GetDependencies(stageCode))
+        {
+            if (!context.TryGetStage(dependencyCode, out var dependency))
+            {
+                return StageGuardResult.Deny($"Dependency {dependencyCode} is missing for stage {stage.Code}.");
+            }
+
+            if (dependency.Status is not StageStatus.Completed and not StageStatus.Skipped)
+            {
+                return StageGuardResult.Deny($"Complete or skip {dependency.Code} before skipping {stage.Code}.");
+            }
         }
 
         return StageGuardResult.Allow();
