@@ -25,6 +25,7 @@ using ProjectManagement.Configuration;
 using Microsoft.Net.Http.Headers;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Stages;
 using PhotosIndexModel = ProjectManagement.Pages.Projects.Photos.IndexModel;
 using PhotoViewModel = ProjectManagement.Pages.Projects.Photos.ViewModel;
 using ProjectsOverviewModel = ProjectManagement.Pages.Projects.OverviewModel;
@@ -405,11 +406,12 @@ public sealed class ProjectPhotoPageTests
     private static ProjectsOverviewModel CreateOverviewPage(ApplicationDbContext db, IClock clock)
     {
         var procure = new ProjectProcurementReadService(db);
-        var timeline = new ProjectTimelineReadService(db, clock);
+        var workflowMetadata = new WorkflowStageMetadataProvider();
+        var timeline = new ProjectTimelineReadService(db, clock, workflowMetadata);
         var planRead = new PlanReadService(db);
         var planCompare = new PlanCompareService(db);
         var userManager = CreateUserManager(db);
-        var remarksPanel = new ProjectRemarksPanelService(userManager, clock);
+        var remarksPanel = new ProjectRemarksPanelService(userManager, clock, workflowMetadata);
         var lifecycle = new ProjectLifecycleService(db, new NoOpAuditService(), clock);
         var mediaAggregator = new ProjectMediaAggregator();
         return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, mediaAggregator);

@@ -28,7 +28,7 @@ public sealed class ProjectRemarksPanelServiceTests
         await using var db = CreateContext();
         using var userManager = CreateUserManager(db);
         var clock = new FixedClock(DateTimeOffset.UtcNow);
-        var service = new ProjectRemarksPanelService(userManager, clock);
+        var service = new ProjectRemarksPanelService(userManager, clock, new WorkflowStageMetadataProvider());
 
         var user = new ApplicationUser { Id = "user-1", UserName = "user@example.com" };
         await userManager.CreateAsync(user);
@@ -57,7 +57,7 @@ public sealed class ProjectRemarksPanelServiceTests
         await using var db = CreateContext();
         using var userManager = CreateUserManager(db);
         var clock = new FixedClock(DateTimeOffset.UtcNow);
-        var service = new ProjectRemarksPanelService(userManager, clock);
+        var service = new ProjectRemarksPanelService(userManager, clock, new WorkflowStageMetadataProvider());
 
         var user = new ApplicationUser { Id = "user-2", UserName = "user2@example.com" };
         await userManager.CreateAsync(user);
@@ -86,7 +86,7 @@ public sealed class ProjectRemarksPanelServiceTests
         await using var db = CreateContext();
         using var userManager = CreateUserManager(db);
         var clock = new FixedClock(DateTimeOffset.UtcNow);
-        var service = new ProjectRemarksPanelService(userManager, clock);
+        var service = new ProjectRemarksPanelService(userManager, clock, new WorkflowStageMetadataProvider());
 
         var user = new ApplicationUser { Id = "user-3", UserName = "user3@example.com" };
         await userManager.CreateAsync(user);

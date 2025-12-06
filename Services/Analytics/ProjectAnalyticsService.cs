@@ -30,12 +30,18 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly ProjectCategoryHierarchyService _categoryHierarchy;
+    private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
 
-    public ProjectAnalyticsService(ApplicationDbContext db, IClock clock, ProjectCategoryHierarchyService categoryHierarchy)
+    public ProjectAnalyticsService(
+        ApplicationDbContext db,
+        IClock clock,
+        ProjectCategoryHierarchyService categoryHierarchy,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider)
     {
         _db = db;
         _clock = clock;
         _categoryHierarchy = categoryHierarchy;
+        _workflowStageMetadataProvider = workflowStageMetadataProvider ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
     }
 
     public async Task<CategoryShareResult> GetCategoryShareAsync(
@@ -172,7 +178,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(code => new StageDistributionItem(
                 code,
-                StageCodes.DisplayNameOf(code),
+                _workflowStageMetadataProvider.GetDisplayName(null, code),
                 counts.TryGetValue(code, out var value) ? value : 0))
             .ToList();
 
@@ -286,7 +292,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                 project.CategoryName ?? "Unassigned",
                 project.TechnicalCategoryName,
                 worst.Key,
-                StageCodes.DisplayNameOf(worst.Key),
+                _workflowStageMetadataProvider.GetDisplayName(null, worst.Key),
                 slipDays));
         }
 
@@ -351,7 +357,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                 return new StageTimeBucketSpan(
                     row.ProjectId,
                     row.StageCode ?? string.Empty,
-                    StageCodes.DisplayNameOf(row.StageCode ?? string.Empty),
+                    _workflowStageMetadataProvider.GetDisplayName(null, row.StageCode ?? string.Empty),
                     row.StageOrder,
                     bucket,
                     days,
@@ -482,7 +488,7 @@ public sealed class ProjectAnalyticsService : IProjectAnalyticsService
                 .FirstOrDefault()
                 ?? Array.IndexOf(StageOrder, stageCode);
 
-            var stageName = StageCodes.DisplayNameOf(stageCode);
+            var stageName = _workflowStageMetadataProvider.GetDisplayName(null, stageCode);
 
             foreach (var bucket in StageTimeBuckets)
             {

@@ -22,11 +22,16 @@ public sealed class ProjectTimelineReadService
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
+    private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
 
-    public ProjectTimelineReadService(ApplicationDbContext db, IClock clock)
+    public ProjectTimelineReadService(
+        ApplicationDbContext db,
+        IClock clock,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider)
     {
         _db = db;
         _clock = clock;
+        _workflowStageMetadataProvider = workflowStageMetadataProvider;
     }
 
     public Task<bool> HasBackfillAsync(int projectId, CancellationToken ct = default)
@@ -96,7 +101,7 @@ public sealed class ProjectTimelineReadService
                 {
                     RequestId = r.Id,
                     StageCode = r.StageCode,
-                    StageName = StageCodes.DisplayNameOf(r.StageCode),
+                    StageName = _workflowStageMetadataProvider.GetDisplayName(workflowVersion, r.StageCode),
                     CurrentStatus = stageRow?.Status ?? StageStatus.NotStarted,
                     RequestedStatus = r.RequestedStatus,
                     RequestedDate = r.RequestedDate,
@@ -143,7 +148,7 @@ public sealed class ProjectTimelineReadService
             items.Add(new TimelineItemVm
             {
                 Code = code,
-                Name = StageCodes.DisplayNameOf(code),
+                Name = _workflowStageMetadataProvider.GetDisplayName(workflowVersion, code),
                 Status = r?.Status ?? StageStatus.NotStarted,
                 PlannedStart = plannedStart,
                 PlannedEnd = plannedEnd,

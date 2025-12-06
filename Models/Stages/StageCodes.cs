@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace ProjectManagement.Models.Stages;
 
@@ -22,7 +21,7 @@ public static class StageCodes
     public const string TOT = "TOT";
 
     public static readonly string[] All =
-    {
+    {    
         FS,
         IPA,
         SOW,
@@ -39,27 +38,12 @@ public static class StageCodes
         PAYMENT,
         TOT
     };
-    private static readonly Dictionary<string, string> DisplayNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        [FS] = "Feasibility Study",
-        [IPA] = "In-Principle Approval",
-        [SOW] = "SOW Vetting",
-        [AON] = "Acceptance of Necessity",
-        [BID] = "Bidding/ Tendering",
-        [TEC] = "Technical Evaluation",
-        [BM] = "Benchmarking",
-        [COB] = "Commercial Bid Opening",
-        [PNC] = "PNC",
-        [EAS] = "EAS Approval",
-        [SO] = "Supply Order",
-        [DEVP] = "Development",
-        [ATP] = "Acceptance Testing/ Trials",
-        [PAYMENT] = "Payment",
-        [TOT] = "Transfer of Technology"
-    };
+    private static readonly IWorkflowStageMetadataProvider WorkflowStageMetadataProvider = new WorkflowStageMetadataProvider();
 
-    public static string DisplayNameOf(string code) =>
-        code is null ? "—" : (DisplayNames.TryGetValue(code, out var name) ? name : code);
+    public static string DisplayNameOf(string code) => DisplayNameOf(null, code);
+
+    public static string DisplayNameOf(string? workflowVersion, string code) =>
+        WorkflowStageMetadataProvider.GetDisplayName(workflowVersion, code);
 
     public static bool IsTot(string? code) => string.Equals(code, TOT, StringComparison.OrdinalIgnoreCase);
 

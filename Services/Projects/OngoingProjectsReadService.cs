@@ -22,10 +22,12 @@ namespace ProjectManagement.Services.Projects
     public sealed class OngoingProjectsReadService
     {
         private readonly ApplicationDbContext _db;
+        private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
 
-        public OngoingProjectsReadService(ApplicationDbContext db)
+        public OngoingProjectsReadService(ApplicationDbContext db, IWorkflowStageMetadataProvider workflowStageMetadataProvider)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
+            _workflowStageMetadataProvider = workflowStageMetadataProvider ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
         }
 
         public async Task<IReadOnlyList<OngoingProjectRowDto>> GetAsync(
@@ -168,7 +170,7 @@ namespace ProjectManagement.Services.Projects
                     stageDtos.Add(new OngoingProjectStageDto
                     {
                         Code = code,
-                        Name = code, // no display-name helper, keep code
+                        Name = _workflowStageMetadataProvider.GetDisplayName(proj.WorkflowVersion, code),
                         Status = status,
                         ActualStart = actualStart,
                         ActualCompletedOn = actualCompleted,
@@ -205,7 +207,10 @@ namespace ProjectManagement.Services.Projects
                         stage.ActualCompletedOn))
                     .ToList();
 
-                var presentStage = PresentStageHelper.ComputePresentStageAndAge(stageSnapshots);
+                var presentStage = PresentStageHelper.ComputePresentStageAndAge(
+                    stageSnapshots,
+                    _workflowStageMetadataProvider,
+                    proj.WorkflowVersion);
 
                 string? lastCompletedName = null;
                 DateOnly? lastCompletedDate = null;

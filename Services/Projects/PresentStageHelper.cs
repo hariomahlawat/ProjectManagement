@@ -6,19 +6,21 @@ using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Services.Projects;
 
-/// <summary>
-/// Shared helper that determines the present stage snapshot for a project and its age.
-/// </summary>
-public static class PresentStageHelper
-{
-    public static PresentStageSnapshot ComputePresentStageAndAge(
-        IReadOnlyList<ProjectStageStatusSnapshot> stages,
-        DateOnly? referenceDate = null)
+    /// <summary>
+    /// Shared helper that determines the present stage snapshot for a project and its age.
+    /// </summary>
+    public static class PresentStageHelper
     {
-        if (stages is null || stages.Count == 0)
+        public static PresentStageSnapshot ComputePresentStageAndAge(
+            IReadOnlyList<ProjectStageStatusSnapshot> stages,
+            IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+            string? workflowVersion,
+            DateOnly? referenceDate = null)
         {
-            return PresentStageSnapshot.Empty;
-        }
+            if (stages is null || stages.Count == 0)
+            {
+                return PresentStageSnapshot.Empty;
+            }
 
         var orderedStages = stages
             .OrderBy(stage => stage.SortOrder)
@@ -61,7 +63,7 @@ public static class PresentStageHelper
 
         return new PresentStageSnapshot(
             current.StageCode,
-            StageCodes.DisplayNameOf(current.StageCode),
+            workflowStageMetadataProvider.GetDisplayName(workflowVersion, current.StageCode),
             current.Status == StageStatus.InProgress,
             days,
             current.ActualStart,
@@ -71,6 +73,8 @@ public static class PresentStageHelper
     public static PresentStageSnapshot ComputePresentStageAndAge(
         int projectId,
         IReadOnlyDictionary<int, IReadOnlyList<ProjectStageStatusSnapshot>> stagesLookup,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        IReadOnlyDictionary<int, string?> workflowVersions,
         DateOnly? referenceDate = null)
     {
         if (stagesLookup is null || !stagesLookup.TryGetValue(projectId, out var stages))
@@ -78,7 +82,9 @@ public static class PresentStageHelper
             return PresentStageSnapshot.Empty;
         }
 
-        return ComputePresentStageAndAge(stages, referenceDate);
+        workflowVersions.TryGetValue(projectId, out var workflowVersion);
+
+        return ComputePresentStageAndAge(stages, workflowStageMetadataProvider, workflowVersion, referenceDate);
     }
 }
 
