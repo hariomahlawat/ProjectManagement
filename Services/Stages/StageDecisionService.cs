@@ -187,23 +187,6 @@ public sealed class StageDecisionService
             return StageDecisionResult.ValidationFailed("The project stage already has the requested status.");
         }
 
-        if (!StageTransitionPolicy.TryValidateTransition(stage.Status, requestedStatus, request.RequestedDate, out var transitionError))
-        {
-            var message = string.IsNullOrEmpty(transitionError)
-                ? $"Changing from {stage.Status} to {requestedStatus} is not allowed."
-                : transitionError;
-            _logger.LogWarning(
-                "Stage decision transition invalid. RequestId={RequestId}, ProjectId={ProjectId}, StageCode={StageCode}, From={FromStatus}, To={ToStatus}, ConnHash={ConnHash}, Message={Message}",
-                input.RequestId,
-                stage.ProjectId,
-                stage.StageCode,
-                stage.Status,
-                requestedStatus,
-                connectionHash,
-                message);
-            return StageDecisionResult.ValidationFailed(message);
-        }
-
         var warnings = new List<string>();
         DateOnly? effectiveDate = request.RequestedDate;
 
@@ -232,7 +215,7 @@ public sealed class StageDecisionService
             if (incompletePredecessors.Count > 0)
             {
                 warnings.Add(
-                    $"Predecessor stages are incomplete: {string.Join(", ", incompletePredecessors)}.");
+                    $"Predecessor stages are incomplete and approval will proceed: {string.Join(", ", incompletePredecessors)}.");
             }
         }
 
