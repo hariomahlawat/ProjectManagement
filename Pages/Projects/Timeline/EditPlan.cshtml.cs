@@ -372,10 +372,16 @@ public class EditPlanModel : PageModel
                         (!calculateOnly && !submitForApproval);
 
         // SECTION: Optional stage aggregation
-        var optionalStageCodes = await _db.StageTemplates
+        var optionalStageQuery = _db.StageTemplates
             .AsNoTracking()
-            .Where(template => template.Optional &&
-                               (workflowVersion == null || template.Version == workflowVersion))
+            .Where(template => template.Optional);
+
+        if (!string.IsNullOrWhiteSpace(workflowVersion))
+        {
+            optionalStageQuery = optionalStageQuery.Where(template => template.Version == workflowVersion);
+        }
+
+        var optionalStageCodes = await optionalStageQuery
             .Select(template => template.Code)
             .ToListAsync(ct);
 
@@ -387,11 +393,6 @@ public class EditPlanModel : PageModel
 
         var optionalStages = new HashSet<string>(optionalStageCodes, StringComparer.OrdinalIgnoreCase);
         optionalStages.UnionWith(skippedStageCodes);
-
-        if (optionalStages.Count == 0)
-        {
-            optionalStages.Add(StageCodes.PNC);
-        }
 
         if (Input.AnchorStart is null)
         {
