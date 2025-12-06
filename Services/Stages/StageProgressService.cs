@@ -9,6 +9,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
 
@@ -141,6 +142,7 @@ public class StageProgressService
         var autoCompleted = new List<ProjectStage>();
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var cascadeDate = stage.CompletedOn ?? resolvedDate;
+        var optionalStages = await ResolveOptionalStagesAsync(projectId, stage.Project?.WorkflowVersion, ct);
 
         foreach (var predecessorCode in StageDependencies.RequiredPredecessors(stage.StageCode))
         {
@@ -151,6 +153,7 @@ public class StageProgressService
                 stage.StageCode,
                 visited,
                 autoCompleted,
+                optionalStages,
                 ct);
         }
 
@@ -217,6 +220,7 @@ public class StageProgressService
         string triggeredBy,
         ISet<string> visited,
         ICollection<ProjectStage> autoCompleted,
+        ISet<string> optionalStages,
         CancellationToken ct)
     {
         if (!visited.Add(stageCode))
@@ -232,7 +236,18 @@ public class StageProgressService
             return;
         }
 
-        if (stage.Status != StageStatus.Completed)
+        var isOptional = optionalStages.Contains(stage.StageCode);
+
+        if (isOptional && stage.Status == StageStatus.NotStarted)
+        {
+            stage.Status = StageStatus.Skipped;
+            stage.ActualStart = null;
+            stage.CompletedOn = null;
+            stage.IsAutoCompleted = false;
+            stage.AutoCompletedFromCode = null;
+            stage.RequiresBackfill = false;
+        }
+        else if (!isOptional && stage.Status != StageStatus.Completed)
         {
             stage.Status = StageStatus.Completed;
             stage.ActualStart ??= resolvedDate;
@@ -258,6 +273,7 @@ public class StageProgressService
                 triggeredBy,
                 visited,
                 autoCompleted,
+                optionalStages,
                 ct);
         }
     }
@@ -304,7 +320,7 @@ public class StageProgressService
         foreach (var dependency in StageDependencies.RequiredPredecessors(nextStage.StageCode))
         {
             var depStage = stages.FirstOrDefault(s => string.Equals(s.StageCode, dependency, StringComparison.OrdinalIgnoreCase));
-            if (depStage?.Status != StageStatus.Completed)
+            if (depStage?.Status is not StageStatus.Completed and not StageStatus.Skipped)
             {
                 return null;
             }
@@ -342,4 +358,30 @@ public class StageProgressService
     // SECTION: Stage ordering helpers
     private static int StageOrderValue(string? stageCode, string? workflowVersion) =>
         ProcurementWorkflow.OrderOf(workflowVersion, stageCode);
+
+    // SECTION: Optional stage resolution
+    private async Task<HashSet<string>> ResolveOptionalStagesAsync(
+        int projectId,
+        string? workflowVersion,
+        CancellationToken ct)
+    {
+        var version = workflowVersion;
+
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            version = await _db.Projects
+                .Where(p => p.Id == projectId)
+                .Select(p => p.WorkflowVersion)
+                .SingleOrDefaultAsync(ct)
+                ?? PlanConstants.DefaultStageTemplateVersion;
+        }
+
+        var optionalCodes = await _db.StageTemplates
+            .AsNoTracking()
+            .Where(t => t.Version == version && t.Optional)
+            .Select(t => t.Code)
+            .ToListAsync(ct);
+
+        return optionalCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
 }
