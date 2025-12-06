@@ -55,6 +55,11 @@ public sealed class ProjectTimelineReadService
             .Where(r => r.ProjectId == projectId && r.DecisionStatus == PendingDecisionStatus)
             .ToListAsync(ct);
 
+        // SECTION: Workflow metadata
+        var workflowStages = _workflowStageMetadataProvider.GetStages(workflowVersion);
+        var stageNameLookup = workflowStages
+            .ToDictionary(stage => stage.Code, stage => stage.Name, StringComparer.OrdinalIgnoreCase);
+
         var rowLookup = rows
             .Where(x => !string.IsNullOrWhiteSpace(x.StageCode))
             .ToDictionary(x => x.StageCode!, StringComparer.OrdinalIgnoreCase);
@@ -101,7 +106,9 @@ public sealed class ProjectTimelineReadService
                 {
                     RequestId = r.Id,
                     StageCode = r.StageCode,
-                    StageName = _workflowStageMetadataProvider.GetDisplayName(workflowVersion, r.StageCode),
+                    StageName = !string.IsNullOrWhiteSpace(r.StageCode) && stageNameLookup.TryGetValue(r.StageCode, out var stageName)
+                        ? stageName
+                        : _workflowStageMetadataProvider.GetDisplayName(workflowVersion, r.StageCode),
                     CurrentStatus = stageRow?.Status ?? StageStatus.NotStarted,
                     RequestedStatus = r.RequestedStatus,
                     RequestedDate = r.RequestedDate,
@@ -123,8 +130,10 @@ public sealed class ProjectTimelineReadService
 
         var items = new List<TimelineItemVm>();
         var index = 0;
-        foreach (var code in ProcurementWorkflow.StageCodesFor(workflowVersion))
+        foreach (var stage in workflowStages)
         {
+            var code = stage.Code;
+
             rowLookup.TryGetValue(code, out var r);
             pendingLookup.TryGetValue(code, out var pendingRequest);
 
@@ -148,7 +157,7 @@ public sealed class ProjectTimelineReadService
             items.Add(new TimelineItemVm
             {
                 Code = code,
-                Name = _workflowStageMetadataProvider.GetDisplayName(workflowVersion, code),
+                Name = stage.Name,
                 Status = r?.Status ?? StageStatus.NotStarted,
                 PlannedStart = plannedStart,
                 PlannedEnd = plannedEnd,
