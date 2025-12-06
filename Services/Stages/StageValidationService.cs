@@ -50,11 +50,13 @@ public sealed class StageValidationService : IStageValidationService
         bool isHoD,
         CancellationToken ct = default)
     {
+        // SECTION: Initialization
         var errors = new List<string>();
         var warnings = new List<string>();
         var missingPredecessors = new List<string>();
         DateOnly? suggestedAutoStart = null;
 
+        // SECTION: Basic input validation
         if (string.IsNullOrWhiteSpace(stageCode))
         {
             errors.Add("A stage code is required.");
@@ -95,6 +97,7 @@ public sealed class StageValidationService : IStageValidationService
             return BuildResult();
         }
 
+        // SECTION: Date validation
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, IndiaTimeZone).Date);
 
         if (targetDate.HasValue && targetDate.Value > today)
@@ -104,17 +107,10 @@ public sealed class StageValidationService : IStageValidationService
 
         if (!StageTransitionPolicy.TryValidateTransition(stage.Status, desiredStatus, targetDate, out var transitionError))
         {
-            if (!string.IsNullOrEmpty(transitionError))
-            {
-                errors.Add(transitionError);
-            }
-            else
-            {
-                errors.Add($"Changing from {stage.Status} to {desiredStatus} is not allowed.");
-            }
+            errors.Add(transitionError ?? "The requested transition is invalid.");
         }
 
-        if (desiredStatus == StageStatus.Completed && !isHoD && !targetDate.HasValue)
+        if (desiredStatus == StageStatus.Completed && !targetDate.HasValue)
         {
             errors.Add("Completion date is required.");
         }
