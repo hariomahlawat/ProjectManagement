@@ -363,6 +363,7 @@ builder.Services.AddScoped<IProliferationSummaryReadService, ProliferationSummar
 builder.Services.AddScoped<ProliferationSubmissionService>();
 builder.Services.AddScoped<ProliferationManageService>();
 builder.Services.AddSingleton<IWorkflowStageMetadataProvider, WorkflowStageMetadataProvider>();
+builder.Services.AddSingleton<IWorkflowChecklistProvider, WorkflowChecklistProvider>();
 builder.Services.AddScoped<StageRulesService>();
 builder.Services.AddScoped<StageProgressService>();
 builder.Services.AddScoped<IStageValidationService, StageValidationService>();
@@ -1304,6 +1305,7 @@ stageChecklistApi.MapGet("", async (
     UserManager<ApplicationUser> users,
     HttpContext httpContext,
     IClock clock,
+    IWorkflowChecklistProvider checklistProvider,
     CancellationToken cancellationToken) =>
 {
     if (!TryNormalizeStageRoute(version, stageCode, out var normalizedVersion, out var normalizedStageCode, out var error))
@@ -1312,7 +1314,7 @@ stageChecklistApi.MapGet("", async (
     }
 
     var template = await EnsureChecklistTemplateAsync(db, normalizedVersion, normalizedStageCode,
-        users.GetUserId(httpContext.User), clock.UtcNow, true, cancellationToken);
+        users.GetUserId(httpContext.User), clock.UtcNow, true, checklistProvider, cancellationToken);
 
     if (template is not StageChecklistTemplate checklist)
     {
@@ -1330,6 +1332,7 @@ stageChecklistApi.MapPost("", async (
     UserManager<ApplicationUser> users,
     HttpContext httpContext,
     IClock clock,
+    IWorkflowChecklistProvider checklistProvider,
     CancellationToken cancellationToken) =>
 {
     if (!TryNormalizeStageRoute(version, stageCode, out var normalizedVersion, out var normalizedStageCode, out var error))
@@ -1338,7 +1341,7 @@ stageChecklistApi.MapPost("", async (
     }
 
     var template = await EnsureChecklistTemplateAsync(db, normalizedVersion, normalizedStageCode,
-        users.GetUserId(httpContext.User), clock.UtcNow, false, cancellationToken);
+        users.GetUserId(httpContext.User), clock.UtcNow, false, checklistProvider, cancellationToken);
 
     if (template is not StageChecklistTemplate checklist)
     {
@@ -1421,6 +1424,7 @@ stageChecklistApi.MapPut("/{itemId:int}", async (
     UserManager<ApplicationUser> users,
     HttpContext httpContext,
     IClock clock,
+    IWorkflowChecklistProvider checklistProvider,
     CancellationToken cancellationToken) =>
 {
     if (!TryNormalizeStageRoute(version, stageCode, out var normalizedVersion, out var normalizedStageCode, out var error))
@@ -1429,7 +1433,7 @@ stageChecklistApi.MapPut("/{itemId:int}", async (
     }
 
     var template = await EnsureChecklistTemplateAsync(db, normalizedVersion, normalizedStageCode,
-        users.GetUserId(httpContext.User), clock.UtcNow, false, cancellationToken);
+        users.GetUserId(httpContext.User), clock.UtcNow, false, checklistProvider, cancellationToken);
 
     if (template is not StageChecklistTemplate checklist)
     {
@@ -1508,6 +1512,7 @@ stageChecklistApi.MapDelete("/{itemId:int}", async (
     UserManager<ApplicationUser> users,
     HttpContext httpContext,
     IClock clock,
+    IWorkflowChecklistProvider checklistProvider,
     CancellationToken cancellationToken) =>
 {
     if (!TryNormalizeStageRoute(version, stageCode, out var normalizedVersion, out var normalizedStageCode, out var error))
@@ -1516,7 +1521,7 @@ stageChecklistApi.MapDelete("/{itemId:int}", async (
     }
 
     var template = await EnsureChecklistTemplateAsync(db, normalizedVersion, normalizedStageCode,
-        users.GetUserId(httpContext.User), clock.UtcNow, false, cancellationToken);
+        users.GetUserId(httpContext.User), clock.UtcNow, false, checklistProvider, cancellationToken);
 
     if (template is not StageChecklistTemplate checklist)
     {
@@ -1581,6 +1586,7 @@ stageChecklistApi.MapPost("/reorder", async (
     UserManager<ApplicationUser> users,
     HttpContext httpContext,
     IClock clock,
+    IWorkflowChecklistProvider checklistProvider,
     CancellationToken cancellationToken) =>
 {
     if (!TryNormalizeStageRoute(version, stageCode, out var normalizedVersion, out var normalizedStageCode, out var error))
@@ -1594,7 +1600,7 @@ stageChecklistApi.MapPost("/reorder", async (
     }
 
     var template = await EnsureChecklistTemplateAsync(db, normalizedVersion, normalizedStageCode,
-        users.GetUserId(httpContext.User), clock.UtcNow, false, cancellationToken);
+        users.GetUserId(httpContext.User), clock.UtcNow, false, checklistProvider, cancellationToken);
 
     if (template is not StageChecklistTemplate checklist)
     {
@@ -2256,6 +2262,7 @@ static async Task<StageChecklistTemplate?> EnsureChecklistTemplateAsync(
     string? userId,
     DateTimeOffset now,
     bool createIfMissing,
+    IWorkflowChecklistProvider checklistProvider,
     CancellationToken cancellationToken)
 {
     var template = await db.StageChecklistTemplates
@@ -2289,6 +2296,22 @@ static async Task<StageChecklistTemplate?> EnsureChecklistTemplateAsync(
         UpdatedOn = now
     };
 
+    var seededItems = checklistProvider.GetChecklist(version, stageCode)
+        .Where(text => !string.IsNullOrWhiteSpace(text))
+        .Select((text, index) => new StageChecklistItemTemplate
+        {
+            Text = text.Trim(),
+            Sequence = index + 1,
+            UpdatedByUserId = userId,
+            UpdatedOn = now
+        })
+        .ToList();
+
+    if (seededItems.Count > 0)
+    {
+        template.Items.AddRange(seededItems);
+    }
+
     db.StageChecklistTemplates.Add(template);
 
     db.StageChecklistAudits.Add(new StageChecklistAudit
@@ -2299,6 +2322,23 @@ static async Task<StageChecklistTemplate?> EnsureChecklistTemplateAsync(
         PerformedByUserId = userId,
         PerformedOn = now
     });
+
+    if (seededItems.Count > 0)
+    {
+        db.StageChecklistAudits.Add(new StageChecklistAudit
+        {
+            Template = template,
+            Action = "ChecklistSeeded",
+            PayloadJson = JsonSerializer.Serialize(new
+            {
+                template.StageCode,
+                template.Version,
+                Items = seededItems.Select(item => item.Text).ToArray()
+            }),
+            PerformedByUserId = userId,
+            PerformedOn = now
+        });
+    }
 
     await db.SaveChangesAsync(cancellationToken);
 
