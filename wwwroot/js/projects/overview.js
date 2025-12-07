@@ -208,6 +208,22 @@
         }
     }
 
+    const actualsEdit = document.getElementById('offcanvasActualDates');
+    if (actualsEdit) {
+        actualsEdit.addEventListener('shown.bs.offcanvas', function () {
+            const firstDate = actualsEdit.querySelector('input[type="date"]');
+            if (firstDate) {
+                firstDate.focus();
+            }
+        });
+
+        const actualsMarker = document.getElementById('open-actuals-edit');
+        if (actualsMarker && actualsMarker.dataset.open === '1') {
+            const instance = bootstrap.Offcanvas.getOrCreateInstance(actualsEdit);
+            instance.show();
+        }
+    }
+
     const backfillModal = document.getElementById('backfillModal');
     if (backfillModal) {
         const openButtons = document.querySelectorAll('[data-action="open-backfill"]');

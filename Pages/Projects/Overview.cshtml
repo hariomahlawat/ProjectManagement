@@ -128,6 +128,10 @@
     {
         <div id="open-plan-review" data-open="1"></div>
     }
+    @if (TempData["OpenOffcanvas"] as string == "actuals-edit")
+    {
+        <div id="open-actuals-edit" data-open="1"></div>
+    }
     @if (TempData["Error"] is string err)
     {
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -914,7 +918,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
-            <partial name="Projects/Timeline/_EditActualDates" model="Model.TimelineActuals" />
+            <partial name="Projects/Timeline/_EditActualsForm" model="Model.ActualsEditor" />
         </div>
     </div>
 
@@ -954,6 +958,7 @@
     <script type="module" src="~/js/pages/projects/media-tabs.js" asp-append-version="true"></script>
     <script src="~/js/projects/remarks-panel.js" asp-append-version="true"></script>
     <script src="~/js/projects/overview.js" asp-append-version="true"></script>
+    <script src="~/js/projects/actuals-edit.js" asp-append-version="true"></script>
     <script src="~/js/projects/plan-edit.js" asp-append-version="true"></script>
     <script src="~/js/projects/stages.js" asp-append-version="true"></script>
 }

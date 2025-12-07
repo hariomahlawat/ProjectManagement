@@ -1,18 +1,27 @@
-@model ProjectManagement.ViewModels.TimelineActualsEditorVm
-@using ProjectManagement.Models.Stages
+@model ProjectManagement.ViewModels.ActualsEditorVm
 @using ProjectManagement.ViewModels
+@using ProjectManagement.Models.Execution
 @{
-    var rows = Model?.Rows ?? Array.Empty<TimelineActualsEditorRowVm>();
+    var rows = Model?.Rows ?? Array.Empty<ActualsEditorRowVm>();
     var todayIso = Model?.Today.ToString("yyyy-MM-dd") ?? string.Empty;
 }
 
-<!-- SECTION: Actual dates bulk editor -->
-<div class="d-flex flex-column h-100 gap-3" data-actuals-editor>
-    <p class="small text-muted mb-0">
-        Update actual start and completion dates for your stages. Use this view to keep the timeline in sync with on-the-ground progress.
-    </p>
+<form method="post"
+      asp-page="/Projects/Timeline/EditActuals"
+      asp-route-id="@Model?.ProjectId"
+      class="d-flex flex-column h-100 gap-3"
+      data-actuals-form
+      data-today="@todayIso">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="Input.ProjectId" value="@Model?.ProjectId" />
 
-    <div class="flex-grow-1 overflow-auto">
+    <!-- SECTION: Introduction -->
+    <div class="small text-muted">
+        Update actual start and completion dates for your stages. Edits respect existing approvals and lock pending requests.
+    </div>
+
+    <!-- SECTION: Actuals list -->
+    <div class="flex-grow-1 overflow-auto" data-actuals-list>
         <div class="row gy-3">
             @for (var i = 0; i < rows.Count; i++)
             {
@@ -21,14 +30,19 @@
                 var completedId = $"actual-completed-{row.StageCode}";
                 var startValue = row.ActualStart?.ToString("yyyy-MM-dd");
                 var completedValue = row.CompletedOn?.ToString("yyyy-MM-dd");
-                <section class="col-12 border rounded p-3" data-actuals-row data-stage-code="@row.StageCode">
+                var disableAttr = row.HasPendingDecision ? "disabled" : null;
+                <section class="col-12 border rounded p-3" data-actuals-row data-stage-code="@row.StageCode" data-stage-status="@row.Status">
                     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
                         <div class="d-flex flex-column">
                             <div class="fw-semibold">@row.StageName</div>
                             <div class="text-muted small">@row.StageCode</div>
                         </div>
-                        <div class="d-flex flex-wrap gap-2">
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
                             <span class="badge text-bg-secondary">@row.Status</span>
+                            @if (row.HasPendingDecision)
+                            {
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Pending approval</span>
+                            }
                             @if (row.RequiresBackfill)
                             {
                                 <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Needs backfill</span>
@@ -46,34 +60,41 @@
                             <input type="date"
                                    class="form-control"
                                    id="@startId"
-                                   name="ActualRows[@i].ActualStart"
+                                   name="Input.Rows[@i].ActualStart"
                                    value="@startValue"
                                    max="@todayIso"
-                                   aria-describedby="@startId-help" />
-                            <div class="form-text" id="@startId-help">Enter the date work started on this stage.</div>
+                                   aria-describedby="@startId-help"
+                                   data-field="start"
+                                   @(disableAttr) />
+                            <div class="form-text" id="@startId-help">Enter when work began for this stage.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label" for="@completedId">Completed on</label>
                             <input type="date"
                                    class="form-control"
                                    id="@completedId"
-                                   name="ActualRows[@i].CompletedOn"
+                                   name="Input.Rows[@i].CompletedOn"
                                    value="@completedValue"
                                    max="@todayIso"
-                                   aria-describedby="@completedId-help" />
-                            <div class="form-text" id="@completedId-help">Set the date the stage was completed.</div>
+                                   aria-describedby="@completedId-help"
+                                   data-field="completed"
+                                   @(disableAttr) />
+                            <div class="form-text" id="@completedId-help">Set the actual completion date.</div>
                         </div>
                     </div>
 
-                    <input type="hidden" name="ActualRows[@i].StageCode" value="@row.StageCode" />
-                    <input type="hidden" name="ActualRows[@i].StageName" value="@row.StageName" />
+                    <div class="text-danger small d-none" data-row-error role="alert"></div>
+
+                    <input type="hidden" name="Input.Rows[@i].StageCode" value="@row.StageCode" />
+                    <input type="hidden" name="Input.Rows[@i].StageName" value="@row.StageName" />
                 </section>
             }
         </div>
     </div>
 
+    <!-- SECTION: Footer actions -->
     <div class="border-top pt-3 d-flex justify-content-end gap-2">
         <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Close</button>
-        <button class="btn btn-primary" type="button" data-actuals-save disabled>Save changes</button>
+        <button class="btn btn-primary" type="submit" data-actuals-save disabled>Save changes</button>
     </div>
-</div>
+</form>

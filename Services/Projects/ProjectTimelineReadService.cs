@@ -37,6 +37,62 @@ public sealed class ProjectTimelineReadService
     public Task<bool> HasBackfillAsync(int projectId, CancellationToken ct = default)
         => _db.ProjectStages.AnyAsync(s => s.ProjectId == projectId && s.RequiresBackfill, ct);
 
+    public async Task<ActualsEditorVm> GetActualsEditorAsync(int projectId, CancellationToken ct = default)
+    {
+        var workflowVersion = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .Select(p => p.WorkflowVersion)
+            .SingleOrDefaultAsync(ct);
+
+        var stages = await _db.ProjectStages
+            .AsNoTracking()
+            .Where(s => s.ProjectId == projectId)
+            .ToListAsync(ct);
+
+        var pending = await _db.StageChangeRequests
+            .AsNoTracking()
+            .Where(r => r.ProjectId == projectId && r.DecisionStatus == PendingDecisionStatus)
+            .ToListAsync(ct);
+
+        var pendingLookup = pending
+            .GroupBy(r => r.StageCode, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, _ => true, StringComparer.OrdinalIgnoreCase);
+
+        var workflowStages = _workflowStageMetadataProvider.GetStages(workflowVersion);
+        var stageLookup = stages
+            .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
+            .ToDictionary(s => s.StageCode!, StringComparer.OrdinalIgnoreCase);
+
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, IndiaTimeZone).Date);
+        var rows = workflowStages
+            .Select(stage =>
+            {
+                stageLookup.TryGetValue(stage.Code, out var projectStage);
+                var hasPending = pendingLookup.ContainsKey(stage.Code);
+
+                return new ActualsEditorRowVm
+                {
+                    StageCode = stage.Code,
+                    StageName = stage.Name,
+                    Status = projectStage?.Status ?? StageStatus.NotStarted,
+                    ActualStart = projectStage?.ActualStart,
+                    CompletedOn = projectStage?.CompletedOn,
+                    IsAutoCompleted = projectStage?.IsAutoCompleted ?? false,
+                    RequiresBackfill = projectStage?.RequiresBackfill ?? false,
+                    HasPendingDecision = hasPending
+                };
+            })
+            .ToArray();
+
+        return new ActualsEditorVm
+        {
+            ProjectId = projectId,
+            Today = today,
+            Rows = rows
+        };
+    }
+
     public async Task<TimelineVm> GetAsync(int projectId, CancellationToken ct = default)
     {
         var workflowVersion = await _db.Projects
