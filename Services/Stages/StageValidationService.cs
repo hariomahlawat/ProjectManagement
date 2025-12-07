@@ -110,7 +110,7 @@ public sealed class StageValidationService : IStageValidationService
             errors.Add(transitionError ?? "The requested transition is invalid.");
         }
 
-        if (desiredStatus == StageStatus.Completed && !targetDate.HasValue)
+        if (desiredStatus == StageStatus.Completed && !targetDate.HasValue && !isHoD)
         {
             errors.Add("Completion date is required.");
         }
