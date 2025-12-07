@@ -49,7 +49,7 @@ public class EditActualsModel : PageModel
         }
 
         var userId = _userContext.UserId;
-        var userName = _userContext.UserName;
+        var userName = _userContext.User.Identity?.Name;
         var principal = _userContext.User;
 
         if (string.IsNullOrWhiteSpace(userId) || principal is null)
