@@ -236,6 +236,9 @@ public sealed class StageActualsUpdateService
         var updatedCodes = changes.Select(c => c.Stage.StageCode).ToArray();
         return new StageActualsUpdateResult(updatedCodes.Length, updatedCodes);
     }
+
+    // SECTION: Helpers
+    private static string? FormatDate(DateOnly? date) => date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 }
 
 // SECTION: Result records and exceptions
@@ -245,9 +248,6 @@ public sealed record StageActualsUpdateResult(int UpdatedCount, IReadOnlyList<st
 }
 
 internal sealed record StageActualChange(ProjectStage Stage, DateOnly? NewStart, DateOnly? NewCompleted);
-
-// SECTION: Helpers
-internal static string? FormatDate(DateOnly? date) => date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
 public sealed class StageActualsValidationException : Exception
 {
