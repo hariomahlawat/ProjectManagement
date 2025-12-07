@@ -335,7 +335,7 @@ namespace ProjectManagement.Pages.Projects
                 id,
                 connectionHash);
             Timeline = await _timelineRead.GetAsync(id, ct);
-            ActualsEditor = await _timelineRead.GetActualsEditorAsync(id, cancellationToken);
+            ActualsEditor = await _timelineRead.GetActualsEditorAsync(id, ct);
             PlanEdit = await _planRead.GetAsync(id, CurrentUserId, ct);
             HasBackfill = Timeline.HasBackfill;
             Backfill = BuildBackfillViewModel(id);

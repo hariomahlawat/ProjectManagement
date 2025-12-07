@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -173,10 +174,10 @@ public sealed class StageActualsUpdateService
             return StageActualsUpdateResult.NoChanges();
         }
 
-        var auditData = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        var auditData = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
-            ["ProjectId"] = input.ProjectId,
-            ["UpdatedCount"] = changes.Count
+            ["ProjectId"] = input.ProjectId.ToString(CultureInfo.InvariantCulture),
+            ["UpdatedCount"] = changes.Count.ToString(CultureInfo.InvariantCulture)
         };
 
         for (var i = 0; i < changes.Count; i++)
@@ -184,10 +185,10 @@ public sealed class StageActualsUpdateService
             var change = changes[i];
             var prefix = $"Stage[{i}]";
             auditData[$"{prefix}.Code"] = change.Stage.StageCode;
-            auditData[$"{prefix}.From.Start"] = change.Stage.ActualStart;
-            auditData[$"{prefix}.From.Completed"] = change.Stage.CompletedOn;
-            auditData[$"{prefix}.To.Start"] = change.NewStart;
-            auditData[$"{prefix}.To.Completed"] = change.NewCompleted;
+            auditData[$"{prefix}.From.Start"] = FormatDate(change.Stage.ActualStart);
+            auditData[$"{prefix}.From.Completed"] = FormatDate(change.Stage.CompletedOn);
+            auditData[$"{prefix}.To.Start"] = FormatDate(change.NewStart);
+            auditData[$"{prefix}.To.Completed"] = FormatDate(change.NewCompleted);
         }
 
         foreach (var change in changes)
@@ -244,6 +245,9 @@ public sealed record StageActualsUpdateResult(int UpdatedCount, IReadOnlyList<st
 }
 
 internal sealed record StageActualChange(ProjectStage Stage, DateOnly? NewStart, DateOnly? NewCompleted);
+
+// SECTION: Helpers
+internal static string? FormatDate(DateOnly? date) => date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
 public sealed class StageActualsValidationException : Exception
 {
