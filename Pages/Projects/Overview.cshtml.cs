@@ -69,7 +69,7 @@ namespace ProjectManagement.Pages.Projects
         public ProcurementEditVm ProcurementEdit { get; private set; } = default!;
         public AssignRolesVm AssignRoles { get; private set; } = default!;
         public TimelineVm Timeline { get; private set; } = default!;
-        public TimelineActualsEditorVm TimelineActuals { get; private set; } = TimelineActualsEditorVm.Empty;
+        public ActualsEditorVm ActualsEditor { get; private set; } = ActualsEditorVm.Empty;
         public PlanEditorVm PlanEdit { get; private set; } = default!;
         public BackfillViewModel Backfill { get; private set; } = BackfillViewModel.Empty;
         public ProjectRemarksPanelViewModel RemarksPanel { get; private set; } = ProjectRemarksPanelViewModel.Empty;
@@ -335,7 +335,7 @@ namespace ProjectManagement.Pages.Projects
                 id,
                 connectionHash);
             Timeline = await _timelineRead.GetAsync(id, ct);
-            TimelineActuals = BuildTimelineActualsEditor(Timeline, todayLocalDate);
+            ActualsEditor = await _timelineRead.GetActualsEditorAsync(id, cancellationToken);
             PlanEdit = await _planRead.GetAsync(id, CurrentUserId, ct);
             HasBackfill = Timeline.HasBackfill;
             Backfill = BuildBackfillViewModel(id);
@@ -1966,35 +1966,6 @@ namespace ProjectManagement.Pages.Projects
                 ProjectId = projectId,
                 Today = today,
                 Stages = stages
-            };
-        }
-
-        private static TimelineActualsEditorVm BuildTimelineActualsEditor(TimelineVm timeline, DateOnly today)
-        {
-            if (timeline is null)
-            {
-                return TimelineActualsEditorVm.Empty;
-            }
-
-            var rows = timeline.Items
-                .OrderBy(item => item.SortOrder)
-                .Select(item => new TimelineActualsEditorRowVm
-                {
-                    StageCode = item.Code,
-                    StageName = item.Name,
-                    Status = item.Status,
-                    ActualStart = item.ActualStart,
-                    CompletedOn = item.CompletedOn,
-                    IsAutoCompleted = item.IsAutoCompleted,
-                    RequiresBackfill = item.RequiresBackfill
-                })
-                .ToArray();
-
-            return new TimelineActualsEditorVm
-            {
-                ProjectId = timeline.ProjectId,
-                Today = today,
-                Rows = rows
             };
         }
 
