@@ -224,6 +224,7 @@
         }
     }
 
+    // SECTION: Backfill modal handling
     const backfillModal = document.getElementById('backfillModal');
     if (backfillModal) {
         const openButtons = document.querySelectorAll('[data-action="open-backfill"]');
@@ -284,19 +285,21 @@
 
         function collectPayload() {
             const projectId = Number.parseInt(projectInput?.value || '0', 10);
-            const stages = stageRows().map((row) => {
-                const stageCode = row.getAttribute('data-stage-code') || '';
-                const startInput = row.querySelector('[data-backfill-start]');
-                const completedInput = row.querySelector('[data-backfill-completed]');
-                const actualStart = startInput && startInput.value ? startInput.value : null;
-                const completedOn = completedInput && completedInput.value ? completedInput.value : null;
+            const stages = stageRows()
+                .map((row) => {
+                    const stageCode = row.getAttribute('data-stage-code') || '';
+                    const startInput = row.querySelector('[data-backfill-start]');
+                    const completedInput = row.querySelector('[data-backfill-completed]');
+                    const actualStart = startInput && startInput.value ? startInput.value : null;
+                    const completedOn = completedInput && completedInput.value ? completedInput.value : null;
 
-                return {
-                    stageCode,
-                    actualStart,
-                    completedOn
-                };
-            }).filter((stage) => stage.stageCode);
+                    return {
+                        stageCode,
+                        actualStart,
+                        completedOn
+                    };
+                })
+                .filter((stage) => stage.stageCode && (stage.actualStart || stage.completedOn));
 
             return {
                 projectId,
