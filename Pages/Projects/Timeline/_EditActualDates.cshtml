@@ -1,0 +1,79 @@
+@model ProjectManagement.ViewModels.TimelineActualsEditorVm
+@using ProjectManagement.Models.Stages
+@using ProjectManagement.ViewModels
+@{
+    var rows = Model?.Rows ?? Array.Empty<TimelineActualsEditorRowVm>();
+    var todayIso = Model?.Today.ToString("yyyy-MM-dd") ?? string.Empty;
+}
+
+<!-- SECTION: Actual dates bulk editor -->
+<div class="d-flex flex-column h-100 gap-3" data-actuals-editor>
+    <p class="small text-muted mb-0">
+        Update actual start and completion dates for your stages. Use this view to keep the timeline in sync with on-the-ground progress.
+    </p>
+
+    <div class="flex-grow-1 overflow-auto">
+        <div class="row gy-3">
+            @for (var i = 0; i < rows.Count; i++)
+            {
+                var row = rows[i];
+                var startId = $"actual-start-{row.StageCode}";
+                var completedId = $"actual-completed-{row.StageCode}";
+                var startValue = row.ActualStart?.ToString("yyyy-MM-dd");
+                var completedValue = row.CompletedOn?.ToString("yyyy-MM-dd");
+                <section class="col-12 border rounded p-3" data-actuals-row data-stage-code="@row.StageCode">
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+                        <div class="d-flex flex-column">
+                            <div class="fw-semibold">@row.StageName</div>
+                            <div class="text-muted small">@row.StageCode</div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <span class="badge text-bg-secondary">@row.Status</span>
+                            @if (row.RequiresBackfill)
+                            {
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Needs backfill</span>
+                            }
+                            @if (row.IsAutoCompleted)
+                            {
+                                <span class="badge bg-info-subtle text-info border border-info-subtle">Auto-completed</span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="@startId">Actual start date</label>
+                            <input type="date"
+                                   class="form-control"
+                                   id="@startId"
+                                   name="ActualRows[@i].ActualStart"
+                                   value="@startValue"
+                                   max="@todayIso"
+                                   aria-describedby="@startId-help" />
+                            <div class="form-text" id="@startId-help">Enter the date work started on this stage.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="@completedId">Completed on</label>
+                            <input type="date"
+                                   class="form-control"
+                                   id="@completedId"
+                                   name="ActualRows[@i].CompletedOn"
+                                   value="@completedValue"
+                                   max="@todayIso"
+                                   aria-describedby="@completedId-help" />
+                            <div class="form-text" id="@completedId-help">Set the date the stage was completed.</div>
+                        </div>
+                    </div>
+
+                    <input type="hidden" name="ActualRows[@i].StageCode" value="@row.StageCode" />
+                    <input type="hidden" name="ActualRows[@i].StageName" value="@row.StageName" />
+                </section>
+            }
+        </div>
+    </div>
+
+    <div class="border-top pt-3 d-flex justify-content-end gap-2">
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Close</button>
+        <button class="btn btn-primary" type="button" data-actuals-save disabled>Save changes</button>
+    </div>
+</div>

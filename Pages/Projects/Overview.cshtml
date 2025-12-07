@@ -741,6 +741,7 @@
 
                                         if (canReviewTimeline || canEditTimelinePlan)
                                         {
+                                            <!-- SECTION: Timeline actions menu -->
                                             <div class="pm-card-menu dropdown">
                                                 <button class="btn pm-card-menu-toggle"
                                                         type="button"
@@ -764,6 +765,15 @@
                                                     }
                                                     @if (canEditTimelinePlan)
                                                     {
+                                                        <li>
+                                                            <button class="dropdown-item"
+                                                                    type="button"
+                                                                    data-bs-toggle="offcanvas"
+                                                                    data-bs-target="#offcanvasActualDates"
+                                                                    aria-controls="offcanvasActualDates">
+                                                                Edit actual dates
+                                                            </button>
+                                                        </li>
                                                         <li>
                                                             <button class="dropdown-item"
                                                                     type="button"
@@ -894,6 +904,17 @@
         </div>
         <div class="offcanvas-body">
             <partial name="Projects/Procurement/_EditFormBody" model="Model.ProcurementEdit" />
+        </div>
+    </div>
+
+    <!-- SECTION: Actual dates bulk edit offcanvas -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasActualDates" aria-labelledby="offcanvasActualDatesLabel">
+        <div class="offcanvas-header">
+            <h5 id="offcanvasActualDatesLabel" class="mb-0">Edit actual dates</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <partial name="Projects/Timeline/_EditActualDates" model="Model.TimelineActuals" />
         </div>
     </div>
 
