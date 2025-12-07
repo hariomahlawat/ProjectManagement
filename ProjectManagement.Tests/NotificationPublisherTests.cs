@@ -105,6 +105,39 @@ public sealed class NotificationPublisherTests
         Assert.Equal("/projects/2/kanbans/54", dispatch.Route);
     }
 
+    [Theory]
+    [InlineData("/projects/42/overview", "/projects/overview/42")]
+    [InlineData("/projects/42/overview#timeline", "/projects/overview/42#timeline")]
+    [InlineData("/projects/42/overview?timeline-stage=IPA#timeline", "/projects/overview/42?timeline-stage=IPA#timeline")]
+    public async Task PublishAsync_ReordersProjectOverviewRoutes(string inputRoute, string expectedRoute)
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"notification-tests-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var clock = new TestClock(new DateTimeOffset(2024, 10, 6, 9, 20, 0, TimeSpan.Zero));
+        var publisher = new NotificationPublisher(context, clock, NullLogger<NotificationPublisher>.Instance);
+
+        await publisher.PublishAsync(
+            NotificationKind.StageStatusChanged,
+            new[] { "user-2" },
+            new { },
+            module: "Stages",
+            eventType: "StatusChanged",
+            scopeType: "Stage",
+            scopeId: "101",
+            projectId: 42,
+            actorUserId: "actor-3",
+            route: inputRoute,
+            title: "Stage status changed",
+            summary: "A stage status changed.",
+            fingerprint: "stage-101");
+
+        var dispatch = Assert.Single(context.NotificationDispatches.AsNoTracking());
+        Assert.Equal(expectedRoute, dispatch.Route);
+    }
+
     [Fact]
     public async Task PublishAsync_WithLargeMetadata_PersistsLongPayload()
     {
