@@ -189,7 +189,6 @@ public class StageProgressServiceTests
         db.ProjectSupplyOrderFacts.Add(new ProjectSupplyOrderFact
         {
             ProjectId = 1,
-            SupplierName = "Vendor",
             CreatedByUserId = "seed",
             CreatedOnUtc = clock.UtcNow.UtcDateTime
         });

@@ -59,10 +59,6 @@ namespace ProjectManagement.Models
     public class ProjectSupplyOrderFact : ProjectFactBase
     {
         // SECTION: Supply order details
-        [Required]
-        [MaxLength(200)]
-        public string SupplierName { get; set; } = string.Empty;
-
         public DateOnly SupplyOrderDate { get; set; }
     }
 }
