@@ -106,6 +106,16 @@ public sealed class StageActualsUpdateService
             var resolvedStart = start ?? stage.ActualStart;
             var resolvedCompleted = completed ?? stage.CompletedOn;
 
+            if (stage.Status is not StageStatus.InProgress and not StageStatus.Completed)
+            {
+                if (start.HasValue || completed.HasValue)
+                {
+                    validationErrors.Add($"{row.StageCode}: Actual dates can only be edited when the stage is InProgress or Completed.");
+                }
+
+                continue;
+            }
+
             if (resolvedStart is not null && resolvedStart > today)
             {
                 validationErrors.Add($"{row.StageCode}: Start date cannot be in the future.");

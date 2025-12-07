@@ -70,12 +70,15 @@ public sealed class ProjectTimelineReadService
             {
                 stageLookup.TryGetValue(stage.Code, out var projectStage);
                 var hasPending = pendingLookup.ContainsKey(stage.Code);
+                var status = projectStage?.Status ?? StageStatus.NotStarted;
+                var isEditable = status is StageStatus.InProgress or StageStatus.Completed;
 
                 return new ActualsEditorRowVm
                 {
                     StageCode = stage.Code,
                     StageName = stage.Name,
-                    Status = projectStage?.Status ?? StageStatus.NotStarted,
+                    Status = status,
+                    IsEditable = isEditable,
                     ActualStart = projectStage?.ActualStart,
                     CompletedOn = projectStage?.CompletedOn,
                     IsAutoCompleted = projectStage?.IsAutoCompleted ?? false,
