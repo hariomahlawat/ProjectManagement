@@ -27,6 +27,8 @@ public sealed class ActualsEditorRowVm
 
     public StageStatus Status { get; init; } = StageStatus.NotStarted;
 
+    public bool IsEditable { get; init; }
+
     public DateOnly? ActualStart { get; init; }
 
     public DateOnly? CompletedOn { get; init; }

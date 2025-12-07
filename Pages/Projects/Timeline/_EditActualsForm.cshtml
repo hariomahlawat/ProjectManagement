@@ -30,7 +30,8 @@
                 var completedId = $"actual-completed-{row.StageCode}";
                 var startValue = row.ActualStart?.ToString("yyyy-MM-dd");
                 var completedValue = row.CompletedOn?.ToString("yyyy-MM-dd");
-                var disableAttr = row.HasPendingDecision ? "disabled" : null;
+                var canEdit = row.IsEditable && !row.HasPendingDecision;
+                var disableAttr = canEdit ? null : "disabled";
                 <section class="col-12 border rounded p-3" data-actuals-row data-stage-code="@row.StageCode" data-stage-status="@row.Status">
                     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
                         <div class="d-flex flex-column">
@@ -82,6 +83,11 @@
                             <div class="form-text" id="@completedId-help">Set the actual completion date.</div>
                         </div>
                     </div>
+
+                    @if (!row.IsEditable)
+                    {
+                        <div class="text-muted small">Actual dates can be edited only when a stage is InProgress or Completed.</div>
+                    }
 
                     <div class="text-danger small d-none" data-row-error role="alert"></div>
 
