@@ -5234,7 +5234,7 @@ namespace ProjectManagement.Migrations
 
                     b.ToTable("StageChangeLogs", t =>
                         {
-                            t.HasCheckConstraint("CK_StageChangeLogs_Action", "\"Action\" IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded','AutoBackfill','Backfill')");
+                            t.HasCheckConstraint("CK_StageChangeLogs_Action", "\"Action\" IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded','AutoBackfill','Backfill','ActualsUpdated')");
                         });
                 });
 

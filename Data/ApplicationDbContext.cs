@@ -1890,7 +1890,7 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Note).HasMaxLength(1024);
                 e.HasIndex(x => new { x.ProjectId, x.StageCode, x.At });
 
-                const string allowedStageLogActions = "('Requested','Approved','Rejected','DirectApply','Applied','Superseded','AutoBackfill','Backfill')";
+                const string allowedStageLogActions = "('Requested','Approved','Rejected','DirectApply','Applied','Superseded','AutoBackfill','Backfill','ActualsUpdated')";
 
                 if (Database.IsSqlServer())
                 {
