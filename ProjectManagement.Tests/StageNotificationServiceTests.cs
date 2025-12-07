@@ -32,7 +32,7 @@ public sealed class StageNotificationServiceTests
         Assert.Equal("StageStatusChanged", evt.EventType);
         Assert.Equal("Stage", evt.ScopeType);
         Assert.Equal("7:AON", evt.ScopeId);
-        Assert.Equal("/projects/7/overview?timeline-stage=AON#timeline", evt.Route);
+        Assert.Equal("/projects/overview/7?timeline-stage=AON#timeline", evt.Route);
         Assert.Contains((NotificationKind.StageStatusChanged, "po-3", 7), preferences.Calls);
         Assert.Contains((NotificationKind.StageStatusChanged, "hod-3", 7), preferences.Calls);
     }
