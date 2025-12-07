@@ -19,8 +19,8 @@ namespace ProjectManagement.Migrations
             if (ActiveProvider == "Npgsql.EntityFrameworkCore.PostgreSQL")
             {
                 migrationBuilder.Sql($@"
-ALTER TABLE \"StageChangeLogs\" DROP CONSTRAINT IF EXISTS \"CK_StageChangeLogs_Action\";
-ALTER TABLE \"StageChangeLogs\" ADD CONSTRAINT \"CK_StageChangeLogs_Action\" CHECK (\"Action\" IN {allowedActions});");
+ALTER TABLE ""StageChangeLogs"" DROP CONSTRAINT IF EXISTS ""CK_StageChangeLogs_Action"";
+ALTER TABLE ""StageChangeLogs"" ADD CONSTRAINT ""CK_StageChangeLogs_Action"" CHECK (""Action"" IN {allowedActions});");
             }
             else if (ActiveProvider == "Microsoft.EntityFrameworkCore.SqlServer")
             {
@@ -35,8 +35,8 @@ ALTER TABLE [StageChangeLogs] WITH CHECK ADD CONSTRAINT CK_StageChangeLogs_Actio
             else
             {
                 migrationBuilder.Sql($@"
-ALTER TABLE \"StageChangeLogs\" DROP CONSTRAINT IF EXISTS \"CK_StageChangeLogs_Action\";
-ALTER TABLE \"StageChangeLogs\" ADD CONSTRAINT \"CK_StageChangeLogs_Action\" CHECK (\"Action\" IN {allowedActions});");
+ALTER TABLE ""StageChangeLogs"" DROP CONSTRAINT IF EXISTS ""CK_StageChangeLogs_Action"";
+ALTER TABLE ""StageChangeLogs"" ADD CONSTRAINT ""CK_StageChangeLogs_Action"" CHECK (""Action"" IN {allowedActions});");
             }
         }
 
@@ -48,8 +48,8 @@ ALTER TABLE \"StageChangeLogs\" ADD CONSTRAINT \"CK_StageChangeLogs_Action\" CHE
             if (ActiveProvider == "Npgsql.EntityFrameworkCore.PostgreSQL")
             {
                 migrationBuilder.Sql($@"
-ALTER TABLE \"StageChangeLogs\" DROP CONSTRAINT IF EXISTS \"CK_StageChangeLogs_Action\";
-ALTER TABLE \"StageChangeLogs\" ADD CONSTRAINT \"CK_StageChangeLogs_Action\" CHECK (\"Action\" IN {allowedActions});");
+ALTER TABLE ""StageChangeLogs"" DROP CONSTRAINT IF EXISTS ""CK_StageChangeLogs_Action"";
+ALTER TABLE ""StageChangeLogs"" ADD CONSTRAINT ""CK_StageChangeLogs_Action"" CHECK (""Action"" IN {allowedActions});");
             }
             else if (ActiveProvider == "Microsoft.EntityFrameworkCore.SqlServer")
             {
@@ -64,8 +64,8 @@ ALTER TABLE [StageChangeLogs] WITH CHECK ADD CONSTRAINT CK_StageChangeLogs_Actio
             else
             {
                 migrationBuilder.Sql($@"
-ALTER TABLE \"StageChangeLogs\" DROP CONSTRAINT IF EXISTS \"CK_StageChangeLogs_Action\";
-ALTER TABLE \"StageChangeLogs\" ADD CONSTRAINT \"CK_StageChangeLogs_Action\" CHECK (\"Action\" IN {allowedActions});");
+ALTER TABLE ""StageChangeLogs"" DROP CONSTRAINT IF EXISTS ""CK_StageChangeLogs_Action"";
+ALTER TABLE ""StageChangeLogs"" ADD CONSTRAINT ""CK_StageChangeLogs_Action"" CHECK (""Action"" IN {allowedActions});");
             }
         }
     }
