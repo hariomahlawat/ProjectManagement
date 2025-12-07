@@ -182,7 +182,7 @@ public sealed class StageNotificationService : IStageNotificationService
 
     private static string BuildRoute(int projectId, string stageCode)
     {
-        var baseRoute = string.Format(CultureInfo.InvariantCulture, "/projects/{0}/overview", projectId);
+        var baseRoute = string.Format(CultureInfo.InvariantCulture, "/projects/overview/{0}", projectId);
 
         if (string.IsNullOrWhiteSpace(stageCode))
         {
