@@ -38,6 +38,29 @@ public class StageValidationServiceTests
     }
 
     [Fact]
+    public async Task ValidateAsync_CompletingWithoutDateAsHod_AllowsCompletion()
+    {
+        var today = new DateOnly(2025, 5, 10);
+        var clock = FakeClock.ForIstDate(today);
+        await using var db = CreateContext();
+        await SeedAsync(
+            db,
+            new StageSeed(StageCodes.FS, StageStatus.InProgress, new DateOnly(2025, 5, 1), null));
+
+        var service = new StageValidationService(db, clock);
+
+        var result = await service.ValidateAsync(
+            1,
+            StageCodes.FS,
+            StageStatus.Completed.ToString(),
+            targetDate: null,
+            isHoD: true);
+
+        Assert.True(result.IsValid);
+        Assert.Empty(result.Errors);
+    }
+
+    [Fact]
     public async Task ValidateAsync_CompletingWithUnmetPredecessors_ReturnsMissingList()
     {
         var today = new DateOnly(2025, 6, 1);
