@@ -171,7 +171,15 @@ public sealed class NotificationPublisher : INotificationPublisher
             return null;
         }
 
-        return Regex.Replace(route, "/projects(?<id>\\d+)(?=/)", "/projects/${id}");
+        // SECTION: Project route normalization
+        var normalized = Regex.Replace(route, "/projects(?<id>\\d+)(?=/)", "/projects/${id}");
+
+        normalized = Regex.Replace(
+            normalized,
+            "/projects/(?<id>\\d+)/overview(?<rest>(?:[/?#].*)?)",
+            m => $"/projects/overview/{m.Groups["id"].Value}{m.Groups["rest"].Value}");
+
+        return normalized;
     }
 
     private static string? NormalizeMetadata(string? value, int maxLength, string parameterName)
