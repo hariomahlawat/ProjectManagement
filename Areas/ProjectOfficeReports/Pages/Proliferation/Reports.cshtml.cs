@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation
 {
