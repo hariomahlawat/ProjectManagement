@@ -5,8 +5,18 @@
         return;
     }
 
+    const filterState = window.FfcFilterState ? window.FfcFilterState.load() : { showCompleted: true, showPlanned: true };
+    const completedCheckbox = document.getElementById('ffcFilterCompleted');
+    const plannedCheckbox = document.getElementById('ffcFilterPlanned');
+
     const dataUrl = boardEl.dataset.dataUrl || '/ProjectOfficeReports/FFC/Map?handler=Data';
     let boardData = [];
+
+    function persistFilterState() {
+        if (window.FfcFilterState) {
+            window.FfcFilterState.save(filterState);
+        }
+    }
 
     async function loadData() {
         const response = await fetch(dataUrl, { credentials: 'same-origin' });
@@ -33,6 +43,23 @@
         const iso = (row?.iso3 || '').toUpperCase();
         const name = row?.name;
         return (name && String(name).trim().length > 0) ? name : iso;
+    }
+
+    function applyDeliveryFilter(row) {
+        const showCompleted = filterState.showCompleted !== false;
+        const showPlanned = filterState.showPlanned !== false;
+        const installed = showCompleted ? (row.installed || 0) : 0;
+        const delivered = showCompleted ? (row.delivered || 0) : 0;
+        const planned = showPlanned ? (row.planned || 0) : 0;
+        const total = installed + delivered + planned;
+
+        return {
+            ...row,
+            installed,
+            delivered,
+            planned,
+            total
+        };
     }
 
     function tileHtml(row) {
@@ -65,12 +92,34 @@
     }
 
     function render(rows) {
-        const sorted = sortRows(rows);
+        const filtered = rows.map(applyDeliveryFilter);
+        const sorted = sortRows(filtered);
         boardEl.innerHTML = sorted.map(tileHtml).join('');
+    }
+
+    function syncFilterControls() {
+        if (completedCheckbox) {
+            completedCheckbox.checked = filterState.showCompleted !== false;
+            completedCheckbox.addEventListener('change', () => {
+                filterState.showCompleted = completedCheckbox.checked;
+                persistFilterState();
+                render(boardData);
+            });
+        }
+
+        if (plannedCheckbox) {
+            plannedCheckbox.checked = filterState.showPlanned !== false;
+            plannedCheckbox.addEventListener('change', () => {
+                filterState.showPlanned = plannedCheckbox.checked;
+                persistFilterState();
+                render(boardData);
+            });
+        }
     }
 
     try {
         boardData = await loadData();
+        syncFilterControls();
         render(boardData);
     } catch (error) {
         console.error('Board failed', error);

@@ -283,8 +283,9 @@
                 var countryMap = results[1];
 
                 var scale = buildColorScale(1);
-                var showCompleted = true;
-                var showPlanned = true;
+                var filterState = window.FfcFilterState ? window.FfcFilterState.load() : { showCompleted: true, showPlanned: true };
+                var showCompleted = filterState.showCompleted;
+                var showPlanned = filterState.showPlanned;
                 var map = L.map(cfg.mapId, { zoomControl: true, attributionControl: false }).setView([20, 20], 2);
                 var countries = [];
 
@@ -472,16 +473,29 @@
                 var completedCheckbox = document.getElementById('ffcFilterCompleted');
                 var plannedCheckbox = document.getElementById('ffcFilterPlanned');
 
+                function persistFilterState() {
+                    if (window.FfcFilterState) {
+                        window.FfcFilterState.save({
+                            showCompleted: showCompleted,
+                            showPlanned: showPlanned
+                        });
+                    }
+                }
+
                 if (completedCheckbox) {
+                    completedCheckbox.checked = showCompleted;
                     completedCheckbox.addEventListener('change', function () {
                         showCompleted = !!completedCheckbox.checked;
+                        persistFilterState();
                         refreshCountryStyles();
                     });
                 }
 
                 if (plannedCheckbox) {
+                    plannedCheckbox.checked = showPlanned;
                     plannedCheckbox.addEventListener('change', function () {
                         showPlanned = !!plannedCheckbox.checked;
+                        persistFilterState();
                         refreshCountryStyles();
                     });
                 }

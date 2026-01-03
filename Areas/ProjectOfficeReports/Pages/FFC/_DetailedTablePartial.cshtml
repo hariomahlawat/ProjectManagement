@@ -9,7 +9,7 @@
 else
 {
     <div class="table-responsive ffc-detailed-table">
-        <table class="table table-sm align-middle ffc-dtable mb-0">
+        <table class="table table-sm align-middle ffc-dtable mb-0" data-ffc-detailed-table="true">
             <thead>
                 <tr>
                     <th scope="col" class="pm-util-col-70">S. No.</th>
@@ -29,14 +29,14 @@ else
                         continue;
                     }
 
-                    <tr class="ffc-dtable__group-row">
-                        <td colspan="7">
-                            <div class="ffc-dtable__group ffc-detailed-group">
-                                <div class="ffc-dtable__group-title">@group.CountryName – @group.Year</div>
-                                <span class="ffc-dtable__group-iso">@group.CountryCode</span>
-                            </div>
-                        </td>
-                    </tr>
+                        <tr class="ffc-dtable__group-row">
+                            <td colspan="7">
+                                <div class="ffc-dtable__group ffc-detailed-group">
+                                    <div class="ffc-dtable__group-title">@group.CountryName – @group.Year</div>
+                                    <span class="ffc-dtable__group-iso">@group.CountryCode</span>
+                                </div>
+                            </td>
+                        </tr>
 
                     var overallRemarks = group.OverallRemarks ?? string.Empty;
                     var remarksProvided = !string.IsNullOrWhiteSpace(overallRemarks);
@@ -48,13 +48,13 @@ else
                     for (var index = 0; index < group.Rows.Count; index++)
                     {
                         var row = group.Rows[index];
-                        <tr>
+                        <tr data-ffc-status="@row.Status">
                             <td class="text-muted">@row.Serial</td>
                             <td>
                                 @* SECTION: Project link *@
                                 @if (row.LinkedProjectId.HasValue)
                                 {
-                                    <a asp-page="/Projects/Overview" asp-route-id="@row.LinkedProjectId">@row.ProjectName</a>
+                                    <a asp-page="/Projects/Overview" asp-route-id="@row.LinkedProjectId" class="ffc-dtable__link">@row.ProjectName</a>
                                 }
                                 else
                                 {
