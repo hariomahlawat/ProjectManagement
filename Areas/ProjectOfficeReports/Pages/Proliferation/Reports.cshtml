@@ -1,0 +1,136 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.ReportsModel
+@{
+    ViewData["Title"] = "Proliferation reports";
+}
+
+<div class="container-fluid mt-3" data-page="proliferation-reports">
+    <!-- SECTION: Header -->
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+            <div class="text-muted small">
+                <a asp-area="" asp-page="/Index">Dashboard</a> /
+                <a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Summary">Proliferation tracker</a> /
+                Reports
+            </div>
+            <h2 class="mb-0">Proliferation reports</h2>
+            <div class="text-muted">Generate unit-wise and project-wise reports from granular proliferation data.</div>
+        </div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary" asp-area="ProjectOfficeReports" asp-page="/Proliferation/Summary">Back to summary</a>
+        </div>
+    </div>
+
+    <!-- SECTION: Filters -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Report</label>
+                    <select class="form-select" id="rep-kind">
+                        <option value="ProjectToUnits">Project to units (detail)</option>
+                        <option value="UnitToProjects">Unit to projects (detail)</option>
+                        <option value="ProjectCoverageSummary">Project coverage summary</option>
+                        <option value="GranularLedger">Granular ledger</option>
+                        <option value="YearlyReconciliation">Yearly reconciliation</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3 position-relative" id="rep-project-wrap">
+                    <label class="form-label">Project</label>
+                    <input class="form-control" id="rep-project" placeholder="Search project name or code" autocomplete="off" />
+                    <div class="list-group position-absolute w-100 d-none" id="rep-project-suggest" style="z-index: 2000;"></div>
+                </div>
+
+                <div class="col-md-3 d-none" id="rep-unit-wrap">
+                    <label class="form-label">Unit</label>
+                    <input class="form-control" id="rep-unit" placeholder="Type unit name" list="rep-unit-list" />
+                    <datalist id="rep-unit-list"></datalist>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Project category</label>
+                    <select class="form-select" id="rep-project-category">
+                        <option value="">All categories</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Technical category</label>
+                    <select class="form-select" id="rep-technical-category">
+                        <option value="">All categories</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Source</label>
+                    <select class="form-select" id="rep-source">
+                        <option value="">All sources</option>
+                        <option value="1">SDD</option>
+                        <option value="2">515 ABW</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Approval status</label>
+                    <select class="form-select" id="rep-status">
+                        <option value="Approved" selected>Approved</option>
+                        <option value="All">All</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Rejected">Rejected</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">From date</label>
+                    <input class="form-control" type="date" id="rep-from" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">To date</label>
+                    <input class="form-control" type="date" id="rep-to" />
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Page size</label>
+                    <select class="form-select" id="rep-pagesize">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3 d-flex gap-2">
+                    <button class="btn btn-primary" id="rep-run">Run report</button>
+                    <button class="btn btn-outline-success" id="rep-export" disabled>Export Excel</button>
+                </div>
+            </div>
+
+            <div class="mt-2 text-muted small" id="rep-hint"></div>
+        </div>
+    </div>
+
+    <!-- SECTION: Results -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="text-muted" id="rep-count">No data loaded.</div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm" id="rep-prev" disabled>Prev</button>
+                    <button class="btn btn-outline-secondary btn-sm" id="rep-next" disabled>Next</button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle" id="rep-table">
+                    <thead><tr id="rep-head"></tr></thead>
+                    <tbody id="rep-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/pages/proliferation-reports.js" asp-append-version="true"></script>
+}

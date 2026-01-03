@@ -613,7 +613,12 @@ namespace ProjectManagement.Data
                 ConfigureRowVersion(b);
                 b.Property(x => x.Source).HasConversion<int>();
                 b.Property(x => x.UnitName).HasMaxLength(200);
+                // SECTION: Indexes
                 b.HasIndex(x => new { x.ProjectId, x.Source, x.ProliferationDate });
+                b.HasIndex(x => x.UnitName)
+                    .HasDatabaseName("IX_ProlifGranular_UnitName");
+                b.HasIndex(x => new { x.UnitName, x.ProliferationDate })
+                    .HasDatabaseName("IX_ProlifGranular_UnitName_ProliferationDate");
             });
 
             builder.Entity<ProliferationYearPreference>(b =>

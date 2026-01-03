@@ -362,6 +362,8 @@ builder.Services.AddScoped<ProliferationOverviewService>();
 builder.Services.AddScoped<IProliferationSummaryReadService, ProliferationSummaryReadService>();
 builder.Services.AddScoped<ProliferationSubmissionService>();
 builder.Services.AddScoped<ProliferationManageService>();
+// SECTION: Proliferation reports services
+builder.Services.AddScoped<ProliferationReportsService>();
 builder.Services.AddSingleton<IWorkflowStageMetadataProvider, WorkflowStageMetadataProvider>();
 builder.Services.AddSingleton<IWorkflowChecklistProvider, WorkflowChecklistProvider>();
 builder.Services.AddScoped<StageRulesService>();
@@ -428,6 +430,8 @@ builder.Services.AddSingleton<IVisitPdfReportBuilder, VisitPdfReportBuilder>();
 builder.Services.AddSingleton<ISocialMediaExcelWorkbookBuilder, SocialMediaExcelWorkbookBuilder>();
 builder.Services.AddSingleton<ISocialMediaPdfReportBuilder, SocialMediaPdfReportBuilder>();
 builder.Services.AddSingleton<IProliferationExcelWorkbookBuilder, ProliferationExcelWorkbookBuilder>();
+// SECTION: Proliferation reports Excel builder
+builder.Services.AddSingleton<IProliferationReportExcelWorkbookBuilder, ProliferationReportExcelWorkbookBuilder>();
 builder.Services.AddSingleton<IIprExcelWorkbookBuilder, IprExcelWorkbookBuilder>();
 builder.Services.AddSingleton<ICompletedProjectsSummaryExcelBuilder, CompletedProjectsSummaryExcelBuilder>();
 builder.Services.AddScoped<VisitTypeService>();
