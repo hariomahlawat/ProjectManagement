@@ -23,10 +23,12 @@ public sealed class CompletedProjectsSummaryService
         int? technicalCategoryId,
         string? techStatus,
         bool? availableForProliferation,
+        bool? totCompleted,
         int? completedYear,
         string? search,
         CancellationToken cancellationToken = default)
     {
+        // SECTION: Base project selection
         var projects = await _db.Projects
             .AsNoTracking()
             .Where(p =>
@@ -44,6 +46,7 @@ public sealed class CompletedProjectsSummaryService
 
         var projectIds = projects.Select(p => p.Id).ToList();
 
+        // SECTION: Related data lookups
         var costFacts = await _db.ProjectProductionCostFacts
             .AsNoTracking()
             .Where(c => projectIds.Contains(c.ProjectId))
@@ -59,12 +62,28 @@ public sealed class CompletedProjectsSummaryService
             .Where(l => projectIds.Contains(l.ProjectId))
             .ToListAsync(cancellationToken);
 
+        var totStatusLookup = await _db.ProjectTots
+            .AsNoTracking()
+            .Where(t => projectIds.Contains(t.ProjectId))
+            .Select(t => new { t.ProjectId, t.Status })
+            .ToListAsync(cancellationToken);
+
+        var totStatusByProjectId = totStatusLookup
+            .GroupBy(t => t.ProjectId)
+            .ToDictionary(group => group.Key, group => group.First().Status);
+
+        // SECTION: DTO mapping
         var result = new List<CompletedProjectSummaryDto>(projects.Count);
 
         foreach (var p in projects)
         {
             var cost = costFacts.FirstOrDefault(x => x.ProjectId == p.Id);
             var tech = techStatuses.FirstOrDefault(x => x.ProjectId == p.Id);
+            ProjectTotStatus? totStatus = null;
+            if (totStatusByProjectId.TryGetValue(p.Id, out var foundStatus))
+            {
+                totStatus = foundStatus;
+            }
 
             var latestLpp = lppRecords
                 .Where(l => l.ProjectId == p.Id)
@@ -82,6 +101,7 @@ public sealed class CompletedProjectsSummaryService
                 AvailableForProliferation = tech?.AvailableForProliferation,
                 Remarks = tech?.Remarks ?? cost?.Remarks,
                 CompletedYear = p.CompletedYear,
+                TotStatus = totStatus,
                 LatestLpp = latestLpp != null
                     ? new LatestLppViewModel
                     {
@@ -96,6 +116,7 @@ public sealed class CompletedProjectsSummaryService
 
         IEnumerable<CompletedProjectSummaryDto> filtered = result;
 
+        // SECTION: Filters
         if (!string.IsNullOrWhiteSpace(techStatus))
         {
             filtered = filtered.Where(r =>
@@ -106,6 +127,13 @@ public sealed class CompletedProjectsSummaryService
         {
             filtered = filtered.Where(r =>
                 r.AvailableForProliferation == availableForProliferation);
+        }
+
+        if (totCompleted.HasValue)
+        {
+            filtered = filtered.Where(r => totCompleted.Value
+                ? r.TotStatus == ProjectTotStatus.Completed
+                : r.TotStatus != ProjectTotStatus.Completed);
         }
 
         if (completedYear.HasValue)
@@ -135,6 +163,7 @@ public sealed class CompletedProjectSummaryDto
     public bool? AvailableForProliferation { get; set; }
     public string? Remarks { get; set; }
     public int? CompletedYear { get; set; }
+    public ProjectTotStatus? TotStatus { get; set; }
     public LatestLppViewModel? LatestLpp { get; set; }
 }
 
