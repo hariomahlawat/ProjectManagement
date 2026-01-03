@@ -522,19 +522,19 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                                k.ProjectId,
                                k.Source,
                                k.Year,
-                               YearlyTotal = y?.YearlyTotal ?? 0,
-                               GranularTotal = g?.GranularTotal ?? 0
+                               YearlyTotal = y != null && y.YearlyTotal.HasValue ? y.YearlyTotal.Value : 0,
+                               GranularTotal = g != null && g.GranularTotal.HasValue ? g.GranularTotal.Value : 0
                            };
 
             var withPrefs = from c in combined
                             where c.ProjectId != null && c.Source != null && c.Year != null
-                            join pref in prefs on new { ProjectId = c.ProjectId.Value, Source = c.Source.Value, Year = c.Year.Value } equals new { pref.ProjectId, pref.Source, pref.Year } into pj
+                            join pref in prefs on new { ProjectId = c.ProjectId.GetValueOrDefault(), Source = c.Source.GetValueOrDefault(), Year = c.Year.GetValueOrDefault() } equals new { pref.ProjectId, pref.Source, pref.Year } into pj
                             from pref in pj.DefaultIfEmpty()
                             select new
                             {
-                                ProjectId = c.ProjectId.Value,
-                                Source = c.Source.Value,
-                                Year = c.Year.Value,
+                                ProjectId = c.ProjectId.GetValueOrDefault(),
+                                Source = c.Source.GetValueOrDefault(),
+                                Year = c.Year.GetValueOrDefault(),
                                 c.YearlyTotal,
                                 c.GranularTotal,
                                 Mode = pref != null ? pref.Mode : YearPreferenceMode.UseYearlyAndGranular
