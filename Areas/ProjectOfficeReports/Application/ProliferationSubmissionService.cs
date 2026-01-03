@@ -52,15 +52,17 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return ServiceResult.Fail("User not found.");
             }
 
+            // SECTION: Required field validation
+            var requiredError = ValidateYearlyRequiredFields(dto);
+            if (requiredError is not null)
+            {
+                return requiredError;
+            }
+
             var project = await GetCompletedProjectAsync(dto.ProjectId, ct);
             if (project is null)
             {
                 return ServiceResult.Fail("Only completed projects may record proliferation data.");
-            }
-
-            if (dto.TotalQuantity < 0)
-            {
-                return ServiceResult.Fail("Total quantity must be zero or greater.");
             }
 
             if (dto.Source != ProliferationSource.Sdd && dto.Source != ProliferationSource.Abw515)
@@ -125,6 +127,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return ServiceResult.Fail("User not found.");
             }
 
+            // SECTION: Required field validation
+            var requiredError = ValidateGranularRequiredFields(dto);
+            if (requiredError is not null)
+            {
+                return requiredError;
+            }
+
             var project = await GetCompletedProjectAsync(dto.ProjectId, ct);
             if (project is null)
             {
@@ -147,11 +156,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
 
             var remarks = Normalize(dto.Remarks, 500);
-
-            if (dto.Quantity <= 0)
-            {
-                return ServiceResult.Fail("Quantity must be greater than zero.");
-            }
 
             var now = _clock.UtcNow.UtcDateTime;
             var normalizedDateTime = DateTime.SpecifyKind(dto.ProliferationDateUtc, DateTimeKind.Utc);
@@ -208,6 +212,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             if (actor is null)
             {
                 return ServiceResult.Fail("User not found.");
+            }
+
+            // SECTION: Required field validation
+            var requiredError = ValidatePreferenceRequiredFields(dto);
+            if (requiredError is not null)
+            {
+                return requiredError;
             }
 
             if (dto.Source == ProliferationSource.Abw515 && dto.Mode != YearPreferenceMode.Auto)
@@ -270,6 +281,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return ServiceResult.Fail("User not found.");
             }
 
+            // SECTION: Required field validation
+            var requiredError = ValidateYearlyRequiredFields(dto);
+            if (requiredError is not null)
+            {
+                return requiredError;
+            }
+
             var entity = await _db.ProliferationYearlies.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (entity is null)
             {
@@ -279,11 +297,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             if (!TryDecodeRowVersion(dto.RowVersion, out var rowVersion))
             {
                 return ServiceResult.Fail("The record is out of date. Refresh and try again.");
-            }
-
-            if (dto.TotalQuantity < 0)
-            {
-                return ServiceResult.Fail("Total quantity must be zero or greater.");
             }
 
             if (dto.Source != ProliferationSource.Sdd && dto.Source != ProliferationSource.Abw515)
@@ -355,6 +368,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return ServiceResult.Fail("User not found.");
             }
 
+            // SECTION: Required field validation
+            var requiredError = ValidateGranularRequiredFields(dto);
+            if (requiredError is not null)
+            {
+                return requiredError;
+            }
+
             var entity = await _db.ProliferationGranularEntries.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (entity is null)
             {
@@ -379,11 +399,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             catch (ValidationException ex)
             {
                 return ServiceResult.Fail(ex.Message);
-            }
-
-            if (dto.Quantity <= 0)
-            {
-                return ServiceResult.Fail("Quantity must be greater than zero.");
             }
 
             var project = await GetCompletedProjectAsync(dto.ProjectId, ct);
@@ -647,6 +662,67 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             return await _db.Projects
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == projectId && !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed, ct);
+        }
+
+        // SECTION: Required field validation helpers
+        private static ServiceResult? ValidateYearlyRequiredFields(ProliferationYearlyCreateDto dto)
+        {
+            if (dto.ProjectId <= 0)
+            {
+                return ServiceResult.Fail("Project is required.");
+            }
+
+            if (dto.Year is < 2000 or > 3000)
+            {
+                return ServiceResult.Fail("Year must be between 2000 and 3000.");
+            }
+
+            if (dto.TotalQuantity < 0)
+            {
+                return ServiceResult.Fail("Total quantity must be zero or greater.");
+            }
+
+            return null;
+        }
+
+        private static ServiceResult? ValidateGranularRequiredFields(ProliferationGranularCreateDto dto)
+        {
+            if (dto.ProjectId <= 0)
+            {
+                return ServiceResult.Fail("Project is required.");
+            }
+
+            if (dto.ProliferationDateUtc == default)
+            {
+                return ServiceResult.Fail("Proliferation date is required.");
+            }
+
+            if (dto.Quantity <= 0)
+            {
+                return ServiceResult.Fail("Quantity must be greater than zero.");
+            }
+
+            return null;
+        }
+
+        private static ServiceResult? ValidatePreferenceRequiredFields(ProliferationYearPreferenceDto dto)
+        {
+            if (dto.ProjectId <= 0)
+            {
+                return ServiceResult.Fail("Project is required.");
+            }
+
+            if (dto.Year is < 2000 or > 3000)
+            {
+                return ServiceResult.Fail("Year must be between 2000 and 3000.");
+            }
+
+            if (!Enum.IsDefined(typeof(YearPreferenceMode), dto.Mode))
+            {
+                return ServiceResult.Fail("Preference mode is required.");
+            }
+
+            return null;
         }
 
         private static bool RequiresImmediateApproval(ClaimsPrincipal principal)
