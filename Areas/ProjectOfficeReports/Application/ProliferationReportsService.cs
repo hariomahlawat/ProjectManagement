@@ -491,20 +491,20 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 .GroupBy(x => new { x.ProjectId, x.Source, Year = x.ProliferationDate.Year })
                 .Select(g => new
                 {
-                    g.Key.ProjectId,
-                    g.Key.Source,
-                    g.Key.Year,
-                    GranularTotal = g.Sum(x => x.Quantity)
+                    ProjectId = (int?)g.Key.ProjectId,
+                    Source = (ProliferationSource?)g.Key.Source,
+                    Year = (int?)g.Key.Year,
+                    GranularTotal = (int?)g.Sum(x => x.Quantity)
                 });
 
             var yearlyAgg = yearlies
                 .GroupBy(x => new { x.ProjectId, x.Source, x.Year })
                 .Select(g => new
                 {
-                    g.Key.ProjectId,
-                    g.Key.Source,
-                    g.Key.Year,
-                    YearlyTotal = g.Sum(x => x.TotalQuantity)
+                    ProjectId = (int?)g.Key.ProjectId,
+                    Source = (ProliferationSource?)g.Key.Source,
+                    Year = (int?)g.Key.Year,
+                    YearlyTotal = (int?)g.Sum(x => x.TotalQuantity)
                 });
 
             // SECTION: Merge yearly + granular totals
@@ -522,18 +522,19 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                                k.ProjectId,
                                k.Source,
                                k.Year,
-                               YearlyTotal = y != null ? y.YearlyTotal : 0,
-                               GranularTotal = g != null ? g.GranularTotal : 0
+                               YearlyTotal = y?.YearlyTotal ?? 0,
+                               GranularTotal = g?.GranularTotal ?? 0
                            };
 
             var withPrefs = from c in combined
-                            join pref in prefs on new { c.ProjectId, c.Source, c.Year } equals new { pref.ProjectId, pref.Source, pref.Year } into pj
+                            where c.ProjectId != null && c.Source != null && c.Year != null
+                            join pref in prefs on new { ProjectId = c.ProjectId.Value, Source = c.Source.Value, Year = c.Year.Value } equals new { pref.ProjectId, pref.Source, pref.Year } into pj
                             from pref in pj.DefaultIfEmpty()
                             select new
                             {
-                                c.ProjectId,
-                                c.Source,
-                                c.Year,
+                                ProjectId = c.ProjectId.Value,
+                                Source = c.Source.Value,
+                                Year = c.Year.Value,
                                 c.YearlyTotal,
                                 c.GranularTotal,
                                 Mode = pref != null ? pref.Mode : YearPreferenceMode.UseYearlyAndGranular
