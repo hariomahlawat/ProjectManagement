@@ -50,15 +50,15 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             var statusFilter = NormalizeStatus(q.ApprovalStatus);
 
-            DateOnly? from = q.FromDateUtc.HasValue ? DateOnly.FromDateTime(q.FromDateUtc.Value) : null;
-            DateOnly? to = q.ToDateUtc.HasValue ? DateOnly.FromDateTime(q.ToDateUtc.Value) : null;
+            DateOnly? fromDate = q.FromDateUtc.HasValue ? DateOnly.FromDateTime(q.FromDateUtc.Value) : null;
+            DateOnly? toDate = q.ToDateUtc.HasValue ? DateOnly.FromDateTime(q.ToDateUtc.Value) : null;
 
             return q.Report switch
             {
-                ProliferationReportKind.ProjectToUnits => await RunProjectToUnitsAsync(q, from, to, statusFilter, page, pageSize, ct),
-                ProliferationReportKind.UnitToProjects => await RunUnitToProjectsAsync(q, from, to, statusFilter, page, pageSize, ct),
-                ProliferationReportKind.ProjectCoverageSummary => await RunProjectCoverageSummaryAsync(q, from, to, statusFilter, page, pageSize, ct),
-                ProliferationReportKind.GranularLedger => await RunGranularLedgerAsync(q, from, to, statusFilter, page, pageSize, ct),
+                ProliferationReportKind.ProjectToUnits => await RunProjectToUnitsAsync(q, fromDate, toDate, statusFilter, page, pageSize, ct),
+                ProliferationReportKind.UnitToProjects => await RunUnitToProjectsAsync(q, fromDate, toDate, statusFilter, page, pageSize, ct),
+                ProliferationReportKind.ProjectCoverageSummary => await RunProjectCoverageSummaryAsync(q, fromDate, toDate, statusFilter, page, pageSize, ct),
+                ProliferationReportKind.GranularLedger => await RunGranularLedgerAsync(q, fromDate, toDate, statusFilter, page, pageSize, ct),
                 ProliferationReportKind.YearlyReconciliation => await RunYearlyReconciliationAsync(q, statusFilter, page, pageSize, ct),
                 _ => throw new InvalidOperationException("Unsupported report kind.")
             };
@@ -168,8 +168,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
         private IQueryable<ProliferationGranular> GranularBase(
             ProliferationReportQueryDto q,
-            DateOnly? from,
-            DateOnly? to,
+            DateOnly? fromDate,
+            DateOnly? toDate,
             string statusFilter)
         {
             var g = _db.ProliferationGranularEntries.AsNoTracking();
@@ -179,8 +179,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 g = g.Where(x => x.Source == q.Source.Value);
             }
 
-            if (from.HasValue) g = g.Where(x => x.ProliferationDate >= from.Value);
-            if (to.HasValue) g = g.Where(x => x.ProliferationDate <= to.Value);
+            if (fromDate.HasValue) g = g.Where(x => x.ProliferationDate >= fromDate.Value);
+            if (toDate.HasValue) g = g.Where(x => x.ProliferationDate <= toDate.Value);
 
             if (statusFilter != "All")
             {
@@ -205,8 +205,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         // SECTION: Project to units
         private async Task<ProliferationReportPageDto> RunProjectToUnitsAsync(
             ProliferationReportQueryDto q,
-            DateOnly? from,
-            DateOnly? to,
+            DateOnly? fromDate,
+            DateOnly? toDate,
             string statusFilter,
             int page,
             int pageSize,
@@ -219,7 +219,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             var projects = EligibleProjectsQuery(q.ProjectCategoryId, q.TechnicalCategoryId);
 
-            var baseQuery = from g in GranularBase(q, from, to, statusFilter)
+            var baseQuery = from g in GranularBase(q, fromDate, toDate, statusFilter)
                             join p in projects on g.ProjectId equals p.Id
                             select new { g, p };
 
@@ -260,8 +260,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         // SECTION: Unit to projects
         private async Task<ProliferationReportPageDto> RunUnitToProjectsAsync(
             ProliferationReportQueryDto q,
-            DateOnly? from,
-            DateOnly? to,
+            DateOnly? fromDate,
+            DateOnly? toDate,
             string statusFilter,
             int page,
             int pageSize,
@@ -274,7 +274,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             var projects = EligibleProjectsQuery(q.ProjectCategoryId, q.TechnicalCategoryId);
 
-            var baseQuery = from g in GranularBase(q, from, to, statusFilter)
+            var baseQuery = from g in GranularBase(q, fromDate, toDate, statusFilter)
                             join p in projects on g.ProjectId equals p.Id
                             select new { g, p };
 
@@ -315,8 +315,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         // SECTION: Project coverage summary
         private async Task<ProliferationReportPageDto> RunProjectCoverageSummaryAsync(
             ProliferationReportQueryDto q,
-            DateOnly? from,
-            DateOnly? to,
+            DateOnly? fromDate,
+            DateOnly? toDate,
             string statusFilter,
             int page,
             int pageSize,
@@ -324,7 +324,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         {
             var projects = EligibleProjectsQuery(q.ProjectCategoryId, q.TechnicalCategoryId);
 
-            var baseQuery = from g in GranularBase(q, from, to, statusFilter)
+            var baseQuery = from g in GranularBase(q, fromDate, toDate, statusFilter)
                             join p in projects on g.ProjectId equals p.Id
                             select new { g, p };
 
@@ -377,8 +377,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         // SECTION: Granular ledger
         private async Task<ProliferationReportPageDto> RunGranularLedgerAsync(
             ProliferationReportQueryDto q,
-            DateOnly? from,
-            DateOnly? to,
+            DateOnly? fromDate,
+            DateOnly? toDate,
             string statusFilter,
             int page,
             int pageSize,
@@ -386,7 +386,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         {
             var projects = EligibleProjectsQuery(q.ProjectCategoryId, q.TechnicalCategoryId);
 
-            var baseQuery = from g in GranularBase(q, from, to, statusFilter)
+            var baseQuery = from g in GranularBase(q, fromDate, toDate, statusFilter)
                             join p in projects on g.ProjectId equals p.Id
                             select new { g, p };
 
