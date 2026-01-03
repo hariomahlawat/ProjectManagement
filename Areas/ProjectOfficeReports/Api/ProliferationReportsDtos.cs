@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Api
@@ -36,29 +37,53 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
     // SECTION: Row DTO
     public sealed class ProliferationReportRowDto
     {
+        // SECTION: Project fields
         public int? ProjectId { get; init; }
         public string? ProjectName { get; init; }
         public string? ProjectCode { get; init; }
 
+        // SECTION: Source fields
         public ProliferationSource? Source { get; init; }
         public string? SourceLabel { get; init; }
 
+        // SECTION: Unit fields
         public string? UnitName { get; init; }
+
+        // SECTION: Date fields
+        [JsonIgnore]
         public DateTime? ProliferationDateUtc { get; init; }
+
+        [JsonPropertyName("proliferationDate")]
+        public string? ProliferationDate => ProliferationDateUtc?.ToString("yyyy-MM-dd");
+
         public int? Year { get; init; }
 
+        // SECTION: Quantities
         public int? Quantity { get; init; }
         public int? TotalQuantity { get; init; }
 
+        // SECTION: Aggregates
         public int? UniqueUnits { get; init; }
+
+        [JsonIgnore]
         public DateTime? FirstProliferationDateUtc { get; init; }
+
+        [JsonIgnore]
         public DateTime? LastProliferationDateUtc { get; init; }
 
+        [JsonPropertyName("firstDate")]
+        public string? FirstProliferationDate => FirstProliferationDateUtc?.ToString("yyyy-MM-dd");
+
+        [JsonPropertyName("lastDate")]
+        public string? LastProliferationDate => LastProliferationDateUtc?.ToString("yyyy-MM-dd");
+
+        // SECTION: Yearly reconciliation
         public int? YearlyApprovedTotal { get; init; }
         public int? GranularApprovedTotal { get; init; }
         public string? PreferenceMode { get; init; }
         public int? EffectiveTotal { get; init; }
 
+        // SECTION: Status fields
         public string? Remarks { get; init; }
         public string? ApprovalStatus { get; init; }
     }
