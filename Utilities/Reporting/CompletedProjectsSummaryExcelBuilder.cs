@@ -14,6 +14,7 @@ public sealed record CompletedProjectsSummaryExportContext(
     DateTimeOffset GeneratedAtUtc,
     string? TechStatus,
     bool? AvailableForProliferation,
+    bool? TotCompleted,
     int? CompletedYear,
     string? Search);
 
@@ -56,6 +57,7 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
             "Latest LPP date",
             "Tech status",
             "Available for proliferation",
+            "ToT status",
             "Remarks"
         };
 
@@ -133,7 +135,12 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
                 false => "No",
                 _ => string.Empty
             };
-            worksheet.Cell(rowNumber, 9).Value = item.Remarks ?? string.Empty;
+            worksheet.Cell(rowNumber, 9).Value = item.TotStatus == Models.ProjectTotStatus.Completed
+                ? "Completed"
+                : item.TotStatus.HasValue
+                    ? "Not completed"
+                    : string.Empty;
+            worksheet.Cell(rowNumber, 10).Value = item.Remarks ?? string.Empty;
         }
     }
 
@@ -141,9 +148,9 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
     private static void ApplyFormatting(IXLWorksheet worksheet, CompletedProjectsSummaryExportContext context)
     {
         var lastRow = Math.Max(2, context.Items.Count + 1);
-        worksheet.Columns(1, 9).AdjustToContents(1, lastRow);
+        worksheet.Columns(1, 10).AdjustToContents(1, lastRow);
 
-        foreach (var column in worksheet.Columns(1, 9))
+        foreach (var column in worksheet.Columns(1, 10))
         {
             if (column.Width > 60)
             {
@@ -152,8 +159,8 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
         }
 
         worksheet.Column(2).Width = Math.Min(worksheet.Column(2).Width, 40);
-        worksheet.Column(9).Style.Alignment.WrapText = true;
-        worksheet.Column(9).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        worksheet.Column(10).Style.Alignment.WrapText = true;
+        worksheet.Column(10).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
 
         var metadataRow = context.Items.Count + 3;
         var generatedAtIst = TimeZoneInfo.ConvertTime(context.GeneratedAtUtc, TimeZoneHelper.GetIst());
@@ -173,12 +180,20 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
             _ => "(all)"
         };
 
-        worksheet.Cell(metadataRow + 3, 1).Value = "Completed year";
-        worksheet.Cell(metadataRow + 3, 2).Value = context.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "(all)";
+        worksheet.Cell(metadataRow + 3, 1).Value = "ToT status";
+        worksheet.Cell(metadataRow + 3, 2).Value = context.TotCompleted switch
+        {
+            true => "Completed",
+            false => "Not completed",
+            _ => "(all)"
+        };
 
-        worksheet.Cell(metadataRow + 4, 1).Value = "Search";
-        worksheet.Cell(metadataRow + 4, 2).Value = string.IsNullOrWhiteSpace(context.Search) ? "(none)" : context.Search;
+        worksheet.Cell(metadataRow + 4, 1).Value = "Completed year";
+        worksheet.Cell(metadataRow + 4, 2).Value = context.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "(all)";
 
-        worksheet.Range(metadataRow, 1, metadataRow + 4, 1).Style.Font.Bold = true;
+        worksheet.Cell(metadataRow + 5, 1).Value = "Search";
+        worksheet.Cell(metadataRow + 5, 2).Value = string.IsNullOrWhiteSpace(context.Search) ? "(none)" : context.Search;
+
+        worksheet.Range(metadataRow, 1, metadataRow + 5, 1).Style.Font.Bold = true;
     }
 }

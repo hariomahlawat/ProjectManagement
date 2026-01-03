@@ -36,6 +36,7 @@ public sealed class IndexModel : PageModel
         _db = db ?? throw new ArgumentNullException(nameof(db));
     }
 
+    // SECTION: Filter inputs
     [BindProperty(SupportsGet = true)]
     public int? TechnicalCategoryId { get; set; }
 
@@ -46,13 +47,18 @@ public sealed class IndexModel : PageModel
     public bool? AvailableForProliferation { get; set; }
 
     [BindProperty(SupportsGet = true)]
+    public bool? TotCompleted { get; set; }
+
+    [BindProperty(SupportsGet = true)]
     public int? CompletedYear { get; set; }
 
     [BindProperty(SupportsGet = true)]
     public string? Search { get; set; }
 
+    // SECTION: Filter option lists
     public IReadOnlyList<SelectListItem> TechnicalCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> TechStatusOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public IReadOnlyList<SelectListItem> TotStatusOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     public IReadOnlyList<SelectListItem> AvailabilityOptions { get; } = new[]
     {
@@ -72,11 +78,13 @@ public sealed class IndexModel : PageModel
         NormaliseFilters();
 
         TechStatusOptions = BuildTechStatusOptions(TechStatus);
+        TotStatusOptions = BuildTotStatusOptions(TotCompleted);
 
         Items = await _summaryService.GetAsync(
             TechnicalCategoryId,
             TechStatus,
             AvailableForProliferation,
+            TotCompleted,
             CompletedYear,
             Search,
             cancellationToken);
@@ -94,6 +102,7 @@ public sealed class IndexModel : PageModel
             TechnicalCategoryId,
             TechStatus,
             AvailableForProliferation,
+            TotCompleted,
             CompletedYear,
             Search,
             cancellationToken);
@@ -106,6 +115,7 @@ public sealed class IndexModel : PageModel
                 generatedAtUtc,
                 TechStatus,
                 AvailableForProliferation,
+                TotCompleted,
                 CompletedYear,
                 Search));
 
@@ -122,6 +132,13 @@ public sealed class IndexModel : PageModel
             && Array.IndexOf(ProjectTechStatusCodes.All, TechStatus) < 0)
         {
             TechStatus = null;
+        }
+
+        var totCompletedRaw = Request.Query[nameof(TotCompleted)].ToString();
+        if (!string.IsNullOrWhiteSpace(totCompletedRaw)
+            && !bool.TryParse(totCompletedRaw, out _))
+        {
+            TotCompleted = null;
         }
 
         Search = string.IsNullOrWhiteSpace(Search) ? null : Search.Trim();
@@ -158,6 +175,32 @@ public sealed class IndexModel : PageModel
         {
             items.Add(new SelectListItem(status, status,
                 string.Equals(status, selected, StringComparison.Ordinal)));
+        }
+
+        return items;
+    }
+
+    private static IReadOnlyList<SelectListItem> BuildTotStatusOptions(bool? selected)
+    {
+        var items = new List<SelectListItem>
+        {
+            new("All", string.Empty),
+            new("Completed", "true"),
+            new("Not completed", "false")
+        };
+
+        foreach (var item in items)
+        {
+            if (string.IsNullOrWhiteSpace(item.Value))
+            {
+                item.Selected = selected is null;
+                continue;
+            }
+
+            if (bool.TryParse(item.Value, out var value))
+            {
+                item.Selected = selected == value;
+            }
         }
 
         return items;
