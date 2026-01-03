@@ -50,7 +50,17 @@ else
                         var row = group.Rows[index];
                         <tr>
                             <td class="text-muted">@row.Serial</td>
-                            <td>@row.ProjectName</td>
+                            <td>
+                                @* SECTION: Project link *@
+                                @if (row.LinkedProjectId.HasValue)
+                                {
+                                    <a asp-page="/Projects/Overview" asp-route-id="@row.LinkedProjectId">@row.ProjectName</a>
+                                }
+                                else
+                                {
+                                    @row.ProjectName
+                                }
+                            </td>
                             <td class="text-end">
                                 @if (row.CostInCr.HasValue)
                                 {
