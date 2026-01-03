@@ -91,6 +91,64 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public string Display => string.IsNullOrWhiteSpace(Code) ? Name : $"{Name} ({Code})";
     }
 
+    // SECTION: Project aggregation query/response models
+    public sealed class ProliferationProjectAggregationQueryDto
+    {
+        public int[]? Years { get; set; }
+        public DateTime? FromDateUtc { get; set; }
+        public DateTime? ToDateUtc { get; set; }
+        public int? ProjectCategoryId { get; set; }
+        public int? TechnicalCategoryId { get; set; }
+        public ProliferationSource? Source { get; set; }
+        public string? Search { get; set; }
+    }
+
+    public sealed class ProliferationSourceTotalsDto
+    {
+        public int Total { get; set; }
+        public int Sdd { get; set; }
+        public int Abw515 { get; set; }
+    }
+
+    public sealed class ProliferationProjectTotalsDto
+    {
+        public int ProjectId { get; set; }
+        public string ProjectName { get; set; } = default!;
+        public string? ProjectCode { get; set; }
+        public ProliferationSourceTotalsDto Totals { get; set; } = new();
+    }
+
+    public sealed class ProliferationProjectYearTotalsDto
+    {
+        public int ProjectId { get; set; }
+        public string ProjectName { get; set; } = default!;
+        public string? ProjectCode { get; set; }
+        public int Year { get; set; }
+        public ProliferationSourceTotalsDto Totals { get; set; } = new();
+    }
+
+    public sealed class ProliferationProjectUnitTotalsDto
+    {
+        public int ProjectId { get; set; }
+        public string ProjectName { get; set; } = default!;
+        public string? ProjectCode { get; set; }
+        public string UnitName { get; set; } = default!;
+        public ProliferationSourceTotalsDto Totals { get; set; } = new();
+    }
+
+    public sealed class ProliferationUnitProjectMapDto
+    {
+        public string UnitName { get; set; } = default!;
+        public IReadOnlyList<ProliferationUnitProjectItemDto> Projects { get; set; } = Array.Empty<ProliferationUnitProjectItemDto>();
+    }
+
+    public sealed class ProliferationUnitProjectItemDto
+    {
+        public int ProjectId { get; set; }
+        public string ProjectName { get; set; } = default!;
+        public string? ProjectCode { get; set; }
+    }
+
     // Create Yearly
     public class ProliferationYearlyCreateDto
     {
