@@ -470,8 +470,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             // SECTION: Aggregations
             var granularAgg = granular
-                .Where(x => x.ProliferationDate != null)
-                .GroupBy(x => new { x.ProjectId, x.Source, Year = x.ProliferationDate.Value.Year })
+                .GroupBy(x => new { x.ProjectId, x.Source, Year = x.ProliferationDate.Year })
                 .Select(g => new
                 {
                     g.Key.ProjectId,
