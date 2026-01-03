@@ -1,0 +1,214 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.ProjectDetailsModel
+@{
+    ViewData["Title"] = "Proliferation project details";
+}
+
+<div class="container-fluid px-3 py-3" data-page="proliferation-project-details">
+    <!-- SECTION: Breadcrumb -->
+    <nav aria-label="Breadcrumb" class="mb-2">
+        <ol class="breadcrumb mb-0 small">
+            <li class="breadcrumb-item">
+                <a asp-area="" asp-page="/Dashboard/Index">Dashboard</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Summary">Proliferation tracker</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">
+                Project details
+            </li>
+        </ol>
+    </nav>
+
+    <!-- SECTION: Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <h1 class="h4 mb-1">Proliferation project details</h1>
+            <p class="text-muted small mb-0">@Model.Lede</p>
+        </div>
+    </div>
+
+    <div class="row g-4 align-items-start">
+        <div class="col-12">
+            <!-- SECTION: Filters -->
+            <section class="mb-3" aria-labelledby="filters-heading">
+                <div class="card border-0 shadow-sm rounded-4">
+                    <div class="card-body py-3 px-4">
+                        <h2 id="filters-heading" class="h6 mb-2">Filters</h2>
+                        <partial name="Partials/_FilterBar" />
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: Tabs -->
+            <section aria-labelledby="proliferation-tabs-heading">
+                <h2 id="proliferation-tabs-heading" class="visually-hidden">Project detail views</h2>
+                <ul class="nav nav-pills mb-3" id="proliferation-project-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active"
+                                id="proliferation-tab-all"
+                                data-bs-toggle="tab"
+                                data-bs-target="#proliferation-pane-all"
+                                type="button"
+                                role="tab"
+                                aria-controls="proliferation-pane-all"
+                                aria-selected="true">
+                            All Projects
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link"
+                                id="proliferation-tab-year"
+                                data-bs-toggle="tab"
+                                data-bs-target="#proliferation-pane-year"
+                                type="button"
+                                role="tab"
+                                aria-controls="proliferation-pane-year"
+                                aria-selected="false">
+                            Year-wise
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link"
+                                id="proliferation-tab-unit"
+                                data-bs-toggle="tab"
+                                data-bs-target="#proliferation-pane-unit"
+                                type="button"
+                                role="tab"
+                                aria-controls="proliferation-pane-unit"
+                                aria-selected="false">
+                            Unit-wise
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link"
+                                id="proliferation-tab-unit-projects"
+                                data-bs-toggle="tab"
+                                data-bs-target="#proliferation-pane-unit-projects"
+                                type="button"
+                                role="tab"
+                                aria-controls="proliferation-pane-unit-projects"
+                                aria-selected="false">
+                            Unit→Projects
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="proliferation-project-tabs-content">
+                    <!-- SECTION: Tab - All Projects -->
+                    <div class="tab-pane fade show active" id="proliferation-pane-all" role="tabpanel" aria-labelledby="proliferation-tab-all" tabindex="0">
+                        <div class="card border-0 shadow-sm rounded-4">
+                            <div class="card-body">
+                                <h3 class="h6 mb-3">All projects summary</h3>
+                                <div class="table-responsive">
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead>
+                                            <tr class="text-muted">
+                                                <th scope="col">Project</th>
+                                                <th scope="col">Unit</th>
+                                                <th scope="col">Year</th>
+                                                <th scope="col">Total</th>
+                                                <th scope="col">SDD</th>
+                                                <th scope="col">515 ABW</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="6" class="text-muted">Use the filters above to view records.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION: Tab - Year-wise -->
+                    <div class="tab-pane fade" id="proliferation-pane-year" role="tabpanel" aria-labelledby="proliferation-tab-year" tabindex="0">
+                        <div class="card border-0 shadow-sm rounded-4">
+                            <div class="card-body">
+                                <h3 class="h6 mb-3">Year-wise totals</h3>
+                                <div class="table-responsive">
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead>
+                                            <tr class="text-muted">
+                                                <th scope="col">Year</th>
+                                                <th scope="col">Projects</th>
+                                                <th scope="col">Total</th>
+                                                <th scope="col">SDD</th>
+                                                <th scope="col">515 ABW</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="5" class="text-muted">Year-level totals appear here after applying filters.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION: Tab - Unit-wise -->
+                    <div class="tab-pane fade" id="proliferation-pane-unit" role="tabpanel" aria-labelledby="proliferation-tab-unit" tabindex="0">
+                        <div class="card border-0 shadow-sm rounded-4">
+                            <div class="card-body">
+                                <h3 class="h6 mb-3">Unit-wise totals</h3>
+                                <div class="table-responsive">
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead>
+                                            <tr class="text-muted">
+                                                <th scope="col">Unit</th>
+                                                <th scope="col">Projects</th>
+                                                <th scope="col">Total</th>
+                                                <th scope="col">SDD</th>
+                                                <th scope="col">515 ABW</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="5" class="text-muted">Unit summaries will display here based on the current filters.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION: Tab - Unit to Projects -->
+                    <div class="tab-pane fade" id="proliferation-pane-unit-projects" role="tabpanel" aria-labelledby="proliferation-tab-unit-projects" tabindex="0">
+                        <div class="card border-0 shadow-sm rounded-4">
+                            <div class="card-body">
+                                <h3 class="h6 mb-3">Unit→Projects</h3>
+                                <div class="table-responsive">
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead>
+                                            <tr class="text-muted">
+                                                <th scope="col">Unit</th>
+                                                <th scope="col">Project</th>
+                                                <th scope="col">Year</th>
+                                                <th scope="col">Total</th>
+                                                <th scope="col">SDD</th>
+                                                <th scope="col">515 ABW</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="6" class="text-muted">Project lists by unit will appear here.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<!-- SECTION: Page styles -->
+<link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />
