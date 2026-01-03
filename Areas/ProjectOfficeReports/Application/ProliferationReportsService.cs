@@ -45,8 +45,17 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         // SECTION: Report execution
         public async Task<ProliferationReportPageDto> RunAsync(ProliferationReportQueryDto q, CancellationToken ct)
         {
+            return await RunInternalAsync(q, ct, maxPageSize: 200);
+        }
+
+        // SECTION: Report execution (internal)
+        private async Task<ProliferationReportPageDto> RunInternalAsync(
+            ProliferationReportQueryDto q,
+            CancellationToken ct,
+            int maxPageSize)
+        {
             var page = q.Page < 1 ? 1 : q.Page;
-            var pageSize = q.PageSize < 1 ? 50 : Math.Min(q.PageSize, 200);
+            var pageSize = q.PageSize < 1 ? 50 : Math.Min(q.PageSize, maxPageSize);
 
             var statusFilter = NormalizeStatus(q.ApprovalStatus);
 
@@ -69,7 +78,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         {
             const int maxExportRows = 100_000;
 
-            var pageDto = await RunAsync(new ProliferationReportQueryDto
+            var pageDto = await RunInternalAsync(new ProliferationReportQueryDto
             {
                 Report = q.Report,
                 Source = q.Source,
@@ -82,7 +91,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 ApprovalStatus = q.ApprovalStatus,
                 Page = 1,
                 PageSize = maxExportRows
-            }, ct);
+            }, ct, maxExportRows);
 
             var columns = pageDto.Columns.Select(c => (c.Key, c.Label)).ToList();
             var rows = pageDto.Rows.Select(RowToDictionary).ToList();
@@ -566,12 +575,17 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
         private static int ComputeEffectiveTotal(ProliferationSource source, YearPreferenceMode mode, int yearly, int granular)
         {
-            if (source == ProliferationSource.Abw515) return yearly;
+            if (source == ProliferationSource.Abw515)
+            {
+                return yearly;
+            }
 
             return mode switch
             {
                 YearPreferenceMode.UseYearly => yearly,
+                YearPreferenceMode.UseGranular => granular,
                 YearPreferenceMode.Auto => granular > 0 ? granular : yearly,
+                YearPreferenceMode.UseYearlyAndGranular => yearly + granular,
                 _ => yearly + granular
             };
         }
