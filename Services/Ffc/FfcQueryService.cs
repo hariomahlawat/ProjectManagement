@@ -37,6 +37,7 @@ public sealed record FfcDetailedGroupVm(
 public sealed record FfcDetailedRowVm(
     int Serial,
     string ProjectName,
+    int? LinkedProjectId,
     decimal? CostInCr,
     int Quantity,
     string Status,
@@ -170,6 +171,7 @@ public sealed class FfcQueryService : IFfcQueryService
                     return new FfcDetailedRowVm(
                         Serial: index + 1,
                         ProjectName: effectiveName,
+                        LinkedProjectId: project.LinkedProjectId,
                         CostInCr: costInCr,
                         Quantity: quantity,
                         Status: bucketLabel,
