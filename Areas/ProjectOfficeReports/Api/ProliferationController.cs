@@ -30,6 +30,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         private readonly ProliferationSubmissionService _submitSvc;
         private readonly ProliferationManageService _manageSvc;
         private readonly ProliferationOverviewService _overviewSvc;
+        private readonly IProliferationProjectReadService _projectReadSvc;
         private readonly IProliferationExportService _exportService;
         private readonly ILogger<ProliferationController> _logger;
 
@@ -39,6 +40,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             ProliferationSubmissionService submitSvc,
             ProliferationManageService manageSvc,
             ProliferationOverviewService overviewSvc,
+            IProliferationProjectReadService projectReadSvc,
             IProliferationExportService exportService,
             ILogger<ProliferationController> logger)
         {
@@ -47,6 +49,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             _submitSvc = submitSvc;
             _manageSvc = manageSvc;
             _overviewSvc = overviewSvc;
+            _projectReadSvc = projectReadSvc;
             _exportService = exportService;
             _logger = logger;
         }
@@ -324,6 +327,102 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 ProjectCategories = projectCategories,
                 TechnicalCategories = technicalCategories
             };
+        }
+
+        // SECTION: Project aggregation endpoints
+        [HttpGet("projects/summary")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
+        public async Task<ActionResult<IReadOnlyList<ProliferationProjectTotalsDto>>> GetProjectSummary(
+            [FromQuery] ProliferationProjectAggregationQueryDto query,
+            CancellationToken ct)
+        {
+            var request = BuildProjectAggregationRequest(query);
+            var result = await _projectReadSvc.GetAggregatesAsync(request, ct);
+
+            var payload = result.AllProjectTotals
+                .Select(row => new ProliferationProjectTotalsDto
+                {
+                    ProjectId = row.ProjectId,
+                    ProjectName = row.ProjectName,
+                    ProjectCode = row.ProjectCode,
+                    Totals = MapTotals(row.Totals)
+                })
+                .ToList();
+
+            return Ok(payload);
+        }
+
+        [HttpGet("projects/by-year")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
+        public async Task<ActionResult<IReadOnlyList<ProliferationProjectYearTotalsDto>>> GetProjectTotalsByYear(
+            [FromQuery] ProliferationProjectAggregationQueryDto query,
+            CancellationToken ct)
+        {
+            var request = BuildProjectAggregationRequest(query);
+            var result = await _projectReadSvc.GetAggregatesAsync(request, ct);
+
+            var payload = result.ProjectYearTotals
+                .Select(row => new ProliferationProjectYearTotalsDto
+                {
+                    ProjectId = row.ProjectId,
+                    ProjectName = row.ProjectName,
+                    ProjectCode = row.ProjectCode,
+                    Year = row.Year,
+                    Totals = MapTotals(row.Totals)
+                })
+                .ToList();
+
+            return Ok(payload);
+        }
+
+        [HttpGet("projects/by-unit")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
+        public async Task<ActionResult<IReadOnlyList<ProliferationProjectUnitTotalsDto>>> GetProjectTotalsByUnit(
+            [FromQuery] ProliferationProjectAggregationQueryDto query,
+            CancellationToken ct)
+        {
+            var request = BuildProjectAggregationRequest(query);
+            var result = await _projectReadSvc.GetAggregatesAsync(request, ct);
+
+            var payload = result.ProjectUnitTotals
+                .Select(row => new ProliferationProjectUnitTotalsDto
+                {
+                    ProjectId = row.ProjectId,
+                    ProjectName = row.ProjectName,
+                    ProjectCode = row.ProjectCode,
+                    UnitName = row.UnitName,
+                    Totals = MapTotals(row.Totals)
+                })
+                .ToList();
+
+            return Ok(payload);
+        }
+
+        [HttpGet("units/projects")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
+        public async Task<ActionResult<IReadOnlyList<ProliferationUnitProjectMapDto>>> GetUnitProjects(
+            [FromQuery] ProliferationProjectAggregationQueryDto query,
+            CancellationToken ct)
+        {
+            var request = BuildProjectAggregationRequest(query);
+            var result = await _projectReadSvc.GetAggregatesAsync(request, ct);
+
+            var payload = result.UnitProjectMap
+                .Select(row => new ProliferationUnitProjectMapDto
+                {
+                    UnitName = row.UnitName,
+                    Projects = row.Projects
+                        .Select(project => new ProliferationUnitProjectItemDto
+                        {
+                            ProjectId = project.ProjectId,
+                            ProjectName = project.ProjectName,
+                            ProjectCode = project.ProjectCode
+                        })
+                        .ToList()
+                })
+                .ToList();
+
+            return Ok(payload);
         }
 
         [HttpGet("overview")]
@@ -1001,6 +1100,55 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
         private static string EncodeRowVersion(byte[]? rowVersion)
             => rowVersion is { Length: > 0 } ? Convert.ToBase64String(rowVersion) : string.Empty;
+
+        // SECTION: Project aggregation helpers
+        private static ProliferationProjectAggregationRequest BuildProjectAggregationRequest(
+            ProliferationProjectAggregationQueryDto query)
+        {
+            if (query is null)
+            {
+                return new ProliferationProjectAggregationRequest(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null);
+            }
+
+            var hasDateRange = query.FromDateUtc.HasValue || query.ToDateUtc.HasValue;
+            var years = hasDateRange || query.Years is not { Length: > 0 }
+                ? null
+                : query.Years;
+
+            DateOnly? dateFrom = query.FromDateUtc.HasValue
+                ? DateOnly.FromDateTime(query.FromDateUtc.Value)
+                : null;
+
+            DateOnly? dateTo = query.ToDateUtc.HasValue
+                ? DateOnly.FromDateTime(query.ToDateUtc.Value)
+                : null;
+
+            return new ProliferationProjectAggregationRequest(
+                years,
+                dateFrom,
+                dateTo,
+                query.ProjectCategoryId,
+                query.TechnicalCategoryId,
+                query.Source,
+                query.Search);
+        }
+
+        private static ProliferationSourceTotalsDto MapTotals(ProliferationSummarySourceTotals totals)
+        {
+            return new ProliferationSourceTotalsDto
+            {
+                Total = totals.Total,
+                Sdd = totals.Sdd,
+                Abw515 = totals.Abw515
+            };
+        }
 
         private sealed record OverviewRowProjection(
             int ProjectId,
