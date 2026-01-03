@@ -27,6 +27,9 @@ public interface ICompletedProjectsSummaryExcelBuilder
 // SECTION: Builder implementation
 public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSummaryExcelBuilder
 {
+    private const string TotCompletedLabel = "Completed";
+    private const string TotNotCompletedLabel = "Not completed";
+
     public byte[] Build(CompletedProjectsSummaryExportContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -135,11 +138,7 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
                 false => "No",
                 _ => string.Empty
             };
-            worksheet.Cell(rowNumber, 9).Value = item.TotStatus == Models.ProjectTotStatus.Completed
-                ? "Completed"
-                : item.TotStatus.HasValue
-                    ? "Not completed"
-                    : string.Empty;
+            worksheet.Cell(rowNumber, 9).Value = FormatTotStatus(item.TotStatus);
             worksheet.Cell(rowNumber, 10).Value = item.Remarks ?? string.Empty;
         }
     }
@@ -181,12 +180,7 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
         };
 
         worksheet.Cell(metadataRow + 3, 1).Value = "ToT status";
-        worksheet.Cell(metadataRow + 3, 2).Value = context.TotCompleted switch
-        {
-            true => "Completed",
-            false => "Not completed",
-            _ => "(all)"
-        };
+        worksheet.Cell(metadataRow + 3, 2).Value = FormatTotFilter(context.TotCompleted);
 
         worksheet.Cell(metadataRow + 4, 1).Value = "Completed year";
         worksheet.Cell(metadataRow + 4, 2).Value = context.CompletedYear?.ToString(CultureInfo.InvariantCulture) ?? "(all)";
@@ -195,5 +189,26 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
         worksheet.Cell(metadataRow + 5, 2).Value = string.IsNullOrWhiteSpace(context.Search) ? "(none)" : context.Search;
 
         worksheet.Range(metadataRow, 1, metadataRow + 5, 1).Style.Font.Bold = true;
+    }
+
+    // SECTION: ToT status formatting
+    private static string FormatTotStatus(Models.ProjectTotStatus? totStatus)
+    {
+        if (totStatus == Models.ProjectTotStatus.Completed)
+        {
+            return TotCompletedLabel;
+        }
+
+        return totStatus.HasValue ? TotNotCompletedLabel : string.Empty;
+    }
+
+    private static string FormatTotFilter(bool? totCompleted)
+    {
+        return totCompleted switch
+        {
+            true => TotCompletedLabel,
+            false => TotNotCompletedLabel,
+            _ => "(all)"
+        };
     }
 }
