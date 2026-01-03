@@ -447,6 +447,24 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             var granular = _db.ProliferationGranularEntries.AsNoTracking();
             var prefs = _db.ProliferationYearPreferences.AsNoTracking();
 
+            // SECTION: Defensive null filters
+            yearlies = yearlies.Where(x =>
+                EF.Property<int?>(x, "ProjectId") != null &&
+                EF.Property<ProliferationSource?>(x, "Source") != null &&
+                EF.Property<int?>(x, "Year") != null &&
+                EF.Property<int?>(x, "TotalQuantity") != null);
+
+            granular = granular.Where(x =>
+                EF.Property<int?>(x, "ProjectId") != null &&
+                EF.Property<ProliferationSource?>(x, "Source") != null &&
+                EF.Property<DateOnly?>(x, "ProliferationDate") != null);
+
+            prefs = prefs.Where(x =>
+                EF.Property<int?>(x, "ProjectId") != null &&
+                EF.Property<ProliferationSource?>(x, "Source") != null &&
+                EF.Property<int?>(x, "Year") != null &&
+                EF.Property<YearPreferenceMode?>(x, "Mode") != null);
+
             if (q.Source.HasValue)
             {
                 yearlies = yearlies.Where(x => x.Source == q.Source.Value);
