@@ -31,6 +31,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         private readonly ProliferationManageService _manageSvc;
         private readonly ProliferationOverviewService _overviewSvc;
         private readonly IProliferationProjectReadService _projectReadSvc;
+        private readonly IProliferationProjectExportService _projectExportService;
         private readonly IProliferationExportService _exportService;
         private readonly ILogger<ProliferationController> _logger;
 
@@ -41,6 +42,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             ProliferationManageService manageSvc,
             ProliferationOverviewService overviewSvc,
             IProliferationProjectReadService projectReadSvc,
+            IProliferationProjectExportService projectExportService,
             IProliferationExportService exportService,
             ILogger<ProliferationController> logger)
         {
@@ -50,6 +52,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             _manageSvc = manageSvc;
             _overviewSvc = overviewSvc;
             _projectReadSvc = projectReadSvc;
+            _projectExportService = projectExportService;
             _exportService = exportService;
             _logger = logger;
         }
@@ -423,6 +426,42 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 .ToList();
 
             return Ok(payload);
+        }
+
+        [HttpGet("projects/export")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
+        public async Task<IActionResult> ExportProjectSummary(
+            [FromQuery] ProliferationProjectAggregationQueryDto query,
+            CancellationToken ct)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return Challenge();
+            }
+
+            DateOnly? from = query.FromDateUtc.HasValue ? DateOnly.FromDateTime(query.FromDateUtc.Value) : null;
+            DateOnly? to = query.ToDateUtc.HasValue ? DateOnly.FromDateTime(query.ToDateUtc.Value) : null;
+            IReadOnlyCollection<int>? years = query.Years is { Length: > 0 } ? query.Years.ToList() : null;
+
+            var request = new ProliferationProjectExportRequest(
+                Years: years,
+                FromDate: from,
+                ToDate: to,
+                ProjectCategoryId: query.ProjectCategoryId,
+                TechnicalCategoryId: query.TechnicalCategoryId,
+                Source: query.Source,
+                Search: query.Search,
+                RequestedByUserId: userId);
+
+            var result = await _projectExportService.ExportAsync(request, ct);
+            if (!result.Success || result.File is null)
+            {
+                var message = result.Errors.FirstOrDefault() ?? "Export failed.";
+                return BadRequest(message);
+            }
+
+            return File(result.File.Content, result.File.ContentType, result.File.FileName);
         }
 
         [HttpGet("overview")]
