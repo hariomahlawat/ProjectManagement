@@ -494,7 +494,14 @@ namespace ProjectManagement.Migrations
 
                     b.HasKey("Id");
 
+                    // SECTION: Proliferation granular indexes
                     b.HasIndex("ProjectId", "Source", "ProliferationDate");
+
+                    b.HasIndex("UnitName")
+                        .HasDatabaseName("IX_ProlifGranular_UnitName");
+
+                    b.HasIndex("UnitName", "ProliferationDate")
+                        .HasDatabaseName("IX_ProlifGranular_UnitName_ProliferationDate");
 
                     b.ToTable("ProliferationGranular", (string)null);
                 });
