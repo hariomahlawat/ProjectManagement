@@ -447,24 +447,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             var granular = _db.ProliferationGranularEntries.AsNoTracking();
             var prefs = _db.ProliferationYearPreferences.AsNoTracking();
 
-            // SECTION: Defensive null filters
-            yearlies = yearlies.Where(x =>
-                EF.Property<int?>(x, "ProjectId") != null &&
-                EF.Property<ProliferationSource?>(x, "Source") != null &&
-                EF.Property<int?>(x, "Year") != null &&
-                EF.Property<int?>(x, "TotalQuantity") != null);
-
-            granular = granular.Where(x =>
-                EF.Property<int?>(x, "ProjectId") != null &&
-                EF.Property<ProliferationSource?>(x, "Source") != null &&
-                EF.Property<DateOnly?>(x, "ProliferationDate") != null);
-
-            prefs = prefs.Where(x =>
-                EF.Property<int?>(x, "ProjectId") != null &&
-                EF.Property<ProliferationSource?>(x, "Source") != null &&
-                EF.Property<int?>(x, "Year") != null &&
-                EF.Property<YearPreferenceMode?>(x, "Mode") != null);
-
+            // SECTION: Filters
             if (q.Source.HasValue)
             {
                 yearlies = yearlies.Where(x => x.Source == q.Source.Value);
@@ -491,52 +474,60 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 .GroupBy(x => new { x.ProjectId, x.Source, Year = x.ProliferationDate.Year })
                 .Select(g => new
                 {
-                    ProjectId = (int?)g.Key.ProjectId,
-                    Source = (ProliferationSource?)g.Key.Source,
-                    Year = (int?)g.Key.Year,
-                    GranularTotal = (int?)g.Sum(x => x.Quantity)
+                    g.Key.ProjectId,
+                    g.Key.Source,
+                    g.Key.Year,
+                    GranularTotal = g.Sum(x => x.Quantity)
                 });
 
             var yearlyAgg = yearlies
                 .GroupBy(x => new { x.ProjectId, x.Source, x.Year })
                 .Select(g => new
                 {
-                    ProjectId = (int?)g.Key.ProjectId,
-                    Source = (ProliferationSource?)g.Key.Source,
-                    Year = (int?)g.Key.Year,
-                    YearlyTotal = (int?)g.Sum(x => x.TotalQuantity)
+                    g.Key.ProjectId,
+                    g.Key.Source,
+                    Year = g.Key.Year,
+                    YearlyTotal = g.Sum(x => x.TotalQuantity)
                 });
 
             // SECTION: Merge yearly + granular totals
-            var combinedKeys = yearlyAgg
-                .Select(x => new { x.ProjectId, x.Source, x.Year })
-                .Union(granularAgg.Select(x => new { x.ProjectId, x.Source, x.Year }));
+            var merged = yearlyAgg
+                .Select(x => new
+                {
+                    x.ProjectId,
+                    x.Source,
+                    x.Year,
+                    x.YearlyTotal,
+                    GranularTotal = 0
+                })
+                .Concat(granularAgg.Select(x => new
+                {
+                    x.ProjectId,
+                    x.Source,
+                    x.Year,
+                    YearlyTotal = 0,
+                    x.GranularTotal
+                }))
+                .GroupBy(x => new { x.ProjectId, x.Source, x.Year })
+                .Select(g => new
+                {
+                    g.Key.ProjectId,
+                    g.Key.Source,
+                    g.Key.Year,
+                    YearlyTotal = g.Sum(x => x.YearlyTotal),
+                    GranularTotal = g.Sum(x => x.GranularTotal)
+                });
 
-            var combined = from k in combinedKeys
-                           join y in yearlyAgg on new { k.ProjectId, k.Source, k.Year } equals new { y.ProjectId, y.Source, y.Year } into yj
-                           from y in yj.DefaultIfEmpty()
-                           join g in granularAgg on new { k.ProjectId, k.Source, k.Year } equals new { g.ProjectId, g.Source, g.Year } into gj
-                           from g in gj.DefaultIfEmpty()
-                           select new
-                           {
-                               k.ProjectId,
-                               k.Source,
-                               k.Year,
-                               YearlyTotal = y != null && y.YearlyTotal.HasValue ? y.YearlyTotal.Value : 0,
-                               GranularTotal = g != null && g.GranularTotal.HasValue ? g.GranularTotal.Value : 0
-                           };
-
-            var withPrefs = from c in combined
-                            where c.ProjectId != null && c.Source != null && c.Year != null
-                            join pref in prefs on new { ProjectId = c.ProjectId.GetValueOrDefault(), Source = c.Source.GetValueOrDefault(), Year = c.Year.GetValueOrDefault() } equals new { pref.ProjectId, pref.Source, pref.Year } into pj
+            var withPrefs = from m in merged
+                            join pref in prefs on new { m.ProjectId, m.Source, Year = m.Year } equals new { pref.ProjectId, pref.Source, Year = pref.Year } into pj
                             from pref in pj.DefaultIfEmpty()
                             select new
                             {
-                                ProjectId = c.ProjectId.GetValueOrDefault(),
-                                Source = c.Source.GetValueOrDefault(),
-                                Year = c.Year.GetValueOrDefault(),
-                                c.YearlyTotal,
-                                c.GranularTotal,
+                                m.ProjectId,
+                                m.Source,
+                                m.Year,
+                                m.YearlyTotal,
+                                m.GranularTotal,
                                 Mode = pref != null ? pref.Mode : YearPreferenceMode.UseYearlyAndGranular
                             };
 
