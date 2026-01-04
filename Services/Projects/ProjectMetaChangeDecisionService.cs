@@ -227,6 +227,21 @@ public sealed class ProjectMetaChangeDecisionService
             }
         }
 
+        var projectTypeId = payload.ProjectTypeId;
+        if (projectTypeId.HasValue)
+        {
+            var projectTypeExists = await _db.ProjectTypes
+                .AsNoTracking()
+                .AnyAsync(p => p.Id == projectTypeId.Value && p.IsActive, cancellationToken);
+
+            if (!projectTypeExists)
+            {
+                return (ProjectMetaDecisionResult.ValidationFailed(ProjectValidationMessages.InactiveProjectType), default!, new Dictionary<string, string?>());
+            }
+        }
+
+        var isBuild = payload.IsBuild;
+
         var sponsoringUnitId = payload.SponsoringUnitId;
         string? newSponsoringUnitName = null;
         if (sponsoringUnitId.HasValue)
@@ -288,6 +303,8 @@ public sealed class ProjectMetaChangeDecisionService
             ["CaseFileNumberBefore"] = project.CaseFileNumber,
             ["CategoryIdBefore"] = project.CategoryId?.ToString(),
             ["TechnicalCategoryIdBefore"] = project.TechnicalCategoryId?.ToString(),
+            ["ProjectTypeIdBefore"] = project.ProjectTypeId?.ToString(),
+            ["IsBuildBefore"] = project.IsBuild.ToString(),
             ["SponsoringUnitIdBefore"] = project.SponsoringUnitId?.ToString(),
             ["SponsoringUnitNameBefore"] = currentUnitName,
             ["SponsoringLineDirectorateIdBefore"] = project.SponsoringLineDirectorateId?.ToString(),
@@ -299,10 +316,21 @@ public sealed class ProjectMetaChangeDecisionService
         project.CaseFileNumber = trimmedCaseFileNumber;
         project.CategoryId = categoryId;
         project.TechnicalCategoryId = technicalCategoryId;
+        if (projectTypeId.HasValue)
+        {
+            project.ProjectTypeId = projectTypeId;
+        }
+        if (isBuild.HasValue)
+        {
+            project.IsBuild = isBuild.Value;
+        }
         project.SponsoringUnitId = sponsoringUnitId;
         project.SponsoringLineDirectorateId = sponsoringLineDirectorateId;
 
         request.TechnicalCategoryId = technicalCategoryId;
+
+        var resolvedProjectTypeId = project.ProjectTypeId;
+        var resolvedIsBuild = project.IsBuild;
 
         var cleanedPayload = new ProjectMetaChangeRequestPayload
         {
@@ -311,6 +339,8 @@ public sealed class ProjectMetaChangeDecisionService
             CaseFileNumber = trimmedCaseFileNumber,
             CategoryId = categoryId,
             TechnicalCategoryId = technicalCategoryId,
+            ProjectTypeId = resolvedProjectTypeId,
+            IsBuild = resolvedIsBuild,
             SponsoringUnitId = sponsoringUnitId,
             SponsoringLineDirectorateId = sponsoringLineDirectorateId
         };
@@ -393,6 +423,10 @@ public sealed class ProjectMetaChangeDecisionService
             ["CategoryIdAfter"] = payload.CategoryId?.ToString(),
             ["TechnicalCategoryIdBefore"] = before.TryGetValue("TechnicalCategoryIdBefore", out var tcb) ? tcb : null,
             ["TechnicalCategoryIdAfter"] = payload.TechnicalCategoryId?.ToString(),
+            ["ProjectTypeIdBefore"] = before.TryGetValue("ProjectTypeIdBefore", out var ptb) ? ptb : null,
+            ["ProjectTypeIdAfter"] = payload.ProjectTypeId?.ToString(),
+            ["IsBuildBefore"] = before.TryGetValue("IsBuildBefore", out var ibb) ? ibb : null,
+            ["IsBuildAfter"] = payload.IsBuild?.ToString(),
             ["SponsoringUnitIdBefore"] = before.TryGetValue("SponsoringUnitIdBefore", out var sub) ? sub : null,
             ["SponsoringUnitIdAfter"] = payload.SponsoringUnitId?.ToString(),
             ["SponsoringUnitNameBefore"] = before.TryGetValue("SponsoringUnitNameBefore", out var sunb) ? sunb : null,

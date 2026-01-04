@@ -38,13 +38,17 @@ public sealed class RequestModel : PageModel
 
     public IReadOnlyList<SelectListItem> CategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> TechnicalCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public IReadOnlyList<SelectListItem> ProjectTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> SponsoringUnitOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> LineDirectorateOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public string CurrentProjectType { get; private set; } = "—";
+    public string CurrentBuildFlag { get; private set; } = "No";
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
         var project = await _db.Projects
             .AsNoTracking()
+            .Include(p => p.ProjectType)
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
         if (project is null)
@@ -59,6 +63,8 @@ public sealed class RequestModel : PageModel
         }
 
         ProjectName = project.Name;
+        CurrentProjectType = await GetProjectTypeDisplayAsync(project.ProjectTypeId, cancellationToken);
+        CurrentBuildFlag = project.IsBuild ? "Yes" : "No";
         Input = new RequestInput
         {
             ProjectId = project.Id,
@@ -68,11 +74,14 @@ public sealed class RequestModel : PageModel
             CategoryId = project.CategoryId,
             TechnicalCategoryId = project.TechnicalCategoryId,
             SponsoringUnitId = project.SponsoringUnitId,
-            SponsoringLineDirectorateId = project.SponsoringLineDirectorateId
+            SponsoringLineDirectorateId = project.SponsoringLineDirectorateId,
+            ProjectTypeId = null,
+            IsBuild = null
         };
 
         await LoadCategoryOptionsAsync(project.CategoryId, cancellationToken);
         await LoadTechnicalCategoryOptionsAsync(project.TechnicalCategoryId, cancellationToken);
+        await LoadProjectTypeOptionsAsync(Input.ProjectTypeId, cancellationToken);
         await LoadLookupOptionsAsync(project.SponsoringUnitId, project.SponsoringLineDirectorateId, cancellationToken);
 
         return Page();
@@ -87,7 +96,6 @@ public sealed class RequestModel : PageModel
 
         await LoadCategoryOptionsAsync(Input.CategoryId, cancellationToken);
         await LoadTechnicalCategoryOptionsAsync(Input.TechnicalCategoryId, cancellationToken);
-        await LoadLookupOptionsAsync(Input.SponsoringUnitId, Input.SponsoringLineDirectorateId, cancellationToken);
 
         var project = await _db.Projects
             .AsNoTracking()
@@ -99,6 +107,11 @@ public sealed class RequestModel : PageModel
         }
 
         ProjectName = project.Name;
+        CurrentProjectType = await GetProjectTypeDisplayAsync(project.ProjectTypeId, cancellationToken);
+        CurrentBuildFlag = project.IsBuild ? "Yes" : "No";
+
+        await LoadProjectTypeOptionsAsync(Input.ProjectTypeId, cancellationToken);
+        await LoadLookupOptionsAsync(Input.SponsoringUnitId, Input.SponsoringLineDirectorateId, cancellationToken);
 
         var userId = _userContext.UserId;
         if (!IsLeadProjectOfficer(project, userId))
@@ -150,6 +163,19 @@ public sealed class RequestModel : PageModel
             }
         }
 
+        if (Input.ProjectTypeId.HasValue)
+        {
+            var projectTypeActive = await _db.ProjectTypes
+                .AsNoTracking()
+                .AnyAsync(p => p.Id == Input.ProjectTypeId.Value && p.IsActive, cancellationToken);
+
+            if (!projectTypeActive)
+            {
+                ModelState.AddModelError("Input.ProjectTypeId", ProjectValidationMessages.InactiveProjectType);
+                return Page();
+            }
+        }
+
         var submission = new ProjectMetaChangeRequestSubmission
         {
             ProjectId = id,
@@ -158,6 +184,8 @@ public sealed class RequestModel : PageModel
             CaseFileNumber = Input.CaseFileNumber,
             CategoryId = Input.CategoryId,
             TechnicalCategoryId = Input.TechnicalCategoryId,
+            ProjectTypeId = Input.ProjectTypeId,
+            IsBuild = Input.IsBuild,
             SponsoringUnitId = Input.SponsoringUnitId,
             SponsoringLineDirectorateId = Input.SponsoringLineDirectorateId,
             Reason = Input.Reason
@@ -336,6 +364,39 @@ public sealed class RequestModel : PageModel
         TechnicalCategoryOptions = options;
     }
 
+    // SECTION: Project type options
+    private async Task LoadProjectTypeOptionsAsync(int? selectedProjectTypeId, CancellationToken cancellationToken)
+    {
+        var types = await _db.ProjectTypes
+            .AsNoTracking()
+            .Where(p => p.IsActive)
+            .OrderBy(p => p.SortOrder)
+            .ThenBy(p => p.Name)
+            .Select(p => new { p.Id, p.Name })
+            .ToListAsync(cancellationToken);
+
+        var items = types.Select(p => (Id: p.Id, Name: p.Name)).ToList();
+        if (selectedProjectTypeId.HasValue && items.All(p => p.Id != selectedProjectTypeId.Value))
+        {
+            var selectedType = await _db.ProjectTypes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == selectedProjectTypeId.Value, cancellationToken);
+            if (selectedType is not null)
+            {
+                items.Add((selectedType.Id, $"{selectedType.Name} (inactive)"));
+            }
+        }
+
+        var options = new List<SelectListItem>
+        {
+            new($"Keep current ({CurrentProjectType})", string.Empty, selectedProjectTypeId is null)
+        };
+
+        options.AddRange(items.Select(item => new SelectListItem(item.Name, item.Id.ToString(), selectedProjectTypeId == item.Id)));
+
+        ProjectTypeOptions = options;
+    }
+
     public sealed class RequestInput
     {
         public int ProjectId { get; set; }
@@ -355,6 +416,13 @@ public sealed class RequestModel : PageModel
         [Display(Name = "Technical Category")]
         public int? TechnicalCategoryId { get; set; }
 
+        // SECTION: Project type and build flag
+        [Display(Name = "Project type")]
+        public int? ProjectTypeId { get; set; }
+
+        [Display(Name = "Build (repeat / re-manufacture)")]
+        public bool? IsBuild { get; set; }
+
         [Display(Name = "Sponsoring Unit")]
         public int? SponsoringUnitId { get; set; }
 
@@ -363,5 +431,25 @@ public sealed class RequestModel : PageModel
 
         [StringLength(1024)]
         public string? Reason { get; set; }
+    }
+
+    private async Task<string> GetProjectTypeDisplayAsync(int? projectTypeId, CancellationToken cancellationToken)
+    {
+        if (!projectTypeId.HasValue)
+        {
+            return "—";
+        }
+
+        var type = await _db.ProjectTypes
+            .AsNoTracking()
+            .Select(p => new { p.Id, p.Name, p.IsActive })
+            .SingleOrDefaultAsync(p => p.Id == projectTypeId.Value, cancellationToken);
+
+        if (type is null)
+        {
+            return "(inactive)";
+        }
+
+        return type.IsActive ? type.Name : $"{type.Name} (inactive)";
     }
 }

@@ -174,6 +174,69 @@ public sealed class MetaRequestFlowTests
     }
 
     [Fact]
+    public async Task MetaRequestUpdatesProjectTypeAndBuildFlag()
+    {
+        await using var db = CreateContext();
+        await db.ProjectTypes.AddRangeAsync(
+            new ProjectType
+            {
+                Id = 100,
+                Name = "Prototype",
+                IsActive = true
+            },
+            new ProjectType
+            {
+                Id = 101,
+                Name = "Production",
+                IsActive = true
+            });
+
+        await db.Projects.AddAsync(new Project
+        {
+            Id = 6,
+            Name = "Foxtrot",
+            CreatedByUserId = "creator",
+            LeadPoUserId = "po-user",
+            HodUserId = "hod-user",
+            ProjectTypeId = 100,
+            IsBuild = false,
+            RowVersion = new byte[] { 1, 2, 3 }
+        });
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 6, 9, 0, 0, TimeSpan.Zero));
+        var requestService = new ProjectMetaChangeRequestService(db, clock);
+
+        var submission = new ProjectMetaChangeRequestSubmission
+        {
+            ProjectId = 6,
+            Name = "Foxtrot",
+            ProjectTypeId = 101,
+            IsBuild = true
+        };
+
+        var submissionResult = await requestService.SubmitAsync(submission, "po-user", CancellationToken.None);
+        Assert.Equal(ProjectMetaChangeRequestSubmissionOutcome.Success, submissionResult.Outcome);
+
+        var request = await db.ProjectMetaChangeRequests.SingleAsync();
+        Assert.Equal(100, request.OriginalProjectTypeId);
+        Assert.False(request.OriginalIsBuild);
+
+        var audit = new RecordingAudit();
+        var decisionService = new ProjectMetaChangeDecisionService(db, clock, NullLogger<ProjectMetaChangeDecisionService>.Instance, audit);
+
+        var decisionResult = await decisionService.DecideAsync(
+            new ProjectMetaDecisionInput(request.Id, ProjectMetaDecisionAction.Approve, "approve"),
+            new ProjectMetaDecisionUser("hod-user", IsAdmin: false, IsHoD: true));
+
+        Assert.Equal(ProjectMetaDecisionOutcome.Success, decisionResult.Outcome);
+
+        var project = await db.Projects.SingleAsync();
+        Assert.Equal(101, project.ProjectTypeId);
+        Assert.True(project.IsBuild);
+    }
+
+    [Fact]
     public async Task PendingUniquenessIsEnforced()
     {
         await using var db = CreateContext();

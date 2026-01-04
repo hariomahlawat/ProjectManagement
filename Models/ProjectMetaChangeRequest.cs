@@ -38,6 +38,11 @@ namespace ProjectManagement.Models
 
         public int? TechnicalCategoryId { get; set; }
 
+        // SECTION: Project type and build flag snapshot
+        public int? OriginalProjectTypeId { get; set; }
+
+        public bool OriginalIsBuild { get; set; }
+
         public string? OriginalCaseFileNumber { get; set; }
 
         public byte[]? OriginalRowVersion { get; set; }

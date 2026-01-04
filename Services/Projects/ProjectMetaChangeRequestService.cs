@@ -60,6 +60,8 @@ public sealed class ProjectMetaChangeRequestService
             : submission.CaseFileNumber.Trim();
         var categoryId = submission.CategoryId;
         var technicalCategoryId = submission.TechnicalCategoryId;
+        var projectTypeId = submission.ProjectTypeId;
+        var isBuild = submission.IsBuild;
         var sponsoringUnitId = submission.SponsoringUnitId;
         var sponsoringLineDirectorateId = submission.SponsoringLineDirectorateId;
 
@@ -115,6 +117,22 @@ public sealed class ProjectMetaChangeRequestService
             }
         }
 
+        if (projectTypeId.HasValue)
+        {
+            var projectTypeExists = await _db.ProjectTypes
+                .AsNoTracking()
+                .AnyAsync(p => p.Id == projectTypeId.Value && p.IsActive, cancellationToken);
+
+            if (!projectTypeExists)
+            {
+                return ProjectMetaChangeRequestSubmissionResult.ValidationFailed(
+                    new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["ProjectTypeId"] = new[] { ProjectValidationMessages.InactiveProjectType }
+                    });
+            }
+        }
+
         if (sponsoringUnitId.HasValue)
         {
             var unitExists = await _db.SponsoringUnits
@@ -154,6 +172,8 @@ public sealed class ProjectMetaChangeRequestService
             CaseFileNumber = trimmedCaseFileNumber,
             CategoryId = categoryId,
             TechnicalCategoryId = technicalCategoryId,
+            ProjectTypeId = projectTypeId,
+            IsBuild = isBuild,
             SponsoringUnitId = sponsoringUnitId,
             SponsoringLineDirectorateId = sponsoringLineDirectorateId
         };
@@ -190,6 +210,8 @@ public sealed class ProjectMetaChangeRequestService
             target.OriginalCaseFileNumber = project.CaseFileNumber;
             target.OriginalCategoryId = project.CategoryId;
             target.OriginalTechnicalCategoryId = project.TechnicalCategoryId;
+            target.OriginalProjectTypeId = project.ProjectTypeId;
+            target.OriginalIsBuild = project.IsBuild;
             target.OriginalRowVersion = SnapshotRowVersion(project);
             target.OriginalSponsoringUnitId = project.SponsoringUnitId;
             target.OriginalSponsoringLineDirectorateId = project.SponsoringLineDirectorateId;
@@ -224,6 +246,8 @@ public sealed class ProjectMetaChangeRequestService
             OriginalCaseFileNumber = project.CaseFileNumber,
             OriginalCategoryId = project.CategoryId,
             OriginalTechnicalCategoryId = project.TechnicalCategoryId,
+            OriginalProjectTypeId = project.ProjectTypeId,
+            OriginalIsBuild = project.IsBuild,
             OriginalRowVersion = SnapshotRowVersion(project),
             OriginalSponsoringUnitId = project.SponsoringUnitId,
             OriginalSponsoringLineDirectorateId = project.SponsoringLineDirectorateId,
@@ -250,6 +274,11 @@ public sealed class ProjectMetaChangeRequestSubmission
     public int? CategoryId { get; set; }
 
     public int? TechnicalCategoryId { get; set; }
+
+    // SECTION: Project type and build flag updates
+    public int? ProjectTypeId { get; set; }
+
+    public bool? IsBuild { get; set; }
 
     public int? SponsoringUnitId { get; set; }
 

@@ -19,6 +19,13 @@ public sealed class ProjectMetaChangeRequestPayload
     [JsonPropertyName("technicalCategoryId")]
     public int? TechnicalCategoryId { get; set; }
 
+    // SECTION: Project type and build flag
+    [JsonPropertyName("projectTypeId")]
+    public int? ProjectTypeId { get; set; }
+
+    [JsonPropertyName("isBuild")]
+    public bool? IsBuild { get; set; }
+
     [JsonPropertyName("sponsoringUnitId")]
     public int? SponsoringUnitId { get; set; }
 

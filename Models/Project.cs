@@ -65,6 +65,13 @@ namespace ProjectManagement.Models
         public int? TechnicalCategoryId { get; set; }
         public TechnicalCategory? TechnicalCategory { get; set; }
 
+        // SECTION: Project type classification
+        public int? ProjectTypeId { get; set; }
+        public ProjectType? ProjectType { get; set; }
+
+        // SECTION: Build flag
+        public bool IsBuild { get; set; }
+
         public bool IsArchived { get; set; }
 
         public DateTimeOffset? ArchivedAt { get; set; }
