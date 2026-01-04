@@ -13,6 +13,16 @@
 
     var activeLifecycle = Model.LifecycleTabs.FirstOrDefault(t => t.IsActive);
     var showAdvancedFilters = Model.HasActiveFilters;
+    var activeLifecycleLabel = string.IsNullOrWhiteSpace(activeLifecycle?.Label) ? "All" : activeLifecycle!.Label;
+    var preferredProjectTypeOrder = new[] { "Simulator", "Proof of Concept", "Product" };
+    var orderedProjectTypeCounts = Model.ProjectTypeCounts
+        .OrderBy(kvp =>
+        {
+            var preferredIndex = Array.FindIndex(preferredProjectTypeOrder, name => string.Equals(name, kvp.Key, StringComparison.OrdinalIgnoreCase));
+            return preferredIndex < 0 ? int.MaxValue : preferredIndex;
+        })
+        .ThenBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
+        .ToList();
 
     var activeFilters = new List<string>();
     if (!string.IsNullOrWhiteSpace(Model.Query))
@@ -76,36 +86,55 @@
                         <h1 class="projects-hero__title">Projects</h1>
                         <p class="projects-hero__subtitle">Explore, search and curate the organisation&rsquo;s R&D initiatives.</p>
                     </div>
+                    @* Section: KPI tiles *@
                     <div class="projects-hero__stats">
                         <div class="projects-stat">
-                            <span class="projects-stat__label">Total projects</span>
-                            <span class="projects-stat__value">@Model.TotalCount</span>
-                            @{
-                                var lifecycleHint = string.IsNullOrWhiteSpace(activeLifecycle?.Label)
-                                    ? "All projects"
-                                    : activeLifecycle!.Label;
+                            <span class="projects-stat__label">Projects</span>
+                            <span class="projects-stat__value">@Model.FilteredTotal</span>
+                            <span class="projects-stat__hint">@activeLifecycleLabel</span>
+                            @if (Model.OldCount > 0)
+                            {
+                                <span class="projects-stat__meta">Old: @Model.OldCount</span>
                             }
-                            <span class="projects-stat__hint">@lifecycleHint</span>
                         </div>
                         <div class="projects-stat">
-                            <span class="projects-stat__label">Showing</span>
-                            <span class="projects-stat__value">@(Model.TotalCount == 0 ? "0" : $"{Model.ResultsStart}–{Model.ResultsEnd}")</span>
-                            <span class="projects-stat__hint">of @Model.TotalCount results</span>
+                            <span class="projects-stat__label">Project type</span>
+                            @if (orderedProjectTypeCounts.Count > 0)
+                            {
+                                <div class="projects-stat__chips">
+                                    @foreach (var item in orderedProjectTypeCounts)
+                                    {
+                                        if (string.Equals(item.Key, "Not set", StringComparison.OrdinalIgnoreCase) && item.Value == 0)
+                                        {
+                                            continue;
+                                        }
+                                        <span class="projects-stat__chip">@item.Key: @item.Value</span>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="projects-stat__placeholder text-muted">Project type not configured</span>
+                            }
                         </div>
                         <div class="projects-stat">
-                            <span class="projects-stat__label">Active filters</span>
-                            <span class="projects-stat__value">@activeFilters.Count</span>
-                            <span class="projects-stat__hint">@(activeFilters.Count == 0 ? "None applied" : "Refine below")</span>
+                            <span class="projects-stat__label">Build</span>
+                            <div class="projects-stat__stack">
+                                <span class="projects-stat__chip">Repeat builds: @Model.RepeatBuildCount</span>
+                                <span class="projects-stat__chip">New development: @(Model.FilteredTotal - Model.RepeatBuildCount)</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </section>
 
+            @* Section: Lifecycle tabs *@
             <nav class="projects-tabs" aria-label="Project lifecycle filters">
                 <ul class="nav nav-pills projects-tabs__list" role="tablist">
                     @foreach (var lifecycle in Model.LifecycleTabs)
                     {
-                        <li class="nav-item" role="presentation">
+                        var isLegacyTab = lifecycle.Filter == ProjectLifecycleFilter.Legacy;
+                        <li class="nav-item @(isLegacyTab ? "projects-tabs__item--legacy" : string.Empty)" role="presentation">
                             <a class="nav-link projects-tabs__link @(lifecycle.IsActive ? "active" : null)"
                                asp-page="./Index"
                                asp-route-Lifecycle="@lifecycle.RouteValue"
@@ -117,6 +146,7 @@
                                asp-route-CompletedYear="@Model.CompletedYear"
                                asp-route-TotStatus="@(Model.TotStatus?.ToString())"
                                asp-route-IncludeArchived="@(Model.IncludeArchived ? "true" : null)"
+                               title="@(isLegacyTab ? "Projects from earlier dataset (legacy records)." : null)"
                                role="tab">
                                 <span class="projects-tabs__label">@lifecycle.Label</span>
                                 <span class="projects-tabs__count">@lifecycle.Count</span>
@@ -206,10 +236,11 @@
                 </div>
             }
 
+            @* Section: Results summary *@
             <div class="projects-results">
                 <div class="projects-results__summary">
-                    <strong>@(Model.TotalCount == 0 ? "No projects" : $"Showing {Model.ResultsStart}–{Model.ResultsEnd}")</strong>
-                    <span class="text-muted">@((Model.TotalCount == 0 ? "matching your criteria" : $"of {Model.TotalCount} projects"))</span>
+                    <strong>@(Model.FilteredTotal == 0 ? "No projects" : $"Showing {Model.ResultsStart}–{Model.ResultsEnd}")</strong>
+                    <span class="text-muted">@((Model.FilteredTotal == 0 ? "matching your criteria" : $"of {Model.FilteredTotal} projects"))</span>
                 </div>
             </div>
 

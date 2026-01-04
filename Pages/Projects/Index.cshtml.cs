@@ -83,6 +83,16 @@ namespace ProjectManagement.Pages.Projects
 
         public int TotalCount { get; private set; }
 
+        // Section: KPI counters (filtered dataset)
+        public int FilteredTotal { get; private set; }
+
+        public int OldCount { get; private set; }
+
+        public IReadOnlyDictionary<string, int> ProjectTypeCounts { get; private set; }
+            = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        public int RepeatBuildCount { get; private set; }
+
         public int TotalPages { get; private set; }
 
         public int ResultsStart { get; private set; }
@@ -122,6 +132,7 @@ namespace ProjectManagement.Pages.Projects
 
         public async Task OnGetAsync()
         {
+            // Section: Filter option loading
             await LoadFilterOptionsAsync();
 
             var stageMonth = ParseStageMonth(StageCompletedMonth);
@@ -152,19 +163,14 @@ namespace ProjectManagement.Pages.Projects
             var lifecycleCounts = await CountProjectsByLifecycleAsync(baseFilters);
             LifecycleTabs = BuildLifecycleTabs(lifecycleCounts);
 
-            var query = _db.Projects
+            // Section: Base filtered query for KPI counts and results
+            var baseQuery = _db.Projects
                 .AsNoTracking()
                 .Where(p => !p.IsDeleted)
-                .Include(p => p.Category)
-                .Include(p => p.TechnicalCategory)
-                .Include(p => p.HodUser)
-                .Include(p => p.LeadPoUser)
-                .Include(p => p.Tot)
-                .Include(p => p.ProjectStages)
                 .AsQueryable();
 
             var filters = baseFilters with { Lifecycle = Lifecycle };
-            query = query.ApplyProjectSearch(filters);
+            baseQuery = baseQuery.ApplyProjectSearch(filters);
 
             if (!string.IsNullOrWhiteSpace(SlipBucket))
             {
@@ -179,14 +185,31 @@ namespace ProjectManagement.Pages.Projects
 
                 if (slipIds.Count == 0)
                 {
-                    query = query.Where(_ => false);
+                    baseQuery = baseQuery.Where(_ => false);
                 }
                 else
                 {
                     var idArray = slipIds.ToArray();
-                    query = query.Where(p => idArray.Contains(p.Id));
+                    baseQuery = baseQuery.Where(p => idArray.Contains(p.Id));
                 }
             }
+
+            // Section: KPI counts for filtered dataset
+            FilteredTotal = await baseQuery.CountAsync();
+            OldCount = await baseQuery.Where(p => p.IsLegacy).CountAsync();
+            RepeatBuildCount = await baseQuery.Where(p => p.IsBuild).CountAsync();
+            ProjectTypeCounts = await BuildProjectTypeCountsAsync(baseQuery);
+
+            // Section: Results query setup
+            var query = baseQuery
+                .Include(p => p.Category)
+                .Include(p => p.TechnicalCategory)
+                .Include(p => p.HodUser)
+                .Include(p => p.LeadPoUser)
+                .Include(p => p.Tot)
+                .Include(p => p.ProjectStages)
+                .Include(p => p.ProjectType)
+                .AsQueryable();
 
             query = query.ApplyProjectOrdering(filters);
 
@@ -197,7 +220,7 @@ namespace ProjectManagement.Pages.Projects
                 _ => PageSize
             };
 
-            TotalCount = await query.CountAsync();
+            TotalCount = FilteredTotal;
             TotalPages = TotalCount == 0 ? 0 : (int)Math.Ceiling(TotalCount / (double)PageSize);
 
             if (CurrentPage < 1)
@@ -226,6 +249,38 @@ namespace ProjectManagement.Pages.Projects
 
             ResultsStart = TotalCount == 0 ? 0 : skip + 1;
             ResultsEnd = TotalCount == 0 ? 0 : Math.Min(skip + Projects.Count, TotalCount);
+        }
+
+        // Section: KPI helpers
+        private static async Task<IReadOnlyDictionary<string, int>> BuildProjectTypeCountsAsync(IQueryable<Project> baseQuery)
+        {
+            var counts = await baseQuery
+                .Select(p => new
+                {
+                    ProjectTypeName = p.ProjectType != null ? p.ProjectType.Name : null
+                })
+                .GroupBy(p => p.ProjectTypeName)
+                .Select(g => new
+                {
+                    Name = g.Key,
+                    Count = g.Count()
+                })
+                .ToListAsync();
+
+            var result = counts
+                .Where(item => !string.IsNullOrWhiteSpace(item.Name))
+                .ToDictionary(item => item.Name!, item => item.Count, StringComparer.OrdinalIgnoreCase);
+
+            var notSetCount = counts
+                .Where(item => string.IsNullOrWhiteSpace(item.Name))
+                .Sum(item => item.Count);
+
+            if (notSetCount > 0 && !result.ContainsKey("Not set"))
+            {
+                result["Not set"] = notSetCount;
+            }
+
+            return result;
         }
 
         private static DateOnly? ParseStageMonth(string? month)
