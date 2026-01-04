@@ -198,6 +198,11 @@ namespace ProjectManagement.Services.Projects
 
                 stageDtos[currentIndex].IsCurrent = true;
 
+                // SECTION: Timeline-independent stage lookups (full list)
+                var ipaDate = ResolveStageMilestoneDate(stageDtos, "IPA");
+                var aonDate = ResolveStageMilestoneDate(stageDtos, "AON");
+                var presentStagePdc = stageDtos[currentIndex].PlannedDue;
+
                 var stageSnapshots = stageDtos
                     .Select((stage, idx) => new ProjectStageStatusSnapshot(
                         stage.Code,
@@ -260,6 +265,9 @@ namespace ProjectManagement.Services.Projects
                     LastCompletedStageName = lastCompletedName,
                     LastCompletedStageDate = lastCompletedDate,
                     PresentStage = presentStage,
+                    IpaDate = ipaDate,
+                    AonDate = aonDate,
+                    PresentStagePdc = presentStagePdc,
                     Stages = stageDtos,
                     RecentInternalRemarks = recentInternal,
                     LatestExternalRemark = latestExternal
@@ -351,6 +359,17 @@ namespace ProjectManagement.Services.Projects
 
             return collectedIds.ToArray();
         }
+
+        // SECTION: Stage milestone helpers
+        private static DateOnly? ResolveStageMilestoneDate(
+            IEnumerable<OngoingProjectStageDto> stages,
+            string stageCode)
+        {
+            var stage = stages.FirstOrDefault(s =>
+                string.Equals(s.Code, stageCode, StringComparison.OrdinalIgnoreCase));
+
+            return stage?.ActualCompletedOn ?? stage?.ActualStart;
+        }
     }
 
     public sealed class OngoingProjectRowDto
@@ -369,6 +388,10 @@ namespace ProjectManagement.Services.Projects
         public DateOnly? LastCompletedStageDate { get; init; }
 
         public PresentStageSnapshot PresentStage { get; init; } = PresentStageSnapshot.Empty;
+
+        public DateOnly? IpaDate { get; init; }
+        public DateOnly? AonDate { get; init; }
+        public DateOnly? PresentStagePdc { get; init; }
 
         public IReadOnlyList<OngoingProjectStageDto> Stages { get; init; } = Array.Empty<OngoingProjectStageDto>();
 

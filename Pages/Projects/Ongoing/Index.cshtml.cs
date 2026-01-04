@@ -48,6 +48,10 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         [BindProperty(SupportsGet = true)]
         public string? Search { get; set; }
 
+        // SECTION: View selector (timeline/table)
+        [BindProperty(SupportsGet = true)]
+        public string? View { get; set; }
+
         public IReadOnlyList<SelectListItem> ProjectCategoryOptions { get; private set; }
             = Array.Empty<SelectListItem>();
 
@@ -67,6 +71,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
 
         public async Task OnGetAsync(CancellationToken cancellationToken)
         {
+            View = NormalizeView(View);
             await LoadCategoriesAsync(cancellationToken);
 
             var officerId = Normalize(ProjectOfficerId);
@@ -224,6 +229,17 @@ namespace ProjectManagement.Pages.Projects.Ongoing
 
         private static string? Normalize(string? value)
             => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+        // SECTION: View normalization
+        private static string NormalizeView(string? value)
+        {
+            if (string.Equals(value, "table", StringComparison.OrdinalIgnoreCase))
+            {
+                return "table";
+            }
+
+            return "timeline";
+        }
     }
 
     // SECTION: DTOs
