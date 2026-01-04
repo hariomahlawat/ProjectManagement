@@ -282,6 +282,11 @@
                                                 <text> @project.CompletedYear</text>
                                             }
                                         </span>
+                                        @* Section: Old project badge *@
+                                        @if (project.IsLegacy)
+                                        {
+                                            <span class="badge text-bg-light">Old project</span>
+                                        }
                                         @if (project.IsArchived)
                                         {
                                             <span class="badge text-bg-secondary">Archived</span>
