@@ -20,6 +20,11 @@ namespace ProjectManagement.Pages.Projects
     [Authorize]
     public class IndexModel : PageModel
     {
+        // Section: Paging defaults
+        private const int DefaultPageSize = 25;
+        private const int MaxPageSize = 100;
+        private const int AllPageSizeValue = 0;
+
         private readonly ApplicationDbContext _db;
         private readonly IProjectAnalyticsService _analytics;
         private readonly ProjectCategoryHierarchyService _categoryHierarchy;
@@ -213,41 +218,59 @@ namespace ProjectManagement.Pages.Projects
 
             query = query.ApplyProjectOrdering(filters);
 
-            PageSize = PageSize switch
+            // Section: Normalize paging values
+            var isAll = PageSize == AllPageSizeValue;
+            if (!isAll)
             {
-                <= 0 => 25,
-                > 200 => 200,
-                _ => PageSize
-            };
+                PageSize = PageSize switch
+                {
+                    <= 0 => DefaultPageSize,
+                    > MaxPageSize => MaxPageSize,
+                    _ => PageSize
+                };
+            }
 
-            TotalPages = TotalCount == 0 ? 0 : (int)Math.Ceiling(TotalCount / (double)PageSize);
+            TotalPages = TotalCount == 0
+                ? 0
+                : isAll
+                    ? 1
+                    : (int)Math.Ceiling(TotalCount / (double)PageSize);
 
-            if (CurrentPage < 1)
+            if (isAll)
             {
                 CurrentPage = 1;
             }
-
-            if (TotalPages > 0 && CurrentPage > TotalPages)
+            else
             {
-                CurrentPage = TotalPages;
-            }
-            else if (TotalPages == 0)
-            {
-                CurrentPage = 1;
+                if (CurrentPage < 1)
+                {
+                    CurrentPage = 1;
+                }
+
+                if (TotalPages > 0 && CurrentPage > TotalPages)
+                {
+                    CurrentPage = TotalPages;
+                }
+                else if (TotalPages == 0)
+                {
+                    CurrentPage = 1;
+                }
             }
 
-            var skip = (CurrentPage - 1) * PageSize;
-            if (TotalCount > 0 && skip >= TotalCount)
+            var skip = isAll ? 0 : (CurrentPage - 1) * PageSize;
+            if (!isAll && TotalCount > 0 && skip >= TotalCount)
             {
                 CurrentPage = TotalPages;
                 skip = Math.Max(0, (CurrentPage - 1) * PageSize);
             }
 
-            Projects = await query.Skip(skip).Take(PageSize).ToListAsync();
+            Projects = isAll
+                ? await query.ToListAsync()
+                : await query.Skip(skip).Take(PageSize).ToListAsync();
             RemarkSummaries = await LoadRemarkSummariesAsync(Projects, HttpContext.RequestAborted);
 
-            ResultsStart = TotalCount == 0 ? 0 : skip + 1;
-            ResultsEnd = TotalCount == 0 ? 0 : Math.Min(skip + Projects.Count, TotalCount);
+            ResultsStart = TotalCount == 0 ? 0 : isAll ? 1 : skip + 1;
+            ResultsEnd = TotalCount == 0 ? 0 : isAll ? TotalCount : Math.Min(skip + Projects.Count, TotalCount);
         }
 
         // Section: KPI helpers

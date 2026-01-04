@@ -338,6 +338,8 @@
                             <a class="nav-link projects-tabs__link @(lifecycle.IsActive ? "active" : null)"
                                asp-page="./Index"
                                asp-route-Lifecycle="@lifecycle.RouteValue"
+                               asp-route-PageSize="@Model.PageSize"
+                               asp-route-p="1"
                                asp-route-Query="@Model.Query"
                                asp-route-CategoryId="@Model.CategoryId"
                                asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
@@ -364,6 +366,8 @@
             </nav>
 
             <form method="get" class="projects-filter shadow-sm">
+                @* Section: Reset to first page when filters change *@
+                <input type="hidden" name="p" value="1" />
                 <input type="hidden" name="Lifecycle" value="@Model.Lifecycle" />
                 @if (Model.ProjectTypeId.HasValue)
                 {
@@ -402,6 +406,16 @@
                         </div>
                     </div>
                     <div class="projects-filter__actions">
+                        @* Section: Page size selector *@
+                        <div class="projects-filter__page-size">
+                            <label asp-for="PageSize" class="form-label">Page size</label>
+                            <select asp-for="PageSize" class="form-select">
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                                <option value="0">All</option>
+                            </select>
+                        </div>
                         <button class="btn btn-outline-secondary projects-filter__toggle" type="button" data-bs-toggle="collapse" data-bs-target="#advancedProjectFilters" aria-expanded="@showAdvancedFilters.ToString().ToLowerInvariant()" aria-controls="advancedProjectFilters">
                             <i class="bi bi-sliders" aria-hidden="true"></i>
                             <span>Advanced filters</span>
