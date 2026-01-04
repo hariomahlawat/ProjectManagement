@@ -74,7 +74,8 @@
         AddValue("IncludeCategoryDescendants", Model.IncludeCategoryDescendants ? "true" : null);
         AddValue("Build", Model.Build);
         AddValue("ProjectTypeId", Model.ProjectTypeId);
-        AddValue("ProjectTypeUnclassified", Model.ProjectTypeUnclassified ? "1" : null);
+        // Section: Project type unclassified expects boolean string for model binding.
+        AddValue("ProjectTypeUnclassified", Model.ProjectTypeUnclassified ? "true" : null);
         AddValue("PageSize", Model.PageSize);
 
         return values;
@@ -182,7 +183,7 @@
                                     {
                                         var unclassifiedRouteValues = BaseRouteValues();
                                         unclassifiedRouteValues["ProjectTypeId"] = null;
-                                        unclassifiedRouteValues["ProjectTypeUnclassified"] = selectedProjectTypeUnclassified ? null : "1";
+                                        unclassifiedRouteValues["ProjectTypeUnclassified"] = selectedProjectTypeUnclassified ? null : "true";
                                         unclassifiedRouteValues["p"] = "1";
                                         if (selectedProjectTypeUnclassified)
                                         {
@@ -351,7 +352,7 @@
                                asp-route-IncludeArchived="@(Model.IncludeArchived ? "true" : null)"
                                asp-route-Build="@Model.Build"
                                asp-route-ProjectTypeId="@Model.ProjectTypeId"
-                               asp-route-ProjectTypeUnclassified="@(Model.ProjectTypeUnclassified ? "1" : null)"
+                               asp-route-ProjectTypeUnclassified="@(Model.ProjectTypeUnclassified ? "true" : null)"
                                title="@(isLegacyTab ? "Projects from earlier dataset (legacy records)." : null)"
                                role="tab">
                                 <span class="projects-tabs__label">@lifecycle.Label</span>
@@ -370,7 +371,7 @@
                 }
                 @if (Model.ProjectTypeUnclassified)
                 {
-                    <input type="hidden" name="ProjectTypeUnclassified" value="1" />
+                    <input type="hidden" name="ProjectTypeUnclassified" value="true" />
                 }
                 @if (!string.IsNullOrWhiteSpace(Model.Build))
                 {
@@ -666,7 +667,7 @@
                                    asp-route-IncludeArchived="@(Model.IncludeArchived ? "true" : null)"
                                    asp-route-Build="@Model.Build"
                                    asp-route-ProjectTypeId="@Model.ProjectTypeId"
-                                   asp-route-ProjectTypeUnclassified="@(Model.ProjectTypeUnclassified ? "1" : null)"
+                                   asp-route-ProjectTypeUnclassified="@(Model.ProjectTypeUnclassified ? "true" : null)"
                                    aria-label="Previous"
                                    aria-disabled="@(Model.CurrentPage <= 1)">
                                     <i class="bi bi-chevron-left" aria-hidden="true"></i>
@@ -694,7 +695,7 @@
                                        asp-route-IncludeArchived="@(Model.IncludeArchived ? "true" : null)"
                                        asp-route-Build="@Model.Build"
                                        asp-route-ProjectTypeId="@Model.ProjectTypeId"
-                                       asp-route-ProjectTypeUnclassified="@(Model.ProjectTypeUnclassified ? "1" : null)">@i</a>
+                                       asp-route-ProjectTypeUnclassified="@(Model.ProjectTypeUnclassified ? "true" : null)">@i</a>
                                 </li>
                             }
                             <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
@@ -717,7 +718,7 @@
                                    asp-route-IncludeArchived="@(Model.IncludeArchived ? "true" : null)"
                                    asp-route-Build="@Model.Build"
                                    asp-route-ProjectTypeId="@Model.ProjectTypeId"
-                                   asp-route-ProjectTypeUnclassified="@(Model.ProjectTypeUnclassified ? "1" : null)"
+                                   asp-route-ProjectTypeUnclassified="@(Model.ProjectTypeUnclassified ? "true" : null)"
                                    aria-label="Next"
                                    aria-disabled="@(Model.CurrentPage >= Model.TotalPages)">
                                     <i class="bi bi-chevron-right" aria-hidden="true"></i>
