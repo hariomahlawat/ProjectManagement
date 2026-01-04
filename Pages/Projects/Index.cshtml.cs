@@ -81,6 +81,15 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty(SupportsGet = true)]
         public bool IncludeCategoryDescendants { get; set; }
 
+        [BindProperty(SupportsGet = true)]
+        public int? ProjectTypeId { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public bool ProjectTypeUnclassified { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? Build { get; set; }
+
         public int TotalCount { get; private set; }
 
         // Section: KPI counters (filtered dataset)
@@ -88,10 +97,14 @@ namespace ProjectManagement.Pages.Projects
 
         public int OldCount { get; private set; }
 
-        public IReadOnlyDictionary<string, int> ProjectTypeCounts { get; private set; }
-            = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
         public int RepeatBuildCount { get; private set; }
+
+        public int NewBuildCount { get; private set; }
+
+        public IReadOnlyList<ProjectTypeChipViewModel> ProjectTypeChips { get; private set; }
+            = Array.Empty<ProjectTypeChipViewModel>();
+
+        public int ProjectTypeUnclassifiedCount { get; private set; }
 
         public int TotalPages { get; private set; }
 
@@ -111,7 +124,10 @@ namespace ProjectManagement.Pages.Projects
             IncludeArchived ||
             !string.IsNullOrWhiteSpace(StageCode) ||
             !string.IsNullOrWhiteSpace(StageCompletedMonth) ||
-            !string.IsNullOrWhiteSpace(SlipBucket);
+            !string.IsNullOrWhiteSpace(SlipBucket) ||
+            ProjectTypeId.HasValue ||
+            ProjectTypeUnclassified ||
+            !string.IsNullOrWhiteSpace(Build);
 
         public IEnumerable<SelectListItem> CategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -132,6 +148,10 @@ namespace ProjectManagement.Pages.Projects
 
         public async Task OnGetAsync()
         {
+            // Section: Normalize query parameters
+            NormalizeProjectTypeFilters();
+            var buildFilter = NormalizeBuildFilter();
+
             // Section: Filter option loading
             await LoadFilterOptionsAsync();
 
@@ -160,48 +180,28 @@ namespace ProjectManagement.Pages.Projects
                 IncludeCategoryDescendants,
                 resolvedCategoryIds);
 
-            var lifecycleCounts = await CountProjectsByLifecycleAsync(baseFilters);
+            var lifecycleCounts = await CountProjectsByLifecycleAsync(baseFilters, buildFilter);
             LifecycleTabs = BuildLifecycleTabs(lifecycleCounts);
 
-            // Section: Base filtered query for KPI counts and results
-            var baseQuery = _db.Projects
-                .AsNoTracking()
-                .Where(p => !p.IsDeleted)
-                .AsQueryable();
-
             var filters = baseFilters with { Lifecycle = Lifecycle };
-            baseQuery = baseQuery.ApplyProjectSearch(filters);
-
-            if (!string.IsNullOrWhiteSpace(SlipBucket))
-            {
-                var slipIds = await _analytics
-                    .GetProjectIdsForSlipBucketAsync(
-                        filters.Lifecycle,
-                        filters.CategoryId,
-                        filters.TechnicalCategoryId,
-                        SlipBucket!,
-                        cancellationToken: HttpContext.RequestAborted,
-                        expandedCategoryIds: filters.CategoryIds);
-
-                if (slipIds.Count == 0)
-                {
-                    baseQuery = baseQuery.Where(_ => false);
-                }
-                else
-                {
-                    var idArray = slipIds.ToArray();
-                    baseQuery = baseQuery.Where(p => idArray.Contains(p.Id));
-                }
-            }
 
             // Section: KPI counts for filtered dataset
-            FilteredTotal = await baseQuery.CountAsync();
-            OldCount = await baseQuery.Where(p => p.IsLegacy).CountAsync();
-            RepeatBuildCount = await baseQuery.Where(p => p.IsBuild).CountAsync();
-            ProjectTypeCounts = await BuildProjectTypeCountsAsync(baseQuery);
+            var baseQuery = await BuildFilteredQueryAsync(filters, buildFilter, applyBuildFilter: true, applyProjectTypeFilter: false);
+            var baseQueryNoBuild = await BuildFilteredQueryAsync(filters, buildFilter, applyBuildFilter: false, applyProjectTypeFilter: false);
+
+            ProjectTypeChips = await BuildProjectTypeChipsAsync(baseQuery);
+            ProjectTypeUnclassifiedCount = await baseQuery.Where(p => p.ProjectTypeId == null).CountAsync();
+
+            RepeatBuildCount = await baseQueryNoBuild.Where(p => p.IsBuild).CountAsync();
+            NewBuildCount = await baseQueryNoBuild.Where(p => !p.IsBuild).CountAsync();
+
+            var filteredQuery = ApplyProjectTypeFilter(baseQuery);
+            FilteredTotal = await filteredQuery.CountAsync();
+            OldCount = await filteredQuery.Where(p => p.IsLegacy).CountAsync();
+            TotalCount = FilteredTotal;
 
             // Section: Results query setup
-            var query = baseQuery
+            var query = filteredQuery
                 .Include(p => p.Category)
                 .Include(p => p.TechnicalCategory)
                 .Include(p => p.HodUser)
@@ -220,7 +220,6 @@ namespace ProjectManagement.Pages.Projects
                 _ => PageSize
             };
 
-            TotalCount = FilteredTotal;
             TotalPages = TotalCount == 0 ? 0 : (int)Math.Ceiling(TotalCount / (double)PageSize);
 
             if (CurrentPage < 1)
@@ -252,35 +251,142 @@ namespace ProjectManagement.Pages.Projects
         }
 
         // Section: KPI helpers
-        private static async Task<IReadOnlyDictionary<string, int>> BuildProjectTypeCountsAsync(IQueryable<Project> baseQuery)
+        private async Task<IReadOnlyList<ProjectTypeChipViewModel>> BuildProjectTypeChipsAsync(IQueryable<Project> baseQuery)
         {
             var counts = await baseQuery
-                .Select(p => new
-                {
-                    ProjectTypeName = p.ProjectType != null ? p.ProjectType.Name : null
-                })
-                .GroupBy(p => p.ProjectTypeName)
+                .Where(p => p.ProjectTypeId.HasValue)
+                .GroupBy(p => p.ProjectTypeId)
                 .Select(g => new
                 {
-                    Name = g.Key,
+                    Id = g.Key!.Value,
                     Count = g.Count()
                 })
                 .ToListAsync();
 
-            var result = counts
-                .Where(item => !string.IsNullOrWhiteSpace(item.Name))
-                .ToDictionary(item => item.Name!, item => item.Count, StringComparer.OrdinalIgnoreCase);
+            var countLookup = counts.ToDictionary(item => item.Id, item => item.Count);
 
-            var notSetCount = counts
-                .Where(item => string.IsNullOrWhiteSpace(item.Name))
-                .Sum(item => item.Count);
+            var types = await _db.ProjectTypes
+                .AsNoTracking()
+                .OrderBy(t => t.SortOrder)
+                .ThenBy(t => t.Name)
+                .Select(t => new ProjectTypeChipViewModel(
+                    t.Id,
+                    t.Name,
+                    countLookup.TryGetValue(t.Id, out var count) ? count : 0))
+                .ToListAsync();
 
-            if (notSetCount > 0 && !result.ContainsKey("Not set"))
+            return types;
+        }
+
+        private async Task<IQueryable<Project>> BuildFilteredQueryAsync(
+            ProjectSearchFilters filters,
+            BuildFilter? buildFilter,
+            bool applyBuildFilter,
+            bool applyProjectTypeFilter)
+        {
+            var query = _db.Projects
+                .AsNoTracking()
+                .ApplyProjectSearch(filters);
+
+            if (!string.IsNullOrWhiteSpace(filters.SlipBucket))
             {
-                result["Not set"] = notSetCount;
+                var slipIds = await _analytics
+                    .GetProjectIdsForSlipBucketAsync(
+                        filters.Lifecycle,
+                        filters.CategoryId,
+                        filters.TechnicalCategoryId,
+                        filters.SlipBucket!,
+                        cancellationToken: HttpContext.RequestAborted,
+                        expandedCategoryIds: filters.CategoryIds);
+
+                if (slipIds.Count == 0)
+                {
+                    query = query.Where(_ => false);
+                }
+                else
+                {
+                    var idArray = slipIds.ToArray();
+                    query = query.Where(p => idArray.Contains(p.Id));
+                }
             }
 
-            return result;
+            if (applyBuildFilter)
+            {
+                query = ApplyBuildFilter(query, buildFilter);
+            }
+
+            if (applyProjectTypeFilter)
+            {
+                query = ApplyProjectTypeFilter(query);
+            }
+
+            return query;
+        }
+
+        private IQueryable<Project> ApplyProjectTypeFilter(IQueryable<Project> query)
+        {
+            if (ProjectTypeUnclassified)
+            {
+                return query.Where(p => p.ProjectTypeId == null);
+            }
+
+            if (ProjectTypeId.HasValue)
+            {
+                return query.Where(p => p.ProjectTypeId == ProjectTypeId.Value);
+            }
+
+            return query;
+        }
+
+        private static IQueryable<Project> ApplyBuildFilter(IQueryable<Project> query, BuildFilter? buildFilter)
+        {
+            return buildFilter switch
+            {
+                BuildFilter.Repeat => query.Where(p => p.IsBuild),
+                BuildFilter.New => query.Where(p => !p.IsBuild),
+                _ => query
+            };
+        }
+
+        private void NormalizeProjectTypeFilters()
+        {
+            if (ModelState.TryGetValue(nameof(ProjectTypeId), out var entry) && entry.Errors.Count > 0)
+            {
+                ProjectTypeId = null;
+                ModelState.Remove(nameof(ProjectTypeId));
+            }
+
+            if (ProjectTypeUnclassified)
+            {
+                ProjectTypeId = null;
+            }
+        }
+
+        private BuildFilter? NormalizeBuildFilter()
+        {
+            var buildFilter = ParseBuildFilter(Build);
+            Build = buildFilter?.ToString();
+            return buildFilter;
+        }
+
+        private static BuildFilter? ParseBuildFilter(string? buildValue)
+        {
+            if (string.IsNullOrWhiteSpace(buildValue))
+            {
+                return null;
+            }
+
+            if (string.Equals(buildValue, "Repeat", StringComparison.OrdinalIgnoreCase))
+            {
+                return BuildFilter.Repeat;
+            }
+
+            if (string.Equals(buildValue, "New", StringComparison.OrdinalIgnoreCase))
+            {
+                return BuildFilter.New;
+            }
+
+            return null;
         }
 
         private static DateOnly? ParseStageMonth(string? month)
@@ -593,7 +699,9 @@ namespace ProjectManagement.Pages.Projects
             string? Body,
             DateTime CreatedAtUtc);
 
-        private async Task<IReadOnlyDictionary<ProjectLifecycleFilter, int>> CountProjectsByLifecycleAsync(ProjectSearchFilters baseFilters)
+        private async Task<IReadOnlyDictionary<ProjectLifecycleFilter, int>> CountProjectsByLifecycleAsync(
+            ProjectSearchFilters baseFilters,
+            BuildFilter? buildFilter)
         {
             var counts = new Dictionary<ProjectLifecycleFilter, int>();
 
@@ -607,33 +715,13 @@ namespace ProjectManagement.Pages.Projects
                      })
             {
                 var countFilters = baseFilters with { Lifecycle = filter };
-                var query = _db.Projects
-                    .AsNoTracking()
-                    .ApplyProjectSearch(countFilters);
+                var query = await BuildFilteredQueryAsync(
+                    countFilters,
+                    buildFilter,
+                    applyBuildFilter: true,
+                    applyProjectTypeFilter: true);
 
-                if (!string.IsNullOrWhiteSpace(baseFilters.SlipBucket))
-                {
-                    var slipIds = await _analytics.GetProjectIdsForSlipBucketAsync(
-                        countFilters.Lifecycle,
-                        countFilters.CategoryId,
-                        countFilters.TechnicalCategoryId,
-                        baseFilters.SlipBucket!,
-                        cancellationToken: HttpContext.RequestAborted,
-                        expandedCategoryIds: countFilters.CategoryIds);
-
-                    if (slipIds.Count == 0)
-                    {
-                        counts[filter] = 0;
-                        continue;
-                    }
-
-                    var idArray = slipIds.ToArray();
-                    query = query.Where(p => idArray.Contains(p.Id));
-                }
-
-                var count = await query.CountAsync();
-
-                counts[filter] = count;
+                counts[filter] = await query.CountAsync();
             }
 
             return counts;
@@ -708,5 +796,13 @@ namespace ProjectManagement.Pages.Projects
         private sealed record CategoryOption(int Id, string Name);
 
         private sealed record TechnicalCategoryOption(int Id, string Name, int? ParentId, bool IsActive);
+
+        public sealed record ProjectTypeChipViewModel(int Id, string Name, int Count);
+
+        private enum BuildFilter
+        {
+            Repeat,
+            New
+        }
     }
 }
