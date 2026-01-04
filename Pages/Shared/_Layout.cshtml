@@ -20,8 +20,7 @@
     @{
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
-        var isProgressReviewPage = string.Equals(currentArea, "ProjectOfficeReports", StringComparison.OrdinalIgnoreCase)
-        && string.Equals(currentPage, "/ProgressReview/Index", StringComparison.OrdinalIgnoreCase);
+        var isOngoingProjectsPage = string.Equals(currentPage, "/Projects/Ongoing/Index", StringComparison.OrdinalIgnoreCase);
         var useFullWidth = (ViewData["UseFullWidth"] as bool?) == true;
         var mainContainerClass = useFullWidth
             ? "container-fluid analytics-shell px-3 px-lg-4 px-xxl-5"
@@ -53,10 +52,9 @@
                        class="pm-top-tabs__item @(string.Equals(currentPage, "/Calendar/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
                         Calendar
                     </a>
-                    <a asp-area="ProjectOfficeReports"
-                       asp-page="/ProgressReview/Index"
-                       class="pm-top-tabs__item @(isProgressReviewPage ? "is-active" : string.Empty)">
-                        Progress Review
+                    <a asp-page="/Projects/Ongoing/Index"
+                       class="pm-top-tabs__item @(isOngoingProjectsPage ? "is-active" : string.Empty)">
+                        Ongoing Projects
                     </a>
                 </nav>
             </div>

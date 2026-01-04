@@ -45,6 +45,9 @@ public class RoleBasedNavigationProvider : INavigationProvider
 
         var roleSet = await GetRoleSetAsync(user);
 
+        // ===========================
+        // PRIMARY NAVIGATION ITEMS
+        // ===========================
         var items = new List<NavigationItem>
         {
             new()
@@ -64,41 +67,53 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Text = "Miscellaneous activities",
                 Page = "/Activities/Index",
                 Icon = "bi-stars"
+            },
+            // Progress review entry (drawer only).
+            new()
+            {
+                Text = "Progress review",
+                Area = "ProjectOfficeReports",
+                Page = "/ProgressReview/Index",
+                AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewProgressReview,
+                Icon = "bi-graph-up"
             }
         };
+        // ===========================
+        // PROJECT MODULE NAVIGATION
+        // ===========================
         var projectModuleChildren = new List<NavigationItem>
-{
-    new()
-    {
-        Text = "Projects repository",
-        Page = "/Projects/Index",
-        Icon = "bi-collection"
-    },
-    new()
-    {
-        Text = "Ongoing projects",
-        Page = "/Projects/Ongoing/Index",
-        Icon = "bi-clock-history"
-    },
-    new()
-    {
-        Text = "Completed projects summary",
-        Page = "/Projects/CompletedSummary/Index",
-        Icon = "bi-clipboard-data"
-    },
-    new()
-    {
-        Text = "Process",
-        Page = "/Process/Index",
-        Icon = "bi-diagram-3"
-    },
-    new()
-    {
-        Text = "Analytics",
-        Page = "/Analytics/Index",
-        Icon = "bi-graph-up"
-    },
-};
+        {
+            new()
+            {
+                Text = "Projects repository",
+                Page = "/Projects/Index",
+                Icon = "bi-collection"
+            },
+            new()
+            {
+                Text = "Ongoing projects",
+                Page = "/Projects/Ongoing/Index",
+                Icon = "bi-clock-history"
+            },
+            new()
+            {
+                Text = "Completed projects summary",
+                Page = "/Projects/CompletedSummary/Index",
+                Icon = "bi-clipboard-data"
+            },
+            new()
+            {
+                Text = "Process",
+                Page = "/Process/Index",
+                Icon = "bi-diagram-3"
+            },
+            new()
+            {
+                Text = "Analytics",
+                Page = "/Analytics/Index",
+                Icon = "bi-graph-up"
+            },
+        };
 
         items.Add(new NavigationItem
         {
