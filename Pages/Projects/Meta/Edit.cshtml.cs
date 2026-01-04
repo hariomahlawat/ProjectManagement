@@ -36,6 +36,7 @@ public class EditModel : PageModel
 
     public IReadOnlyList<SelectListItem> CategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> TechnicalCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public IReadOnlyList<SelectListItem> ProjectTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> SponsoringUnitOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> LineDirectorateOptions { get; private set; } = Array.Empty<SelectListItem>();
     public bool IsLegacyProject { get; private set; }
@@ -53,6 +54,7 @@ public class EditModel : PageModel
 
         await LoadCategoryOptionsAsync(project.CategoryId, cancellationToken);
         await LoadTechnicalCategoryOptionsAsync(project.TechnicalCategoryId, cancellationToken);
+        await LoadProjectTypeOptionsAsync(project.ProjectTypeId, cancellationToken);
         await LoadLookupOptionsAsync(project.SponsoringUnitId, project.SponsoringLineDirectorateId, cancellationToken);
         IsLegacyProject = project.IsLegacy;
 
@@ -66,6 +68,8 @@ public class EditModel : PageModel
             CaseFileNumber = project.CaseFileNumber,
             CategoryId = project.CategoryId,
             TechnicalCategoryId = project.TechnicalCategoryId,
+            ProjectTypeId = project.ProjectTypeId,
+            IsBuild = project.IsBuild,
             SponsoringUnitId = project.SponsoringUnitId,
             SponsoringLineDirectorateId = project.SponsoringLineDirectorateId,
             RdCostLakhs = project.CostLakhs,
@@ -85,6 +89,7 @@ public class EditModel : PageModel
 
         await LoadCategoryOptionsAsync(Input.CategoryId, cancellationToken);
         await LoadTechnicalCategoryOptionsAsync(Input.TechnicalCategoryId, cancellationToken);
+        await LoadProjectTypeOptionsAsync(Input.ProjectTypeId, cancellationToken);
         await LoadLookupOptionsAsync(Input.SponsoringUnitId, Input.SponsoringLineDirectorateId, cancellationToken);
 
         byte[] rowVersionBytes = Array.Empty<byte>();
@@ -142,6 +147,7 @@ public class EditModel : PageModel
             : Input.CaseFileNumber.Trim();
         var selectedCategoryId = Input.CategoryId;
         var selectedTechnicalCategoryId = Input.TechnicalCategoryId;
+        var selectedProjectTypeId = Input.ProjectTypeId;
         var previousProductionCost = project.IsLegacy
             ? await LoadApproxProductionCostAsync(project.Id, cancellationToken)
             : null;
@@ -195,6 +201,19 @@ public class EditModel : PageModel
             }
         }
 
+        if (selectedProjectTypeId.HasValue)
+        {
+            var projectTypeExists = await _db.ProjectTypes
+                .AsNoTracking()
+                .AnyAsync(p => p.Id == selectedProjectTypeId.Value && p.IsActive, cancellationToken);
+
+            if (!projectTypeExists)
+            {
+                ModelState.AddModelError("Input.ProjectTypeId", ProjectValidationMessages.InactiveProjectType);
+                return Page();
+            }
+        }
+
         if (!string.IsNullOrEmpty(trimmedCaseFileNumber))
         {
             var duplicate = await _db.Projects
@@ -243,6 +262,8 @@ public class EditModel : PageModel
         var previousCaseFileNumber = project.CaseFileNumber;
         var previousCategoryId = project.CategoryId;
         var previousTechnicalCategoryId = project.TechnicalCategoryId;
+        var previousProjectTypeId = project.ProjectTypeId;
+        var previousIsBuild = project.IsBuild;
         var previousSponsoringUnitId = project.SponsoringUnitId;
         var previousSponsoringLineDirectorateId = project.SponsoringLineDirectorateId;
         var previousRdCostLakhs = project.CostLakhs;
@@ -252,6 +273,8 @@ public class EditModel : PageModel
         project.CaseFileNumber = trimmedCaseFileNumber;
         project.CategoryId = selectedCategoryId;
         project.TechnicalCategoryId = selectedTechnicalCategoryId;
+        project.ProjectTypeId = selectedProjectTypeId;
+        project.IsBuild = Input.IsBuild;
         project.SponsoringUnitId = Input.SponsoringUnitId;
         project.SponsoringLineDirectorateId = Input.SponsoringLineDirectorateId;
 
@@ -287,6 +310,7 @@ public class EditModel : PageModel
             await _db.Entry(project).ReloadAsync(cancellationToken);
             await LoadCategoryOptionsAsync(project.CategoryId, cancellationToken);
             await LoadTechnicalCategoryOptionsAsync(project.TechnicalCategoryId, cancellationToken);
+            await LoadProjectTypeOptionsAsync(project.ProjectTypeId, cancellationToken);
             await LoadLookupOptionsAsync(project.SponsoringUnitId, project.SponsoringLineDirectorateId, cancellationToken);
             IsLegacyProject = project.IsLegacy;
 
@@ -302,6 +326,8 @@ public class EditModel : PageModel
                 CaseFileNumber = project.CaseFileNumber,
                 CategoryId = project.CategoryId,
                 TechnicalCategoryId = project.TechnicalCategoryId,
+                ProjectTypeId = project.ProjectTypeId,
+                IsBuild = project.IsBuild,
                 SponsoringUnitId = project.SponsoringUnitId,
                 SponsoringLineDirectorateId = project.SponsoringLineDirectorateId,
                 RdCostLakhs = project.CostLakhs,
@@ -327,6 +353,10 @@ public class EditModel : PageModel
                 ["CategoryIdAfter"] = project.CategoryId?.ToString(),
                 ["TechnicalCategoryIdBefore"] = previousTechnicalCategoryId?.ToString(),
                 ["TechnicalCategoryIdAfter"] = project.TechnicalCategoryId?.ToString(),
+                ["ProjectTypeIdBefore"] = previousProjectTypeId?.ToString(),
+                ["ProjectTypeIdAfter"] = project.ProjectTypeId?.ToString(),
+                ["IsBuildBefore"] = previousIsBuild.ToString(),
+                ["IsBuildAfter"] = project.IsBuild.ToString(),
                 ["SponsoringUnitIdBefore"] = previousSponsoringUnitId?.ToString(),
                 ["SponsoringUnitIdAfter"] = project.SponsoringUnitId?.ToString(),
                 ["SponsoringLineDirectorateIdBefore"] = previousSponsoringLineDirectorateId?.ToString(),
@@ -362,6 +392,13 @@ public class EditModel : PageModel
 
         [Display(Name = "Technical Category")]
         public int? TechnicalCategoryId { get; set; }
+
+        // SECTION: Project type and build flag
+        [Display(Name = "Project type")]
+        public int? ProjectTypeId { get; set; }
+
+        [Display(Name = "Build (repeat / re-manufacture)")]
+        public bool IsBuild { get; set; }
 
         [Display(Name = "Sponsoring Unit")]
         public int? SponsoringUnitId { get; set; }
@@ -459,6 +496,32 @@ public class EditModel : PageModel
             }
         }
         TechnicalCategoryOptions = options;
+    }
+
+    // SECTION: Project type options
+    private async Task LoadProjectTypeOptionsAsync(int? selectedProjectTypeId, CancellationToken cancellationToken)
+    {
+        var types = await _db.ProjectTypes
+            .AsNoTracking()
+            .Where(p => p.IsActive)
+            .OrderBy(p => p.SortOrder)
+            .ThenBy(p => p.Name)
+            .Select(p => new { p.Id, p.Name })
+            .ToListAsync(cancellationToken);
+
+        var items = types.Select(p => (Id: p.Id, Name: p.Name)).ToList();
+        if (selectedProjectTypeId.HasValue && items.All(p => p.Id != selectedProjectTypeId.Value))
+        {
+            var selectedType = await _db.ProjectTypes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == selectedProjectTypeId.Value, cancellationToken);
+            if (selectedType is not null)
+            {
+                items.Add((selectedType.Id, $"{selectedType.Name} (inactive)"));
+            }
+        }
+
+        ProjectTypeOptions = BuildLookupOptions(items, selectedProjectTypeId);
     }
 
     private async Task LoadLookupOptionsAsync(int? sponsoringUnitId, int? sponsoringLineDirectorateId, CancellationToken cancellationToken)

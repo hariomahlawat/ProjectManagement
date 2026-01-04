@@ -30,6 +30,10 @@ public sealed class ProjectMetaChangeRequestVm
     public string OriginalCategory { get; init; } = "—";
     public string OriginalTechnicalCategory { get; init; } = "—";
 
+    // SECTION: Project type and build flag snapshot
+    public string OriginalProjectType { get; init; } = "—";
+    public string OriginalIsBuild { get; init; } = "—";
+
     public ProjectMetaChangeFieldVm Name { get; init; } = new("", "", false);
 
     public ProjectMetaChangeFieldVm Description { get; init; } = new("", "", false);
@@ -38,6 +42,10 @@ public sealed class ProjectMetaChangeRequestVm
 
     public ProjectMetaChangeFieldVm Category { get; init; } = new("", "", false);
     public ProjectMetaChangeFieldVm TechnicalCategory { get; init; } = new("", "", false);
+
+    // SECTION: Project type and build flag fields
+    public ProjectMetaChangeFieldVm ProjectType { get; init; } = new("", "", false);
+    public ProjectMetaChangeFieldVm IsBuild { get; init; } = new("", "", false);
 
     public ProjectMetaChangeFieldVm SponsoringUnit { get; init; } = new("", "", false);
 

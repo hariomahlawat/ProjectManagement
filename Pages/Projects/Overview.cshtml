@@ -484,6 +484,32 @@
                                     </div>
                                 </div>
                                 <div>
+                                    <div class="fw-semibold">Project type</div>
+                                    <div class="text-muted small">Current</div>
+                                    <div>@metaRequest.ProjectType.CurrentValue</div>
+                                    <div class="text-muted small mt-1">Proposed</div>
+                                    <div>
+                                        <span class="fw-semibold">@metaRequest.ProjectType.ProposedValue</span>
+                                        @if (metaRequest.ProjectType.HasChanged)
+                                        {
+                                            <span class="badge text-bg-warning ms-1">Changed</span>
+                                        }
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold">Build (repeat / re-manufacture)</div>
+                                    <div class="text-muted small">Current</div>
+                                    <div>@metaRequest.IsBuild.CurrentValue</div>
+                                    <div class="text-muted small mt-1">Proposed</div>
+                                    <div>
+                                        <span class="fw-semibold">@metaRequest.IsBuild.ProposedValue</span>
+                                        @if (metaRequest.IsBuild.HasChanged)
+                                        {
+                                            <span class="badge text-bg-warning ms-1">Changed</span>
+                                        }
+                                    </div>
+                                </div>
+                                <div>
                                     <div class="fw-semibold">Sponsoring Unit</div>
                                     <div class="text-muted small">Current</div>
                                     <div>@metaRequest.SponsoringUnit.CurrentValue</div>

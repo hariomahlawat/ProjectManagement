@@ -130,6 +130,12 @@
                             ? string.Join(" › ", Model.TechnicalCategoryPath.Select(c => c.Name))
                             : "—")
                     </dd>
+                    @* SECTION: Project type and build flag *@
+                    <dt class="col-sm-4">Project type</dt>
+                    <dd class="col-sm-8">@(Model.Project?.ProjectType?.Name ?? "—")</dd>
+
+                    <dt class="col-sm-4">Build (repeat / re-manufacture)</dt>
+                    <dd class="col-sm-8">@((Model.Project?.IsBuild ?? false) ? "Yes" : "No")</dd>
 
                     <dt class="col-sm-4">Sponsoring Unit</dt>
                     <dd class="col-sm-8">@(Model.Project?.SponsoringUnit?.Name ?? "—")</dd>

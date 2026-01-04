@@ -46,6 +46,7 @@ namespace ProjectManagement.Pages.Projects
         public IEnumerable<SelectListItem> SponsoringUnitOptions { get; private set; } = Array.Empty<SelectListItem>();
         public IEnumerable<SelectListItem> LineDirectorateOptions { get; private set; } = Array.Empty<SelectListItem>();
         public IEnumerable<SelectListItem> TechnicalCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
+        public IEnumerable<SelectListItem> ProjectTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
         public class InputModel
         {
@@ -65,6 +66,13 @@ namespace ProjectManagement.Pages.Projects
 
             [Display(Name = "Technical Category")]
             public int? TechnicalCategoryId { get; set; }
+
+            // SECTION: Project type and build flag
+            [Display(Name = "Project type")]
+            public int? ProjectTypeId { get; set; }
+
+            [Display(Name = "Build (repeat / re-manufacture)")]
+            public bool IsBuild { get; set; }
 
             public string? HodUserId { get; set; }
 
@@ -168,6 +176,17 @@ namespace ProjectManagement.Pages.Projects
                 }
             }
 
+            if (Input.ProjectTypeId.HasValue)
+            {
+                var projectTypeIsActive = await _db.ProjectTypes
+                    .AnyAsync(p => p.Id == Input.ProjectTypeId.Value && p.IsActive);
+
+                if (!projectTypeIsActive)
+                {
+                    ModelState.AddModelError("Input.ProjectTypeId", ProjectValidationMessages.InactiveProjectType);
+                }
+            }
+
             if (Input.SponsoringUnitId.HasValue)
             {
                 var unitIsActive = await _db.SponsoringUnits
@@ -231,6 +250,8 @@ namespace ProjectManagement.Pages.Projects
                 Description = string.IsNullOrWhiteSpace(Input.Description) ? null : Input.Description.Trim(),
                 CategoryId = categoryId,
                 TechnicalCategoryId = Input.TechnicalCategoryId,
+                ProjectTypeId = Input.ProjectTypeId,
+                IsBuild = Input.IsBuild,
                 HodUserId = string.IsNullOrWhiteSpace(Input.HodUserId) ? null : Input.HodUserId,
                 LeadPoUserId = string.IsNullOrWhiteSpace(Input.PoUserId) ? null : Input.PoUserId,
                 SponsoringUnitId = Input.SponsoringUnitId,
@@ -300,6 +321,8 @@ namespace ProjectManagement.Pages.Projects
                     ["CaseFileNumber"] = project.CaseFileNumber,
                     ["CategoryId"] = project.CategoryId?.ToString(),
                     ["TechnicalCategoryId"] = project.TechnicalCategoryId?.ToString(),
+                    ["ProjectTypeId"] = project.ProjectTypeId?.ToString(),
+                    ["IsBuild"] = project.IsBuild.ToString(),
                     ["HodUserId"] = project.HodUserId,
                     ["LeadPoUserId"] = project.LeadPoUserId,
                     ["SponsoringUnitId"] = project.SponsoringUnitId?.ToString(),
@@ -458,6 +481,8 @@ namespace ProjectManagement.Pages.Projects
 
             await LoadSponsoringLookupsAsync();
             await LoadTechnicalCategoryOptionsAsync();
+            // SECTION: Project type options
+            await LoadProjectTypeOptionsAsync();
         }
 
         private async Task LoadTechnicalCategoryOptionsAsync()
@@ -505,6 +530,19 @@ namespace ProjectManagement.Pages.Projects
             }
 
             TechnicalCategoryOptions = options;
+        }
+
+        private async Task LoadProjectTypeOptionsAsync()
+        {
+            var types = await _db.ProjectTypes
+                .AsNoTracking()
+                .Where(p => p.IsActive)
+                .OrderBy(p => p.SortOrder)
+                .ThenBy(p => p.Name)
+                .Select(p => new SelectListItem(p.Name, p.Id.ToString()))
+                .ToListAsync();
+
+            ProjectTypeOptions = PrependEmpty(types, Input.ProjectTypeId);
         }
 
         private async Task LoadSponsoringLookupsAsync()

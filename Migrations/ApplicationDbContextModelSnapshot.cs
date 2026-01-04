@@ -3444,6 +3444,11 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<bool>("IsBuild")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -3475,6 +3480,9 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("PlanApprovedByUserId")
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
+
+                    b.Property<int?>("ProjectTypeId")
+                        .HasColumnType("integer");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -3523,6 +3531,8 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("Name");
 
                     b.HasIndex("PlanApprovedByUserId");
+
+                    b.HasIndex("ProjectTypeId");
 
                     b.HasIndex("SponsoringLineDirectorateId");
 
@@ -4253,6 +4263,14 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int?>("OriginalTechnicalCategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("OriginalIsBuild")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<int?>("OriginalProjectTypeId")
                         .HasColumnType("integer");
 
                     b.Property<string>("Payload")
@@ -5571,6 +5589,36 @@ namespace ProjectManagement.Migrations
                     b.ToTable("TechnicalCategories");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("SortOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name");
+
+                    b.ToTable("ProjectTypes");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.TodoItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6319,6 +6367,11 @@ namespace ProjectManagement.Migrations
                         .HasForeignKey("TechnicalCategoryId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("ProjectManagement.Models.ProjectType", "ProjectType")
+                        .WithMany("Projects")
+                        .HasForeignKey("ProjectTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Category");
 
                     b.Navigation("HodUser");
@@ -6332,6 +6385,8 @@ namespace ProjectManagement.Migrations
                     b.Navigation("SponsoringUnit");
 
                     b.Navigation("TechnicalCategory");
+
+                    b.Navigation("ProjectType");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectAonFact", b =>

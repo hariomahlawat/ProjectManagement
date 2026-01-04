@@ -8,6 +8,8 @@ public static class ProjectValidationMessages
 
     public const string InactiveTechnicalCategory = "Selected technical category is no longer active.";
 
+    public const string InactiveProjectType = "Selected project type is no longer active.";
+
     public const string InactiveSponsoringUnit = "Selected sponsoring unit is no longer active.";
 
     public const string InactiveLineDirectorate = "Selected line directorate is no longer active.";

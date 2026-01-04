@@ -30,6 +30,22 @@
         <select asp-for="Input.TechnicalCategoryId" class="form-select" asp-items="Model.TechnicalCategoryOptions"></select>
         <span asp-validation-for="Input.TechnicalCategoryId" class="text-danger"></span>
     </div>
+    @* SECTION: Project type and build flag *@
+    <div class="mb-3">
+        <label asp-for="Input.ProjectTypeId" class="form-label">Project type</label>
+        <select asp-for="Input.ProjectTypeId" class="form-select" asp-items="Model.ProjectTypeOptions"></select>
+        <div class="form-text">Current: @Model.CurrentProjectType</div>
+        <span asp-validation-for="Input.ProjectTypeId" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Input.IsBuild" class="form-label">Build (repeat / re-manufacture)</label>
+        <select asp-for="Input.IsBuild" class="form-select">
+            <option value="">Keep current (@Model.CurrentBuildFlag)</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+        </select>
+        <span asp-validation-for="Input.IsBuild" class="text-danger"></span>
+    </div>
     <div class="mb-3">
         <label asp-for="Input.SponsoringUnitId" class="form-label">Sponsoring Unit</label>
         <select asp-for="Input.SponsoringUnitId" class="form-select js-async-select" asp-items="Model.SponsoringUnitOptions" data-source="/api/lookups/sponsoring-units" data-search-placeholder="Search sponsoring units"></select>

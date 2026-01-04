@@ -168,6 +168,7 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.SponsoringUnit)
                 .Include(p => p.SponsoringLineDirectorate)
                 .Include(p => p.TechnicalCategory)
+                .Include(p => p.ProjectType)
                 .Include(p => p.Photos)
                 .Include(p => p.Videos)
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
@@ -2003,6 +2004,8 @@ namespace ProjectManagement.Pages.Projects
             var proposedCaseFileDisplay = Format(proposedCaseFileNumber);
             var proposedCategoryId = payload.CategoryId;
             var proposedTechnicalCategoryId = payload.TechnicalCategoryId;
+            var proposedProjectTypeId = payload.ProjectTypeId ?? project.ProjectTypeId;
+            var proposedIsBuild = payload.IsBuild ?? project.IsBuild;
             var proposedUnitId = payload.SponsoringUnitId;
             var proposedLineDirectorateId = payload.SponsoringLineDirectorateId;
 
@@ -2043,6 +2046,28 @@ namespace ProjectManagement.Pages.Projects
                 ? (string.IsNullOrWhiteSpace(originalLineName) ? "(inactive)" : Format(originalLineName))
                 : "—";
 
+            string FormatBuildFlag(bool isBuild) => isBuild ? "Yes" : "No";
+
+            async Task<string> GetProjectTypeDisplayAsync(int? projectTypeId)
+            {
+                if (!projectTypeId.HasValue)
+                {
+                    return "—";
+                }
+
+                var type = await _db.ProjectTypes.AsNoTracking()
+                    .Where(t => t.Id == projectTypeId.Value)
+                    .Select(t => new { t.Name, t.IsActive })
+                    .FirstOrDefaultAsync(ct);
+
+                if (type is null)
+                {
+                    return "(inactive)";
+                }
+
+                return type.IsActive ? type.Name : $"{type.Name} (inactive)";
+            }
+
             string proposedUnitDisplay;
             if (proposedUnitId.HasValue)
             {
@@ -2070,6 +2095,14 @@ namespace ProjectManagement.Pages.Projects
             {
                 proposedLineDisplay = "—";
             }
+
+            var originalProjectTypeDisplay = await GetProjectTypeDisplayAsync(request.OriginalProjectTypeId);
+            var currentProjectTypeDisplay = await GetProjectTypeDisplayAsync(project.ProjectTypeId);
+            var proposedProjectTypeDisplay = await GetProjectTypeDisplayAsync(proposedProjectTypeId);
+
+            var originalBuildDisplay = FormatBuildFlag(request.OriginalIsBuild);
+            var currentBuildDisplay = FormatBuildFlag(project.IsBuild);
+            var proposedBuildDisplay = FormatBuildFlag(proposedIsBuild);
 
             var originalCategoryDisplay = "—";
             if (request.OriginalCategoryId.HasValue)
@@ -2129,6 +2162,12 @@ namespace ProjectManagement.Pages.Projects
                     case ProjectMetaChangeDriftFields.TechnicalCategory:
                         drift.Add(new ProjectMetaChangeDriftVm("Technical category", originalTechnicalCategoryDisplay, currentTechnicalCategoryDisplay, false));
                         break;
+                    case ProjectMetaChangeDriftFields.ProjectType:
+                        drift.Add(new ProjectMetaChangeDriftVm("Project type", originalProjectTypeDisplay, currentProjectTypeDisplay, false));
+                        break;
+                    case ProjectMetaChangeDriftFields.IsBuild:
+                        drift.Add(new ProjectMetaChangeDriftVm("Build (repeat / re-manufacture)", originalBuildDisplay, currentBuildDisplay, false));
+                        break;
                     case ProjectMetaChangeDriftFields.SponsoringUnit:
                         drift.Add(new ProjectMetaChangeDriftVm("Sponsoring Unit", originalUnitDisplay, currentUnitDisplay, false));
                         break;
@@ -2161,6 +2200,14 @@ namespace ProjectManagement.Pages.Projects
                 currentTechnicalCategoryDisplay,
                 proposedTechnicalCategoryDisplay,
                 project.TechnicalCategoryId != proposedTechnicalCategoryId);
+            var projectTypeField = new ProjectMetaChangeFieldVm(
+                currentProjectTypeDisplay,
+                proposedProjectTypeDisplay,
+                project.ProjectTypeId != proposedProjectTypeId);
+            var buildField = new ProjectMetaChangeFieldVm(
+                currentBuildDisplay,
+                proposedBuildDisplay,
+                project.IsBuild != proposedIsBuild);
             var unitField = new ProjectMetaChangeFieldVm(
                 currentUnitDisplay,
                 proposedUnitDisplay,
@@ -2185,6 +2232,8 @@ namespace ProjectManagement.Pages.Projects
             AddSummary(caseFileField, "case file number");
             AddSummary(categoryField, "category");
             AddSummary(technicalCategoryField, "technical category");
+            AddSummary(projectTypeField, "project type");
+            AddSummary(buildField, "build flag");
             AddSummary(unitField, "sponsoring unit");
             AddSummary(lineDirectorateField, "sponsoring line directorate");
 
@@ -2219,11 +2268,15 @@ namespace ProjectManagement.Pages.Projects
                 OriginalCaseFileNumber = originalCaseFileDisplay,
                 OriginalCategory = originalCategoryDisplay,
                 OriginalTechnicalCategory = originalTechnicalCategoryDisplay,
+                OriginalProjectType = originalProjectTypeDisplay,
+                OriginalIsBuild = originalBuildDisplay,
                 Name = nameField,
                 Description = descriptionField,
                 CaseFileNumber = caseFileField,
                 Category = categoryField,
                 TechnicalCategory = technicalCategoryField,
+                ProjectType = projectTypeField,
+                IsBuild = buildField,
                 SponsoringUnit = unitField,
                 SponsoringLineDirectorate = lineDirectorateField,
                 HasDrift = drift.Count > 0,

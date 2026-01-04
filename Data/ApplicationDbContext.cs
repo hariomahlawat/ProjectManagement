@@ -35,6 +35,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectCategory> ProjectCategories => Set<ProjectCategory>();
         public DbSet<ProjectIpaFact> ProjectIpaFacts => Set<ProjectIpaFact>();
         public DbSet<TechnicalCategory> TechnicalCategories => Set<TechnicalCategory>();
+        public DbSet<ProjectType> ProjectTypes => Set<ProjectType>();
         public DbSet<ProjectLegacyImport> ProjectLegacyImports => Set<ProjectLegacyImport>();
         public DbSet<ProjectSowFact> ProjectSowFacts => Set<ProjectSowFact>();
         public DbSet<ProjectAonFact> ProjectAonFacts => Set<ProjectAonFact>();
@@ -349,6 +350,12 @@ namespace ProjectManagement.Data
                     .WithMany(x => x.Projects)
                     .HasForeignKey(x => x.TechnicalCategoryId)
                     .OnDelete(DeleteBehavior.Restrict);
+                // SECTION: Project type relationship
+                e.HasOne(x => x.ProjectType)
+                    .WithMany(x => x.Projects)
+                    .HasForeignKey(x => x.ProjectTypeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(x => x.ProjectTypeId);
                 e.HasOne(x => x.SponsoringUnit)
                     .WithMany(x => x.Projects)
                     .HasForeignKey(x => x.SponsoringUnitId)
@@ -366,6 +373,8 @@ namespace ProjectManagement.Data
                 e.Property(x => x.IsArchived).HasDefaultValue(false);
                 e.Property(x => x.ArchivedAt);
                 e.Property(x => x.ArchivedByUserId).HasMaxLength(450);
+                // SECTION: Build flag
+                e.Property(x => x.IsBuild).HasDefaultValue(false);
                 e.Property(x => x.IsDeleted).HasDefaultValue(false);
                 e.Property(x => x.DeletedAt);
                 e.Property(x => x.DeletedByUserId).HasMaxLength(450);
@@ -1486,6 +1495,15 @@ namespace ProjectManagement.Data
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
+            // SECTION: Project type lookup
+            builder.Entity<ProjectType>(e =>
+            {
+                e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+                e.HasIndex(x => x.Name);
+                e.Property(x => x.SortOrder).HasDefaultValue(0);
+                e.Property(x => x.IsActive).HasDefaultValue(true);
+            });
+
             builder.Entity<SponsoringUnit>(e =>
             {
                 e.Property(x => x.Name).HasMaxLength(200).IsRequired();
@@ -1548,6 +1566,8 @@ namespace ProjectManagement.Data
                 e.Property(x => x.OriginalDescription).HasMaxLength(1000);
                 e.Property(x => x.OriginalCaseFileNumber).HasMaxLength(50);
                 e.Property(x => x.OriginalRowVersion).HasMaxLength(8);
+                // SECTION: Project type and build flag snapshot
+                e.Property(x => x.OriginalIsBuild).HasDefaultValue(false);
                 e.HasOne(x => x.Project)
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)

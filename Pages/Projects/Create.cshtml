@@ -73,6 +73,20 @@
                         <span asp-validation-for="Input.TechnicalCategoryId" class="text-danger"></span>
                     </div>
                 </div>
+                @* SECTION: Project type and build flag *@
+                <div class="row g-3 mt-0">
+                    <div class="col-md-6">
+                        <label asp-for="Input.ProjectTypeId" class="form-label">Project type</label>
+                        <select asp-for="Input.ProjectTypeId" class="form-select" asp-items="Model.ProjectTypeOptions"></select>
+                        <span asp-validation-for="Input.ProjectTypeId" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" asp-for="Input.IsBuild" />
+                            <label class="form-check-label" asp-for="Input.IsBuild">Build (repeat / re-manufacture)</label>
+                        </div>
+                    </div>
+                </div>
                 <div class="row g-3 mt-0">
                     <div class="col-md-6">
                         <label asp-for="Input.SponsoringUnitId" class="form-label">Sponsoring Unit</label>
