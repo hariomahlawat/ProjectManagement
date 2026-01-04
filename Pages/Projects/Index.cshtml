@@ -3,7 +3,6 @@
 @using System
 @using System.Linq
 @using System.Globalization
-@using Microsoft.AspNetCore.Routing
 @using ProjectManagement.Models
 @using ProjectManagement.Models.Execution
 @using ProjectManagement.Models.Stages
@@ -40,28 +39,45 @@
     }
 
     // Section: Shared route values for filter links
-    RouteValueDictionary BaseRouteValues()
+    IDictionary<string, string> BaseRouteValues()
     {
-        return new RouteValueDictionary
+        var values = new Dictionary<string, string>();
+
+        void AddValue(string key, object? value)
         {
-            ["Query"] = Model.Query,
-            ["CategoryId"] = Model.CategoryId,
-            ["TechnicalCategoryId"] = Model.TechnicalCategoryId,
-            ["LeadPoUserId"] = Model.LeadPoUserId,
-            ["HodUserId"] = Model.HodUserId,
-            ["Lifecycle"] = Model.Lifecycle == ProjectLifecycleFilter.All ? null : Model.Lifecycle.ToString(),
-            ["CompletedYear"] = Model.CompletedYear,
-            ["TotStatus"] = Model.TotStatus?.ToString(),
-            ["IncludeArchived"] = Model.IncludeArchived ? "true" : null,
-            ["StageCode"] = Model.StageCode,
-            ["StageCompletedMonth"] = Model.StageCompletedMonth,
-            ["SlipBucket"] = Model.SlipBucket,
-            ["IncludeCategoryDescendants"] = Model.IncludeCategoryDescendants ? "true" : null,
-            ["Build"] = Model.Build,
-            ["ProjectTypeId"] = Model.ProjectTypeId,
-            ["ProjectTypeUnclassified"] = Model.ProjectTypeUnclassified ? "1" : null,
-            ["PageSize"] = Model.PageSize
-        };
+            if (value is null)
+            {
+                return;
+            }
+
+            var text = value.ToString();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+
+            values[key] = text;
+        }
+
+        AddValue("Query", Model.Query);
+        AddValue("CategoryId", Model.CategoryId);
+        AddValue("TechnicalCategoryId", Model.TechnicalCategoryId);
+        AddValue("LeadPoUserId", Model.LeadPoUserId);
+        AddValue("HodUserId", Model.HodUserId);
+        AddValue("Lifecycle", Model.Lifecycle == ProjectLifecycleFilter.All ? null : Model.Lifecycle.ToString());
+        AddValue("CompletedYear", Model.CompletedYear);
+        AddValue("TotStatus", Model.TotStatus?.ToString());
+        AddValue("IncludeArchived", Model.IncludeArchived ? "true" : null);
+        AddValue("StageCode", Model.StageCode);
+        AddValue("StageCompletedMonth", Model.StageCompletedMonth);
+        AddValue("SlipBucket", Model.SlipBucket);
+        AddValue("IncludeCategoryDescendants", Model.IncludeCategoryDescendants ? "true" : null);
+        AddValue("Build", Model.Build);
+        AddValue("ProjectTypeId", Model.ProjectTypeId);
+        AddValue("ProjectTypeUnclassified", Model.ProjectTypeUnclassified ? "1" : null);
+        AddValue("PageSize", Model.PageSize);
+
+        return values;
     }
 
     var activeFilters = new List<string>();
