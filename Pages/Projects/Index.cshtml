@@ -3,6 +3,7 @@
 @using System
 @using System.Linq
 @using System.Globalization
+@using Microsoft.AspNetCore.Routing
 @using ProjectManagement.Models
 @using ProjectManagement.Models.Execution
 @using ProjectManagement.Models.Stages
@@ -14,15 +15,54 @@
     var activeLifecycle = Model.LifecycleTabs.FirstOrDefault(t => t.IsActive);
     var showAdvancedFilters = Model.HasActiveFilters;
     var activeLifecycleLabel = string.IsNullOrWhiteSpace(activeLifecycle?.Label) ? "All" : activeLifecycle!.Label;
-    var preferredProjectTypeOrder = new[] { "Simulator", "Proof of Concept", "Product" };
-    var orderedProjectTypeCounts = Model.ProjectTypeCounts
-        .OrderBy(kvp =>
-        {
-            var preferredIndex = Array.FindIndex(preferredProjectTypeOrder, name => string.Equals(name, kvp.Key, StringComparison.OrdinalIgnoreCase));
-            return preferredIndex < 0 ? int.MaxValue : preferredIndex;
-        })
-        .ThenBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
+    // Section: Project type chips
+    var selectedProjectTypeId = Model.ProjectTypeId;
+    var selectedProjectTypeUnclassified = Model.ProjectTypeUnclassified;
+    var projectTypeChips = Model.ProjectTypeChips
+        .OrderByDescending(chip => chip.Count)
+        .ThenBy(chip => chip.Name, StringComparer.OrdinalIgnoreCase)
         .ToList();
+    var showAllProjectTypes = projectTypeChips.Count <= 12;
+    const int topProjectTypeLimit = 8;
+    var topProjectTypeChips = showAllProjectTypes
+        ? projectTypeChips
+        : projectTypeChips
+            .Where(chip => chip.Count > 0 || (selectedProjectTypeId.HasValue && chip.Id == selectedProjectTypeId.Value))
+            .Take(topProjectTypeLimit)
+            .ToList();
+    if (selectedProjectTypeId.HasValue && topProjectTypeChips.All(chip => chip.Id != selectedProjectTypeId.Value))
+    {
+        var selectedChip = projectTypeChips.FirstOrDefault(chip => chip.Id == selectedProjectTypeId.Value);
+        if (selectedChip is not null)
+        {
+            topProjectTypeChips.Add(selectedChip);
+        }
+    }
+
+    // Section: Shared route values for filter links
+    RouteValueDictionary BaseRouteValues()
+    {
+        return new RouteValueDictionary
+        {
+            ["Query"] = Model.Query,
+            ["CategoryId"] = Model.CategoryId,
+            ["TechnicalCategoryId"] = Model.TechnicalCategoryId,
+            ["LeadPoUserId"] = Model.LeadPoUserId,
+            ["HodUserId"] = Model.HodUserId,
+            ["Lifecycle"] = Model.Lifecycle == ProjectLifecycleFilter.All ? null : Model.Lifecycle.ToString(),
+            ["CompletedYear"] = Model.CompletedYear,
+            ["TotStatus"] = Model.TotStatus?.ToString(),
+            ["IncludeArchived"] = Model.IncludeArchived ? "true" : null,
+            ["StageCode"] = Model.StageCode,
+            ["StageCompletedMonth"] = Model.StageCompletedMonth,
+            ["SlipBucket"] = Model.SlipBucket,
+            ["IncludeCategoryDescendants"] = Model.IncludeCategoryDescendants ? "true" : null,
+            ["Build"] = Model.Build,
+            ["ProjectTypeId"] = Model.ProjectTypeId,
+            ["ProjectTypeUnclassified"] = Model.ProjectTypeUnclassified ? "1" : null,
+            ["PageSize"] = Model.PageSize
+        };
+    }
 
     var activeFilters = new List<string>();
     if (!string.IsNullOrWhiteSpace(Model.Query))
@@ -66,6 +106,25 @@
         activeFilters.Add($"ToT status: {selectedTotStatus}");
     }
 
+    // Section: Project type/build filter chips
+    if (selectedProjectTypeUnclassified)
+    {
+        activeFilters.Add("Project type: Unclassified");
+    }
+    else if (selectedProjectTypeId.HasValue)
+    {
+        var selectedTypeName = projectTypeChips.FirstOrDefault(chip => chip.Id == selectedProjectTypeId.Value)?.Name;
+        if (!string.IsNullOrWhiteSpace(selectedTypeName))
+        {
+            activeFilters.Add($"Project type: {selectedTypeName}");
+        }
+    }
+
+    if (!string.IsNullOrWhiteSpace(Model.Build))
+    {
+        activeFilters.Add(Model.Build == "Repeat" ? "Build: Repeat builds" : "Build: New development");
+    }
+
     if (Model.IncludeArchived)
     {
         activeFilters.Add("Including archived projects");
@@ -99,18 +158,105 @@
                         </div>
                         <div class="projects-stat">
                             <span class="projects-stat__label">Project type</span>
-                            @if (orderedProjectTypeCounts.Count > 0)
+                            @if (projectTypeChips.Count > 0 || Model.ProjectTypeUnclassifiedCount > 0 || selectedProjectTypeUnclassified)
                             {
                                 <div class="projects-stat__chips">
-                                    @foreach (var item in orderedProjectTypeCounts)
+                                    @* Section: Unclassified chip *@
+                                    @if (Model.ProjectTypeUnclassifiedCount > 0 || selectedProjectTypeUnclassified)
                                     {
-                                        if (string.Equals(item.Key, "Not set", StringComparison.OrdinalIgnoreCase) && item.Value == 0)
+                                        var unclassifiedRouteValues = BaseRouteValues();
+                                        unclassifiedRouteValues["ProjectTypeId"] = null;
+                                        unclassifiedRouteValues["ProjectTypeUnclassified"] = selectedProjectTypeUnclassified ? null : "1";
+                                        unclassifiedRouteValues["p"] = 1;
+                                        if (selectedProjectTypeUnclassified)
                                         {
-                                            continue;
+                                            <a class="projects-stat__chip projects-stat__chip--active"
+                                               asp-page="./Index"
+                                               asp-all-route-data="unclassifiedRouteValues"
+                                               aria-pressed="true">Unclassified <span class="projects-stat__chip-count">@Model.ProjectTypeUnclassifiedCount</span></a>
                                         }
-                                        <span class="projects-stat__chip">@item.Key: @item.Value</span>
+                                        else if (Model.ProjectTypeUnclassifiedCount == 0)
+                                        {
+                                            <span class="projects-stat__chip projects-stat__chip--disabled" aria-disabled="true">Unclassified <span class="projects-stat__chip-count">0</span></span>
+                                        }
+                                        else
+                                        {
+                                            <a class="projects-stat__chip"
+                                               asp-page="./Index"
+                                               asp-all-route-data="unclassifiedRouteValues">Unclassified <span class="projects-stat__chip-count">@Model.ProjectTypeUnclassifiedCount</span></a>
+                                        }
+                                    }
+
+                                    @* Section: Primary project type chips *@
+                                    @foreach (var chip in topProjectTypeChips)
+                                    {
+                                        var chipRouteValues = BaseRouteValues();
+                                        chipRouteValues["ProjectTypeId"] = chip.Id;
+                                        chipRouteValues["ProjectTypeUnclassified"] = null;
+                                        chipRouteValues["p"] = 1;
+                                        var isSelected = selectedProjectTypeId.HasValue && chip.Id == selectedProjectTypeId.Value && !selectedProjectTypeUnclassified;
+                                        if (isSelected)
+                                        {
+                                            chipRouteValues["ProjectTypeId"] = null;
+                                        }
+
+                                        if (chip.Count == 0 && !isSelected)
+                                        {
+                                            <span class="projects-stat__chip projects-stat__chip--disabled" aria-disabled="true">@chip.Name <span class="projects-stat__chip-count">0</span></span>
+                                        }
+                                        else
+                                        {
+                                            <a class="projects-stat__chip @(isSelected ? "projects-stat__chip--active" : null)"
+                                               asp-page="./Index"
+                                               asp-all-route-data="chipRouteValues"
+                                               aria-pressed="@(isSelected ? "true" : "false")">
+                                                @chip.Name <span class="projects-stat__chip-count">@chip.Count</span>
+                                            </a>
+                                        }
                                     }
                                 </div>
+
+                                @* Section: Additional project type chips *@
+                                @if (!showAllProjectTypes)
+                                {
+                                    var remainingProjectTypes = projectTypeChips
+                                        .Where(chip => topProjectTypeChips.All(top => top.Id != chip.Id))
+                                        .ToList();
+                                    if (remainingProjectTypes.Count > 0)
+                                    {
+                                        <details class="projects-stat__details">
+                                            <summary class="projects-stat__chip projects-stat__chip--more">More project types</summary>
+                                            <div class="projects-stat__chips projects-stat__chips--expanded">
+                                                @foreach (var chip in remainingProjectTypes)
+                                                {
+                                                    var chipRouteValues = BaseRouteValues();
+                                                    chipRouteValues["ProjectTypeId"] = chip.Id;
+                                                    chipRouteValues["ProjectTypeUnclassified"] = null;
+                                                    chipRouteValues["p"] = 1;
+                                                    var isSelected = selectedProjectTypeId.HasValue && chip.Id == selectedProjectTypeId.Value && !selectedProjectTypeUnclassified;
+                                                    if (isSelected)
+                                                    {
+                                                        chipRouteValues["ProjectTypeId"] = null;
+                                                    }
+
+                                                    if (chip.Count == 0 && !isSelected)
+                                                    {
+                                                        <span class="projects-stat__chip projects-stat__chip--disabled" aria-disabled="true">@chip.Name <span class="projects-stat__chip-count">0</span></span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <a class="projects-stat__chip @(isSelected ? "projects-stat__chip--active" : null)"
+                                                           asp-page="./Index"
+                                                           asp-all-route-data="chipRouteValues"
+                                                           aria-pressed="@(isSelected ? "true" : "false")">
+                                                            @chip.Name <span class="projects-stat__chip-count">@chip.Count</span>
+                                                        </a>
+                                                    }
+                                                }
+                                            </div>
+                                        </details>
+                                    }
+                                }
                             }
                             else
                             {
@@ -120,8 +266,45 @@
                         <div class="projects-stat">
                             <span class="projects-stat__label">Build</span>
                             <div class="projects-stat__stack">
-                                <span class="projects-stat__chip">Repeat builds: @Model.RepeatBuildCount</span>
-                                <span class="projects-stat__chip">New development: @(Model.FilteredTotal - Model.RepeatBuildCount)</span>
+                                @{
+                                    var repeatRouteValues = BaseRouteValues();
+                                    repeatRouteValues["Build"] = string.Equals(Model.Build, "Repeat", StringComparison.OrdinalIgnoreCase) ? null : "Repeat";
+                                    repeatRouteValues["p"] = 1;
+                                    var isRepeatSelected = string.Equals(Model.Build, "Repeat", StringComparison.OrdinalIgnoreCase);
+                                }
+                                @if (Model.RepeatBuildCount == 0 && !isRepeatSelected)
+                                {
+                                    <span class="projects-stat__chip projects-stat__chip--disabled" aria-disabled="true">Repeat builds <span class="projects-stat__chip-count">0</span></span>
+                                }
+                                else
+                                {
+                                    <a class="projects-stat__chip @(isRepeatSelected ? "projects-stat__chip--active" : null)"
+                                       asp-page="./Index"
+                                       asp-all-route-data="repeatRouteValues"
+                                       aria-pressed="@(isRepeatSelected ? "true" : "false")">
+                                        Repeat builds <span class="projects-stat__chip-count">@Model.RepeatBuildCount</span>
+                                    </a>
+                                }
+
+                                @{
+                                    var newRouteValues = BaseRouteValues();
+                                    newRouteValues["Build"] = string.Equals(Model.Build, "New", StringComparison.OrdinalIgnoreCase) ? null : "New";
+                                    newRouteValues["p"] = 1;
+                                    var isNewSelected = string.Equals(Model.Build, "New", StringComparison.OrdinalIgnoreCase);
+                                }
+                                @if (Model.NewBuildCount == 0 && !isNewSelected)
+                                {
+                                    <span class="projects-stat__chip projects-stat__chip--disabled" aria-disabled="true">New development <span class="projects-stat__chip-count">0</span></span>
+                                }
+                                else
+                                {
+                                    <a class="projects-stat__chip @(isNewSelected ? "projects-stat__chip--active" : null)"
+                                       asp-page="./Index"
+                                       asp-all-route-data="newRouteValues"
+                                       aria-pressed="@(isNewSelected ? "true" : "false")">
+                                        New development <span class="projects-stat__chip-count">@Model.NewBuildCount</span>
+                                    </a>
+                                }
                             </div>
                         </div>
                     </div>
@@ -143,9 +326,16 @@
                                asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
                                asp-route-LeadPoUserId="@Model.LeadPoUserId"
                                asp-route-HodUserId="@Model.HodUserId"
+                               asp-route-StageCode="@Model.StageCode"
+                               asp-route-StageCompletedMonth="@Model.StageCompletedMonth"
+                               asp-route-SlipBucket="@Model.SlipBucket"
+                               asp-route-IncludeCategoryDescendants="@(Model.IncludeCategoryDescendants ? "true" : null)"
                                asp-route-CompletedYear="@Model.CompletedYear"
                                asp-route-TotStatus="@(Model.TotStatus?.ToString())"
                                asp-route-IncludeArchived="@(Model.IncludeArchived ? "true" : null)"
+                               asp-route-Build="@Model.Build"
+                               asp-route-ProjectTypeId="@Model.ProjectTypeId"
+                               asp-route-ProjectTypeUnclassified="@(Model.ProjectTypeUnclassified ? "1" : null)"
                                title="@(isLegacyTab ? "Projects from earlier dataset (legacy records)." : null)"
                                role="tab">
                                 <span class="projects-tabs__label">@lifecycle.Label</span>
@@ -158,6 +348,34 @@
 
             <form method="get" class="projects-filter shadow-sm">
                 <input type="hidden" name="Lifecycle" value="@Model.Lifecycle" />
+                @if (Model.ProjectTypeId.HasValue)
+                {
+                    <input type="hidden" name="ProjectTypeId" value="@Model.ProjectTypeId" />
+                }
+                @if (Model.ProjectTypeUnclassified)
+                {
+                    <input type="hidden" name="ProjectTypeUnclassified" value="1" />
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.Build))
+                {
+                    <input type="hidden" name="Build" value="@Model.Build" />
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.StageCode))
+                {
+                    <input type="hidden" name="StageCode" value="@Model.StageCode" />
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.StageCompletedMonth))
+                {
+                    <input type="hidden" name="StageCompletedMonth" value="@Model.StageCompletedMonth" />
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.SlipBucket))
+                {
+                    <input type="hidden" name="SlipBucket" value="@Model.SlipBucket" />
+                }
+                @if (Model.IncludeCategoryDescendants)
+                {
+                    <input type="hidden" name="IncludeCategoryDescendants" value="true" />
+                }
                 <div class="projects-filter__primary">
                     <div class="projects-filter__search">
                         <label asp-for="Query" class="form-label">Search projects</label>
@@ -422,10 +640,17 @@
                                    asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
                                    asp-route-LeadPoUserId="@Model.LeadPoUserId"
                                    asp-route-HodUserId="@Model.HodUserId"
+                                   asp-route-StageCode="@Model.StageCode"
+                                   asp-route-StageCompletedMonth="@Model.StageCompletedMonth"
+                                   asp-route-SlipBucket="@Model.SlipBucket"
+                                   asp-route-IncludeCategoryDescendants="@(Model.IncludeCategoryDescendants ? "true" : null)"
                                    asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())"
                                    asp-route-CompletedYear="@Model.CompletedYear"
                                    asp-route-TotStatus="@(Model.TotStatus?.ToString())"
                                    asp-route-IncludeArchived="@(Model.IncludeArchived ? "true" : null)"
+                                   asp-route-Build="@Model.Build"
+                                   asp-route-ProjectTypeId="@Model.ProjectTypeId"
+                                   asp-route-ProjectTypeUnclassified="@(Model.ProjectTypeUnclassified ? "1" : null)"
                                    aria-label="Previous"
                                    aria-disabled="@(Model.CurrentPage <= 1)">
                                     <i class="bi bi-chevron-left" aria-hidden="true"></i>
@@ -443,10 +668,17 @@
                                        asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
                                        asp-route-LeadPoUserId="@Model.LeadPoUserId"
                                        asp-route-HodUserId="@Model.HodUserId"
+                                       asp-route-StageCode="@Model.StageCode"
+                                       asp-route-StageCompletedMonth="@Model.StageCompletedMonth"
+                                       asp-route-SlipBucket="@Model.SlipBucket"
+                                       asp-route-IncludeCategoryDescendants="@(Model.IncludeCategoryDescendants ? "true" : null)"
                                        asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())"
                                        asp-route-CompletedYear="@Model.CompletedYear"
                                        asp-route-TotStatus="@(Model.TotStatus?.ToString())"
-                                       asp-route-IncludeArchived="@(Model.IncludeArchived ? "true" : null)">@i</a>
+                                       asp-route-IncludeArchived="@(Model.IncludeArchived ? "true" : null)"
+                                       asp-route-Build="@Model.Build"
+                                       asp-route-ProjectTypeId="@Model.ProjectTypeId"
+                                       asp-route-ProjectTypeUnclassified="@(Model.ProjectTypeUnclassified ? "1" : null)">@i</a>
                                 </li>
                             }
                             <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
@@ -459,10 +691,17 @@
                                    asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
                                    asp-route-LeadPoUserId="@Model.LeadPoUserId"
                                    asp-route-HodUserId="@Model.HodUserId"
+                                   asp-route-StageCode="@Model.StageCode"
+                                   asp-route-StageCompletedMonth="@Model.StageCompletedMonth"
+                                   asp-route-SlipBucket="@Model.SlipBucket"
+                                   asp-route-IncludeCategoryDescendants="@(Model.IncludeCategoryDescendants ? "true" : null)"
                                    asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())"
                                    asp-route-CompletedYear="@Model.CompletedYear"
                                    asp-route-TotStatus="@(Model.TotStatus?.ToString())"
                                    asp-route-IncludeArchived="@(Model.IncludeArchived ? "true" : null)"
+                                   asp-route-Build="@Model.Build"
+                                   asp-route-ProjectTypeId="@Model.ProjectTypeId"
+                                   asp-route-ProjectTypeUnclassified="@(Model.ProjectTypeUnclassified ? "1" : null)"
                                    aria-label="Next"
                                    aria-disabled="@(Model.CurrentPage >= Model.TotalPages)">
                                     <i class="bi bi-chevron-right" aria-hidden="true"></i>
