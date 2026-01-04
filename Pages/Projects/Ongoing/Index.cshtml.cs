@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -49,6 +50,14 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         public IReadOnlyList<SelectListItem> ProjectOfficerOptions { get; private set; }
             = Array.Empty<SelectListItem>();
 
+        // SECTION: Header counts summary
+        public int FilteredTotal { get; private set; }
+
+        public IReadOnlyList<CategoryCountDto> FilteredCategoryCounts { get; private set; }
+            = Array.Empty<CategoryCountDto>();
+
+        public string HeaderCountsText { get; private set; } = string.Empty;
+
         public IReadOnlyList<OngoingProjectRowDto> Items { get; private set; }
             = Array.Empty<OngoingProjectRowDto>();
 
@@ -68,6 +77,8 @@ namespace ProjectManagement.Pages.Projects.Ongoing
                 officerId,
                 search,
                 cancellationToken);
+
+            BuildHeaderCounts();
         }
 
         public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
@@ -118,7 +129,71 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             ProjectCategoryOptions = list;
         }
 
+        private void BuildHeaderCounts()
+        {
+            // SECTION: Build filtered totals and category breakdown
+            FilteredTotal = Items.Count;
+
+            var orderedCategories = ProjectCategoryOptions
+                .Where(option => !string.IsNullOrWhiteSpace(option.Value))
+                .Select(option => new
+                {
+                    Id = int.Parse(option.Value),
+                    Name = option.Text
+                })
+                .ToList();
+
+            var countsByCategory = Items
+                .Where(item => item.ProjectCategoryId.HasValue)
+                .GroupBy(item => item.ProjectCategoryId!.Value)
+                .ToDictionary(group => group.Key, group => group.Count());
+
+            var orderedCounts = new List<CategoryCountDto>();
+
+            foreach (var category in orderedCategories)
+            {
+                if (!countsByCategory.TryGetValue(category.Id, out var count))
+                {
+                    continue;
+                }
+
+                if (count <= 0)
+                {
+                    continue;
+                }
+
+                orderedCounts.Add(new CategoryCountDto
+                {
+                    ProjectCategoryId = category.Id,
+                    CategoryName = category.Name,
+                    Count = count
+                });
+            }
+
+            FilteredCategoryCounts = orderedCounts;
+
+            var parts = new List<string>
+            {
+                $"Total - {FilteredTotal}"
+            };
+
+            foreach (var category in FilteredCategoryCounts)
+            {
+                parts.Add($"{category.CategoryName} - {category.Count}");
+            }
+
+            HeaderCountsText = $"({string.Join(", ", parts)})";
+        }
+
         private static string? Normalize(string? value)
             => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    // SECTION: DTOs
+    public sealed class CategoryCountDto
+    {
+        public int ProjectCategoryId { get; init; }
+        public string CategoryName { get; init; } = "";
+        public int Count { get; init; }
     }
 }
