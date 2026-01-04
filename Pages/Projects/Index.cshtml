@@ -39,9 +39,9 @@
     }
 
     // Section: Shared route values for filter links
-    IDictionary<string, string> BaseRouteValues()
+    IDictionary<string, string?> BaseRouteValues()
     {
-        var values = new Dictionary<string, string>();
+        var values = new Dictionary<string, string?>();
 
         void AddValue(string key, object? value)
         {
@@ -183,7 +183,7 @@
                                         var unclassifiedRouteValues = BaseRouteValues();
                                         unclassifiedRouteValues["ProjectTypeId"] = null;
                                         unclassifiedRouteValues["ProjectTypeUnclassified"] = selectedProjectTypeUnclassified ? null : "1";
-                                        unclassifiedRouteValues["p"] = 1;
+                                        unclassifiedRouteValues["p"] = "1";
                                         if (selectedProjectTypeUnclassified)
                                         {
                                             <a class="projects-stat__chip projects-stat__chip--active"
@@ -207,9 +207,9 @@
                                     @foreach (var chip in topProjectTypeChips)
                                     {
                                         var chipRouteValues = BaseRouteValues();
-                                        chipRouteValues["ProjectTypeId"] = chip.Id;
+                                        chipRouteValues["ProjectTypeId"] = chip.Id.ToString(CultureInfo.InvariantCulture);
                                         chipRouteValues["ProjectTypeUnclassified"] = null;
-                                        chipRouteValues["p"] = 1;
+                                        chipRouteValues["p"] = "1";
                                         var isSelected = selectedProjectTypeId.HasValue && chip.Id == selectedProjectTypeId.Value && !selectedProjectTypeUnclassified;
                                         if (isSelected)
                                         {
@@ -246,9 +246,9 @@
                                                 @foreach (var chip in remainingProjectTypes)
                                                 {
                                                     var chipRouteValues = BaseRouteValues();
-                                                    chipRouteValues["ProjectTypeId"] = chip.Id;
+                                                    chipRouteValues["ProjectTypeId"] = chip.Id.ToString(CultureInfo.InvariantCulture);
                                                     chipRouteValues["ProjectTypeUnclassified"] = null;
-                                                    chipRouteValues["p"] = 1;
+                                                    chipRouteValues["p"] = "1";
                                                     var isSelected = selectedProjectTypeId.HasValue && chip.Id == selectedProjectTypeId.Value && !selectedProjectTypeUnclassified;
                                                     if (isSelected)
                                                     {
@@ -285,7 +285,7 @@
                                 @{
                                     var repeatRouteValues = BaseRouteValues();
                                     repeatRouteValues["Build"] = string.Equals(Model.Build, "Repeat", StringComparison.OrdinalIgnoreCase) ? null : "Repeat";
-                                    repeatRouteValues["p"] = 1;
+                                    repeatRouteValues["p"] = "1";
                                     var isRepeatSelected = string.Equals(Model.Build, "Repeat", StringComparison.OrdinalIgnoreCase);
                                 }
                                 @if (Model.RepeatBuildCount == 0 && !isRepeatSelected)
@@ -305,7 +305,7 @@
                                 @{
                                     var newRouteValues = BaseRouteValues();
                                     newRouteValues["Build"] = string.Equals(Model.Build, "New", StringComparison.OrdinalIgnoreCase) ? null : "New";
-                                    newRouteValues["p"] = 1;
+                                    newRouteValues["p"] = "1";
                                     var isNewSelected = string.Equals(Model.Build, "New", StringComparison.OrdinalIgnoreCase);
                                 }
                                 @if (Model.NewBuildCount == 0 && !isNewSelected)
