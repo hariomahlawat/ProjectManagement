@@ -269,13 +269,14 @@ namespace ProjectManagement.Pages.Projects
                 .AsNoTracking()
                 .OrderBy(t => t.SortOrder)
                 .ThenBy(t => t.Name)
+                .ToListAsync();
+
+            return types
                 .Select(t => new ProjectTypeChipViewModel(
                     t.Id,
                     t.Name,
                     countLookup.TryGetValue(t.Id, out var count) ? count : 0))
-                .ToListAsync();
-
-            return types;
+                .ToList();
         }
 
         private async Task<IQueryable<Project>> BuildFilteredQueryAsync(
