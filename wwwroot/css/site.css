@@ -5921,6 +5921,20 @@ body.has-project-photo-preview-dialog {
     max-width: 28rem;
 }
 
+/* SECTION: Ongoing projects header counts */
+.ongoing-projects__header {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+}
+
+.ongoing-projects__counts {
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: #6c757d;
+    margin: 0;
+}
 
 /* ongoing projects cards */
 .ongoing-card {
@@ -7685,4 +7699,3 @@ body {
     color: #475569 !important;
     line-height: 1.6;
 }
-

@@ -28,7 +28,10 @@
 }
 
 <!-- SECTION: Page header -->
-<h1 class="mb-3">Ongoing projects – progress & timelines @Model.HeaderCountsText</h1>
+<div class="ongoing-projects__header mb-3">
+    <h1 class="mb-0">Ongoing projects – progress &amp; timelines</h1>
+    <span class="ongoing-projects__counts">@Model.HeaderCountsText</span>
+</div>
 
 <form id="ongoingProjectsFilterForm"
       method="get"

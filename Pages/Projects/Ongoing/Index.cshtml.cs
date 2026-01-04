@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 
@@ -21,6 +22,9 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         private readonly IOngoingProjectsExcelBuilder _excelBuilder;
         private readonly IClock _clock;
         private readonly ApplicationDbContext _db;
+
+        // SECTION: Category cache for header counts
+        private IReadOnlyList<ProjectCategory> _categories = Array.Empty<ProjectCategory>();
 
         public IndexModel(
             OngoingProjectsReadService ongoingService,
@@ -116,6 +120,8 @@ namespace ProjectManagement.Pages.Projects.Ongoing
                 .OrderBy(c => c.Name)
                 .ToListAsync(ct);
 
+            _categories = cats;
+
             var list = new List<SelectListItem>
             {
                 new("All categories", string.Empty)
@@ -134,18 +140,32 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             // SECTION: Build filtered totals and category breakdown
             FilteredTotal = Items.Count;
 
-            var orderedCategories = ProjectCategoryOptions
-                .Where(option => !string.IsNullOrWhiteSpace(option.Value))
-                .Select(option => new
-                {
-                    Id = int.Parse(option.Value),
-                    Name = option.Text
-                })
+            var categoryLookup = _categories.ToDictionary(c => c.Id);
+
+            var orderedCategories = _categories
+                .Where(category => category.ParentId is null)
+                .OrderBy(category => category.Name)
                 .ToList();
 
             var countsByCategory = Items
                 .Where(item => item.ProjectCategoryId.HasValue)
-                .GroupBy(item => item.ProjectCategoryId!.Value)
+                .Select(item =>
+                {
+                    if (!item.ProjectCategoryId.HasValue)
+                    {
+                        return (int?)null;
+                    }
+
+                    if (!categoryLookup.TryGetValue(item.ProjectCategoryId.Value, out var category))
+                    {
+                        return (int?)null;
+                    }
+
+                    var topLevel = ResolveTopLevelCategory(category, categoryLookup);
+                    return topLevel?.Id;
+                })
+                .Where(categoryId => categoryId.HasValue)
+                .GroupBy(categoryId => categoryId!.Value)
                 .ToDictionary(group => group.Key, group => group.Count());
 
             var orderedCounts = new List<CategoryCountDto>();
@@ -183,6 +203,23 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             }
 
             HeaderCountsText = $"({string.Join(", ", parts)})";
+        }
+
+        private static ProjectCategory? ResolveTopLevelCategory(
+            ProjectCategory category,
+            IReadOnlyDictionary<int, ProjectCategory> lookup)
+        {
+            var current = category;
+            var visited = new HashSet<int>();
+
+            while (current.ParentId.HasValue
+                   && lookup.TryGetValue(current.ParentId.Value, out var parent)
+                   && visited.Add(current.Id))
+            {
+                current = parent;
+            }
+
+            return current;
         }
 
         private static string? Normalize(string? value)
