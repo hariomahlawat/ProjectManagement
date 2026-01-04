@@ -592,7 +592,7 @@ namespace ProjectManagement.Pages.Projects
                 CreateLifecycleTab(ProjectLifecycleFilter.Active, "Active", counts),
                 CreateLifecycleTab(ProjectLifecycleFilter.Completed, "Completed", counts),
                 CreateLifecycleTab(ProjectLifecycleFilter.Cancelled, "Cancelled", counts),
-                CreateLifecycleTab(ProjectLifecycleFilter.Legacy, "Legacy", counts),
+                CreateLifecycleTab(ProjectLifecycleFilter.Legacy, "Old projects", counts),
             };
         }
 
