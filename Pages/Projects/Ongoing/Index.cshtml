@@ -410,11 +410,16 @@ else
                 .Where(option => option.Id > 0)
                 .ToList();
 
+            // SECTION: Group categorized and uncategorized items
             var itemsByCategory = Model.Items
-                .GroupBy(item => item.ProjectCategoryId)
+                .Where(item => item.ProjectCategoryId.HasValue)
+                .GroupBy(item => item.ProjectCategoryId!.Value)
                 .ToDictionary(group => group.Key, group => group.OrderBy(x => x.ProjectName).ToList());
 
-            itemsByCategory.TryGetValue(null, out var uncategorizedItems);
+            var uncategorizedItems = Model.Items
+                .Where(item => !item.ProjectCategoryId.HasValue)
+                .OrderBy(item => item.ProjectName)
+                .ToList();
         }
 
         <div class="pm-card-table shadow-sm border-0">
