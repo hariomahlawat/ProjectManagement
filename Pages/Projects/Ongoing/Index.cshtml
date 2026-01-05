@@ -36,18 +36,6 @@
     string FormatValue(string? value)
         => string.IsNullOrWhiteSpace(value) ? "N/A" : value;
 
-    string TruncateRemark(string? remark, int maxLength = 110)
-    {
-        if (string.IsNullOrWhiteSpace(remark))
-        {
-            return "N/A";
-        }
-
-        var trimmed = remark.Trim();
-        return trimmed.Length <= maxLength
-            ? trimmed
-            : $"{trimmed[..maxLength].Trim()}…";
-    }
 }
 
 <!-- SECTION: Page header -->
@@ -423,17 +411,27 @@ else
         }
 
         <div class="pm-card-table shadow-sm border-0">
-            <div class="pm-table-wrap table-responsive">
-                <table class="table pm-table pm-table-sm align-middle mb-0">
+            <div class="pm-table-wrap table-responsive ongoing-table-wrap">
+                <table class="table pm-table pm-table-sm align-middle mb-0 ongoing-table">
+                    <colgroup>
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col class="col-stage" />
+                        <col class="col-stage" />
+                        <col />
+                        <col />
+                    </colgroup>
                     <thead>
                         <tr>
                             <th>Project name</th>
                             <th>Category</th>
                             <th>IPA date</th>
                             <th>AoN date</th>
-                            <th>Present stage</th>
-                            <th>Present stage PDC</th>
-                            <th>Latest external remark</th>
+                            <th class="col-stage">Present stage</th>
+                            <th class="col-stage">Present stage PDC</th>
+                            <th class="col-remarks">Remarks</th>
                             <th>Project Officer</th>
                         </tr>
                     </thead>
@@ -464,11 +462,9 @@ else
                                     <td>@FormatValue(row.ProjectCategoryName)</td>
                                     <td>@FormatDate(row.IpaDate)</td>
                                     <td>@FormatDate(row.AonDate)</td>
-                                    <td>@FormatValue(row.PresentStage.CurrentStageName)</td>
-                                    <td>@FormatDate(row.PresentStagePdc)</td>
-                                    <td class="text-truncate" title="@row.LatestExternalRemark">
-                                        @TruncateRemark(row.LatestExternalRemark)
-                                    </td>
+                                    <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
+                                    <td class="col-stage">@FormatDate(row.PresentStagePdc)</td>
+                                    <td class="col-remarks">@FormatValue(row.LatestExternalRemark)</td>
                                     <td>@FormatValue(row.LeadPoName)</td>
                                 </tr>
                             }
@@ -495,11 +491,9 @@ else
                                     <td>@FormatValue(row.ProjectCategoryName)</td>
                                     <td>@FormatDate(row.IpaDate)</td>
                                     <td>@FormatDate(row.AonDate)</td>
-                                    <td>@FormatValue(row.PresentStage.CurrentStageName)</td>
-                                    <td>@FormatDate(row.PresentStagePdc)</td>
-                                    <td class="text-truncate" title="@row.LatestExternalRemark">
-                                        @TruncateRemark(row.LatestExternalRemark)
-                                    </td>
+                                    <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
+                                    <td class="col-stage">@FormatDate(row.PresentStagePdc)</td>
+                                    <td class="col-remarks">@FormatValue(row.LatestExternalRemark)</td>
                                     <td>@FormatValue(row.LeadPoName)</td>
                                 </tr>
                             }
