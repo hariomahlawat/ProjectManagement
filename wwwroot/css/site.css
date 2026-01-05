@@ -5856,6 +5856,30 @@ body.has-project-photo-preview-dialog {
     overflow: auto;
 }
 
+/* --- SECTION: Ongoing projects table view --- */
+.ongoing-table-wrap {
+    overflow-y: visible;
+    overflow-x: auto;
+    max-height: none;
+    height: auto;
+}
+
+.ongoing-table th.col-stage,
+.ongoing-table td.col-stage {
+    background-color: var(--pm-surface-foam);
+}
+
+.ongoing-table tbody tr:hover td.col-stage {
+    background-color: var(--pm-surface-foam);
+}
+
+.ongoing-table td.col-remarks {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    word-break: break-word;
+}
+
 .table.pm-table {
     margin: 0;
 }
