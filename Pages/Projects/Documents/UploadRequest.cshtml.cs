@@ -59,9 +59,12 @@ public class UploadRequestModel : PageModel
 
     public bool HasStageOptions { get; private set; }
 
+    // SECTION: Upload constraints
     public long MaxFileSizeBytes => (long)_options.MaxSizeMb * 1024L * 1024L;
 
     public IReadOnlyCollection<string> AllowedContentTypes => _options.AllowedMimeTypes.ToList();
+
+    public IReadOnlyCollection<string> AllowedExtensions => DocumentTypeValidation.GetAllowedExtensions(_options.AllowedMimeTypes);
 
     public bool AllowTotLinking => Project?.Tot is { Status: not ProjectTotStatus.NotRequired };
 
@@ -128,7 +131,7 @@ public class UploadRequestModel : PageModel
 
         if (Input.File is null)
         {
-            ModelState.AddModelError("Input.File", "Select a PDF file to upload.");
+            ModelState.AddModelError("Input.File", "Select a file to upload.");
         }
 
         Input.Nomenclature = Input.Nomenclature?.Trim() ?? string.Empty;

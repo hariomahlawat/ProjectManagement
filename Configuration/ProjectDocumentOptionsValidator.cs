@@ -30,7 +30,7 @@ public sealed class ProjectDocumentOptionsValidator : IValidateOptions<ProjectDo
 
         if (options.AllowedMimeTypes is null || options.AllowedMimeTypes.Count == 0)
         {
-            failures.Add("ProjectDocuments:AllowedMimeTypes must include at least one content type (for example 'application/pdf').");
+            failures.Add("ProjectDocuments:AllowedMimeTypes must include at least one content type (for example 'application/pdf' or 'application/vnd.openxmlformats-officedocument.wordprocessingml.document').");
         }
 
         return failures.Count == 0

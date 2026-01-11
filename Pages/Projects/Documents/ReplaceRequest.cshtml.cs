@@ -58,9 +58,12 @@ public class ReplaceRequestModel : PageModel
 
     public string DocumentFileName { get; private set; } = string.Empty;
 
+    // SECTION: Upload constraints
     public long MaxFileSizeBytes => (long)_options.MaxSizeMb * 1024L * 1024L;
 
     public IReadOnlyCollection<string> AllowedContentTypes => _options.AllowedMimeTypes.ToList();
+
+    public IReadOnlyCollection<string> AllowedExtensions => DocumentTypeValidation.GetAllowedExtensions(_options.AllowedMimeTypes);
 
     public async Task<IActionResult> OnGetAsync(int id, int documentId, CancellationToken cancellationToken)
     {
@@ -107,7 +110,7 @@ public class ReplaceRequestModel : PageModel
 
         if (Input.File is null)
         {
-            ModelState.AddModelError("Input.File", "Select a PDF file to upload.");
+            ModelState.AddModelError("Input.File", "Select a file to upload.");
         }
 
         if (!ModelState.IsValid)

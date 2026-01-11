@@ -34,7 +34,13 @@ namespace ProjectManagement.Configuration
         public HashSet<string> AllowedMimeTypes { get; set; } =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                "application/pdf"
+                "application/pdf",
+                "application/msword",
+                "application/vnd.ms-powerpoint",
+                "application/vnd.ms-excel",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             };
 
         public bool EnableVirusScan { get; set; }
