@@ -1941,10 +1941,14 @@ app.MapGet("/Projects/Documents/View", async (
     ApplicationDbContext db,
     IUserContext userContext,
     IDocumentService documentService,
+    IProjectDocumentStorageResolver storageResolver,
     IDocumentPreviewTokenService previewTokenService,
+    IOptions<ProjectDocumentTextExtractorOptions> textExtractorOptions,
     [FromQuery(Name = "token")] string? previewToken,
+    [FromQuery(Name = "source")] string? previewSource,
     CancellationToken cancellationToken) =>
 {
+    // SECTION: Authorization
     var principal = userContext.User;
     var userId = userContext.UserId;
     DocumentPreviewTokenPayload? tokenPayload = null;
@@ -1994,6 +1998,7 @@ app.MapGet("/Projects/Documents/View", async (
         return Results.StatusCode(StatusCodes.Status409Conflict);
     }
 
+    // SECTION: Response caching headers
     var etag = new EntityTagHeaderValue($"\"doc-{document.Id}-v{document.FileStamp}\"");
 
     var responseHeaders = httpContext.Response.GetTypedHeaders();
@@ -2010,12 +2015,36 @@ app.MapGet("/Projects/Documents/View", async (
         return Results.StatusCode(StatusCodes.Status304NotModified);
     }
 
-    var streamResult = await documentService.OpenStreamAsync(documentId, cancellationToken);
+    // SECTION: Stream resolution
+    DocumentStreamResult? streamResult = null;
+    var useDerivative = string.Equals(previewSource, "derivative", StringComparison.OrdinalIgnoreCase);
+    if (useDerivative
+        && ProjectDocumentPreviewHelper.TryGetPdfDerivativeStorageKey(
+            document,
+            textExtractorOptions.Value,
+            storageResolver,
+            out var derivativeStorageKey))
+    {
+        var derivativePath = storageResolver.ResolveAbsolutePath(derivativeStorageKey);
+        if (File.Exists(derivativePath))
+        {
+            var derivativeStream = new FileStream(derivativePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            streamResult = new DocumentStreamResult(
+                derivativeStream,
+                ProjectDocumentPreviewHelper.GetPdfPreviewFileName(document),
+                ProjectDocumentPreviewHelper.PdfContentType,
+                derivativeStream.Length,
+                document.FileStamp);
+        }
+    }
+
+    streamResult ??= await documentService.OpenStreamAsync(documentId, cancellationToken);
     if (streamResult is null)
     {
         return Results.NotFound();
     }
 
+    // SECTION: Content headers
     var safeFileName = Path.GetFileName(streamResult.FileName).Replace("\"", string.Empty);
     var disposition = new ContentDispositionHeaderValue("inline")
     {
@@ -2024,10 +2053,92 @@ app.MapGet("/Projects/Documents/View", async (
     };
 
     httpContext.Response.Headers[HeaderNames.ContentDisposition] = disposition.ToString();
-    httpContext.Response.ContentType = "application/pdf";
+    httpContext.Response.ContentType = streamResult.ContentType;
     httpContext.Response.ContentLength = streamResult.Length;
 
-    return Results.File(streamResult.Stream, contentType: "application/pdf", enableRangeProcessing: true);
+    return Results.File(streamResult.Stream, contentType: streamResult.ContentType, enableRangeProcessing: true);
+}).AllowAnonymous();
+
+app.MapGet("/Projects/Documents/Download", async (
+    int documentId,
+    HttpContext httpContext,
+    ApplicationDbContext db,
+    IUserContext userContext,
+    IDocumentService documentService,
+    IDocumentPreviewTokenService previewTokenService,
+    [FromQuery(Name = "token")] string? previewToken,
+    CancellationToken cancellationToken) =>
+{
+    // SECTION: Authorization
+    var principal = userContext.User;
+    var userId = userContext.UserId;
+    DocumentPreviewTokenPayload? tokenPayload = null;
+
+    if (string.IsNullOrEmpty(userId))
+    {
+        if (string.IsNullOrWhiteSpace(previewToken) ||
+            !previewTokenService.TryValidate(previewToken, out var payload) ||
+            payload.DocumentId != documentId ||
+            payload.ExpiresAtUtc < DateTimeOffset.UtcNow)
+        {
+            return Results.Challenge();
+        }
+
+        userId = payload.UserId;
+        principal = previewTokenService.CreatePrincipal(payload);
+        tokenPayload = payload;
+    }
+
+    if (string.IsNullOrEmpty(userId) || principal is null)
+    {
+        return Results.Challenge();
+    }
+
+    var document = await db.ProjectDocuments
+        .AsNoTracking()
+        .Include(d => d.Project)
+        .FirstOrDefaultAsync(d => d.Id == documentId, cancellationToken);
+
+    if (document is null || document.Project is null)
+    {
+        return Results.NotFound();
+    }
+
+    if (document.Status != ProjectDocumentStatus.Published || document.IsArchived)
+    {
+        return Results.NotFound();
+    }
+
+    if (!ProjectAccessGuard.CanViewProject(document.Project, principal, userId))
+    {
+        return Results.Forbid();
+    }
+
+    if (tokenPayload is not null && tokenPayload.FileStamp != document.FileStamp)
+    {
+        return Results.StatusCode(StatusCodes.Status409Conflict);
+    }
+
+    // SECTION: Stream resolution
+    var streamResult = await documentService.OpenStreamAsync(documentId, cancellationToken);
+    if (streamResult is null)
+    {
+        return Results.NotFound();
+    }
+
+    // SECTION: Content headers
+    var safeFileName = Path.GetFileName(streamResult.FileName).Replace("\"", string.Empty);
+    var disposition = new ContentDispositionHeaderValue("attachment")
+    {
+        FileNameStar = safeFileName,
+        FileName = safeFileName
+    };
+
+    httpContext.Response.Headers[HeaderNames.ContentDisposition] = disposition.ToString();
+    httpContext.Response.ContentType = streamResult.ContentType;
+    httpContext.Response.ContentLength = streamResult.Length;
+
+    return Results.File(streamResult.Stream, contentType: streamResult.ContentType);
 }).AllowAnonymous();
 
 app.MapRemarkApi();
