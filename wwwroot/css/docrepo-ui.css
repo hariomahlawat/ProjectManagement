@@ -247,6 +247,120 @@
 }
 
 /* ───────────────────────────────
+   VIEW TOGGLE + FILTER CHIPS
+   ─────────────────────────────── */
+.docrepo-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.75rem;
+}
+
+.docrepo-view-toggle .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.docrepo-chipbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.docrepo-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.docrepo-chip__clear {
+    padding: 0.25rem 0.45rem;
+}
+
+.docrepo-chip__clear-all {
+    font-weight: 600;
+}
+
+/* ───────────────────────────────
+   LIST VIEW TABLE
+   ─────────────────────────────── */
+.docrepo-list-wrapper {
+    border-radius: 0.75rem;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: var(--pm-card);
+}
+
+.docrepo-list {
+    margin-bottom: 0;
+}
+
+.docrepo-list thead th {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--pm-text-muted);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    padding: 0.75rem;
+}
+
+.docrepo-list tbody td {
+    padding: 0.75rem;
+    vertical-align: middle;
+}
+
+.docrepo-row--inactive {
+    color: var(--pm-text-muted);
+    background: rgba(148, 163, 184, 0.06);
+}
+
+.docrepo-subject-link {
+    font-weight: 600;
+    color: var(--pm-text-contrast);
+    text-decoration: none;
+}
+
+.docrepo-subject-link:hover {
+    text-decoration: underline;
+}
+
+.docrepo-ocr {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.docrepo-ocr--ok {
+    color: var(--pm-success-strong);
+}
+
+.docrepo-ocr--fail {
+    color: var(--pm-danger);
+}
+
+.docrepo-ocr--pending {
+    color: var(--pm-warning-muted);
+}
+
+.docrepo-ocr--none {
+    color: var(--pm-text-muted);
+}
+
+.docrepo-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.docrepo-actions__dropdown {
+    position: relative;
+}
+
+/* ───────────────────────────────
    RESPONSIVE
    ─────────────────────────────── */
 @media (max-width: 768px) {
@@ -272,6 +386,14 @@
     .docrepo-search-actions {
         width: 100%;
         justify-content: flex-end;
+    }
+
+    .docrepo-toolbar {
+        justify-content: flex-start;
+    }
+
+    .docrepo-actions {
+        justify-content: flex-start;
     }
 }
 /* lift the card above its siblings while interacting */

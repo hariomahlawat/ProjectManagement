@@ -1,0 +1,128 @@
+@model ProjectManagement.Areas.DocumentRepository.Models.DocumentListItemVm
+@using Microsoft.AspNetCore.Authorization
+@inject IAuthorizationService AuthorizationService
+
+@{
+    var canEdit = await AuthorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata");
+    var canSoftDelete = await AuthorizationService.AuthorizeAsync(User, "DocRepo.SoftDelete");
+}
+
+<tr class="@(Model.IsActive ? string.Empty : "docrepo-row--inactive")">
+    <!-- SECTION: Subject -->
+    <td>
+        <div class="d-flex flex-column gap-1">
+            <div class="d-flex align-items-center gap-2">
+                <a asp-page="./Reader" asp-route-id="@Model.Id" class="docrepo-subject-link">
+                    @Model.Subject
+                </a>
+                @if (!Model.IsActive)
+                {
+                    <span class="badge rounded-pill bg-light text-muted">Inactive</span>
+                }
+            </div>
+        </div>
+    </td>
+
+    <!-- SECTION: Document category -->
+    <td>@Model.DocumentCategoryName</td>
+
+    <!-- SECTION: Office -->
+    <td>@Model.OfficeName</td>
+
+    <!-- SECTION: Document date -->
+    <td>@(Model.DocumentDate.HasValue ? Model.DocumentDate.Value.ToString("dd MMM yyyy") : string.Empty)</td>
+
+    <!-- SECTION: OCR status -->
+    <td>
+        <span class="docrepo-ocr @(Model.OcrStatus switch
+              {
+                  ProjectManagement.Data.DocRepo.DocOcrStatus.Succeeded => "docrepo-ocr--ok",
+                  ProjectManagement.Data.DocRepo.DocOcrStatus.Failed => "docrepo-ocr--fail",
+                  ProjectManagement.Data.DocRepo.DocOcrStatus.Pending => "docrepo-ocr--pending",
+                  _ => "docrepo-ocr--none"
+              })">
+            <i class="bi @(Model.OcrStatus switch
+                 {
+                     ProjectManagement.Data.DocRepo.DocOcrStatus.Succeeded => "bi-check-circle",
+                     ProjectManagement.Data.DocRepo.DocOcrStatus.Failed => "bi-x-circle",
+                     ProjectManagement.Data.DocRepo.DocOcrStatus.Pending => "bi-clock",
+                     _ => "bi-dash-circle"
+                 })"></i>
+            <span>@Model.OcrStatus</span>
+        </span>
+    </td>
+
+    <!-- SECTION: Actions -->
+    <td class="docrepo-actions">
+        <authorize policy="DocRepo.View">
+            <a class="btn btn-sm btn-outline-primary"
+               asp-page="./Reader" asp-route-id="@Model.Id"
+               title="Open viewer">
+                <i class="bi bi-eye"></i>
+                <span class="d-none d-sm-inline">View</span>
+            </a>
+        </authorize>
+
+        <authorize policy="DocRepo.View">
+            <a class="btn btn-sm btn-outline-secondary"
+               asp-page="./Download" asp-route-id="@Model.Id"
+               title="Download PDF">
+                <i class="bi bi-download"></i>
+                <span class="d-none d-sm-inline">Download</span>
+            </a>
+        </authorize>
+
+        <!-- SECTION: Manage actions -->
+        <div class="dropdown docrepo-actions__dropdown">
+            <button class="btn btn-sm btn-light"
+                    type="button"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    title="More actions">
+                <i class="bi bi-three-dots-vertical"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                @if (canEdit.Succeeded)
+                {
+                    <li>
+                        <a class="dropdown-item"
+                           asp-page="./Edit" asp-route-id="@Model.Id">
+                            <i class="bi bi-pencil-square me-2"></i>Edit metadata
+                        </a>
+                    </li>
+                }
+                else
+                {
+                    <li><span class="dropdown-item text-muted small">No editable fields</span></li>
+                }
+
+                @if (canSoftDelete.Succeeded)
+                {
+                    <li><hr class="dropdown-divider" /></li>
+                    <li>
+                        <form method="post" asp-page="./Manage" asp-page-handler="Deactivate" asp-route-id="@Model.Id" class="px-3 py-1">
+                            <button type="submit" class="btn btn-link p-0 text-warning">
+                                <i class="bi bi-slash-circle me-2"></i>Deactivate
+                            </button>
+                        </form>
+                    </li>
+                    <li>
+                        <form method="post" asp-page="./Manage" asp-page-handler="Activate" asp-route-id="@Model.Id" class="px-3 py-1">
+                            <button type="submit" class="btn btn-link p-0 text-success">
+                                <i class="bi bi-check2-circle me-2"></i>Activate
+                            </button>
+                        </form>
+                    </li>
+                    <li>
+                        <form method="post" asp-page="./Manage" asp-page-handler="RequestDelete" asp-route-id="@Model.Id" class="px-3 py-1">
+                            <input type="hidden" name="reason" value="Obsolete" />
+                            <button type="submit" class="btn btn-link p-0 text-danger">
+                                <i class="bi bi-trash me-2"></i>Request delete
+                            </button>
+                        </form>
+                    </li>
+                }
+            </ul>
+        </div>
+    </td>
+</tr>
