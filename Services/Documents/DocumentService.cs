@@ -84,7 +84,7 @@ public sealed class DocumentService : IDocumentService
         }
 
         var sanitizedName = SanitizeOriginalFileName(originalFileName);
-        var normalizedContentType = NormalizeContentType(contentType);
+        var normalizedContentType = NormalizeContentType(contentType, sanitizedName);
         EnsureMimeAllowed(normalizedContentType);
 
         if (content.CanSeek)
@@ -93,7 +93,7 @@ public sealed class DocumentService : IDocumentService
         }
 
         var maxSizeBytes = GetMaxSizeBytes();
-        var storageKey = BuildTempStorageKey(requestId);
+        var storageKey = BuildTempStorageKey(requestId, sanitizedName);
         var destinationPath = ResolveAbsolutePath(storageKey);
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
 
@@ -104,10 +104,7 @@ public sealed class DocumentService : IDocumentService
             var headerBuffer = new byte[5];
             var headerRead = await content.ReadAsync(headerBuffer.AsMemory(0, headerBuffer.Length), cancellationToken);
 
-            if (!IsPdfMagic(headerBuffer, headerRead))
-            {
-                throw new InvalidOperationException("The uploaded file is not a valid PDF document.");
-            }
+            ValidateDocumentSignature(normalizedContentType, sanitizedName, headerBuffer, headerRead);
 
             await destination.WriteAsync(headerBuffer.AsMemory(0, headerRead), cancellationToken);
             totalBytes += headerRead;
@@ -189,7 +186,7 @@ public sealed class DocumentService : IDocumentService
         }
 
         var sanitizedName = SanitizeOriginalFileName(originalFileName);
-        var normalizedContentType = NormalizeContentType(contentType);
+        var normalizedContentType = NormalizeContentType(contentType, sanitizedName);
         EnsureMimeAllowed(normalizedContentType);
 
         var tempPath = ResolveAbsolutePath(tempStorageKey);
@@ -316,7 +313,7 @@ public sealed class DocumentService : IDocumentService
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
 
         var sanitizedName = SanitizeOriginalFileName(originalFileName);
-        var normalizedContentType = NormalizeContentType(contentType);
+        var normalizedContentType = NormalizeContentType(contentType, sanitizedName);
         EnsureMimeAllowed(normalizedContentType);
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
@@ -579,15 +576,17 @@ public sealed class DocumentService : IDocumentService
         return Task.CompletedTask;
     }
 
-    private string BuildTempStorageKey(int requestId)
+    private string BuildTempStorageKey(int requestId, string originalFileName)
     {
         var requestSegment = requestId.ToString(CultureInfo.InvariantCulture);
+        var extension = GetNormalizedExtension(originalFileName);
+        var fileName = string.IsNullOrWhiteSpace(extension) ? "file" : $"file.{extension}";
         return NormalizeStorageKey(
             _options.ProjectsSubpath,
             _options.TempSubPath,
             "requests",
             requestSegment,
-            "file.pdf");
+            fileName);
     }
 
     private string BuildDocumentStorageKey(int projectId, int? stageId, int documentId, string originalFileName)
@@ -675,6 +674,7 @@ public sealed class DocumentService : IDocumentService
         }
     }
 
+    // SECTION: File signature validation
     private static bool IsPdfMagic(byte[] buffer, int count)
     {
         if (count < 5)
@@ -686,15 +686,59 @@ public sealed class DocumentService : IDocumentService
         return PdfMagic.Any(m => text.StartsWith(m, StringComparison.Ordinal));
     }
 
+    private static bool IsZipMagic(byte[] buffer, int count)
+    {
+        if (count < 2)
+        {
+            return false;
+        }
+
+        return buffer[0] == 0x50 && buffer[1] == 0x4B;
+    }
+
+    private static void ValidateDocumentSignature(string contentType, string originalFileName, byte[] headerBuffer, int headerRead)
+    {
+        if (!DocumentTypeValidation.SignatureRules.TryGetValue(contentType, out var rule))
+        {
+            return;
+        }
+
+        var extension = GetNormalizedExtension(originalFileName);
+        if (!string.Equals(extension, rule.Extension, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("The uploaded file does not match the allowed types.");
+        }
+
+        var signatureValid = rule.SignatureType switch
+        {
+            DocumentSignatureType.Pdf => IsPdfMagic(headerBuffer, headerRead),
+            DocumentSignatureType.Zip => IsZipMagic(headerBuffer, headerRead),
+            _ => true
+        };
+
+        if (!signatureValid)
+        {
+            throw new InvalidOperationException("The uploaded file does not match the allowed types.");
+        }
+    }
+
+    private static string GetNormalizedExtension(string? fileName)
+    {
+        var extension = string.IsNullOrWhiteSpace(fileName)
+            ? string.Empty
+            : Path.GetExtension(fileName);
+        return extension.TrimStart('.').ToLowerInvariant();
+    }
+
     private string SanitizeOriginalFileName(string fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName))
         {
-            return "file.pdf";
+            return "file";
         }
 
         var safeName = Path.GetFileName(fileName.Trim());
-        return string.IsNullOrWhiteSpace(safeName) ? "file.pdf" : safeName;
+        return string.IsNullOrWhiteSpace(safeName) ? "file" : safeName;
     }
 
     private long GetMaxSizeBytes()
@@ -718,11 +762,23 @@ public sealed class DocumentService : IDocumentService
         }
     }
 
-    private string NormalizeContentType(string? contentType)
+    private string NormalizeContentType(string? contentType, string originalFileName)
     {
         var normalized = string.IsNullOrWhiteSpace(contentType)
-            ? "application/pdf"
+            ? string.Empty
             : contentType.Trim();
+
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            var extension = GetNormalizedExtension(originalFileName);
+            if (DocumentTypeValidation.TryGetContentTypeForExtension(extension, out var inferredContentType))
+            {
+                return inferredContentType;
+            }
+
+            return "application/octet-stream";
+        }
+
         return normalized;
     }
 }

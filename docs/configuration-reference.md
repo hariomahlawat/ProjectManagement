@@ -70,7 +70,7 @@ This document lists every supported configuration value, its default, and how th
 | `ProjectDocuments:CommentsSubpath` | `comments` | Folder used for comment attachments. |
 | `ProjectDocuments:TempSubPath` | `temp` | Temporary workspace for document processing. |
 | `ProjectDocuments:MaxSizeMb` | `25` | Maximum upload size for project documents. |
-| `ProjectDocuments:AllowedMimeTypes` | `application/pdf` | Whitelist of acceptable document MIME types. |
+| `ProjectDocuments:AllowedMimeTypes` | `application/pdf`, `application/msword`, `application/vnd.ms-powerpoint`, `application/vnd.ms-excel`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `application/vnd.openxmlformats-officedocument.presentationml.presentation`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | Whitelist of acceptable document MIME types. |
 | `ProjectDocuments:EnableVirusScan` | `false` | When true, `DocumentService` expects an `IVirusScanner` to be registered to scan uploads. (see appsettings.json lines 55-65) (see Services/ProjectCommentService.cs lines 174-238) |
 | `ProjectVideos:MaxFileSizeBytes` | `209715200` (200 MB) | Maximum raw upload size for project videos. Larger files are rejected before writing to disk. (see appsettings.json lines 73-80) (see Services/Projects/ProjectVideoService.cs lines 82-160) |
 | `ProjectVideos:AllowedContentTypes` | `video/mp4`, `video/webm`, `video/ogg` | Video MIME whitelist enforced during uploads. |
