@@ -12,9 +12,19 @@
     <td>
         <div class="d-flex flex-column gap-1">
             <div class="d-flex align-items-center gap-2">
-                <a asp-page="./Reader" asp-route-id="@Model.Id" class="docrepo-subject-link">
-                    @Model.Subject
-                </a>
+                @if (Model.IsActive)
+                {
+                    <a asp-page="./Reader" asp-route-id="@Model.Id" class="docrepo-subject-link">
+                        @Model.Subject
+                    </a>
+                }
+                else
+                {
+                    <span class="docrepo-subject-link text-muted"
+                          title="Inactive documents cannot be viewed. Download is available.">
+                        @Model.Subject
+                    </span>
+                }
                 @if (!Model.IsActive)
                 {
                     <span class="badge rounded-pill bg-light text-muted">Inactive</span>
@@ -54,23 +64,32 @@
 
     <!-- SECTION: Actions -->
     <td class="docrepo-actions">
-        <authorize policy="DocRepo.View">
+        @if (Model.IsActive)
+        {
             <a class="btn btn-sm btn-outline-primary"
                asp-page="./Reader" asp-route-id="@Model.Id"
                title="Open viewer">
                 <i class="bi bi-eye"></i>
                 <span class="d-none d-sm-inline">View</span>
             </a>
-        </authorize>
+        }
+        else
+        {
+            <button class="btn btn-sm btn-outline-primary"
+                    type="button"
+                    disabled
+                    title="Inactive documents cannot be viewed. Download is available.">
+                <i class="bi bi-eye"></i>
+                <span class="d-none d-sm-inline">View</span>
+            </button>
+        }
 
-        <authorize policy="DocRepo.View">
-            <a class="btn btn-sm btn-outline-secondary"
-               asp-page="./Download" asp-route-id="@Model.Id"
-               title="Download PDF">
-                <i class="bi bi-download"></i>
-                <span class="d-none d-sm-inline">Download</span>
-            </a>
-        </authorize>
+        <a class="btn btn-sm btn-outline-secondary"
+           asp-page="./Download" asp-route-id="@Model.Id"
+           title="Download PDF">
+            <i class="bi bi-download"></i>
+            <span class="d-none d-sm-inline">Download</span>
+        </a>
 
         <!-- SECTION: Manage actions -->
         <div class="dropdown docrepo-actions__dropdown">
@@ -99,23 +118,31 @@
                 @if (canSoftDelete.Succeeded)
                 {
                     <li><hr class="dropdown-divider" /></li>
-                    <li>
-                        <form method="post" asp-page="./Manage" asp-page-handler="Deactivate" asp-route-id="@Model.Id" class="px-3 py-1">
-                            <button type="submit" class="btn btn-link p-0 text-warning">
-                                <i class="bi bi-slash-circle me-2"></i>Deactivate
-                            </button>
-                        </form>
-                    </li>
-                    <li>
-                        <form method="post" asp-page="./Manage" asp-page-handler="Activate" asp-route-id="@Model.Id" class="px-3 py-1">
-                            <button type="submit" class="btn btn-link p-0 text-success">
-                                <i class="bi bi-check2-circle me-2"></i>Activate
-                            </button>
-                        </form>
-                    </li>
+                    @if (Model.IsActive)
+                    {
+                        <li>
+                            <form method="post" asp-page="./Manage" asp-page-handler="Deactivate" asp-route-id="@Model.Id" class="px-3 py-1">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-link p-0 text-warning">
+                                    <i class="bi bi-slash-circle me-2"></i>Deactivate
+                                </button>
+                            </form>
+                        </li>
+                    }
+                    else
+                    {
+                        <li>
+                            <form method="post" asp-page="./Manage" asp-page-handler="Activate" asp-route-id="@Model.Id" class="px-3 py-1">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-link p-0 text-success">
+                                    <i class="bi bi-check2-circle me-2"></i>Activate
+                                </button>
+                            </form>
+                        </li>
+                    }
                     <li>
                         <form method="post" asp-page="./Manage" asp-page-handler="RequestDelete" asp-route-id="@Model.Id" class="px-3 py-1">
-                            <input type="hidden" name="reason" value="Obsolete" />
+                            @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-link p-0 text-danger">
                                 <i class="bi bi-trash me-2"></i>Request delete
                             </button>
