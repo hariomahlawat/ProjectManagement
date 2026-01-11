@@ -169,7 +169,7 @@
 
                     <!-- SECTION: Facet actions -->
                     <div class="docrepo-facet__actions">
-                        <button type="submit" class="btn btn-primary btn-sm w-100">Apply</button>
+                        <button type="submit" class="btn btn-primary btn-sm w-100" id="docrepoApplyBtn">Apply</button>
                         <a class="btn btn-outline-secondary btn-sm w-100"
                            asp-page="./Index"
                            asp-route-page="1"
@@ -234,6 +234,66 @@
                         </a>
                     </div>
                 </div>
+
+                <!-- SECTION: Active filter summary -->
+                @{
+                    var hasAnyFilter =
+                        !string.IsNullOrWhiteSpace(Model.Q) ||
+                        !string.IsNullOrWhiteSpace(Model.Tag) ||
+                        Model.OfficeCategoryId.HasValue ||
+                        Model.DocumentCategoryId.HasValue ||
+                        Model.Year.HasValue ||
+                        Model.IncludeInactive;
+
+                    string officeLabel = Model.OfficeCategoryId.HasValue
+                        ? (Model.OfficeCategories.FirstOrDefault(o => o.Id == Model.OfficeCategoryId)?.Name ?? "Selected")
+                        : "All";
+
+                    string typeLabel = Model.DocumentCategoryId.HasValue
+                        ? (Model.DocumentCategories.FirstOrDefault(c => c.Id == Model.DocumentCategoryId)?.Name ?? "Selected")
+                        : "All";
+                }
+
+                @if (Model.EnableListViewUxUpgrade && hasAnyFilter)
+                {
+                    <div class="docrepo-activefilters">
+                        <div class="docrepo-activefilters__label">
+                            <strong>Active filters:</strong>
+                            @if (!string.IsNullOrWhiteSpace(Model.Q))
+                            {
+                                <span>Search = “@Model.Q”;</span>
+                            }
+                            @if (Model.OfficeCategoryId.HasValue)
+                            {
+                                <span>Office = @officeLabel;</span>
+                            }
+                            @if (Model.DocumentCategoryId.HasValue)
+                            {
+                                <span>Type = @typeLabel;</span>
+                            }
+                            @if (Model.Year.HasValue)
+                            {
+                                <span>Year = @Model.Year;</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(Model.Tag))
+                            {
+                                <span>Tag = @Model.Tag;</span>
+                            }
+                            @if (Model.IncludeInactive)
+                            {
+                                <span>Inactive = Included;</span>
+                            }
+                        </div>
+
+                        <a class="docrepo-activefilters__clear"
+                           asp-page="./Index"
+                           asp-route-view="@Model.ViewMode"
+                           asp-route-pageSize="@Model.PageSize"
+                           asp-route-page="1">
+                            Clear all
+                        </a>
+                    </div>
+                }
 
                 <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
 

@@ -201,3 +201,113 @@
         syncYearHidden();
     }
 })();
+
+// SECTION: Document repository apply button dirty tracking
+function initDirtyTracking() {
+    const form = document.querySelector("#docrepoFacetsForm");
+    if (!form) {
+        return;
+    }
+
+    const applyBtn = document.querySelector("#docrepoApplyBtn");
+    if (!applyBtn) {
+        return;
+    }
+
+    const officeHidden = document.querySelector("#officeCategoryIdHidden");
+    const typeHidden = document.querySelector("#documentCategoryIdHidden");
+    const yearHidden = document.querySelector("#yearHidden");
+    const tagInput = form.querySelector('input[name="tag"]');
+    const inactiveChk = form.querySelector('input[name="includeInactive"]');
+
+    const initial = {
+        office: officeHidden ? (officeHidden.value || "") : "",
+        type: typeHidden ? (typeHidden.value || "") : "",
+        year: yearHidden ? (yearHidden.value || "") : "",
+        tag: tagInput ? (tagInput.value || "").trim() : "",
+        inactive: inactiveChk ? (inactiveChk.checked ? "1" : "0") : "0"
+    };
+
+    function currentState() {
+        return {
+            office: officeHidden ? (officeHidden.value || "") : "",
+            type: typeHidden ? (typeHidden.value || "") : "",
+            year: yearHidden ? (yearHidden.value || "") : "",
+            tag: tagInput ? (tagInput.value || "").trim() : "",
+            inactive: inactiveChk ? (inactiveChk.checked ? "1" : "0") : "0"
+        };
+    }
+
+    function isDirty() {
+        const current = currentState();
+        return (
+            current.office !== initial.office ||
+            current.type !== initial.type ||
+            current.year !== initial.year ||
+            current.tag !== initial.tag ||
+            current.inactive !== initial.inactive
+        );
+    }
+
+    function updateApplyState() {
+        const dirty = isDirty();
+        applyBtn.disabled = !dirty;
+        applyBtn.classList.toggle("disabled", !dirty);
+    }
+
+    form.addEventListener("change", updateApplyState);
+    form.addEventListener("input", updateApplyState);
+
+    updateApplyState();
+}
+
+// SECTION: Document repository view preference
+function initViewPreference() {
+    const toggle = document.querySelector(".docrepo-view-toggle");
+    if (!toggle) {
+        return;
+    }
+
+    const url = new URL(window.location.href);
+    const hasView = url.searchParams.has("view");
+
+    toggle.addEventListener("click", (event) => {
+        const link = event.target.closest("a");
+        if (!link) {
+            return;
+        }
+
+        const href = link.getAttribute("href");
+        if (!href) {
+            return;
+        }
+
+        try {
+            const parsed = new URL(href, window.location.origin);
+            const view = (parsed.searchParams.get("view") || "").toLowerCase();
+            if (view === "list" || view === "cards") {
+                localStorage.setItem("docrepo.viewMode", view);
+            }
+        } catch (error) {
+            // Ignore invalid URLs or storage failures.
+        }
+    });
+
+    if (!hasView) {
+        try {
+            const pref = (localStorage.getItem("docrepo.viewMode") || "").toLowerCase();
+            if (pref === "list" || pref === "cards") {
+                url.searchParams.set("view", pref);
+                window.location.replace(url.toString());
+            }
+        } catch (error) {
+            // Ignore storage failures.
+        }
+    }
+}
+
+// SECTION: Document repository DOM initialization
+document.addEventListener("DOMContentLoaded", () => {
+    initDirtyTracking();
+    initViewPreference();
+});

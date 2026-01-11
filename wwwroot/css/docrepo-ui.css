@@ -637,3 +637,39 @@
     .doc-card .dropdown-menu {
         z-index: 2000;
     }
+
+/* SECTION: Active filters summary */
+.docrepo-activefilters {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    margin: 10px 0;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.015);
+}
+
+.docrepo-activefilters__label {
+    font-size: 13px;
+    color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.docrepo-activefilters__clear {
+    font-size: 13px;
+    text-decoration: none;
+}
+
+.docrepo-activefilters__clear:hover {
+    text-decoration: underline;
+}
+
+/* SECTION: Disabled apply button */
+#docrepoApplyBtn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
