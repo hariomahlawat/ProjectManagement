@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace ProjectManagement.Services.DocRepo;
@@ -7,7 +8,7 @@ namespace ProjectManagement.Services.DocRepo;
 public class DocRepoOptions
 {
     [Required]
-    public string RootPath { get; set; } = Path.Combine(AppContext.BaseDirectory, "App_Data", "DocRepo");
+    public string RootPath { get; set; } = Path.Combine("App_Data", "DocRepo");
     public bool EnableOcrWorker { get; set; } = true;
     public bool EnableIngestion { get; set; } = true;
     public int? IngestionOfficeCategoryId { get; set; }
@@ -28,12 +29,13 @@ public class LocalDocStorageService : IDocStorage
 {
     private readonly string _rootPath;
 
-    public LocalDocStorageService(IOptions<DocRepoOptions> options)
+    public LocalDocStorageService(IOptions<DocRepoOptions> options, IWebHostEnvironment environment)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(environment);
         var value = options.Value ?? throw new ArgumentException("DocRepo options cannot be null.", nameof(options));
 
-        _rootPath = ResolveRootPath(value.RootPath);
+        _rootPath = ResolveRootPath(value.RootPath, environment.ContentRootPath);
         Directory.CreateDirectory(_rootPath);
     }
 
@@ -73,17 +75,19 @@ public class LocalDocStorageService : IDocStorage
         return Task.CompletedTask;
     }
 
-    private static string ResolveRootPath(string? configuredRoot)
+    private static string ResolveRootPath(string? configuredRoot, string contentRoot)
     {
+        // SECTION: Resolve configured path
         var root = string.IsNullOrWhiteSpace(configuredRoot)
-            ? Path.Combine(AppContext.BaseDirectory, "App_Data", "DocRepo")
+            ? Path.Combine("App_Data", "DocRepo")
             : configuredRoot;
 
         root = ExpandPath(root);
 
+        // SECTION: Normalize relative paths to the content root
         if (!Path.IsPathRooted(root))
         {
-            root = Path.Combine(AppContext.BaseDirectory, root);
+            root = Path.Combine(contentRoot, root);
         }
 
         return Path.GetFullPath(root);
