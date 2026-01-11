@@ -1,8 +1,11 @@
 using System.IO;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
 using ProjectManagement.Data;
 using ProjectManagement.Services.DocRepo;
@@ -14,11 +17,15 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
     {
         private readonly ApplicationDbContext _db;
         private readonly IDocStorage _storage;
+        private readonly IWebHostEnvironment _environment;
+        private readonly ILogger<ViewModel> _logger;
 
-        public ViewModel(ApplicationDbContext db, IDocStorage storage)
+        public ViewModel(ApplicationDbContext db, IDocStorage storage, IWebHostEnvironment environment, ILogger<ViewModel> logger)
         {
             _db = db;
             _storage = storage;
+            _environment = environment;
+            _logger = logger;
         }
 
         public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -30,8 +37,30 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
             if (doc is null) return NotFound();
 
+            // SECTION: Storage existence check
+            var exists = await _storage.ExistsAsync(doc.StoragePath, HttpContext.RequestAborted);
+            if (!exists)
+            {
+                LogMissingFile(doc.Id, doc.StoragePath);
+                return NotFound("Document file is missing from storage.");
+            }
+
             // SECTION: Stream resolution
-            var stream = await _storage.OpenReadAsync(doc.StoragePath, HttpContext.RequestAborted);
+            Stream stream;
+            try
+            {
+                stream = await _storage.OpenReadAsync(doc.StoragePath, HttpContext.RequestAborted);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                LogMissingFile(doc.Id, doc.StoragePath);
+                return NotFound("Document file is missing from storage.");
+            }
+            catch (FileNotFoundException)
+            {
+                LogMissingFile(doc.Id, doc.StoragePath);
+                return NotFound("Document file is missing from storage.");
+            }
 
             // IMPORTANT: enable range processing so embedded PDF viewers can request byte ranges (206).
             var result = new FileStreamResult(stream, doc.MimeType)
@@ -56,6 +85,17 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             Response.Headers[HeaderNames.CacheControl] = "private, max-age=3600";
 
             return result;
+        }
+
+        private void LogMissingFile(Guid documentId, string storagePath)
+        {
+            var userId = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
+            _logger.LogWarning(
+                "DocRepo file missing for View. DocumentId={DocumentId} StoragePath={StoragePath} Environment={Environment} UserId={UserId}",
+                documentId,
+                storagePath,
+                _environment.EnvironmentName,
+                userId);
         }
     }
 }

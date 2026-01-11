@@ -1,0 +1,127 @@
+@page
+@model ProjectManagement.Areas.DocumentRepository.Pages.Admin.MissingFilesModel
+@{
+    ViewData["Title"] = "Missing files";
+}
+
+<!-- SECTION: Breadcrumbs -->
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a asp-area="DocumentRepository" asp-page="/Documents/Index">Documents</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">Missing files</li>
+    </ol>
+</nav>
+
+<!-- SECTION: Summary -->
+<div class="card mb-3">
+    <div class="card-body">
+        <h1 class="h5 mb-2">Missing files in DocRepo storage</h1>
+        <p class="text-muted mb-0">
+            This report lists documents whose storage file is not present under the configured DocRepo RootPath.
+            The check is performed for the current page only.
+        </p>
+    </div>
+</div>
+
+<!-- SECTION: Filters -->
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-sm-4 col-lg-3">
+                <label class="form-label" for="pageSize">Page size</label>
+                <select class="form-select" id="pageSize" name="pageSize">
+                    <option value="50" selected="@(Model.PageSize == 50)">50</option>
+                    <option value="100" selected="@(Model.PageSize == 100)">100</option>
+                    <option value="150" selected="@(Model.PageSize == 150)">150</option>
+                    <option value="200" selected="@(Model.PageSize == 200)">200</option>
+                </select>
+            </div>
+            <div class="col-sm-4 col-lg-3">
+                <label class="form-label d-block">Include deleted</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="includeDeleted" name="includeDeleted" value="true" @(Model.IncludeDeleted ? "checked" : null) />
+                    <label class="form-check-label" for="includeDeleted">Show deleted documents</label>
+                </div>
+            </div>
+            <div class="col-sm-4 col-lg-3">
+                <button type="submit" class="btn btn-primary">Apply</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- SECTION: Pagination -->
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+    <div class="text-muted">
+        Missing in this page: <strong>@Model.MissingCount</strong>
+        <span class="mx-2">|</span>
+        Page <strong>@Model.PageNumber</strong> of <strong>@Model.TotalPages</strong>
+    </div>
+    <div class="btn-group" role="group" aria-label="Pagination">
+        <a class="btn btn-sm btn-outline-secondary @(Model.HasPreviousPage ? "" : "disabled")"
+           asp-page="./MissingFiles"
+           asp-route-page="@(Model.PageNumber - 1)"
+           asp-route-pageSize="@Model.PageSize"
+           asp-route-includeDeleted="@Model.IncludeDeleted">
+            Previous
+        </a>
+        <a class="btn btn-sm btn-outline-secondary @(Model.HasNextPage ? "" : "disabled")"
+           asp-page="./MissingFiles"
+           asp-route-page="@(Model.PageNumber + 1)"
+           asp-route-pageSize="@Model.PageSize"
+           asp-route-includeDeleted="@Model.IncludeDeleted">
+            Next
+        </a>
+    </div>
+</div>
+
+<!-- SECTION: Results table -->
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Office</th>
+                    <th>Category</th>
+                    <th>Date</th>
+                    <th>Created</th>
+                    <th>Storage path</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Items.Count == 0)
+                {
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">No missing files detected on this page.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var item in Model.Items)
+                    {
+                        <tr>
+                            <td>@item.Subject</td>
+                            <td>@item.Office</td>
+                            <td>@item.Category</td>
+                            <td>@(item.DocumentDate?.ToString("dd MMM yyyy") ?? string.Empty)</td>
+                            <td>@item.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                            <td><code>@item.StoragePath</code></td>
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-outline-secondary"
+                                   asp-area="DocumentRepository"
+                                   asp-page="/Documents/Edit"
+                                   asp-route-id="@item.Id">
+                                    Edit
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

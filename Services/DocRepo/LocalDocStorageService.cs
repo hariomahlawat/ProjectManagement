@@ -75,6 +75,21 @@ public class LocalDocStorageService : IDocStorage
         return Task.CompletedTask;
     }
 
+    public Task<bool> ExistsAsync(string storagePath, CancellationToken ct)
+    {
+        // SECTION: Validate input
+        if (string.IsNullOrWhiteSpace(storagePath))
+        {
+            return Task.FromResult(false);
+        }
+
+        // SECTION: Resolve full path
+        var fullPath = Path.Combine(_rootPath, storagePath);
+
+        // SECTION: Existence check (safe when directory is missing)
+        return Task.FromResult(File.Exists(fullPath));
+    }
+
     private static string ResolveRootPath(string? configuredRoot, string contentRoot)
     {
         // SECTION: Resolve configured path
