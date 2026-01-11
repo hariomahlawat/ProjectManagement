@@ -26,85 +26,151 @@
 
     @if (Model.EnableListViewUxUpgrade)
     {
-        <!-- SECTION: Two-column layout -->
-        <div class="docrepo-layout">
-            <!-- SECTION: Facets -->
-            <aside class="docrepo-facets">
-                <form method="get" asp-page="./Index" class="docrepo-facets__form">
+        <!-- SECTION: Shell layout -->
+        <div class="docrepo-shell">
+            <!-- SECTION: Filters panel -->
+            <aside class="docrepo-filters" id="docrepoFilters">
+                <div class="docrepo-filters__header">
+                    <div class="docrepo-filters__title">Filters</div>
+                    <button type="button"
+                            class="btn btn-sm btn-light docrepo-filters__toggle"
+                            id="docrepoFiltersToggle"
+                            title="Collapse filters"
+                            aria-label="Collapse filters">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                </div>
+
+                <form method="get" asp-page="./Index" class="docrepo-facets" id="docrepoFacetsForm">
+                    <!-- SECTION: Apply-only params -->
                     <input type="hidden" name="q" value="@Model.Q" />
                     <input type="hidden" name="view" value="@Model.ViewMode" />
                     <input type="hidden" name="page" value="1" />
                     <input type="hidden" name="pageSize" value="@Model.PageSize" />
 
-                    <div class="docrepo-facets__section">
-                        <h6 class="docrepo-facets__title">Office</h6>
-                        <select class="form-select" name="officeCategoryId">
-                            <option value="">All offices</option>
+                    <!-- SECTION: Facet hidden inputs -->
+                    <input type="hidden" name="officeCategoryId" id="officeCategoryIdHidden" value="@(Model.OfficeCategoryId?.ToString() ?? string.Empty)" />
+                    <input type="hidden" name="documentCategoryId" id="documentCategoryIdHidden" value="@(Model.DocumentCategoryId?.ToString() ?? string.Empty)" />
+                    <input type="hidden" name="year" id="yearHidden" value="@(Model.Year?.ToString() ?? string.Empty)" />
+
+                    <!-- SECTION: Office facet -->
+                    <div class="docrepo-facet">
+                        <div class="docrepo-facet__title">OFFICE</div>
+                        <div class="docrepo-facet__list" data-facet-single="office" data-target-hidden="#officeCategoryIdHidden">
+                            <label class="docrepo-check">
+                                <input type="checkbox"
+                                       class="docrepo-check__input"
+                                       data-value=""
+                                       @(Model.OfficeCategoryId.HasValue ? null : "checked") />
+                                <span class="docrepo-check__label">All offices</span>
+                            </label>
                             @foreach (var office in Model.OfficeCategories)
                             {
-                                if (Model.OfficeCategoryId == office.Id)
-                                {
-                                    <option value="@office.Id" selected>@office.Name</option>
-                                }
-                                else
-                                {
-                                    <option value="@office.Id">@office.Name</option>
-                                }
+                                var isChecked = Model.OfficeCategoryId.HasValue && Model.OfficeCategoryId.Value == office.Id;
+                                <label class="docrepo-check">
+                                    <input type="checkbox"
+                                           class="docrepo-check__input"
+                                           data-value="@office.Id"
+                                           @(isChecked ? "checked" : null) />
+                                    <span class="docrepo-check__label">@office.Name</span>
+                                </label>
                             }
-                        </select>
-                    </div>
-
-                    <div class="docrepo-facets__section">
-                        <h6 class="docrepo-facets__title">Document type</h6>
-                        <select class="form-select" name="documentCategoryId">
-                            <option value="">All document types</option>
-                            @foreach (var docCat in Model.DocumentCategories)
-                            {
-                                if (Model.DocumentCategoryId == docCat.Id)
-                                {
-                                    <option value="@docCat.Id" selected>@docCat.Name</option>
-                                }
-                                else
-                                {
-                                    <option value="@docCat.Id">@docCat.Name</option>
-                                }
-                            }
-                        </select>
-                    </div>
-
-                    <div class="docrepo-facets__section">
-                        <h6 class="docrepo-facets__title">Year</h6>
-                        <input class="form-control"
-                               type="number"
-                               name="year"
-                               value="@(Model.Year?.ToString() ?? string.Empty)"
-                               min="1900"
-                               max="2100"
-                               placeholder="All years" />
-                    </div>
-
-                    <div class="docrepo-facets__section">
-                        <h6 class="docrepo-facets__title">Tag</h6>
-                        <input class="form-control" name="tag" value="@Model.Tag" placeholder="e.g. sow, contract" />
-                    </div>
-
-                    <div class="docrepo-facets__section">
-                        <div class="form-check">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   id="includeInactiveFacet"
-                                   name="includeInactive"
-                                   value="true"
-                                   @(Model.IncludeInactive ? "checked" : null) />
-                            <label class="form-check-label" for="includeInactiveFacet">
-                                Include inactive
-                            </label>
                         </div>
                     </div>
 
-                    <div class="docrepo-facets__section docrepo-facets__actions">
-                        <button type="submit" class="btn btn-primary w-100">Apply</button>
-                        <a class="btn btn-outline-secondary w-100"
+                    <!-- SECTION: Document type facet -->
+                    <div class="docrepo-facet">
+                        <div class="docrepo-facet__title">DOCUMENT TYPE</div>
+                        <div class="docrepo-facet__list" data-facet-single="doctype" data-target-hidden="#documentCategoryIdHidden">
+                            <label class="docrepo-check">
+                                <input type="checkbox"
+                                       class="docrepo-check__input"
+                                       data-value=""
+                                       @(Model.DocumentCategoryId.HasValue ? null : "checked") />
+                                <span class="docrepo-check__label">All document types</span>
+                            </label>
+                            @foreach (var docCat in Model.DocumentCategories)
+                            {
+                                var isChecked = Model.DocumentCategoryId.HasValue && Model.DocumentCategoryId.Value == docCat.Id;
+                                <label class="docrepo-check">
+                                    <input type="checkbox"
+                                           class="docrepo-check__input"
+                                           data-value="@docCat.Id"
+                                           @(isChecked ? "checked" : null) />
+                                    <span class="docrepo-check__label">@docCat.Name</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- SECTION: Year facet -->
+                    <div class="docrepo-facet">
+                        <div class="docrepo-facet__title">YEAR</div>
+                        @{
+                            var currentYear = DateTime.UtcNow.Year;
+                            var yearsToShow = new[] { currentYear, currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4, currentYear - 5 };
+                            var isYearInList = Model.Year.HasValue && yearsToShow.Contains(Model.Year.Value);
+                            var customYearValue = isYearInList ? string.Empty : (Model.Year?.ToString() ?? string.Empty);
+                        }
+                        <div class="docrepo-facet__list" data-facet-single="year" data-target-hidden="#yearHidden">
+                            <label class="docrepo-check">
+                                <input type="checkbox"
+                                       class="docrepo-check__input"
+                                       data-value=""
+                                       @(!Model.Year.HasValue ? "checked" : null) />
+                                <span class="docrepo-check__label">All years</span>
+                            </label>
+                            @foreach (var year in yearsToShow)
+                            {
+                                var isChecked = Model.Year.HasValue && Model.Year.Value == year;
+                                <label class="docrepo-check">
+                                    <input type="checkbox"
+                                           class="docrepo-check__input"
+                                           data-value="@year"
+                                           @(isChecked ? "checked" : null) />
+                                    <span class="docrepo-check__label">@year</span>
+                                </label>
+                            }
+                        </div>
+                        <div class="docrepo-facet__sub">
+                            <label class="form-label small mb-1" for="customYearInput">Custom year</label>
+                            <input class="form-control form-control-sm"
+                                   id="customYearInput"
+                                   type="number"
+                                   min="1900"
+                                   max="2100"
+                                   value="@customYearValue"
+                                   placeholder="yyyy"
+                                   data-custom-year />
+                            <div class="form-text">If filled, it overrides the year selection.</div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION: Tag facet -->
+                    <div class="docrepo-facet">
+                        <div class="docrepo-facet__title">TAG</div>
+                        <input class="form-control form-control-sm"
+                               name="tag"
+                               value="@Model.Tag"
+                               placeholder="e.g. sow, contract" />
+                    </div>
+
+                    <!-- SECTION: Include inactive -->
+                    <div class="docrepo-facet">
+                        <label class="form-check docrepo-inline-check">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   name="includeInactive"
+                                   value="true"
+                                   @(Model.IncludeInactive ? "checked" : null) />
+                            <span class="form-check-label">Include inactive</span>
+                        </label>
+                    </div>
+
+                    <!-- SECTION: Facet actions -->
+                    <div class="docrepo-facet__actions">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">Apply</button>
+                        <a class="btn btn-outline-secondary btn-sm w-100"
                            asp-page="./Index"
                            asp-route-page="1"
                            asp-route-pageSize="@Model.PageSize"
@@ -113,14 +179,24 @@
                         </a>
                     </div>
                 </form>
+
+                <div class="docrepo-filters__collapsedHint">
+                    <button type="button"
+                            class="btn btn-sm btn-light"
+                            id="docrepoFiltersExpandBtn"
+                            title="Expand filters"
+                            aria-label="Expand filters">
+                        <i class="bi bi-funnel"></i>
+                    </button>
+                </div>
             </aside>
 
             <!-- SECTION: Content -->
-            <section class="docrepo-content">
-                <!-- SECTION: Search bar -->
-                <div class="docrepo-search-shell">
-                    <form method="get" class="docrepo-searchbar" data-docrepo-filter>
-                        <div class="docrepo-search-input">
+            <main class="docrepo-main">
+                <!-- SECTION: Toolbar -->
+                <div class="docrepo-main__toolbar">
+                    <form method="get" asp-page="./Index" class="docrepo-searchbar docrepo-searchbar--toolbar" data-docrepo-filter>
+                        <div class="docrepo-searchbar__input">
                             <i class="bi bi-search"></i>
                             <input type="search"
                                    name="q"
@@ -128,35 +204,23 @@
                                    placeholder="Search documents (subject, sender, tags)…"
                                    aria-label="Search documents" />
                         </div>
-                        <div class="docrepo-search-actions">
-                            <button type="submit" class="btn btn-primary px-4">Search</button>
+                        <div class="docrepo-searchbar__actions">
+                            <button type="submit" class="btn btn-primary">Search</button>
                         </div>
 
                         <input type="hidden" name="page" value="1" />
                         <input type="hidden" name="pageSize" value="@Model.PageSize" />
                         <input type="hidden" name="view" value="@Model.ViewMode" />
                         <input type="hidden" name="tag" value="@Model.Tag" />
-                        <input type="hidden" name="officeCategoryId" value="@Model.OfficeCategoryId" />
-                        <input type="hidden" name="documentCategoryId" value="@Model.DocumentCategoryId" />
-                        <input type="hidden" name="year" value="@Model.Year" />
+                        <input type="hidden" name="officeCategoryId" value="@(Model.OfficeCategoryId?.ToString() ?? string.Empty)" />
+                        <input type="hidden" name="documentCategoryId" value="@(Model.DocumentCategoryId?.ToString() ?? string.Empty)" />
+                        <input type="hidden" name="year" value="@(Model.Year?.ToString() ?? string.Empty)" />
                         @if (Model.IncludeInactive)
                         {
                             <input type="hidden" name="includeInactive" value="true" />
                         }
                     </form>
-                </div>
 
-                <!-- SECTION: Toolbar -->
-                <div class="docrepo-toolbar">
-                    <div class="docrepo-toolbar__left d-md-none">
-                        <button type="button"
-                                class="btn btn-sm btn-outline-secondary"
-                                data-bs-toggle="modal"
-                                data-bs-target="#docrepoFilterModal">
-                            <i class="bi bi-funnel"></i>
-                            Filters
-                        </button>
-                    </div>
                     <div class="btn-group docrepo-view-toggle" role="group" aria-label="View mode">
                         <a class="btn btn-sm @(Model.IsListView ? "btn-primary" : "btn-outline-primary")"
                            href="@Model.UrlForView("list")">
@@ -251,7 +315,7 @@
                 }
 
                 <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
-            </section>
+            </main>
         </div>
     }
     else
@@ -346,93 +410,92 @@
     }
 </div>
 
-<!-- filter modal -->
-<div class="modal fade" id="docrepoFilterModal" tabindex="-1" aria-labelledby="docrepoFilterModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form method="get" asp-route-q="@Model.Q">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="docrepoFilterModalLabel">Filters</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="q" value="@Model.Q" />
-                    <input type="hidden" name="page" value="1" />
-                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
-                    @if (Model.EnableListViewUxUpgrade)
-                    {
-                        <input type="hidden" name="view" value="@Model.ViewMode" />
-                    }
-
-                    <div class="mb-3">
-                        <label class="form-label" for="tagInput">Tag</label>
-                        <input class="form-control" id="tagInput" name="tag" value="@Model.Tag" placeholder="e.g. sow, contract" />
+@if (!Model.EnableListViewUxUpgrade)
+{
+    <!-- SECTION: filter modal -->
+    <div class="modal fade" id="docrepoFilterModal" tabindex="-1" aria-labelledby="docrepoFilterModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="get" asp-route-q="@Model.Q">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="docrepoFilterModalLabel">Filters</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="q" value="@Model.Q" />
+                        <input type="hidden" name="page" value="1" />
+                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
 
-                    <div class="mb-3">
-                        <label class="form-label" for="officeSelect">Office</label>
-                        <select class="form-select" id="officeSelect" name="officeCategoryId">
-                            <option value="">All offices</option>
-                            @foreach (var office in Model.OfficeCategories)
-                            {
-                                if (Model.OfficeCategoryId == office.Id)
+                        <div class="mb-3">
+                            <label class="form-label" for="tagInput">Tag</label>
+                            <input class="form-control" id="tagInput" name="tag" value="@Model.Tag" placeholder="e.g. sow, contract" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="officeSelect">Office</label>
+                            <select class="form-select" id="officeSelect" name="officeCategoryId">
+                                <option value="">All offices</option>
+                                @foreach (var office in Model.OfficeCategories)
                                 {
-                                    <option value="@office.Id" selected>@office.Name</option>
+                                    if (Model.OfficeCategoryId == office.Id)
+                                    {
+                                        <option value="@office.Id" selected>@office.Name</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@office.Id">@office.Name</option>
+                                    }
                                 }
-                                else
-                                {
-                                    <option value="@office.Id">@office.Name</option>
-                                }
-                            }
-                        </select>
-                    </div>
+                            </select>
+                        </div>
 
-                    <div class="mb-3">
-                        <label class="form-label" for="docTypeSelect">Document type</label>
-                        <select class="form-select" id="docTypeSelect" name="documentCategoryId">
-                            <option value="">All document types</option>
-                            @foreach (var docCat in Model.DocumentCategories)
-                            {
-                                if (Model.DocumentCategoryId == docCat.Id)
+                        <div class="mb-3">
+                            <label class="form-label" for="docTypeSelect">Document type</label>
+                            <select class="form-select" id="docTypeSelect" name="documentCategoryId">
+                                <option value="">All document types</option>
+                                @foreach (var docCat in Model.DocumentCategories)
                                 {
-                                    <option value="@docCat.Id" selected>@docCat.Name</option>
+                                    if (Model.DocumentCategoryId == docCat.Id)
+                                    {
+                                        <option value="@docCat.Id" selected>@docCat.Name</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@docCat.Id">@docCat.Name</option>
+                                    }
                                 }
-                                else
-                                {
-                                    <option value="@docCat.Id">@docCat.Name</option>
-                                }
-                            }
-                        </select>
-                    </div>
+                            </select>
+                        </div>
 
-                    <div class="mb-3">
-                        <label class="form-label" for="yearInput">Year</label>
-                        <input class="form-control"
-                               id="yearInput"
-                               type="number"
-                               name="year"
-                               value="@(Model.Year?.ToString() ?? string.Empty)"
-                               min="1900"
-                               max="2100" />
-                    </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="yearInput">Year</label>
+                            <input class="form-control"
+                                   id="yearInput"
+                                   type="number"
+                                   name="year"
+                                   value="@(Model.Year?.ToString() ?? string.Empty)"
+                                   min="1900"
+                                   max="2100" />
+                        </div>
 
-                    <div class="form-check">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               id="includeInactiveChk"
-                               name="includeInactive"
-                               value="true"
-                               @(Model.IncludeInactive ? "checked" : null) />
-                        <label class="form-check-label" for="includeInactiveChk">
-                            Include inactive
-                        </label>
+                        <div class="form-check">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="includeInactiveChk"
+                                   name="includeInactive"
+                                   value="true"
+                                   @(Model.IncludeInactive ? "checked" : null) />
+                            <label class="form-check-label" for="includeInactiveChk">
+                                Include inactive
+                            </label>
+                        </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Apply</button>
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </form>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary">Apply</button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
-</div>
+}
