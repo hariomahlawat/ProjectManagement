@@ -261,6 +261,183 @@ function initDirtyTracking() {
     updateApplyState();
 }
 
+// SECTION: Document repository auto-apply filters
+function initAutoApplyFilters() {
+    const form = document.querySelector("#docrepoFacetsForm");
+    if (!form) {
+        return;
+    }
+
+    const enabled = form.getAttribute("data-autoapply") === "true";
+    if (!enabled) {
+        return;
+    }
+
+    const officeHidden = document.querySelector("#officeCategoryIdHidden");
+    const typeHidden = document.querySelector("#documentCategoryIdHidden");
+    const yearHidden = document.querySelector("#yearHidden");
+    const tagInput = form.querySelector('input[name="tag"]');
+    const inactiveChk = form.querySelector('input[name="includeInactive"]');
+    const customYear = document.querySelector("[data-custom-year]");
+    const viewHidden = form.querySelector('input[name="view"]');
+    const pageSizeHidden = form.querySelector('input[name="pageSize"]');
+
+    let tagTimer = null;
+    let yearTimer = null;
+
+    // SECTION: Updating indicator
+    const showUpdating = () => {
+        const indicator = document.querySelector("#docrepoUpdating");
+        if (indicator) {
+            indicator.classList.remove("d-none");
+        }
+    };
+
+    // SECTION: URL builder
+    const buildUrlAndGo = () => {
+        showUpdating();
+
+        const url = new URL(window.location.href);
+
+        // Always reset page
+        url.searchParams.set("page", "1");
+
+        if (viewHidden && viewHidden.value) {
+            url.searchParams.set("view", viewHidden.value);
+        }
+
+        if (pageSizeHidden && pageSizeHidden.value) {
+            url.searchParams.set("pageSize", pageSizeHidden.value);
+        }
+
+        const office = officeHidden ? (officeHidden.value || "").trim() : "";
+        const type = typeHidden ? (typeHidden.value || "").trim() : "";
+        const year = yearHidden ? (yearHidden.value || "").trim() : "";
+        const tag = tagInput ? (tagInput.value || "").trim() : "";
+        const inactive = inactiveChk ? inactiveChk.checked : false;
+
+        const setOrDelete = (key, value) => {
+            if (value) {
+                url.searchParams.set(key, value);
+            } else {
+                url.searchParams.delete(key);
+            }
+        };
+
+        setOrDelete("officeCategoryId", office);
+        setOrDelete("documentCategoryId", type);
+        setOrDelete("year", year);
+        setOrDelete("tag", tag);
+
+        if (inactive) {
+            url.searchParams.set("includeInactive", "true");
+        } else {
+            url.searchParams.delete("includeInactive");
+        }
+
+        window.location.assign(url.toString());
+    };
+
+    const autoApplyImmediate = () => {
+        buildUrlAndGo();
+    };
+
+    // SECTION: Form submit interception
+    form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        autoApplyImmediate();
+    });
+
+    // SECTION: Facet change handling
+    form.addEventListener("change", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+
+        if (target.getAttribute("name") === "includeInactive") {
+            autoApplyImmediate();
+            return;
+        }
+
+        if (target.classList.contains("docrepo-check__input")) {
+            const isYearFacet = target.closest('[data-facet-single="year"]');
+            if (isYearFacet && customYear && customYear.value.trim().length > 0) {
+                return;
+            }
+
+            autoApplyImmediate();
+        }
+    });
+
+    // SECTION: Tag debounce
+    if (tagInput) {
+        tagInput.addEventListener("input", () => {
+            if (tagTimer) {
+                clearTimeout(tagTimer);
+            }
+
+            tagTimer = setTimeout(() => {
+                const value = (tagInput.value || "").trim();
+                if (value.length === 0 || value.length >= 2) {
+                    autoApplyImmediate();
+                }
+            }, 500);
+        });
+
+        tagInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                autoApplyImmediate();
+            }
+        });
+    }
+
+    // SECTION: Custom year validation
+    if (customYear) {
+        const errorMessage = document.querySelector("#docrepoYearError");
+
+        const setYearError = (text) => {
+            if (!errorMessage) {
+                return;
+            }
+
+            errorMessage.textContent = text;
+            errorMessage.classList.toggle("d-none", !text);
+        };
+
+        customYear.addEventListener("input", () => {
+            if (yearTimer) {
+                clearTimeout(yearTimer);
+            }
+
+            yearTimer = setTimeout(() => {
+                const value = (customYear.value || "").trim();
+
+                if (value.length === 0) {
+                    setYearError("");
+                    autoApplyImmediate();
+                    return;
+                }
+
+                const parsed = Number(value);
+                const valid = Number.isInteger(parsed) && value.length === 4 && parsed >= 1900 && parsed <= 2100;
+
+                if (!valid) {
+                    setYearError("Invalid year. Enter a 4-digit year between 1900 and 2100.");
+                    return;
+                }
+
+                setYearError("");
+                if (yearHidden) {
+                    yearHidden.value = value;
+                }
+                autoApplyImmediate();
+            }, 600);
+        });
+    }
+}
+
 // SECTION: Document repository view preference
 function initViewPreference() {
     const toggle = document.querySelector(".docrepo-view-toggle");
@@ -310,4 +487,5 @@ function initViewPreference() {
 document.addEventListener("DOMContentLoaded", () => {
     initDirtyTracking();
     initViewPreference();
+    initAutoApplyFilters();
 });

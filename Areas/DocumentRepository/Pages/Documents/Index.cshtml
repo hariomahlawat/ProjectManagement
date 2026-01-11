@@ -41,7 +41,11 @@
                     </button>
                 </div>
 
-                <form method="get" asp-page="./Index" class="docrepo-facets" id="docrepoFacetsForm">
+                <form method="get"
+                      asp-page="./Index"
+                      class="docrepo-facets"
+                      id="docrepoFacetsForm"
+                      data-autoapply="@(Model.EnableAutoApplyFilters ? "true" : "false")">
                     <!-- SECTION: Apply-only params -->
                     <input type="hidden" name="q" value="@Model.Q" />
                     <input type="hidden" name="view" value="@Model.ViewMode" />
@@ -143,6 +147,7 @@
                                    placeholder="yyyy"
                                    data-custom-year />
                             <div class="form-text">If filled, it overrides the year selection.</div>
+                            <div id="docrepoYearError" class="text-danger small mt-1 d-none"></div>
                         </div>
                     </div>
 
@@ -169,7 +174,10 @@
 
                     <!-- SECTION: Facet actions -->
                     <div class="docrepo-facet__actions">
-                        <button type="submit" class="btn btn-primary btn-sm w-100" id="docrepoApplyBtn">Apply</button>
+                        @if (!Model.EnableAutoApplyFilters)
+                        {
+                            <button type="submit" class="btn btn-primary btn-sm w-100" id="docrepoApplyBtn">Apply</button>
+                        }
                         <a class="btn btn-outline-secondary btn-sm w-100"
                            asp-page="./Index"
                            asp-route-page="1"
@@ -220,6 +228,11 @@
                             <input type="hidden" name="includeInactive" value="true" />
                         }
                     </form>
+
+                    <div id="docrepoUpdating" class="d-none small text-muted ms-2">
+                        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        Updating…
+                    </div>
 
                     <div class="btn-group docrepo-view-toggle" role="group" aria-label="View mode">
                         <a class="btn btn-sm @(Model.IsListView ? "btn-primary" : "btn-outline-primary")"
