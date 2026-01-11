@@ -50,7 +50,7 @@
         right: 0;
         width: 48px;
         height: 48px;
-        background: linear-gradient(135deg, var(--pm-card)fff 0%, var(--pm-accent-blue-soft-2) 85%);
+        background: linear-gradient(135deg, var(--pm-card) 0%, var(--pm-accent-blue-soft-2) 85%);
         clip-path: polygon(0 0, 100% 0, 100% 100%);
         opacity: .4;
         pointer-events: none;
@@ -70,7 +70,7 @@
     justify-content: space-between;
     gap: .5rem;
     padding: .5rem 1.05rem .3rem 68px; /* match strip width */
-    background: radial-gradient(circle at top, var(--pm-surface-contrast) 0%, var(--pm-card)fff 60%);
+    background: radial-gradient(circle at top, var(--pm-surface-contrast) 0%, var(--pm-card) 60%);
     border-bottom: 1px solid rgba(15, 23, 42, 0.015);
     min-height: 40px;
     z-index: 4;
