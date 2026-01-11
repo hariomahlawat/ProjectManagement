@@ -297,17 +297,30 @@
 }
 
 .docrepo-list thead th {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     text-transform: uppercase;
     letter-spacing: 0.02em;
     color: var(--pm-text-muted);
     border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-    padding: 0.75rem;
+    padding: 0.55rem 0.65rem;
 }
 
 .docrepo-list tbody td {
-    padding: 0.75rem;
+    padding: 0.55rem 0.65rem;
     vertical-align: middle;
+}
+
+/* SECTION: Row density + hover */
+.docrepo-row {
+    transition: background-color 0.15s ease;
+}
+
+.docrepo-row:not(.docrepo-row--inactive) {
+    cursor: pointer;
+}
+
+.docrepo-row:not(.docrepo-row--inactive):hover {
+    background: rgba(15, 23, 42, 0.04);
 }
 
 .docrepo-row--inactive {
@@ -352,12 +365,16 @@
 .docrepo-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 0.4rem;
+    gap: 0.35rem;
     flex-wrap: wrap;
 }
 
 .docrepo-actions__dropdown {
     position: relative;
+}
+
+.docrepo-actions__dropdown .btn {
+    padding: 0.25rem 0.45rem;
 }
 
 /* ───────────────────────────────

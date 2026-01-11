@@ -7,7 +7,8 @@
     var canSoftDelete = await AuthorizationService.AuthorizeAsync(User, "DocRepo.SoftDelete");
 }
 
-<tr class="@(Model.IsActive ? string.Empty : "docrepo-row--inactive")">
+<tr class="docrepo-row @(Model.IsActive ? string.Empty : "docrepo-row--inactive")"
+    data-href="@(Model.IsActive ? Url.Page("./Reader", new { id = Model.Id }) : null)">
     <!-- SECTION: Subject -->
     <td>
         <div class="d-flex flex-column gap-1">
@@ -63,36 +64,9 @@
     </td>
 
     <!-- SECTION: Actions -->
-    <td class="docrepo-actions">
-        @if (Model.IsActive)
-        {
-            <a class="btn btn-sm btn-outline-primary"
-               asp-page="./Reader" asp-route-id="@Model.Id"
-               title="Open viewer">
-                <i class="bi bi-eye"></i>
-                <span class="d-none d-sm-inline">View</span>
-            </a>
-        }
-        else
-        {
-            <button class="btn btn-sm btn-outline-primary"
-                    type="button"
-                    disabled
-                    title="Inactive documents cannot be viewed. Download is available.">
-                <i class="bi bi-eye"></i>
-                <span class="d-none d-sm-inline">View</span>
-            </button>
-        }
-
-        <a class="btn btn-sm btn-outline-secondary"
-           asp-page="./Download" asp-route-id="@Model.Id"
-           title="Download PDF">
-            <i class="bi bi-download"></i>
-            <span class="d-none d-sm-inline">Download</span>
-        </a>
-
-        <!-- SECTION: Manage actions -->
-        <div class="dropdown docrepo-actions__dropdown">
+    <td class="docrepo-actions text-end">
+        <!-- SECTION: Actions menu -->
+        <div class="dropdown docrepo-actions__dropdown" data-no-row-nav>
             <button class="btn btn-sm btn-light"
                     type="button"
                     data-bs-toggle="dropdown"
@@ -101,6 +75,34 @@
                 <i class="bi bi-three-dots-vertical"></i>
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
+                <!-- SECTION: Primary actions -->
+                @if (Model.IsActive)
+                {
+                    <li>
+                        <a class="dropdown-item"
+                           asp-page="./Reader" asp-route-id="@Model.Id">
+                            <i class="bi bi-eye me-2"></i>Open
+                        </a>
+                    </li>
+                }
+                else
+                {
+                    <li>
+                        <span class="dropdown-item text-muted"
+                              title="Inactive documents cannot be viewed. Download is available.">
+                            <i class="bi bi-eye me-2"></i>Open
+                        </span>
+                    </li>
+                }
+                <li>
+                    <a class="dropdown-item"
+                       asp-page="./Download" asp-route-id="@Model.Id">
+                        <i class="bi bi-download me-2"></i>Download
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+
+                <!-- SECTION: Manage actions -->
                 @if (canEdit.Succeeded)
                 {
                     <li>
