@@ -1,10 +1,15 @@
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel
 
-@if (Model.EnableListViewUxUpgrade)
-{
-    <!-- SECTION: Active filter summary -->
-    @{
-        var hasAnyFilter =
+@{
+    // SECTION: Shared view state
+    var hasAnyFilter = false;
+    var officeLabel = "All";
+    var typeLabel = "All";
+    var httpRequest = ViewContext.HttpContext.Request;
+
+    if (Model.EnableListViewUxUpgrade)
+    {
+        hasAnyFilter =
             !string.IsNullOrWhiteSpace(Model.Q) ||
             !string.IsNullOrWhiteSpace(Model.Tag) ||
             Model.OfficeCategoryId.HasValue ||
@@ -12,14 +17,19 @@
             Model.Year.HasValue ||
             Model.IncludeInactive;
 
-        string officeLabel = Model.OfficeCategoryId.HasValue
+        officeLabel = Model.OfficeCategoryId.HasValue
             ? (Model.OfficeCategories.FirstOrDefault(o => o.Id == Model.OfficeCategoryId)?.Name ?? "Selected")
             : "All";
 
-        string typeLabel = Model.DocumentCategoryId.HasValue
+        typeLabel = Model.DocumentCategoryId.HasValue
             ? (Model.DocumentCategories.FirstOrDefault(c => c.Id == Model.DocumentCategoryId)?.Name ?? "Selected")
             : "All";
     }
+}
+
+@if (Model.EnableListViewUxUpgrade)
+{
+    <!-- SECTION: Active filter summary -->
 
     @if (hasAnyFilter)
     {
@@ -63,7 +73,7 @@
     }
 
     <!-- SECTION: Top pager -->
-    <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
+    <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, httpRequest)" />
 
     <!-- SECTION: Tag match alert -->
     @if (Model.IsSearchActive && Model.HasTagMatch)
@@ -145,12 +155,12 @@
     }
 
     <!-- SECTION: Bottom pager -->
-    <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
+    <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, httpRequest)" />
 }
 else
 {
     <!-- SECTION: Top pager -->
-    <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
+    <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, httpRequest)" />
 
     <!-- SECTION: Tag match alert -->
     @if (Model.IsSearchActive && Model.HasTagMatch)
@@ -204,5 +214,5 @@ else
     }
 
     <!-- SECTION: Bottom pager -->
-    <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
+    <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, httpRequest)" />
 }
