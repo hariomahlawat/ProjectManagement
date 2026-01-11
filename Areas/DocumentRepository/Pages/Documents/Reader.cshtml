@@ -38,11 +38,11 @@
                 <i class="bi bi-layout-text-sidebar-reverse"></i>
                 <span>Details</span>
             </button>
-            @if (Model.IsFileMissing)
+            @if (Model.IsFileMissing || !Model.IsActive)
             {
-                <button class="btn btn-sm btn-outline-secondary docreader-btn" type="button" disabled title="File missing from storage">
+                <button class="btn btn-sm btn-outline-secondary docreader-btn" type="button" disabled title="Document cannot be opened in a new tab">
                     <i class="bi bi-box-arrow-up-right"></i>
-                    <span>Open</span>
+                    <span>Open in new tab</span>
                 </button>
             }
             else
@@ -52,7 +52,7 @@
                    target="_blank"
                    rel="noopener">
                     <i class="bi bi-box-arrow-up-right"></i>
-                    <span>Open</span>
+                    <span>Open in new tab</span>
                 </a>
             }
             @if (Model.IsFileMissing)
@@ -77,6 +77,50 @@
                     <i class="bi bi-pencil-square"></i>
                     <span>Edit metadata</span>
                 </a>
+            </authorize>
+            <!-- SECTION: More actions -->
+            <authorize policy="DocRepo.SoftDelete">
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-light docreader-btn"
+                            type="button"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            title="More actions">
+                        <i class="bi bi-three-dots-vertical"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        @if (Model.IsActive)
+                        {
+                            <li>
+                                <form method="post" asp-page="./Manage" asp-page-handler="Deactivate" asp-route-id="@RouteData.Values["id"]" class="px-3 py-1">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-link p-0 text-warning">
+                                        <i class="bi bi-slash-circle me-2"></i>Deactivate
+                                    </button>
+                                </form>
+                            </li>
+                        }
+                        else
+                        {
+                            <li>
+                                <form method="post" asp-page="./Manage" asp-page-handler="Activate" asp-route-id="@RouteData.Values["id"]" class="px-3 py-1">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-link p-0 text-success">
+                                        <i class="bi bi-check2-circle me-2"></i>Activate
+                                    </button>
+                                </form>
+                            </li>
+                        }
+                        <li>
+                            <form method="post" asp-page="./Manage" asp-page-handler="RequestDelete" asp-route-id="@RouteData.Values["id"]" class="px-3 py-1">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-link p-0 text-danger">
+                                    <i class="bi bi-trash me-2"></i>Request delete
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
             </authorize>
         </div>
     </div>

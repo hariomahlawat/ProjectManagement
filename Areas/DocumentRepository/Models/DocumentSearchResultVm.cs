@@ -27,4 +27,7 @@ public sealed class DocumentSearchResultVm
     public bool MatchedInSubject { get; set; }
     public bool MatchedInTags { get; set; }
     public bool MatchedInBody { get; set; }
+
+    // SECTION: Status
+    public bool IsActive { get; set; }
 }
