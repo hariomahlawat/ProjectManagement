@@ -247,12 +247,71 @@
 }
 
 /* ───────────────────────────────
+   LAYOUT: FACETS + CONTENT
+   ─────────────────────────────── */
+.docrepo-layout {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+
+.docrepo-facets {
+    width: 300px;
+    flex: 0 0 300px;
+    background: var(--pm-card);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 0.85rem;
+    padding: 1rem;
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+}
+
+.docrepo-facets__form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.docrepo-facets__section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.docrepo-facets__title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--pm-text-muted);
+    margin: 0;
+}
+
+.docrepo-facets__actions {
+    gap: 0.5rem;
+}
+
+.docrepo-content {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* ───────────────────────────────
    VIEW TOGGLE + FILTER CHIPS
    ─────────────────────────────── */
 .docrepo-toolbar {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 0.75rem;
+}
+
+.docrepo-toolbar__left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .docrepo-view-toggle .btn {
@@ -302,11 +361,11 @@
     letter-spacing: 0.02em;
     color: var(--pm-text-muted);
     border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-    padding: 0.55rem 0.65rem;
+    padding: 0.45rem 0.6rem;
 }
 
 .docrepo-list tbody td {
-    padding: 0.55rem 0.65rem;
+    padding: 0.45rem 0.6rem;
     vertical-align: middle;
 }
 
@@ -332,6 +391,7 @@
     font-weight: 600;
     color: var(--pm-text-contrast);
     text-decoration: none;
+    line-height: 1.2;
 }
 
 .docrepo-subject-link:hover {
@@ -407,10 +467,19 @@
 
     .docrepo-toolbar {
         justify-content: flex-start;
+        gap: 0.5rem;
     }
 
     .docrepo-actions {
         justify-content: flex-start;
+    }
+
+    .docrepo-layout {
+        flex-direction: column;
+    }
+
+    .docrepo-facets {
+        display: none;
     }
 }
 /* lift the card above its siblings while interacting */
