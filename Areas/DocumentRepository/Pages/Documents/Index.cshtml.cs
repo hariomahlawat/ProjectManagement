@@ -229,6 +229,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                                 .OrderBy(documentTag => documentTag.Tag.Name)
                                 .Select(documentTag => documentTag.Tag.Name)
                                 .ToList(),
+                            IsActive = document.IsActive,
                             OcrStatus = document.OcrStatus,
                             OcrFailureReason = document.OcrFailureReason,
                             Rank = null,

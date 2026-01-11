@@ -6,11 +6,14 @@
     var canEdit = await AuthorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata");
     var canSoftDelete = await AuthorizationService.AuthorizeAsync(User, "DocRepo.SoftDelete");
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
-    var readerUrl = Model.IsActive ? Url.Page("./Reader", new { id = Model.Id, returnUrl }) : null;
+    var readerUrl = Model.IsActive ? Url.Page("./Reader", new { id = Model.Id, returnUrl }) : string.Empty;
 }
 
 <tr class="docrepo-row @(Model.IsActive ? string.Empty : "docrepo-row--inactive")"
-    data-href="@readerUrl">
+    data-href="@readerUrl"
+    tabindex="0"
+    role="link"
+    aria-label="Open document @Model.Subject">
     <!-- SECTION: Subject -->
     <td>
         <div class="d-flex flex-column gap-1">
@@ -66,17 +69,18 @@
     </td>
 
     <!-- SECTION: Actions -->
-    <td class="docrepo-actions text-end">
+    <td class="docrepo-actions text-end" data-no-row-nav>
         <!-- SECTION: Actions menu -->
         <div class="dropdown docrepo-actions__dropdown" data-no-row-nav>
             <button class="btn btn-sm btn-light"
                     type="button"
                     data-bs-toggle="dropdown"
                     aria-expanded="false"
-                    title="More actions">
+                    title="More actions"
+                    data-no-row-nav>
                 <i class="bi bi-three-dots-vertical"></i>
             </button>
-            <ul class="dropdown-menu dropdown-menu-end">
+            <ul class="dropdown-menu dropdown-menu-end" data-no-row-nav>
                 <!-- SECTION: Primary actions -->
                 @if (Model.IsActive)
                 {
@@ -86,6 +90,14 @@
                             <i class="bi bi-eye me-2"></i>Open
                         </a>
                     </li>
+                    <li>
+                        <a class="dropdown-item"
+                           asp-page="./View" asp-route-id="@Model.Id"
+                           target="_blank"
+                           rel="noopener">
+                            <i class="bi bi-box-arrow-up-right me-2"></i>Open in new tab
+                        </a>
+                    </li>
                 }
                 else
                 {
@@ -93,6 +105,12 @@
                         <span class="dropdown-item text-muted"
                               title="Inactive documents cannot be viewed. Download is available.">
                             <i class="bi bi-eye me-2"></i>Open
+                        </span>
+                    </li>
+                    <li>
+                        <span class="dropdown-item text-muted"
+                              title="Inactive documents cannot be viewed. Download is available.">
+                            <i class="bi bi-box-arrow-up-right me-2"></i>Open in new tab
                         </span>
                     </li>
                 }

@@ -58,10 +58,19 @@
     }
 
     /* hover */
-    .doc-card:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.045);
-    }
+.doc-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.045);
+}
+
+/* SECTION: Card navigation states */
+.docrepo-card:not(.docrepo-card--inactive) {
+    cursor: pointer;
+}
+
+.docrepo-card--inactive .docrepo-subject-link {
+    color: var(--pm-text-muted);
+}
 
 /* ── header band ───────────────── */
 .doc-card__header {
@@ -489,6 +498,11 @@
 
 .docrepo-row:not(.docrepo-row--inactive):hover {
     background: rgba(15, 23, 42, 0.04);
+}
+
+.docrepo-row:focus-visible {
+    outline: 2px solid rgba(13, 110, 253, 0.4);
+    outline-offset: -2px;
 }
 
 .docrepo-row--inactive {

@@ -1,23 +1,68 @@
 // SECTION: Document repository row navigation
 (() => {
     const interactiveSelector = "a, button, input, select, textarea, .dropdown, .dropdown-menu, [data-no-row-nav]";
+    const navigableSelector = ".docrepo-row, .docrepo-card";
 
+    // SECTION: Click navigation
     document.addEventListener("click", (event) => {
-        const row = event.target.closest(".docrepo-row");
-        if (!row) {
+        const target = event.target;
+        const navigable = target.closest(navigableSelector);
+        if (!navigable) {
             return;
         }
 
-        if (event.target.closest(interactiveSelector)) {
+        if (target.closest(interactiveSelector)) {
             return;
         }
 
-        const href = row.dataset.href;
+        const href = navigable.dataset.href;
         if (!href) {
             return;
         }
 
         window.location.href = href;
+    });
+
+    // SECTION: Keyboard navigation
+    document.addEventListener("keydown", (event) => {
+        const target = event.target;
+        const row = target.closest(".docrepo-row");
+        if (!row) {
+            return;
+        }
+
+        if (target !== row && target.closest(interactiveSelector)) {
+            return;
+        }
+
+        if (event.key === "Enter") {
+            const href = row.dataset.href;
+            if (href) {
+                window.location.href = href;
+            }
+        }
+
+        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+            return;
+        }
+
+        const rowContainer = row.closest("tbody") ?? row.parentElement;
+        if (!rowContainer) {
+            return;
+        }
+
+        const rows = Array.from(rowContainer.querySelectorAll(".docrepo-row"));
+        const index = rows.indexOf(row);
+        if (index < 0) {
+            return;
+        }
+
+        const nextIndex = event.key === "ArrowDown" ? index + 1 : index - 1;
+        const nextRow = rows[nextIndex];
+        if (nextRow) {
+            event.preventDefault();
+            nextRow.focus();
+        }
     });
 })();
 
