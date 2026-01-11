@@ -5,17 +5,19 @@
 @{
     var canEdit = await AuthorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata");
     var canSoftDelete = await AuthorizationService.AuthorizeAsync(User, "DocRepo.SoftDelete");
+    var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+    var readerUrl = Model.IsActive ? Url.Page("./Reader", new { id = Model.Id, returnUrl }) : null;
 }
 
 <tr class="docrepo-row @(Model.IsActive ? string.Empty : "docrepo-row--inactive")"
-    data-href="@(Model.IsActive ? Url.Page("./Reader", new { id = Model.Id }) : null)">
+    data-href="@readerUrl">
     <!-- SECTION: Subject -->
     <td>
         <div class="d-flex flex-column gap-1">
             <div class="d-flex align-items-center gap-2">
                 @if (Model.IsActive)
                 {
-                    <a asp-page="./Reader" asp-route-id="@Model.Id" class="docrepo-subject-link">
+                    <a asp-page="./Reader" asp-route-id="@Model.Id" asp-route-returnUrl="@returnUrl" class="docrepo-subject-link">
                         @Model.Subject
                     </a>
                 }
@@ -80,7 +82,7 @@
                 {
                     <li>
                         <a class="dropdown-item"
-                           asp-page="./Reader" asp-route-id="@Model.Id">
+                           asp-page="./Reader" asp-route-id="@Model.Id" asp-route-returnUrl="@returnUrl">
                             <i class="bi bi-eye me-2"></i>Open
                         </a>
                     </li>
