@@ -316,8 +316,8 @@
     padding: 0.9rem;
     position: sticky;
     top: 1rem;
-    max-height: calc(100vh - 2rem);
-    overflow-y: auto;
+    max-height: none;
+    overflow: visible;
 }
 
 .docrepo-filters__header {
@@ -467,6 +467,9 @@
     border-radius: 0.75rem;
     border: 1px solid rgba(15, 23, 42, 0.08);
     background: var(--pm-card);
+    overflow-x: auto;
+    overflow-y: visible;
+    max-height: none;
 }
 
 .docrepo-list {
