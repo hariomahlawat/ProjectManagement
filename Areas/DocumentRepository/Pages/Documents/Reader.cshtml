@@ -26,17 +26,35 @@
            rel="noopener">
             Open
         </a>
-        <a class="btn btn-sm btn-primary docreader-btn"
-           href="@Model.DownloadUrl">
-            Download
-        </a>
+        @if (Model.IsFileMissing)
+        {
+            <button class="btn btn-sm btn-primary docreader-btn" type="button" disabled title="File missing from storage">
+                Download
+            </button>
+        }
+        else
+        {
+            <a class="btn btn-sm btn-primary docreader-btn"
+               href="@Model.DownloadUrl">
+                Download
+            </a>
+        }
     </div>
 </div>
 
 <!-- full-height viewer -->
 <div class="docreader-stage">
-    <iframe src="@Model.ViewUrl"
-            class="docreader-frame"
-            title="Document viewer"
-            loading="lazy"></iframe>
+    @if (Model.IsFileMissing)
+    {
+        <div class="alert alert-warning m-3" role="alert">
+            The document record exists, but the PDF file is missing from storage. Please inform the administrator.
+        </div>
+    }
+    else
+    {
+        <iframe src="@Model.ViewUrl"
+                class="docreader-frame"
+                title="Document viewer"
+                loading="lazy"></iframe>
+    }
 </div>
