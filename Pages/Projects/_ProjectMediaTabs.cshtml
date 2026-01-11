@@ -242,6 +242,7 @@
                                                                 ProjectDocumentOcrStatus.Succeeded => ("success", "Succeeded"),
                                                                 ProjectDocumentOcrStatus.Pending => ("warning", "Pending"),
                                                                 ProjectDocumentOcrStatus.Failed => ("danger", "Failed"),
+                                                                ProjectDocumentOcrStatus.Skipped => ("secondary", "Not applicable"),
                                                                 ProjectDocumentOcrStatus.None => ("secondary", "Not queued"),
                                                                 _ => ("secondary", ocrStatus.ToString())
                                                             };
@@ -591,4 +592,3 @@
         </div>
     </div>
 </div>
-
