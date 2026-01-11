@@ -5,7 +5,9 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using ProjectManagement.Areas.DocumentRepository.Models;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
@@ -18,11 +20,13 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
     {
         private readonly ApplicationDbContext _db;
         private readonly IDocumentSearchService _searchService;
+        private readonly IConfiguration _configuration;
 
-        public IndexModel(ApplicationDbContext db, IDocumentSearchService searchService)
+        public IndexModel(ApplicationDbContext db, IDocumentSearchService searchService, IConfiguration configuration)
         {
             _db = db;
             _searchService = searchService;
+            _configuration = configuration;
         }
 
         // SECTION: Filters
@@ -32,6 +36,12 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         [FromQuery(Name = "documentCategoryId")] public long? DocumentCategoryId { get; set; }
         [FromQuery(Name = "year")] public int? Year { get; set; }
         [FromQuery(Name = "includeInactive")] public bool IncludeInactive { get; set; }
+        [FromQuery(Name = "view")] public string? View { get; set; }
+
+        // SECTION: View state
+        public bool EnableListViewUxUpgrade { get; private set; }
+        public string ViewMode { get; private set; } = "cards";
+        public bool IsListView => ViewMode.Equals("list", StringComparison.OrdinalIgnoreCase);
 
         // SECTION: Paging
         private const int DefaultPageSize = 30;
@@ -47,6 +57,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         // SECTION: Result sets
         public List<DocumentSearchResultVm> Items { get; private set; } = new();
+        public List<DocumentListItemVm> ListItems { get; private set; } = new();
         public bool IsSearchActive { get; private set; }
         public bool HasTagMatch { get; private set; }
 
@@ -54,8 +65,33 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         public List<OfficeCategory> OfficeCategories { get; private set; } = new();
         public List<DocumentCategory> DocumentCategories { get; private set; } = new();
 
+        // SECTION: View URL helper
+        public string UrlForView(string viewMode)
+        {
+            var query = QueryHelpers.ParseQuery(Request.QueryString.ToString())
+                .ToDictionary(kv => kv.Key, kv => kv.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+
+            query["view"] = viewMode;
+
+            var q = string.Join("&", query.Select(kv => $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value)}"));
+            var path = Request.Path.HasValue ? Request.Path.Value : string.Empty;
+            return string.IsNullOrEmpty(q) ? path : $"{path}?{q}";
+        }
+
         public async Task OnGetAsync()
         {
+            // SECTION: Feature flags
+            EnableListViewUxUpgrade = _configuration.GetValue<bool>("DocRepo:EnableListViewUxUpgrade");
+
+            ViewMode = EnableListViewUxUpgrade && string.Equals(View, "cards", StringComparison.OrdinalIgnoreCase)
+                ? "cards"
+                : "list";
+
+            if (!EnableListViewUxUpgrade)
+            {
+                ViewMode = "cards";
+            }
+
             // SECTION: Guard paging input
             if (PageNumber < 1)
             {
@@ -121,16 +157,37 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 Q = preparedQuery;
                 IsSearchActive = true;
 
-                var searchedQuery = _searchService.ApplySearchProjected(query, preparedQuery);
+                var searchedQuery = _searchService.ApplySearch(query, preparedQuery);
+                var searchedProjectedQuery = _searchService.ApplySearchProjected(query, preparedQuery);
 
                 TotalCount = await searchedQuery.CountAsync();
 
-                Items = await searchedQuery
-                    .Skip((PageNumber - 1) * PageSize)
-                    .Take(PageSize)
-                    .ToListAsync();
+                if (IsListView)
+                {
+                    ListItems = await searchedQuery
+                        .Select(document => new DocumentListItemVm
+                        {
+                            Id = document.Id,
+                            Subject = document.Subject,
+                            DocumentDate = document.DocumentDate,
+                            OfficeName = document.OfficeCategory != null ? document.OfficeCategory.Name : null,
+                            DocumentCategoryName = document.DocumentCategory != null ? document.DocumentCategory.Name : null,
+                            OcrStatus = document.OcrStatus,
+                            IsActive = document.IsActive
+                        })
+                        .Skip((PageNumber - 1) * PageSize)
+                        .Take(PageSize)
+                        .ToListAsync();
+                }
+                else
+                {
+                    Items = await searchedProjectedQuery
+                        .Skip((PageNumber - 1) * PageSize)
+                        .Take(PageSize)
+                        .ToListAsync();
+                }
 
-                HasTagMatch = Items.Any(item => item.MatchedInTags);
+                HasTagMatch = await searchedProjectedQuery.AnyAsync(item => item.MatchedInTags);
             }
             else
             {
@@ -141,29 +198,49 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                     .ThenByDescending(document => document.DocumentDate)
                     .ThenByDescending(document => document.CreatedAtUtc);
 
-                Items = await orderedQuery
-                    .Select(document => new DocumentSearchResultVm
-                    {
-                        Id = document.Id,
-                        Subject = document.Subject,
-                        DocumentDate = document.DocumentDate,
-                        OfficeCategoryName = document.OfficeCategory != null ? document.OfficeCategory.Name : null,
-                        DocumentCategoryName = document.DocumentCategory != null ? document.DocumentCategory.Name : null,
-                        Tags = document.DocumentTags
-                            .OrderBy(documentTag => documentTag.Tag.Name)
-                            .Select(documentTag => documentTag.Tag.Name)
-                            .ToList(),
-                        OcrStatus = document.OcrStatus,
-                        OcrFailureReason = document.OcrFailureReason,
-                        Rank = null,
-                        Snippet = null,
-                        MatchedInSubject = false,
-                        MatchedInTags = false,
-                        MatchedInBody = false
-                    })
-                    .Skip((PageNumber - 1) * PageSize)
-                    .Take(PageSize)
-                    .ToListAsync();
+                if (IsListView)
+                {
+                    ListItems = await orderedQuery
+                        .Select(document => new DocumentListItemVm
+                        {
+                            Id = document.Id,
+                            Subject = document.Subject,
+                            DocumentDate = document.DocumentDate,
+                            OfficeName = document.OfficeCategory != null ? document.OfficeCategory.Name : null,
+                            DocumentCategoryName = document.DocumentCategory != null ? document.DocumentCategory.Name : null,
+                            OcrStatus = document.OcrStatus,
+                            IsActive = document.IsActive
+                        })
+                        .Skip((PageNumber - 1) * PageSize)
+                        .Take(PageSize)
+                        .ToListAsync();
+                }
+                else
+                {
+                    Items = await orderedQuery
+                        .Select(document => new DocumentSearchResultVm
+                        {
+                            Id = document.Id,
+                            Subject = document.Subject,
+                            DocumentDate = document.DocumentDate,
+                            OfficeCategoryName = document.OfficeCategory != null ? document.OfficeCategory.Name : null,
+                            DocumentCategoryName = document.DocumentCategory != null ? document.DocumentCategory.Name : null,
+                            Tags = document.DocumentTags
+                                .OrderBy(documentTag => documentTag.Tag.Name)
+                                .Select(documentTag => documentTag.Tag.Name)
+                                .ToList(),
+                            OcrStatus = document.OcrStatus,
+                            OcrFailureReason = document.OcrFailureReason,
+                            Rank = null,
+                            Snippet = null,
+                            MatchedInSubject = false,
+                            MatchedInTags = false,
+                            MatchedInBody = false
+                        })
+                        .Skip((PageNumber - 1) * PageSize)
+                        .Take(PageSize)
+                        .ToListAsync();
+                }
 
                 HasTagMatch = false;
             }

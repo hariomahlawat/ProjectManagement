@@ -19,7 +19,7 @@
         </ol>
     </nav>
 
-    <!-- search bar -->
+    <!-- SECTION: Search bar -->
     <div class="docrepo-search-shell">
         <form method="get" class="docrepo-searchbar" data-docrepo-filter>
             <div class="docrepo-search-input">
@@ -37,14 +37,146 @@
                         data-bs-toggle="modal"
                         data-bs-target="#docrepoFilterModal">
                     <i class="bi bi-funnel"></i>
-                    <span class="d-none d-sm-inline">Filters</span>
+                    <span class="d-none d-sm-inline">More filters</span>
                 </button>
             </div>
 
             <input type="hidden" name="page" value="@Model.PageNumber" />
             <input type="hidden" name="pageSize" value="@Model.PageSize" />
+            @if (Model.EnableListViewUxUpgrade)
+            {
+                <input type="hidden" name="view" value="@Model.ViewMode" />
+            }
         </form>
     </div>
+
+    @if (Model.EnableListViewUxUpgrade)
+    {
+        <!-- SECTION: View toggle -->
+        <div class="docrepo-toolbar">
+            <div class="btn-group docrepo-view-toggle" role="group" aria-label="View mode">
+                <a class="btn btn-sm @(Model.IsListView ? "btn-primary" : "btn-outline-primary")"
+                   href="@Model.UrlForView("list")">
+                    <i class="bi bi-list"></i>
+                    <span class="d-none d-sm-inline">List</span>
+                </a>
+                <a class="btn btn-sm @(!Model.IsListView ? "btn-primary" : "btn-outline-primary")"
+                   href="@Model.UrlForView("cards")">
+                    <i class="bi bi-grid-3x3-gap"></i>
+                    <span class="d-none d-sm-inline">Cards</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- SECTION: Filter chips -->
+        <div class="docrepo-chipbar">
+            <div class="docrepo-chip">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#docrepoFilterModal">
+                    Office: @(Model.OfficeCategoryId.HasValue ? Model.OfficeCategories.FirstOrDefault(office => office.Id == Model.OfficeCategoryId)?.Name : "All")
+                </button>
+                @if (Model.OfficeCategoryId.HasValue)
+                {
+                    <a class="btn btn-sm btn-outline-secondary docrepo-chip__clear"
+                       asp-page="./Index"
+                       asp-route-q="@Model.Q"
+                       asp-route-tag="@Model.Tag"
+                       asp-route-documentCategoryId="@Model.DocumentCategoryId"
+                       asp-route-year="@Model.Year"
+                       asp-route-includeInactive="@Model.IncludeInactive"
+                       asp-route-page="@Model.PageNumber"
+                       asp-route-pageSize="@Model.PageSize"
+                       asp-route-view="@Model.ViewMode">
+                        <i class="bi bi-x"></i>
+                    </a>
+                }
+            </div>
+            <div class="docrepo-chip">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#docrepoFilterModal">
+                    Type: @(Model.DocumentCategoryId.HasValue ? Model.DocumentCategories.FirstOrDefault(category => category.Id == Model.DocumentCategoryId)?.Name : "All")
+                </button>
+                @if (Model.DocumentCategoryId.HasValue)
+                {
+                    <a class="btn btn-sm btn-outline-secondary docrepo-chip__clear"
+                       asp-page="./Index"
+                       asp-route-q="@Model.Q"
+                       asp-route-tag="@Model.Tag"
+                       asp-route-officeCategoryId="@Model.OfficeCategoryId"
+                       asp-route-year="@Model.Year"
+                       asp-route-includeInactive="@Model.IncludeInactive"
+                       asp-route-page="@Model.PageNumber"
+                       asp-route-pageSize="@Model.PageSize"
+                       asp-route-view="@Model.ViewMode">
+                        <i class="bi bi-x"></i>
+                    </a>
+                }
+            </div>
+            <div class="docrepo-chip">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#docrepoFilterModal">
+                    Year: @(Model.Year.HasValue ? Model.Year.Value.ToString() : "All")
+                </button>
+                @if (Model.Year.HasValue)
+                {
+                    <a class="btn btn-sm btn-outline-secondary docrepo-chip__clear"
+                       asp-page="./Index"
+                       asp-route-q="@Model.Q"
+                       asp-route-tag="@Model.Tag"
+                       asp-route-officeCategoryId="@Model.OfficeCategoryId"
+                       asp-route-documentCategoryId="@Model.DocumentCategoryId"
+                       asp-route-includeInactive="@Model.IncludeInactive"
+                       asp-route-page="@Model.PageNumber"
+                       asp-route-pageSize="@Model.PageSize"
+                       asp-route-view="@Model.ViewMode">
+                        <i class="bi bi-x"></i>
+                    </a>
+                }
+            </div>
+            <div class="docrepo-chip">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#docrepoFilterModal">
+                    Tag: @(string.IsNullOrWhiteSpace(Model.Tag) ? "All" : Model.Tag)
+                </button>
+                @if (!string.IsNullOrWhiteSpace(Model.Tag))
+                {
+                    <a class="btn btn-sm btn-outline-secondary docrepo-chip__clear"
+                       asp-page="./Index"
+                       asp-route-q="@Model.Q"
+                       asp-route-officeCategoryId="@Model.OfficeCategoryId"
+                       asp-route-documentCategoryId="@Model.DocumentCategoryId"
+                       asp-route-year="@Model.Year"
+                       asp-route-includeInactive="@Model.IncludeInactive"
+                       asp-route-page="@Model.PageNumber"
+                       asp-route-pageSize="@Model.PageSize"
+                       asp-route-view="@Model.ViewMode">
+                        <i class="bi bi-x"></i>
+                    </a>
+                }
+            </div>
+            <div class="docrepo-chip">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#docrepoFilterModal">
+                    Inactive: @(Model.IncludeInactive ? "Included" : "Excluded")
+                </button>
+                @if (Model.IncludeInactive)
+                {
+                    <a class="btn btn-sm btn-outline-secondary docrepo-chip__clear"
+                       asp-page="./Index"
+                       asp-route-q="@Model.Q"
+                       asp-route-tag="@Model.Tag"
+                       asp-route-officeCategoryId="@Model.OfficeCategoryId"
+                       asp-route-documentCategoryId="@Model.DocumentCategoryId"
+                       asp-route-year="@Model.Year"
+                       asp-route-page="@Model.PageNumber"
+                       asp-route-pageSize="@Model.PageSize"
+                       asp-route-view="@Model.ViewMode">
+                        <i class="bi bi-x"></i>
+                    </a>
+                }
+            </div>
+            <a class="btn btn-sm btn-link docrepo-chip__clear-all"
+               asp-page="./Index"
+               asp-route-view="@Model.ViewMode">
+                Clear all
+            </a>
+        </div>
+    }
 
     <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
 
@@ -61,7 +193,8 @@
                    asp-route-officeCategoryId="@Model.OfficeCategoryId"
                    asp-route-documentCategoryId="@Model.DocumentCategoryId"
                    asp-route-year="@Model.Year"
-                   asp-route-includeInactive="@Model.IncludeInactive">
+                   asp-route-includeInactive="@Model.IncludeInactive"
+                   asp-route-view="@Model.ViewMode">
                     Apply tag filter
                 </a>
             </span>
@@ -69,13 +202,14 @@
         </div>
     }
 
-    @if (!Model.Items.Any())
+    @if ((Model.IsListView && Model.EnableListViewUxUpgrade && !Model.ListItems.Any()) ||
+         (!Model.IsListView && !Model.Items.Any()))
     {
         if (Model.IsSearchActive)
         {
             <div class="alert alert-info">
                 No documents matched "@Model.Q".
-                <a href="/DocumentRepository/Documents">Show all active documents</a>
+                <a asp-page="./Index" asp-route-view="@Model.ViewMode">Show all active documents</a>
             </div>
         }
         else
@@ -85,14 +219,40 @@
     }
     else
     {
-        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
-            @foreach (var d in Model.Items)
-            {
-                <div class="col">
-                    @await Html.PartialAsync("_DocumentCard", d)
-                </div>
-            }
-        </div>
+        if (Model.IsListView && Model.EnableListViewUxUpgrade)
+        {
+            <div class="table-responsive docrepo-list-wrapper">
+                <table class="table docrepo-list">
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Document Category</th>
+                            <th>Office</th>
+                            <th>Document Date</th>
+                            <th>OCR Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in Model.ListItems)
+                        {
+                            @await Html.PartialAsync("_DocumentList", d)
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+                @foreach (var d in Model.Items)
+                {
+                    <div class="col">
+                        @await Html.PartialAsync("_DocumentCard", d)
+                    </div>
+                }
+            </div>
+        }
     }
 
     <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
@@ -109,6 +269,10 @@
                 </div>
                 <div class="modal-body">
                     <input type="hidden" name="q" value="@Model.Q" />
+                    @if (Model.EnableListViewUxUpgrade)
+                    {
+                        <input type="hidden" name="view" value="@Model.ViewMode" />
+                    }
 
                     <div class="mb-3">
                         <label class="form-label" for="tagInput">Tag</label>
