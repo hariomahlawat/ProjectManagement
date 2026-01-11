@@ -261,6 +261,55 @@ function initDirtyTracking() {
     updateApplyState();
 }
 
+// SECTION: Document repository partial results fetch
+async function fetchAndSwapResults(targetUrl, options = {}) {
+    const results = document.querySelector("#docrepoResults");
+    if (!results) {
+        window.location.assign(targetUrl);
+        return;
+    }
+
+    const updateHistory = options.updateHistory !== false;
+    const indicator = document.querySelector("#docrepoUpdating");
+
+    const setUpdating = (isUpdating) => {
+        if (indicator) {
+            indicator.classList.toggle("d-none", !isUpdating);
+        }
+        results.classList.toggle("docrepo-results--loading", isUpdating);
+    };
+
+    const requestUrl = new URL(targetUrl, window.location.origin);
+    requestUrl.searchParams.set("partial", "1");
+
+    setUpdating(true);
+
+    try {
+        const response = await fetch(requestUrl.toString(), {
+            method: "GET",
+            headers: { "X-Requested-With": "DocRepoPartial" }
+        });
+
+        if (!response.ok) {
+            window.location.assign(targetUrl);
+            return;
+        }
+
+        const html = await response.text();
+        results.innerHTML = html;
+
+        if (updateHistory) {
+            const cleanUrl = new URL(targetUrl, window.location.origin);
+            cleanUrl.searchParams.delete("partial");
+            history.pushState({}, "", cleanUrl.toString());
+        }
+    } catch (error) {
+        window.location.assign(targetUrl);
+    } finally {
+        setUpdating(false);
+    }
+}
+
 // SECTION: Document repository auto-apply filters
 function initAutoApplyFilters() {
     const form = document.querySelector("#docrepoFacetsForm");
@@ -285,18 +334,8 @@ function initAutoApplyFilters() {
     let tagTimer = null;
     let yearTimer = null;
 
-    // SECTION: Updating indicator
-    const showUpdating = () => {
-        const indicator = document.querySelector("#docrepoUpdating");
-        if (indicator) {
-            indicator.classList.remove("d-none");
-        }
-    };
-
     // SECTION: URL builder
     const buildUrlAndGo = () => {
-        showUpdating();
-
         const url = new URL(window.location.href);
 
         // Always reset page
@@ -335,7 +374,7 @@ function initAutoApplyFilters() {
             url.searchParams.delete("includeInactive");
         }
 
-        window.location.assign(url.toString());
+        fetchAndSwapResults(url.toString());
     };
 
     const autoApplyImmediate = () => {
@@ -436,6 +475,30 @@ function initAutoApplyFilters() {
             }, 600);
         });
     }
+
+    // SECTION: Pagination links
+    const resultsContainer = document.querySelector("#docrepoResults");
+    if (resultsContainer) {
+        resultsContainer.addEventListener("click", (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) {
+                return;
+            }
+
+            const link = target.closest("a");
+            if (!link || !link.closest(".pagination")) {
+                return;
+            }
+
+            const href = link.getAttribute("href");
+            if (!href) {
+                return;
+            }
+
+            event.preventDefault();
+            fetchAndSwapResults(new URL(href, window.location.origin).toString());
+        });
+    }
 }
 
 // SECTION: Document repository view preference
@@ -488,4 +551,9 @@ document.addEventListener("DOMContentLoaded", () => {
     initDirtyTracking();
     initViewPreference();
     initAutoApplyFilters();
+
+    // SECTION: Back/forward navigation
+    window.addEventListener("popstate", () => {
+        fetchAndSwapResults(window.location.href, { updateHistory: false });
+    });
 });

@@ -72,6 +72,13 @@
     color: var(--pm-text-muted);
 }
 
+/* SECTION: Results loading state */
+.docrepo-results--loading {
+    opacity: 0.6;
+    pointer-events: none;
+    transition: opacity 120ms ease-in-out;
+}
+
 /* ── header band ───────────────── */
 .doc-card__header {
     position: relative;

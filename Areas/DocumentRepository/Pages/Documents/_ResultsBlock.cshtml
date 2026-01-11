@@ -1,0 +1,208 @@
+@model ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel
+
+@if (Model.EnableListViewUxUpgrade)
+{
+    <!-- SECTION: Active filter summary -->
+    @{
+        var hasAnyFilter =
+            !string.IsNullOrWhiteSpace(Model.Q) ||
+            !string.IsNullOrWhiteSpace(Model.Tag) ||
+            Model.OfficeCategoryId.HasValue ||
+            Model.DocumentCategoryId.HasValue ||
+            Model.Year.HasValue ||
+            Model.IncludeInactive;
+
+        string officeLabel = Model.OfficeCategoryId.HasValue
+            ? (Model.OfficeCategories.FirstOrDefault(o => o.Id == Model.OfficeCategoryId)?.Name ?? "Selected")
+            : "All";
+
+        string typeLabel = Model.DocumentCategoryId.HasValue
+            ? (Model.DocumentCategories.FirstOrDefault(c => c.Id == Model.DocumentCategoryId)?.Name ?? "Selected")
+            : "All";
+    }
+
+    @if (hasAnyFilter)
+    {
+        <div class="docrepo-activefilters">
+            <div class="docrepo-activefilters__label">
+                <strong>Active filters:</strong>
+                @if (!string.IsNullOrWhiteSpace(Model.Q))
+                {
+                    <span>Search = “@Model.Q”;</span>
+                }
+                @if (Model.OfficeCategoryId.HasValue)
+                {
+                    <span>Office = @officeLabel;</span>
+                }
+                @if (Model.DocumentCategoryId.HasValue)
+                {
+                    <span>Type = @typeLabel;</span>
+                }
+                @if (Model.Year.HasValue)
+                {
+                    <span>Year = @Model.Year;</span>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.Tag))
+                {
+                    <span>Tag = @Model.Tag;</span>
+                }
+                @if (Model.IncludeInactive)
+                {
+                    <span>Inactive = Included;</span>
+                }
+            </div>
+
+            <a class="docrepo-activefilters__clear"
+               asp-page="./Index"
+               asp-route-view="@Model.ViewMode"
+               asp-route-pageSize="@Model.PageSize"
+               asp-route-page="1">
+                Clear all
+            </a>
+        </div>
+    }
+
+    <!-- SECTION: Top pager -->
+    <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
+
+    <!-- SECTION: Tag match alert -->
+    @if (Model.IsSearchActive && Model.HasTagMatch)
+    {
+        <div class="alert alert-secondary alert-dismissible fade show d-flex align-items-center gap-2 small" role="alert">
+            <i class="bi bi-bookmark-fill text-muted"></i>
+            <span>
+                Also found a tag with this name. You can filter by this tag.
+                <a class="alert-link"
+                   asp-page="./Index"
+                   asp-route-q="@Model.Q"
+                   asp-route-tag="@Model.Q"
+                   asp-route-officeCategoryId="@Model.OfficeCategoryId"
+                   asp-route-documentCategoryId="@Model.DocumentCategoryId"
+                   asp-route-year="@Model.Year"
+                   asp-route-includeInactive="@Model.IncludeInactive"
+                   asp-route-page="1"
+                   asp-route-pageSize="@Model.PageSize"
+                   asp-route-view="@Model.ViewMode">
+                    Apply tag filter
+                </a>
+            </span>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- SECTION: Results content -->
+    @if ((Model.IsListView && !Model.ListItems.Any()) ||
+         (!Model.IsListView && !Model.Items.Any()))
+    {
+        if (Model.IsSearchActive)
+        {
+            <div class="alert alert-info">
+                No documents matched "@Model.Q".
+                <a asp-page="./Index" asp-route-view="@Model.ViewMode">Show all active documents</a>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-light border">No documents found.</div>
+        }
+    }
+    else
+    {
+        if (Model.IsListView)
+        {
+            <div class="table-responsive docrepo-list-wrapper">
+                <table class="table docrepo-list">
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Document Category</th>
+                            <th>Office</th>
+                            <th>Document Date</th>
+                            <th>OCR Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in Model.ListItems)
+                        {
+                            @await Html.PartialAsync("_DocumentList", d)
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+                @foreach (var d in Model.Items)
+                {
+                    <div class="col">
+                        @await Html.PartialAsync("_DocumentCard", d)
+                    </div>
+                }
+            </div>
+        }
+    }
+
+    <!-- SECTION: Bottom pager -->
+    <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
+}
+else
+{
+    <!-- SECTION: Top pager -->
+    <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
+
+    <!-- SECTION: Tag match alert -->
+    @if (Model.IsSearchActive && Model.HasTagMatch)
+    {
+        <div class="alert alert-secondary alert-dismissible fade show d-flex align-items-center gap-2 small" role="alert">
+            <i class="bi bi-bookmark-fill text-muted"></i>
+            <span>
+                Also found a tag with this name. You can filter by this tag.
+                <a class="alert-link"
+                   asp-page="./Index"
+                   asp-route-q="@Model.Q"
+                   asp-route-tag="@Model.Q"
+                   asp-route-officeCategoryId="@Model.OfficeCategoryId"
+                   asp-route-documentCategoryId="@Model.DocumentCategoryId"
+                   asp-route-year="@Model.Year"
+                   asp-route-includeInactive="@Model.IncludeInactive"
+                   asp-route-page="1"
+                   asp-route-pageSize="@Model.PageSize">
+                    Apply tag filter
+                </a>
+            </span>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- SECTION: Results content -->
+    @if (!Model.Items.Any())
+    {
+        if (Model.IsSearchActive)
+        {
+            <div class="alert alert-info">
+                No documents matched "@Model.Q".
+                <a asp-page="./Index">Show all active documents</a>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-light border">No documents found.</div>
+        }
+    }
+    else
+    {
+        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+            @foreach (var d in Model.Items)
+            {
+                <div class="col">
+                    @await Html.PartialAsync("_DocumentCard", d)
+                </div>
+            }
+        </div>
+    }
+
+    <!-- SECTION: Bottom pager -->
+    <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
+}
