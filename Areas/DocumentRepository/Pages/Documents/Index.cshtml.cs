@@ -40,6 +40,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         // SECTION: View state
         public bool EnableListViewUxUpgrade { get; private set; }
+        public bool EnableAutoApplyFilters { get; private set; }
         public string ViewMode { get; private set; } = "cards";
         public bool IsListView => ViewMode.Equals("list", StringComparison.OrdinalIgnoreCase);
 
@@ -82,6 +83,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         {
             // SECTION: Feature flags
             EnableListViewUxUpgrade = _configuration.GetValue<bool>("DocRepo:EnableListViewUxUpgrade");
+            EnableAutoApplyFilters = _configuration.GetValue<bool>("DocRepo:EnableAutoApplyFilters");
 
             ViewMode = EnableListViewUxUpgrade && string.Equals(View, "cards", StringComparison.OrdinalIgnoreCase)
                 ? "cards"
