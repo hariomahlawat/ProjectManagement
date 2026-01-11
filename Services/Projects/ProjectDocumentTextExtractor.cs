@@ -169,7 +169,7 @@ public sealed class ProjectDocumentTextExtractor : IProjectDocumentTextExtractor
                 return ProjectDocumentPdfConversionResult.Failed("LibreOffice conversion did not produce a PDF output.");
             }
 
-            return ProjectDocumentPdfConversionResult.Success(derivativeStorageKey);
+            return ProjectDocumentPdfConversionResult.Succeeded(derivativeStorageKey);
         }
         catch (OperationCanceledException)
         {
@@ -394,7 +394,7 @@ public sealed class ProjectDocumentTextExtractor : IProjectDocumentTextExtractor
             Success = false
         };
 
-        public static ProjectDocumentPdfConversionResult Success(string storageKey) => new()
+        public static ProjectDocumentPdfConversionResult Succeeded(string storageKey) => new()
         {
             Attempted = true,
             Success = true,
