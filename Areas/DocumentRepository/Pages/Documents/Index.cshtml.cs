@@ -37,6 +37,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         [FromQuery(Name = "year")] public int? Year { get; set; }
         [FromQuery(Name = "includeInactive")] public bool IncludeInactive { get; set; }
         [FromQuery(Name = "view")] public string? View { get; set; }
+        [FromQuery(Name = "partial")] public bool Partial { get; set; }
 
         // SECTION: View state
         public bool EnableListViewUxUpgrade { get; private set; }
