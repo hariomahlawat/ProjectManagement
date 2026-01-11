@@ -45,7 +45,7 @@
                       asp-page="./Index"
                       class="docrepo-facets"
                       id="docrepoFacetsForm"
-                      data-autoapply="@(Model.EnableAutoApplyFilters ? "true" : "false")">
+                      data-autoapply="true">
                     <!-- SECTION: Apply-only params -->
                     <input type="hidden" name="q" value="@Model.Q" />
                     <input type="hidden" name="view" value="@Model.ViewMode" />
@@ -174,10 +174,6 @@
 
                     <!-- SECTION: Facet actions -->
                     <div class="docrepo-facet__actions">
-                        @if (!Model.EnableAutoApplyFilters)
-                        {
-                            <button type="submit" class="btn btn-primary btn-sm w-100" id="docrepoApplyBtn">Apply</button>
-                        }
                         <a class="btn btn-outline-secondary btn-sm w-100"
                            asp-page="./Index"
                            asp-route-page="1"
