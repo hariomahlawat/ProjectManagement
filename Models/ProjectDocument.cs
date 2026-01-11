@@ -13,7 +13,8 @@ namespace ProjectManagement.Models
         None = 0,
         Pending = 1,
         Succeeded = 2,
-        Failed = 3
+        Failed = 3,
+        Skipped = 4
     }
 
     public enum ProjectDocumentStatus
@@ -110,4 +111,3 @@ namespace ProjectManagement.Models
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 }
-

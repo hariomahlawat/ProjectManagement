@@ -293,6 +293,14 @@ builder.Services
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<ProjectDocumentOcrOptions>, ProjectDocumentOcrOptionsValidator>();
 builder.Services.AddSingleton<IProjectDocumentStorageResolver, ProjectDocumentStorageResolver>();
+// SECTION: Project document text extraction option binding
+builder.Services
+    .AddOptions<ProjectDocumentTextExtractorOptions>()
+    .Bind(builder.Configuration.GetSection("ProjectDocuments:TextExtraction"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<ProjectDocumentTextExtractorOptions>, ProjectDocumentTextExtractorOptionsValidator>();
+builder.Services.AddScoped<IProjectDocumentTextExtractor, ProjectDocumentTextExtractor>();
 builder.Services.AddScoped<IProjectDocumentOcrRunner, OcrmypdfProjectOcrRunner>();
 builder.Services.AddScoped<IGlobalProjectDocumentSearchService, GlobalProjectDocumentSearchService>();
 builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();

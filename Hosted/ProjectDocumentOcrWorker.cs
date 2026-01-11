@@ -31,6 +31,7 @@ public sealed class ProjectDocumentOcrWorker : BackgroundService
                 using var scope = _serviceProvider.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 var runner = scope.ServiceProvider.GetRequiredService<IProjectDocumentOcrRunner>();
+                var textExtractor = scope.ServiceProvider.GetRequiredService<IProjectDocumentTextExtractor>();
 
                 var documents = await db.ProjectDocuments
                     .Include(d => d.DocumentText)
@@ -48,74 +49,164 @@ public sealed class ProjectDocumentOcrWorker : BackgroundService
 
                 foreach (var document in documents)
                 {
-                    document.OcrLastTriedUtc = DateTimeOffset.UtcNow;
+                    var now = DateTimeOffset.UtcNow;
+                    document.OcrLastTriedUtc = now;
 
                     var refreshSearchVector = false;
 
                     try
                     {
-                        var result = await runner.RunAsync(document, stoppingToken);
-
-                        if (result.Success)
+                        if (IsPdfContentType(document.ContentType))
                         {
-                            // SECTION: Guard against ocrmypdf banner-only output
-                            var normalizedOcrText = result.Text?.Trim();
-                            var containsOnlySkipBanners = ContainsOnlySkipBanners(normalizedOcrText);
+                            // SECTION: PDF OCR pipeline
+                            var result = await runner.RunAsync(document, stoppingToken);
 
-                            if (containsOnlySkipBanners)
+                            if (result.Success)
                             {
-                                document.OcrStatus = ProjectDocumentOcrStatus.Failed;
-                                document.OcrFailureReason = "OCR produced only a skip message.";
+                                // SECTION: Guard against ocrmypdf banner-only output
+                                var normalizedOcrText = result.Text?.Trim();
+                                var containsOnlySkipBanners = ContainsOnlySkipBanners(normalizedOcrText);
 
-                                if (document.DocumentText is not null)
+                                if (containsOnlySkipBanners)
                                 {
-                                    document.DocumentText.OcrText = null;
-                                    document.DocumentText.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                                    document.OcrStatus = ProjectDocumentOcrStatus.Failed;
+                                    document.OcrFailureReason = "OCR produced only a skip message.";
+                                    UpdateDocumentText(db, document, null, now, ref refreshSearchVector);
+                                    _logger.LogWarning(
+                                        "OCR result for project document {DocumentId} contained only skip banners",
+                                        document.Id);
                                 }
-
-                                refreshSearchVector = true;
-                                _logger.LogWarning(
-                                    "OCR result for project document {DocumentId} contained only skip banners",
-                                    document.Id);
+                                else
+                                {
+                                    UpdateDocumentText(db, document, CapExtractedText(normalizedOcrText), now, ref refreshSearchVector);
+                                    document.OcrStatus = ProjectDocumentOcrStatus.Succeeded;
+                                    document.OcrFailureReason = null;
+                                    _logger.LogInformation("OCR succeeded for project document {DocumentId}", document.Id);
+                                }
                             }
                             else
                             {
-                                var text = document.DocumentText ?? new ProjectDocumentText
-                                {
-                                    ProjectDocumentId = document.Id,
-                                    UpdatedAtUtc = DateTimeOffset.UtcNow
-                                };
-
-                                if (document.DocumentText is null)
-                                {
-                                    db.ProjectDocumentTexts.Add(text);
-                                    document.DocumentText = text;
-                                }
-
-                                text.OcrText = CapExtractedText(normalizedOcrText);
-                                text.UpdatedAtUtc = DateTimeOffset.UtcNow;
-                                document.OcrStatus = ProjectDocumentOcrStatus.Succeeded;
-                                document.OcrFailureReason = null;
-                                refreshSearchVector = true;
-                                _logger.LogInformation("OCR succeeded for project document {DocumentId}", document.Id);
+                                document.OcrStatus = ProjectDocumentOcrStatus.Failed;
+                                document.OcrFailureReason = TrimForFailure(result.Error);
+                                UpdateDocumentText(db, document, null, now, ref refreshSearchVector);
+                                _logger.LogWarning(
+                                    "OCR failed for project document {DocumentId}: {Reason}",
+                                    document.Id,
+                                    document.OcrFailureReason);
                             }
                         }
                         else
                         {
-                            document.OcrStatus = ProjectDocumentOcrStatus.Failed;
-                            document.OcrFailureReason = TrimForFailure(result.Error);
+                            // SECTION: Office document extraction pipeline
+                            var extractionResult = await textExtractor.ExtractAsync(document, stoppingToken);
 
-                            if (document.DocumentText is not null)
+                            if (extractionResult.Status == ProjectDocumentTextExtractionStatus.NotApplicable)
                             {
-                                document.DocumentText.OcrText = null;
-                                document.DocumentText.UpdatedAtUtc = DateTimeOffset.UtcNow;
-                                refreshSearchVector = true;
+                                document.OcrStatus = ProjectDocumentOcrStatus.Skipped;
+                                document.OcrFailureReason = null;
+                                _logger.LogInformation(
+                                    "Skipping OCR for project document {DocumentId} because content type {ContentType} is not supported.",
+                                    document.Id,
+                                    document.ContentType);
                             }
+                            else if (extractionResult.Status == ProjectDocumentTextExtractionStatus.Failed)
+                            {
+                                document.OcrStatus = ProjectDocumentOcrStatus.Failed;
+                                document.OcrFailureReason = TrimForFailure(extractionResult.Error);
+                                UpdateDocumentText(db, document, null, now, ref refreshSearchVector);
+                                _logger.LogWarning(
+                                    "Text extraction failed for project document {DocumentId}: {Reason}",
+                                    document.Id,
+                                    document.OcrFailureReason);
+                            }
+                            else
+                            {
+                                if (!string.IsNullOrWhiteSpace(extractionResult.ConversionError))
+                                {
+                                    _logger.LogWarning(
+                                        "PDF conversion warning for project document {DocumentId}: {Reason}",
+                                        document.Id,
+                                        extractionResult.ConversionError);
+                                }
 
-                            _logger.LogWarning(
-                                "OCR failed for project document {DocumentId}: {Reason}",
-                                document.Id,
-                                document.OcrFailureReason);
+                                var combinedText = extractionResult.ExtractedText;
+
+                                if (!string.IsNullOrWhiteSpace(extractionResult.PdfDerivativeStorageKey))
+                                {
+                                    var derivativeDocument = new ProjectDocument
+                                    {
+                                        Id = document.Id,
+                                        StorageKey = extractionResult.PdfDerivativeStorageKey
+                                    };
+
+                                    var ocrResult = await runner.RunAsync(derivativeDocument, stoppingToken);
+                                    if (ocrResult.Success)
+                                    {
+                                        var normalizedOcrText = ocrResult.Text?.Trim();
+                                        if (ContainsOnlySkipBanners(normalizedOcrText))
+                                        {
+                                            normalizedOcrText = null;
+                                            _logger.LogWarning(
+                                                "OCR result for project document {DocumentId} PDF derivative contained only skip banners",
+                                                document.Id);
+                                        }
+
+                                        combinedText = CombineText(combinedText, normalizedOcrText);
+                                    }
+                                    else if (string.IsNullOrWhiteSpace(combinedText))
+                                    {
+                                        document.OcrStatus = ProjectDocumentOcrStatus.Failed;
+                                        document.OcrFailureReason = TrimForFailure(ocrResult.Error);
+                                        UpdateDocumentText(db, document, null, now, ref refreshSearchVector);
+                                        _logger.LogWarning(
+                                            "OCR failed for project document {DocumentId}: {Reason}",
+                                            document.Id,
+                                            document.OcrFailureReason);
+                                    }
+                                    else
+                                    {
+                                        _logger.LogWarning(
+                                            "OCR failed for project document {DocumentId} PDF derivative: {Reason}",
+                                            document.Id,
+                                            TrimForFailure(ocrResult.Error));
+                                    }
+                                }
+
+                                if (document.OcrStatus != ProjectDocumentOcrStatus.Failed)
+                                {
+                                    if (string.IsNullOrWhiteSpace(combinedText))
+                                    {
+                                        if (!string.IsNullOrWhiteSpace(extractionResult.ConversionError))
+                                        {
+                                            document.OcrStatus = ProjectDocumentOcrStatus.Failed;
+                                            document.OcrFailureReason = TrimForFailure(extractionResult.ConversionError);
+                                            UpdateDocumentText(db, document, null, now, ref refreshSearchVector);
+                                            _logger.LogWarning(
+                                                "PDF conversion failed for project document {DocumentId}: {Reason}",
+                                                document.Id,
+                                                document.OcrFailureReason);
+                                        }
+                                        else
+                                        {
+                                            document.OcrStatus = ProjectDocumentOcrStatus.Skipped;
+                                            document.OcrFailureReason = null;
+                                            UpdateDocumentText(db, document, null, now, ref refreshSearchVector);
+                                            _logger.LogInformation(
+                                                "No extractable text for project document {DocumentId}; marking OCR as skipped",
+                                                document.Id);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        UpdateDocumentText(db, document, CapExtractedText(combinedText), now, ref refreshSearchVector);
+                                        document.OcrStatus = ProjectDocumentOcrStatus.Succeeded;
+                                        document.OcrFailureReason = null;
+                                        _logger.LogInformation(
+                                            "Text extraction succeeded for project document {DocumentId}",
+                                            document.Id);
+                                    }
+                                }
+                            }
                         }
                     }
                     catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -228,6 +319,58 @@ public sealed class ProjectDocumentOcrWorker : BackgroundService
     private static string TrimLeadingBom(string value)
     {
         return value.Length > 0 ? value.TrimStart('\ufeff') : value;
+    }
+
+    private static string? CombineText(string? primary, string? secondary)
+    {
+        var normalizedPrimary = string.IsNullOrWhiteSpace(primary) ? null : primary.Trim();
+        var normalizedSecondary = string.IsNullOrWhiteSpace(secondary) ? null : secondary.Trim();
+
+        if (string.IsNullOrWhiteSpace(normalizedPrimary))
+        {
+            return normalizedSecondary;
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedSecondary))
+        {
+            return normalizedPrimary;
+        }
+
+        return $"{normalizedPrimary}\n\n{normalizedSecondary}";
+    }
+
+    private static bool IsPdfContentType(string? contentType)
+    {
+        return string.Equals(contentType, "application/pdf", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void UpdateDocumentText(
+        ApplicationDbContext db,
+        ProjectDocument document,
+        string? text,
+        DateTimeOffset now,
+        ref bool refreshSearchVector)
+    {
+        if (document.DocumentText is null && string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        var entry = document.DocumentText ?? new ProjectDocumentText
+        {
+            ProjectDocumentId = document.Id,
+            UpdatedAtUtc = now
+        };
+
+        if (document.DocumentText is null)
+        {
+            db.ProjectDocumentTexts.Add(entry);
+            document.DocumentText = entry;
+        }
+
+        entry.OcrText = text;
+        entry.UpdatedAtUtc = now;
+        refreshSearchVector = true;
     }
 
     // SECTION: Full-text search maintenance helpers
