@@ -21,6 +21,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
         {
+            // SECTION: Document lookup
             var doc = await _db.Documents
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
@@ -30,12 +31,13 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 return NotFound();
             }
 
+            // SECTION: Stream resolution
             var stream = await _storage.OpenReadAsync(doc.StoragePath, HttpContext.RequestAborted);
             var downloadName = string.IsNullOrWhiteSpace(doc.OriginalFileName)
-                ? $"Document-{doc.Id}.pdf"
+                ? $"Document-{doc.Id}"
                 : doc.OriginalFileName;
 
-            return File(stream, "application/pdf", downloadName);
+            return File(stream, doc.MimeType, downloadName);
         }
     }
 }
