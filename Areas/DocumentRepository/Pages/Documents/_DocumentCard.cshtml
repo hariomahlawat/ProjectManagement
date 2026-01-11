@@ -5,6 +5,7 @@
 @{
     var canEdit = await AuthorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata");
     var canSoftDelete = await AuthorizationService.AuthorizeAsync(User, "DocRepo.SoftDelete");
+    var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
 }
 
 <div class="doc-card doc-corner h-100">
@@ -93,7 +94,7 @@
     <div class="doc-card__actions">
         <authorize policy="DocRepo.View">
             <a class="btn btn-sm btn-outline-primary"
-               asp-page="./Reader" asp-route-id="@Model.Id"
+               asp-page="./Reader" asp-route-id="@Model.Id" asp-route-returnUrl="@returnUrl"
                title="Open viewer">
                 <i class="bi bi-eye"></i>
                 <span class="d-none d-sm-inline">View</span>

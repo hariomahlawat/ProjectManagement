@@ -8,53 +8,203 @@
     <link rel="stylesheet" href="~/css/docrepo-reader.css" asp-append-version="true" />
 }
 
-<!-- ultra-compact top bar -->
-<div class="docreader-topbar">
-    <div class="docreader-breadcrumb">
-        <a asp-area="" asp-page="/Index" class="docreader-link">Dashboard</a>
-        <span class="text-muted">/</span>
-        <a asp-area="DocumentRepository" asp-page="/Documents/Index" class="docreader-link">Documents</a>
-        <span class="text-muted">/</span>
-        <span class="docreader-title" title="@Model.DocumentTitle">
-            @Model.DocumentTitle
-        </span>
+@section Scripts {
+    <script src="~/js/docrepo-reader.js" asp-append-version="true"></script>
+}
+
+<div class="docreader-page">
+    <!-- SECTION: Toolbar -->
+    <div class="docreader-topbar">
+        <div class="docreader-breadcrumb">
+            <a asp-area="" asp-page="/Index" class="docreader-link">Dashboard</a>
+            <span class="text-muted">/</span>
+            <a asp-area="DocumentRepository" asp-page="/Documents/Index" class="docreader-link">Documents</a>
+            <span class="text-muted">/</span>
+            <span class="docreader-title" title="@Model.DocumentTitle">
+                @Model.DocumentTitle
+            </span>
+        </div>
+        <div class="docreader-actions">
+            <a class="btn btn-sm btn-outline-secondary docreader-btn"
+               href="@Model.ReturnUrl">
+                <i class="bi bi-arrow-left"></i>
+                <span>Back to results</span>
+            </a>
+            <button class="btn btn-sm btn-outline-secondary docreader-btn"
+                    type="button"
+                    data-docreader-details-toggle
+                    aria-expanded="false"
+                    aria-controls="docreader-details-panel">
+                <i class="bi bi-layout-text-sidebar-reverse"></i>
+                <span>Details</span>
+            </button>
+            @if (Model.IsFileMissing)
+            {
+                <button class="btn btn-sm btn-outline-secondary docreader-btn" type="button" disabled title="File missing from storage">
+                    <i class="bi bi-box-arrow-up-right"></i>
+                    <span>Open</span>
+                </button>
+            }
+            else
+            {
+                <a class="btn btn-sm btn-outline-secondary docreader-btn"
+                   href="@Model.ViewUrl"
+                   target="_blank"
+                   rel="noopener">
+                    <i class="bi bi-box-arrow-up-right"></i>
+                    <span>Open</span>
+                </a>
+            }
+            @if (Model.IsFileMissing)
+            {
+                <button class="btn btn-sm btn-primary docreader-btn" type="button" disabled title="File missing from storage">
+                    <i class="bi bi-download"></i>
+                    <span>Download</span>
+                </button>
+            }
+            else
+            {
+                <a class="btn btn-sm btn-primary docreader-btn"
+                   href="@Model.DownloadUrl">
+                    <i class="bi bi-download"></i>
+                    <span>Download</span>
+                </a>
+            }
+            <authorize policy="DocRepo.EditMetadata">
+                <a class="btn btn-sm btn-outline-primary docreader-btn"
+                   asp-page="./Edit"
+                   asp-route-id="@RouteData.Values["id"]">
+                    <i class="bi bi-pencil-square"></i>
+                    <span>Edit metadata</span>
+                </a>
+            </authorize>
+        </div>
     </div>
-    <div class="docreader-actions">
-        <a class="btn btn-sm btn-outline-secondary docreader-btn"
-           href="@Model.ViewUrl"
-           target="_blank"
-           rel="noopener">
-            Open
-        </a>
+
+    <!-- SECTION: Viewer -->
+    <div class="docreader-stage">
         @if (Model.IsFileMissing)
         {
-            <button class="btn btn-sm btn-primary docreader-btn" type="button" disabled title="File missing from storage">
-                Download
-            </button>
+            <div class="alert alert-warning m-3" role="alert">
+                The document record exists, but the PDF file is missing from storage. Please inform the administrator.
+            </div>
         }
         else
         {
-            <a class="btn btn-sm btn-primary docreader-btn"
-               href="@Model.DownloadUrl">
-                Download
-            </a>
+            <div class="docreader-viewer" data-docreader-viewer>
+                <div class="docreader-loading" data-docreader-loading>
+                    <div class="docreader-loading__spinner spinner-border text-primary" role="status" aria-label="Loading document"></div>
+                    <div class="docreader-loading__text">
+                        Loading document...
+                    </div>
+                    <div class="docreader-loading__warning alert alert-warning mt-3 d-none" role="alert" data-docreader-warning>
+                        Viewer is taking longer than expected. Use Open in new tab for a reliable experience.
+                        <a href="@Model.ViewUrl" class="alert-link" target="_blank" rel="noopener">Open in new tab</a>.
+                    </div>
+                </div>
+                <iframe src="@Model.ViewUrl"
+                        class="docreader-frame"
+                        title="Document viewer"
+                        loading="lazy"
+                        data-docreader-frame></iframe>
+            </div>
         }
     </div>
-</div>
 
-<!-- full-height viewer -->
-<div class="docreader-stage">
-    @if (Model.IsFileMissing)
-    {
-        <div class="alert alert-warning m-3" role="alert">
-            The document record exists, but the PDF file is missing from storage. Please inform the administrator.
+    <!-- SECTION: Details panel -->
+    <div class="docreader-details-backdrop" data-docreader-details-backdrop></div>
+    <aside class="docreader-details" id="docreader-details-panel" aria-hidden="true" data-docreader-details>
+        <div class="docreader-details__header">
+            <div>
+                <h6 class="mb-0">Document details</h6>
+                <small class="text-muted">Metadata and processing status</small>
+            </div>
+            <button class="btn btn-sm btn-light" type="button" data-docreader-details-close aria-label="Close details">
+                <i class="bi bi-x-lg"></i>
+            </button>
         </div>
-    }
-    else
-    {
-        <iframe src="@Model.ViewUrl"
-                class="docreader-frame"
-                title="Document viewer"
-                loading="lazy"></iframe>
-    }
+        <div class="docreader-details__body">
+            <dl class="row docreader-details__list">
+                <dt class="col-5 text-muted">Subject</dt>
+                <dd class="col-7">@Model.DocumentTitle</dd>
+
+                <dt class="col-5 text-muted">Office</dt>
+                <dd class="col-7">@Model.OfficeName</dd>
+
+                <dt class="col-5 text-muted">Document type</dt>
+                <dd class="col-7">@Model.DocumentCategoryName</dd>
+
+                <dt class="col-5 text-muted">Document date</dt>
+                <dd class="col-7">@((Model.DocumentDate.HasValue) ? Model.DocumentDate.Value.ToString("dd MMM yyyy") : "—")</dd>
+
+                <dt class="col-5 text-muted">Received from</dt>
+                <dd class="col-7">@(!string.IsNullOrWhiteSpace(Model.ReceivedFrom) ? Model.ReceivedFrom : "—")</dd>
+
+                <dt class="col-5 text-muted">Tags</dt>
+                <dd class="col-7">
+                    @if (Model.Tags.Length > 0)
+                    {
+                        <div class="docreader-tags">
+                            @foreach (var tag in Model.Tags)
+                            {
+                                <span class="badge rounded-pill bg-light text-muted">@tag</span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <span>—</span>
+                    }
+                </dd>
+
+                <dt class="col-5 text-muted">OCR status</dt>
+                <dd class="col-7">
+                    <span class="docreader-ocr docreader-ocr--@Model.OcrStatus.ToString().ToLowerInvariant()">
+                        @Model.OcrStatus
+                    </span>
+                    @if (!string.IsNullOrWhiteSpace(Model.OcrFailureReason))
+                    {
+                        <div class="text-muted small mt-1">@Model.OcrFailureReason</div>
+                    }
+                </dd>
+
+                <dt class="col-5 text-muted">Status</dt>
+                <dd class="col-7">
+                    @if (Model.IsActive)
+                    {
+                        <span class="badge bg-success-subtle text-success">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary-subtle text-secondary">Inactive</span>
+                    }
+                </dd>
+
+                <dt class="col-5 text-muted">File status</dt>
+                <dd class="col-7">
+                    @if (Model.IsFileMissing)
+                    {
+                        <span class="badge bg-warning-subtle text-warning">Missing from storage</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-success-subtle text-success">Available</span>
+                    }
+                </dd>
+
+                @if (Model.CreatedAtUtc.HasValue)
+                {
+                    <dt class="col-5 text-muted">Created</dt>
+                    <dd class="col-7">@Model.CreatedAtUtc.Value.ToString("dd MMM yyyy, HH:mm") UTC</dd>
+                }
+            </dl>
+
+            @if (Model.IsFileMissing)
+            {
+                <div class="alert alert-warning mt-3" role="alert">
+                    File missing from storage. Open and download actions are disabled.
+                </div>
+            }
+        </div>
+    </aside>
 </div>

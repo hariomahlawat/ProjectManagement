@@ -1,36 +1,42 @@
-﻿/* compact line at the very top of the reader page */
+﻿/* SECTION: Layout shell */
+.docreader-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--pm-text-contrast);
+}
+
+/* SECTION: Toolbar */
 .docreader-topbar {
-    height: 44px;
-    padding: 0 1rem;
-    border-bottom: 1px solid rgba(0,0,0,.05);
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
     background: var(--pm-card);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: .75rem;
+    gap: 1rem;
 }
 
-/* left side: breadcrumb-ish line */
 .docreader-breadcrumb {
     display: flex;
     align-items: center;
     gap: .35rem;
-    min-width: 0; /* allows text truncation */
+    min-width: 0;
 }
 
 .docreader-link {
-    font-size: .78rem;
+    font-size: .85rem;
     color: var(--pm-text-secondary);
     text-decoration: none;
 }
 
-    .docreader-link:hover {
-        text-decoration: underline;
-    }
+.docreader-link:hover {
+    text-decoration: underline;
+}
 
 .docreader-title {
-    font-weight: 500;
-    font-size: .78rem;
+    font-weight: 600;
+    font-size: .85rem;
     color: var(--pm-text-contrast);
     white-space: nowrap;
     overflow: hidden;
@@ -38,29 +44,34 @@
     max-width: 360px;
 }
 
-/* right side buttons */
 .docreader-actions {
     display: flex;
-    gap: .4rem;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .5rem;
 }
 
 .docreader-btn {
-    padding: .25rem .6rem;
-    font-size: .7rem;
+    padding: .35rem .7rem;
+    font-size: .75rem;
     line-height: 1.2;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
 }
 
-/*
-    viewer area fills the rest of the screen
-
-    44px  -> our compact header
-    56px  -> typical footer in your layout (the © 2025 line)
-    adjust 56px if your footer is different
-*/
+/* SECTION: Viewer */
 .docreader-stage {
-    width: 100%;
-    height: calc(100vh - 44px - 56px);
+    flex: 1;
+    min-height: 0;
+    position: relative;
     background: var(--pm-text-contrast);
+}
+
+.docreader-viewer {
+    position: relative;
+    width: 100%;
+    height: 100%;
 }
 
 .docreader-frame {
@@ -70,21 +81,133 @@
     background: var(--pm-text-contrast);
 }
 
-/* smaller screens */
+.docreader-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .75rem;
+    background: rgba(255, 255, 255, 0.85);
+    z-index: 2;
+    padding: 1rem;
+}
+
+.docreader-loading__spinner {
+    width: 2.5rem;
+    height: 2.5rem;
+}
+
+.docreader-loading__text {
+    font-size: .9rem;
+    color: var(--pm-text-secondary);
+}
+
+.docreader-viewer.is-loaded .docreader-loading {
+    display: none;
+}
+
+/* SECTION: Details panel */
+.docreader-details-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 1040;
+}
+
+.docreader-details-backdrop.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.docreader-details {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: 360px;
+    max-width: 90vw;
+    background: var(--pm-card);
+    border-left: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: -12px 0 24px rgba(0, 0, 0, 0.08);
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    z-index: 1050;
+    display: flex;
+    flex-direction: column;
+}
+
+.docreader-details.is-open {
+    transform: translateX(0);
+}
+
+.docreader-details__header {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.docreader-details__body {
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+.docreader-details__list dt {
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.docreader-details__list dd {
+    margin-bottom: .75rem;
+}
+
+.docreader-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+}
+
+.docreader-ocr {
+    font-weight: 600;
+}
+
+.docreader-ocr--succeeded {
+    color: #198754;
+}
+
+.docreader-ocr--failed {
+    color: #dc3545;
+}
+
+.docreader-ocr--pending {
+    color: #ffc107;
+}
+
+.docreader-ocr--none {
+    color: var(--pm-text-secondary);
+}
+
+/* SECTION: Responsive tweaks */
 @media (max-width: 640px) {
     .docreader-topbar {
-        gap: .5rem;
+        flex-direction: column;
+        align-items: flex-start;
     }
 
     .docreader-title {
-        max-width: 180px;
+        max-width: 220px;
     }
 
     .docreader-actions {
-        gap: .25rem;
-    }
-
-    .docreader-btn {
-        padding: .25rem .5rem;
+        width: 100%;
+        justify-content: flex-start;
     }
 }
