@@ -546,11 +546,126 @@ function initViewPreference() {
     }
 }
 
+// SECTION: Document repository favourite toggles
+function initFavouriteToggles() {
+    const results = document.querySelector("#docrepoResults");
+    if (!results) {
+        return;
+    }
+
+    const toggleUrl = results.getAttribute("data-toggle-url");
+    if (!toggleUrl) {
+        return;
+    }
+
+    const tokenInput = document.querySelector("#docrepoFavouriteToken input[name=\"__RequestVerificationToken\"]");
+    const alertEl = document.getElementById("docrepoFavouriteAlert");
+    let alertTimer = null;
+
+    const showAlert = () => {
+        if (!alertEl) {
+            return;
+        }
+
+        alertEl.classList.remove("d-none");
+        if (alertTimer) {
+            clearTimeout(alertTimer);
+        }
+        alertTimer = setTimeout(() => {
+            alertEl.classList.add("d-none");
+        }, 4000);
+    };
+
+    const setButtonState = (button, isFavourite) => {
+        const nextValue = isFavourite ? "true" : "false";
+        const title = isFavourite ? "Remove from favourites" : "Add to favourites";
+
+        button.setAttribute("data-fav", nextValue);
+        button.setAttribute("title", title);
+        button.setAttribute("aria-label", title);
+
+        const icon = button.querySelector("i");
+        if (icon) {
+            icon.classList.toggle("bi-star-fill", isFavourite);
+            icon.classList.toggle("bi-star", !isFavourite);
+        }
+    };
+
+    const removeFavouriteItem = (button) => {
+        const row = button.closest(".docrepo-row");
+        if (row) {
+            row.remove();
+            return;
+        }
+
+        const col = button.closest(".col");
+        if (col) {
+            col.remove();
+            return;
+        }
+
+        const card = button.closest(".docrepo-card");
+        if (card) {
+            card.remove();
+        }
+    };
+
+    document.addEventListener("click", async (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+
+        const button = target.closest(".docrepo-star");
+        if (!button) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const documentId = button.getAttribute("data-docid");
+        if (!documentId || !tokenInput) {
+            showAlert();
+            return;
+        }
+
+        const wasFavourite = button.getAttribute("data-fav") === "true";
+        setButtonState(button, !wasFavourite);
+
+        try {
+            const response = await fetch(`${toggleUrl}?id=${encodeURIComponent(documentId)}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "RequestVerificationToken": tokenInput.value
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error("Favourite toggle failed.");
+            }
+
+            const data = await response.json();
+            const isFavourite = !!data.isFavourite;
+            setButtonState(button, isFavourite);
+
+            const isFavouritesScope = (new URL(window.location.href)).searchParams.get("scope")?.toLowerCase() === "favourites";
+            if (isFavouritesScope && !isFavourite) {
+                removeFavouriteItem(button);
+            }
+        } catch (error) {
+            setButtonState(button, wasFavourite);
+            showAlert();
+        }
+    });
+}
+
 // SECTION: Document repository DOM initialization
 document.addEventListener("DOMContentLoaded", () => {
     initDirtyTracking();
     initViewPreference();
     initAutoApplyFilters();
+    initFavouriteToggles();
 
     // SECTION: Back/forward navigation
     window.addEventListener("popstate", () => {

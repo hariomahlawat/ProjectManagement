@@ -18,4 +18,7 @@ public sealed class DocumentListItemVm
     // SECTION: Status metadata
     public DocOcrStatus OcrStatus { get; set; }
     public bool IsActive { get; set; }
+
+    // SECTION: Personalization
+    public bool IsFavourite { get; set; }
 }

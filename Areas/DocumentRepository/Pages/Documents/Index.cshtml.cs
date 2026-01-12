@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -38,11 +39,13 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         [FromQuery(Name = "includeInactive")] public bool IncludeInactive { get; set; }
         [FromQuery(Name = "view")] public string? View { get; set; }
         [FromQuery(Name = "partial")] public bool Partial { get; set; }
+        [FromQuery(Name = "scope")] public string? Scope { get; set; }
 
         // SECTION: View state
         public bool EnableListViewUxUpgrade { get; private set; }
         public string ViewMode { get; private set; } = "cards";
         public bool IsListView => ViewMode.Equals("list", StringComparison.OrdinalIgnoreCase);
+        public bool IsFavouritesScope => string.Equals(Scope, "favourites", StringComparison.OrdinalIgnoreCase);
 
         // SECTION: Paging
         private const int DefaultPageSize = 30;
@@ -105,13 +108,33 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             }
 
             // SECTION: Base query
-        IQueryable<Document> query = _db.Documents
-            .AsNoTracking()
-            .Where(document => !document.IsDeleted && !document.IsExternal);
+            IQueryable<Document> query = _db.Documents
+                .AsNoTracking()
+                .Where(document => !document.IsDeleted && !document.IsExternal);
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
             if (!IncludeInactive)
             {
                 query = query.Where(document => document.IsActive);
+            }
+
+            // SECTION: Favourites scope
+            if (IsFavouritesScope)
+            {
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    query = query.Where(document => false);
+                }
+                else
+                {
+                    var favouriteIds = _db.DocRepoFavourites
+                        .AsNoTracking()
+                        .Where(favourite => favourite.UserId == userId)
+                        .Select(favourite => favourite.DocumentId);
+
+                    query = query.Where(document => favouriteIds.Contains(document.Id));
+                }
             }
 
             // SECTION: Tag filter
@@ -179,6 +202,8 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                         .Skip((PageNumber - 1) * PageSize)
                         .Take(PageSize)
                         .ToListAsync();
+
+                    await ApplyFavouriteStateAsync(userId, ListItems);
                 }
                 else
                 {
@@ -186,6 +211,8 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                         .Skip((PageNumber - 1) * PageSize)
                         .Take(PageSize)
                         .ToListAsync();
+
+                    await ApplyFavouriteStateAsync(userId, Items);
                 }
 
                 HasTagMatch = await searchedProjectedQuery.AnyAsync(item => item.MatchedInTags);
@@ -215,6 +242,8 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                         .Skip((PageNumber - 1) * PageSize)
                         .Take(PageSize)
                         .ToListAsync();
+
+                    await ApplyFavouriteStateAsync(userId, ListItems);
                 }
                 else
                 {
@@ -242,6 +271,8 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                         .Skip((PageNumber - 1) * PageSize)
                         .Take(PageSize)
                         .ToListAsync();
+
+                    await ApplyFavouriteStateAsync(userId, Items);
                 }
 
                 HasTagMatch = false;
@@ -261,6 +292,81 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 .OrderBy(category => category.SortOrder)
                 .ThenBy(category => category.Name)
                 .ToListAsync();
+        }
+
+        // SECTION: Favourite toggle handler
+        public async Task<IActionResult> OnPostToggleFavouriteAsync(Guid id)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return Unauthorized();
+            }
+
+            var canViewDocument = await _db.Documents
+                .AsNoTracking()
+                .AnyAsync(document => document.Id == id && !document.IsDeleted && !document.IsExternal);
+
+            if (!canViewDocument)
+            {
+                return NotFound();
+            }
+
+            var existing = await _db.DocRepoFavourites
+                .FirstOrDefaultAsync(favourite => favourite.UserId == userId && favourite.DocumentId == id);
+
+            if (existing != null)
+            {
+                _db.DocRepoFavourites.Remove(existing);
+                await _db.SaveChangesAsync();
+                return new JsonResult(new { isFavourite = false });
+            }
+
+            _db.DocRepoFavourites.Add(new DocRepoFavourite
+            {
+                UserId = userId,
+                DocumentId = id,
+                CreatedAtUtc = DateTime.UtcNow
+            });
+
+            await _db.SaveChangesAsync();
+
+            return new JsonResult(new { isFavourite = true });
+        }
+
+        // SECTION: Favourite state helpers
+        private async Task ApplyFavouriteStateAsync(string? userId, IReadOnlyCollection<DocumentListItemVm> items)
+        {
+            var documentIds = items.Select(item => item.Id).ToList();
+            var favourites = await GetFavouriteIdsAsync(userId, documentIds);
+            foreach (var item in items)
+            {
+                item.IsFavourite = favourites.Contains(item.Id);
+            }
+        }
+
+        private async Task ApplyFavouriteStateAsync(string? userId, IReadOnlyCollection<DocumentSearchResultVm> items)
+        {
+            var documentIds = items.Select(item => item.Id).ToList();
+            var favourites = await GetFavouriteIdsAsync(userId, documentIds);
+            foreach (var item in items)
+            {
+                item.IsFavourite = favourites.Contains(item.Id);
+            }
+        }
+
+        private async Task<HashSet<Guid>> GetFavouriteIdsAsync(string? userId, IReadOnlyCollection<Guid> documentIds)
+        {
+            if (string.IsNullOrWhiteSpace(userId) || documentIds.Count == 0)
+            {
+                return new HashSet<Guid>();
+            }
+
+            return await _db.DocRepoFavourites
+                .AsNoTracking()
+                .Where(favourite => favourite.UserId == userId && documentIds.Contains(favourite.DocumentId))
+                .Select(favourite => favourite.DocumentId)
+                .ToHashSetAsync();
         }
     }
 }

@@ -1629,6 +1629,35 @@ namespace ProjectManagement.Migrations
                     b.ToTable("DocRepoExternalLinks", (string)null);
                 });
 
+            modelBuilder.Entity("ProjectManagement.Data.DocRepo.DocRepoFavourite", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("UserId", "DocumentId")
+                        .IsUnique();
+
+                    b.ToTable("DocRepoFavourites");
+                });
+
             modelBuilder.Entity("ProjectManagement.Data.DocRepo.Document", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5968,6 +5997,17 @@ namespace ProjectManagement.Migrations
                 {
                     b.HasOne("ProjectManagement.Data.DocRepo.Document", "Document")
                         .WithMany("ExternalLinks")
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Document");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Data.DocRepo.DocRepoFavourite", b =>
+                {
+                    b.HasOne("ProjectManagement.Data.DocRepo.Document", "Document")
+                        .WithMany()
                         .HasForeignKey("DocumentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
