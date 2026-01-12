@@ -2,13 +2,13 @@
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel
 @{
     ViewData["Title"] = "Document repository";
-    if (Model.Partial)
+    if (Model.IsPartial)
     {
         Layout = null;
     }
 }
 
-@if (!Model.Partial)
+@if (!Model.IsPartial)
 {
     @section Styles {
         <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
@@ -20,7 +20,7 @@
     }
 }
 
-@if (Model.Partial)
+@if (Model.IsPartial)
 {
     <partial name="_ResultsBlock" model="Model" />
 }
