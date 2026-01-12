@@ -261,6 +261,72 @@ function initDirtyTracking() {
     updateApplyState();
 }
 
+// SECTION: Document repository scope sync
+function syncScopeUiFromLocation() {
+    const url = new URL(window.location.href);
+    const scope = (url.searchParams.get("scope") || "").toLowerCase();
+
+    // SECTION: Hidden scope inputs
+    document.querySelectorAll('input[name="scope"]').forEach((input) => {
+        input.value = scope;
+    });
+
+    // SECTION: Rail active state
+    const rail = document.querySelector(".docrepo-rail");
+    if (!rail) {
+        return;
+    }
+
+    rail.querySelectorAll("a.docrepo-rail__item").forEach((link) => {
+        const linkScope = (link.getAttribute("data-scope") || "").toLowerCase();
+        link.classList.toggle("is-active", linkScope === scope);
+    });
+}
+
+// SECTION: Document repository scope navigation
+function initScopeNavigation() {
+    const rail = document.querySelector(".docrepo-rail");
+    if (!rail) {
+        return;
+    }
+
+    rail.addEventListener("click", (event) => {
+        const link = event.target.closest("a.docrepo-rail__item");
+        if (!link) {
+            return;
+        }
+
+        if (event.button !== 0) {
+            return;
+        }
+
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+            return;
+        }
+
+        const href = link.getAttribute("href");
+        if (!href) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const targetUrl = new URL(href, window.location.origin);
+        const scope = (targetUrl.searchParams.get("scope") || "").toLowerCase();
+
+        // SECTION: Immediate UI feedback
+        rail.querySelectorAll("a.docrepo-rail__item").forEach((item) => item.classList.remove("is-active"));
+        link.classList.add("is-active");
+
+        // SECTION: Keep forms aligned with scope
+        document.querySelectorAll('input[name="scope"]').forEach((input) => {
+            input.value = scope;
+        });
+
+        fetchAndSwapResults(targetUrl.toString());
+    });
+}
+
 // SECTION: Document repository partial results fetch
 async function fetchAndSwapResults(targetUrl, options = {}) {
     const results = document.querySelector("#docrepoResults");
@@ -303,6 +369,8 @@ async function fetchAndSwapResults(targetUrl, options = {}) {
             cleanUrl.searchParams.delete("partial");
             history.pushState({}, "", cleanUrl.toString());
         }
+
+        syncScopeUiFromLocation();
     } catch (error) {
         window.location.assign(targetUrl);
     } finally {
@@ -666,13 +734,16 @@ function initFavouriteToggles() {
 
 // SECTION: Document repository DOM initialization
 document.addEventListener("DOMContentLoaded", () => {
+    syncScopeUiFromLocation();
+    initScopeNavigation();
     initDirtyTracking();
     initViewPreference();
     initAutoApplyFilters();
     initFavouriteToggles();
 
     // SECTION: Back/forward navigation
-    window.addEventListener("popstate", () => {
-        fetchAndSwapResults(window.location.href, { updateHistory: false });
+    window.addEventListener("popstate", async () => {
+        await fetchAndSwapResults(window.location.href, { updateHistory: false });
+        syncScopeUiFromLocation();
     });
 });
