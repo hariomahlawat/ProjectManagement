@@ -86,6 +86,14 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         public async Task OnGetAsync()
         {
+            // SECTION: Partial request detection
+            if (!IsPartial &&
+                Request.Headers.TryGetValue("X-Requested-With", out var requestedWith) &&
+                string.Equals(requestedWith.ToString(), "DocRepoPartial", StringComparison.OrdinalIgnoreCase))
+            {
+                IsPartial = true;
+            }
+
             // SECTION: Feature flags
             EnableListViewUxUpgrade = _configuration.GetValue<bool>("DocRepo:EnableListViewUxUpgrade");
 
