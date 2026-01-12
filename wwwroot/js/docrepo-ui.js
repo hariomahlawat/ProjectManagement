@@ -346,7 +346,7 @@ async function fetchAndSwapResults(targetUrl, options = {}) {
     };
 
     const requestUrl = new URL(targetUrl, window.location.origin);
-    requestUrl.searchParams.set("partial", "1");
+    requestUrl.searchParams.set("partial", "true");
 
     setUpdating(true);
 
