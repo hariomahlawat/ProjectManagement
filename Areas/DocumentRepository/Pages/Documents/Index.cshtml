@@ -52,6 +52,7 @@ else
                 <!-- SECTION: Navigation rail -->
                 <nav class="docrepo-rail" aria-label="Document scopes">
                     <a class="docrepo-rail__item @(Model.IsDefaultScope ? "is-active" : string.Empty)"
+                       data-scope=""
                        asp-page="./Index"
                        asp-route-view="@Model.ViewMode"
                        asp-route-page="1"
@@ -62,6 +63,7 @@ else
                         <span class="docrepo-rail__label">Documents</span>
                     </a>
                     <a class="docrepo-rail__item @(Model.IsFavouritesScope ? "is-active" : string.Empty)"
+                       data-scope="favourites"
                        asp-page="./Index"
                        asp-route-scope="favourites"
                        asp-route-view="@Model.ViewMode"
@@ -73,6 +75,7 @@ else
                         <span class="docrepo-rail__label">Favourites</span>
                     </a>
                     <a class="docrepo-rail__item @(Model.IsAotsScope ? "is-active" : string.Empty)"
+                       data-scope="aots"
                        asp-page="./Index"
                        asp-route-scope="aots"
                        asp-route-view="@Model.ViewMode"
