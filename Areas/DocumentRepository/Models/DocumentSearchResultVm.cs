@@ -30,4 +30,7 @@ public sealed class DocumentSearchResultVm
 
     // SECTION: Status
     public bool IsActive { get; set; }
+
+    // SECTION: Personalization
+    public bool IsFavourite { get; set; }
 }

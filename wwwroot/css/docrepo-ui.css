@@ -314,6 +314,55 @@
     align-items: flex-start;
 }
 
+/* SECTION: Navigation rail */
+.docrepo-rail {
+    width: 64px;
+    flex: 0 0 64px;
+    background: var(--pm-card);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 0.85rem;
+    padding: 0.5rem;
+    position: sticky;
+    top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.docrepo-rail__item {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.45rem 0.35rem;
+    border-radius: 0.7rem;
+    text-decoration: none;
+    color: var(--pm-text-muted);
+    font-size: 0.62rem;
+    transition: background-color 120ms ease-in-out, color 120ms ease-in-out;
+}
+
+.docrepo-rail__item i {
+    font-size: 1rem;
+}
+
+.docrepo-rail__item:hover {
+    color: var(--pm-primary-strong);
+    background: var(--pm-primary-soft);
+}
+
+.docrepo-rail__item.is-active {
+    color: var(--pm-primary-strong);
+    background: var(--pm-primary-soft);
+    font-weight: 600;
+}
+
+.docrepo-rail__label {
+    text-align: center;
+}
+
 .docrepo-filters {
     width: 300px;
     flex: 0 0 300px;
@@ -410,6 +459,40 @@
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
+}
+
+/* SECTION: Favourite stars */
+.docrepo-star {
+    border: none;
+    background: transparent;
+    color: var(--pm-text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.15rem;
+    border-radius: 9999px;
+    transition: color 120ms ease-in-out, background-color 120ms ease-in-out;
+}
+
+.docrepo-star:hover {
+    color: var(--pm-primary-strong);
+    background: var(--pm-primary-soft);
+}
+
+.docrepo-star[data-fav="true"] {
+    color: var(--pm-primary-strong);
+}
+
+.docrepo-star--card {
+    margin-left: auto;
+}
+
+.doc-card__meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    margin-bottom: 0.25rem;
 }
 
 .docrepo-check {
@@ -576,6 +659,18 @@
 @media (max-width: 992px) {
     .docrepo-shell {
         flex-direction: column;
+    }
+
+    .docrepo-rail {
+        width: 100%;
+        flex: 1 1 auto;
+        flex-direction: row;
+        justify-content: flex-start;
+        position: static;
+    }
+
+    .docrepo-rail__item {
+        flex: 1 1 auto;
     }
 
     .docrepo-filters {

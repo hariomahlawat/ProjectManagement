@@ -37,10 +37,43 @@ else
             </ol>
         </nav>
 
+        <!-- SECTION: Favourite toggle helpers -->
+        <form id="docrepoFavouriteToken" method="post" class="d-none">
+            @Html.AntiForgeryToken()
+        </form>
+        <div class="alert alert-danger d-none docrepo-favourite-alert" id="docrepoFavouriteAlert" role="alert">
+            Unable to update favourite. Try again.
+        </div>
+
         @if (Model.EnableListViewUxUpgrade)
         {
             <!-- SECTION: Shell layout -->
             <div class="docrepo-shell">
+                <!-- SECTION: Navigation rail -->
+                <nav class="docrepo-rail" aria-label="Document scopes">
+                    <a class="docrepo-rail__item @(!Model.IsFavouritesScope ? "is-active" : string.Empty)"
+                       asp-page="./Index"
+                       asp-route-view="@Model.ViewMode"
+                       asp-route-page="1"
+                       asp-route-pageSize="@Model.PageSize"
+                       title="Documents"
+                       aria-label="Documents">
+                        <i class="bi bi-folder"></i>
+                        <span class="docrepo-rail__label">Documents</span>
+                    </a>
+                    <a class="docrepo-rail__item @(Model.IsFavouritesScope ? "is-active" : string.Empty)"
+                       asp-page="./Index"
+                       asp-route-scope="favourites"
+                       asp-route-view="@Model.ViewMode"
+                       asp-route-page="1"
+                       asp-route-pageSize="@Model.PageSize"
+                       title="Favourites"
+                       aria-label="Favourites">
+                        <i class="bi bi-star-fill"></i>
+                        <span class="docrepo-rail__label">Favourites</span>
+                    </a>
+                </nav>
+
                 <!-- SECTION: Filters panel -->
                 <aside class="docrepo-filters" id="docrepoFilters">
                     <div class="docrepo-filters__header">
@@ -62,6 +95,7 @@ else
                         <!-- SECTION: Apply-only params -->
                         <input type="hidden" name="q" value="@Model.Q" />
                         <input type="hidden" name="view" value="@Model.ViewMode" />
+                        <input type="hidden" name="scope" value="@Model.Scope" />
                         <input type="hidden" name="page" value="1" />
                         <input type="hidden" name="pageSize" value="@Model.PageSize" />
 
@@ -189,6 +223,7 @@ else
                         <div class="docrepo-facet__actions">
                             <a class="btn btn-outline-secondary btn-sm w-100"
                                asp-page="./Index"
+                               asp-route-scope="@Model.Scope"
                                asp-route-page="1"
                                asp-route-pageSize="@Model.PageSize"
                                asp-route-view="@Model.ViewMode">
@@ -228,6 +263,7 @@ else
                             <input type="hidden" name="page" value="1" />
                             <input type="hidden" name="pageSize" value="@Model.PageSize" />
                             <input type="hidden" name="view" value="@Model.ViewMode" />
+                            <input type="hidden" name="scope" value="@Model.Scope" />
                             <input type="hidden" name="tag" value="@Model.Tag" />
                             <input type="hidden" name="officeCategoryId" value="@(Model.OfficeCategoryId?.ToString() ?? string.Empty)" />
                             <input type="hidden" name="documentCategoryId" value="@(Model.DocumentCategoryId?.ToString() ?? string.Empty)" />
@@ -257,7 +293,7 @@ else
                         </div>
                     </div>
 
-                    <div id="docrepoResults">
+                    <div id="docrepoResults" data-toggle-url="@Url.Page("./Index", "ToggleFavourite", new { area = "DocumentRepository" })">
                         <partial name="_ResultsBlock" model="Model" />
                     </div>
                 </main>
@@ -289,6 +325,7 @@ else
 
                     <input type="hidden" name="page" value="1" />
                     <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                    <input type="hidden" name="scope" value="@Model.Scope" />
                     <input type="hidden" name="tag" value="@Model.Tag" />
                     <input type="hidden" name="officeCategoryId" value="@Model.OfficeCategoryId" />
                     <input type="hidden" name="documentCategoryId" value="@Model.DocumentCategoryId" />
@@ -300,7 +337,7 @@ else
                 </form>
             </div>
 
-            <div id="docrepoResults">
+            <div id="docrepoResults" data-toggle-url="@Url.Page("./Index", "ToggleFavourite", new { area = "DocumentRepository" })">
                 <partial name="_ResultsBlock" model="Model" />
             </div>
         }
@@ -321,6 +358,7 @@ else
                             <input type="hidden" name="q" value="@Model.Q" />
                             <input type="hidden" name="page" value="1" />
                             <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                            <input type="hidden" name="scope" value="@Model.Scope" />
 
                             <div class="mb-3">
                                 <label class="form-label" for="tagInput">Tag</label>

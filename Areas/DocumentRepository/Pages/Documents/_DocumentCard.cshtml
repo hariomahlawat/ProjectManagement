@@ -28,13 +28,24 @@
             }
         </div>
 
-        <div class="text-end">
-            @if (Model.Rank.HasValue)
-            {
-                <div class="mb-1">
+        <div class="doc-card__meta text-end">
+            <div class="doc-card__meta-row" data-no-row-nav>
+                <authorize policy="DocRepo.View">
+                    <button type="button"
+                            class="docrepo-star docrepo-star--card"
+                            data-docid="@Model.Id"
+                            data-fav="@(Model.IsFavourite ? "true" : "false")"
+                            title="@(Model.IsFavourite ? "Remove from favourites" : "Add to favourites")"
+                            aria-label="@(Model.IsFavourite ? "Remove from favourites" : "Add to favourites")"
+                            data-no-row-nav>
+                        <i class="bi @(Model.IsFavourite ? "bi-star-fill" : "bi-star")"></i>
+                    </button>
+                </authorize>
+                @if (Model.Rank.HasValue)
+                {
                     <span class="badge bg-light text-muted">Relevance @Model.Rank.Value.ToString("0.00")</span>
-                </div>
-            }
+                }
+            </div>
 
             <span class="doc-card__stamp @(Model.OcrStatus switch
                   {

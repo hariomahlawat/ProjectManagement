@@ -18,6 +18,17 @@
     <td>
         <div class="d-flex flex-column gap-1">
             <div class="d-flex align-items-center gap-2">
+                <authorize policy="DocRepo.View">
+                    <button type="button"
+                            class="docrepo-star"
+                            data-docid="@Model.Id"
+                            data-fav="@(Model.IsFavourite ? "true" : "false")"
+                            title="@(Model.IsFavourite ? "Remove from favourites" : "Add to favourites")"
+                            aria-label="@(Model.IsFavourite ? "Remove from favourites" : "Add to favourites")"
+                            data-no-row-nav>
+                        <i class="bi @(Model.IsFavourite ? "bi-star-fill" : "bi-star")"></i>
+                    </button>
+                </authorize>
                 @if (Model.IsActive)
                 {
                     <a asp-page="./Reader" asp-route-id="@Model.Id" asp-route-returnUrl="@returnUrl" class="docrepo-subject-link">

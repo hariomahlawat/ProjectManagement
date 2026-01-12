@@ -130,6 +130,7 @@ namespace ProjectManagement.Data
         public DbSet<DocRepoAudit> DocRepoAudits => Set<DocRepoAudit>();
         public DbSet<OfficeCategory> OfficeCategories => Set<OfficeCategory>();
         public DbSet<DocumentCategory> DocumentCategories => Set<DocumentCategory>();
+        public DbSet<DocRepoFavourite> DocRepoFavourites => Set<DocRepoFavourite>();
 
         // SECTION: PostgreSQL text search helpers
         public static string TsHeadline(string config, string text, NpgsqlTsQuery query, string options) => throw new NotSupportedException();
@@ -294,6 +295,18 @@ namespace ProjectManagement.Data
                 e.Property(x => x.ActorUserId).HasMaxLength(450).IsRequired();
                 e.Property(x => x.DetailsJson).HasColumnType("jsonb");
                 e.HasIndex(x => new { x.DocumentId, x.OccurredAtUtc });
+            });
+
+            // SECTION: Document repository favourites
+            builder.Entity<DocRepoFavourite>(e =>
+            {
+                e.Property(x => x.UserId).HasMaxLength(64).IsRequired();
+                e.Property(x => x.CreatedAtUtc).IsRequired();
+                e.HasIndex(x => new { x.UserId, x.DocumentId }).IsUnique();
+                e.HasOne(x => x.Document)
+                    .WithMany()
+                    .HasForeignKey(x => x.DocumentId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<Project>(e =>

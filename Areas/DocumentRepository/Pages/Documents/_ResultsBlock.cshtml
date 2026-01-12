@@ -2,21 +2,19 @@
 
 @{
     // SECTION: Shared view state
-    var hasAnyFilter = false;
+    var hasAnyFilter =
+        !string.IsNullOrWhiteSpace(Model.Q) ||
+        !string.IsNullOrWhiteSpace(Model.Tag) ||
+        Model.OfficeCategoryId.HasValue ||
+        Model.DocumentCategoryId.HasValue ||
+        Model.Year.HasValue ||
+        Model.IncludeInactive;
     var officeLabel = "All";
     var typeLabel = "All";
     var httpRequest = ViewContext.HttpContext.Request;
 
     if (Model.EnableListViewUxUpgrade)
     {
-        hasAnyFilter =
-            !string.IsNullOrWhiteSpace(Model.Q) ||
-            !string.IsNullOrWhiteSpace(Model.Tag) ||
-            Model.OfficeCategoryId.HasValue ||
-            Model.DocumentCategoryId.HasValue ||
-            Model.Year.HasValue ||
-            Model.IncludeInactive;
-
         officeLabel = Model.OfficeCategoryId.HasValue
             ? (Model.OfficeCategories.FirstOrDefault(o => o.Id == Model.OfficeCategoryId)?.Name ?? "Selected")
             : "All";
@@ -25,6 +23,8 @@
             ? (Model.DocumentCategories.FirstOrDefault(c => c.Id == Model.DocumentCategoryId)?.Name ?? "Selected")
             : "All";
     }
+
+    var showFavouritesEmptyState = Model.IsFavouritesScope && !Model.IsSearchActive && !hasAnyFilter;
 }
 
 @if (Model.EnableListViewUxUpgrade)
@@ -64,6 +64,7 @@
 
             <a class="docrepo-activefilters__clear"
                asp-page="./Index"
+               asp-route-scope="@Model.Scope"
                asp-route-view="@Model.ViewMode"
                asp-route-pageSize="@Model.PageSize"
                asp-route-page="1">
@@ -90,6 +91,7 @@
                    asp-route-documentCategoryId="@Model.DocumentCategoryId"
                    asp-route-year="@Model.Year"
                    asp-route-includeInactive="@Model.IncludeInactive"
+                   asp-route-scope="@Model.Scope"
                    asp-route-page="1"
                    asp-route-pageSize="@Model.PageSize"
                    asp-route-view="@Model.ViewMode">
@@ -104,11 +106,18 @@
     @if ((Model.IsListView && !Model.ListItems.Any()) ||
          (!Model.IsListView && !Model.Items.Any()))
     {
-        if (Model.IsSearchActive)
+        if (showFavouritesEmptyState)
+        {
+            <div class="alert alert-light border">
+                <strong>No favourites yet.</strong>
+                <div class="text-muted">Star documents you access frequently to see them here.</div>
+            </div>
+        }
+        else if (Model.IsSearchActive)
         {
             <div class="alert alert-info">
                 No documents matched "@Model.Q".
-                <a asp-page="./Index" asp-route-view="@Model.ViewMode">Show all active documents</a>
+                <a asp-page="./Index" asp-route-view="@Model.ViewMode" asp-route-scope="@Model.Scope">Show all active documents</a>
             </div>
         }
         else
@@ -177,6 +186,7 @@ else
                    asp-route-documentCategoryId="@Model.DocumentCategoryId"
                    asp-route-year="@Model.Year"
                    asp-route-includeInactive="@Model.IncludeInactive"
+                   asp-route-scope="@Model.Scope"
                    asp-route-page="1"
                    asp-route-pageSize="@Model.PageSize">
                     Apply tag filter
@@ -189,11 +199,18 @@ else
     <!-- SECTION: Results content -->
     @if (!Model.Items.Any())
     {
-        if (Model.IsSearchActive)
+        if (showFavouritesEmptyState)
+        {
+            <div class="alert alert-light border">
+                <strong>No favourites yet.</strong>
+                <div class="text-muted">Star documents you access frequently to see them here.</div>
+            </div>
+        }
+        else if (Model.IsSearchActive)
         {
             <div class="alert alert-info">
                 No documents matched "@Model.Q".
-                <a asp-page="./Index">Show all active documents</a>
+                <a asp-page="./Index" asp-route-scope="@Model.Scope">Show all active documents</a>
             </div>
         }
         else
