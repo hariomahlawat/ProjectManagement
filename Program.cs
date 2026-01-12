@@ -69,6 +69,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Data;
+using System.Data.Common;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -589,6 +591,7 @@ using (var scope = app.Services.CreateScope())
             throw new InvalidOperationException(message);
         }
 
+        await EnsureDocRepoFavouritesSchemaAsync(db, app.Logger);
         await ProjectDocumentSearchVectorMaintenance.EnsureUpToDateAsync(db);
     }
 
@@ -2324,6 +2327,173 @@ using (var scope = app.Services.CreateScope())
 
     await ProjectManagement.Data.StageFlowSeeder.SeedAsync(services);
     await ProjectManagement.Data.IdentitySeeder.SeedAsync(services);
+}
+
+static async Task EnsureDocRepoFavouritesSchemaAsync(ApplicationDbContext db, ILogger logger)
+{
+    if (!db.Database.IsRelational())
+    {
+        return;
+    }
+
+    // SECTION: Validate DocRepo favourites migration is applied
+    var appliedMigrations = await db.Database.GetAppliedMigrationsAsync();
+    if (!appliedMigrations.Contains("20261119120000_AddDocRepoFavourites"))
+    {
+        var message = "Required migration 20261119120000_AddDocRepoFavourites has not been applied.";
+        logger.LogCritical(message);
+        throw new InvalidOperationException(message);
+    }
+
+    // SECTION: Validate DocRepo favourites table schema
+    var expectedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "Id",
+        "UserId",
+        "DocumentId",
+        "CreatedAtUtc"
+    };
+
+    var connection = db.Database.GetDbConnection();
+    var shouldClose = false;
+    if (connection.State != ConnectionState.Open)
+    {
+        await connection.OpenAsync();
+        shouldClose = true;
+    }
+
+    try
+    {
+        if (db.Database.IsNpgsql())
+        {
+            await ValidateDocRepoFavouritesForNpgsqlAsync(connection, expectedColumns, logger);
+        }
+        else if (db.Database.IsSqlServer())
+        {
+            await ValidateDocRepoFavouritesForSqlServerAsync(connection, expectedColumns, logger);
+        }
+        else
+        {
+            logger.LogWarning("Skipping DocRepoFavourites schema validation for unsupported provider.");
+        }
+    }
+    finally
+    {
+        if (shouldClose)
+        {
+            await connection.CloseAsync();
+        }
+    }
+}
+
+static async Task ValidateDocRepoFavouritesForNpgsqlAsync(
+    DbConnection connection,
+    IReadOnlySet<string> expectedColumns,
+    ILogger logger)
+{
+    var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    await using (var columnCommand = connection.CreateCommand())
+    {
+        columnCommand.CommandText = @"
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'DocRepoFavourites';
+        ";
+        await using var reader = await columnCommand.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            columns.Add(reader.GetString(0));
+        }
+    }
+
+    if (columns.Count == 0)
+    {
+        var message = "DocRepoFavourites table is missing.";
+        logger.LogCritical(message);
+        throw new InvalidOperationException(message);
+    }
+
+    var missingColumns = expectedColumns.Where(column => !columns.Contains(column)).ToArray();
+    if (missingColumns.Length > 0)
+    {
+        var message = $"DocRepoFavourites is missing column(s): {string.Join(", ", missingColumns)}.";
+        logger.LogCritical(message);
+        throw new InvalidOperationException(message);
+    }
+
+    await using (var indexCommand = connection.CreateCommand())
+    {
+        indexCommand.CommandText = @"
+            SELECT 1
+            FROM pg_indexes
+            WHERE schemaname = 'public'
+              AND tablename = 'DocRepoFavourites'
+              AND indexname = 'IX_DocRepoFavourites_UserId_DocumentId';
+        ";
+        var indexExists = await indexCommand.ExecuteScalarAsync() != null;
+        if (!indexExists)
+        {
+            var message = "DocRepoFavourites is missing the unique index on (UserId, DocumentId).";
+            logger.LogCritical(message);
+            throw new InvalidOperationException(message);
+        }
+    }
+}
+
+static async Task ValidateDocRepoFavouritesForSqlServerAsync(
+    DbConnection connection,
+    IReadOnlySet<string> expectedColumns,
+    ILogger logger)
+{
+    var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    await using (var columnCommand = connection.CreateCommand())
+    {
+        columnCommand.CommandText = @"
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'dbo'
+              AND TABLE_NAME = 'DocRepoFavourites';
+        ";
+        await using var reader = await columnCommand.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            columns.Add(reader.GetString(0));
+        }
+    }
+
+    if (columns.Count == 0)
+    {
+        var message = "DocRepoFavourites table is missing.";
+        logger.LogCritical(message);
+        throw new InvalidOperationException(message);
+    }
+
+    var missingColumns = expectedColumns.Where(column => !columns.Contains(column)).ToArray();
+    if (missingColumns.Length > 0)
+    {
+        var message = $"DocRepoFavourites is missing column(s): {string.Join(", ", missingColumns)}.";
+        logger.LogCritical(message);
+        throw new InvalidOperationException(message);
+    }
+
+    await using (var indexCommand = connection.CreateCommand())
+    {
+        indexCommand.CommandText = @"
+            SELECT 1
+            FROM sys.indexes i
+            WHERE i.is_unique = 1
+              AND i.name = 'IX_DocRepoFavourites_UserId_DocumentId'
+              AND OBJECT_NAME(i.object_id) = 'DocRepoFavourites';
+        ";
+        var indexExists = await indexCommand.ExecuteScalarAsync() != null;
+        if (!indexExists)
+        {
+            var message = "DocRepoFavourites is missing the unique index on (UserId, DocumentId).";
+            logger.LogCritical(message);
+            throw new InvalidOperationException(message);
+        }
+    }
 }
 
 static bool TryNormalizeStageRoute(string? version, string? stageCode,
