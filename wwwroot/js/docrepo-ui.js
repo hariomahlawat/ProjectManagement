@@ -633,7 +633,11 @@ function initFavouriteToggles() {
         setButtonState(button, !wasFavourite);
 
         try {
-            const response = await fetch(`${toggleUrl}?id=${encodeURIComponent(documentId)}`, {
+            // SECTION: Toggle endpoint with query-safe id
+            const endpoint = new URL(toggleUrl, window.location.origin);
+            endpoint.searchParams.set("id", documentId);
+
+            const response = await fetch(endpoint.toString(), {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
