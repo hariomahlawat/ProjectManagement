@@ -21,4 +21,8 @@ public sealed class DocumentListItemVm
 
     // SECTION: Personalization
     public bool IsFavourite { get; set; }
+
+    // SECTION: AOTS visibility
+    public bool IsAots { get; set; }
+    public bool IsAotsUnread { get; set; }
 }

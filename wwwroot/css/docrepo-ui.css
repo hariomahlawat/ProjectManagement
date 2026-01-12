@@ -614,6 +614,31 @@
     text-decoration: underline;
 }
 
+/* SECTION: AOTS indicators */
+.docrepo-aots-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #334155;
+    background: rgba(148, 163, 184, 0.2);
+    margin-right: 0.35rem;
+}
+
+.docrepo-aots-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--bs-primary);
+    margin-right: 0.4rem;
+}
+
 .docrepo-ocr {
     display: inline-flex;
     align-items: center;

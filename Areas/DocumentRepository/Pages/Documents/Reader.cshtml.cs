@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Data;
 using ProjectManagement.Services.DocRepo;
@@ -66,6 +67,10 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         public string ToggleFavouriteUrl { get; private set; } = string.Empty;
 
+        public bool IsAots { get; private set; }
+
+        public bool IsAotsSeen { get; private set; }
+
         // SECTION: Query
         [FromQuery(Name = "returnUrl")]
         public string? ReturnUrlQuery { get; set; }
@@ -88,6 +93,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                     d.CreatedAtUtc,
                     d.CreatedByUserId,
                     d.UpdatedAtUtc,
+                    d.IsAots,
                     Tags = d.DocumentTags
                         .Select(tag => tag.Tag.Name)
                         .OrderBy(tag => tag)
@@ -124,6 +130,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             OcrFailureReason = doc.OcrFailureReason;
             CreatedAtUtc = doc.CreatedAtUtc;
             UpdatedAtUtc = doc.UpdatedAtUtc;
+            IsAots = doc.IsAots;
 
             // SECTION: Audit users
             var auditUsers = await GetAuditUserLookupAsync(doc.CreatedByUserId, cancellationToken);
@@ -148,7 +155,54 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                     doc.StoragePath);
             }
 
+            // SECTION: AOTS view tracking
+            if (doc.IsAots && !IsFileMissing && !string.IsNullOrWhiteSpace(userId))
+            {
+                IsAotsSeen = await EnsureAotsViewLoggedAsync(id, userId, cancellationToken);
+            }
+
             return Page();
+        }
+
+        // SECTION: AOTS logging helpers
+        private async Task<bool> EnsureAotsViewLoggedAsync(Guid documentId, string userId, CancellationToken cancellationToken)
+        {
+            var hasExisting = await _db.DocRepoAotsViews
+                .AsNoTracking()
+                .AnyAsync(view => view.DocumentId == documentId && view.UserId == userId, cancellationToken);
+
+            if (hasExisting)
+            {
+                return true;
+            }
+
+            _db.DocRepoAotsViews.Add(new DocRepoAotsView
+            {
+                DocumentId = documentId,
+                UserId = userId,
+                FirstViewedAtUtc = DateTime.UtcNow
+            });
+
+            try
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+                return true;
+            }
+            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+            {
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unable to record AOTS view for DocumentId={DocumentId}", documentId);
+                return false;
+            }
+        }
+
+        private static bool IsUniqueConstraintViolation(DbUpdateException exception)
+        {
+            return exception.InnerException is PostgresException postgres &&
+                   postgres.SqlState == PostgresErrorCodes.UniqueViolation;
         }
 
         // SECTION: Audit helpers

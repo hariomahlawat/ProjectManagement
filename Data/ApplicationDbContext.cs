@@ -131,6 +131,7 @@ namespace ProjectManagement.Data
         public DbSet<OfficeCategory> OfficeCategories => Set<OfficeCategory>();
         public DbSet<DocumentCategory> DocumentCategories => Set<DocumentCategory>();
         public DbSet<DocRepoFavourite> DocRepoFavourites => Set<DocRepoFavourite>();
+        public DbSet<DocRepoAotsView> DocRepoAotsViews => Set<DocRepoAotsView>();
 
         // SECTION: PostgreSQL text search helpers
         public static string TsHeadline(string config, string text, NpgsqlTsQuery query, string options) => throw new NotSupportedException();
@@ -243,6 +244,7 @@ namespace ProjectManagement.Data
                 e.Property(x => x.OcrStatus).HasDefaultValue(DocOcrStatus.None);
                 e.Property(x => x.OcrFailureReason).HasMaxLength(1024);
                 e.Property(x => x.SearchVector).HasColumnType("tsvector");
+                e.Property(x => x.IsAots).HasDefaultValue(false);
                 e.HasIndex(x => new { x.OfficeCategoryId, x.DocumentCategoryId });
                 e.HasIndex(x => x.Sha256).IsUnique();
                 e.HasIndex(x => x.Subject);
@@ -303,6 +305,21 @@ namespace ProjectManagement.Data
                 e.Property(x => x.UserId).HasMaxLength(64).IsRequired();
                 e.Property(x => x.CreatedAtUtc).IsRequired();
                 e.HasIndex(x => new { x.UserId, x.DocumentId }).IsUnique();
+                e.HasOne(x => x.Document)
+                    .WithMany()
+                    .HasForeignKey(x => x.DocumentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // SECTION: Document repository AOTS views
+            builder.Entity<DocRepoAotsView>(e =>
+            {
+                e.ToTable("DocRepoAotsViews");
+                e.Property(x => x.UserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.FirstViewedAtUtc).IsRequired();
+                e.HasIndex(x => x.DocumentId);
+                e.HasIndex(x => x.UserId);
+                e.HasIndex(x => new { x.DocumentId, x.UserId }).IsUnique();
                 e.HasOne(x => x.Document)
                     .WithMany()
                     .HasForeignKey(x => x.DocumentId)

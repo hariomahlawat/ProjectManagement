@@ -101,6 +101,15 @@
                             <span class="text-danger" asp-validation-for="Input.Tags"></span>
                         </div>
 
+                        @if (Model.CanMarkAots)
+                        {
+                            <!-- SECTION: AOTS flag -->
+                            <div class="form-check">
+                                <input class="form-check-input" asp-for="Input.IsAots" />
+                                <label class="form-check-label" asp-for="Input.IsAots"></label>
+                            </div>
+                        }
+
                         <div class="d-flex gap-2">
                             <button class="btn btn-primary" type="submit">Upload</button>
                             <a class="btn btn-outline-secondary"

@@ -53,6 +53,18 @@
             <div class="form-text">Max 5 tags, comma separated.</div>
         </div>
 
+        @if (Model.CanMarkAots)
+        {
+            <!-- SECTION: AOTS flag -->
+            <div class="col-md-4">
+                <label class="form-label" asp-for="Input.IsAots"></label>
+                <div class="form-check">
+                    <input class="form-check-input" asp-for="Input.IsAots" />
+                    <label class="form-check-label" asp-for="Input.IsAots">All officers to see</label>
+                </div>
+            </div>
+        }
+
         <div class="col-12">
             <button type="submit" class="btn btn-primary">Save</button>
             <a asp-page="./Index" class="btn btn-secondary">Cancel</a>

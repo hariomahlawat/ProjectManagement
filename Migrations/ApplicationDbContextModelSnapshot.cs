@@ -1629,6 +1629,37 @@ namespace ProjectManagement.Migrations
                     b.ToTable("DocRepoExternalLinks", (string)null);
                 });
 
+            modelBuilder.Entity("ProjectManagement.Data.DocRepo.DocRepoAotsView", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("FirstViewedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("DocumentId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("DocRepoAotsViews");
+                });
+
             modelBuilder.Entity("ProjectManagement.Data.DocRepo.DocRepoFavourite", b =>
                 {
                     b.Property<long>("Id")
@@ -1703,6 +1734,11 @@ namespace ProjectManagement.Migrations
                         .HasDefaultValue(false);
 
                     b.Property<bool>("IsExternal")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsAots")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
@@ -5997,6 +6033,17 @@ namespace ProjectManagement.Migrations
                 {
                     b.HasOne("ProjectManagement.Data.DocRepo.Document", "Document")
                         .WithMany("ExternalLinks")
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Document");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Data.DocRepo.DocRepoAotsView", b =>
+                {
+                    b.HasOne("ProjectManagement.Data.DocRepo.Document", "Document")
+                        .WithMany()
                         .HasForeignKey("DocumentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

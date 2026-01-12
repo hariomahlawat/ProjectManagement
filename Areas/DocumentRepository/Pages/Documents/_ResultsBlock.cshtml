@@ -25,6 +25,7 @@
     }
 
     var showFavouritesEmptyState = Model.IsFavouritesScope && !Model.IsSearchActive && !hasAnyFilter;
+    var showAotsEmptyState = Model.IsAotsScope && !Model.IsSearchActive && !hasAnyFilter;
 }
 
 @if (Model.EnableListViewUxUpgrade)
@@ -112,6 +113,10 @@
                 <strong>No favourites yet.</strong>
                 <div class="text-muted">Star documents you access frequently to see them here.</div>
             </div>
+        }
+        else if (showAotsEmptyState)
+        {
+            <div class="alert alert-light border">No AOTS documents at present.</div>
         }
         else if (Model.IsSearchActive)
         {
@@ -205,6 +210,10 @@ else
                 <strong>No favourites yet.</strong>
                 <div class="text-muted">Star documents you access frequently to see them here.</div>
             </div>
+        }
+        else if (showAotsEmptyState)
+        {
+            <div class="alert alert-light border">No AOTS documents at present.</div>
         }
         else if (Model.IsSearchActive)
         {

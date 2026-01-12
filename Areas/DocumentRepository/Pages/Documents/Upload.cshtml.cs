@@ -24,13 +24,20 @@ public class UploadModel : PageModel
     private readonly IDocStorage _storage;
     private readonly IFileScanner _scanner;
     private readonly IDocRepoAuditService _audit;
+    private readonly IAuthorizationService _authorizationService;
 
-    public UploadModel(ApplicationDbContext db, IDocStorage storage, IFileScanner scanner, IDocRepoAuditService audit)
+    public UploadModel(
+        ApplicationDbContext db,
+        IDocStorage storage,
+        IFileScanner scanner,
+        IDocRepoAuditService audit,
+        IAuthorizationService authorizationService)
     {
         _db = db;
         _storage = storage;
         _scanner = scanner;
         _audit = audit;
+        _authorizationService = authorizationService;
     }
 
     public IReadOnlyList<OfficeCategory> OfficeOptions { get; private set; } = Array.Empty<OfficeCategory>();
@@ -39,6 +46,7 @@ public class UploadModel : PageModel
     public SelectList DocumentTypeSelectList { get; private set; } = default!;
     public string? PdfPreviewUrl { get; private set; }
     public bool HasPreview => !string.IsNullOrEmpty(PdfPreviewUrl);
+    public bool CanMarkAots { get; private set; }
 
     public class InputModel
     {
@@ -62,6 +70,9 @@ public class UploadModel : PageModel
 
         [Required]
         public IFormFile? File { get; set; }
+
+        [Display(Name = "Mark as AOTS (All officers to see)")]
+        public bool IsAots { get; set; }
     }
 
     [BindProperty]
@@ -69,11 +80,18 @@ public class UploadModel : PageModel
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
+        CanMarkAots = (await _authorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata")).Succeeded;
         await PopulateLookupsAsync(cancellationToken);
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
+        CanMarkAots = (await _authorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata")).Succeeded;
+        if (!CanMarkAots)
+        {
+            Input.IsAots = false;
+        }
+
         await PopulateLookupsAsync(cancellationToken);
 
         if (!ModelState.IsValid)
@@ -220,6 +238,7 @@ public class UploadModel : PageModel
             existingWithSameHash.OcrStatus = DocOcrStatus.Pending;
             existingWithSameHash.OcrFailureReason = null;
             existingWithSameHash.OcrLastTriedUtc = null;
+            existingWithSameHash.IsAots = Input.IsAots;
 
             // replace tags
             if (existingWithSameHash.DocumentTags is not null && existingWithSameHash.DocumentTags.Count > 0)
@@ -288,7 +307,8 @@ public class UploadModel : PageModel
             CreatedByUserId = userId,
             CreatedAtUtc = utcNow,
             OcrStatus = DocOcrStatus.Pending,
-            OcrFailureReason = null
+            OcrFailureReason = null,
+            IsAots = Input.IsAots
         };
 
         if (normalizedTags.Count > 0)

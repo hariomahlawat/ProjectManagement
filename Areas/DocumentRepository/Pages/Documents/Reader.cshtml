@@ -238,6 +238,12 @@
                             <span>@(Model.IsFavourite ? "Yes" : "No")</span>
                         </span>
                     </dd>
+
+                    @if (Model.IsAots)
+                    {
+                        <dt class="col-5 text-muted">Seen</dt>
+                        <dd class="col-7">@((Model.IsAotsSeen) ? "Yes" : "No")</dd>
+                    }
                 </dl>
             </div>
 

@@ -46,6 +46,8 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         public string ViewMode { get; private set; } = "cards";
         public bool IsListView => ViewMode.Equals("list", StringComparison.OrdinalIgnoreCase);
         public bool IsFavouritesScope => string.Equals(Scope, "favourites", StringComparison.OrdinalIgnoreCase);
+        public bool IsAotsScope => string.Equals(Scope, "aots", StringComparison.OrdinalIgnoreCase);
+        public bool IsDefaultScope => !IsFavouritesScope && !IsAotsScope;
 
         // SECTION: Paging
         private const int DefaultPageSize = 30;
@@ -137,6 +139,12 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 }
             }
 
+            // SECTION: AOTS scope
+            if (IsAotsScope)
+            {
+                query = query.Where(document => document.IsAots);
+            }
+
             // SECTION: Tag filter
             if (!string.IsNullOrWhiteSpace(Tag))
             {
@@ -197,13 +205,15 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                             OfficeName = document.OfficeCategory != null ? document.OfficeCategory.Name : null,
                             DocumentCategoryName = document.DocumentCategory != null ? document.DocumentCategory.Name : null,
                             OcrStatus = document.OcrStatus,
-                            IsActive = document.IsActive
+                            IsActive = document.IsActive,
+                            IsAots = document.IsAots
                         })
                         .Skip((PageNumber - 1) * PageSize)
                         .Take(PageSize)
                         .ToListAsync();
 
                     await ApplyFavouriteStateAsync(userId, ListItems);
+                    await ApplyAotsStateAsync(userId, ListItems);
                 }
                 else
                 {
@@ -213,6 +223,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                         .ToListAsync();
 
                     await ApplyFavouriteStateAsync(userId, Items);
+                    await ApplyAotsStateAsync(userId, Items);
                 }
 
                 HasTagMatch = await searchedProjectedQuery.AnyAsync(item => item.MatchedInTags);
@@ -237,13 +248,15 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                             OfficeName = document.OfficeCategory != null ? document.OfficeCategory.Name : null,
                             DocumentCategoryName = document.DocumentCategory != null ? document.DocumentCategory.Name : null,
                             OcrStatus = document.OcrStatus,
-                            IsActive = document.IsActive
+                            IsActive = document.IsActive,
+                            IsAots = document.IsAots
                         })
                         .Skip((PageNumber - 1) * PageSize)
                         .Take(PageSize)
                         .ToListAsync();
 
                     await ApplyFavouriteStateAsync(userId, ListItems);
+                    await ApplyAotsStateAsync(userId, ListItems);
                 }
                 else
                 {
@@ -262,6 +275,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                             IsActive = document.IsActive,
                             OcrStatus = document.OcrStatus,
                             OcrFailureReason = document.OcrFailureReason,
+                            IsAots = document.IsAots,
                             Rank = null,
                             Snippet = null,
                             MatchedInSubject = false,
@@ -273,6 +287,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                         .ToListAsync();
 
                     await ApplyFavouriteStateAsync(userId, Items);
+                    await ApplyAotsStateAsync(userId, Items);
                 }
 
                 HasTagMatch = false;
@@ -369,6 +384,43 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 .ToListAsync();
 
             return favouriteIds.ToHashSet();
+        }
+
+        // SECTION: AOTS read state helpers
+        private async Task ApplyAotsStateAsync(string? userId, IReadOnlyCollection<DocumentListItemVm> items)
+        {
+            var documentIds = items.Select(item => item.Id).ToList();
+            var seenIds = await GetAotsSeenIdsAsync(userId, documentIds);
+            foreach (var item in items)
+            {
+                item.IsAotsUnread = item.IsAots && !seenIds.Contains(item.Id);
+            }
+        }
+
+        private async Task ApplyAotsStateAsync(string? userId, IReadOnlyCollection<DocumentSearchResultVm> items)
+        {
+            var documentIds = items.Select(item => item.Id).ToList();
+            var seenIds = await GetAotsSeenIdsAsync(userId, documentIds);
+            foreach (var item in items)
+            {
+                item.IsAotsUnread = item.IsAots && !seenIds.Contains(item.Id);
+            }
+        }
+
+        private async Task<HashSet<Guid>> GetAotsSeenIdsAsync(string? userId, IReadOnlyCollection<Guid> documentIds)
+        {
+            if (string.IsNullOrWhiteSpace(userId) || documentIds.Count == 0)
+            {
+                return new HashSet<Guid>();
+            }
+
+            var seenIds = await _db.DocRepoAotsViews
+                .AsNoTracking()
+                .Where(view => view.UserId == userId && documentIds.Contains(view.DocumentId))
+                .Select(view => view.DocumentId)
+                .ToListAsync();
+
+            return seenIds.ToHashSet();
         }
     }
 }

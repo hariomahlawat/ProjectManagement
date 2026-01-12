@@ -64,6 +64,17 @@
     <div class="doc-card__body">
         <h6 class="doc-card__title text-truncate-2" title="@Model.Subject">
             <!-- SECTION: Subject link -->
+            @if (Model.IsAots)
+            {
+                <span class="docrepo-aots-badge" title="All officers to see">
+                    <i class="bi bi-broadcast"></i>
+                    <span>AOTS</span>
+                </span>
+                @if (Model.IsAotsUnread)
+                {
+                    <span class="docrepo-aots-dot" aria-label="Unread AOTS document" title="Unread AOTS document"></span>
+                }
+            }
             @if (Model.IsActive)
             {
                 <a class="docrepo-subject-link"
