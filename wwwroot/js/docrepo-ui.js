@@ -362,7 +362,23 @@ async function fetchAndSwapResults(targetUrl, options = {}) {
         }
 
         const html = await response.text();
-        results.innerHTML = html;
+
+        // SECTION: Partial response guard
+        const isFullDocument = /<\s*html[\s>]/i.test(html) || /<\s*body[\s>]/i.test(html);
+        if (isFullDocument) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+            const nextResults = doc.querySelector("#docrepoResults");
+
+            if (nextResults) {
+                results.innerHTML = nextResults.innerHTML;
+            } else {
+                window.location.assign(targetUrl);
+                return;
+            }
+        } else {
+            results.innerHTML = html;
+        }
 
         if (updateHistory) {
             const cleanUrl = new URL(targetUrl, window.location.origin);
