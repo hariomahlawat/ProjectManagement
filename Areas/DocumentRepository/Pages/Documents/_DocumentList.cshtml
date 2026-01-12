@@ -29,6 +29,18 @@
                         <i class="bi @(Model.IsFavourite ? "bi-star-fill" : "bi-star")"></i>
                     </button>
                 </authorize>
+                <!-- SECTION: AOTS indicator -->
+                @if (Model.IsAots)
+                {
+                    <span class="docrepo-aots-badge" title="All officers to see">
+                        <i class="bi bi-broadcast"></i>
+                        <span>AOTS</span>
+                    </span>
+                    @if (Model.IsAotsUnread)
+                    {
+                        <span class="docrepo-aots-dot" aria-label="Unread AOTS document" title="Unread AOTS document"></span>
+                    }
+                }
                 @if (Model.IsActive)
                 {
                     <a asp-page="./Reader" asp-route-id="@Model.Id" asp-route-returnUrl="@returnUrl" class="docrepo-subject-link">

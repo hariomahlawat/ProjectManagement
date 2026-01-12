@@ -62,6 +62,9 @@ public class Document
     [MaxLength(512)]
     public string? DeleteReason { get; set; }
 
+    // SECTION: AOTS flag
+    public bool IsAots { get; set; } = false;
+
     // SECTION: OCR metadata
     public DocOcrStatus OcrStatus { get; set; } = DocOcrStatus.None;
 

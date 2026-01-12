@@ -69,6 +69,7 @@ namespace ProjectManagement.Services.DocRepo
                     OfficeCategoryName = d.OfficeCategory != null ? d.OfficeCategory.Name : null,
                     DocumentCategoryName = d.DocumentCategory != null ? d.DocumentCategory.Name : null,
                     IsActive = d.IsActive,
+                    IsAots = d.IsAots,
 
                     // we cant project per-row IReadOnlyCollection<string> cleanly, so return empty
                     Tags = Array.Empty<string>(),

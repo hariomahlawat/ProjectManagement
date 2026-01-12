@@ -13,10 +13,12 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
     public class EditModel : PageModel
     {
         private readonly ApplicationDbContext _db;
+        private readonly IAuthorizationService _authorizationService;
 
-        public EditModel(ApplicationDbContext db)
+        public EditModel(ApplicationDbContext db, IAuthorizationService authorizationService)
         {
             _db = db;
+            _authorizationService = authorizationService;
         }
 
         [BindProperty]
@@ -24,6 +26,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         public List<OfficeCategory> OfficeCategories { get; private set; } = new();
         public List<DocumentCategory> DocumentCategories { get; private set; } = new();
+        public bool CanMarkAots { get; private set; }
 
         public class InputModel
         {
@@ -44,10 +47,14 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
             [Display(Name = "Tags (max 5, comma separated)"), MaxLength(128)]
             public string? Tags { get; set; }
+
+            [Display(Name = "AOTS")]
+            public bool IsAots { get; set; }
         }
 
         public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
         {
+            CanMarkAots = (await _authorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata")).Succeeded;
             var doc = await _db.Documents
                 .Include(d => d.DocumentTags)
                     .ThenInclude(dt => dt.Tag)
@@ -67,7 +74,8 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 DocumentCategoryId = doc.DocumentCategoryId,
                 Tags = doc.DocumentTags.Any()
                     ? string.Join(", ", doc.DocumentTags.Select(dt => dt.Tag.Name).OrderBy(x => x))
-                    : string.Empty
+                    : string.Empty,
+                IsAots = doc.IsAots
             };
 
             await LoadLookupsAsync(cancellationToken);
@@ -76,6 +84,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
         {
+            CanMarkAots = (await _authorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata")).Succeeded;
             if (!ModelState.IsValid)
             {
                 await LoadLookupsAsync(cancellationToken);
@@ -106,6 +115,10 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             if (Input.DocumentCategoryId.HasValue)
                 doc.DocumentCategoryId = Input.DocumentCategoryId.Value;
           
+            if (CanMarkAots)
+            {
+                doc.IsAots = Input.IsAots;
+            }
 
             // parse and validate tags
             var normalizedTags = ParseTags(Input.Tags).Distinct().ToList();
