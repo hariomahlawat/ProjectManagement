@@ -15,21 +15,27 @@
 <div class="docreader-page">
     <!-- SECTION: Toolbar -->
     <div class="docreader-topbar">
-        <div class="docreader-breadcrumb">
-            <a asp-area="" asp-page="/Index" class="docreader-link">Dashboard</a>
-            <span class="text-muted">/</span>
-            <a asp-area="DocumentRepository" asp-page="/Documents/Index" class="docreader-link">Documents</a>
-            <span class="text-muted">/</span>
-            <span class="docreader-title" title="@Model.DocumentTitle">
-                @Model.DocumentTitle
-            </span>
-        </div>
-        <div class="docreader-actions">
+        <div class="docreader-header">
             <a class="btn btn-sm btn-outline-secondary docreader-btn"
                href="@Model.ReturnUrl">
                 <i class="bi bi-arrow-left"></i>
                 <span>Back to results</span>
             </a>
+            <button class="docreader-favourite"
+                    type="button"
+                    data-docrepo-favourite
+                    data-docid="@RouteData.Values["id"]"
+                    data-fav="@(Model.IsFavourite ? "true" : "false")"
+                    data-toggle-url="@Model.ToggleFavouriteUrl"
+                    title="@(Model.IsFavourite ? "Remove from favourites" : "Add to favourites")"
+                    aria-label="@(Model.IsFavourite ? "Remove from favourites" : "Add to favourites")">
+                <i class="bi @(Model.IsFavourite ? "bi-star-fill" : "bi-star")"></i>
+            </button>
+            <span class="docreader-title" title="@Model.DocumentTitle">
+                @Model.DocumentTitle
+            </span>
+        </div>
+        <div class="docreader-actions">
             <button class="btn btn-sm btn-outline-secondary docreader-btn"
                     type="button"
                     data-docreader-details-toggle
@@ -124,6 +130,10 @@
             </authorize>
         </div>
     </div>
+    <!-- SECTION: Favourite token -->
+    <form id="docrepoFavouriteToken" method="post" class="d-none">
+        @Html.AntiForgeryToken()
+    </form>
 
     <!-- SECTION: Viewer -->
     <div class="docreader-stage">
@@ -168,80 +178,112 @@
             </button>
         </div>
         <div class="docreader-details__body">
-            <dl class="row docreader-details__list">
-                <dt class="col-5 text-muted">Subject</dt>
-                <dd class="col-7">@Model.DocumentTitle</dd>
+            <!-- SECTION: Identity -->
+            <div class="docreader-details__section">
+                <h6 class="docreader-details__section-title">Identity</h6>
+                <dl class="row docreader-details__list">
+                    <dt class="col-5 text-muted">Subject</dt>
+                    <dd class="col-7">@Model.DocumentTitle</dd>
 
-                <dt class="col-5 text-muted">Office</dt>
-                <dd class="col-7">@Model.OfficeName</dd>
+                    <dt class="col-5 text-muted">Office</dt>
+                    <dd class="col-7">@Model.OfficeName</dd>
 
-                <dt class="col-5 text-muted">Document type</dt>
-                <dd class="col-7">@Model.DocumentCategoryName</dd>
+                    <dt class="col-5 text-muted">Document type</dt>
+                    <dd class="col-7">@Model.DocumentCategoryName</dd>
 
-                <dt class="col-5 text-muted">Document date</dt>
-                <dd class="col-7">@((Model.DocumentDate.HasValue) ? Model.DocumentDate.Value.ToString("dd MMM yyyy") : "—")</dd>
+                    <dt class="col-5 text-muted">Received from</dt>
+                    <dd class="col-7">@(!string.IsNullOrWhiteSpace(Model.ReceivedFrom) ? Model.ReceivedFrom : "—")</dd>
+                </dl>
+            </div>
 
-                <dt class="col-5 text-muted">Received from</dt>
-                <dd class="col-7">@(!string.IsNullOrWhiteSpace(Model.ReceivedFrom) ? Model.ReceivedFrom : "—")</dd>
+            <!-- SECTION: Classification -->
+            <div class="docreader-details__section">
+                <h6 class="docreader-details__section-title">Classification</h6>
+                <dl class="row docreader-details__list">
+                    <dt class="col-5 text-muted">Tags</dt>
+                    <dd class="col-7">
+                        @if (Model.Tags.Length > 0)
+                        {
+                            <div class="docreader-tags">
+                                @foreach (var tag in Model.Tags)
+                                {
+                                    <span class="badge rounded-pill bg-light text-muted">@tag</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <span>—</span>
+                        }
+                    </dd>
 
-                <dt class="col-5 text-muted">Tags</dt>
-                <dd class="col-7">
-                    @if (Model.Tags.Length > 0)
-                    {
-                        <div class="docreader-tags">
-                            @foreach (var tag in Model.Tags)
-                            {
-                                <span class="badge rounded-pill bg-light text-muted">@tag</span>
-                            }
-                        </div>
-                    }
-                    else
-                    {
-                        <span>—</span>
-                    }
-                </dd>
+                    <dt class="col-5 text-muted">Status</dt>
+                    <dd class="col-7">
+                        @if (Model.IsActive)
+                        {
+                            <span class="badge bg-success-subtle text-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary-subtle text-secondary">Inactive</span>
+                        }
+                    </dd>
 
-                <dt class="col-5 text-muted">OCR status</dt>
-                <dd class="col-7">
-                    <span class="docreader-ocr docreader-ocr--@Model.OcrStatus.ToString().ToLowerInvariant()">
-                        @Model.OcrStatus
-                    </span>
-                    @if (!string.IsNullOrWhiteSpace(Model.OcrFailureReason))
-                    {
-                        <div class="text-muted small mt-1">@Model.OcrFailureReason</div>
-                    }
-                </dd>
+                    <dt class="col-5 text-muted">Favourite</dt>
+                    <dd class="col-7">
+                        <span class="docreader-favourite-indicator @(Model.IsFavourite ? "docreader-favourite-indicator--active" : "docreader-favourite-indicator--inactive")"
+                              data-docreader-favourite-indicator
+                              data-fav="@(Model.IsFavourite ? "true" : "false")">
+                            <i class="bi @(Model.IsFavourite ? "bi-star-fill" : "bi-star")"></i>
+                            <span>@(Model.IsFavourite ? "Yes" : "No")</span>
+                        </span>
+                    </dd>
+                </dl>
+            </div>
 
-                <dt class="col-5 text-muted">Status</dt>
-                <dd class="col-7">
-                    @if (Model.IsActive)
-                    {
-                        <span class="badge bg-success-subtle text-success">Active</span>
-                    }
-                    else
-                    {
-                        <span class="badge bg-secondary-subtle text-secondary">Inactive</span>
-                    }
-                </dd>
+            <!-- SECTION: Processing state -->
+            <div class="docreader-details__section">
+                <h6 class="docreader-details__section-title">Processing state</h6>
+                <dl class="row docreader-details__list">
+                    <dt class="col-5 text-muted">OCR status</dt>
+                    <dd class="col-7">
+                        <span class="docreader-ocr docreader-ocr--@Model.OcrStatus.ToString().ToLowerInvariant()">
+                            @Model.OcrStatus
+                        </span>
+                        @if (!string.IsNullOrWhiteSpace(Model.OcrFailureReason))
+                        {
+                            <div class="text-muted small mt-1">@Model.OcrFailureReason</div>
+                        }
+                    </dd>
 
-                <dt class="col-5 text-muted">File status</dt>
-                <dd class="col-7">
-                    @if (Model.IsFileMissing)
-                    {
-                        <span class="badge bg-warning-subtle text-warning">Missing from storage</span>
-                    }
-                    else
-                    {
-                        <span class="badge bg-success-subtle text-success">Available</span>
-                    }
-                </dd>
+                    <dt class="col-5 text-muted">File status</dt>
+                    <dd class="col-7">
+                        @if (Model.IsFileMissing)
+                        {
+                            <span class="badge bg-warning-subtle text-warning">Missing from storage</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success-subtle text-success">Available</span>
+                        }
+                    </dd>
+                </dl>
+            </div>
 
-                @if (Model.CreatedAtUtc.HasValue)
-                {
-                    <dt class="col-5 text-muted">Created</dt>
-                    <dd class="col-7">@Model.CreatedAtUtc.Value.ToString("dd MMM yyyy, HH:mm") UTC</dd>
-                }
-            </dl>
+            <!-- SECTION: Audit -->
+            <details class="docreader-details__audit">
+                <summary class="docreader-details__section-title">Audit</summary>
+                <dl class="row docreader-details__list">
+                    <dt class="col-5 text-muted">Created date</dt>
+                    <dd class="col-7">@((Model.CreatedAtUtc.HasValue) ? Model.CreatedAtUtc.Value.ToString("dd MMM yyyy, HH:mm") + " UTC" : "—")</dd>
+
+                    <dt class="col-5 text-muted">Created by</dt>
+                    <dd class="col-7">@(!string.IsNullOrWhiteSpace(Model.CreatedByDisplay) ? Model.CreatedByDisplay : "—")</dd>
+
+                    <dt class="col-5 text-muted">Last updated</dt>
+                    <dd class="col-7">@((Model.UpdatedAtUtc.HasValue) ? Model.UpdatedAtUtc.Value.ToString("dd MMM yyyy, HH:mm") + " UTC" : "—")</dd>
+                </dl>
+            </details>
 
             @if (Model.IsFileMissing)
             {

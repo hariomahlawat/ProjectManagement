@@ -15,23 +15,15 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
 }
 
-.docreader-breadcrumb {
+.docreader-header {
     display: flex;
     align-items: center;
     gap: .35rem;
     min-width: 0;
-}
-
-.docreader-link {
-    font-size: .85rem;
-    color: var(--pm-text-secondary);
-    text-decoration: none;
-}
-
-.docreader-link:hover {
-    text-decoration: underline;
 }
 
 .docreader-title {
@@ -47,7 +39,7 @@
 .docreader-actions {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: .5rem;
 }
 
@@ -58,6 +50,49 @@
     display: inline-flex;
     align-items: center;
     gap: .35rem;
+}
+
+.docreader-favourite {
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    background: var(--pm-card);
+    color: #f0ad4e;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.docreader-favourite:hover {
+    background: rgba(240, 173, 78, 0.12);
+    border-color: rgba(240, 173, 78, 0.3);
+}
+
+.docreader-favourite:focus-visible {
+    outline: 2px solid rgba(240, 173, 78, 0.5);
+    outline-offset: 2px;
+}
+
+.docreader-favourite-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .2rem .6rem;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
+}
+
+.docreader-favourite-indicator--active {
+    background: rgba(240, 173, 78, 0.2);
+    color: #c2862d;
+}
+
+.docreader-favourite-indicator--inactive {
+    background: #f1f3f5;
+    color: var(--pm-text-secondary);
 }
 
 /* SECTION: Viewer */
@@ -157,6 +192,33 @@
 .docreader-details__body {
     padding: 1rem;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.docreader-details__section-title {
+    font-size: .8rem;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    margin-bottom: .75rem;
+    color: var(--pm-text-secondary);
+}
+
+.docreader-details__audit {
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: .5rem;
+    padding: .5rem .75rem;
+    background: #f8f9fa;
+}
+
+.docreader-details__audit > summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+.docreader-details__audit > summary::-webkit-details-marker {
+    display: none;
 }
 
 .docreader-details__list dt {
@@ -197,17 +259,7 @@
 
 /* SECTION: Responsive tweaks */
 @media (max-width: 640px) {
-    .docreader-topbar {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
     .docreader-title {
         max-width: 220px;
-    }
-
-    .docreader-actions {
-        width: 100%;
-        justify-content: flex-start;
     }
 }
