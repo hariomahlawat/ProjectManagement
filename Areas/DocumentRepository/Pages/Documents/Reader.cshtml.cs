@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -9,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Data;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 {
@@ -44,8 +48,6 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         public string? ReceivedFrom { get; private set; }
 
-        public DateOnly? DocumentDate { get; private set; }
-
         public bool IsActive { get; private set; }
 
         public string[] Tags { get; private set; } = Array.Empty<string>();
@@ -55,6 +57,14 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         public string? OcrFailureReason { get; private set; }
 
         public DateTime? CreatedAtUtc { get; private set; }
+
+        public string? CreatedByDisplay { get; private set; }
+
+        public DateTime? UpdatedAtUtc { get; private set; }
+
+        public bool IsFavourite { get; private set; }
+
+        public string ToggleFavouriteUrl { get; private set; } = string.Empty;
 
         // SECTION: Query
         [FromQuery(Name = "returnUrl")]
@@ -70,13 +80,14 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 {
                     d.Subject,
                     d.ReceivedFrom,
-                    d.DocumentDate,
                     OfficeName = d.OfficeCategory.Name,
                     DocumentCategoryName = d.DocumentCategory.Name,
                     d.IsActive,
                     d.OcrStatus,
                     d.OcrFailureReason,
                     d.CreatedAtUtc,
+                    d.CreatedByUserId,
+                    d.UpdatedAtUtc,
                     Tags = d.DocumentTags
                         .Select(tag => tag.Tag.Name)
                         .OrderBy(tag => tag)
@@ -102,16 +113,30 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             // these two pages already exist in your module
             ViewUrl = Url.Page("./View", new { id }) ?? string.Empty;
             DownloadUrl = Url.Page("./Download", new { id }) ?? string.Empty;
+            ToggleFavouriteUrl = Url.Page("./Index", "ToggleFavourite", new { area = "DocumentRepository" }) ?? string.Empty;
 
             OfficeName = doc.OfficeName;
             DocumentCategoryName = doc.DocumentCategoryName;
             ReceivedFrom = doc.ReceivedFrom;
-            DocumentDate = doc.DocumentDate;
             IsActive = doc.IsActive;
             Tags = doc.Tags;
             OcrStatus = doc.OcrStatus;
             OcrFailureReason = doc.OcrFailureReason;
             CreatedAtUtc = doc.CreatedAtUtc;
+            UpdatedAtUtc = doc.UpdatedAtUtc;
+
+            // SECTION: Audit users
+            var auditUsers = await GetAuditUserLookupAsync(doc.CreatedByUserId, cancellationToken);
+            CreatedByDisplay = ResolveUserDisplay(auditUsers, doc.CreatedByUserId);
+
+            // SECTION: Favourite state
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrWhiteSpace(userId))
+            {
+                IsFavourite = await _db.DocRepoFavourites
+                    .AsNoTracking()
+                    .AnyAsync(favourite => favourite.UserId == userId && favourite.DocumentId == id, cancellationToken);
+            }
 
             // SECTION: Storage existence
             IsFileMissing = !await _storage.ExistsAsync(doc.StoragePath, HttpContext.RequestAborted);
@@ -124,6 +149,47 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             }
 
             return Page();
+        }
+
+        // SECTION: Audit helpers
+        private async Task<Dictionary<string, ApplicationUser>> GetAuditUserLookupAsync(
+            string createdByUserId,
+            CancellationToken cancellationToken)
+        {
+            var userIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                createdByUserId
+            };
+
+            return await _db.Users
+                .AsNoTracking()
+                .Where(user => userIds.Contains(user.Id))
+                .ToDictionaryAsync(user => user.Id, cancellationToken);
+        }
+
+        private static string? ResolveUserDisplay(
+            IReadOnlyDictionary<string, ApplicationUser> lookup,
+            string? userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return null;
+            }
+
+            if (lookup.TryGetValue(userId, out var user))
+            {
+                if (!string.IsNullOrWhiteSpace(user.FullName))
+                {
+                    return user.FullName;
+                }
+
+                if (!string.IsNullOrWhiteSpace(user.UserName))
+                {
+                    return user.UserName;
+                }
+            }
+
+            return userId;
         }
     }
 }
