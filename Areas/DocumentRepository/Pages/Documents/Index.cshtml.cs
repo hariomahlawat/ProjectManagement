@@ -38,7 +38,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         [FromQuery(Name = "year")] public int? Year { get; set; }
         [FromQuery(Name = "includeInactive")] public bool IncludeInactive { get; set; }
         [FromQuery(Name = "view")] public string? View { get; set; }
-        [FromQuery(Name = "partial")] public bool Partial { get; set; }
+        [FromQuery(Name = "partial")] public bool IsPartial { get; set; }
         [FromQuery(Name = "scope")] public string? Scope { get; set; }
 
         // SECTION: View state
@@ -362,11 +362,13 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 return new HashSet<Guid>();
             }
 
-            return await _db.DocRepoFavourites
+            var favouriteIds = await _db.DocRepoFavourites
                 .AsNoTracking()
                 .Where(favourite => favourite.UserId == userId && documentIds.Contains(favourite.DocumentId))
                 .Select(favourite => favourite.DocumentId)
-                .ToHashSetAsync();
+                .ToListAsync();
+
+            return favouriteIds.ToHashSet();
         }
     }
 }
