@@ -569,9 +569,18 @@
 
 /* SECTION: Cell truncation + wrapping */
 .docrepo-list th,
-.docrepo-list td {
+.docrepo-list td:not(.docrepo-actions) {
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* SECTION: Actions cell overflow */
+.docrepo-list td.docrepo-actions {
+    overflow: visible;
+}
+
+.docrepo-list td.docrepo-actions .dropdown-menu {
+    z-index: 3000;
 }
 
 .docrepo-list th:first-child,
