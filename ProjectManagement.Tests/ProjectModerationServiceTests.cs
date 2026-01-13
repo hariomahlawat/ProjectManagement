@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -165,9 +166,8 @@ public sealed class ProjectModerationServiceTests
         Assert.Null(await db.Projects.FindAsync(10));
         Assert.NotNull(await db.Projects.FindAsync(11));
 
-        var audit = await db.ProjectAudits.SingleAsync(a => a.ProjectId == 10);
-        Assert.Equal("Purge", audit.Action);
-        Assert.Equal("system", audit.PerformedByUserId);
+        var audit = await db.AuditLogs.SingleAsync(a => a.Action == "Projects.Purge");
+        Assert.Equal("system", audit.UserId);
     }
 
     private static ProjectModerationService CreateService(ApplicationDbContext db, FakeClock clock, TempDirectory temp)
@@ -177,7 +177,8 @@ public sealed class ProjectModerationServiceTests
             clock,
             NullLogger<ProjectModerationService>.Instance,
             new TestUploadRootProvider(temp.Path),
-            Options.Create(new ProjectDocumentOptions()));
+            Options.Create(new ProjectDocumentOptions()),
+            new AuditService(db, new HttpContextAccessor()));
     }
 
     private static async Task<ApplicationDbContext> CreateContextAsync(SqliteConnection connection)
