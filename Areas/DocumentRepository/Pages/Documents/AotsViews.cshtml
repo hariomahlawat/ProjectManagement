@@ -1,0 +1,73 @@
+@page "{id:guid}"
+@model ProjectManagement.Areas.DocumentRepository.Pages.Documents.AotsViewsModel
+@{
+    ViewData["Title"] = "AOTS viewers";
+}
+
+<div class="container py-4">
+    <!-- SECTION: Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
+        <div>
+            <h2 class="mb-1">Seen by (AOTS)</h2>
+            <div class="text-muted">
+                <span>Document:</span>
+                <span class="fw-semibold">@Model.DocumentTitle</span>
+            </div>
+        </div>
+        <div>
+            <a class="btn btn-sm btn-outline-secondary" href="@Model.ReturnUrl">
+                <i class="bi bi-arrow-left"></i>
+                <span>Back</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- SECTION: Content -->
+    @if (!Model.IsAots)
+    {
+        <div class="alert alert-info" role="alert">
+            This document is not marked as AOTS.
+        </div>
+    }
+    else if (Model.Viewers.Count == 0)
+    {
+        <div class="alert alert-secondary" role="alert">
+            No viewers have opened this document yet.
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <!-- SECTION: Viewer table -->
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th scope="col">Ser</th>
+                                <th scope="col">Rank &amp; name</th>
+                                <th scope="col">Username</th>
+                                <th scope="col">First viewed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var index = 0; index < Model.Viewers.Count; index++)
+                            {
+                                var viewer = Model.Viewers[index];
+                                var displayName = string.IsNullOrWhiteSpace(viewer.Rank)
+                                    ? viewer.FullName
+                                    : $"{viewer.Rank} {viewer.FullName}";
+                                <tr>
+                                    <td>@(index + 1)</td>
+                                    <td>@displayName</td>
+                                    <td>@viewer.UserName</td>
+                                    <td>@viewer.FirstViewedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+</div>
