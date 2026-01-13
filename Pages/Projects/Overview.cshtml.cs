@@ -383,11 +383,11 @@ namespace ProjectManagement.Pages.Projects
             decimal? rdOrL1CostLakhs = null;
 
             // Prefer PNC cost, then L1 cost, then project R&D cost
-            if (Procurement.PncCost.HasValue)
+            if (Procurement.PncCost is > 0m)
             {
                 rdOrL1CostLakhs = Procurement.PncCost.Value / 1_00_000m;
             }
-            else if (Procurement.L1Cost.HasValue)
+            else if (Procurement.L1Cost is > 0m)
             {
                 rdOrL1CostLakhs = Procurement.L1Cost.Value / 1_00_000m;
             }
