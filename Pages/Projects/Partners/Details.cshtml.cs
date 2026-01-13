@@ -228,6 +228,9 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
+        // SECTION: Model state cleanup
+        RemoveModelStateEntries(nameof(Attachment), nameof(ProjectLink));
+
         ValidatePhone(Contact.MobilePhone, nameof(Contact.MobilePhone));
         ValidatePhone(Contact.OfficePhone, nameof(Contact.OfficePhone));
         ValidatePhone(Contact.WhatsAppPhone, nameof(Contact.WhatsAppPhone));
@@ -358,6 +361,9 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
+        // SECTION: Model state cleanup
+        RemoveModelStateEntries(nameof(Contact), nameof(ProjectLink));
+
         ValidateAttachment(Attachment.File, nameof(Attachment.File));
         if (!ModelState.IsValid)
         {
@@ -410,6 +416,9 @@ public class DetailsModel : PageModel
         {
             return NotFound();
         }
+
+        // SECTION: Model state cleanup
+        RemoveModelStateEntries(nameof(Contact), nameof(Attachment));
 
         if (!ModelState.IsValid)
         {
@@ -489,6 +498,9 @@ public class DetailsModel : PageModel
             return NotFound();
         }
 
+        // SECTION: Model state cleanup
+        RemoveModelStateEntries(nameof(Contact), nameof(Attachment));
+
         link.Role = string.IsNullOrWhiteSpace(ProjectLink.Role) ? IndustryPartnerRoles.JointDevelopmentPartner : ProjectLink.Role;
         link.Status = string.IsNullOrWhiteSpace(ProjectLink.Status) ? IndustryPartnerAssociationStatuses.Active : ProjectLink.Status;
         link.Notes = string.IsNullOrWhiteSpace(ProjectLink.Notes) ? null : ProjectLink.Notes.Trim();
@@ -510,6 +522,22 @@ public class DetailsModel : PageModel
     }
 
     // SECTION: Helpers
+    private void RemoveModelStateEntries(params string[] prefixes)
+    {
+        foreach (var prefix in prefixes)
+        {
+            var keys = ModelState.Keys
+                .Where(key => key.Equals(prefix, StringComparison.OrdinalIgnoreCase)
+                    || key.StartsWith($"{prefix}.", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var key in keys)
+            {
+                ModelState.Remove(key);
+            }
+        }
+    }
+
     private void ValidatePhone(string? phone, string field)
     {
         if (string.IsNullOrWhiteSpace(phone))
