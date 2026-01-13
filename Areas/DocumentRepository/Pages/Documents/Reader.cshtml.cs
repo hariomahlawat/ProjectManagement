@@ -23,13 +23,19 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         private readonly ApplicationDbContext _db;
         private readonly IDocStorage _storage;
         private readonly ILogger<ReaderModel> _logger;
+        private readonly IAuthorizationService _authorizationService;
 
         // SECTION: Constructor
-        public ReaderModel(ApplicationDbContext db, IDocStorage storage, ILogger<ReaderModel> logger)
+        public ReaderModel(
+            ApplicationDbContext db,
+            IDocStorage storage,
+            ILogger<ReaderModel> logger,
+            IAuthorizationService authorizationService)
         {
             _db = db;
             _storage = storage;
             _logger = logger;
+            _authorizationService = authorizationService;
         }
 
         // SECTION: View data
@@ -70,6 +76,12 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         public bool IsAots { get; private set; }
 
         public bool IsAotsSeen { get; private set; }
+
+        public bool CanViewAotsViews { get; private set; }
+
+        public int AotsViewsCount { get; private set; }
+
+        public string AotsViewsUrl { get; private set; } = string.Empty;
 
         // SECTION: Query
         [FromQuery(Name = "returnUrl")]
@@ -153,6 +165,23 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                     "DocRepo file missing for Reader. DocumentId={DocumentId} StoragePath={StoragePath}",
                     id,
                     doc.StoragePath);
+            }
+
+            // SECTION: AOTS viewer access
+            if (doc.IsAots)
+            {
+                var authorizationResult = await _authorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata");
+                CanViewAotsViews = authorizationResult.Succeeded;
+
+                if (CanViewAotsViews)
+                {
+                    AotsViewsCount = await _db.DocRepoAotsViews
+                        .AsNoTracking()
+                        .CountAsync(view => view.DocumentId == id, cancellationToken);
+
+                    var readerUrl = Url.Page("./Reader", new { id, returnUrl = ReturnUrl }) ?? string.Empty;
+                    AotsViewsUrl = Url.Page("./AotsViews", new { id, returnUrl = readerUrl }) ?? string.Empty;
+                }
             }
 
             // SECTION: AOTS view tracking

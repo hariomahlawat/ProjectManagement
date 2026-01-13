@@ -241,8 +241,21 @@
 
                     @if (Model.IsAots)
                     {
+                        <!-- SECTION: AOTS seen status -->
                         <dt class="col-5 text-muted">Seen</dt>
                         <dd class="col-7">@((Model.IsAotsSeen) ? "Yes" : "No")</dd>
+
+                        <!-- SECTION: AOTS viewers -->
+                        @if (Model.CanViewAotsViews)
+                        {
+                            <dt class="col-5 text-muted">Seen by</dt>
+                            <dd class="col-7">
+                                <a class="link-primary"
+                                   href="@Model.AotsViewsUrl">
+                                    Seen by (@Model.AotsViewsCount)
+                                </a>
+                            </dd>
+                        }
                     }
                 </dl>
             </div>
