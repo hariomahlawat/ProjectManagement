@@ -1,0 +1,195 @@
+@page "/Projects/Partners"
+@model ProjectManagement.Pages.Projects.Partners.IndexModel
+@using ProjectManagement.Configuration
+@{
+    ViewData["Title"] = "Industry Partners";
+
+    string StatusBadgeClass(string status) => status switch
+    {
+        "Active" => "text-bg-success",
+        "Inactive" => "text-bg-secondary",
+        "Caution" => "text-bg-warning",
+        "Blacklisted" => "text-bg-danger",
+        _ => "text-bg-light"
+    };
+}
+
+<div class="container-xxl py-4">
+    <!-- SECTION: Page header -->
+    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-1">Industry Partners</h1>
+            <p class="text-muted mb-0">Search, review, and manage external partners associated with projects.</p>
+        </div>
+        <authorize policy="@Policies.Partners.Manage">
+            <a class="btn btn-primary" asp-page="/Projects/Partners/Create">
+                <i class="bi bi-plus-lg me-1"></i> Add partner
+            </a>
+        </authorize>
+    </div>
+
+    <!-- SECTION: Search and filters -->
+    <div class="card pm-card pm-shadow mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-lg-5">
+                    <label class="form-label" for="partnerSearch">Search</label>
+                    <input id="partnerSearch"
+                           name="Search"
+                           value="@Model.Search"
+                           class="form-control"
+                           placeholder="Firm, contact, phone, email, or city" />
+                </div>
+                <div class="col-lg-3">
+                    <label class="form-label" for="partnerType">Partner type</label>
+                    <select id="partnerType" name="PartnerType" class="form-select">
+                        <option value="">All</option>
+                        @foreach (var type in Model.PartnerTypeOptions)
+                        {
+                            <option value="@type" selected="@(Model.PartnerType == type)">@type</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-lg-2">
+                    <label class="form-label" for="partnerCity">City</label>
+                    <select id="partnerCity" name="City" class="form-select">
+                        <option value="">All</option>
+                        @foreach (var city in Model.CityOptions)
+                        {
+                            <option value="@city" selected="@(Model.City == city)">@city</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-lg-2">
+                    <button type="submit" class="btn btn-primary w-100">Apply</button>
+                </div>
+
+                <div class="col-12">
+                    <details class="mt-2" @(Model.HasFilters ? "open" : string.Empty)>
+                        <summary class="small text-muted">Status filters</summary>
+                        <div class="d-flex flex-wrap gap-3 mt-2">
+                            @foreach (var status in Model.StatusOptions)
+                            {
+                                <div class="form-check">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="Statuses"
+                                           value="@status"
+                                           id="status_@status"
+                                           checked="@Model.Statuses.Contains(status)" />
+                                    <label class="form-check-label" for="status_@status">
+                                        @status
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                    </details>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SECTION: Results table -->
+    <div class="card pm-card pm-shadow">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="h5 mb-1">Partners</h2>
+                <p class="text-muted small mb-0">@Model.TotalCount total partners</p>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Firm</th>
+                            <th>Primary contact</th>
+                            <th>Phone</th>
+                            <th>Email</th>
+                            <th>City</th>
+                            <th class="text-center">Projects</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Items.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    No partners match your filters. Try adjusting the search criteria.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var partner in Model.Items)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">@partner.FirmName</div>
+                                        <div class="d-flex gap-2 flex-wrap">
+                                            <span class="badge rounded-pill @StatusBadgeClass(partner.Status)">@partner.Status</span>
+                                            @if (!string.IsNullOrWhiteSpace(partner.PartnerType))
+                                            {
+                                                <span class="badge rounded-pill text-bg-light border">@partner.PartnerType</span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div>@(partner.PrimaryContactName ?? "—")</div>
+                                        <small class="text-muted">@(partner.PrimaryContactDesignation ?? "")</small>
+                                    </td>
+                                    <td>@(partner.PrimaryPhone ?? "—")</td>
+                                    <td>@(partner.PrimaryEmail ?? "—")</td>
+                                    <td>@(partner.City ?? "—")</td>
+                                    <td class="text-center">@partner.ProjectCount</td>
+                                    <td class="text-end">
+                                        <a class="btn btn-outline-secondary btn-sm"
+                                           asp-page="/Projects/Partners/Details"
+                                           asp-route-id="@partner.Id">
+                                            View
+                                        </a>
+                                        <authorize policy="@Policies.Partners.Manage">
+                                            <a class="btn btn-outline-primary btn-sm"
+                                               asp-page="/Projects/Partners/Edit"
+                                               asp-route-id="@partner.Id">
+                                                Edit
+                                            </a>
+                                        </authorize>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (Model.TotalPages > 1)
+            {
+                <nav class="d-flex justify-content-between align-items-center mt-3" aria-label="Partners pagination">
+                    <span class="text-muted small">Page @Model.PageIndex of @Model.TotalPages</span>
+                    <div class="btn-group">
+                        <a class="btn btn-outline-secondary btn-sm @(Model.PageIndex <= 1 ? "disabled" : string.Empty)"
+                           asp-page="/Projects/Partners/Index"
+                           asp-route-search="@Model.Search"
+                           asp-route-partnerType="@Model.PartnerType"
+                           asp-route-city="@Model.City"
+                           asp-route-statuses="@Model.Statuses"
+                           asp-route-pageIndex="@(Model.PageIndex - 1)">
+                            Previous
+                        </a>
+                        <a class="btn btn-outline-secondary btn-sm @(Model.PageIndex >= Model.TotalPages ? "disabled" : string.Empty)"
+                           asp-page="/Projects/Partners/Index"
+                           asp-route-search="@Model.Search"
+                           asp-route-partnerType="@Model.PartnerType"
+                           asp-route-city="@Model.City"
+                           asp-route-statuses="@Model.Statuses"
+                           asp-route-pageIndex="@(Model.PageIndex + 1)">
+                            Next
+                        </a>
+                    </div>
+                </nav>
+            }
+        </div>
+    </div>
+</div>

@@ -187,6 +187,14 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(Policies.Ipr.ViewAllowedRoles));
     options.AddPolicy(Policies.Ipr.Edit, policy =>
         policy.RequireRole(Policies.Ipr.EditAllowedRoles));
+    options.AddPolicy(Policies.Partners.View, policy =>
+        policy.RequireAuthenticatedUser());
+    options.AddPolicy(Policies.Partners.Manage, policy =>
+        policy.RequireRole(Policies.Partners.ManageAllowedRoles));
+    options.AddPolicy(Policies.Partners.Delete, policy =>
+        policy.RequireRole(Policies.Partners.DeleteAllowedRoles));
+    options.AddPolicy(Policies.Partners.LinkToProject, policy =>
+        policy.RequireRole(Policies.Partners.LinkAllowedRoles));
     options.AddPolicy("DocRepo.View", policy =>
     policy.RequireAuthenticatedUser());
 

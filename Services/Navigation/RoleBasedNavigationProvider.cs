@@ -103,6 +103,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
+                Text = "Industry Partners",
+                Page = "/Projects/Partners/Index",
+                AuthorizationPolicy = Policies.Partners.View,
+                Icon = "bi-buildings"
+            },
+            new()
+            {
                 Text = "Process",
                 Page = "/Process/Index",
                 Icon = "bi-diagram-3"

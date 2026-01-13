@@ -24,6 +24,7 @@ using ProjectManagement.Helpers;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Data.Projects;
 using ProjectManagement.Models.Projects;
+using ProjectManagement.Models.Partners;
 
 namespace ProjectManagement.Data
 {
@@ -132,6 +133,11 @@ namespace ProjectManagement.Data
         public DbSet<DocumentCategory> DocumentCategories => Set<DocumentCategory>();
         public DbSet<DocRepoFavourite> DocRepoFavourites => Set<DocRepoFavourite>();
         public DbSet<DocRepoAotsView> DocRepoAotsViews => Set<DocRepoAotsView>();
+        public DbSet<IndustryPartner> IndustryPartners => Set<IndustryPartner>();
+        public DbSet<IndustryPartnerContact> IndustryPartnerContacts => Set<IndustryPartnerContact>();
+        public DbSet<IndustryPartnerContactPhone> IndustryPartnerContactPhones => Set<IndustryPartnerContactPhone>();
+        public DbSet<IndustryPartnerAttachment> IndustryPartnerAttachments => Set<IndustryPartnerAttachment>();
+        public DbSet<ProjectIndustryPartner> ProjectIndustryPartners => Set<ProjectIndustryPartner>();
 
         // SECTION: PostgreSQL text search helpers
         public static string TsHeadline(string config, string text, NpgsqlTsQuery query, string options) => throw new NotSupportedException();
@@ -2890,6 +2896,178 @@ namespace ProjectManagement.Data
 
                 entity.HasIndex(x => x.TrainingId).HasDatabaseName("IX_TrainingDeleteRequests_TrainingId");
                 entity.HasIndex(x => x.Status).HasDatabaseName("IX_TrainingDeleteRequests_Status");
+            });
+
+            // SECTION: Industry partners module
+            builder.Entity<IndustryPartner>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("IndustryPartners");
+                entity.Property(x => x.FirmName).HasMaxLength(256).IsRequired();
+                entity.Property(x => x.NormalizedFirmName).HasMaxLength(256).IsRequired();
+                entity.Property(x => x.PartnerType).HasMaxLength(80);
+                entity.Property(x => x.AddressText).HasMaxLength(512);
+                entity.Property(x => x.City).HasMaxLength(120);
+                entity.Property(x => x.State).HasMaxLength(120);
+                entity.Property(x => x.Pincode).HasMaxLength(20);
+                entity.Property(x => x.Website).HasMaxLength(256);
+                entity.Property(x => x.Notes).HasMaxLength(2000);
+                entity.Property(x => x.Status).HasMaxLength(40).HasDefaultValue(IndustryPartnerStatuses.Active).IsRequired();
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.UpdatedByUserId).HasMaxLength(450);
+                entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.UpdatedAtUtc).HasColumnType("timestamp with time zone");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                entity.HasIndex(x => x.FirmName).HasDatabaseName("IX_IndustryPartners_FirmName");
+                entity.HasIndex(x => x.NormalizedFirmName).IsUnique().HasDatabaseName("UX_IndustryPartners_NormalizedFirmName");
+                entity.HasIndex(x => x.Status).HasDatabaseName("IX_IndustryPartners_Status");
+                entity.HasIndex(x => x.City).HasDatabaseName("IX_IndustryPartners_City");
+
+                entity.HasMany(x => x.Contacts)
+                    .WithOne(x => x.Partner)
+                    .HasForeignKey(x => x.PartnerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(x => x.Attachments)
+                    .WithOne(x => x.Partner)
+                    .HasForeignKey(x => x.PartnerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(x => x.ProjectLinks)
+                    .WithOne(x => x.Partner)
+                    .HasForeignKey(x => x.PartnerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<IndustryPartnerContact>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("IndustryPartnerContacts");
+                entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.Designation).HasMaxLength(120);
+                entity.Property(x => x.Email).HasMaxLength(200);
+                entity.Property(x => x.Notes).HasMaxLength(1000);
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.UpdatedByUserId).HasMaxLength(450);
+                entity.Property(x => x.IsPrimary).HasDefaultValue(false);
+                entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.UpdatedAtUtc).HasColumnType("timestamp with time zone");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                entity.HasIndex(x => x.PartnerId).HasDatabaseName("IX_IndustryPartnerContacts_PartnerId");
+                entity.HasIndex(x => new { x.PartnerId, x.IsPrimary }).HasDatabaseName("IX_IndustryPartnerContacts_PartnerId_IsPrimary");
+
+                var primaryContactIndex = entity.HasIndex(x => x.PartnerId)
+                    .HasDatabaseName("UX_IndustryPartnerContacts_Primary")
+                    .IsUnique();
+
+                if (Database.IsNpgsql())
+                {
+                    primaryContactIndex.HasFilter("\"IsPrimary\" = TRUE");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    primaryContactIndex.HasFilter("[IsPrimary] = 1");
+                }
+                else
+                {
+                    primaryContactIndex.HasFilter("IsPrimary = 1");
+                }
+            });
+
+            builder.Entity<IndustryPartnerContactPhone>(entity =>
+            {
+                entity.ToTable("IndustryPartnerContactPhones");
+                entity.Property(x => x.PhoneNumber).HasMaxLength(40).IsRequired();
+                entity.Property(x => x.Label).HasMaxLength(32).HasDefaultValue("Mobile").IsRequired();
+                entity.HasIndex(x => x.ContactId).HasDatabaseName("IX_IndustryPartnerContactPhones_ContactId");
+            });
+
+            builder.Entity<IndustryPartnerAttachment>(entity =>
+            {
+                entity.ToTable("IndustryPartnerAttachments");
+                entity.Property(x => x.StorageKey).HasMaxLength(260).IsRequired();
+                entity.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+                entity.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.Title).HasMaxLength(200);
+                entity.Property(x => x.AttachmentType).HasMaxLength(80);
+                entity.Property(x => x.Notes).HasMaxLength(1000);
+                entity.Property(x => x.UploadedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.UploadedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.UploadedAtUtc).HasColumnType("timestamp with time zone");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    entity.Property(x => x.UploadedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else
+                {
+                    entity.Property(x => x.UploadedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                entity.HasIndex(x => x.PartnerId).HasDatabaseName("IX_IndustryPartnerAttachments_PartnerId");
+                entity.HasIndex(x => x.UploadedAtUtc).HasDatabaseName("IX_IndustryPartnerAttachments_UploadedAtUtc");
+            });
+
+            builder.Entity<ProjectIndustryPartner>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("ProjectIndustryPartners");
+                entity.HasKey(x => new { x.ProjectId, x.PartnerId });
+                entity.Property(x => x.Role).HasMaxLength(80).HasDefaultValue(IndustryPartnerRoles.JointDevelopmentPartner).IsRequired();
+                entity.Property(x => x.Status).HasMaxLength(40).HasDefaultValue(IndustryPartnerAssociationStatuses.Active).IsRequired();
+                entity.Property(x => x.Notes).HasMaxLength(1000);
+                entity.Property(x => x.FromDate).HasColumnType("date");
+                entity.Property(x => x.ToDate).HasColumnType("date");
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.UpdatedByUserId).HasMaxLength(450);
+                entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.UpdatedAtUtc).HasColumnType("timestamp with time zone");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                entity.HasIndex(x => x.ProjectId).HasDatabaseName("IX_ProjectIndustryPartners_ProjectId");
+                entity.HasIndex(x => x.PartnerId).HasDatabaseName("IX_ProjectIndustryPartners_PartnerId");
+                entity.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<UserNotificationPreference>(e =>
