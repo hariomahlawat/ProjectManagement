@@ -1,0 +1,147 @@
+@page "/Projects/Partners/Create"
+@model ProjectManagement.Pages.Projects.Partners.CreateModel
+@{
+    ViewData["Title"] = "Add Industry Partner";
+}
+
+<div class="container-xxl py-4">
+    <!-- SECTION: Page header -->
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <p class="text-uppercase text-muted small mb-1">Industry Partners</p>
+            <h1 class="h3 mb-1">Add partner</h1>
+            <p class="text-muted mb-0">Capture partner details and an optional primary contact.</p>
+        </div>
+        <a class="btn btn-outline-secondary" asp-page="/Projects/Partners/Index">Back to list</a>
+    </div>
+
+    <form method="post" class="row g-4">
+        <!-- SECTION: Partner details -->
+        <div class="col-lg-7">
+            <div class="card pm-card pm-shadow h-100">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Partner details</h2>
+                </div>
+                <div class="card-body vstack gap-3">
+                    <div>
+                        <label asp-for="Input.FirmName" class="form-label">Firm name</label>
+                        <input asp-for="Input.FirmName" class="form-control" />
+                        <span asp-validation-for="Input.FirmName" class="text-danger"></span>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="Input.PartnerType" class="form-label">Partner type</label>
+                            <select asp-for="Input.PartnerType" class="form-select">
+                                <option value="">Select</option>
+                                @foreach (var type in Model.PartnerTypeOptions)
+                                {
+                                    <option value="@type">@type</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Input.Status" class="form-label">Status</label>
+                            <select asp-for="Input.Status" class="form-select">
+                                @foreach (var status in Model.StatusOptions)
+                                {
+                                    <option value="@status">@status</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label asp-for="Input.AddressText" class="form-label">Address</label>
+                        <textarea asp-for="Input.AddressText" class="form-control" rows="3"></textarea>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label asp-for="Input.City" class="form-label">City</label>
+                            <input asp-for="Input.City" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Input.State" class="form-label">State</label>
+                            <input asp-for="Input.State" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Input.Pincode" class="form-label">Pincode</label>
+                            <input asp-for="Input.Pincode" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label asp-for="Input.Website" class="form-label">Website</label>
+                        <input asp-for="Input.Website" class="form-control" placeholder="https://" />
+                    </div>
+
+                    <div>
+                        <label asp-for="Input.Notes" class="form-label">Internal notes</label>
+                        <textarea asp-for="Input.Notes" class="form-control" rows="4"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION: Primary contact -->
+        <div class="col-lg-5">
+            <div class="card pm-card pm-shadow h-100">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Primary contact (optional)</h2>
+                </div>
+                <div class="card-body vstack gap-3">
+                    <div>
+                        <label asp-for="Input.ContactName" class="form-label">Name</label>
+                        <input asp-for="Input.ContactName" class="form-control" />
+                        <span asp-validation-for="Input.ContactName" class="text-danger"></span>
+                    </div>
+
+                    <div>
+                        <label asp-for="Input.ContactDesignation" class="form-label">Designation</label>
+                        <input asp-for="Input.ContactDesignation" class="form-control" />
+                    </div>
+
+                    <div>
+                        <label asp-for="Input.ContactEmail" class="form-label">Email</label>
+                        <input asp-for="Input.ContactEmail" class="form-control" />
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label asp-for="Input.MobilePhone" class="form-label">Mobile</label>
+                            <input asp-for="Input.MobilePhone" class="form-control" />
+                            <span asp-validation-for="Input.MobilePhone" class="text-danger"></span>
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="Input.OfficePhone" class="form-label">Office</label>
+                            <input asp-for="Input.OfficePhone" class="form-control" />
+                            <span asp-validation-for="Input.OfficePhone" class="text-danger"></span>
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="Input.WhatsAppPhone" class="form-label">WhatsApp</label>
+                            <input asp-for="Input.WhatsAppPhone" class="form-control" />
+                            <span asp-validation-for="Input.WhatsAppPhone" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label asp-for="Input.ContactNotes" class="form-label">Notes</label>
+                        <textarea asp-for="Input.ContactNotes" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION: Form actions -->
+        <div class="col-12 d-flex justify-content-end gap-2">
+            <a class="btn btn-outline-secondary" asp-page="/Projects/Partners/Index">Cancel</a>
+            <button type="submit" class="btn btn-primary">Save partner</button>
+        </div>
+    </form>
+</div>
+
+@section Scripts
+{
+    <partial name="_ValidationScriptsPartial" />
+}

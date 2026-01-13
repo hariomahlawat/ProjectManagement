@@ -1,0 +1,128 @@
+@model ProjectManagement.Pages.Projects.OverviewModel
+@using ProjectManagement.Configuration
+@using ProjectManagement.Models.Partners
+
+<div class="card pm-card">
+    <div class="card-header pm-card-header">
+        <div class="pm-card-heading">
+            <span class="pm-card-icon" aria-hidden="true">
+                <i class="bi bi-buildings"></i>
+            </span>
+            <div>
+                <h3 class="pm-card-title h6 mb-0">Industry partners</h3>
+                <p class="pm-card-subtitle mb-0">Joint development partners linked to this project.</p>
+            </div>
+        </div>
+    </div>
+    <div class="card-body pm-card-body">
+        @if (!Model.IndustryPartners.Any())
+        {
+            <p class="text-muted mb-0">No partners linked yet.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Firm</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var link in Model.IndustryPartners)
+                        {
+                            var updateFormId = $"partner-update-{link.PartnerId}";
+                            <tr>
+                                <td>
+                                    <a asp-page="/Projects/Partners/Details" asp-route-id="@link.PartnerId">
+                                        @link.FirmName
+                                    </a>
+                                </td>
+                                <td>
+                                    @if (Model.CanLinkIndustryPartners)
+                                    {
+                                        <select name="PartnerInput.Role" form="@updateFormId" class="form-select form-select-sm">
+                                            @foreach (var role in IndustryPartnerRoles.All)
+                                            {
+                                                <option value="@role" selected="@(role == link.Role)">@role</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <span>@link.Role</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (Model.CanLinkIndustryPartners)
+                                    {
+                                        <select name="PartnerInput.Status" form="@updateFormId" class="form-select form-select-sm">
+                                            @foreach (var status in IndustryPartnerAssociationStatuses.All)
+                                            {
+                                                <option value="@status" selected="@(status == link.Status)">@status</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <span>@link.Status</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    @if (Model.CanLinkIndustryPartners)
+                                    {
+                                        <form method="post"
+                                              asp-page-handler="UpdatePartner"
+                                              asp-route-id="@Model.Project.Id"
+                                              asp-route-partnerId="@link.PartnerId"
+                                              id="@updateFormId"
+                                              class="d-inline">
+                                            <button type="submit" class="btn btn-outline-secondary btn-sm">Update</button>
+                                        </form>
+                                        <form method="post"
+                                              asp-page-handler="UnlinkPartner"
+                                              asp-route-id="@Model.Project.Id"
+                                              asp-route-partnerId="@link.PartnerId"
+                                              class="d-inline">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm">Remove</button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <authorize policy="@Policies.Partners.LinkToProject">
+            <hr />
+            <form method="post" asp-page-handler="LinkPartner" asp-route-id="@Model.Project.Id" class="vstack gap-2">
+                <div>
+                    <label asp-for="PartnerInput.PartnerId" class="form-label">Link partner</label>
+                    <select asp-for="PartnerInput.PartnerId" class="form-select">
+                        <option value="">Select partner</option>
+                        @foreach (var partner in Model.IndustryPartnerOptions)
+                        {
+                            <option value="@partner.Id">@partner.FirmName (@partner.Status)</option>
+                        }
+                    </select>
+                    <span asp-validation-for="PartnerInput.PartnerId" class="text-danger"></span>
+                </div>
+                <div>
+                    <label asp-for="PartnerInput.Role" class="form-label">Role</label>
+                    <select asp-for="PartnerInput.Role" class="form-select">
+                        @foreach (var role in IndustryPartnerRoles.All)
+                        {
+                            <option value="@role">@role</option>
+                        }
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Link partner</button>
+            </form>
+        </authorize>
+    </div>
+</div>
