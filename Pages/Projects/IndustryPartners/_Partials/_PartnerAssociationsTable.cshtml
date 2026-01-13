@@ -1,0 +1,39 @@
+@model ProjectManagement.ViewModels.Projects.IndustryPartners.PartnerDetailViewModel
+
+@* Section: Associations table *@
+<div class="table-responsive">
+    <table class="table table-sm mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Project Name</th>
+                <th scope="col">Role</th>
+                <th scope="col">Association Status</th>
+                <th scope="col">Notes</th>
+                <th scope="col" class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.ProjectAssociations.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">No project associations recorded.</td>
+                </tr>
+            }
+            else
+            {
+                foreach (var association in Model.ProjectAssociations)
+                {
+                    <tr>
+                        <td><a href="@association.ProjectLink">@association.ProjectName</a></td>
+                        <td>@association.Role</td>
+                        <td>@association.AssociationStatus</td>
+                        <td>@(string.IsNullOrWhiteSpace(association.Notes) ? "—" : association.Notes)</td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#unlinkAssociationModal">Unlink</button>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>

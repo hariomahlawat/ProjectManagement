@@ -1,0 +1,42 @@
+@* Section: Link project drawer *@
+<div class="offcanvas offcanvas-end" tabindex="-1" id="linkProjectDrawer" aria-labelledby="linkProjectDrawerLabel">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title" id="linkProjectDrawerLabel">Link to Project</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <form class="industry-partners-form">
+            <div class="mb-3">
+                <label class="form-label" for="projectSearch">Project Search</label>
+                <input id="projectSearch" class="form-control" type="search" placeholder="Search by name or code" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="projectSelection">Project Selection</label>
+                <select id="projectSelection" class="form-select">
+                    <option>Select a project</option>
+                    <option>Aquila UAV Programme</option>
+                    <option>Project Sentinel</option>
+                    <option>Skyline Radar Upgrade</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="projectRole">Role</label>
+                <select id="projectRole" class="form-select">
+                    <option>Development Partner</option>
+                    <option>JDP</option>
+                    <option>OEM</option>
+                    <option>ToT Recipient</option>
+                    <option>Support</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="projectNote">Optional Note</label>
+                <textarea id="projectNote" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+                <button type="button" class="btn btn-primary">Save Association</button>
+            </div>
+        </form>
+    </div>
+</div>

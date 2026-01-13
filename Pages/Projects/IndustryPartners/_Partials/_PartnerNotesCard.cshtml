@@ -1,0 +1,33 @@
+@model ProjectManagement.ViewModels.Projects.IndustryPartners.PartnerDetailViewModel
+
+@* Section: Notes *@
+<div class="card shadow-sm">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <div>
+            <h3 class="h6 mb-0">Notes & Remarks</h3>
+            <div class="text-muted small">Append-only record of remarks.</div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addNoteModal">Add Note</button>
+    </div>
+    <div class="card-body">
+        @if (Model.Notes.Count == 0)
+        {
+            <div class="text-muted">No notes recorded.</div>
+        }
+        else
+        {
+            <div class="industry-partners-notes">
+                @foreach (var note in Model.Notes)
+                {
+                    <div class="industry-partners-note">
+                        <div class="d-flex flex-column flex-md-row justify-content-between gap-1">
+                            <div class="fw-semibold">@note.Author</div>
+                            <div class="text-muted small">@note.Timestamp.ToString("dd MMM yyyy, HH:mm")</div>
+                        </div>
+                        <div>@note.Content</div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>

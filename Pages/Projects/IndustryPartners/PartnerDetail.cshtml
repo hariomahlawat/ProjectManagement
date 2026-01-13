@@ -1,0 +1,8 @@
+@page "/projects/industry-partners/partner-detail"
+@model ProjectManagement.Pages.Projects.IndustryPartners.PartnerDetailModel
+@{
+    Layout = null;
+}
+
+@* Section: Partner detail fragment *@
+@await Html.PartialAsync("Projects/IndustryPartners/_Partials/_PartnerDetail", Model.Partner)

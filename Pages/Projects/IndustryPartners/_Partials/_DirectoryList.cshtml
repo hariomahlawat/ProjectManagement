@@ -1,0 +1,34 @@
+@model ProjectManagement.ViewModels.Projects.IndustryPartners.DirectoryListViewModel
+
+@* Section: Directory list *@
+<div class="list-group list-group-flush">
+    @if (Model.Partners.Count == 0)
+    {
+        <div class="px-3 py-4 text-center text-muted">
+            <div class="fw-semibold">No partners found</div>
+            <div class="small">Clear filters</div>
+        </div>
+    }
+    else
+    {
+        foreach (var partner in Model.Partners)
+        {
+            var isSelected = Model.SelectedPartnerId == partner.Id;
+            <a class="list-group-item list-group-item-action industry-partners-list-item @(isSelected ? "active" : string.Empty)"
+               href="/projects/industry-partners?partner=@partner.Id"
+               hx-get="/projects/industry-partners/partner-detail?partnerId=@partner.Id"
+               hx-target="#industryPartnerDetail"
+               hx-swap="innerHTML"
+               hx-push-url="true"
+               aria-current="@(isSelected ? "true" : "false")">
+                <div class="d-flex align-items-start justify-content-between gap-2">
+                    <div>
+                        <div class="fw-semibold">@partner.DisplayName</div>
+                        <div class="text-muted small">@partner.PartnerType • @partner.Status</div>
+                    </div>
+                    <span class="industry-partners-count">@partner.ProjectCount</span>
+                </div>
+            </a>
+        }
+    }
+</div>

@@ -1,0 +1,13 @@
+@model ProjectManagement.ViewModels.Projects.IndustryPartners.PartnerDetailViewModel
+
+@* Section: Project associations *@
+<div class="card shadow-sm mb-3">
+    <div class="card-header d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+        <div>
+            <h3 class="h6 mb-0">Project Associations</h3>
+            <div class="text-muted small">Explicit linkage for audit.</div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="offcanvas" data-bs-target="#linkProjectDrawer" aria-controls="linkProjectDrawer">Link to Project</button>
+    </div>
+    @await Html.PartialAsync("Projects/IndustryPartners/_Partials/_PartnerAssociationsTable", Model)
+</div>
