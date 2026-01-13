@@ -144,10 +144,6 @@ public class DetailsModel : PageModel
         [MaxLength(40)]
         public string Status { get; set; } = IndustryPartnerAssociationStatuses.Active;
 
-        public DateOnly? FromDate { get; set; }
-
-        public DateOnly? ToDate { get; set; }
-
         [MaxLength(1000)]
         public string? Notes { get; set; }
     }
@@ -436,8 +432,6 @@ public class DetailsModel : PageModel
             ProjectId = ProjectLink.ProjectId,
             Role = string.IsNullOrWhiteSpace(ProjectLink.Role) ? IndustryPartnerRoles.JointDevelopmentPartner : ProjectLink.Role,
             Status = string.IsNullOrWhiteSpace(ProjectLink.Status) ? IndustryPartnerAssociationStatuses.Active : ProjectLink.Status,
-            FromDate = ProjectLink.FromDate,
-            ToDate = ProjectLink.ToDate,
             Notes = string.IsNullOrWhiteSpace(ProjectLink.Notes) ? null : ProjectLink.Notes.Trim(),
             CreatedAtUtc = now,
             CreatedByUserId = userId
@@ -497,8 +491,6 @@ public class DetailsModel : PageModel
 
         link.Role = string.IsNullOrWhiteSpace(ProjectLink.Role) ? IndustryPartnerRoles.JointDevelopmentPartner : ProjectLink.Role;
         link.Status = string.IsNullOrWhiteSpace(ProjectLink.Status) ? IndustryPartnerAssociationStatuses.Active : ProjectLink.Status;
-        link.FromDate = ProjectLink.FromDate;
-        link.ToDate = ProjectLink.ToDate;
         link.Notes = string.IsNullOrWhiteSpace(ProjectLink.Notes) ? null : ProjectLink.Notes.Trim();
         link.UpdatedAtUtc = _clock.UtcNow.UtcDateTime;
         link.UpdatedByUserId = _users.GetUserId(User) ?? string.Empty;
