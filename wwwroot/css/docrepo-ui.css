@@ -573,23 +573,23 @@
 }
 
 .docrepo-list col.col-category {
-    width: 18rem;
-}
-
-.docrepo-list col.col-office {
-    width: 12rem;
-}
-
-.docrepo-list col.col-date {
     width: 10rem;
 }
 
+.docrepo-list col.col-office {
+    width: 8rem;
+}
+
+.docrepo-list col.col-date {
+    width: 8rem;
+}
+
 .docrepo-list col.col-ocr {
-    width: 11rem;
+    width: 8rem;
 }
 
 .docrepo-list col.col-actions {
-    width: 4.25rem;
+    width: 7rem;
 }
 
 /* SECTION: Cell truncation + wrapping */
