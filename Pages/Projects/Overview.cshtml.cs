@@ -43,13 +43,15 @@ namespace ProjectManagement.Pages.Projects
         private readonly PlanReadService _planRead;
         private readonly ILogger<OverviewModel> _logger;
         private readonly IClock _clock;
+        private readonly IAuthorizationService _authorizationService;
         private readonly ProjectRemarksPanelService _remarksPanelService;
         private readonly ProjectLifecycleService _lifecycleService;
         private readonly ProjectMediaAggregator _mediaAggregator;
+        private readonly IAuditService _audit;
 
         public PlanCompareService PlanCompare { get; }
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, ProjectMediaAggregator mediaAggregator)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, IAuthorizationService authorizationService, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, ProjectMediaAggregator mediaAggregator, IAuditService audit)
         {
             _db = db;
             _procureRead = procureRead;
@@ -59,9 +61,11 @@ namespace ProjectManagement.Pages.Projects
             PlanCompare = planCompare;
             _logger = logger;
             _clock = clock;
+            _authorizationService = authorizationService;
             _remarksPanelService = remarksPanelService;
             _lifecycleService = lifecycleService;
             _mediaAggregator = mediaAggregator;
+            _audit = audit;
         }
 
         public Project Project { get; private set; } = default!;
@@ -677,9 +681,14 @@ namespace ProjectManagement.Pages.Projects
         }
 
         // SECTION: Industry partners link handlers
-        [Authorize(Policy = Policies.Partners.LinkToProject)]
         public async Task<IActionResult> OnPostLinkPartnerAsync(int id, CancellationToken ct)
         {
+            var authorizationResult = await EnsurePartnerLinkAuthorizationAsync();
+            if (authorizationResult is not null)
+            {
+                return authorizationResult;
+            }
+
             if (PartnerInput.PartnerId <= 0)
             {
                 ModelState.AddModelError(nameof(PartnerInput.PartnerId), "Select a partner to link.");
@@ -731,9 +740,14 @@ namespace ProjectManagement.Pages.Projects
             return RedirectToPage(new { id });
         }
 
-        [Authorize(Policy = Policies.Partners.LinkToProject)]
         public async Task<IActionResult> OnPostUnlinkPartnerAsync(int id, int partnerId, CancellationToken ct)
         {
+            var authorizationResult = await EnsurePartnerLinkAuthorizationAsync();
+            if (authorizationResult is not null)
+            {
+                return authorizationResult;
+            }
+
             var link = await _db.ProjectIndustryPartners
                 .FirstOrDefaultAsync(item => item.ProjectId == id && item.PartnerId == partnerId, ct);
 
@@ -757,9 +771,14 @@ namespace ProjectManagement.Pages.Projects
             return RedirectToPage(new { id });
         }
 
-        [Authorize(Policy = Policies.Partners.LinkToProject)]
         public async Task<IActionResult> OnPostUpdatePartnerAsync(int id, int partnerId, CancellationToken ct)
         {
+            var authorizationResult = await EnsurePartnerLinkAuthorizationAsync();
+            if (authorizationResult is not null)
+            {
+                return authorizationResult;
+            }
+
             var link = await _db.ProjectIndustryPartners
                 .FirstOrDefaultAsync(item => item.ProjectId == id && item.PartnerId == partnerId, ct);
 
@@ -788,6 +807,18 @@ namespace ProjectManagement.Pages.Projects
                 });
 
             return RedirectToPage(new { id });
+        }
+
+        // SECTION: Authorization helpers
+        private async Task<IActionResult?> EnsurePartnerLinkAuthorizationAsync()
+        {
+            var authorization = await _authorizationService.AuthorizeAsync(User, Policies.Partners.LinkToProject);
+            if (authorization.Succeeded)
+            {
+                return null;
+            }
+
+            return Forbid();
         }
 
         private async Task LoadDocumentOverviewAsync(Project project, bool isAdmin, bool isHoD, HashSet<int> availableTotIds, CancellationToken ct)
