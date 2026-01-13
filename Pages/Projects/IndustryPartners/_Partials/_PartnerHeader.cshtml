@@ -1,0 +1,28 @@
+@model ProjectManagement.ViewModels.Projects.IndustryPartners.PartnerDetailViewModel
+
+@* Section: Partner header card *@
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+            <div>
+                <h2 class="h4 mb-1">@Model.DisplayName</h2>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    <span class="badge bg-light text-dark border">@Model.PartnerType</span>
+                    <span class="badge @(Model.Status == "Active" ? "bg-success" : "bg-secondary")">@Model.Status</span>
+                </div>
+                <div class="text-muted">@Model.LocationSummary</div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-outline-primary">Edit</button>
+                @if (Model.Status == "Active")
+                {
+                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#archivePartnerModal">Archive</button>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-outline-secondary">Reactivate</button>
+                }
+            </div>
+        </div>
+    </div>
+</div>

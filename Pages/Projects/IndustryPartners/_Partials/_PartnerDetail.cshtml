@@ -1,0 +1,20 @@
+@model ProjectManagement.ViewModels.Projects.IndustryPartners.PartnerDetailViewModel?
+
+@* Section: Partner detail panel *@
+@if (Model is null)
+{
+    <div class="card shadow-sm industry-partners-placeholder">
+        <div class="card-body text-center">
+            <h2 class="h5">Select an Industry Partner</h2>
+            <p class="text-muted mb-0">Choose a partner from the list to view details.</p>
+        </div>
+    </div>
+    return;
+}
+
+@await Html.PartialAsync("Projects/IndustryPartners/_Partials/_PartnerHeader", Model)
+@await Html.PartialAsync("Projects/IndustryPartners/_Partials/_PartnerOverviewRead", Model)
+@await Html.PartialAsync("Projects/IndustryPartners/_Partials/_PartnerAssociationsCard", Model)
+@await Html.PartialAsync("Projects/IndustryPartners/_Partials/_PartnerContactsCard", Model)
+@await Html.PartialAsync("Projects/IndustryPartners/_Partials/_PartnerDocumentsCard", Model)
+@await Html.PartialAsync("Projects/IndustryPartners/_Partials/_PartnerNotesCard", Model)

@@ -3,7 +3,13 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @{
     ViewData["Title"] = "Industry Partners";
-    var selectedPartner = Model.SelectedPartner;
+
+    var directoryModel = new ProjectManagement.ViewModels.Projects.IndustryPartners.DirectoryListViewModel
+    {
+        Partners = Model.Partners,
+        SelectedPartnerId = Model.PartnerId,
+        TotalCount = Model.TotalCount
+    };
 }
 
 @section Styles {
@@ -32,536 +38,83 @@
         <aside class="industry-partners-directory" aria-label="Industry partner directory">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    @* Section: Search *@
-                    <div class="mb-3">
-                        <label class="form-label small text-muted" for="partnerSearch">Search</label>
-                        <input id="partnerSearch" class="form-control" type="search" placeholder="Search partner name" aria-label="Search partner name" />
-                    </div>
+                    <form method="get" class="mb-0">
+                        @* Section: Search *@
+                        <div class="mb-3">
+                            <label class="form-label small text-muted" for="partnerSearch">Search</label>
+                            <input id="partnerSearch" name="q" class="form-control" type="search" value="@Model.Q" placeholder="Search partner name" aria-label="Search partner name" />
+                        </div>
 
-                    @* Section: Filters *@
-                    <div class="industry-partners-filters mb-3">
-                        <div>
-                            <label class="form-label small text-muted" for="partnerTypeFilter">Partner Type</label>
-                            <select id="partnerTypeFilter" class="form-select" multiple>
-                                <option>All</option>
-                                <option>DPSU</option>
-                                <option>Private</option>
-                                <option>Startup</option>
-                                <option>Academic</option>
-                                <option>Foreign OEM</option>
-                                <option>Other</option>
+                        @* Section: Filters *@
+                        <div class="industry-partners-filters mb-3">
+                            <div>
+                                <label class="form-label small text-muted" for="partnerTypeFilter">Partner Type</label>
+                                <select id="partnerTypeFilter" name="type" class="form-select">
+                                    <option value="" selected="@(string.IsNullOrWhiteSpace(Model.Type) ? "selected" : null)">All</option>
+                                    <option value="DPSU" selected="@(Model.Type == "DPSU" ? "selected" : null)">DPSU</option>
+                                    <option value="Private" selected="@(Model.Type == "Private" ? "selected" : null)">Private</option>
+                                    <option value="Startup" selected="@(Model.Type == "Startup" ? "selected" : null)">Startup</option>
+                                    <option value="Academic" selected="@(Model.Type == "Academic" ? "selected" : null)">Academic</option>
+                                    <option value="Foreign OEM" selected="@(Model.Type == "Foreign OEM" ? "selected" : null)">Foreign OEM</option>
+                                    <option value="Other" selected="@(Model.Type == "Other" ? "selected" : null)">Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="form-label small text-muted" for="partnerStatusFilter">Status</label>
+                                <select id="partnerStatusFilter" name="status" class="form-select">
+                                    <option value="" selected="@(string.IsNullOrWhiteSpace(Model.Status) ? "selected" : null)">All</option>
+                                    <option value="Active" selected="@(Model.Status == "Active" ? "selected" : null)">Active</option>
+                                    <option value="Inactive" selected="@(Model.Status == "Inactive" ? "selected" : null)">Inactive</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        @* Section: Sort *@
+                        <div class="mb-3">
+                            <label class="form-label small text-muted" for="partnerSort">Sort by</label>
+                            <select id="partnerSort" name="sort" class="form-select">
+                                <option value="name" selected="@(string.IsNullOrWhiteSpace(Model.Sort) || Model.Sort == "name" ? "selected" : null)">Name (A–Z)</option>
+                                <option value="updated" selected="@(Model.Sort == "updated" ? "selected" : null)">Recently Updated</option>
+                                <option value="projects" selected="@(Model.Sort == "projects" ? "selected" : null)">Most Associated Projects</option>
                             </select>
                         </div>
-                        <div>
-                            <label class="form-label small text-muted" for="partnerStatusFilter">Status</label>
-                            <select id="partnerStatusFilter" class="form-select" multiple>
-                                <option>All</option>
-                                <option>Active</option>
-                                <option>Inactive</option>
-                            </select>
+
+                        @* Section: Directory actions *@
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="text-muted small">@Model.TotalCount partners</span>
+                            <a class="text-decoration-none small" href="/projects/industry-partners">Clear filters</a>
                         </div>
-                    </div>
 
-                    @* Section: Sort *@
-                    <div class="mb-3">
-                        <label class="form-label small text-muted" for="partnerSort">Sort by</label>
-                        <select id="partnerSort" class="form-select">
-                            <option selected>Name (A–Z)</option>
-                            <option>Recently Updated</option>
-                            <option>Most Associated Projects</option>
-                        </select>
-                    </div>
-
-                    @* Section: Result count *@
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <span class="text-muted small">@Model.TotalCount partners</span>
-                        <a class="text-decoration-none small" href="/projects/industry-partners">Clear filters</a>
-                    </div>
+                        @* Section: Apply button *@
+                        <div>
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">Apply Filters</button>
+                        </div>
+                    </form>
                 </div>
 
                 @* Section: Directory list *@
-                <div class="list-group list-group-flush">
-                    @if (Model.Partners.Count == 0)
-                    {
-                        <div class="px-3 py-4 text-center text-muted">
-                            <div class="fw-semibold">No partners found</div>
-                            <div class="small">Clear filters</div>
-                        </div>
-                    }
-                    else
-                    {
-                        foreach (var partner in Model.Partners)
-                        {
-                            var isSelected = selectedPartner?.Id == partner.Id;
-                            <a class="list-group-item list-group-item-action industry-partners-list-item @(isSelected ? "active" : string.Empty)"
-                               asp-page="/Projects/IndustryPartners/Index"
-                               asp-route-partner="@partner.Id"
-                               aria-current="@(isSelected ? "true" : "false")">
-                                <div class="d-flex align-items-start justify-content-between gap-2">
-                                    <div>
-                                        <div class="fw-semibold">@partner.DisplayName</div>
-                                        <div class="text-muted small">@partner.PartnerType • @partner.Status</div>
-                                    </div>
-                                    <span class="industry-partners-count">@partner.ProjectCount</span>
-                                </div>
-                            </a>
-                        }
-                    }
+                <div id="industryPartnerDirectoryList">
+                    @await Html.PartialAsync("Projects/IndustryPartners/_Partials/_DirectoryList", directoryModel)
                 </div>
             </div>
         </aside>
 
         @* Section: Detail panel *@
         <section class="industry-partners-detail" aria-live="polite">
-            @if (selectedPartner is null)
-            {
-                <div class="card shadow-sm industry-partners-placeholder">
-                    <div class="card-body text-center">
-                        <h2 class="h5">Select an Industry Partner</h2>
-                        <p class="text-muted mb-0">Choose a partner from the list to view details.</p>
-                    </div>
-                </div>
-            }
-            else
-            {
-                @* Section: Partner header card *@
-                <div class="card shadow-sm mb-3">
-                    <div class="card-body">
-                        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
-                            <div>
-                                <h2 class="h4 mb-1">@selectedPartner.DisplayName</h2>
-                                <div class="d-flex flex-wrap gap-2 mb-2">
-                                    <span class="badge bg-light text-dark border">@selectedPartner.PartnerType</span>
-                                    <span class="badge @(selectedPartner.Status == "Active" ? "bg-success" : "bg-secondary")">@selectedPartner.Status</span>
-                                </div>
-                                <div class="text-muted">@selectedPartner.LocationSummary</div>
-                            </div>
-                            <div class="d-flex flex-wrap gap-2">
-                                <button type="button" class="btn btn-outline-primary">Edit</button>
-                                @if (selectedPartner.Status == "Active")
-                                {
-                                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#archivePartnerModal">Archive</button>
-                                }
-                                else
-                                {
-                                    <button type="button" class="btn btn-outline-secondary">Reactivate</button>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                @* Section: Overview card *@
-                <div class="card shadow-sm mb-3">
-                    <div class="card-header d-flex align-items-center justify-content-between">
-                        <div>
-                            <h3 class="h6 mb-0">Overview</h3>
-                            <div class="text-muted small">Read-only profile summary</div>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-primary">Edit</button>
-                    </div>
-                    <div class="card-body">
-                        <div class="industry-partners-detail-grid">
-                            <div>
-                                <div class="text-muted small">Display Name</div>
-                                <div class="fw-semibold">@selectedPartner.DisplayName</div>
-                            </div>
-                            <div>
-                                <div class="text-muted small">Legal Name</div>
-                                <div>@(string.IsNullOrWhiteSpace(selectedPartner.LegalName) ? "—" : selectedPartner.LegalName)</div>
-                            </div>
-                            <div>
-                                <div class="text-muted small">Partner Type</div>
-                                <div>@selectedPartner.PartnerType</div>
-                            </div>
-                            <div>
-                                <div class="text-muted small">Registration Number</div>
-                                <div>@(string.IsNullOrWhiteSpace(selectedPartner.RegistrationNumber) ? "—" : selectedPartner.RegistrationNumber)</div>
-                            </div>
-                            <div>
-                                <div class="text-muted small">Address</div>
-                                <div>@(string.IsNullOrWhiteSpace(selectedPartner.Address) ? "—" : selectedPartner.Address)</div>
-                            </div>
-                            <div>
-                                <div class="text-muted small">City</div>
-                                <div>@(string.IsNullOrWhiteSpace(selectedPartner.City) ? "—" : selectedPartner.City)</div>
-                            </div>
-                            <div>
-                                <div class="text-muted small">State</div>
-                                <div>@(string.IsNullOrWhiteSpace(selectedPartner.State) ? "—" : selectedPartner.State)</div>
-                            </div>
-                            <div>
-                                <div class="text-muted small">Country</div>
-                                <div>@(string.IsNullOrWhiteSpace(selectedPartner.Country) ? "—" : selectedPartner.Country)</div>
-                            </div>
-                            <div>
-                                <div class="text-muted small">Website</div>
-                                <div>@(string.IsNullOrWhiteSpace(selectedPartner.Website) ? "—" : selectedPartner.Website)</div>
-                            </div>
-                            <div>
-                                <div class="text-muted small">Organisation Email</div>
-                                <div>@(string.IsNullOrWhiteSpace(selectedPartner.Email) ? "—" : selectedPartner.Email)</div>
-                            </div>
-                            <div>
-                                <div class="text-muted small">Organisation Phone</div>
-                                <div>@(string.IsNullOrWhiteSpace(selectedPartner.Phone) ? "—" : selectedPartner.Phone)</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                @* Section: Project associations *@
-                <div class="card shadow-sm mb-3">
-                    <div class="card-header d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
-                        <div>
-                            <h3 class="h6 mb-0">Project Associations</h3>
-                            <div class="text-muted small">Explicit linkage for audit.</div>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="offcanvas" data-bs-target="#linkProjectDrawer" aria-controls="linkProjectDrawer">Link to Project</button>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th scope="col">Project Name</th>
-                                    <th scope="col">Role</th>
-                                    <th scope="col">Association Status</th>
-                                    <th scope="col">Notes</th>
-                                    <th scope="col" class="text-end">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @if (selectedPartner.ProjectAssociations.Count == 0)
-                                {
-                                    <tr>
-                                        <td colspan="5" class="text-center text-muted py-4">No project associations recorded.</td>
-                                    </tr>
-                                }
-                                else
-                                {
-                                    foreach (var association in selectedPartner.ProjectAssociations)
-                                    {
-                                        <tr>
-                                            <td><a href="@association.ProjectLink">@association.ProjectName</a></td>
-                                            <td>@association.Role</td>
-                                            <td>@association.AssociationStatus</td>
-                                            <td>@(string.IsNullOrWhiteSpace(association.Notes) ? "—" : association.Notes)</td>
-                                            <td class="text-end">
-                                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#unlinkAssociationModal">Unlink</button>
-                                            </td>
-                                        </tr>
-                                    }
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                @* Section: Contacts *@
-                <div class="card shadow-sm mb-3">
-                    <div class="card-header d-flex align-items-center justify-content-between">
-                        <div>
-                            <h3 class="h6 mb-0">Contacts</h3>
-                            <div class="text-muted small">Operational contact points.</div>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addContactModal">Add Contact</button>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th scope="col">Name</th>
-                                    <th scope="col">Designation</th>
-                                    <th scope="col">Email</th>
-                                    <th scope="col">Phone</th>
-                                    <th scope="col" class="text-end">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @if (selectedPartner.Contacts.Count == 0)
-                                {
-                                    <tr>
-                                        <td colspan="5" class="text-center text-muted py-4">No contacts on file.</td>
-                                    </tr>
-                                }
-                                else
-                                {
-                                    foreach (var contact in selectedPartner.Contacts)
-                                    {
-                                        <tr>
-                                            <td>@contact.Name</td>
-                                            <td>@contact.Designation</td>
-                                            <td>@contact.Email</td>
-                                            <td>@contact.Phone</td>
-                                            <td class="text-end">
-                                                <div class="btn-group btn-group-sm" role="group">
-                                                    <button type="button" class="btn btn-outline-secondary">Edit</button>
-                                                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteContactModal">Delete</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    }
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                @* Section: Documents *@
-                <div class="card shadow-sm mb-3">
-                    <div class="card-header d-flex align-items-center justify-content-between">
-                        <div>
-                            <h3 class="h6 mb-0">Documents & Attachments</h3>
-                            <div class="text-muted small">Controlled document access.</div>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addDocumentModal">Add Document</button>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th scope="col">File Name</th>
-                                    <th scope="col">Document Type</th>
-                                    <th scope="col">Uploaded By</th>
-                                    <th scope="col">Uploaded On</th>
-                                    <th scope="col" class="text-end">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @if (selectedPartner.Documents.Count == 0)
-                                {
-                                    <tr>
-                                        <td colspan="5" class="text-center text-muted py-4">No documents uploaded.</td>
-                                    </tr>
-                                }
-                                else
-                                {
-                                    foreach (var document in selectedPartner.Documents)
-                                    {
-                                        <tr>
-                                            <td>@document.FileName</td>
-                                            <td>@document.DocumentType</td>
-                                            <td>@document.UploadedBy</td>
-                                            <td>@document.UploadedOn.ToString("dd MMM yyyy")</td>
-                                            <td class="text-end">
-                                                <div class="btn-group btn-group-sm" role="group">
-                                                    <button type="button" class="btn btn-outline-secondary">View</button>
-                                                    <button type="button" class="btn btn-outline-secondary">Download</button>
-                                                    <button type="button" class="btn btn-outline-secondary">Replace</button>
-                                                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#removeDocumentModal">Remove</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    }
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                @* Section: Notes *@
-                <div class="card shadow-sm">
-                    <div class="card-header d-flex align-items-center justify-content-between">
-                        <div>
-                            <h3 class="h6 mb-0">Notes & Remarks</h3>
-                            <div class="text-muted small">Append-only record of remarks.</div>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addNoteModal">Add Note</button>
-                    </div>
-                    <div class="card-body">
-                        @if (selectedPartner.Notes.Count == 0)
-                        {
-                            <div class="text-muted">No notes recorded.</div>
-                        }
-                        else
-                        {
-                            <div class="industry-partners-notes">
-                                @foreach (var note in selectedPartner.Notes)
-                                {
-                                    <div class="industry-partners-note">
-                                        <div class="d-flex flex-column flex-md-row justify-content-between gap-1">
-                                            <div class="fw-semibold">@note.Author</div>
-                                            <div class="text-muted small">@note.Timestamp.ToString("dd MMM yyyy, HH:mm")</div>
-                                        </div>
-                                        <div>@note.Content</div>
-                                    </div>
-                                }
-                            </div>
-                        }
-                    </div>
-                </div>
-            }
+            <div id="industryPartnerDetail">
+                @await Html.PartialAsync("Projects/IndustryPartners/_Partials/_PartnerDetail", Model.SelectedPartner)
+            </div>
         </section>
     </div>
 </div>
 
 @* Section: Modals and drawers *@
-<div class="modal fade" id="createPartnerModal" tabindex="-1" aria-labelledby="createPartnerModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="createPartnerModalLabel">Create Industry Partner</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-secondary mb-0">Creation workflow will be enabled once persistence is connected.</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="archivePartnerModal" tabindex="-1" aria-labelledby="archivePartnerModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="archivePartnerModalLabel">Archive Partner</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                Archiving will set this partner to inactive. Confirm to proceed.
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger">Archive</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="unlinkAssociationModal" tabindex="-1" aria-labelledby="unlinkAssociationModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="unlinkAssociationModalLabel">Unlink Association</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                This will deactivate the association for audit history. Confirm to proceed.
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger">Deactivate</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="addContactModal" tabindex="-1" aria-labelledby="addContactModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="addContactModalLabel">Add Contact</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-secondary mb-0">Contact entry form will be enabled in the next release.</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="deleteContactModal" tabindex="-1" aria-labelledby="deleteContactModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deleteContactModalLabel">Delete Contact</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                Deleting a contact is permanent. Confirm to proceed.
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger">Delete</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="addDocumentModal" tabindex="-1" aria-labelledby="addDocumentModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="addDocumentModalLabel">Add Document</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-secondary mb-0">Document upload will be available once storage is configured.</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="removeDocumentModal" tabindex="-1" aria-labelledby="removeDocumentModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="removeDocumentModalLabel">Remove Document</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                Removing a document will retain a record in audit logs. Confirm to proceed.
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger">Remove</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="addNoteModal" tabindex="-1" aria-labelledby="addNoteModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="addNoteModalLabel">Add Note</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-secondary mb-0">Note entry modal will be enabled with persistence.</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="offcanvas offcanvas-end" tabindex="-1" id="linkProjectDrawer" aria-labelledby="linkProjectDrawerLabel">
-    <div class="offcanvas-header">
-        <h5 class="offcanvas-title" id="linkProjectDrawerLabel">Link to Project</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-    </div>
-    <div class="offcanvas-body">
-        <form class="industry-partners-form">
-            <div class="mb-3">
-                <label class="form-label" for="projectSearch">Project Search</label>
-                <input id="projectSearch" class="form-control" type="search" placeholder="Search by name or code" />
-            </div>
-            <div class="mb-3">
-                <label class="form-label" for="projectSelection">Project Selection</label>
-                <select id="projectSelection" class="form-select">
-                    <option>Select a project</option>
-                    <option>Aquila UAV Programme</option>
-                    <option>Project Sentinel</option>
-                    <option>Skyline Radar Upgrade</option>
-                </select>
-            </div>
-            <div class="mb-3">
-                <label class="form-label" for="projectRole">Role</label>
-                <select id="projectRole" class="form-select">
-                    <option>Development Partner</option>
-                    <option>JDP</option>
-                    <option>OEM</option>
-                    <option>ToT Recipient</option>
-                    <option>Support</option>
-                </select>
-            </div>
-            <div class="mb-3">
-                <label class="form-label" for="projectNote">Optional Note</label>
-                <textarea id="projectNote" class="form-control" rows="3"></textarea>
-            </div>
-            <div class="d-flex justify-content-end gap-2">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
-                <button type="button" class="btn btn-primary">Save Association</button>
-            </div>
-        </form>
-    </div>
-</div>
+@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_CreatePartnerModal")
+@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_ArchivePartnerModal")
+@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_UnlinkAssociationModal")
+@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_AddContactModal")
+@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_DeleteContactModal")
+@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_AddDocumentModal")
+@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_RemoveDocumentModal")
+@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_AddNoteModal")
+@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_LinkProjectDrawer")
