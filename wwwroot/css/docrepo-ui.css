@@ -557,13 +557,31 @@
     border-radius: 0.75rem;
     border: 1px solid rgba(15, 23, 42, 0.08);
     background: var(--pm-card);
-    overflow-x: auto;
-    overflow-y: visible;
+    overflow: visible;
     max-height: none;
 }
 
 .docrepo-list {
+    width: 100%;
+    table-layout: fixed;
     margin-bottom: 0;
+}
+
+/* SECTION: Cell truncation + wrapping */
+.docrepo-list th,
+.docrepo-list td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.docrepo-list th:first-child,
+.docrepo-list td:first-child {
+    white-space: normal;
+}
+
+.docrepo-list th:not(:first-child),
+.docrepo-list td:not(:first-child) {
+    white-space: nowrap;
 }
 
 .docrepo-list thead th {
@@ -578,6 +596,11 @@
 .docrepo-list tbody td {
     padding: 0.45rem 0.6rem;
     vertical-align: middle;
+}
+
+/* SECTION: Dropdown overlay stacking */
+.docrepo-list .dropdown-menu {
+    z-index: 2000;
 }
 
 /* SECTION: Row density + hover */
