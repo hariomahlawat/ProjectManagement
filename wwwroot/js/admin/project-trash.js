@@ -8,20 +8,33 @@
         return;
     }
 
+    // SECTION: Error handling helpers
     function parseErrorResponse(response) {
         if (!response) {
             return Promise.resolve('Unable to complete the request.');
         }
 
-        return response.json().then((data) => {
-            if (data && typeof data.error === 'string' && data.error.trim().length > 0) {
-                return data.error;
-            }
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            const statusLabel = response.statusText || 'Error';
+            return Promise.resolve(`HTTP ${response.status} ${statusLabel}`);
+        }
 
-            return 'Unable to complete the request.';
-        }).catch(() => 'Unable to complete the request.');
+        return response.json()
+            .then((data) => {
+                if (data && typeof data.error === 'string' && data.error.trim().length > 0) {
+                    return data.error;
+                }
+
+                return 'Unable to complete the request.';
+            })
+            .catch(() => {
+                const statusLabel = response.statusText || 'Error';
+                return `HTTP ${response.status} ${statusLabel}`;
+            });
     }
 
+    // SECTION: Modal helpers
     function updateModalProject(modal, trigger) {
         if (!modal) {
             return;
@@ -66,6 +79,7 @@
         }
     }
 
+    // SECTION: Request helpers
     async function sendModerationRequest(url, payload) {
         const response = await fetch(url, {
             method: 'POST',
@@ -84,6 +98,7 @@
         return parseErrorResponse(response);
     }
 
+    // SECTION: Event wiring
     function attachModalHandlers() {
         const restoreModal = document.getElementById('projectRestoreModal');
         if (restoreModal) {
@@ -106,6 +121,7 @@
         }
     }
 
+    // SECTION: Submission handling
     async function handleSubmit(button) {
         const action = button.getAttribute('data-action');
         const projectId = button.getAttribute('data-project-id');
@@ -162,6 +178,7 @@
         }
     }
 
+    // SECTION: Bootstrap initialization
     attachModalHandlers();
 
     document.querySelectorAll('[data-admin-project-submit]').forEach((button) => {

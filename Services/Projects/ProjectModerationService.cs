@@ -28,26 +28,36 @@ public sealed class ProjectModerationService
         public const string Purge = "Purge";
     }
 
+    private static class GlobalAuditActions
+    {
+        public const string ProjectPurge = "Projects.Purge";
+    }
+
+    // SECTION: Dependencies
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly ILogger<ProjectModerationService> _logger;
     private readonly IUploadRootProvider _uploadRootProvider;
     private readonly ProjectDocumentOptions _documentOptions;
+    private readonly IAuditService _audit;
 
     public ProjectModerationService(
         ApplicationDbContext db,
         IClock clock,
         ILogger<ProjectModerationService> logger,
         IUploadRootProvider uploadRootProvider,
-        IOptions<ProjectDocumentOptions> documentOptions)
+        IOptions<ProjectDocumentOptions> documentOptions,
+        IAuditService audit)
     {
         _db = db;
         _clock = clock;
         _logger = logger;
         _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
         _documentOptions = documentOptions?.Value ?? throw new ArgumentNullException(nameof(documentOptions));
+        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
     }
 
+    // SECTION: Moderation actions
     public async Task<ProjectModerationResult> ArchiveAsync(
         int projectId,
         string actorUserId,
@@ -199,8 +209,7 @@ public sealed class ProjectModerationService
 
         var metadata = await PurgeProjectAsync(projectId, includeAssets, cancellationToken);
 
-        await WriteAuditAsync(projectId, AuditActions.Purge, actorUserId, project.DeleteReason, metadata, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
+        await WritePurgeAuditAsync(projectId, actorUserId, project.DeleteReason, includeAssets, metadata, "Manual");
         await tx.CommitAsync(cancellationToken);
 
         return ProjectModerationResult.Success();
@@ -223,8 +232,7 @@ public sealed class ProjectModerationService
             try
             {
                 var metadata = await PurgeProjectAsync(projectId, includeAssets, cancellationToken);
-                await WriteAuditAsync(projectId, AuditActions.Purge, "system", reason: null, metadata, cancellationToken);
-                await _db.SaveChangesAsync(cancellationToken);
+                await WritePurgeAuditAsync(projectId, "system", reason: null, includeAssets, metadata, "Expired");
                 purged++;
             }
             catch (Exception ex)
@@ -236,6 +244,7 @@ public sealed class ProjectModerationService
         return purged;
     }
 
+    // SECTION: Purge helpers
     private async Task<Project?> LoadProjectAsync(int projectId, CancellationToken cancellationToken)
     {
         return await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
@@ -366,6 +375,7 @@ public sealed class ProjectModerationService
             : JsonSerializer.Serialize(metadata);
     }
 
+    // SECTION: Asset cleanup
     private bool TryDeleteProjectAssets(int projectId)
     {
         try
@@ -443,6 +453,7 @@ public sealed class ProjectModerationService
         }
     }
 
+    // SECTION: Audit logging
     private async Task WriteAuditAsync(
         int projectId,
         string action,
@@ -462,5 +473,29 @@ public sealed class ProjectModerationService
         };
 
         await _db.ProjectAudits.AddAsync(entry, cancellationToken);
+    }
+
+    private async Task WritePurgeAuditAsync(
+        int projectId,
+        string performedByUserId,
+        string? reason,
+        bool includeAssets,
+        string? metadata,
+        string source)
+    {
+        var data = new Dictionary<string, string?>
+        {
+            ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+            ["IncludeAssets"] = includeAssets ? "true" : "false",
+            ["Reason"] = reason,
+            ["Metadata"] = metadata,
+            ["Source"] = source
+        };
+
+        await _audit.LogAsync(
+            GlobalAuditActions.ProjectPurge,
+            message: $"Project {projectId} purged.",
+            userId: performedByUserId,
+            data: data);
     }
 }
