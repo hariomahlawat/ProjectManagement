@@ -219,19 +219,24 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
         }
 
         [Authorize(Policy = IndustryPartnerPolicies.Manage)]
-        public async Task<IActionResult> OnPostCreatePartnerAsync()
+        public async Task<IActionResult> OnPostCreatePartnerAsync(CreatePartnerRequest request)
         {
+            // Section: Request hydration
+            CreatePartnerRequest = request;
+
             if (!ModelState.IsValid)
             {
+                TempData["CreatePartnerFailed"] = true;
                 CanManagePartners = await CanManagePartnersAsync();
                 await OnGetAsync();
                 return Page();
             }
 
-            var partnerId = await _industryPartnerService.CreatePartnerAsync(CreatePartnerRequest);
+            var partnerId = await _industryPartnerService.CreatePartnerAsync(request);
             if (partnerId <= 0)
             {
                 ModelState.AddModelError(string.Empty, "Unable to create the industry partner.");
+                TempData["CreatePartnerFailed"] = true;
                 CanManagePartners = await CanManagePartnersAsync();
                 await OnGetAsync();
                 return Page();

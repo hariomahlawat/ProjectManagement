@@ -1,4 +1,5 @@
 @page "/projects/industry-partners"
+@using ProjectManagement.ViewModels.Projects.IndustryPartners
 @model ProjectManagement.Pages.Projects.IndustryPartners.IndexModel
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @{
@@ -75,12 +76,10 @@
                                         hx-push-url="true"
                                         hx-include="#industryPartnerDirectoryForm">
                                     <option value="" selected="@(string.IsNullOrWhiteSpace(Model.Type) ? "selected" : null)">All</option>
-                                    <option value="DPSU" selected="@(Model.Type == "DPSU" ? "selected" : null)">DPSU</option>
-                                    <option value="Private" selected="@(Model.Type == "Private" ? "selected" : null)">Private</option>
-                                    <option value="Startup" selected="@(Model.Type == "Startup" ? "selected" : null)">Startup</option>
-                                    <option value="Academic" selected="@(Model.Type == "Academic" ? "selected" : null)">Academic</option>
-                                    <option value="Foreign OEM" selected="@(Model.Type == "Foreign OEM" ? "selected" : null)">Foreign OEM</option>
-                                    <option value="Other" selected="@(Model.Type == "Other" ? "selected" : null)">Other</option>
+                                    @foreach (var option in IndustryPartnerTypeOptions.Options)
+                                    {
+                                        <option value="@option.Value" selected="@(Model.Type == option.Value ? "selected" : null)">@option.Label</option>
+                                    }
                                 </select>
                             </div>
                             <div>
@@ -154,4 +153,10 @@
     @await Html.PartialAsync("Projects/IndustryPartners/_Modals/_CreatePartnerModal", Model.CreatePartnerRequest)
     @await Html.PartialAsync("Projects/IndustryPartners/_Modals/_ArchivePartnerModal")
     @await Html.PartialAsync("Projects/IndustryPartners/_Modals/_LinkProjectDrawer", Model.LinkProjectDrawer)
+}
+
+@* Section: Modal state *@
+@if (TempData["CreatePartnerFailed"] is true)
+{
+    <div id="createPartnerModalState" class="d-none" aria-hidden="true" data-create-partner-modal="open"></div>
 }

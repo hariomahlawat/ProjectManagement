@@ -7,16 +7,8 @@
         <div class="fw-semibold">@Model.DisplayName</div>
     </div>
     <div>
-        <div class="text-muted small">Legal Name</div>
-        <div>@(string.IsNullOrWhiteSpace(Model.LegalName) ? "—" : Model.LegalName)</div>
-    </div>
-    <div>
         <div class="text-muted small">Partner Type</div>
         <div>@Model.PartnerType</div>
-    </div>
-    <div>
-        <div class="text-muted small">Registration Number</div>
-        <div>@(string.IsNullOrWhiteSpace(Model.RegistrationNumber) ? "—" : Model.RegistrationNumber)</div>
     </div>
     <div>
         <div class="text-muted small">Address</div>
