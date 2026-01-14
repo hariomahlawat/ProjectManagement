@@ -1,3 +1,4 @@
+@using ProjectManagement.ViewModels.Projects.IndustryPartners
 @model ProjectManagement.ViewModels.Projects.IndustryPartners.PartnerDetailViewModel
 
 @* Section: Associations table *@
@@ -26,7 +27,7 @@
                     var unlinkModalId = $"unlinkAssociationModal-{association.AssociationId}";
                     <tr>
                         <td><a href="@association.ProjectLink">@association.ProjectName</a></td>
-                        <td>@association.Role</td>
+                        <td>@IndustryPartnerAssociationRoles.GetLabel(association.Role)</td>
                         <td>@association.AssociationStatus</td>
                         <td>@(string.IsNullOrWhiteSpace(association.Notes) ? "—" : association.Notes)</td>
                         <td class="text-end">

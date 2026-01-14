@@ -5,8 +5,6 @@ export function initIndustryPartnerDirectoryFilters() {
     return;
   }
 
-  const clearButtons = document.querySelectorAll('[data-role="industry-partner-clear-filters"]');
-
   // Section: Partner hidden input sync
   const syncSelectedPartnerHidden = () => {
     const url = new URL(window.location.href);
@@ -54,14 +52,20 @@ export function initIndustryPartnerDirectoryFilters() {
     }
   };
 
-  clearButtons.forEach((button) => {
-    button.addEventListener('click', (event) => {
-      event.preventDefault();
-      clearFormFilters();
-      syncSelectedPartnerHidden();
-      requestDirectoryRefresh();
-    });
-  });
+  const handleClearFiltersClick = (event) => {
+    const target = event.target.closest('[data-role="industry-partner-clear-filters"]');
+    if (!target) {
+      return;
+    }
+
+    event.preventDefault();
+    clearFormFilters();
+    syncSelectedPartnerHidden();
+    requestDirectoryRefresh();
+  };
+
+  // Section: Clear filters handling
+  document.body.addEventListener('click', handleClearFiltersClick);
 
   // Section: HTMX navigation sync
   document.body.addEventListener('htmx:afterOnLoad', syncSelectedPartnerHidden);
