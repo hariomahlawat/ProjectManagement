@@ -18,27 +18,27 @@
         }
     </div>
 
-    @* Section: Selected project *@
-    <div id="selectedProjectArea">
-        @await Html.PartialAsync("Projects/IndustryPartners/_Partials/_ProjectSelectedChip", Model.SelectedProject)
-    </div>
-
-    @* Section: Project search *@
+    @* Section: Project selection *@
     <div class="mb-3">
         <label class="form-label" for="projectSearchText">Search Project</label>
-        <input type="text"
-               name="q"
-               id="projectSearchText"
-               class="form-control"
-               placeholder="Search project name or code"
-               hx-get="/projects/industry-partners?handler=ProjectSearchPartial"
-               hx-trigger="keyup changed delay:300ms"
-               hx-target="#projectSearchResults"
-               hx-include="#projectSearchText"
-               autocomplete="off" />
-        <div id="projectSearchResults" class="mt-2">
-            <div class="text-muted small">Type at least 2 characters to search.</div>
+        <div class="async-multiselect js-async-multiselect industry-partners-project-select"
+             data-name="ProjectId"
+             data-source="/api/lookups/projects"
+             data-search-placeholder="Search project name"
+             data-no-results="No projects found"
+             data-loading-text="Searching projects"
+             data-remove-label="Remove project"
+             data-max-selection="1"
+             data-input-id="projectSearchText">
+            @if (Model.SelectedProject is not null)
+            {
+                <input type="hidden"
+                       name="ProjectId"
+                       value="@Model.SelectedProject.ProjectId"
+                       data-label="@Model.SelectedProject.ProjectName" />
+            }
         </div>
+        <div class="form-text">Select an existing project to link to this partner.</div>
     </div>
 
     @* Section: Notes *@
