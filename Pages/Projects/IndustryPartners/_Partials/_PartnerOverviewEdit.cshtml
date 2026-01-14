@@ -1,3 +1,4 @@
+@using ProjectManagement.ViewModels.Projects.IndustryPartners
 @model ProjectManagement.ViewModels.Projects.IndustryPartners.UpdatePartnerOverviewRequest
 
 @* Section: Overview edit body *@
@@ -20,19 +21,15 @@
             <span class="text-danger small" asp-validation-for="DisplayName"></span>
         </div>
         <div>
-            <label class="form-label small text-muted" asp-for="LegalName"></label>
-            <input class="form-control" asp-for="LegalName" />
-            <span class="text-danger small" asp-validation-for="LegalName"></span>
-        </div>
-        <div>
             <label class="form-label small text-muted" asp-for="PartnerType"></label>
-            <input class="form-control" asp-for="PartnerType" />
+            <select class="form-select" asp-for="PartnerType">
+                <option value="">Select type</option>
+                @foreach (var option in IndustryPartnerTypeOptions.Options)
+                {
+                    <option value="@option.Value">@option.Label</option>
+                }
+            </select>
             <span class="text-danger small" asp-validation-for="PartnerType"></span>
-        </div>
-        <div>
-            <label class="form-label small text-muted" asp-for="RegistrationNumber"></label>
-            <input class="form-control" asp-for="RegistrationNumber" />
-            <span class="text-danger small" asp-validation-for="RegistrationNumber"></span>
         </div>
         <div>
             <label class="form-label small text-muted" asp-for="Address"></label>
