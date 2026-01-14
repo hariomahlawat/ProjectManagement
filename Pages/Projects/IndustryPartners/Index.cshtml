@@ -3,13 +3,6 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @{
     ViewData["Title"] = "Industry Partners";
-
-    var directoryModel = new ProjectManagement.ViewModels.Projects.IndustryPartners.DirectoryListViewModel
-    {
-        Partners = Model.Partners,
-        SelectedPartnerId = Model.PartnerId,
-        TotalCount = Model.TotalCount
-    };
 }
 
 @section Styles {
@@ -38,18 +31,46 @@
         <aside class="industry-partners-directory" aria-label="Industry partner directory">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <form method="get" class="mb-0">
+                    <form id="industryPartnerDirectoryForm"
+                          method="get"
+                          class="mb-0"
+                          hx-get="/projects/industry-partners?handler=DirectoryList"
+                          hx-target="#industryPartnerDirectoryList"
+                          hx-swap="innerHTML"
+                          hx-push-url="true">
+                        <input type="hidden" name="partner" value="@Model.PartnerId" />
+
                         @* Section: Search *@
                         <div class="mb-3">
                             <label class="form-label small text-muted" for="partnerSearch">Search</label>
-                            <input id="partnerSearch" name="q" class="form-control" type="search" value="@Model.Q" placeholder="Search partner name" aria-label="Search partner name" />
+                            <input id="partnerSearch"
+                                   name="q"
+                                   class="form-control"
+                                   type="search"
+                                   value="@Model.Q"
+                                   placeholder="Search partner name"
+                                   aria-label="Search partner name"
+                                   hx-trigger="keyup changed delay:300ms"
+                                   hx-get="/projects/industry-partners?handler=DirectoryList"
+                                   hx-target="#industryPartnerDirectoryList"
+                                   hx-swap="innerHTML"
+                                   hx-push-url="true"
+                                   hx-include="#industryPartnerDirectoryForm" />
                         </div>
 
                         @* Section: Filters *@
                         <div class="industry-partners-filters mb-3">
                             <div>
                                 <label class="form-label small text-muted" for="partnerTypeFilter">Partner Type</label>
-                                <select id="partnerTypeFilter" name="type" class="form-select">
+                                <select id="partnerTypeFilter"
+                                        name="type"
+                                        class="form-select"
+                                        hx-trigger="change"
+                                        hx-get="/projects/industry-partners?handler=DirectoryList"
+                                        hx-target="#industryPartnerDirectoryList"
+                                        hx-swap="innerHTML"
+                                        hx-push-url="true"
+                                        hx-include="#industryPartnerDirectoryForm">
                                     <option value="" selected="@(string.IsNullOrWhiteSpace(Model.Type) ? "selected" : null)">All</option>
                                     <option value="DPSU" selected="@(Model.Type == "DPSU" ? "selected" : null)">DPSU</option>
                                     <option value="Private" selected="@(Model.Type == "Private" ? "selected" : null)">Private</option>
@@ -61,7 +82,15 @@
                             </div>
                             <div>
                                 <label class="form-label small text-muted" for="partnerStatusFilter">Status</label>
-                                <select id="partnerStatusFilter" name="status" class="form-select">
+                                <select id="partnerStatusFilter"
+                                        name="status"
+                                        class="form-select"
+                                        hx-trigger="change"
+                                        hx-get="/projects/industry-partners?handler=DirectoryList"
+                                        hx-target="#industryPartnerDirectoryList"
+                                        hx-swap="innerHTML"
+                                        hx-push-url="true"
+                                        hx-include="#industryPartnerDirectoryForm">
                                     <option value="" selected="@(string.IsNullOrWhiteSpace(Model.Status) ? "selected" : null)">All</option>
                                     <option value="Active" selected="@(Model.Status == "Active" ? "selected" : null)">Active</option>
                                     <option value="Inactive" selected="@(Model.Status == "Inactive" ? "selected" : null)">Inactive</option>
@@ -72,7 +101,15 @@
                         @* Section: Sort *@
                         <div class="mb-3">
                             <label class="form-label small text-muted" for="partnerSort">Sort by</label>
-                            <select id="partnerSort" name="sort" class="form-select">
+                            <select id="partnerSort"
+                                    name="sort"
+                                    class="form-select"
+                                    hx-trigger="change"
+                                    hx-get="/projects/industry-partners?handler=DirectoryList"
+                                    hx-target="#industryPartnerDirectoryList"
+                                    hx-swap="innerHTML"
+                                    hx-push-url="true"
+                                    hx-include="#industryPartnerDirectoryForm">
                                 <option value="name" selected="@(string.IsNullOrWhiteSpace(Model.Sort) || Model.Sort == "name" ? "selected" : null)">Name (A–Z)</option>
                                 <option value="updated" selected="@(Model.Sort == "updated" ? "selected" : null)">Recently Updated</option>
                                 <option value="projects" selected="@(Model.Sort == "projects" ? "selected" : null)">Most Associated Projects</option>
@@ -81,8 +118,12 @@
 
                         @* Section: Directory actions *@
                         <div class="d-flex align-items-center justify-content-between mb-2">
-                            <span class="text-muted small">@Model.TotalCount partners</span>
-                            <a class="text-decoration-none small" href="/projects/industry-partners">Clear filters</a>
+                            <span id="industryPartnerDirectoryCount" class="text-muted small">@Model.DirectoryVm.TotalCount partners</span>
+                            <button type="button"
+                                    class="btn btn-link p-0 text-decoration-none small"
+                                    data-role="industry-partner-clear-filters">
+                                Clear filters
+                            </button>
                         </div>
 
                         @* Section: Apply button *@
@@ -94,7 +135,7 @@
 
                 @* Section: Directory list *@
                 <div id="industryPartnerDirectoryList">
-                    @await Html.PartialAsync("Projects/IndustryPartners/_Partials/_DirectoryList", directoryModel)
+                    @await Html.PartialAsync("Projects/IndustryPartners/_Partials/_DirectoryList", Model.DirectoryVm)
                 </div>
             </div>
         </aside>

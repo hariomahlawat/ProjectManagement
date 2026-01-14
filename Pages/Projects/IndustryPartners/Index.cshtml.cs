@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -37,13 +36,10 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
         public string? Sort { get; set; }
 
         // Section: Directory dataset
-        public IReadOnlyList<PartnerDetailViewModel> Partners { get; private set; } = Array.Empty<PartnerDetailViewModel>();
+        public DirectoryListViewModel DirectoryVm { get; private set; } = new();
 
         // Section: Selected detail
         public PartnerDetailViewModel? SelectedPartner { get; private set; }
-
-        // Section: Result count
-        public int TotalCount { get; private set; }
 
         // Section: Drawer view model
         public LinkProjectDrawerViewModel LinkProjectDrawer { get; private set; } = new();
@@ -62,8 +58,17 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
                 Sort = Sort
             };
 
-            Partners = await _industryPartnerService.SearchPartnersAsync(query);
-            TotalCount = Partners.Count;
+            var directoryResult = await _industryPartnerService.SearchPartnersAsync(query);
+            DirectoryVm = new DirectoryListViewModel
+            {
+                Partners = directoryResult.Items,
+                TotalCount = directoryResult.TotalCount,
+                SelectedPartnerId = PartnerId,
+                Q = Q,
+                Type = Type,
+                Status = Status,
+                Sort = Sort
+            };
 
             // Section: Selected detail
             SelectedPartner = PartnerId.HasValue
@@ -71,6 +76,32 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
                 : null;
 
             LinkProjectDrawer = await BuildLinkProjectDrawerAsync();
+        }
+
+        // Section: Directory list partial
+        public async Task<IActionResult> OnGetDirectoryListAsync()
+        {
+            var query = new PartnerSearchQuery
+            {
+                Query = Q,
+                Type = Type,
+                Status = Status,
+                Sort = Sort
+            };
+
+            var directoryResult = await _industryPartnerService.SearchPartnersAsync(query);
+            var directoryViewModel = new DirectoryListViewModel
+            {
+                Partners = directoryResult.Items,
+                TotalCount = directoryResult.TotalCount,
+                SelectedPartnerId = PartnerId,
+                Q = Q,
+                Type = Type,
+                Status = Status,
+                Sort = Sort
+            };
+
+            return Partial("Projects/IndustryPartners/_Partials/_DirectoryList", directoryViewModel);
         }
 
         // Section: Partner commands

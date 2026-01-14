@@ -1,12 +1,17 @@
 @model ProjectManagement.ViewModels.Projects.IndustryPartners.DirectoryListViewModel
 
 @* Section: Directory list *@
+<span id="industryPartnerDirectoryCount" class="text-muted small" hx-swap-oob="true">@Model.TotalCount partners</span>
 <div class="list-group list-group-flush">
     @if (Model.Partners.Count == 0)
     {
         <div class="px-3 py-4 text-center text-muted">
             <div class="fw-semibold">No partners found</div>
-            <div class="small">Clear filters</div>
+            <button type="button"
+                    class="btn btn-link p-0 text-decoration-none small"
+                    data-role="industry-partner-clear-filters">
+                Clear filters
+            </button>
         </div>
     }
     else
@@ -15,7 +20,7 @@
         {
             var isSelected = Model.SelectedPartnerId == partner.Id;
             <a class="list-group-item list-group-item-action industry-partners-list-item @(isSelected ? "active" : string.Empty)"
-               href="/projects/industry-partners?partner=@partner.Id"
+               href="/projects/industry-partners?partner=@partner.Id&q=@Model.Q&type=@Model.Type&status=@Model.Status&sort=@Model.Sort"
                hx-get="/projects/industry-partners/partner-detail?partnerId=@partner.Id"
                hx-target="#industryPartnerDetail"
                hx-swap="innerHTML"
@@ -24,9 +29,15 @@
                 <div class="d-flex align-items-start justify-content-between gap-2">
                     <div>
                         <div class="fw-semibold">@partner.DisplayName</div>
-                        <div class="text-muted small">@partner.PartnerType • @partner.Status</div>
+                        <div class="text-muted small">
+                            @partner.PartnerType • @partner.Status
+                            @if (!string.IsNullOrWhiteSpace(partner.LocationSummary))
+                            {
+                                <span> • @partner.LocationSummary</span>
+                            }
+                        </div>
                     </div>
-                    <span class="industry-partners-count">@partner.ProjectCount</span>
+                    <span class="industry-partners-count">@partner.ActiveProjectCount</span>
                 </div>
             </a>
         }
