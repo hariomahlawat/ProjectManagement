@@ -32,6 +32,8 @@ function setupMultiselect(container) {
   const removeLabel = container.dataset.removeLabel ?? 'Remove';
   const loadingText = container.dataset.loadingText ?? 'Searching…';
   const pageSize = normalizePageSize(container.dataset.pageSize);
+  const maxSelections = normalizeMaxSelections(container.dataset.maxSelection);
+  const inputId = container.dataset.inputId;
 
   const initialSelections = readInitialSelections(container, fieldName);
 
@@ -49,6 +51,9 @@ function setupMultiselect(container) {
   searchInput.className = 'form-control form-control-sm async-multiselect__search-input';
   searchInput.placeholder = searchPlaceholder;
   searchInput.autocomplete = 'off';
+  if (inputId) {
+    searchInput.id = inputId;
+  }
   searchInput.setAttribute('aria-autocomplete', 'list');
   searchInput.setAttribute('role', 'combobox');
   searchInput.setAttribute('aria-expanded', 'false');
@@ -98,6 +103,15 @@ function setupMultiselect(container) {
     const key = String(value ?? '').trim();
     if (!key || selections.has(key)) {
       return;
+    }
+
+    if (maxSelections > 0 && selections.size >= maxSelections) {
+      if (maxSelections === 1) {
+        clearSelections(false);
+      } else {
+        announce(`Only ${maxSelections} selections allowed`);
+        return;
+      }
     }
 
     const resolvedLabel = label ? String(label).trim() : key;
@@ -157,6 +171,13 @@ function setupMultiselect(container) {
     if (shouldFocus) {
       searchInput.focus();
     }
+  }
+
+  function clearSelections(announceChange = true) {
+    const keys = Array.from(selections.keys());
+    keys.forEach((key) => {
+      removeSelection(key, false, announceChange);
+    });
   }
 
   function removeLastSelection() {
@@ -512,6 +533,14 @@ function normalizePageSize(value) {
     return 20;
   }
   return Math.min(parsed, 50);
+}
+
+function normalizeMaxSelections(value) {
+  const parsed = Number.parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 0;
+  }
+  return parsed;
 }
 
 function generateId(prefix) {
