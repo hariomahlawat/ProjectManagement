@@ -1,0 +1,262 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Data;
+using ProjectManagement.Models.IndustryPartners;
+using ProjectManagement.ViewModels.Projects.IndustryPartners;
+
+namespace ProjectManagement.Services.IndustryPartners
+{
+    public class IndustryPartnerService : IIndustryPartnerService
+    {
+        private readonly ApplicationDbContext _dbContext;
+
+        public IndustryPartnerService(ApplicationDbContext dbContext)
+        {
+            _dbContext = dbContext;
+        }
+
+        // Section: Partner queries
+        public async Task<IReadOnlyList<PartnerDetailViewModel>> SearchPartnersAsync(PartnerSearchQuery query, CancellationToken cancellationToken = default)
+        {
+            var partnersQuery = _dbContext.IndustryPartners.AsNoTracking();
+
+            // Section: Directory filtering
+            if (!string.IsNullOrWhiteSpace(query.Query))
+            {
+                var term = query.Query.Trim();
+                partnersQuery = partnersQuery.Where(partner =>
+                    partner.DisplayName.Contains(term) ||
+                    (partner.LegalName != null && partner.LegalName.Contains(term)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.Type))
+            {
+                partnersQuery = partnersQuery.Where(partner => partner.PartnerType == query.Type);
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.Status))
+            {
+                var isActive = string.Equals(query.Status, "Active", StringComparison.OrdinalIgnoreCase);
+                partnersQuery = partnersQuery.Where(partner => partner.IsActive == isActive);
+            }
+
+            partnersQuery = query.Sort switch
+            {
+                "projects" => partnersQuery.OrderByDescending(partner =>
+                    partner.ProjectAssociations.Count(association => association.IsActive)).ThenBy(partner => partner.DisplayName),
+                "updated" => partnersQuery.OrderByDescending(partner => partner.UpdatedUtc).ThenBy(partner => partner.DisplayName),
+                _ => partnersQuery.OrderBy(partner => partner.DisplayName)
+            };
+
+            var partners = await partnersQuery
+                .Select(partner => new PartnerDetailViewModel
+                {
+                    Id = partner.Id,
+                    DisplayName = partner.DisplayName,
+                    LegalName = partner.LegalName,
+                    PartnerType = partner.PartnerType,
+                    Status = partner.IsActive ? "Active" : "Inactive",
+                    RegistrationNumber = partner.RegistrationNumber,
+                    Address = partner.Address,
+                    City = partner.City,
+                    State = partner.State,
+                    Country = partner.Country,
+                    Website = partner.Website,
+                    Email = partner.Email,
+                    Phone = partner.Phone,
+                    ProjectCount = partner.ProjectAssociations.Count(association => association.IsActive)
+                })
+                .ToListAsync(cancellationToken);
+
+            foreach (var partner in partners)
+            {
+                partner.LocationSummary = BuildLocationSummary(partner.City, partner.State, partner.Country);
+            }
+
+            return partners;
+        }
+
+        public async Task<PartnerDetailViewModel?> GetPartnerDetailAsync(int partnerId, CancellationToken cancellationToken = default)
+        {
+            var partner = await _dbContext.IndustryPartners
+                .AsNoTracking()
+                .Include(item => item.ProjectAssociations)
+                .ThenInclude(item => item.Project)
+                .FirstOrDefaultAsync(item => item.Id == partnerId, cancellationToken);
+
+            if (partner is null)
+            {
+                return null;
+            }
+
+            var viewModel = new PartnerDetailViewModel
+            {
+                Id = partner.Id,
+                DisplayName = partner.DisplayName,
+                LegalName = partner.LegalName,
+                PartnerType = partner.PartnerType,
+                Status = partner.IsActive ? "Active" : "Inactive",
+                RegistrationNumber = partner.RegistrationNumber,
+                Address = partner.Address,
+                City = partner.City,
+                State = partner.State,
+                Country = partner.Country,
+                Website = partner.Website,
+                Email = partner.Email,
+                Phone = partner.Phone,
+                LocationSummary = BuildLocationSummary(partner.City, partner.State, partner.Country),
+                ProjectCount = partner.ProjectAssociations.Count(association => association.IsActive),
+                ProjectAssociations = partner.ProjectAssociations
+                    .OrderByDescending(association => association.IsActive)
+                    .ThenBy(association => association.Project?.Name)
+                    .Select(association => new ProjectAssociationViewModel
+                    {
+                        AssociationId = association.Id,
+                        ProjectName = association.Project?.Name ?? "(Project missing)",
+                        ProjectLink = $"/projects/overview/{association.ProjectId}",
+                        Role = association.Role,
+                        AssociationStatus = association.IsActive ? "Active" : "Inactive",
+                        IsActive = association.IsActive,
+                        Notes = association.Notes
+                    })
+                    .ToList(),
+                Contacts = Array.Empty<PartnerContactViewModel>(),
+                Documents = Array.Empty<PartnerDocumentViewModel>(),
+                Notes = Array.Empty<PartnerNoteViewModel>()
+            };
+
+            return viewModel;
+        }
+
+        // Section: Partner commands
+        public async Task<bool> ArchivePartnerAsync(int partnerId, CancellationToken cancellationToken = default)
+        {
+            var partner = await _dbContext.IndustryPartners
+                .FirstOrDefaultAsync(item => item.Id == partnerId, cancellationToken);
+
+            if (partner is null || !partner.IsActive)
+            {
+                return false;
+            }
+
+            partner.IsActive = false;
+            partner.UpdatedUtc = DateTime.UtcNow;
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
+        public async Task<bool> ReactivatePartnerAsync(int partnerId, CancellationToken cancellationToken = default)
+        {
+            var partner = await _dbContext.IndustryPartners
+                .FirstOrDefaultAsync(item => item.Id == partnerId, cancellationToken);
+
+            if (partner is null || partner.IsActive)
+            {
+                return false;
+            }
+
+            partner.IsActive = true;
+            partner.UpdatedUtc = DateTime.UtcNow;
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
+        public async Task<bool> LinkProjectAsync(LinkProjectRequest request, CancellationToken cancellationToken = default)
+        {
+            if (request.PartnerId <= 0 || request.ProjectId <= 0 || string.IsNullOrWhiteSpace(request.Role))
+            {
+                return false;
+            }
+
+            var partner = await _dbContext.IndustryPartners
+                .FirstOrDefaultAsync(item => item.Id == request.PartnerId, cancellationToken);
+
+            if (partner is null || !partner.IsActive)
+            {
+                return false;
+            }
+
+            var normalizedRole = request.Role.Trim();
+
+            var duplicateExists = await _dbContext.IndustryPartnerProjectAssociations
+                .AnyAsync(item =>
+                        item.IndustryPartnerId == request.PartnerId &&
+                        item.ProjectId == request.ProjectId &&
+                        item.Role == normalizedRole &&
+                        item.IsActive,
+                    cancellationToken);
+
+            if (duplicateExists)
+            {
+                return false;
+            }
+
+            var association = new IndustryPartnerProjectAssociation
+            {
+                IndustryPartnerId = request.PartnerId,
+                ProjectId = request.ProjectId,
+                Role = normalizedRole,
+                Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
+                LinkedOnUtc = DateTime.UtcNow,
+                IsActive = true
+            };
+
+            _dbContext.IndustryPartnerProjectAssociations.Add(association);
+            partner.UpdatedUtc = DateTime.UtcNow;
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
+        public async Task<bool> DeactivateAssociationAsync(int associationId, CancellationToken cancellationToken = default)
+        {
+            var association = await _dbContext.IndustryPartnerProjectAssociations
+                .Include(item => item.IndustryPartner)
+                .FirstOrDefaultAsync(item => item.Id == associationId, cancellationToken);
+
+            if (association is null || !association.IsActive)
+            {
+                return false;
+            }
+
+            association.IsActive = false;
+            association.DeactivatedUtc = DateTime.UtcNow;
+            if (association.IndustryPartner != null)
+            {
+                association.IndustryPartner.UpdatedUtc = DateTime.UtcNow;
+            }
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
+        // Section: Helpers
+        private static string BuildLocationSummary(string? city, string? state, string? country)
+        {
+            var parts = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(city))
+            {
+                parts.Add(city.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(state))
+            {
+                parts.Add(state.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(country))
+            {
+                parts.Add(country.Trim());
+            }
+
+            return parts.Count == 0 ? "—" : string.Join(", ", parts);
+        }
+    }
+}

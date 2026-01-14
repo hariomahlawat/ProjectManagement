@@ -23,13 +23,21 @@
             {
                 foreach (var association in Model.ProjectAssociations)
                 {
+                    var unlinkModalId = $"unlinkAssociationModal-{association.AssociationId}";
                     <tr>
                         <td><a href="@association.ProjectLink">@association.ProjectName</a></td>
                         <td>@association.Role</td>
                         <td>@association.AssociationStatus</td>
                         <td>@(string.IsNullOrWhiteSpace(association.Notes) ? "—" : association.Notes)</td>
                         <td class="text-end">
-                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#unlinkAssociationModal">Unlink</button>
+                            @if (association.IsActive)
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#@unlinkModalId">Unlink</button>
+                            }
+                            else
+                            {
+                                <span class="text-muted small">Inactive</span>
+                            }
                         </td>
                     </tr>
                 }
@@ -37,3 +45,39 @@
         </tbody>
     </table>
 </div>
+
+@* Section: Unlink association modals *@
+@foreach (var association in Model.ProjectAssociations)
+{
+    if (!association.IsActive)
+    {
+        continue;
+    }
+
+    var unlinkModalId = $"unlinkAssociationModal-{association.AssociationId}";
+    <div class="modal fade" id="@unlinkModalId" tabindex="-1" aria-labelledby="@($"{unlinkModalId}Label")" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post"
+                      hx-post="/projects/industry-partners?handler=DeactivateAssociation"
+                      hx-target="#industryPartnerDetail"
+                      hx-swap="innerHTML">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="associationId" value="@association.AssociationId" />
+                    <input type="hidden" name="partnerId" value="@Model.Id" />
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="@($"{unlinkModalId}Label")">Unlink Association</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        This will deactivate the association for audit history. Confirm to proceed.
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger" data-bs-dismiss="modal">Deactivate</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}

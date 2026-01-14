@@ -20,7 +20,15 @@
                 }
                 else
                 {
-                    <button type="button" class="btn btn-outline-secondary">Reactivate</button>
+                    <form method="post"
+                          class="d-inline"
+                          hx-post="/projects/industry-partners?handler=ReactivatePartner"
+                          hx-target="#industryPartnerDetail"
+                          hx-swap="innerHTML"
+                          hx-include="#industryPartnerId">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-outline-secondary">Reactivate</button>
+                    </form>
                 }
             </div>
         </div>

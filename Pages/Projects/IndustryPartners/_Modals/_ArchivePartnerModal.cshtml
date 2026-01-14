@@ -2,17 +2,24 @@
 <div class="modal fade" id="archivePartnerModal" tabindex="-1" aria-labelledby="archivePartnerModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="archivePartnerModalLabel">Archive Partner</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                Archiving will set this partner to inactive. Confirm to proceed.
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger">Archive</button>
-            </div>
+            <form method="post"
+                  hx-post="/projects/industry-partners?handler=ArchivePartner"
+                  hx-target="#industryPartnerDetail"
+                  hx-swap="innerHTML"
+                  hx-include="#industryPartnerId">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title" id="archivePartnerModalLabel">Archive Partner</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Archiving will set this partner to inactive. Confirm to proceed.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger" data-bs-dismiss="modal">Archive</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

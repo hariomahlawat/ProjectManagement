@@ -111,10 +111,9 @@
 @* Section: Modals and drawers *@
 @await Html.PartialAsync("Projects/IndustryPartners/_Modals/_CreatePartnerModal")
 @await Html.PartialAsync("Projects/IndustryPartners/_Modals/_ArchivePartnerModal")
-@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_UnlinkAssociationModal")
 @await Html.PartialAsync("Projects/IndustryPartners/_Modals/_AddContactModal")
 @await Html.PartialAsync("Projects/IndustryPartners/_Modals/_DeleteContactModal")
 @await Html.PartialAsync("Projects/IndustryPartners/_Modals/_AddDocumentModal")
 @await Html.PartialAsync("Projects/IndustryPartners/_Modals/_RemoveDocumentModal")
 @await Html.PartialAsync("Projects/IndustryPartners/_Modals/_AddNoteModal")
-@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_LinkProjectDrawer")
+@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_LinkProjectDrawer", Model.LinkProjectDrawer)

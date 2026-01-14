@@ -53,6 +53,7 @@ using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Notifications;
 using ProjectManagement.Services.Search;
 using ProjectManagement.Services.Ocr;
+using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.ProjectOfficeReports.Training;
 using ProjectManagement.Services.Projects;
@@ -257,6 +258,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IUserContext, HttpUserContext>();
+builder.Services.AddScoped<IIndustryPartnerService, IndustryPartnerService>();
 builder.Services.AddScoped<IActivityRepository, ActivityRepository>();
 // SECTION: Doc repository options
 builder.Services
