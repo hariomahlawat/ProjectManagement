@@ -1,6 +1,7 @@
 import { initSparklines } from './charts/sparkline.js';
 import { initDrawer } from './navigation/drawer.js';
 import { initIndustryPartnerDirectoryFilters } from './projects/industry-partners/directory-filters.js';
+import { initIndustryPartnerFeedback } from './projects/industry-partners/feedback.js';
 import { initLinkProjectDrawer } from './projects/industry-partners/link-project-drawer.js';
 import { initTooltips } from './utils/tooltips.js';
 
@@ -8,6 +9,7 @@ import { initTooltips } from './utils/tooltips.js';
 function boot() {
   initDrawer();
   initIndustryPartnerDirectoryFilters();
+  initIndustryPartnerFeedback();
   initLinkProjectDrawer();
   initSparklines();
   initTooltips();

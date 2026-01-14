@@ -7,13 +7,16 @@
             <h3 class="h6 mb-0">Overview</h3>
             <div class="text-muted small">Read-only profile summary</div>
         </div>
-        <button type="button"
-                class="btn btn-sm btn-outline-primary"
-                hx-get="/projects/industry-partners?handler=OverviewEditPartial&partnerId=@Model.Id"
-                hx-target="#partnerOverviewCardBody"
-                hx-swap="innerHTML">
-            Edit
-        </button>
+        @if (Model.CanManage)
+        {
+            <button type="button"
+                    class="btn btn-sm btn-outline-primary"
+                    hx-get="/projects/industry-partners?handler=OverviewEditPartial&partnerId=@Model.Id"
+                    hx-target="#partnerOverviewCardBody"
+                    hx-swap="innerHTML">
+                Edit
+            </button>
+        }
     </div>
     <div id="partnerOverviewCardBody" class="card-body">
         @await Html.PartialAsync("Projects/IndustryPartners/_Partials/_PartnerOverviewReadBody", Model)

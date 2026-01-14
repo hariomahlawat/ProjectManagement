@@ -2926,6 +2926,7 @@ namespace ProjectManagement.Data
                 entity.Property(x => x.Email).HasMaxLength(256);
                 entity.Property(x => x.Phone).HasMaxLength(50);
                 entity.Property(x => x.IsActive).HasDefaultValue(true);
+                ConfigureRowVersion(entity);
                 entity.HasIndex(x => x.DisplayName);
             });
 
@@ -2945,6 +2946,7 @@ namespace ProjectManagement.Data
                 entity.HasIndex(x => new { x.IndustryPartnerId, x.ProjectId, x.Role })
                     .IsUnique()
                     .HasFilter("\"IsActive\" = true");
+                entity.HasIndex(x => new { x.IndustryPartnerId, x.IsActive });
             });
         }
 

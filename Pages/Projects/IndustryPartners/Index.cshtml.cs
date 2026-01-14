@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Configuration;
 using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.IndustryPartners.Exceptions;
 using ProjectManagement.ViewModels.Projects.IndustryPartners;
@@ -13,10 +14,14 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
     public class IndexModel : PageModel
     {
         private readonly IIndustryPartnerService _industryPartnerService;
+        private readonly IAuthorizationService _authorizationService;
 
-        public IndexModel(IIndustryPartnerService industryPartnerService)
+        public IndexModel(
+            IIndustryPartnerService industryPartnerService,
+            IAuthorizationService authorizationService)
         {
             _industryPartnerService = industryPartnerService;
+            _authorizationService = authorizationService;
         }
 
         // Section: Query parameters
@@ -44,12 +49,16 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
         // Section: Drawer view model
         public LinkProjectDrawerViewModel LinkProjectDrawer { get; private set; } = new();
 
+        // Section: Permission flags
+        public bool CanManagePartners { get; private set; }
+
         // Section: Create partner request
         [BindProperty]
         public CreatePartnerRequest CreatePartnerRequest { get; set; } = new();
 
         public async Task OnGetAsync()
         {
+            CanManagePartners = await CanManagePartnersAsync();
             var query = new PartnerSearchQuery
             {
                 Query = Q,
@@ -74,6 +83,11 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
             SelectedPartner = PartnerId.HasValue
                 ? await _industryPartnerService.GetPartnerDetailAsync(PartnerId.Value)
                 : null;
+
+            if (SelectedPartner is not null)
+            {
+                SelectedPartner.CanManage = CanManagePartners;
+            }
 
             LinkProjectDrawer = await BuildLinkProjectDrawerAsync();
         }
@@ -105,6 +119,7 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
         }
 
         // Section: Partner commands
+        [Authorize(Policy = IndustryPartnerPolicies.Manage)]
         public async Task<IActionResult> OnPostArchivePartnerAsync(int partnerId)
         {
             if (partnerId <= 0)
@@ -112,10 +127,17 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
                 return BadRequest();
             }
 
-            await _industryPartnerService.ArchivePartnerAsync(partnerId);
+            var archived = await _industryPartnerService.ArchivePartnerAsync(partnerId);
+            if (!archived)
+            {
+                return BadRequest();
+            }
+
+            TempData["ArchivePartnerSuccess"] = true;
             return Redirect($"/projects/industry-partners/partner-detail?partnerId={partnerId}");
         }
 
+        [Authorize(Policy = IndustryPartnerPolicies.Manage)]
         public async Task<IActionResult> OnPostReactivatePartnerAsync(int partnerId)
         {
             if (partnerId <= 0)
@@ -123,10 +145,17 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
                 return BadRequest();
             }
 
-            await _industryPartnerService.ReactivatePartnerAsync(partnerId);
+            var reactivated = await _industryPartnerService.ReactivatePartnerAsync(partnerId);
+            if (!reactivated)
+            {
+                return BadRequest();
+            }
+
+            TempData["ReactivatePartnerSuccess"] = true;
             return Redirect($"/projects/industry-partners/partner-detail?partnerId={partnerId}");
         }
 
+        [Authorize(Policy = IndustryPartnerPolicies.Manage)]
         public async Task<IActionResult> OnPostLinkProjectAsync(LinkProjectRequest request)
         {
             if (request.PartnerId <= 0)
@@ -172,6 +201,7 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
             return Redirect($"/projects/industry-partners/partner-detail?partnerId={request.PartnerId}");
         }
 
+        [Authorize(Policy = IndustryPartnerPolicies.Manage)]
         public async Task<IActionResult> OnPostDeactivateAssociationAsync(int associationId, int partnerId)
         {
             if (associationId <= 0 || partnerId <= 0)
@@ -179,14 +209,21 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
                 return BadRequest();
             }
 
-            await _industryPartnerService.DeactivateAssociationAsync(associationId);
+            var deactivated = await _industryPartnerService.DeactivateAssociationAsync(associationId);
+            if (!deactivated)
+            {
+                return BadRequest();
+            }
+
             return Redirect($"/projects/industry-partners/partner-detail?partnerId={partnerId}");
         }
 
+        [Authorize(Policy = IndustryPartnerPolicies.Manage)]
         public async Task<IActionResult> OnPostCreatePartnerAsync()
         {
             if (!ModelState.IsValid)
             {
+                CanManagePartners = await CanManagePartnersAsync();
                 await OnGetAsync();
                 return Page();
             }
@@ -195,6 +232,7 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
             if (partnerId <= 0)
             {
                 ModelState.AddModelError(string.Empty, "Unable to create the industry partner.");
+                CanManagePartners = await CanManagePartnersAsync();
                 await OnGetAsync();
                 return Page();
             }
@@ -203,6 +241,7 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
         }
 
         // Section: Project search handlers
+        [Authorize(Policy = IndustryPartnerPolicies.Manage)]
         public async Task<IActionResult> OnGetProjectSearchPartialAsync(string q)
         {
             var term = (q ?? string.Empty).Trim();
@@ -216,6 +255,7 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
             return Partial("Projects/IndustryPartners/_Partials/_ProjectSearchResults", items);
         }
 
+        [Authorize(Policy = IndustryPartnerPolicies.Manage)]
         public async Task<IActionResult> OnGetProjectSelectPartialAsync(int projectId)
         {
             var item = await _industryPartnerService.GetProjectSearchItemAsync(projectId);
@@ -223,6 +263,7 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
             return Partial("Projects/IndustryPartners/_Partials/_ProjectSelectedChip", item);
         }
 
+        [Authorize(Policy = IndustryPartnerPolicies.Manage)]
         public IActionResult OnGetProjectClearPartial()
         {
             ViewData["ClearProjectResults"] = true;
@@ -230,6 +271,7 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
         }
 
         // Section: Overview editing
+        [Authorize(Policy = IndustryPartnerPolicies.Manage)]
         public async Task<IActionResult> OnGetOverviewEditPartialAsync(int partnerId)
         {
             if (partnerId <= 0)
@@ -246,6 +288,7 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
             var request = new UpdatePartnerOverviewRequest
             {
                 PartnerId = partner.Id,
+                RowVersion = Convert.ToBase64String(partner.RowVersion),
                 DisplayName = partner.DisplayName,
                 LegalName = partner.LegalName,
                 PartnerType = partner.PartnerType,
@@ -278,6 +321,7 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
             return Partial("Projects/IndustryPartners/_Partials/_PartnerOverviewReadBody", partner);
         }
 
+        [Authorize(Policy = IndustryPartnerPolicies.Manage)]
         public async Task<IActionResult> OnPostUpdateOverviewAsync(UpdatePartnerOverviewRequest request)
         {
             if (!ModelState.IsValid)
@@ -285,8 +329,14 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
                 return Partial("Projects/IndustryPartners/_Partials/_PartnerOverviewEdit", request);
             }
 
-            var updated = await _industryPartnerService.UpdateOverviewAsync(request);
-            if (!updated)
+            var result = await _industryPartnerService.UpdateOverviewAsync(request);
+            if (result.Conflict)
+            {
+                ModelState.AddModelError(string.Empty, "This record was modified by another user. Reload to continue.");
+                return Partial("Projects/IndustryPartners/_Partials/_PartnerOverviewEdit", request);
+            }
+
+            if (result.NotFound)
             {
                 return NotFound();
             }
@@ -297,6 +347,7 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
                 return NotFound();
             }
 
+            Response.Headers["HX-Trigger"] = "industry-partner-overview-saved";
             return Partial("Projects/IndustryPartners/_Partials/_PartnerOverviewReadBody", partner);
         }
 
@@ -304,6 +355,13 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
         private async Task<LinkProjectDrawerViewModel> BuildLinkProjectDrawerAsync()
         {
             return await Task.FromResult(new LinkProjectDrawerViewModel());
+        }
+
+        // Section: Permission helpers
+        private async Task<bool> CanManagePartnersAsync()
+        {
+            var result = await _authorizationService.AuthorizeAsync(User, IndustryPartnerPolicies.Manage);
+            return result.Succeeded;
         }
 
         // Section: Drawer error responses

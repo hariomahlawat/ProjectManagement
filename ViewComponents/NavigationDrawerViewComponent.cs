@@ -129,6 +129,21 @@ public class NavigationDrawerViewComponent : ViewComponent
         string? currentController,
         string? currentAction)
     {
+        if (item.ActivePagePrefixes is { Count: > 0 } && !string.IsNullOrEmpty(currentPage))
+        {
+            if (!string.Equals(item.Area ?? string.Empty, currentArea ?? string.Empty, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (item.ActivePagePrefixes.Any(prefix =>
+                    !string.IsNullOrWhiteSpace(prefix) &&
+                    currentPage.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+
         if (!string.IsNullOrEmpty(item.Page))
         {
             if (!string.Equals(currentPage, item.Page, StringComparison.OrdinalIgnoreCase))

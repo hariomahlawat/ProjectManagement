@@ -22,6 +22,9 @@ namespace ProjectManagement.Models.IndustryPartners
 
         public bool IsActive { get; set; } = true;
 
+        [ConcurrencyCheck]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
         // Section: Registration
         [MaxLength(100)]
         public string? RegistrationNumber { get; set; }

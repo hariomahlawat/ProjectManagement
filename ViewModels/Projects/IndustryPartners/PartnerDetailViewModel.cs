@@ -11,6 +11,8 @@ namespace ProjectManagement.ViewModels.Projects.IndustryPartners
         public string? LegalName { get; set; }
         public string PartnerType { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+        public bool CanManage { get; set; }
 
         // Section: Registration
         public string? RegistrationNumber { get; set; }

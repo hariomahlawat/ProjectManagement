@@ -17,9 +17,12 @@
                 <h1 class="h3 mb-1">Industry Partners</h1>
                 <p class="text-muted mb-0">Institutional partner records and project associations.</p>
             </div>
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPartnerModal">
-                + Add Industry Partner
-            </button>
+            @if (Model.CanManagePartners)
+            {
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPartnerModal">
+                    + Add Industry Partner
+                </button>
+            }
         </div>
     </div>
 </header>
@@ -146,11 +149,9 @@
 </div>
 
 @* Section: Modals and drawers *@
-@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_CreatePartnerModal", Model.CreatePartnerRequest)
-@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_ArchivePartnerModal")
-@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_AddContactModal")
-@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_DeleteContactModal")
-@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_AddDocumentModal")
-@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_RemoveDocumentModal")
-@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_AddNoteModal")
-@await Html.PartialAsync("Projects/IndustryPartners/_Modals/_LinkProjectDrawer", Model.LinkProjectDrawer)
+@if (Model.CanManagePartners)
+{
+    @await Html.PartialAsync("Projects/IndustryPartners/_Modals/_CreatePartnerModal", Model.CreatePartnerRequest)
+    @await Html.PartialAsync("Projects/IndustryPartners/_Modals/_ArchivePartnerModal")
+    @await Html.PartialAsync("Projects/IndustryPartners/_Modals/_LinkProjectDrawer", Model.LinkProjectDrawer)
+}

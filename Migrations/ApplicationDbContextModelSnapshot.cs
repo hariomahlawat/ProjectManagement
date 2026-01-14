@@ -1739,6 +1739,11 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
                     b.Property<string>("RegistrationNumber")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -1798,6 +1803,8 @@ namespace ProjectManagement.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("IndustryPartnerId");
+
+                    b.HasIndex("IndustryPartnerId", "IsActive");
 
                     b.HasIndex("ProjectId");
 

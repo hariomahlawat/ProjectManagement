@@ -91,6 +91,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
+                Text = "Industry partners",
+                Page = "/Projects/IndustryPartners/Index",
+                ActivePagePrefixes = new[] { "/Projects/IndustryPartners" },
+                Icon = "bi-building"
+            },
+            new()
+            {
                 Text = "Ongoing projects",
                 Page = "/Projects/Ongoing/Index",
                 Icon = "bi-clock-history"
