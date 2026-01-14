@@ -10,14 +10,17 @@
                 <th scope="col">Role</th>
                 <th scope="col">Association Status</th>
                 <th scope="col">Notes</th>
-                <th scope="col" class="text-end">Actions</th>
+                @if (Model.CanManage)
+                {
+                    <th scope="col" class="text-end">Actions</th>
+                }
             </tr>
         </thead>
         <tbody>
             @if (Model.ProjectAssociations.Count == 0)
             {
                 <tr>
-                    <td colspan="5" class="text-center text-muted py-4">No project associations recorded.</td>
+                    <td colspan="@(Model.CanManage ? 5 : 4)" class="text-center text-muted py-4">No project associations recorded.</td>
                 </tr>
             }
             else
@@ -30,16 +33,19 @@
                         <td>@IndustryPartnerAssociationRoles.GetLabel(association.Role)</td>
                         <td>@association.AssociationStatus</td>
                         <td>@(string.IsNullOrWhiteSpace(association.Notes) ? "—" : association.Notes)</td>
-                        <td class="text-end">
-                            @if (association.IsActive)
-                            {
-                                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#@unlinkModalId">Unlink</button>
-                            }
-                            else
-                            {
-                                <span class="text-muted small">Inactive</span>
-                            }
-                        </td>
+                        @if (Model.CanManage)
+                        {
+                            <td class="text-end">
+                                @if (association.IsActive)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#@unlinkModalId">Unlink</button>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">Inactive</span>
+                                }
+                            </td>
+                        }
                     </tr>
                 }
             }
@@ -48,37 +54,40 @@
 </div>
 
 @* Section: Unlink association modals *@
-@foreach (var association in Model.ProjectAssociations)
+@if (Model.CanManage)
 {
-    if (!association.IsActive)
+    foreach (var association in Model.ProjectAssociations)
     {
-        continue;
-    }
+        if (!association.IsActive)
+        {
+            continue;
+        }
 
-    var unlinkModalId = $"unlinkAssociationModal-{association.AssociationId}";
-    <div class="modal fade" id="@unlinkModalId" tabindex="-1" aria-labelledby="@($"{unlinkModalId}Label")" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <form method="post"
-                      hx-post="/projects/industry-partners?handler=DeactivateAssociation"
-                      hx-target="#industryPartnerDetail"
-                      hx-swap="innerHTML">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="associationId" value="@association.AssociationId" />
-                    <input type="hidden" name="partnerId" value="@Model.Id" />
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="@($"{unlinkModalId}Label")">Unlink Association</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        This will deactivate the association for audit history. Confirm to proceed.
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-danger" data-bs-dismiss="modal">Deactivate</button>
-                    </div>
-                </form>
+        var unlinkModalId = $"unlinkAssociationModal-{association.AssociationId}";
+        <div class="modal fade" id="@unlinkModalId" tabindex="-1" aria-labelledby="@($"{unlinkModalId}Label")" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form method="post"
+                          hx-post="/projects/industry-partners?handler=DeactivateAssociation"
+                          hx-target="#industryPartnerDetail"
+                          hx-swap="innerHTML">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="associationId" value="@association.AssociationId" />
+                        <input type="hidden" name="partnerId" value="@Model.Id" />
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="@($"{unlinkModalId}Label")">Unlink Association</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            This will deactivate the association for audit history. Confirm to proceed.
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-danger" data-bs-dismiss="modal">Deactivate</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
-    </div>
+    }
 }

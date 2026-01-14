@@ -34,6 +34,9 @@ namespace ProjectManagement.ViewModels.Projects.IndustryPartners
         [Range(1, int.MaxValue)]
         public int PartnerId { get; set; }
 
+        // Section: Concurrency
+        public string? RowVersion { get; set; }
+
         [Required]
         [Display(Name = "Display Name")]
         [MaxLength(200)]

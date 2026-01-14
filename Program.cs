@@ -152,6 +152,8 @@ builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("Project.Create", policy =>
         policy.RequireRole("Admin", "HoD"));
+    options.AddPolicy(IndustryPartnerPolicies.Manage, policy =>
+        policy.RequireRole(RoleNames.Admin, RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.ProjectOffice, RoleNames.ProjectOfficeAlternate));
     options.AddPolicy("Checklist.View", policy =>
         policy.RequireAuthenticatedUser());
     options.AddPolicy("Checklist.Edit", policy =>

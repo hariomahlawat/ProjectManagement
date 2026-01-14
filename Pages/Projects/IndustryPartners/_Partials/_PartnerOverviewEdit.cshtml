@@ -7,6 +7,7 @@
       hx-swap="innerHTML">
     @Html.AntiForgeryToken()
     <input type="hidden" asp-for="PartnerId" />
+    <input type="hidden" asp-for="RowVersion" />
 
     @* Section: Validation *@
     <div class="text-danger small mb-3" asp-validation-summary="ModelOnly"></div>

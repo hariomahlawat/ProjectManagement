@@ -120,6 +120,7 @@ namespace ProjectManagement.Services.IndustryPartners
                 LegalName = partner.LegalName,
                 PartnerType = partner.PartnerType,
                 Status = partner.IsActive ? "Active" : "Inactive",
+                RowVersion = partner.RowVersion,
                 RegistrationNumber = partner.RegistrationNumber,
                 Address = partner.Address,
                 City = partner.City,
@@ -339,13 +340,18 @@ namespace ProjectManagement.Services.IndustryPartners
             return true;
         }
 
-        public async Task<bool> UpdateOverviewAsync(UpdatePartnerOverviewRequest request, CancellationToken cancellationToken = default)
+        public async Task<PartnerOverviewUpdateResult> UpdateOverviewAsync(UpdatePartnerOverviewRequest request, CancellationToken cancellationToken = default)
         {
             if (request.PartnerId <= 0 ||
                 string.IsNullOrWhiteSpace(request.DisplayName) ||
                 string.IsNullOrWhiteSpace(request.PartnerType))
             {
-                return false;
+                return PartnerOverviewUpdateResult.Missing;
+            }
+
+            if (!TryDecodeRowVersion(request.RowVersion, out var rowVersion))
+            {
+                return PartnerOverviewUpdateResult.ConcurrencyConflict;
             }
 
             var partner = await _dbContext.IndustryPartners
@@ -353,8 +359,10 @@ namespace ProjectManagement.Services.IndustryPartners
 
             if (partner is null)
             {
-                return false;
+                return PartnerOverviewUpdateResult.Missing;
             }
+
+            _dbContext.Entry(partner).Property(item => item.RowVersion).OriginalValue = rowVersion;
 
             // Section: Identity
             partner.DisplayName = request.DisplayName.Trim();
@@ -377,8 +385,16 @@ namespace ProjectManagement.Services.IndustryPartners
 
             partner.UpdatedUtc = DateTime.UtcNow;
 
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            return true;
+            try
+            {
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return PartnerOverviewUpdateResult.ConcurrencyConflict;
+            }
+
+            return PartnerOverviewUpdateResult.Success;
         }
 
         public async Task<int> CreatePartnerAsync(CreatePartnerRequest request, CancellationToken cancellationToken = default)
@@ -442,6 +458,26 @@ namespace ProjectManagement.Services.IndustryPartners
             }
 
             return parts.Count == 0 ? "—" : string.Join(", ", parts);
+        }
+
+        // Section: Row version helpers
+        private static bool TryDecodeRowVersion(string? value, out byte[] rowVersion)
+        {
+            rowVersion = Array.Empty<byte>();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            try
+            {
+                rowVersion = Convert.FromBase64String(value);
+                return rowVersion.Length > 0;
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
         }
     }
 }

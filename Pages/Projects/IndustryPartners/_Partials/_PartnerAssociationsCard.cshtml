@@ -7,7 +7,10 @@
             <h3 class="h6 mb-0">Project Associations</h3>
             <div class="text-muted small">Explicit linkage for audit.</div>
         </div>
-        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="offcanvas" data-bs-target="#linkProjectDrawer" aria-controls="linkProjectDrawer">Link to Project</button>
+        @if (Model.CanManage)
+        {
+            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="offcanvas" data-bs-target="#linkProjectDrawer" aria-controls="linkProjectDrawer">Link to Project</button>
+        }
     </div>
     @await Html.PartialAsync("Projects/IndustryPartners/_Partials/_PartnerAssociationsTable", Model)
 </div>

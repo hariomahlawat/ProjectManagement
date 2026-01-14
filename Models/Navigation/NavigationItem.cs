@@ -19,6 +19,8 @@ public record class NavigationItem
 
     public IReadOnlyList<NavigationItem> Children { get; init; } = Array.Empty<NavigationItem>();
 
+    public IReadOnlyList<string>? ActivePagePrefixes { get; init; }
+
     public string? AuthorizationPolicy { get; init; }
 
     public IReadOnlyList<string>? RequiredRoles { get; init; }
