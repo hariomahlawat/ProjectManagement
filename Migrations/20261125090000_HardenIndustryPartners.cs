@@ -1,9 +1,13 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using ProjectManagement.Data;
 
 #nullable disable
 
 namespace ProjectManagement.Migrations
 {
+    [DbContext(typeof(ApplicationDbContext))]
+    [Migration("20261125090000_HardenIndustryPartners")]
     public partial class HardenIndustryPartners : Migration
     {
         // SECTION: Apply industry partner hardening changes
