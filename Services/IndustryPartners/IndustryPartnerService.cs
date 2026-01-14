@@ -139,7 +139,6 @@ namespace ProjectManagement.Services.IndustryPartners
                         AssociationId = association.Id,
                         ProjectName = association.Project?.Name ?? "(Project missing)",
                         ProjectLink = $"/projects/overview/{association.ProjectId}",
-                        Role = association.Role,
                         AssociationStatus = association.IsActive ? "Active" : "Inactive",
                         IsActive = association.IsActive,
                         Notes = association.Notes
@@ -272,7 +271,7 @@ namespace ProjectManagement.Services.IndustryPartners
 
         public async Task<bool> LinkProjectAsync(LinkProjectRequest request, CancellationToken cancellationToken = default)
         {
-            if (request.PartnerId <= 0 || request.ProjectId <= 0 || string.IsNullOrWhiteSpace(request.Role))
+            if (request.PartnerId <= 0 || request.ProjectId <= 0)
             {
                 return false;
             }
@@ -285,14 +284,10 @@ namespace ProjectManagement.Services.IndustryPartners
                 throw new IndustryPartnerInactiveException("Partner is inactive.");
             }
 
-            var normalizedRole = IndustryPartnerAssociationRoles.Normalize(request.Role.Trim());
-            var equivalentRoles = IndustryPartnerAssociationRoles.GetEquivalentRoles(normalizedRole);
-
             var duplicateExists = await _dbContext.IndustryPartnerProjectAssociations
                 .AnyAsync(item =>
                         item.IndustryPartnerId == request.PartnerId &&
                         item.ProjectId == request.ProjectId &&
-                        equivalentRoles.Contains(item.Role) &&
                         item.IsActive,
                     cancellationToken);
 
@@ -305,7 +300,6 @@ namespace ProjectManagement.Services.IndustryPartners
             {
                 IndustryPartnerId = request.PartnerId,
                 ProjectId = request.ProjectId,
-                Role = normalizedRole,
                 Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
                 LinkedOnUtc = DateTime.UtcNow,
                 IsActive = true
