@@ -284,13 +284,14 @@ namespace ProjectManagement.Services.IndustryPartners
                 throw new IndustryPartnerInactiveException("Partner is inactive.");
             }
 
-            var normalizedRole = request.Role.Trim();
+            var normalizedRole = IndustryPartnerAssociationRoles.Normalize(request.Role.Trim());
+            var equivalentRoles = IndustryPartnerAssociationRoles.GetEquivalentRoles(normalizedRole);
 
             var duplicateExists = await _dbContext.IndustryPartnerProjectAssociations
                 .AnyAsync(item =>
                         item.IndustryPartnerId == request.PartnerId &&
                         item.ProjectId == request.ProjectId &&
-                        item.Role == normalizedRole &&
+                        equivalentRoles.Contains(item.Role) &&
                         item.IsActive,
                     cancellationToken);
 

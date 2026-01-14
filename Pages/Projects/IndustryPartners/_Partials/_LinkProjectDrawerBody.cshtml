@@ -1,3 +1,4 @@
+@using ProjectManagement.ViewModels.Projects.IndustryPartners
 @model ProjectManagement.ViewModels.Projects.IndustryPartners.LinkProjectDrawerViewModel
 
 @* Section: Link project drawer body *@
@@ -45,11 +46,10 @@
         <label class="form-label" for="projectRole">Role</label>
         <select id="projectRole" name="Role" class="form-select" required>
             <option value="">Select a role</option>
-            <option value="Development Partner" selected="@(Model.SelectedRole == "Development Partner" ? "selected" : null)">Development Partner</option>
-            <option value="JDP" selected="@(Model.SelectedRole == "JDP" ? "selected" : null)">JDP</option>
-            <option value="OEM" selected="@(Model.SelectedRole == "OEM" ? "selected" : null)">OEM</option>
-            <option value="ToT Recipient" selected="@(Model.SelectedRole == "ToT Recipient" ? "selected" : null)">ToT Recipient</option>
-            <option value="Support" selected="@(Model.SelectedRole == "Support" ? "selected" : null)">Support</option>
+            @foreach (var role in IndustryPartnerAssociationRoles.Options)
+            {
+                <option value="@role.Value" selected="@(Model.SelectedRole == role.Value ? "selected" : null)">@role.Label</option>
+            }
         </select>
     </div>
 

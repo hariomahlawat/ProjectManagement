@@ -144,6 +144,13 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
                 return await BuildLinkProjectDrawerErrorAsync(request, "Select a role before saving.");
             }
 
+            // Section: Role validation
+            request.Role = IndustryPartnerAssociationRoles.Normalize(request.Role);
+            if (!IndustryPartnerAssociationRoles.IsValid(request.Role))
+            {
+                return await BuildLinkProjectDrawerErrorAsync(request, "Select a valid role before saving.");
+            }
+
             try
             {
                 var linked = await _industryPartnerService.LinkProjectAsync(request);
