@@ -20,10 +20,6 @@ namespace ProjectManagement.ViewModels.Projects.IndustryPartners
         [Range(1, int.MaxValue)]
         public int ProjectId { get; set; }
 
-        [Required]
-        [MaxLength(120)]
-        public string Role { get; set; } = string.Empty;
-
         [MaxLength(1000)]
         public string? Notes { get; set; }
     }

@@ -7,7 +7,6 @@
         <thead class="table-light">
             <tr>
                 <th scope="col">Project Name</th>
-                <th scope="col">Role</th>
                 <th scope="col">Association Status</th>
                 <th scope="col">Notes</th>
                 @if (Model.CanManage)
@@ -20,7 +19,7 @@
             @if (Model.ProjectAssociations.Count == 0)
             {
                 <tr>
-                    <td colspan="@(Model.CanManage ? 5 : 4)" class="text-center text-muted py-4">No project associations recorded.</td>
+                    <td colspan="@(Model.CanManage ? 4 : 3)" class="text-center text-muted py-4">No project associations recorded.</td>
                 </tr>
             }
             else
@@ -30,7 +29,6 @@
                     var unlinkModalId = $"unlinkAssociationModal-{association.AssociationId}";
                     <tr>
                         <td><a href="@association.ProjectLink">@association.ProjectName</a></td>
-                        <td>@IndustryPartnerAssociationRoles.GetLabel(association.Role)</td>
                         <td>@association.AssociationStatus</td>
                         <td>@(string.IsNullOrWhiteSpace(association.Notes) ? "—" : association.Notes)</td>
                         @if (Model.CanManage)

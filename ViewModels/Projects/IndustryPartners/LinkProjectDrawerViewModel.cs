@@ -6,7 +6,6 @@ namespace ProjectManagement.ViewModels.Projects.IndustryPartners
         public ProjectSearchItemViewModel? SelectedProject { get; set; }
 
         // Section: Form state
-        public string? SelectedRole { get; set; }
         public string? Notes { get; set; }
 
         // Section: Validation

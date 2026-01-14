@@ -1795,11 +1795,6 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
                     b.HasKey("Id");
 
                     b.HasIndex("IndustryPartnerId");
@@ -1808,7 +1803,7 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.HasIndex("IndustryPartnerId", "ProjectId", "Role")
+                    b.HasIndex("IndustryPartnerId", "ProjectId")
                         .IsUnique()
                         .HasFilter("\"IsActive\" = true");
 

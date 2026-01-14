@@ -16,10 +16,6 @@ namespace ProjectManagement.Models.IndustryPartners
         public Project? Project { get; set; }
 
         // Section: Association detail
-        [Required]
-        [MaxLength(120)]
-        public string Role { get; set; } = string.Empty;
-
         [MaxLength(1000)]
         public string? Notes { get; set; }
 

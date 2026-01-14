@@ -168,18 +168,6 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
                 return await BuildLinkProjectDrawerErrorAsync(request, "Select a project before saving.");
             }
 
-            if (string.IsNullOrWhiteSpace(request.Role))
-            {
-                return await BuildLinkProjectDrawerErrorAsync(request, "Select a role before saving.");
-            }
-
-            // Section: Role validation
-            request.Role = IndustryPartnerAssociationRoles.Normalize(request.Role);
-            if (!IndustryPartnerAssociationRoles.IsValid(request.Role))
-            {
-                return await BuildLinkProjectDrawerErrorAsync(request, "Select a valid role before saving.");
-            }
-
             try
             {
                 var linked = await _industryPartnerService.LinkProjectAsync(request);
@@ -194,7 +182,7 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
             }
             catch (DuplicateAssociationException)
             {
-                return await BuildLinkProjectDrawerErrorAsync(request, "This partner is already linked to this project in the selected role.");
+                return await BuildLinkProjectDrawerErrorAsync(request, "This partner is already linked to this project.");
             }
 
             TempData["LinkProjectSuccess"] = true;
@@ -381,7 +369,6 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
             {
                 LinkProjectError = message,
                 SelectedProject = selectedProject,
-                SelectedRole = request.Role,
                 Notes = request.Notes
             };
 

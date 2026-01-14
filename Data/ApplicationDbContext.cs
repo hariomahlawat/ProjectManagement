@@ -2932,7 +2932,6 @@ namespace ProjectManagement.Data
 
             builder.Entity<IndustryPartnerProjectAssociation>(entity =>
             {
-                entity.Property(x => x.Role).HasMaxLength(120).IsRequired();
                 entity.Property(x => x.Notes).HasMaxLength(1000);
                 entity.Property(x => x.IsActive).HasDefaultValue(true);
                 entity.HasOne(x => x.IndustryPartner)
@@ -2943,7 +2942,7 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
-                entity.HasIndex(x => new { x.IndustryPartnerId, x.ProjectId, x.Role })
+                entity.HasIndex(x => new { x.IndustryPartnerId, x.ProjectId })
                     .IsUnique()
                     .HasFilter("\"IsActive\" = true");
                 entity.HasIndex(x => new { x.IndustryPartnerId, x.IsActive });

@@ -27,7 +27,7 @@
     <div class="mb-3">
         <label class="form-label" for="projectSearchText">Search Project</label>
         <input type="text"
-               name="projectSearchText"
+               name="q"
                id="projectSearchText"
                class="form-control"
                placeholder="Search project name or code"
@@ -39,18 +39,6 @@
         <div id="projectSearchResults" class="mt-2">
             <div class="text-muted small">Type at least 2 characters to search.</div>
         </div>
-    </div>
-
-    @* Section: Role selection *@
-    <div class="mb-3">
-        <label class="form-label" for="projectRole">Role</label>
-        <select id="projectRole" name="Role" class="form-select" required>
-            <option value="">Select a role</option>
-            @foreach (var role in IndustryPartnerAssociationRoles.Options)
-            {
-                <option value="@role.Value" selected="@(Model.SelectedRole == role.Value ? "selected" : null)">@role.Label</option>
-            }
-        </select>
     </div>
 
     @* Section: Notes *@
