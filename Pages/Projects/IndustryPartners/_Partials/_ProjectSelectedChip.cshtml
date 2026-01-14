@@ -1,0 +1,45 @@
+@model ProjectManagement.ViewModels.Projects.IndustryPartners.ProjectSearchItemViewModel?
+
+@* Section: Selected project chip *@
+@{
+    var clearResults = ViewData["ClearProjectResults"] as bool? ?? false;
+}
+
+@if (clearResults)
+{
+    <div id="projectSearchResults" hx-swap-oob="innerHTML">
+        <div class="text-muted small">Type at least 2 characters to search.</div>
+    </div>
+}
+
+@if (Model is null)
+{
+    <input type="hidden" name="ProjectId" value="" />
+    <div class="text-muted small mb-2">No project selected.</div>
+    return;
+}
+
+<input type="hidden" name="ProjectId" value="@Model.ProjectId" />
+
+<div class="alert alert-light border d-flex justify-content-between align-items-center py-2 mb-2">
+    <div class="me-3">
+        <div class="fw-semibold">@Model.ProjectName</div>
+        <div class="text-muted small">
+            @if (!string.IsNullOrWhiteSpace(Model.ProjectCode))
+            {
+                @Model.ProjectCode
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.CategoryName))
+            {
+                <span> • @Model.CategoryName</span>
+            }
+        </div>
+    </div>
+    <button type="button"
+            class="btn btn-sm btn-outline-secondary"
+            hx-get="/projects/industry-partners?handler=ProjectClearPartial"
+            hx-target="#selectedProjectArea"
+            hx-swap="innerHTML">
+        Clear
+    </button>
+</div>

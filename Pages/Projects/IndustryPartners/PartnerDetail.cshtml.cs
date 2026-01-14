@@ -38,6 +38,13 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
                 return NotFound();
             }
 
+            // Section: Link project feedback
+            if (TempData.ContainsKey("LinkProjectSuccess"))
+            {
+                TempData.Remove("LinkProjectSuccess");
+                Response.Headers["HX-Trigger"] = "link-project-saved";
+            }
+
             return Page();
         }
     }

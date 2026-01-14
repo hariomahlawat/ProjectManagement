@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
-using ProjectManagement.Data;
 using ProjectManagement.Services.IndustryPartners;
+using ProjectManagement.Services.IndustryPartners.Exceptions;
 using ProjectManagement.ViewModels.Projects.IndustryPartners;
 
 namespace ProjectManagement.Pages.Projects.IndustryPartners
@@ -15,12 +13,10 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
     [Authorize]
     public class IndexModel : PageModel
     {
-        private readonly ApplicationDbContext _dbContext;
         private readonly IIndustryPartnerService _industryPartnerService;
 
-        public IndexModel(ApplicationDbContext dbContext, IIndustryPartnerService industryPartnerService)
+        public IndexModel(IIndustryPartnerService industryPartnerService)
         {
-            _dbContext = dbContext;
             _industryPartnerService = industryPartnerService;
         }
 
@@ -102,12 +98,39 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
 
         public async Task<IActionResult> OnPostLinkProjectAsync(LinkProjectRequest request)
         {
-            if (!ModelState.IsValid)
+            if (request.PartnerId <= 0)
             {
                 return BadRequest();
             }
 
-            await _industryPartnerService.LinkProjectAsync(request);
+            if (request.ProjectId <= 0)
+            {
+                return await BuildLinkProjectDrawerErrorAsync(request, "Select a project before saving.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Role))
+            {
+                return await BuildLinkProjectDrawerErrorAsync(request, "Select a role before saving.");
+            }
+
+            try
+            {
+                var linked = await _industryPartnerService.LinkProjectAsync(request);
+                if (!linked)
+                {
+                    return await BuildLinkProjectDrawerErrorAsync(request, "Unable to link the project. Try again.");
+                }
+            }
+            catch (IndustryPartnerInactiveException)
+            {
+                return await BuildLinkProjectDrawerErrorAsync(request, "Partner is inactive. Reactivate to create new associations.");
+            }
+            catch (DuplicateAssociationException)
+            {
+                return await BuildLinkProjectDrawerErrorAsync(request, "This partner is already linked to this project in the selected role.");
+            }
+
+            TempData["LinkProjectSuccess"] = true;
             return Redirect($"/projects/industry-partners/partner-detail?partnerId={request.PartnerId}");
         }
 
@@ -139,6 +162,33 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
             }
 
             return Redirect($"/projects/industry-partners?partner={partnerId}");
+        }
+
+        // Section: Project search handlers
+        public async Task<IActionResult> OnGetProjectSearchPartialAsync(string q)
+        {
+            var term = (q ?? string.Empty).Trim();
+            if (term.Length < 2)
+            {
+                ViewData["SearchTooShort"] = true;
+                return Partial("Projects/IndustryPartners/_Partials/_ProjectSearchResults", Array.Empty<ProjectSearchItemViewModel>());
+            }
+
+            var items = await _industryPartnerService.SearchProjectsAsync(term, 20);
+            return Partial("Projects/IndustryPartners/_Partials/_ProjectSearchResults", items);
+        }
+
+        public async Task<IActionResult> OnGetProjectSelectPartialAsync(int projectId)
+        {
+            var item = await _industryPartnerService.GetProjectSearchItemAsync(projectId);
+            ViewData["ClearProjectResults"] = true;
+            return Partial("Projects/IndustryPartners/_Partials/_ProjectSelectedChip", item);
+        }
+
+        public IActionResult OnGetProjectClearPartial()
+        {
+            ViewData["ClearProjectResults"] = true;
+            return Partial("Projects/IndustryPartners/_Partials/_ProjectSelectedChip", null);
         }
 
         // Section: Overview editing
@@ -212,33 +262,29 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
             return Partial("Projects/IndustryPartners/_Partials/_PartnerOverviewReadBody", partner);
         }
 
-        // Section: Drawer helpers
+        // Section: Drawer defaults
         private async Task<LinkProjectDrawerViewModel> BuildLinkProjectDrawerAsync()
         {
-            var projects = await _dbContext.Projects
-                .AsNoTracking()
-                .Where(project => !project.IsDeleted)
-                .OrderBy(project => project.Name)
-                .Select(project => new
-                {
-                    project.Id,
-                    project.Name,
-                    project.CaseFileNumber
-                })
-                .ToListAsync();
+            return await Task.FromResult(new LinkProjectDrawerViewModel());
+        }
 
-            var options = projects.Select(project => new ProjectOptionViewModel
-            {
-                Id = project.Id,
-                DisplayName = string.IsNullOrWhiteSpace(project.CaseFileNumber)
-                    ? project.Name
-                    : $"{project.Name} ({project.CaseFileNumber})"
-            }).ToList();
+        // Section: Drawer error responses
+        private async Task<PartialViewResult> BuildLinkProjectDrawerErrorAsync(LinkProjectRequest request, string message)
+        {
+            Response.Headers["HX-Retarget"] = "#linkProjectDrawerBody";
+            Response.Headers["HX-Reswap"] = "innerHTML";
 
-            return new LinkProjectDrawerViewModel
+            var selectedProject = await _industryPartnerService.GetProjectSearchItemAsync(request.ProjectId);
+
+            var viewModel = new LinkProjectDrawerViewModel
             {
-                Projects = options
+                LinkProjectError = message,
+                SelectedProject = selectedProject,
+                SelectedRole = request.Role,
+                Notes = request.Notes
             };
+
+            return Partial("Projects/IndustryPartners/_Partials/_LinkProjectDrawerBody", viewModel);
         }
     }
 }
