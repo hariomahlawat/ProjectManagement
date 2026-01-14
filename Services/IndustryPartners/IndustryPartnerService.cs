@@ -236,6 +236,88 @@ namespace ProjectManagement.Services.IndustryPartners
             return true;
         }
 
+        public async Task<bool> UpdateOverviewAsync(UpdatePartnerOverviewRequest request, CancellationToken cancellationToken = default)
+        {
+            if (request.PartnerId <= 0 ||
+                string.IsNullOrWhiteSpace(request.DisplayName) ||
+                string.IsNullOrWhiteSpace(request.PartnerType))
+            {
+                return false;
+            }
+
+            var partner = await _dbContext.IndustryPartners
+                .FirstOrDefaultAsync(item => item.Id == request.PartnerId, cancellationToken);
+
+            if (partner is null)
+            {
+                return false;
+            }
+
+            // Section: Identity
+            partner.DisplayName = request.DisplayName.Trim();
+            partner.LegalName = string.IsNullOrWhiteSpace(request.LegalName) ? null : request.LegalName.Trim();
+            partner.PartnerType = request.PartnerType.Trim();
+
+            // Section: Registration
+            partner.RegistrationNumber = string.IsNullOrWhiteSpace(request.RegistrationNumber) ? null : request.RegistrationNumber.Trim();
+
+            // Section: Location
+            partner.Address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim();
+            partner.City = string.IsNullOrWhiteSpace(request.City) ? null : request.City.Trim();
+            partner.State = string.IsNullOrWhiteSpace(request.State) ? null : request.State.Trim();
+            partner.Country = string.IsNullOrWhiteSpace(request.Country) ? null : request.Country.Trim();
+
+            // Section: Contact
+            partner.Website = string.IsNullOrWhiteSpace(request.Website) ? null : request.Website.Trim();
+            partner.Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
+            partner.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+
+            partner.UpdatedUtc = DateTime.UtcNow;
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
+        public async Task<int> CreatePartnerAsync(CreatePartnerRequest request, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(request.DisplayName) || string.IsNullOrWhiteSpace(request.PartnerType))
+            {
+                return 0;
+            }
+
+            var partner = new IndustryPartner
+            {
+                // Section: Identity
+                DisplayName = request.DisplayName.Trim(),
+                LegalName = string.IsNullOrWhiteSpace(request.LegalName) ? null : request.LegalName.Trim(),
+                PartnerType = request.PartnerType.Trim(),
+                IsActive = true,
+
+                // Section: Registration
+                RegistrationNumber = string.IsNullOrWhiteSpace(request.RegistrationNumber) ? null : request.RegistrationNumber.Trim(),
+
+                // Section: Location
+                Address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim(),
+                City = string.IsNullOrWhiteSpace(request.City) ? null : request.City.Trim(),
+                State = string.IsNullOrWhiteSpace(request.State) ? null : request.State.Trim(),
+                Country = string.IsNullOrWhiteSpace(request.Country) ? null : request.Country.Trim(),
+
+                // Section: Contact
+                Website = string.IsNullOrWhiteSpace(request.Website) ? null : request.Website.Trim(),
+                Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim(),
+                Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(),
+
+                // Section: Audit
+                CreatedUtc = DateTime.UtcNow,
+                UpdatedUtc = DateTime.UtcNow
+            };
+
+            _dbContext.IndustryPartners.Add(partner);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            return partner.Id;
+        }
+
         // Section: Helpers
         private static string BuildLocationSummary(string? city, string? state, string? country)
         {

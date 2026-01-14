@@ -1,0 +1,49 @@
+@model ProjectManagement.ViewModels.Projects.IndustryPartners.PartnerDetailViewModel
+
+@* Section: Overview read-only body *@
+<div class="industry-partners-detail-grid">
+    <div>
+        <div class="text-muted small">Display Name</div>
+        <div class="fw-semibold">@Model.DisplayName</div>
+    </div>
+    <div>
+        <div class="text-muted small">Legal Name</div>
+        <div>@(string.IsNullOrWhiteSpace(Model.LegalName) ? "—" : Model.LegalName)</div>
+    </div>
+    <div>
+        <div class="text-muted small">Partner Type</div>
+        <div>@Model.PartnerType</div>
+    </div>
+    <div>
+        <div class="text-muted small">Registration Number</div>
+        <div>@(string.IsNullOrWhiteSpace(Model.RegistrationNumber) ? "—" : Model.RegistrationNumber)</div>
+    </div>
+    <div>
+        <div class="text-muted small">Address</div>
+        <div>@(string.IsNullOrWhiteSpace(Model.Address) ? "—" : Model.Address)</div>
+    </div>
+    <div>
+        <div class="text-muted small">City</div>
+        <div>@(string.IsNullOrWhiteSpace(Model.City) ? "—" : Model.City)</div>
+    </div>
+    <div>
+        <div class="text-muted small">State</div>
+        <div>@(string.IsNullOrWhiteSpace(Model.State) ? "—" : Model.State)</div>
+    </div>
+    <div>
+        <div class="text-muted small">Country</div>
+        <div>@(string.IsNullOrWhiteSpace(Model.Country) ? "—" : Model.Country)</div>
+    </div>
+    <div>
+        <div class="text-muted small">Website</div>
+        <div>@(string.IsNullOrWhiteSpace(Model.Website) ? "—" : Model.Website)</div>
+    </div>
+    <div>
+        <div class="text-muted small">Organisation Email</div>
+        <div>@(string.IsNullOrWhiteSpace(Model.Email) ? "—" : Model.Email)</div>
+    </div>
+    <div>
+        <div class="text-muted small">Organisation Phone</div>
+        <div>@(string.IsNullOrWhiteSpace(Model.Phone) ? "—" : Model.Phone)</div>
+    </div>
+</div>

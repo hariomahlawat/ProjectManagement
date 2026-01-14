@@ -16,5 +16,7 @@ namespace ProjectManagement.Services.IndustryPartners
         Task<bool> ReactivatePartnerAsync(int partnerId, CancellationToken cancellationToken = default);
         Task<bool> LinkProjectAsync(LinkProjectRequest request, CancellationToken cancellationToken = default);
         Task<bool> DeactivateAssociationAsync(int associationId, CancellationToken cancellationToken = default);
+        Task<bool> UpdateOverviewAsync(UpdatePartnerOverviewRequest request, CancellationToken cancellationToken = default);
+        Task<int> CreatePartnerAsync(CreatePartnerRequest request, CancellationToken cancellationToken = default);
     }
 }

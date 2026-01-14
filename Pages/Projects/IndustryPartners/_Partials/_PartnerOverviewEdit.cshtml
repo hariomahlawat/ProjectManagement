@@ -1,0 +1,84 @@
+@model ProjectManagement.ViewModels.Projects.IndustryPartners.UpdatePartnerOverviewRequest
+
+@* Section: Overview edit body *@
+<form method="post"
+      hx-post="/projects/industry-partners?handler=UpdateOverview"
+      hx-target="#partnerOverviewCardBody"
+      hx-swap="innerHTML">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="PartnerId" />
+
+    @* Section: Validation *@
+    <div class="text-danger small mb-3" asp-validation-summary="ModelOnly"></div>
+
+    @* Section: Identity *@
+    <div class="industry-partners-detail-grid">
+        <div>
+            <label class="form-label small text-muted" asp-for="DisplayName"></label>
+            <input class="form-control" asp-for="DisplayName" />
+            <span class="text-danger small" asp-validation-for="DisplayName"></span>
+        </div>
+        <div>
+            <label class="form-label small text-muted" asp-for="LegalName"></label>
+            <input class="form-control" asp-for="LegalName" />
+            <span class="text-danger small" asp-validation-for="LegalName"></span>
+        </div>
+        <div>
+            <label class="form-label small text-muted" asp-for="PartnerType"></label>
+            <input class="form-control" asp-for="PartnerType" />
+            <span class="text-danger small" asp-validation-for="PartnerType"></span>
+        </div>
+        <div>
+            <label class="form-label small text-muted" asp-for="RegistrationNumber"></label>
+            <input class="form-control" asp-for="RegistrationNumber" />
+            <span class="text-danger small" asp-validation-for="RegistrationNumber"></span>
+        </div>
+        <div>
+            <label class="form-label small text-muted" asp-for="Address"></label>
+            <input class="form-control" asp-for="Address" />
+            <span class="text-danger small" asp-validation-for="Address"></span>
+        </div>
+        <div>
+            <label class="form-label small text-muted" asp-for="City"></label>
+            <input class="form-control" asp-for="City" />
+            <span class="text-danger small" asp-validation-for="City"></span>
+        </div>
+        <div>
+            <label class="form-label small text-muted" asp-for="State"></label>
+            <input class="form-control" asp-for="State" />
+            <span class="text-danger small" asp-validation-for="State"></span>
+        </div>
+        <div>
+            <label class="form-label small text-muted" asp-for="Country"></label>
+            <input class="form-control" asp-for="Country" />
+            <span class="text-danger small" asp-validation-for="Country"></span>
+        </div>
+        <div>
+            <label class="form-label small text-muted" asp-for="Website"></label>
+            <input class="form-control" asp-for="Website" />
+            <span class="text-danger small" asp-validation-for="Website"></span>
+        </div>
+        <div>
+            <label class="form-label small text-muted" asp-for="Email"></label>
+            <input class="form-control" asp-for="Email" />
+            <span class="text-danger small" asp-validation-for="Email"></span>
+        </div>
+        <div>
+            <label class="form-label small text-muted" asp-for="Phone"></label>
+            <input class="form-control" asp-for="Phone" />
+            <span class="text-danger small" asp-validation-for="Phone"></span>
+        </div>
+    </div>
+
+    @* Section: Actions *@
+    <div class="mt-3 d-flex gap-2">
+        <button type="submit" class="btn btn-sm btn-primary">Save</button>
+        <button type="button"
+                class="btn btn-sm btn-outline-secondary"
+                hx-get="/projects/industry-partners?handler=OverviewReadPartial&partnerId=@Model.PartnerId"
+                hx-target="#partnerOverviewCardBody"
+                hx-swap="innerHTML">
+            Cancel
+        </button>
+    </div>
+</form>

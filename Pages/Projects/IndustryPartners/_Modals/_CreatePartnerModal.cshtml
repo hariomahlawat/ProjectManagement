@@ -1,3 +1,5 @@
+@model ProjectManagement.ViewModels.Projects.IndustryPartners.CreatePartnerRequest
+
 @* Section: Create partner modal *@
 <div class="modal fade" id="createPartnerModal" tabindex="-1" aria-labelledby="createPartnerModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -6,9 +8,84 @@
                 <h5 class="modal-title" id="createPartnerModalLabel">Create Industry Partner</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <div class="alert alert-secondary mb-0">Creation workflow will be enabled once persistence is connected.</div>
-            </div>
+            <form method="post" asp-page-handler="CreatePartner">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    @* Section: Validation *@
+                    <div class="text-danger small mb-3" asp-validation-summary="ModelOnly"></div>
+
+                    @* Section: Identity *@
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small text-muted" asp-for="DisplayName"></label>
+                            <input class="form-control" asp-for="DisplayName" />
+                            <span class="text-danger small" asp-validation-for="DisplayName"></span>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small text-muted" asp-for="PartnerType"></label>
+                            <input class="form-control" asp-for="PartnerType" />
+                            <span class="text-danger small" asp-validation-for="PartnerType"></span>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small text-muted" asp-for="LegalName"></label>
+                            <input class="form-control" asp-for="LegalName" />
+                            <span class="text-danger small" asp-validation-for="LegalName"></span>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small text-muted" asp-for="RegistrationNumber"></label>
+                            <input class="form-control" asp-for="RegistrationNumber" />
+                            <span class="text-danger small" asp-validation-for="RegistrationNumber"></span>
+                        </div>
+                    </div>
+
+                    @* Section: Location *@
+                    <div class="row g-3 mb-3">
+                        <div class="col-12">
+                            <label class="form-label small text-muted" asp-for="Address"></label>
+                            <input class="form-control" asp-for="Address" />
+                            <span class="text-danger small" asp-validation-for="Address"></span>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small text-muted" asp-for="City"></label>
+                            <input class="form-control" asp-for="City" />
+                            <span class="text-danger small" asp-validation-for="City"></span>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small text-muted" asp-for="State"></label>
+                            <input class="form-control" asp-for="State" />
+                            <span class="text-danger small" asp-validation-for="State"></span>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small text-muted" asp-for="Country"></label>
+                            <input class="form-control" asp-for="Country" />
+                            <span class="text-danger small" asp-validation-for="Country"></span>
+                        </div>
+                    </div>
+
+                    @* Section: Contact *@
+                    <div class="row g-3">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small text-muted" asp-for="Website"></label>
+                            <input class="form-control" asp-for="Website" />
+                            <span class="text-danger small" asp-validation-for="Website"></span>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small text-muted" asp-for="Email"></label>
+                            <input class="form-control" asp-for="Email" />
+                            <span class="text-danger small" asp-validation-for="Email"></span>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small text-muted" asp-for="Phone"></label>
+                            <input class="form-control" asp-for="Phone" />
+                            <span class="text-danger small" asp-validation-for="Phone"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Partner</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
