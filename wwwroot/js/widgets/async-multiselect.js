@@ -31,6 +31,9 @@ function setupMultiselect(container) {
   const noResultsText = container.dataset.noResults ?? 'No matches found';
   const removeLabel = container.dataset.removeLabel ?? 'Remove';
   const loadingText = container.dataset.loadingText ?? 'Searching…';
+  // Section: Status messages
+  const unauthorizedText = container.dataset.unauthorizedText ?? 'Not authorised to search projects.';
+  const errorText = container.dataset.errorText ?? 'Unable to load results. Try again.';
   const pageSize = normalizePageSize(container.dataset.pageSize);
   const maxSelections = normalizeMaxSelections(container.dataset.maxSelection);
   const inputId = container.dataset.inputId;
@@ -366,12 +369,18 @@ function setupMultiselect(container) {
       if (controller.signal.aborted) {
         return;
       }
-      showMessage(noResultsText);
+      showMessage(errorText);
       return;
     }
 
     if (!response.ok) {
-      showMessage(noResultsText);
+      if (response.status === 401 || response.status === 403) {
+        console.warn(`Async multiselect unauthorized request (${response.status}) for ${source}`);
+        showMessage(unauthorizedText);
+      } else {
+        console.warn(`Async multiselect request failed (${response.status}) for ${source}`);
+        showMessage(errorText);
+      }
       return;
     }
 
@@ -379,12 +388,12 @@ function setupMultiselect(container) {
     try {
       payload = await response.json();
     } catch (err) {
-      showMessage(noResultsText);
+      showMessage(errorText);
       return;
     }
 
     if (!payload || !Array.isArray(payload.items)) {
-      showMessage(noResultsText);
+      showMessage(errorText);
       return;
     }
 

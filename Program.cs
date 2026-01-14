@@ -153,7 +153,13 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("Project.Create", policy =>
         policy.RequireRole("Admin", "HoD"));
     options.AddPolicy(IndustryPartnerPolicies.Manage, policy =>
-        policy.RequireRole(RoleNames.Admin, RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.ProjectOffice, RoleNames.ProjectOfficeAlternate));
+        policy.RequireRole(
+            RoleNames.Admin,
+            RoleNames.HoD,
+            RoleNames.ProjectOfficer,
+            RoleNames.ProjectOfficerAlternate,
+            RoleNames.ProjectOffice,
+            RoleNames.ProjectOfficeAlternate));
     options.AddPolicy("Checklist.View", policy =>
         policy.RequireAuthenticatedUser());
     options.AddPolicy("Checklist.Edit", policy =>
@@ -1748,8 +1754,22 @@ proliferationEffectiveApi.MapGet("", async (
     return Results.Ok(new { projectId, source, year, total });
 });
 
+// Section: Lookup API authorization roles
+var lookupRoles = new[]
+{
+    RoleNames.ProjectOfficer,
+    RoleNames.ProjectOfficerAlternate,
+    RoleNames.HoD,
+    RoleNames.Admin,
+    RoleNames.Mco,
+    RoleNames.Ta,
+    RoleNames.ProjectOffice,
+    RoleNames.ProjectOfficeAlternate,
+    RoleNames.Comdt
+};
+
 var lookupApi = app.MapGroup("/api/lookups")
-    .RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,HoD,Project Officer, Project Office,Comdt,TA,MCO" });
+    .RequireAuthorization(new AuthorizeAttribute { Roles = string.Join(",", lookupRoles) });
 
 lookupApi.MapGet("/sponsoring-units", async (
     ApplicationDbContext db,
