@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using ProjectManagement.ViewModels.Common;
 using ProjectManagement.ViewModels.Projects.IndustryPartners;
 
 namespace ProjectManagement.Services.IndustryPartners
@@ -8,7 +9,7 @@ namespace ProjectManagement.Services.IndustryPartners
     public interface IIndustryPartnerService
     {
         // Section: Partner queries
-        Task<IReadOnlyList<PartnerDetailViewModel>> SearchPartnersAsync(PartnerSearchQuery query, CancellationToken cancellationToken = default);
+        Task<PagedResult<PartnerListItemViewModel>> SearchPartnersAsync(PartnerSearchQuery query, CancellationToken cancellationToken = default);
         Task<PartnerDetailViewModel?> GetPartnerDetailAsync(int partnerId, CancellationToken cancellationToken = default);
 
         // Section: Project queries

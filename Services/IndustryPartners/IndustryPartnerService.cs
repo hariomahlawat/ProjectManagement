@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.IndustryPartners;
 using ProjectManagement.Services.IndustryPartners.Exceptions;
+using ProjectManagement.ViewModels.Common;
 using ProjectManagement.ViewModels.Projects.IndustryPartners;
 
 namespace ProjectManagement.Services.IndustryPartners
@@ -21,31 +22,41 @@ namespace ProjectManagement.Services.IndustryPartners
         }
 
         // Section: Partner queries
-        public async Task<IReadOnlyList<PartnerDetailViewModel>> SearchPartnersAsync(PartnerSearchQuery query, CancellationToken cancellationToken = default)
+        public async Task<PagedResult<PartnerListItemViewModel>> SearchPartnersAsync(PartnerSearchQuery query, CancellationToken cancellationToken = default)
         {
+            query ??= new PartnerSearchQuery();
+
+            var term = (query.Query ?? string.Empty).Trim();
+            var type = (query.Type ?? string.Empty).Trim();
+            var status = (query.Status ?? string.Empty).Trim();
+            var sort = (query.Sort ?? string.Empty).Trim();
+
             var partnersQuery = _dbContext.IndustryPartners.AsNoTracking();
 
             // Section: Directory filtering
-            if (!string.IsNullOrWhiteSpace(query.Query))
+            if (!string.IsNullOrWhiteSpace(term))
             {
-                var term = query.Query.Trim();
+                var likeTerm = $"%{term}%";
                 partnersQuery = partnersQuery.Where(partner =>
-                    partner.DisplayName.Contains(term) ||
-                    (partner.LegalName != null && partner.LegalName.Contains(term)));
+                    EF.Functions.Like(partner.DisplayName, likeTerm) ||
+                    (partner.LegalName != null && EF.Functions.Like(partner.LegalName, likeTerm)));
             }
 
-            if (!string.IsNullOrWhiteSpace(query.Type))
+            if (!string.IsNullOrWhiteSpace(type) && !string.Equals(type, "All", StringComparison.OrdinalIgnoreCase))
             {
-                partnersQuery = partnersQuery.Where(partner => partner.PartnerType == query.Type);
+                partnersQuery = partnersQuery.Where(partner => partner.PartnerType == type);
             }
 
-            if (!string.IsNullOrWhiteSpace(query.Status))
+            if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))
             {
-                var isActive = string.Equals(query.Status, "Active", StringComparison.OrdinalIgnoreCase);
+                var isActive = string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase);
                 partnersQuery = partnersQuery.Where(partner => partner.IsActive == isActive);
             }
 
-            partnersQuery = query.Sort switch
+            var totalCount = await partnersQuery.CountAsync(cancellationToken);
+
+            // Section: Sorting
+            partnersQuery = sort.ToLowerInvariant() switch
             {
                 "projects" => partnersQuery.OrderByDescending(partner =>
                     partner.ProjectAssociations.Count(association => association.IsActive)).ThenBy(partner => partner.DisplayName),
@@ -54,31 +65,39 @@ namespace ProjectManagement.Services.IndustryPartners
             };
 
             var partners = await partnersQuery
-                .Select(partner => new PartnerDetailViewModel
+                .Select(partner => new
                 {
-                    Id = partner.Id,
-                    DisplayName = partner.DisplayName,
-                    LegalName = partner.LegalName,
-                    PartnerType = partner.PartnerType,
-                    Status = partner.IsActive ? "Active" : "Inactive",
-                    RegistrationNumber = partner.RegistrationNumber,
-                    Address = partner.Address,
-                    City = partner.City,
-                    State = partner.State,
-                    Country = partner.Country,
-                    Website = partner.Website,
-                    Email = partner.Email,
-                    Phone = partner.Phone,
-                    ProjectCount = partner.ProjectAssociations.Count(association => association.IsActive)
+                    partner.Id,
+                    partner.DisplayName,
+                    partner.PartnerType,
+                    partner.IsActive,
+                    partner.City,
+                    partner.State,
+                    partner.Country,
+                    ActiveProjectCount = partner.ProjectAssociations.Count(association => association.IsActive)
                 })
                 .ToListAsync(cancellationToken);
 
+            var items = new List<PartnerListItemViewModel>(partners.Count);
             foreach (var partner in partners)
             {
-                partner.LocationSummary = BuildLocationSummary(partner.City, partner.State, partner.Country);
+                var locationSummary = BuildLocationSummary(partner.City, partner.State, partner.Country);
+                items.Add(new PartnerListItemViewModel
+                {
+                    Id = partner.Id,
+                    DisplayName = partner.DisplayName,
+                    PartnerType = partner.PartnerType,
+                    Status = partner.IsActive ? "Active" : "Inactive",
+                    LocationSummary = string.Equals(locationSummary, "—", StringComparison.Ordinal) ? null : locationSummary,
+                    ActiveProjectCount = partner.ActiveProjectCount
+                });
             }
 
-            return partners;
+            return new PagedResult<PartnerListItemViewModel>
+            {
+                Items = items,
+                TotalCount = totalCount
+            };
         }
 
         public async Task<PartnerDetailViewModel?> GetPartnerDetailAsync(int partnerId, CancellationToken cancellationToken = default)
