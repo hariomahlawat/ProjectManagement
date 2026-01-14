@@ -23,6 +23,7 @@ using ProjectManagement.Models.Notifications;
 using ProjectManagement.Helpers;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Data.Projects;
+using ProjectManagement.Models.IndustryPartners;
 using ProjectManagement.Models.Projects;
 
 namespace ProjectManagement.Data
@@ -132,6 +133,8 @@ namespace ProjectManagement.Data
         public DbSet<DocumentCategory> DocumentCategories => Set<DocumentCategory>();
         public DbSet<DocRepoFavourite> DocRepoFavourites => Set<DocRepoFavourite>();
         public DbSet<DocRepoAotsView> DocRepoAotsViews => Set<DocRepoAotsView>();
+        public DbSet<IndustryPartner> IndustryPartners => Set<IndustryPartner>();
+        public DbSet<IndustryPartnerProjectAssociation> IndustryPartnerProjectAssociations => Set<IndustryPartnerProjectAssociation>();
 
         // SECTION: PostgreSQL text search helpers
         public static string TsHeadline(string config, string text, NpgsqlTsQuery query, string options) => throw new NotSupportedException();
@@ -2906,6 +2909,42 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // SECTION: Industry partners
+            builder.Entity<IndustryPartner>(entity =>
+            {
+                entity.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.LegalName).HasMaxLength(200);
+                entity.Property(x => x.PartnerType).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.RegistrationNumber).HasMaxLength(100);
+                entity.Property(x => x.Address).HasMaxLength(256);
+                entity.Property(x => x.City).HasMaxLength(120);
+                entity.Property(x => x.State).HasMaxLength(120);
+                entity.Property(x => x.Country).HasMaxLength(120);
+                entity.Property(x => x.Website).HasMaxLength(256);
+                entity.Property(x => x.Email).HasMaxLength(256);
+                entity.Property(x => x.Phone).HasMaxLength(50);
+                entity.Property(x => x.IsActive).HasDefaultValue(true);
+                entity.HasIndex(x => x.DisplayName);
+            });
+
+            builder.Entity<IndustryPartnerProjectAssociation>(entity =>
+            {
+                entity.Property(x => x.Role).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.Notes).HasMaxLength(1000);
+                entity.Property(x => x.IsActive).HasDefaultValue(true);
+                entity.HasOne(x => x.IndustryPartner)
+                    .WithMany(x => x.ProjectAssociations)
+                    .HasForeignKey(x => x.IndustryPartnerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(x => new { x.IndustryPartnerId, x.ProjectId, x.Role })
+                    .IsUnique()
+                    .HasFilter("\"IsActive\" = true");
             });
         }
 

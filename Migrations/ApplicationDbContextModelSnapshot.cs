@@ -1689,6 +1689,125 @@ namespace ProjectManagement.Migrations
                     b.ToTable("DocRepoFavourites");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.IndustryPartners.IndustryPartner", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("LegalName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PartnerType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("RegistrationNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("State")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DisplayName");
+
+                    b.ToTable("IndustryPartners");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.IndustryPartners.IndustryPartnerProjectAssociation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("DeactivatedUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("IndustryPartnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime>("LinkedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IndustryPartnerId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("IndustryPartnerId", "ProjectId", "Role")
+                        .IsUnique()
+                        .HasFilter("\"IsActive\" = true");
+
+                    b.ToTable("IndustryPartnerProjectAssociations");
+                });
+
             modelBuilder.Entity("ProjectManagement.Data.DocRepo.Document", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6122,6 +6241,25 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Document");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.IndustryPartners.IndustryPartnerProjectAssociation", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.IndustryPartners.IndustryPartner", "IndustryPartner")
+                        .WithMany("ProjectAssociations")
+                        .HasForeignKey("IndustryPartnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("IndustryPartner");
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("ProjectManagement.Data.Projects.ProjectDocumentText", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ProjectDocument", "ProjectDocument")
@@ -7099,6 +7237,11 @@ namespace ProjectManagement.Migrations
             modelBuilder.Entity("ProjectManagement.Models.Activities.ActivityType", b =>
                 {
                     b.Navigation("Activities");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.IndustryPartners.IndustryPartner", b =>
+                {
+                    b.Navigation("ProjectAssociations");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.LineDirectorate", b =>

@@ -1,9 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Data;
+using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.ViewModels.Projects.IndustryPartners;
 
 namespace ProjectManagement.Pages.Projects.IndustryPartners
@@ -11,6 +15,15 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
     [Authorize]
     public class IndexModel : PageModel
     {
+        private readonly ApplicationDbContext _dbContext;
+        private readonly IIndustryPartnerService _industryPartnerService;
+
+        public IndexModel(ApplicationDbContext dbContext, IIndustryPartnerService industryPartnerService)
+        {
+            _dbContext = dbContext;
+            _industryPartnerService = industryPartnerService;
+        }
+
         // Section: Query parameters
         [BindProperty(SupportsGet = true, Name = "partner")]
         public int? PartnerId { get; set; }
@@ -36,61 +49,101 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
         // Section: Result count
         public int TotalCount { get; private set; }
 
-        public void OnGet()
+        // Section: Drawer view model
+        public LinkProjectDrawerViewModel LinkProjectDrawer { get; private set; } = new();
+
+        public async Task OnGetAsync()
         {
-            var allPartners = IndustryPartnerSampleData.BuildSamplePartners();
+            var query = new PartnerSearchQuery
+            {
+                Query = Q,
+                Type = Type,
+                Status = Status,
+                Sort = Sort
+            };
 
-            // Section: Directory filtering
-            var filteredPartners = ApplyFilters(allPartners);
-
-            // Section: Directory sorting
-            filteredPartners = ApplySort(filteredPartners);
-
-            Partners = filteredPartners.ToList();
+            Partners = await _industryPartnerService.SearchPartnersAsync(query);
             TotalCount = Partners.Count;
 
             // Section: Selected detail
             SelectedPartner = PartnerId.HasValue
-                ? allPartners.FirstOrDefault(partner => partner.Id == PartnerId)
+                ? await _industryPartnerService.GetPartnerDetailAsync(PartnerId.Value)
                 : null;
+
+            LinkProjectDrawer = await BuildLinkProjectDrawerAsync();
         }
 
-        // Section: Directory filtering helpers
-        private IEnumerable<PartnerDetailViewModel> ApplyFilters(IEnumerable<PartnerDetailViewModel> partners)
+        // Section: Partner commands
+        public async Task<IActionResult> OnPostArchivePartnerAsync(int partnerId)
         {
-            var filteredPartners = partners;
-
-            if (!string.IsNullOrWhiteSpace(Q))
+            if (partnerId <= 0)
             {
-                filteredPartners = filteredPartners.Where(partner =>
-                    partner.DisplayName.Contains(Q, StringComparison.OrdinalIgnoreCase) ||
-                    (!string.IsNullOrWhiteSpace(partner.LegalName) &&
-                     partner.LegalName.Contains(Q, StringComparison.OrdinalIgnoreCase)));
+                return BadRequest();
             }
 
-            if (!string.IsNullOrWhiteSpace(Type))
-            {
-                filteredPartners = filteredPartners.Where(partner =>
-                    partner.PartnerType.Equals(Type, StringComparison.OrdinalIgnoreCase));
-            }
-
-            if (!string.IsNullOrWhiteSpace(Status))
-            {
-                filteredPartners = filteredPartners.Where(partner =>
-                    partner.Status.Equals(Status, StringComparison.OrdinalIgnoreCase));
-            }
-
-            return filteredPartners;
+            await _industryPartnerService.ArchivePartnerAsync(partnerId);
+            return Redirect($"/projects/industry-partners/partner-detail?partnerId={partnerId}");
         }
 
-        // Section: Directory sorting helpers
-        private IEnumerable<PartnerDetailViewModel> ApplySort(IEnumerable<PartnerDetailViewModel> partners)
+        public async Task<IActionResult> OnPostReactivatePartnerAsync(int partnerId)
         {
-            return Sort switch
+            if (partnerId <= 0)
             {
-                "projects" => partners.OrderByDescending(partner => partner.ProjectCount).ThenBy(partner => partner.DisplayName),
-                "updated" => partners.OrderBy(partner => partner.DisplayName),
-                _ => partners.OrderBy(partner => partner.DisplayName)
+                return BadRequest();
+            }
+
+            await _industryPartnerService.ReactivatePartnerAsync(partnerId);
+            return Redirect($"/projects/industry-partners/partner-detail?partnerId={partnerId}");
+        }
+
+        public async Task<IActionResult> OnPostLinkProjectAsync(LinkProjectRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest();
+            }
+
+            await _industryPartnerService.LinkProjectAsync(request);
+            return Redirect($"/projects/industry-partners/partner-detail?partnerId={request.PartnerId}");
+        }
+
+        public async Task<IActionResult> OnPostDeactivateAssociationAsync(int associationId, int partnerId)
+        {
+            if (associationId <= 0 || partnerId <= 0)
+            {
+                return BadRequest();
+            }
+
+            await _industryPartnerService.DeactivateAssociationAsync(associationId);
+            return Redirect($"/projects/industry-partners/partner-detail?partnerId={partnerId}");
+        }
+
+        // Section: Drawer helpers
+        private async Task<LinkProjectDrawerViewModel> BuildLinkProjectDrawerAsync()
+        {
+            var projects = await _dbContext.Projects
+                .AsNoTracking()
+                .Where(project => !project.IsDeleted)
+                .OrderBy(project => project.Name)
+                .Select(project => new
+                {
+                    project.Id,
+                    project.Name,
+                    project.CaseFileNumber
+                })
+                .ToListAsync();
+
+            var options = projects.Select(project => new ProjectOptionViewModel
+            {
+                Id = project.Id,
+                DisplayName = string.IsNullOrWhiteSpace(project.CaseFileNumber)
+                    ? project.Name
+                    : $"{project.Name} ({project.CaseFileNumber})"
+            }).ToList();
+
+            return new LinkProjectDrawerViewModel
+            {
+                Projects = options
             };
         }
     }

@@ -44,10 +44,12 @@ namespace ProjectManagement.ViewModels.Projects.IndustryPartners
     public class ProjectAssociationViewModel
     {
         // Section: Project detail
+        public int AssociationId { get; set; }
         public string ProjectName { get; set; } = string.Empty;
         public string ProjectLink { get; set; } = string.Empty;
         public string Role { get; set; } = string.Empty;
         public string AssociationStatus { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
         public string? Notes { get; set; }
     }
 
