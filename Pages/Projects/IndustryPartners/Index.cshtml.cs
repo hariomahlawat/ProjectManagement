@@ -52,6 +52,10 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
         // Section: Drawer view model
         public LinkProjectDrawerViewModel LinkProjectDrawer { get; private set; } = new();
 
+        // Section: Create partner request
+        [BindProperty]
+        public CreatePartnerRequest CreatePartnerRequest { get; set; } = new();
+
         public async Task OnGetAsync()
         {
             var query = new PartnerSearchQuery
@@ -116,6 +120,96 @@ namespace ProjectManagement.Pages.Projects.IndustryPartners
 
             await _industryPartnerService.DeactivateAssociationAsync(associationId);
             return Redirect($"/projects/industry-partners/partner-detail?partnerId={partnerId}");
+        }
+
+        public async Task<IActionResult> OnPostCreatePartnerAsync()
+        {
+            if (!ModelState.IsValid)
+            {
+                await OnGetAsync();
+                return Page();
+            }
+
+            var partnerId = await _industryPartnerService.CreatePartnerAsync(CreatePartnerRequest);
+            if (partnerId <= 0)
+            {
+                ModelState.AddModelError(string.Empty, "Unable to create the industry partner.");
+                await OnGetAsync();
+                return Page();
+            }
+
+            return Redirect($"/projects/industry-partners?partner={partnerId}");
+        }
+
+        // Section: Overview editing
+        public async Task<IActionResult> OnGetOverviewEditPartialAsync(int partnerId)
+        {
+            if (partnerId <= 0)
+            {
+                return BadRequest();
+            }
+
+            var partner = await _industryPartnerService.GetPartnerDetailAsync(partnerId);
+            if (partner is null)
+            {
+                return NotFound();
+            }
+
+            var request = new UpdatePartnerOverviewRequest
+            {
+                PartnerId = partner.Id,
+                DisplayName = partner.DisplayName,
+                LegalName = partner.LegalName,
+                PartnerType = partner.PartnerType,
+                RegistrationNumber = partner.RegistrationNumber,
+                Address = partner.Address,
+                City = partner.City,
+                State = partner.State,
+                Country = partner.Country,
+                Website = partner.Website,
+                Email = partner.Email,
+                Phone = partner.Phone
+            };
+
+            return Partial("Projects/IndustryPartners/_Partials/_PartnerOverviewEdit", request);
+        }
+
+        public async Task<IActionResult> OnGetOverviewReadPartialAsync(int partnerId)
+        {
+            if (partnerId <= 0)
+            {
+                return BadRequest();
+            }
+
+            var partner = await _industryPartnerService.GetPartnerDetailAsync(partnerId);
+            if (partner is null)
+            {
+                return NotFound();
+            }
+
+            return Partial("Projects/IndustryPartners/_Partials/_PartnerOverviewReadBody", partner);
+        }
+
+        public async Task<IActionResult> OnPostUpdateOverviewAsync(UpdatePartnerOverviewRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return Partial("Projects/IndustryPartners/_Partials/_PartnerOverviewEdit", request);
+            }
+
+            var updated = await _industryPartnerService.UpdateOverviewAsync(request);
+            if (!updated)
+            {
+                return NotFound();
+            }
+
+            var partner = await _industryPartnerService.GetPartnerDetailAsync(request.PartnerId);
+            if (partner is null)
+            {
+                return NotFound();
+            }
+
+            return Partial("Projects/IndustryPartners/_Partials/_PartnerOverviewReadBody", partner);
         }
 
         // Section: Drawer helpers
