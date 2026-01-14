@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.IndustryPartners;
+using ProjectManagement.Services.IndustryPartners.Exceptions;
 using ProjectManagement.ViewModels.Projects.IndustryPartners;
 
 namespace ProjectManagement.Services.IndustryPartners
@@ -132,6 +133,88 @@ namespace ProjectManagement.Services.IndustryPartners
             return viewModel;
         }
 
+        // Section: Project queries
+        public async Task<IReadOnlyList<ProjectSearchItemViewModel>> SearchProjectsAsync(string q, int limit = 20, CancellationToken cancellationToken = default)
+        {
+            var term = (q ?? string.Empty).Trim();
+            if (term.Length < 2)
+            {
+                return Array.Empty<ProjectSearchItemViewModel>();
+            }
+
+            // Section: Limit guardrails
+            if (limit <= 0)
+            {
+                limit = 20;
+            }
+
+            if (limit > 20)
+            {
+                limit = 20;
+            }
+
+            // Section: Base query
+            var baseQuery = _dbContext.Projects
+                .AsNoTracking()
+                .Where(project => !project.IsDeleted && !project.IsArchived);
+
+            // Section: Starts-with preference
+            var startsWithQuery = baseQuery
+                .Where(project =>
+                    EF.Functions.Like(project.Name, $"{term}%") ||
+                    (project.CaseFileNumber != null && EF.Functions.Like(project.CaseFileNumber, $"{term}%")))
+                .Select(project => new ProjectSearchItemViewModel
+                {
+                    ProjectId = project.Id,
+                    ProjectName = project.Name,
+                    ProjectCode = project.CaseFileNumber,
+                    CategoryName = project.Category != null ? project.Category.Name : null
+                });
+
+            // Section: Contains fallback
+            var containsQuery = baseQuery
+                .Where(project =>
+                    EF.Functions.Like(project.Name, $"%{term}%") ||
+                    (project.CaseFileNumber != null && EF.Functions.Like(project.CaseFileNumber, $"%{term}%")))
+                .Select(project => new ProjectSearchItemViewModel
+                {
+                    ProjectId = project.Id,
+                    ProjectName = project.Name,
+                    ProjectCode = project.CaseFileNumber,
+                    CategoryName = project.Category != null ? project.Category.Name : null
+                });
+
+            // Section: Result shaping
+            var results = await startsWithQuery
+                .Union(containsQuery)
+                .OrderBy(item => item.ProjectName)
+                .ThenBy(item => item.ProjectCode)
+                .Take(limit)
+                .ToListAsync(cancellationToken);
+
+            return results;
+        }
+
+        public async Task<ProjectSearchItemViewModel?> GetProjectSearchItemAsync(int projectId, CancellationToken cancellationToken = default)
+        {
+            if (projectId <= 0)
+            {
+                return null;
+            }
+
+            return await _dbContext.Projects
+                .AsNoTracking()
+                .Where(project => project.Id == projectId && !project.IsDeleted && !project.IsArchived)
+                .Select(project => new ProjectSearchItemViewModel
+                {
+                    ProjectId = project.Id,
+                    ProjectName = project.Name,
+                    ProjectCode = project.CaseFileNumber,
+                    CategoryName = project.Category != null ? project.Category.Name : null
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
         // Section: Partner commands
         public async Task<bool> ArchivePartnerAsync(int partnerId, CancellationToken cancellationToken = default)
         {
@@ -179,7 +262,7 @@ namespace ProjectManagement.Services.IndustryPartners
 
             if (partner is null || !partner.IsActive)
             {
-                return false;
+                throw new IndustryPartnerInactiveException("Partner is inactive.");
             }
 
             var normalizedRole = request.Role.Trim();
@@ -194,7 +277,7 @@ namespace ProjectManagement.Services.IndustryPartners
 
             if (duplicateExists)
             {
-                return false;
+                throw new DuplicateAssociationException("Duplicate association detected.");
             }
 
             var association = new IndustryPartnerProjectAssociation

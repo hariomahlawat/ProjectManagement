@@ -1,0 +1,67 @@
+@model ProjectManagement.ViewModels.Projects.IndustryPartners.LinkProjectDrawerViewModel
+
+@* Section: Link project drawer body *@
+<form class="industry-partners-form"
+      method="post"
+      hx-post="/projects/industry-partners?handler=LinkProject"
+      hx-target="#industryPartnerDetail"
+      hx-swap="innerHTML"
+      hx-include="#industryPartnerId">
+    @Html.AntiForgeryToken()
+
+    @* Section: Validation *@
+    <div id="linkProjectValidation" class="mb-3">
+        @if (!string.IsNullOrWhiteSpace(Model.LinkProjectError))
+        {
+            <div class="alert alert-danger py-2 mb-0">@Model.LinkProjectError</div>
+        }
+    </div>
+
+    @* Section: Selected project *@
+    <div id="selectedProjectArea">
+        @await Html.PartialAsync("Projects/IndustryPartners/_Partials/_ProjectSelectedChip", Model.SelectedProject)
+    </div>
+
+    @* Section: Project search *@
+    <div class="mb-3">
+        <label class="form-label" for="projectSearchText">Search Project</label>
+        <input type="text"
+               name="projectSearchText"
+               id="projectSearchText"
+               class="form-control"
+               placeholder="Search project name or code"
+               hx-get="/projects/industry-partners?handler=ProjectSearchPartial"
+               hx-trigger="keyup changed delay:300ms"
+               hx-target="#projectSearchResults"
+               hx-include="#projectSearchText"
+               autocomplete="off" />
+        <div id="projectSearchResults" class="mt-2">
+            <div class="text-muted small">Type at least 2 characters to search.</div>
+        </div>
+    </div>
+
+    @* Section: Role selection *@
+    <div class="mb-3">
+        <label class="form-label" for="projectRole">Role</label>
+        <select id="projectRole" name="Role" class="form-select" required>
+            <option value="">Select a role</option>
+            <option value="Development Partner" selected="@(Model.SelectedRole == "Development Partner" ? "selected" : null)">Development Partner</option>
+            <option value="JDP" selected="@(Model.SelectedRole == "JDP" ? "selected" : null)">JDP</option>
+            <option value="OEM" selected="@(Model.SelectedRole == "OEM" ? "selected" : null)">OEM</option>
+            <option value="ToT Recipient" selected="@(Model.SelectedRole == "ToT Recipient" ? "selected" : null)">ToT Recipient</option>
+            <option value="Support" selected="@(Model.SelectedRole == "Support" ? "selected" : null)">Support</option>
+        </select>
+    </div>
+
+    @* Section: Notes *@
+    <div class="mb-3">
+        <label class="form-label" for="projectNote">Note (optional)</label>
+        <textarea id="projectNote" name="Notes" class="form-control" rows="3">@Model.Notes</textarea>
+    </div>
+
+    @* Section: Actions *@
+    <div class="d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Association</button>
+    </div>
+</form>

@@ -11,6 +11,10 @@ namespace ProjectManagement.Services.IndustryPartners
         Task<IReadOnlyList<PartnerDetailViewModel>> SearchPartnersAsync(PartnerSearchQuery query, CancellationToken cancellationToken = default);
         Task<PartnerDetailViewModel?> GetPartnerDetailAsync(int partnerId, CancellationToken cancellationToken = default);
 
+        // Section: Project queries
+        Task<IReadOnlyList<ProjectSearchItemViewModel>> SearchProjectsAsync(string q, int limit = 20, CancellationToken cancellationToken = default);
+        Task<ProjectSearchItemViewModel?> GetProjectSearchItemAsync(int projectId, CancellationToken cancellationToken = default);
+
         // Section: Partner commands
         Task<bool> ArchivePartnerAsync(int partnerId, CancellationToken cancellationToken = default);
         Task<bool> ReactivatePartnerAsync(int partnerId, CancellationToken cancellationToken = default);

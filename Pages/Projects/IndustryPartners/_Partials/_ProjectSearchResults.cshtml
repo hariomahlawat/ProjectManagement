@@ -1,0 +1,41 @@
+@model IReadOnlyList<ProjectManagement.ViewModels.Projects.IndustryPartners.ProjectSearchItemViewModel>
+
+@* Section: Search results *@
+@{
+    var searchTooShort = ViewData["SearchTooShort"] as bool? ?? false;
+}
+
+@if (searchTooShort)
+{
+    <div class="text-muted small">Type at least 2 characters to search.</div>
+    return;
+}
+
+@if (Model is null || Model.Count == 0)
+{
+    <div class="text-muted small">No matching projects.</div>
+    return;
+}
+
+<div class="list-group">
+    @foreach (var item in Model)
+    {
+        <button type="button"
+                class="list-group-item list-group-item-action"
+                hx-get="/projects/industry-partners?handler=ProjectSelectPartial&amp;projectId=@item.ProjectId"
+                hx-target="#selectedProjectArea"
+                hx-swap="innerHTML">
+            <div class="fw-semibold">@item.ProjectName</div>
+            <div class="text-muted small">
+                @if (!string.IsNullOrWhiteSpace(item.ProjectCode))
+                {
+                    @item.ProjectCode
+                }
+                @if (!string.IsNullOrWhiteSpace(item.CategoryName))
+                {
+                    <span> • @item.CategoryName</span>
+                }
+            </div>
+        </button>
+    }
+</div>
