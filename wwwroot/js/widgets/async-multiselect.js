@@ -485,6 +485,19 @@ function setupMultiselect(container) {
   searchInput.addEventListener('focus', handleFocus);
   document.addEventListener('click', handleDocumentClick);
 
+  // Section: Focus input on container clicks
+  container.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+    if (!container.contains(event.target)) {
+      return;
+    }
+    if (!searchInput.contains(event.target)) {
+      searchInput.focus();
+    }
+  });
+
   inputWrapper.addEventListener('keydown', (event) => {
     if (event.key === 'Tab' && event.shiftKey && chipsList.childElementCount > 0) {
       const firstChip = chipsList.firstElementChild;
