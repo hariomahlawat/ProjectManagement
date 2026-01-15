@@ -301,22 +301,23 @@
                     <h2 class="h5">Decision</h2>
                     <p class="text-muted">Approvals apply the change immediately. Rejections require a reason.</p>
 
+                    @* SECTION: Decision form *@
                     <form method="post" action="/Approvals/Pending/decide" class="d-grid gap-3">
                         @Html.AntiForgeryToken()
-                        <input type="hidden" name="ApprovalType" value="@Model.Input.ApprovalType" />
-                        <input type="hidden" name="RequestId" value="@Model.Input.RequestId" />
-                        <input type="hidden" name="RowVersion" value="@Model.Input.RowVersion" />
-                        <input type="hidden" name="ReturnUrl" value="@Model.Input.ReturnUrl" />
+                        <input asp-for="Input.ApprovalType" type="hidden" />
+                        <input asp-for="Input.RequestId" type="hidden" />
+                        <input asp-for="Input.RowVersion" type="hidden" />
+                        <input asp-for="Input.ReturnUrl" type="hidden" />
 
                         <div>
-                            <label class="form-label" for="decision-remarks">Remarks</label>
-                            <textarea class="form-control" id="decision-remarks" name="Remarks" rows="4" placeholder="Add context for the requester">@Model.Input.Remarks</textarea>
+                            <label class="form-label" asp-for="Input.Remarks"></label>
+                            <textarea class="form-control" asp-for="Input.Remarks" rows="4" placeholder="Add context for the requester"></textarea>
                             <div class="form-text">Remarks are required when rejecting.</div>
                         </div>
 
                         <div class="d-flex flex-wrap gap-2">
-                            <button type="submit" class="btn btn-success" name="Decision" value="Approve">Approve</button>
-                            <button type="submit" class="btn btn-outline-danger" name="Decision" value="Reject">Reject</button>
+                            <button type="submit" class="btn btn-success" name="Input.Decision" value="Approve">Approve</button>
+                            <button type="submit" class="btn btn-outline-danger" name="Input.Decision" value="Reject">Reject</button>
                         </div>
                     </form>
                 </div>
