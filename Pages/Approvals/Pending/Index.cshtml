@@ -1,0 +1,107 @@
+@page "/Approvals/Pending"
+@model ProjectManagement.Pages.Approvals.Pending.IndexModel
+@{
+    ViewData["Title"] = "Pending approvals";
+}
+
+<div class="container-fluid">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+        <div>
+            <h1 class="h2 mb-1">Pending approvals</h1>
+            <p class="text-muted mb-0">Review approval-gated requests across projects and project office reports.</p>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-12 col-md-3">
+                    <label class="form-label" asp-for="Type">Type</label>
+                    <select class="form-select" asp-for="Type" asp-items="Model.TypeOptions"></select>
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label" asp-for="Module">Module</label>
+                    <select class="form-select" asp-for="Module" asp-items="Model.ModuleOptions"></select>
+                </div>
+                <div class="col-12 col-md-2">
+                    <label class="form-label" asp-for="From">From</label>
+                    <input type="date" class="form-control" asp-for="From" />
+                </div>
+                <div class="col-12 col-md-2">
+                    <label class="form-label" asp-for="To">To</label>
+                    <input type="date" class="form-control" asp-for="To" />
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label" asp-for="Search">Search</label>
+                    <input type="search" class="form-control" asp-for="Search" placeholder="Project, requester, request id" />
+                </div>
+                <div class="col-12 col-md-2 d-grid">
+                    <button type="submit" class="btn btn-primary">Apply filters</button>
+                </div>
+                <div class="col-12 col-md-2 d-grid">
+                    <a class="btn btn-outline-secondary" asp-page="/Approvals/Pending/Index">Clear</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            @if (Model.Items.Count == 0)
+            {
+                <div class="text-center py-5">
+                    <h2 class="h5">No pending approvals found</h2>
+                    <p class="text-muted mb-0">All approval queues are clear for the selected filters.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th scope="col">Type</th>
+                                <th scope="col">Project</th>
+                                <th scope="col">Requested by</th>
+                                <th scope="col">Requested at</th>
+                                <th scope="col">Summary</th>
+                                <th scope="col">Module</th>
+                                <th scope="col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.Items)
+                            {
+                                <tr>
+                                    <td>
+                                        <span class="fw-semibold">@item.ApprovalType</span>
+                                    </td>
+                                    <td>
+                                        @if (item.ProjectId.HasValue)
+                                        {
+                                            <div class="fw-semibold">@item.ProjectName</div>
+                                            <div class="text-muted small">Project #@item.ProjectId</div>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td>@item.RequestedByName</td>
+                                    <td>@item.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture)</td>
+                                    <td>@item.Summary</td>
+                                    <td>@item.Module</td>
+                                    <td>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <a class="btn btn-sm btn-outline-primary" href="@item.DetailsUrl">View details</a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
