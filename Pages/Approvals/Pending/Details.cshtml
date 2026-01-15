@@ -9,10 +9,16 @@
     string formatDecisionDate(DateTime? value) => value?.ToLocalTime().ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
 }
 
-<div class="container-fluid">
+<div class="container-fluid approvals-page">
+    @* SECTION: Page header *@
     <div class="mb-4">
         <a class="btn btn-link px-0" asp-page="/Approvals/Pending/Index">&larr; Back to pending approvals</a>
-        <h1 class="h2 mt-2">Pending approval details</h1>
+        <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+            <h1 class="h2 mb-0">Pending approval details</h1>
+            <span class="badge approval-status-badge @GetStatusBadgeClass(Model.CurrentStatus)">
+                @(Model.IsPending ? "Pending decision" : Model.CurrentStatus)
+            </span>
+        </div>
         <p class="text-muted mb-0">@item.Summary</p>
     </div>
 
@@ -30,7 +36,7 @@
 
     <div class="row g-4">
         <div class="col-lg-7">
-            <div class="card border-0 shadow-sm mb-4">
+            <div class="card approval-card mb-4">
                 <div class="card-body">
                     <h2 class="h5">Request summary</h2>
                     <dl class="row mb-0">
@@ -47,14 +53,18 @@
                         <dd class="col-sm-8">@formatDateTime(item.RequestedAtUtc)</dd>
 
                         <dt class="col-sm-4">Status</dt>
-                        <dd class="col-sm-8">@item.Status</dd>
+                        <dd class="col-sm-8">
+                            <span class="badge approval-status-badge @GetStatusBadgeClass(Model.CurrentStatus)">
+                                @Model.CurrentStatus
+                            </span>
+                        </dd>
                     </dl>
                 </div>
             </div>
 
             @if (Model.Detail.StageChange is not null)
             {
-                <div class="card border-0 shadow-sm mb-4">
+                <div class="card approval-card mb-4">
                     <div class="card-body">
                         <h2 class="h6 text-uppercase text-muted mb-3">Stage change details</h2>
                         <dl class="row mb-0">
@@ -88,7 +98,7 @@
 
             @if (Model.Detail.MetaChange is not null)
             {
-                <div class="card border-0 shadow-sm mb-4">
+                <div class="card approval-card mb-4">
                     <div class="card-body">
                         <h2 class="h6 text-uppercase text-muted mb-3">Metadata change details</h2>
                         <p class="text-muted mb-3">@Model.Detail.MetaChange.Summary</p>
@@ -127,7 +137,7 @@
 
             @if (Model.Detail.PlanApproval is not null)
             {
-                <div class="card border-0 shadow-sm mb-4">
+                <div class="card approval-card mb-4">
                     <div class="card-body">
                         <h2 class="h6 text-uppercase text-muted mb-3">Plan approval details</h2>
                         <p class="text-muted mb-3">Submitted @formatDateTime(Model.Detail.PlanApproval.SubmittedOnUtc) by @Model.Detail.PlanApproval.SubmittedBy.</p>
@@ -162,7 +172,7 @@
 
             @if (Model.Detail.DocumentModeration is not null)
             {
-                <div class="card border-0 shadow-sm mb-4">
+                <div class="card approval-card mb-4">
                     <div class="card-body">
                         <h2 class="h6 text-uppercase text-muted mb-3">Document moderation details</h2>
                         <dl class="row mb-0">
@@ -205,7 +215,7 @@
 
             @if (Model.Detail.TotRequest is not null)
             {
-                <div class="card border-0 shadow-sm mb-4">
+                <div class="card approval-card mb-4">
                     <div class="card-body">
                         <h2 class="h6 text-uppercase text-muted mb-3">Transfer of Technology details</h2>
                         <div class="table-responsive">
@@ -234,7 +244,7 @@
 
             @if (Model.Detail.ProliferationYearly is not null)
             {
-                <div class="card border-0 shadow-sm mb-4">
+                <div class="card approval-card mb-4">
                     <div class="card-body">
                         <h2 class="h6 text-uppercase text-muted mb-3">Yearly proliferation details</h2>
                         <dl class="row mb-0">
@@ -266,7 +276,7 @@
 
             @if (Model.Detail.ProliferationGranular is not null)
             {
-                <div class="card border-0 shadow-sm mb-4">
+                <div class="card approval-card mb-4">
                     <div class="card-body">
                         <h2 class="h6 text-uppercase text-muted mb-3">Granular proliferation details</h2>
                         <dl class="row mb-0">
@@ -300,11 +310,14 @@
         </div>
 
         <div class="col-lg-5">
-            <div class="card border-0 shadow-sm">
+            <div class="card approval-card approval-decision-card">
                 <div class="card-body">
                     @if (Model.IsPending)
                     {
-                        <h2 class="h5">Decision</h2>
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                            <h2 class="h5 mb-0">Decision required</h2>
+                            <span class="badge approval-status-badge approval-status-badge--pending">Pending decision</span>
+                        </div>
                         <p class="text-muted">Approvals apply the change immediately. Rejections require a reason.</p>
 
                         @* SECTION: Decision form *@
@@ -316,7 +329,9 @@
                             <input asp-for="Input.ReturnUrl" type="hidden" />
 
                             <div>
-                                <label class="form-label" asp-for="Input.Remarks"></label>
+                                <label class="form-label" asp-for="Input.Remarks">
+                                    Remarks <span class="text-muted">(required for rejection)</span>
+                                </label>
                                 <textarea class="form-control" asp-for="Input.Remarks" rows="4" placeholder="Add context for the requester"></textarea>
                                 <div class="form-text">Remarks are required when rejecting.</div>
                             </div>
@@ -329,16 +344,20 @@
                     }
                     else
                     {
-                        <h2 class="h5">Decision recorded</h2>
+                        <h2 class="h5">Decision summary</h2>
                         <p class="text-muted mb-4">This request has already been processed and is no longer actionable.</p>
 
                         @* SECTION: Decision summary *@
                         <dl class="row mb-4">
                             <dt class="col-sm-4">Status</dt>
-                            <dd class="col-sm-8">@Model.CurrentStatus</dd>
+                            <dd class="col-sm-8">
+                                <span class="badge approval-status-badge @GetStatusBadgeClass(Model.CurrentStatus)">
+                                    @Model.CurrentStatus
+                                </span>
+                            </dd>
 
                             <dt class="col-sm-4">Decided by</dt>
-                            <dd class="col-sm-8">@Model.DecidedByName</dd>
+                            <dd class="col-sm-8">@Model.DecidedByName ?? "—"</dd>
 
                             <dt class="col-sm-4">Decided at</dt>
                             <dd class="col-sm-8">@formatDecisionDate(Model.DecidedAt)</dd>
@@ -351,7 +370,7 @@
                         </dl>
 
                         <div class="d-grid">
-                            <a class="btn btn-outline-primary" asp-page="/Approvals/Pending/Index">Back to pending approvals</a>
+                            <a class="btn btn-primary" asp-page="/Approvals/Pending/Index">Back to pending approvals</a>
                         </div>
                     }
                 </div>
@@ -359,3 +378,17 @@
         </div>
     </div>
 </div>
+
+@functions {
+    // SECTION: Status helpers
+    private static string GetStatusBadgeClass(string? status)
+    {
+        return status?.ToLowerInvariant() switch
+        {
+            "approved" => "approval-status-badge--approved",
+            "rejected" => "approval-status-badge--rejected",
+            "pending" => "approval-status-badge--pending",
+            _ => "approval-status-badge--neutral"
+        };
+    }
+}
