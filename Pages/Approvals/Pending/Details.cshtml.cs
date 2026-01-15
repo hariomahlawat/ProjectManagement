@@ -11,6 +11,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Services.Approvals;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.ViewModels;
@@ -272,7 +273,7 @@ public class DetailsModel : PageModel
         }
 
         CurrentStatus = record.ApprovalStatus.ToString();
-        IsPending = record.ApprovalStatus == Areas.ProjectOfficeReports.Domain.ApprovalStatus.Pending;
+        IsPending = record.ApprovalStatus == ApprovalStatus.Pending;
         await PopulateDecisionUserAsync(record.ApprovedByUserId, record.ApprovedOnUtc, cancellationToken);
     }
 
@@ -293,7 +294,7 @@ public class DetailsModel : PageModel
         }
 
         CurrentStatus = record.ApprovalStatus.ToString();
-        IsPending = record.ApprovalStatus == Areas.ProjectOfficeReports.Domain.ApprovalStatus.Pending;
+        IsPending = record.ApprovalStatus == ApprovalStatus.Pending;
         await PopulateDecisionUserAsync(record.ApprovedByUserId, record.ApprovedOnUtc, cancellationToken);
     }
 
