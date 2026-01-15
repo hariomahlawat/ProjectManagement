@@ -518,6 +518,10 @@ public sealed class IndexModel : PageModel
             return Challenge();
         }
 
+        // SECTION: Authorization context
+        var isAdmin = User.IsInRole("Admin");
+        var isHoD = User.IsInRole("HoD");
+
         byte[]? rowVersion = null;
         var hasRowVersionField = Request is { HasFormContentType: true } && Request.Form.ContainsKey("DecideInput.RowVersion");
 
