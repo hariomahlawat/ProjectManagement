@@ -32,7 +32,7 @@ public class DecideModel : PageModel
         if (!TryParseDecision(Input.Decision, out var action))
         {
             TempData["Error"] = "Decision must be Approve or Reject.";
-            return RedirectToReturnUrl();
+            return RedirectToDetails();
         }
 
         var request = new ApprovalDecisionRequest(
@@ -47,21 +47,20 @@ public class DecideModel : PageModel
         switch (result.Outcome)
         {
             case ApprovalDecisionOutcome.Success:
-                TempData["Flash"] = "Decision saved successfully.";
-                break;
+                return RedirectToSuccessDestination(action);
             case ApprovalDecisionOutcome.AlreadyDecided:
+                TempData["Error"] = result.Message ?? "This request has already been decided.";
+                return RedirectToDetails(alreadyDecided: true);
             case ApprovalDecisionOutcome.ValidationFailed:
             case ApprovalDecisionOutcome.NotFound:
                 TempData["Error"] = result.Message ?? "Unable to process the decision.";
-                break;
+                return RedirectToDetails();
             case ApprovalDecisionOutcome.Forbidden:
                 return Forbid();
             default:
                 TempData["Error"] = result.Message ?? "Unable to process the decision.";
-                break;
+                return RedirectToDetails();
         }
-
-        return RedirectToReturnUrl();
     }
 
     // SECTION: Decision input model
@@ -76,14 +75,29 @@ public class DecideModel : PageModel
     }
 
     // SECTION: Helpers
-    private IActionResult RedirectToReturnUrl()
+    // SECTION: Redirect helpers
+    private IActionResult RedirectToSuccessDestination(ApprovalDecisionAction action)
     {
         if (!string.IsNullOrWhiteSpace(Input.ReturnUrl) && Url.IsLocalUrl(Input.ReturnUrl))
         {
             return Redirect(Input.ReturnUrl);
         }
 
-        return RedirectToPage("/Approvals/Pending/Index");
+        var success = action == ApprovalDecisionAction.Approve ? "approved" : "rejected";
+        return RedirectToPage("/Approvals/Pending/Index", new { success });
+    }
+
+    private IActionResult RedirectToDetails(bool alreadyDecided = false)
+    {
+        return RedirectToPage(
+            "/Approvals/Pending/Details",
+            new
+            {
+                type = Input.ApprovalType.ToString(),
+                id = Input.RequestId,
+                alreadyDecided = alreadyDecided ? 1 : (int?)null,
+                returnUrl = Input.ReturnUrl
+            });
     }
 
     private static bool TryParseDecision(string? value, out ApprovalDecisionAction action)

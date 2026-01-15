@@ -30,6 +30,17 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string? Search { get; set; }
 
+    // SECTION: Feedback
+    [BindProperty(SupportsGet = true)]
+    public string? Success { get; set; }
+
+    public string? SuccessMessage => Success?.ToLowerInvariant() switch
+    {
+        "approved" => "Approved successfully.",
+        "rejected" => "Rejected successfully.",
+        _ => null
+    };
+
     // SECTION: View model state
     public IReadOnlyList<ApprovalQueueItemVm> Items { get; private set; } = Array.Empty<ApprovalQueueItemVm>();
 
