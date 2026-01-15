@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,17 +28,6 @@ public class IndexModel : PageModel
     public string? Type { get; set; }
 
     [BindProperty(SupportsGet = true)]
-    public string? Module { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    [DataType(DataType.Date)]
-    public DateTime? From { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    [DataType(DataType.Date)]
-    public DateTime? To { get; set; }
-
-    [BindProperty(SupportsGet = true)]
     public string? Search { get; set; }
 
     // SECTION: View model state
@@ -48,19 +35,13 @@ public class IndexModel : PageModel
 
     public IReadOnlyList<SelectListItem> TypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
-    public IReadOnlyList<SelectListItem> ModuleOptions { get; private set; } = Array.Empty<SelectListItem>();
-
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         var parsedType = ParseEnum<ApprovalQueueType>(Type);
-        var parsedModule = ParseEnum<ApprovalQueueModule>(Module);
 
         var query = new ApprovalQueueQuery
         {
             Type = parsedType,
-            Module = parsedModule,
-            FromUtc = From?.ToUniversalTime(),
-            ToUtc = To?.ToUniversalTime().AddDays(1).AddTicks(-1),
             Search = Search
         };
 
@@ -77,7 +58,6 @@ public class IndexModel : PageModel
             .ToList();
 
         TypeOptions = BuildEnumOptions<ApprovalQueueType>(parsedType, "All types");
-        ModuleOptions = BuildEnumOptions<ApprovalQueueModule>(parsedModule, "All modules");
     }
 
     // SECTION: Helpers

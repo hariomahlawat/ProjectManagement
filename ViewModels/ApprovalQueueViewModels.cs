@@ -26,9 +26,6 @@ public enum ApprovalQueueModule
 public sealed record ApprovalQueueQuery
 {
     public ApprovalQueueType? Type { get; init; }
-    public ApprovalQueueModule? Module { get; init; }
-    public DateTimeOffset? FromUtc { get; init; }
-    public DateTimeOffset? ToUtc { get; init; }
     public string? Search { get; init; }
 }
 

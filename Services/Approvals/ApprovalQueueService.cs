@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Security.Claims;
-using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -48,49 +47,49 @@ public sealed class ApprovalQueueService : IApprovalQueueService
 
         var results = new List<ApprovalQueueItemVm>();
 
-        if (ShouldIncludeType(query, ApprovalQueueType.StageChange, ApprovalQueueModule.Projects))
+        if (ShouldIncludeType(query, ApprovalQueueType.StageChange))
         {
             var stageRows = await BuildStageChangeQuery(query)
                 .ToListAsync(cancellationToken);
             results.AddRange(stageRows.Select(MapStageChangeRow));
         }
 
-        if (ShouldIncludeType(query, ApprovalQueueType.ProjectMeta, ApprovalQueueModule.Projects))
+        if (ShouldIncludeType(query, ApprovalQueueType.ProjectMeta))
         {
             var metaRows = await BuildMetaChangeQuery(query)
                 .ToListAsync(cancellationToken);
             results.AddRange(metaRows.Select(MapMetaChangeRow));
         }
 
-        if (ShouldIncludeType(query, ApprovalQueueType.PlanApproval, ApprovalQueueModule.Projects))
+        if (ShouldIncludeType(query, ApprovalQueueType.PlanApproval))
         {
             var planRows = await BuildPlanApprovalQuery(query)
                 .ToListAsync(cancellationToken);
             results.AddRange(planRows.Select(MapPlanApprovalRow));
         }
 
-        if (ShouldIncludeType(query, ApprovalQueueType.DocRequest, ApprovalQueueModule.Projects))
+        if (ShouldIncludeType(query, ApprovalQueueType.DocRequest))
         {
             var docRows = await BuildDocumentRequestQuery(query)
                 .ToListAsync(cancellationToken);
             results.AddRange(docRows.Select(MapDocumentRequestRow));
         }
 
-        if (ShouldIncludeType(query, ApprovalQueueType.TotRequest, ApprovalQueueModule.ProjectOfficeReports))
+        if (ShouldIncludeType(query, ApprovalQueueType.TotRequest))
         {
             var totRows = await BuildTotRequestQuery(query)
                 .ToListAsync(cancellationToken);
             results.AddRange(totRows.Select(MapTotRequestRow));
         }
 
-        if (ShouldIncludeType(query, ApprovalQueueType.ProliferationYearly, ApprovalQueueModule.ProjectOfficeReports))
+        if (ShouldIncludeType(query, ApprovalQueueType.ProliferationYearly))
         {
             var yearlyRows = await BuildProliferationYearlyQuery(query)
                 .ToListAsync(cancellationToken);
             results.AddRange(yearlyRows.Select(MapProliferationYearlyRow));
         }
 
-        if (ShouldIncludeType(query, ApprovalQueueType.ProliferationGranular, ApprovalQueueModule.ProjectOfficeReports))
+        if (ShouldIncludeType(query, ApprovalQueueType.ProliferationGranular))
         {
             var granularRows = await BuildProliferationGranularQuery(query)
                 .ToListAsync(cancellationToken);
@@ -98,7 +97,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         }
 
         return results
-            .OrderByDescending(item => item.RequestedAtUtc)
+            .OrderBy(item => item.RequestedAtUtc)
             .ToList();
     }
 
@@ -150,8 +149,6 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                             req.RequestedOn);
 
         baseQuery = ApplySearch(baseQuery, query);
-        baseQuery = ApplyDateRange(baseQuery, query, row => row.RequestedOn);
-
         return baseQuery;
     }
 
@@ -205,8 +202,6 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                             req.RequestedOnUtc);
 
         baseQuery = ApplySearch(baseQuery, query);
-        baseQuery = ApplyDateRange(baseQuery, query, row => row.RequestedOnUtc);
-
         return baseQuery;
     }
 
@@ -247,8 +242,6 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                             plan.SubmittedOn ?? plan.CreatedOn);
 
         baseQuery = ApplySearch(baseQuery, query);
-        baseQuery = ApplyDateRange(baseQuery, query, row => row.SubmittedOnUtc);
-
         return baseQuery;
     }
 
@@ -295,8 +288,6 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                             req.RequestedAtUtc);
 
         baseQuery = ApplySearch(baseQuery, query);
-        baseQuery = ApplyDateRange(baseQuery, query, row => row.RequestedAtUtc);
-
         return baseQuery;
     }
 
@@ -345,8 +336,6 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                             req.RowVersion);
 
         baseQuery = ApplySearch(baseQuery, query);
-        baseQuery = ApplyDateRange(baseQuery, query, row => row.SubmittedOnUtc);
-
         return baseQuery;
     }
 
@@ -395,8 +384,6 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                             yearly.RowVersion);
 
         baseQuery = ApplySearch(baseQuery, query);
-        baseQuery = ApplyDateRange(baseQuery, query, row => row.CreatedOnUtc);
-
         return baseQuery;
     }
 
@@ -448,8 +435,6 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                             granular.RowVersion);
 
         baseQuery = ApplySearch(baseQuery, query);
-        baseQuery = ApplyDateRange(baseQuery, query, row => row.CreatedOnUtc);
-
         return baseQuery;
     }
 
@@ -963,9 +948,19 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         }
 
         var trimmed = query.Search.Trim();
+        var normalized = string.Concat(trimmed.Where(ch => !char.IsWhiteSpace(ch)));
         var like = $"%{trimmed}%";
         var parsedInt = int.TryParse(trimmed, out var intId) ? intId : (int?)null;
         var parsedGuid = Guid.TryParse(trimmed, out var guidId) ? guidId : (Guid?)null;
+        var parsedDocRequestType = Enum.TryParse<ProjectDocumentRequestType>(normalized, true, out var docRequestType)
+            ? docRequestType
+            : (ProjectDocumentRequestType?)null;
+        var parsedTotStatus = Enum.TryParse<ProjectTotStatus>(normalized, true, out var totStatus)
+            ? totStatus
+            : (ProjectTotStatus?)null;
+        var parsedSource = Enum.TryParse<ProliferationSource>(normalized, true, out var source)
+            ? source
+            : (ProliferationSource?)null;
 
         if (queryable is IQueryable<StageChangeRow> stage)
         {
@@ -974,6 +969,8 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                 EF.Functions.ILike(r.RequestedByFullName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.RequestedByUserName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.RequestedByEmail ?? string.Empty, like) ||
+                EF.Functions.ILike(r.StageCode, like) ||
+                EF.Functions.ILike(r.RequestedStatus, like) ||
                 (parsedInt.HasValue && r.Id == parsedInt.Value));
             return (IQueryable<T>)(object)filtered;
         }
@@ -996,6 +993,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                 EF.Functions.ILike(r.SubmittedByFullName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByUserName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByEmail ?? string.Empty, like) ||
+                (parsedInt.HasValue && r.VersionNo == parsedInt.Value) ||
                 (parsedInt.HasValue && r.Id == parsedInt.Value));
             return (IQueryable<T>)(object)filtered;
         }
@@ -1008,6 +1006,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                 EF.Functions.ILike(r.RequestedByFullName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.RequestedByUserName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.RequestedByEmail ?? string.Empty, like) ||
+                (parsedDocRequestType.HasValue && r.RequestType == parsedDocRequestType.Value) ||
                 (parsedInt.HasValue && r.Id == parsedInt.Value));
             return (IQueryable<T>)(object)filtered;
         }
@@ -1019,6 +1018,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                 EF.Functions.ILike(r.SubmittedByFullName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByUserName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByEmail ?? string.Empty, like) ||
+                (parsedTotStatus.HasValue && r.ProposedStatus == parsedTotStatus.Value) ||
                 (parsedInt.HasValue && r.Id == parsedInt.Value));
             return (IQueryable<T>)(object)filtered;
         }
@@ -1030,6 +1030,9 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                 EF.Functions.ILike(r.SubmittedByFullName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByUserName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByEmail ?? string.Empty, like) ||
+                (parsedSource.HasValue && r.Source == parsedSource.Value) ||
+                (parsedInt.HasValue && r.Year == parsedInt.Value) ||
+                (parsedInt.HasValue && r.TotalQuantity == parsedInt.Value) ||
                 (parsedGuid.HasValue && r.Id == parsedGuid.Value));
             return (IQueryable<T>)(object)filtered;
         }
@@ -1042,6 +1045,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                 EF.Functions.ILike(r.SubmittedByFullName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByUserName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByEmail ?? string.Empty, like) ||
+                (parsedSource.HasValue && r.Source == parsedSource.Value) ||
                 (parsedGuid.HasValue && r.Id == parsedGuid.Value));
             return (IQueryable<T>)(object)filtered;
         }
@@ -1049,48 +1053,9 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         return queryable;
     }
 
-    private static IQueryable<T> ApplyDateRange<T>(
-        IQueryable<T> queryable,
-        ApprovalQueueQuery query,
-        Expression<Func<T, DateTimeOffset>> selector)
-        where T : class
-    {
-        if (query.FromUtc.HasValue)
-        {
-            var from = query.FromUtc.Value;
-            queryable = queryable.Where(BuildDatePredicate(selector, from, isAfter: true));
-        }
-
-        if (query.ToUtc.HasValue)
-        {
-            var to = query.ToUtc.Value;
-            queryable = queryable.Where(BuildDatePredicate(selector, to, isAfter: false));
-        }
-
-        return queryable;
-    }
-
-    private static Expression<Func<T, bool>> BuildDatePredicate<T>(
-        Expression<Func<T, DateTimeOffset>> selector,
-        DateTimeOffset value,
-        bool isAfter)
-    {
-        var parameter = selector.Parameters[0];
-        var body = isAfter
-            ? Expression.GreaterThanOrEqual(selector.Body, Expression.Constant(value))
-            : Expression.LessThanOrEqual(selector.Body, Expression.Constant(value));
-
-        return Expression.Lambda<Func<T, bool>>(body, parameter);
-    }
-
-    private static bool ShouldIncludeType(ApprovalQueueQuery query, ApprovalQueueType type, ApprovalQueueModule module)
+    private static bool ShouldIncludeType(ApprovalQueueQuery query, ApprovalQueueType type)
     {
         if (query.Type.HasValue && query.Type.Value != type)
-        {
-            return false;
-        }
-
-        if (query.Module.HasValue && query.Module.Value != module)
         {
             return false;
         }
