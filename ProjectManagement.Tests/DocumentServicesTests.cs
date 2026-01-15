@@ -84,7 +84,13 @@ public sealed class DocumentServicesTests
             var temp = await documentService.SaveTempAsync(1, stream, "spec.pdf", "application/pdf", CancellationToken.None);
             var request = await requestService.CreateUploadRequestAsync(1, 10, "Spec", null, temp, "requestor", CancellationToken.None);
 
-            await decisionService.ApproveAsync(request.Id, "approver", "Looks good", CancellationToken.None);
+            await decisionService.ApproveAsync(
+                request.Id,
+                "approver",
+                isAdmin: true,
+                isHoD: false,
+                note: "Looks good",
+                cancellationToken: CancellationToken.None);
 
             var document = await db.ProjectDocuments.SingleAsync();
             Assert.Equal(ProjectDocumentStatus.Published, document.Status);
@@ -126,7 +132,13 @@ public sealed class DocumentServicesTests
             var temp = await documentService.SaveTempAsync(1, stream, "tot.pdf", "application/pdf", CancellationToken.None);
             var request = await requestService.CreateUploadRequestAsync(6, 60, "ToT Plan", tot.Id, temp, "requestor", CancellationToken.None);
 
-            await decisionService.ApproveAsync(request.Id, "approver", null, CancellationToken.None);
+            await decisionService.ApproveAsync(
+                request.Id,
+                "approver",
+                isAdmin: true,
+                isHoD: false,
+                note: null,
+                cancellationToken: CancellationToken.None);
 
             var document = await db.ProjectDocuments.SingleAsync();
             Assert.Equal(tot.Id, document.TotId);
@@ -179,7 +191,13 @@ public sealed class DocumentServicesTests
             using var initial = CreatePdfStream(1024);
             var temp = await documentService.SaveTempAsync(1, initial, "init.pdf", "application/pdf", CancellationToken.None);
             var uploadRequest = await requestService.CreateUploadRequestAsync(2, 20, "Manual", null, temp, "requestor", CancellationToken.None);
-            await decisionService.ApproveAsync(uploadRequest.Id, "approver", null, CancellationToken.None);
+            await decisionService.ApproveAsync(
+                uploadRequest.Id,
+                "approver",
+                isAdmin: true,
+                isHoD: false,
+                note: null,
+                cancellationToken: CancellationToken.None);
 
             var document = await db.ProjectDocuments.SingleAsync();
             using var replacement = CreatePdfStream(1536, payload: "New content");
@@ -190,7 +208,13 @@ public sealed class DocumentServicesTests
                 .OrderByDescending(r => r.Id)
                 .FirstAsync();
 
-            await decisionService.ApproveAsync(replaceRequest.Id, "approver", "update", CancellationToken.None);
+            await decisionService.ApproveAsync(
+                replaceRequest.Id,
+                "approver",
+                isAdmin: true,
+                isHoD: false,
+                note: "update",
+                cancellationToken: CancellationToken.None);
 
             await db.Entry(document).ReloadAsync();
             Assert.Equal(2, document.FileStamp);
@@ -221,7 +245,13 @@ public sealed class DocumentServicesTests
             using var stream = CreatePdfStream(1024);
             var temp = await documentService.SaveTempAsync(1, stream, "soft.pdf", "application/pdf", CancellationToken.None);
             var request = await requestService.CreateUploadRequestAsync(3, 30, "Soft", null, temp, "requestor", CancellationToken.None);
-            await decisionService.ApproveAsync(request.Id, "approver", null, CancellationToken.None);
+            await decisionService.ApproveAsync(
+                request.Id,
+                "approver",
+                isAdmin: true,
+                isHoD: false,
+                note: null,
+                cancellationToken: CancellationToken.None);
 
             var document = await db.ProjectDocuments.SingleAsync();
             await documentService.SoftDeleteAsync(document.Id, "approver", CancellationToken.None);
@@ -253,7 +283,13 @@ public sealed class DocumentServicesTests
             using var stream = CreatePdfStream(1024);
             var temp = await documentService.SaveTempAsync(1, stream, "ocr.pdf", "application/pdf", CancellationToken.None);
             var request = await requestService.CreateUploadRequestAsync(5, 50, "OCR Doc", null, temp, "requestor", CancellationToken.None);
-            await decisionService.ApproveAsync(request.Id, "approver", null, CancellationToken.None);
+            await decisionService.ApproveAsync(
+                request.Id,
+                "approver",
+                isAdmin: true,
+                isHoD: false,
+                note: null,
+                cancellationToken: CancellationToken.None);
 
             var document = await db.ProjectDocuments.SingleAsync();
             document.OcrStatus = ProjectDocumentOcrStatus.Failed;
@@ -308,7 +344,13 @@ public sealed class DocumentServicesTests
             using var stream = CreatePdfStream(1024);
             var temp = await documentService.SaveTempAsync(1, stream, "hard.pdf", "application/pdf", CancellationToken.None);
             var request = await requestService.CreateUploadRequestAsync(4, 40, "Hard", null, temp, "requestor", CancellationToken.None);
-            await decisionService.ApproveAsync(request.Id, "approver", null, CancellationToken.None);
+            await decisionService.ApproveAsync(
+                request.Id,
+                "approver",
+                isAdmin: true,
+                isHoD: false,
+                note: null,
+                cancellationToken: CancellationToken.None);
 
             var document = await db.ProjectDocuments.SingleAsync();
             var path = ResolvePath(root, document.StorageKey);
@@ -340,7 +382,13 @@ public sealed class DocumentServicesTests
             using var stream = CreatePdfStream(1024);
             var temp = await documentService.SaveTempAsync(1, stream, "original.pdf", "application/pdf", CancellationToken.None);
             var uploadRequest = await requestService.CreateUploadRequestAsync(5, 50, "Original", null, temp, "requestor", CancellationToken.None);
-            await decisionService.ApproveAsync(uploadRequest.Id, "approver", null, CancellationToken.None);
+            await decisionService.ApproveAsync(
+                uploadRequest.Id,
+                "approver",
+                isAdmin: true,
+                isHoD: false,
+                note: null,
+                cancellationToken: CancellationToken.None);
             var document = await db.ProjectDocuments.SingleAsync();
 
             using var replacement = CreatePdfStream(1024, payload: "replace");

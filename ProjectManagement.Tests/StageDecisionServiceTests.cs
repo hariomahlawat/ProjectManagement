@@ -40,7 +40,10 @@ public sealed class StageDecisionServiceTests
         var service = CreateService(db, clock);
         var result = await service.DecideAsync(
             new StageDecisionInput(request.Id, StageDecisionAction.Approve, "  Please approve  "),
-            "hod-1");
+            "hod-1",
+            isAdmin: false,
+            isHoD: true,
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
         Assert.Empty(result.Warnings);
@@ -101,7 +104,10 @@ public sealed class StageDecisionServiceTests
         var service = CreateService(db, clock);
         var result = await service.DecideAsync(
             new StageDecisionInput(request.Id, StageDecisionAction.Approve, null),
-            "hod-case");
+            "hod-case",
+            isAdmin: false,
+            isHoD: true,
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
         Assert.NotNull(result.Stage);
@@ -130,7 +136,10 @@ public sealed class StageDecisionServiceTests
         var service = CreateService(db, clock);
         var result = await service.DecideAsync(
             new StageDecisionInput(request.Id, StageDecisionAction.Reject, " Need more info "),
-            "hod-9");
+            "hod-9",
+            isAdmin: false,
+            isHoD: true,
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
         Assert.NotNull(result.Stage);
@@ -185,7 +194,10 @@ public sealed class StageDecisionServiceTests
         var service = CreateService(db, clock);
         var result = await service.DecideAsync(
             new StageDecisionInput(request.Id, StageDecisionAction.Approve, " Close stage "),
-            "hod-5");
+            "hod-5",
+            isAdmin: false,
+            isHoD: true,
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
         Assert.Contains(result.Warnings, w => w.Contains("Completion date was earlier"));
@@ -231,7 +243,10 @@ public sealed class StageDecisionServiceTests
         var service = CreateService(db, clock);
         var result = await service.DecideAsync(
             new StageDecisionInput(request.Id, StageDecisionAction.Approve, null),
-            "hod-4");
+            "hod-4",
+            isAdmin: false,
+            isHoD: true,
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
         Assert.Contains(result.Warnings, w => w.Contains(StageCodes.IPA));
