@@ -106,7 +106,12 @@
                         <tbody>
                             @foreach (var item in Model.Items)
                             {
-                                <tr class="approvals-table-row">
+                                <tr class="approvals-table-row"
+                                    data-approvals-row="true"
+                                    data-approvals-url="@item.DetailsUrl"
+                                    role="link"
+                                    tabindex="0"
+                                    aria-label="View details for @Model.GetTypeLabel(item.ApprovalType) request">
                                     <td>
                                         <span class="approval-type-chip">@Model.GetTypeLabel(item.ApprovalType)</span>
                                         <a class="stretched-link approval-row-link" href="@item.DetailsUrl">

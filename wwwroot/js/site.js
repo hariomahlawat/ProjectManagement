@@ -1,10 +1,19 @@
 import { initSparklines } from './charts/sparkline.js';
 import { initDrawer } from './navigation/drawer.js';
+import { initPendingApprovalsRows } from './pages/approvals-pending.js';
 import { initTooltips } from './utils/tooltips.js';
 
 function boot() {
+  /* ---------- SECTION: Navigation ---------- */
   initDrawer();
+
+  /* ---------- SECTION: Dashboards ---------- */
   initSparklines();
+
+  /* ---------- SECTION: Approvals ---------- */
+  initPendingApprovalsRows();
+
+  /* ---------- SECTION: Utilities ---------- */
   initTooltips();
 }
 
