@@ -19,21 +19,9 @@
                     <label class="form-label" asp-for="Type">Type</label>
                     <select class="form-select" asp-for="Type" asp-items="Model.TypeOptions"></select>
                 </div>
-                <div class="col-12 col-md-3">
-                    <label class="form-label" asp-for="Module">Module</label>
-                    <select class="form-select" asp-for="Module" asp-items="Model.ModuleOptions"></select>
-                </div>
-                <div class="col-12 col-md-2">
-                    <label class="form-label" asp-for="From">From</label>
-                    <input type="date" class="form-control" asp-for="From" />
-                </div>
-                <div class="col-12 col-md-2">
-                    <label class="form-label" asp-for="To">To</label>
-                    <input type="date" class="form-control" asp-for="To" />
-                </div>
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-5">
                     <label class="form-label" asp-for="Search">Search</label>
-                    <input type="search" class="form-control" asp-for="Search" placeholder="Project, requester, request id" />
+                    <input type="search" class="form-control" asp-for="Search" placeholder="Project, requester, request id, summary" />
                 </div>
                 <div class="col-12 col-md-2 d-grid">
                     <button type="submit" class="btn btn-primary">Apply filters</button>
