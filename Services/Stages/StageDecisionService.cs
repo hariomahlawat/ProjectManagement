@@ -12,6 +12,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Authorization;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.Stages;
@@ -50,16 +51,21 @@ public sealed class StageDecisionService
         _planRealignment = planRealignment ?? new NullPlanRealignment();
     }
 
-    public async Task<StageDecisionResult> DecideAsync(StageDecisionInput input, string hodUserId, CancellationToken cancellationToken = default)
+    public async Task<StageDecisionResult> DecideAsync(
+        StageDecisionInput input,
+        string decisionUserId,
+        bool isAdmin,
+        bool isHoD,
+        CancellationToken cancellationToken = default)
     {
         if (input is null)
         {
             throw new ArgumentNullException(nameof(input));
         }
 
-        if (string.IsNullOrWhiteSpace(hodUserId))
+        if (string.IsNullOrWhiteSpace(decisionUserId))
         {
-            throw new ArgumentException("A valid user identifier is required.", nameof(hodUserId));
+            throw new ArgumentException("A valid user identifier is required.", nameof(decisionUserId));
         }
 
         var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetConnectionString());
@@ -67,8 +73,19 @@ public sealed class StageDecisionService
         _logger.LogInformation(
             "Stage decision started. RequestId={RequestId}, User={UserId}, ConnHash={ConnHash}",
             input.RequestId,
-            hodUserId,
+            decisionUserId,
             connectionHash);
+
+        // SECTION: Authorization guard
+        if (!ApprovalAuthorization.CanApproveProjectChanges(isAdmin, isHoD))
+        {
+            _logger.LogWarning(
+                "Stage decision forbidden due to role. RequestId={RequestId}, UserId={UserId}, ConnHash={ConnHash}",
+                input.RequestId,
+                decisionUserId,
+                connectionHash);
+            return StageDecisionResult.NotHeadOfDepartment();
+        }
 
         var request = await _db.StageChangeRequests
             .SingleOrDefaultAsync(r => r.Id == input.RequestId, cancellationToken);
@@ -99,19 +116,6 @@ public sealed class StageDecisionService
             return StageDecisionResult.StageNotFound();
         }
 
-        if (!string.Equals(stage.Project?.HodUserId, hodUserId, StringComparison.OrdinalIgnoreCase))
-        {
-            _logger.LogWarning(
-                "Stage decision forbidden. RequestId={RequestId}, ProjectId={ProjectId}, StageCode={StageCode}, UserId={UserId}, ProjectHod={ProjectHod}, ConnHash={ConnHash}",
-                input.RequestId,
-                stage.ProjectId,
-                stage.StageCode,
-                hodUserId,
-                stage.Project?.HodUserId,
-                connectionHash);
-            return StageDecisionResult.NotHeadOfDepartment();
-        }
-
         if (!string.Equals(request.DecisionStatus, PendingDecisionStatus, StringComparison.Ordinal))
         {
             _logger.LogInformation(
@@ -132,7 +136,7 @@ public sealed class StageDecisionService
         if (input.Action == StageDecisionAction.Reject)
         {
             request.DecisionStatus = RejectedDecisionStatus;
-            request.DecidedByUserId = hodUserId;
+            request.DecidedByUserId = decisionUserId;
             request.DecidedOn = now;
             request.DecisionNote = trimmedNote;
 
@@ -147,7 +151,7 @@ public sealed class StageDecisionService
                 ToActualStart = stage.ActualStart,
                 FromCompletedOn = stage.CompletedOn,
                 ToCompletedOn = stage.CompletedOn,
-                UserId = hodUserId,
+                UserId = decisionUserId,
                 At = now,
                 Note = trimmedNote
             };
@@ -160,7 +164,7 @@ public sealed class StageDecisionService
                 input.RequestId,
                 stage.ProjectId,
                 stage.StageCode,
-                hodUserId,
+                decisionUserId,
                 connectionHash);
 
             return StageDecisionResult.Success(beforeStatus, beforeActualStart, beforeCompletedOn);
@@ -229,7 +233,7 @@ public sealed class StageDecisionService
             stage.StageCode,
             requestedStatus,
             effectiveDate,
-            hodUserId,
+            decisionUserId,
             cancellationToken);
 
         await _db.Entry(stage).ReloadAsync(cancellationToken);
@@ -240,7 +244,7 @@ public sealed class StageDecisionService
         var finalNote = CombineNoteAndWarnings(trimmedNote, warnings);
 
         request.DecisionStatus = ApprovedDecisionStatus;
-        request.DecidedByUserId = hodUserId;
+        request.DecidedByUserId = decisionUserId;
         request.DecidedOn = now;
         request.DecisionNote = finalNote;
 
@@ -255,7 +259,7 @@ public sealed class StageDecisionService
             ToActualStart = afterActualStart,
             FromCompletedOn = beforeCompletedOn,
             ToCompletedOn = afterCompletedOn,
-            UserId = hodUserId,
+            UserId = decisionUserId,
             At = now,
             Note = finalNote
         };
@@ -271,7 +275,7 @@ public sealed class StageDecisionService
             ToActualStart = afterActualStart,
             FromCompletedOn = beforeCompletedOn,
             ToCompletedOn = afterCompletedOn,
-            UserId = hodUserId,
+            UserId = decisionUserId,
             At = now,
             Note = finalNote
         };
@@ -292,7 +296,7 @@ public sealed class StageDecisionService
                     stage.ProjectId,
                     stage.StageCode!,
                     delayDays,
-                    hodUserId,
+                    decisionUserId,
                     cancellationToken);
             }
         }
@@ -302,7 +306,7 @@ public sealed class StageDecisionService
             input.RequestId,
             stage.ProjectId,
             stage.StageCode,
-            hodUserId,
+            decisionUserId,
             connectionHash,
             warnings.Count);
 

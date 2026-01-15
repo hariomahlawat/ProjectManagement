@@ -15,7 +15,7 @@ using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Pages.Projects.Stages;
 
-[Authorize(Roles = "HoD")]
+[Authorize(Roles = "Admin,HoD")]
 [AutoValidateAntiforgeryToken]
 public class DecideChangeModel : PageModel
 {
@@ -64,8 +64,15 @@ public class DecideChangeModel : PageModel
             userId,
             connectionHash);
 
+        // SECTION: Authorization context
+        var principal = _userContext.User;
         var serviceInput = new StageDecisionInput(input.RequestId, action, input.DecisionNote);
-        var result = await _stageDecisionService.DecideAsync(serviceInput, userId, cancellationToken);
+        var result = await _stageDecisionService.DecideAsync(
+            serviceInput,
+            userId,
+            principal.IsInRole("Admin"),
+            principal.IsInRole("HoD"),
+            cancellationToken);
 
         return result.Outcome switch
         {

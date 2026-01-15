@@ -321,6 +321,10 @@ public sealed class IndexModel : PageModel
             return Challenge();
         }
 
+        // SECTION: Authorization context
+        var isAdmin = User.IsInRole("Admin");
+        var isHoD = User.IsInRole("HoD");
+
         _logger.LogInformation(
             "Transfer of Technology submit requested for project {ProjectId} by user {UserId}.",
             SubmitInput.ProjectId,
@@ -550,12 +554,20 @@ public sealed class IndexModel : PageModel
             DecideInput.ProjectId,
             DecideInput.Approve,
             currentUserId,
+            isAdmin,
+            isHoD,
             rowVersion,
             cancellationToken);
 
         if (result.Status == ProjectTotRequestActionStatus.NotFound)
         {
             return NotFound();
+        }
+
+        if (result.Status == ProjectTotRequestActionStatus.Forbidden)
+        {
+            TempData["ToastError"] = result.ErrorMessage ?? "You are not authorised to approve Transfer of Technology updates.";
+            return Forbid();
         }
 
         if (!result.IsSuccess)

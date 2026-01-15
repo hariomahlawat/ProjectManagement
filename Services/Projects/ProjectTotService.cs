@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Authorization;
 using ProjectManagement.Utilities;
 using ProjectManagement.Utilities.PartialDates;
 
@@ -138,12 +139,20 @@ public sealed class ProjectTotService
         int projectId,
         bool approve,
         string decisionUserId,
+        bool isAdmin,
+        bool isHoD,
         byte[]? expectedRowVersion,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(decisionUserId))
         {
             throw new ArgumentException("A valid user is required to decide on a Transfer of Technology request.", nameof(decisionUserId));
+        }
+
+        // SECTION: Authorization guard
+        if (!ApprovalAuthorization.CanApproveProjectChanges(isAdmin, isHoD))
+        {
+            return ProjectTotRequestActionResult.Forbidden("You are not authorised to approve Transfer of Technology updates.");
         }
 
         var project = await _db.Projects
