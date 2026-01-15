@@ -35,6 +35,12 @@ public class DecideModel : PageModel
             return RedirectToDetails();
         }
 
+        if (action == ApprovalDecisionAction.Reject && string.IsNullOrWhiteSpace(Input.Remarks))
+        {
+            TempData["Error"] = "Remarks are required when rejecting a request.";
+            return RedirectToDetails();
+        }
+
         var request = new ApprovalDecisionRequest(
             Input.ApprovalType,
             Input.RequestId,

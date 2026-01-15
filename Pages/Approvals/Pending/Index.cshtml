@@ -4,7 +4,8 @@
     ViewData["Title"] = "Pending approvals";
 }
 
-<div class="container-fluid">
+<div class="container-fluid approvals-page">
+    @* SECTION: Page header *@
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
         <div>
             <h1 class="h2 mb-1">Pending approvals</h1>
@@ -18,28 +19,61 @@
         <div class="alert alert-success" role="alert">@Model.SuccessMessage</div>
     }
 
-    <div class="card border-0 shadow-sm mb-4">
+    @* SECTION: KPI strip *@
+    <div class="approvals-kpi-grid mb-4">
+        <div class="approvals-kpi-card">
+            <div class="approvals-kpi-label">Total pending</div>
+            <div class="approvals-kpi-value">@Model.TotalPendingCount</div>
+            <div class="approvals-kpi-meta">@Model.FilterContextLabel</div>
+        </div>
+        <div class="approvals-kpi-card">
+            <div class="approvals-kpi-label">Oldest pending</div>
+            <div class="approvals-kpi-value">@Model.OldestPendingDisplay</div>
+            <div class="approvals-kpi-meta">Oldest request in view</div>
+        </div>
+        <div class="approvals-kpi-card">
+            <div class="approvals-kpi-label">By module</div>
+            <div class="approvals-kpi-value">Projects: @Model.ProjectsPendingCount</div>
+            <div class="approvals-kpi-meta">Project office: @Model.ProjectOfficePendingCount</div>
+        </div>
+        <div class="approvals-kpi-card">
+            <div class="approvals-kpi-label">Top type</div>
+            <div class="approvals-kpi-value">@Model.TopTypeDisplay</div>
+            <div class="approvals-kpi-meta">@Model.TopTypeMeta</div>
+        </div>
+    </div>
+
+    @* SECTION: Filters *@
+    <div class="card approval-card approvals-filter-bar mb-4">
         <div class="card-body">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                <div class="fw-semibold">Filters</div>
+                @if (Model.HasActiveFilters)
+                {
+                    <span class="badge approvals-filter-badge">Filters active</span>
+                }
+            </div>
             <form method="get" class="row g-3 align-items-end">
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-lg-3">
                     <label class="form-label" asp-for="Type">Type</label>
                     <select class="form-select" asp-for="Type" asp-items="Model.TypeOptions"></select>
                 </div>
-                <div class="col-12 col-md-5">
+                <div class="col-12 col-lg-5">
                     <label class="form-label" asp-for="Search">Search</label>
                     <input type="search" class="form-control" asp-for="Search" placeholder="Project, requester, request id, summary" />
                 </div>
-                <div class="col-12 col-md-2 d-grid">
+                <div class="col-12 col-md-3 col-lg-2 d-grid">
                     <button type="submit" class="btn btn-primary">Apply filters</button>
                 </div>
-                <div class="col-12 col-md-2 d-grid">
+                <div class="col-12 col-md-3 col-lg-2 d-grid">
                     <a class="btn btn-outline-secondary" asp-page="/Approvals/Pending/Index">Clear</a>
                 </div>
             </form>
         </div>
     </div>
 
-    <div class="card border-0 shadow-sm">
+    @* SECTION: Results *@
+    <div class="card approval-card">
         <div class="card-body">
             @if (Model.Items.Count == 0)
             {
@@ -50,8 +84,14 @@
             }
             else
             {
+                <div class="approvals-table-header mb-3">
+                    <div class="approvals-table-summary">
+                        <span class="fw-semibold">Showing @Model.Items.Count pending approvals</span>
+                        <span class="text-muted">Sorted by oldest first</span>
+                    </div>
+                </div>
                 <div class="table-responsive">
-                    <table class="table table-striped align-middle">
+                    <table class="table align-middle approvals-table">
                         <thead>
                             <tr>
                                 <th scope="col">Type</th>
@@ -66,15 +106,18 @@
                         <tbody>
                             @foreach (var item in Model.Items)
                             {
-                                <tr>
+                                <tr class="approvals-table-row">
                                     <td>
-                                        <span class="fw-semibold">@item.ApprovalType</span>
+                                        <span class="approval-type-chip">@Model.GetTypeLabel(item.ApprovalType)</span>
+                                        <a class="stretched-link approval-row-link" href="@item.DetailsUrl">
+                                            <span class="visually-hidden">View details</span>
+                                        </a>
                                     </td>
                                     <td>
                                         @if (item.ProjectId.HasValue)
                                         {
-                                            <div class="fw-semibold">@item.ProjectName</div>
-                                            <div class="text-muted small">Project #@item.ProjectId</div>
+                                            <div class="approval-project-name">@item.ProjectName</div>
+                                            <div class="approval-project-id">Project #@item.ProjectId</div>
                                         }
                                         else
                                         {
@@ -83,12 +126,12 @@
                                     </td>
                                     <td>@item.RequestedByName</td>
                                     <td>@item.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture)</td>
-                                    <td>@item.Summary</td>
-                                    <td>@item.Module</td>
                                     <td>
-                                        <div class="d-flex flex-wrap gap-2">
-                                            <a class="btn btn-sm btn-outline-primary" href="@item.DetailsUrl">View details</a>
-                                        </div>
+                                        <div class="approval-summary">@item.Summary</div>
+                                    </td>
+                                    <td class="text-muted">@Model.GetModuleLabel(item.Module)</td>
+                                    <td>
+                                        <a class="btn btn-sm btn-link approvals-action-link" href="@item.DetailsUrl">View details</a>
                                     </td>
                                 </tr>
                             }
