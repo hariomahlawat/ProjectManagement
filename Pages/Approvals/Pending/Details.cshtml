@@ -6,6 +6,7 @@
     var item = Model.Detail.Item;
     string formatDate(DateOnly? value) => value?.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
     string formatDateTime(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+    string formatDecisionDate(DateTime? value) => value?.ToLocalTime().ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
 }
 
 <div class="container-fluid">
@@ -15,13 +16,16 @@
         <p class="text-muted mb-0">@item.Summary</p>
     </div>
 
+    @* SECTION: Notifications *@
     @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
     {
         <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
     }
-    @if (!string.IsNullOrWhiteSpace(Model.SuccessMessage))
+    @if (Model.AlreadyDecided)
     {
-        <div class="alert alert-success" role="alert">@Model.SuccessMessage</div>
+        <div class="alert alert-info" role="alert">
+            This request has already been decided. Review the recorded decision below.
+        </div>
     }
 
     <div class="row g-4">
@@ -298,28 +302,58 @@
         <div class="col-lg-5">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
-                    <h2 class="h5">Decision</h2>
-                    <p class="text-muted">Approvals apply the change immediately. Rejections require a reason.</p>
+                    @if (Model.IsPending)
+                    {
+                        <h2 class="h5">Decision</h2>
+                        <p class="text-muted">Approvals apply the change immediately. Rejections require a reason.</p>
 
-                    @* SECTION: Decision form *@
-                    <form method="post" action="/Approvals/Pending/decide" class="d-grid gap-3">
-                        @Html.AntiForgeryToken()
-                        <input asp-for="Input.ApprovalType" type="hidden" />
-                        <input asp-for="Input.RequestId" type="hidden" />
-                        <input asp-for="Input.RowVersion" type="hidden" />
-                        <input asp-for="Input.ReturnUrl" type="hidden" />
+                        @* SECTION: Decision form *@
+                        <form method="post" action="/Approvals/Pending/decide" class="d-grid gap-3">
+                            @Html.AntiForgeryToken()
+                            <input asp-for="Input.ApprovalType" type="hidden" />
+                            <input asp-for="Input.RequestId" type="hidden" />
+                            <input asp-for="Input.RowVersion" type="hidden" />
+                            <input asp-for="Input.ReturnUrl" type="hidden" />
 
-                        <div>
-                            <label class="form-label" asp-for="Input.Remarks"></label>
-                            <textarea class="form-control" asp-for="Input.Remarks" rows="4" placeholder="Add context for the requester"></textarea>
-                            <div class="form-text">Remarks are required when rejecting.</div>
+                            <div>
+                                <label class="form-label" asp-for="Input.Remarks"></label>
+                                <textarea class="form-control" asp-for="Input.Remarks" rows="4" placeholder="Add context for the requester"></textarea>
+                                <div class="form-text">Remarks are required when rejecting.</div>
+                            </div>
+
+                            <div class="d-flex flex-wrap gap-2">
+                                <button type="submit" class="btn btn-success" name="Input.Decision" value="Approve">Approve</button>
+                                <button type="submit" class="btn btn-outline-danger" name="Input.Decision" value="Reject">Reject</button>
+                            </div>
+                        </form>
+                    }
+                    else
+                    {
+                        <h2 class="h5">Decision recorded</h2>
+                        <p class="text-muted mb-4">This request has already been processed and is no longer actionable.</p>
+
+                        @* SECTION: Decision summary *@
+                        <dl class="row mb-4">
+                            <dt class="col-sm-4">Status</dt>
+                            <dd class="col-sm-8">@Model.CurrentStatus</dd>
+
+                            <dt class="col-sm-4">Decided by</dt>
+                            <dd class="col-sm-8">@Model.DecidedByName</dd>
+
+                            <dt class="col-sm-4">Decided at</dt>
+                            <dd class="col-sm-8">@formatDecisionDate(Model.DecidedAt)</dd>
+
+                            @if (!string.IsNullOrWhiteSpace(Model.DecisionRemarks))
+                            {
+                                <dt class="col-sm-4">Decision remarks</dt>
+                                <dd class="col-sm-8">@Model.DecisionRemarks</dd>
+                            }
+                        </dl>
+
+                        <div class="d-grid">
+                            <a class="btn btn-outline-primary" asp-page="/Approvals/Pending/Index">Back to pending approvals</a>
                         </div>
-
-                        <div class="d-flex flex-wrap gap-2">
-                            <button type="submit" class="btn btn-success" name="Input.Decision" value="Approve">Approve</button>
-                            <button type="submit" class="btn btn-outline-danger" name="Input.Decision" value="Reject">Reject</button>
-                        </div>
-                    </form>
+                    }
                 </div>
             </div>
         </div>
