@@ -3491,6 +3491,15 @@ summary::marker {
     margin-left: auto;
 }
 
+/* ===========================
+   Drawer badges
+   =========================== */
+.pm-drawer__badge {
+    min-width: 2rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+}
+
 .pm-drawer__caret {
     display: inline-flex;
     align-items: center;

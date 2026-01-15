@@ -1,0 +1,9 @@
+@model ProjectManagement.ViewModels.Navigation.PendingApprovalsBadgeViewModel
+
+@* ---------- Pending approvals badge ---------- *@
+@if (Model.ShowBadge)
+{
+    <span class="badge rounded-pill bg-danger pm-drawer__badge" aria-label="@Model.AriaLabel">
+        @Model.DisplayText
+    </span>
+}

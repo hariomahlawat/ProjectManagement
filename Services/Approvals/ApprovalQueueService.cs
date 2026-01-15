@@ -101,6 +101,30 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             .ToList();
     }
 
+    // SECTION: Pending approvals count
+    public async Task<int> GetPendingCountAsync(
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ApprovalAuthorization.CanApproveProjectChanges(user.IsInRole("Admin"), user.IsInRole("HoD")))
+        {
+            return 0;
+        }
+
+        var query = new ApprovalQueueQuery();
+        var total = 0;
+
+        total += await BuildStageChangeQuery(query).CountAsync(cancellationToken);
+        total += await BuildMetaChangeQuery(query).CountAsync(cancellationToken);
+        total += await BuildPlanApprovalQuery(query).CountAsync(cancellationToken);
+        total += await BuildDocumentRequestQuery(query).CountAsync(cancellationToken);
+        total += await BuildTotRequestQuery(query).CountAsync(cancellationToken);
+        total += await BuildProliferationYearlyQuery(query).CountAsync(cancellationToken);
+        total += await BuildProliferationGranularQuery(query).CountAsync(cancellationToken);
+
+        return total;
+    }
+
     // SECTION: Pending approval detail
     public async Task<ApprovalQueueDetailVm?> GetDetailAsync(
         ApprovalQueueType type,

@@ -14,6 +14,11 @@ public interface IApprovalQueueService
         ClaimsPrincipal user,
         CancellationToken cancellationToken = default);
 
+    // SECTION: Pending approvals count
+    Task<int> GetPendingCountAsync(
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default);
+
     // SECTION: Pending approval detail
     Task<ApprovalQueueDetailVm?> GetDetailAsync(
         ApprovalQueueType type,
