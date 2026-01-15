@@ -1,0 +1,326 @@
+@page "/Approvals/Pending/{type}/{id}"
+@model ProjectManagement.Pages.Approvals.Pending.DetailsModel
+@{
+    ViewData["Title"] = "Pending approval details";
+
+    var item = Model.Detail.Item;
+    string formatDate(DateOnly? value) => value?.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+    string formatDateTime(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+}
+
+<div class="container-fluid">
+    <div class="mb-4">
+        <a class="btn btn-link px-0" asp-page="/Approvals/Pending/Index">&larr; Back to pending approvals</a>
+        <h1 class="h2 mt-2">Pending approval details</h1>
+        <p class="text-muted mb-0">@item.Summary</p>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.SuccessMessage))
+    {
+        <div class="alert alert-success" role="alert">@Model.SuccessMessage</div>
+    }
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <h2 class="h5">Request summary</h2>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Type</dt>
+                        <dd class="col-sm-8">@item.ApprovalType</dd>
+
+                        <dt class="col-sm-4">Project</dt>
+                        <dd class="col-sm-8">@item.ProjectName</dd>
+
+                        <dt class="col-sm-4">Requested by</dt>
+                        <dd class="col-sm-8">@item.RequestedByName</dd>
+
+                        <dt class="col-sm-4">Requested at</dt>
+                        <dd class="col-sm-8">@formatDateTime(item.RequestedAtUtc)</dd>
+
+                        <dt class="col-sm-4">Status</dt>
+                        <dd class="col-sm-8">@item.Status</dd>
+                    </dl>
+                </div>
+            </div>
+
+            @if (Model.Detail.StageChange is not null)
+            {
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <h2 class="h6 text-uppercase text-muted mb-3">Stage change details</h2>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Stage</dt>
+                            <dd class="col-sm-8">@Model.Detail.StageChange.StageName (@Model.Detail.StageChange.StageCode)</dd>
+
+                            <dt class="col-sm-4">Current status</dt>
+                            <dd class="col-sm-8">@Model.Detail.StageChange.CurrentStatus</dd>
+
+                            <dt class="col-sm-4">Requested status</dt>
+                            <dd class="col-sm-8">@Model.Detail.StageChange.RequestedStatus</dd>
+
+                            <dt class="col-sm-4">Current actual start</dt>
+                            <dd class="col-sm-8">@formatDate(Model.Detail.StageChange.CurrentActualStart)</dd>
+
+                            <dt class="col-sm-4">Current completed on</dt>
+                            <dd class="col-sm-8">@formatDate(Model.Detail.StageChange.CurrentCompletedOn)</dd>
+
+                            <dt class="col-sm-4">Requested date</dt>
+                            <dd class="col-sm-8">@formatDate(Model.Detail.StageChange.RequestedDate)</dd>
+
+                            @if (!string.IsNullOrWhiteSpace(Model.Detail.StageChange.RequestNote))
+                            {
+                                <dt class="col-sm-4">Requester note</dt>
+                                <dd class="col-sm-8">@Model.Detail.StageChange.RequestNote</dd>
+                            }
+                        </dl>
+                    </div>
+                </div>
+            }
+
+            @if (Model.Detail.MetaChange is not null)
+            {
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <h2 class="h6 text-uppercase text-muted mb-3">Metadata change details</h2>
+                        <p class="text-muted mb-3">@Model.Detail.MetaChange.Summary</p>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Field</th>
+                                        <th>Current</th>
+                                        <th>Proposed</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Name</td><td>@Model.Detail.MetaChange.Name.CurrentValue</td><td>@Model.Detail.MetaChange.Name.ProposedValue</td></tr>
+                                    <tr><td>Description</td><td>@Model.Detail.MetaChange.Description.CurrentValue</td><td>@Model.Detail.MetaChange.Description.ProposedValue</td></tr>
+                                    <tr><td>Case file number</td><td>@Model.Detail.MetaChange.CaseFileNumber.CurrentValue</td><td>@Model.Detail.MetaChange.CaseFileNumber.ProposedValue</td></tr>
+                                    <tr><td>Category</td><td>@Model.Detail.MetaChange.Category.CurrentValue</td><td>@Model.Detail.MetaChange.Category.ProposedValue</td></tr>
+                                    <tr><td>Technical category</td><td>@Model.Detail.MetaChange.TechnicalCategory.CurrentValue</td><td>@Model.Detail.MetaChange.TechnicalCategory.ProposedValue</td></tr>
+                                    <tr><td>Project type</td><td>@Model.Detail.MetaChange.ProjectType.CurrentValue</td><td>@Model.Detail.MetaChange.ProjectType.ProposedValue</td></tr>
+                                    <tr><td>Build (repeat / re-manufacture)</td><td>@Model.Detail.MetaChange.IsBuild.CurrentValue</td><td>@Model.Detail.MetaChange.IsBuild.ProposedValue</td></tr>
+                                    <tr><td>Sponsoring unit</td><td>@Model.Detail.MetaChange.SponsoringUnit.CurrentValue</td><td>@Model.Detail.MetaChange.SponsoringUnit.ProposedValue</td></tr>
+                                    <tr><td>Sponsoring line directorate</td><td>@Model.Detail.MetaChange.SponsoringLineDirectorate.CurrentValue</td><td>@Model.Detail.MetaChange.SponsoringLineDirectorate.ProposedValue</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        @if (Model.Detail.MetaChange.HasDrift)
+                        {
+                            <div class="alert alert-warning mb-0">
+                                <strong>Drift detected:</strong> The project record changed after the request was submitted.
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (Model.Detail.PlanApproval is not null)
+            {
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <h2 class="h6 text-uppercase text-muted mb-3">Plan approval details</h2>
+                        <p class="text-muted mb-3">Submitted @formatDateTime(Model.Detail.PlanApproval.SubmittedOnUtc) by @Model.Detail.PlanApproval.SubmittedBy.</p>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Stage</th>
+                                        <th>Current start</th>
+                                        <th>Current due</th>
+                                        <th>Proposed start</th>
+                                        <th>Proposed due</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in Model.Detail.PlanApproval.StageDiffs)
+                                    {
+                                        <tr>
+                                            <td>@row.StageName (@row.StageCode)</td>
+                                            <td>@formatDate(row.CurrentStart)</td>
+                                            <td>@formatDate(row.CurrentDue)</td>
+                                            <td>@formatDate(row.ProposedStart)</td>
+                                            <td>@formatDate(row.ProposedDue)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (Model.Detail.DocumentModeration is not null)
+            {
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <h2 class="h6 text-uppercase text-muted mb-3">Document moderation details</h2>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Request type</dt>
+                            <dd class="col-sm-8">@Model.Detail.DocumentModeration.RequestType</dd>
+                            <dt class="col-sm-4">Title</dt>
+                            <dd class="col-sm-8">@Model.Detail.DocumentModeration.Title</dd>
+                            <dt class="col-sm-4">Stage</dt>
+                            <dd class="col-sm-8">@Model.Detail.DocumentModeration.StageDisplayName</dd>
+                            <dt class="col-sm-4">Original filename</dt>
+                            <dd class="col-sm-8">@Model.Detail.DocumentModeration.OriginalFileName ?? "—"</dd>
+                            <dt class="col-sm-4">Content type</dt>
+                            <dd class="col-sm-8">@Model.Detail.DocumentModeration.ContentType ?? "—"</dd>
+                            <dt class="col-sm-4">File size</dt>
+                            <dd class="col-sm-8">@Model.Detail.DocumentModeration.FileSize?.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) ?? "—"</dd>
+                        </dl>
+
+                        @if (Model.Detail.DocumentModeration.CurrentDocument is not null)
+                        {
+                            <hr />
+                            <h3 class="h6 text-uppercase text-muted mb-3">Current document</h3>
+                            <dl class="row mb-0">
+                                <dt class="col-sm-4">Title</dt>
+                                <dd class="col-sm-8">@Model.Detail.DocumentModeration.CurrentDocument.Title</dd>
+                                <dt class="col-sm-4">Filename</dt>
+                                <dd class="col-sm-8">@Model.Detail.DocumentModeration.CurrentDocument.OriginalFileName</dd>
+                                <dt class="col-sm-4">Uploaded</dt>
+                                <dd class="col-sm-8">@formatDateTime(Model.Detail.DocumentModeration.CurrentDocument.UploadedAtUtc) by @Model.Detail.DocumentModeration.CurrentDocument.UploadedBy</dd>
+                            </dl>
+                            @if (!string.IsNullOrWhiteSpace(Model.Detail.DocumentModeration.PreviewUrl))
+                            {
+                                <div class="mt-3">
+                                    <a class="btn btn-outline-secondary btn-sm" href="@Model.Detail.DocumentModeration.PreviewUrl">Preview current document</a>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (Model.Detail.TotRequest is not null)
+            {
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <h2 class="h6 text-uppercase text-muted mb-3">Transfer of Technology details</h2>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Field</th>
+                                        <th>Current</th>
+                                        <th>Requested</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Status</td><td>@Model.Detail.TotRequest.CurrentStatus</td><td>@Model.Detail.TotRequest.ProposedStatus</td></tr>
+                                    <tr><td>Started on</td><td>@formatDate(Model.Detail.TotRequest.CurrentStartedOn)</td><td>@formatDate(Model.Detail.TotRequest.ProposedStartedOn)</td></tr>
+                                    <tr><td>Completed on</td><td>@formatDate(Model.Detail.TotRequest.CurrentCompletedOn)</td><td>@formatDate(Model.Detail.TotRequest.ProposedCompletedOn)</td></tr>
+                                    <tr><td>MET details</td><td>@(Model.Detail.TotRequest.CurrentMetDetails ?? "—")</td><td>@(Model.Detail.TotRequest.ProposedMetDetails ?? "—")</td></tr>
+                                    <tr><td>MET completed on</td><td>@formatDate(Model.Detail.TotRequest.CurrentMetCompletedOn)</td><td>@formatDate(Model.Detail.TotRequest.ProposedMetCompletedOn)</td></tr>
+                                    <tr><td>First production model manufactured</td><td>@(Model.Detail.TotRequest.CurrentFirstProductionModelManufactured?.ToString() ?? "—")</td><td>@(Model.Detail.TotRequest.ProposedFirstProductionModelManufactured?.ToString() ?? "—")</td></tr>
+                                    <tr><td>First production model manufactured on</td><td>@formatDate(Model.Detail.TotRequest.CurrentFirstProductionModelManufacturedOn)</td><td>@formatDate(Model.Detail.TotRequest.ProposedFirstProductionModelManufacturedOn)</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (Model.Detail.ProliferationYearly is not null)
+            {
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <h2 class="h6 text-uppercase text-muted mb-3">Yearly proliferation details</h2>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Source</dt>
+                            <dd class="col-sm-8">@Model.Detail.ProliferationYearly.Source</dd>
+                            <dt class="col-sm-4">Year</dt>
+                            <dd class="col-sm-8">@Model.Detail.ProliferationYearly.Year</dd>
+                            <dt class="col-sm-4">Total quantity</dt>
+                            <dd class="col-sm-8">@Model.Detail.ProliferationYearly.TotalQuantity</dd>
+                            <dt class="col-sm-4">Remarks</dt>
+                            <dd class="col-sm-8">@Model.Detail.ProliferationYearly.Remarks ?? "—"</dd>
+                        </dl>
+                        @if (Model.Detail.ProliferationYearly.PreviousSnapshot is not null)
+                        {
+                            <hr />
+                            <h3 class="h6 text-uppercase text-muted mb-2">Previously approved</h3>
+                            <dl class="row mb-0">
+                                <dt class="col-sm-4">Total quantity</dt>
+                                <dd class="col-sm-8">@Model.Detail.ProliferationYearly.PreviousSnapshot.TotalQuantity</dd>
+                                <dt class="col-sm-4">Remarks</dt>
+                                <dd class="col-sm-8">@Model.Detail.ProliferationYearly.PreviousSnapshot.Remarks ?? "—"</dd>
+                                <dt class="col-sm-4">Approved on</dt>
+                                <dd class="col-sm-8">@formatDateTime(Model.Detail.ProliferationYearly.PreviousSnapshot.ApprovedOnUtc)</dd>
+                            </dl>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (Model.Detail.ProliferationGranular is not null)
+            {
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <h2 class="h6 text-uppercase text-muted mb-3">Granular proliferation details</h2>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Source</dt>
+                            <dd class="col-sm-8">@Model.Detail.ProliferationGranular.Source</dd>
+                            <dt class="col-sm-4">Unit name</dt>
+                            <dd class="col-sm-8">@Model.Detail.ProliferationGranular.UnitName</dd>
+                            <dt class="col-sm-4">Date</dt>
+                            <dd class="col-sm-8">@formatDate(Model.Detail.ProliferationGranular.ProliferationDate)</dd>
+                            <dt class="col-sm-4">Quantity</dt>
+                            <dd class="col-sm-8">@Model.Detail.ProliferationGranular.Quantity</dd>
+                            <dt class="col-sm-4">Remarks</dt>
+                            <dd class="col-sm-8">@Model.Detail.ProliferationGranular.Remarks ?? "—"</dd>
+                        </dl>
+                        @if (Model.Detail.ProliferationGranular.PreviousSnapshot is not null)
+                        {
+                            <hr />
+                            <h3 class="h6 text-uppercase text-muted mb-2">Previously approved</h3>
+                            <dl class="row mb-0">
+                                <dt class="col-sm-4">Quantity</dt>
+                                <dd class="col-sm-8">@Model.Detail.ProliferationGranular.PreviousSnapshot.Quantity</dd>
+                                <dt class="col-sm-4">Remarks</dt>
+                                <dd class="col-sm-8">@Model.Detail.ProliferationGranular.PreviousSnapshot.Remarks ?? "—"</dd>
+                                <dt class="col-sm-4">Approved on</dt>
+                                <dd class="col-sm-8">@formatDateTime(Model.Detail.ProliferationGranular.PreviousSnapshot.ApprovedOnUtc)</dd>
+                            </dl>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h2 class="h5">Decision</h2>
+                    <p class="text-muted">Approvals apply the change immediately. Rejections require a reason.</p>
+
+                    <form method="post" action="/Approvals/Pending/decide" class="d-grid gap-3">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="ApprovalType" value="@Model.Input.ApprovalType" />
+                        <input type="hidden" name="RequestId" value="@Model.Input.RequestId" />
+                        <input type="hidden" name="RowVersion" value="@Model.Input.RowVersion" />
+                        <input type="hidden" name="ReturnUrl" value="@Model.Input.ReturnUrl" />
+
+                        <div>
+                            <label class="form-label" for="decision-remarks">Remarks</label>
+                            <textarea class="form-control" id="decision-remarks" name="Remarks" rows="4" placeholder="Add context for the requester">@Model.Input.Remarks</textarea>
+                            <div class="form-text">Remarks are required when rejecting.</div>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="submit" class="btn btn-success" name="Decision" value="Approve">Approve</button>
+                            <button type="submit" class="btn btn-outline-danger" name="Decision" value="Reject">Reject</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

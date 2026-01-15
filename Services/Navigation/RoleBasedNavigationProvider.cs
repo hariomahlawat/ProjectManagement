@@ -113,6 +113,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Page = "/Analytics/Index",
                 Icon = "bi-graph-up"
             },
+            new()
+            {
+                Text = "Pending approvals",
+                Page = "/Approvals/Pending/Index",
+                RequiredRoles = new[] { "Admin", "HoD" },
+                Icon = "bi-check2-square"
+            },
         };
 
         items.Add(new NavigationItem
