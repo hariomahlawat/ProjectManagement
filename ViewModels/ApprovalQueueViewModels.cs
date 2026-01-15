@@ -102,7 +102,7 @@ public sealed record DocumentSummaryVm(
     string Title,
     string OriginalFileName,
     long FileSize,
-    string FileStamp,
+    int FileStamp,
     DateTimeOffset UploadedAtUtc,
     string UploadedBy,
     bool IsArchived);

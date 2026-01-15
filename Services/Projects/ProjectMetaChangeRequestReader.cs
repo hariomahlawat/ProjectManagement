@@ -48,7 +48,8 @@ public static class ProjectMetaChangeRequestReader
         }
         catch (JsonException ex)
         {
-            var logger = db.GetService<ILogger<ProjectMetaChangeRequestReader>>();
+            var loggerFactory = db.GetService<ILoggerFactory>();
+            var logger = loggerFactory?.CreateLogger("ProjectMetaChangeRequestReader");
             logger?.LogError(ex, "Failed to parse meta change payload for request {RequestId}.", request.Id);
             return null;
         }

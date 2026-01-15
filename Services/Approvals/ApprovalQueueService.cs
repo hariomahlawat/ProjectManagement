@@ -964,55 +964,89 @@ public sealed class ApprovalQueueService : IApprovalQueueService
 
         var trimmed = query.Search.Trim();
         var like = $"%{trimmed}%";
+        var parsedInt = int.TryParse(trimmed, out var intId) ? intId : (int?)null;
+        var parsedGuid = Guid.TryParse(trimmed, out var guidId) ? guidId : (Guid?)null;
 
-        return queryable switch
+        if (queryable is IQueryable<StageChangeRow> stage)
         {
-            IQueryable<StageChangeRow> stage => stage.Where(r =>
+            var filtered = stage.Where(r =>
                 EF.Functions.ILike(r.ProjectName, like) ||
                 EF.Functions.ILike(r.RequestedByFullName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.RequestedByUserName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.RequestedByEmail ?? string.Empty, like) ||
-                (int.TryParse(trimmed, out var id) && r.Id == id)),
-            IQueryable<MetaChangeRow> meta => meta.Where(r =>
+                (parsedInt.HasValue && r.Id == parsedInt.Value));
+            return (IQueryable<T>)(object)filtered;
+        }
+
+        if (queryable is IQueryable<MetaChangeRow> meta)
+        {
+            var filtered = meta.Where(r =>
                 EF.Functions.ILike(r.ProjectName, like) ||
                 EF.Functions.ILike(r.RequestedByFullName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.RequestedByUserName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.RequestedByEmail ?? string.Empty, like) ||
-                (int.TryParse(trimmed, out var id) && r.Id == id)),
-            IQueryable<PlanApprovalRow> plan => plan.Where(r =>
+                (parsedInt.HasValue && r.Id == parsedInt.Value));
+            return (IQueryable<T>)(object)filtered;
+        }
+
+        if (queryable is IQueryable<PlanApprovalRow> plan)
+        {
+            var filtered = plan.Where(r =>
                 EF.Functions.ILike(r.ProjectName, like) ||
                 EF.Functions.ILike(r.SubmittedByFullName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByUserName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByEmail ?? string.Empty, like) ||
-                (int.TryParse(trimmed, out var id) && r.Id == id)),
-            IQueryable<DocumentRequestRow> doc => doc.Where(r =>
+                (parsedInt.HasValue && r.Id == parsedInt.Value));
+            return (IQueryable<T>)(object)filtered;
+        }
+
+        if (queryable is IQueryable<DocumentRequestRow> doc)
+        {
+            var filtered = doc.Where(r =>
                 EF.Functions.ILike(r.ProjectName, like) ||
                 EF.Functions.ILike(r.Title, like) ||
                 EF.Functions.ILike(r.RequestedByFullName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.RequestedByUserName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.RequestedByEmail ?? string.Empty, like) ||
-                (int.TryParse(trimmed, out var id) && r.Id == id)),
-            IQueryable<TotRequestRow> tot => tot.Where(r =>
+                (parsedInt.HasValue && r.Id == parsedInt.Value));
+            return (IQueryable<T>)(object)filtered;
+        }
+
+        if (queryable is IQueryable<TotRequestRow> tot)
+        {
+            var filtered = tot.Where(r =>
                 EF.Functions.ILike(r.ProjectName, like) ||
                 EF.Functions.ILike(r.SubmittedByFullName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByUserName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByEmail ?? string.Empty, like) ||
-                (int.TryParse(trimmed, out var id) && r.Id == id)),
-            IQueryable<ProliferationYearlyRow> yearly => yearly.Where(r =>
+                (parsedInt.HasValue && r.Id == parsedInt.Value));
+            return (IQueryable<T>)(object)filtered;
+        }
+
+        if (queryable is IQueryable<ProliferationYearlyRow> yearly)
+        {
+            var filtered = yearly.Where(r =>
                 EF.Functions.ILike(r.ProjectName, like) ||
                 EF.Functions.ILike(r.SubmittedByFullName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByUserName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByEmail ?? string.Empty, like) ||
-                (Guid.TryParse(trimmed, out var id) && r.Id == id)),
-            IQueryable<ProliferationGranularRow> granular => granular.Where(r =>
+                (parsedGuid.HasValue && r.Id == parsedGuid.Value));
+            return (IQueryable<T>)(object)filtered;
+        }
+
+        if (queryable is IQueryable<ProliferationGranularRow> granular)
+        {
+            var filtered = granular.Where(r =>
                 EF.Functions.ILike(r.ProjectName, like) ||
                 EF.Functions.ILike(r.UnitName, like) ||
                 EF.Functions.ILike(r.SubmittedByFullName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByUserName ?? string.Empty, like) ||
                 EF.Functions.ILike(r.SubmittedByEmail ?? string.Empty, like) ||
-                (Guid.TryParse(trimmed, out var id) && r.Id == id)),
-            _ => queryable
-        };
+                (parsedGuid.HasValue && r.Id == parsedGuid.Value));
+            return (IQueryable<T>)(object)filtered;
+        }
+
+        return queryable;
     }
 
     private static IQueryable<T> ApplyDateRange<T>(
