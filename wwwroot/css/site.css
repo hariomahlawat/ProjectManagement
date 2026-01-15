@@ -1583,6 +1583,13 @@ main[role="main"] {
     cursor: pointer;
 }
 
+/* -- SECTION: Table focus -- */
+.approvals-table-row:focus-visible {
+    outline: 2px solid var(--pm-border-strong);
+    outline-offset: -2px;
+    background: var(--pm-surface-contrast);
+}
+
 .approval-row-link {
     position: relative;
     z-index: 1;
