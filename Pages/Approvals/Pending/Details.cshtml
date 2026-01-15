@@ -7,6 +7,19 @@
     string formatDate(DateOnly? value) => value?.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
     string formatDateTime(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
     string formatDecisionDate(DateTime? value) => value?.ToLocalTime().ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+
+    // SECTION: Display helpers
+    string formatRemarks(string? remarks)
+    {
+        if (string.IsNullOrWhiteSpace(remarks))
+        {
+            return "—";
+        }
+
+        var trimmed = remarks.Trim();
+        var cleaned = trimmed.Trim('?', '"', '“', '”', '-', '–', '—', ' ');
+        return string.IsNullOrWhiteSpace(cleaned) ? "—" : trimmed;
+    }
 }
 
 <div class="container-fluid approvals-page">
@@ -255,7 +268,7 @@
                             <dt class="col-sm-4">Total quantity</dt>
                             <dd class="col-sm-8">@Model.Detail.ProliferationYearly.TotalQuantity</dd>
                             <dt class="col-sm-4">Remarks</dt>
-                            <dd class="col-sm-8">@Model.Detail.ProliferationYearly.Remarks ?? "—"</dd>
+                            <dd class="col-sm-8">@formatRemarks(Model.Detail.ProliferationYearly.Remarks)</dd>
                         </dl>
                         @if (Model.Detail.ProliferationYearly.PreviousSnapshot is not null)
                         {
@@ -265,7 +278,7 @@
                                 <dt class="col-sm-4">Total quantity</dt>
                                 <dd class="col-sm-8">@Model.Detail.ProliferationYearly.PreviousSnapshot.TotalQuantity</dd>
                                 <dt class="col-sm-4">Remarks</dt>
-                                <dd class="col-sm-8">@Model.Detail.ProliferationYearly.PreviousSnapshot.Remarks ?? "—"</dd>
+                                <dd class="col-sm-8">@formatRemarks(Model.Detail.ProliferationYearly.PreviousSnapshot.Remarks)</dd>
                                 <dt class="col-sm-4">Approved on</dt>
                                 <dd class="col-sm-8">@formatDateTime(Model.Detail.ProliferationYearly.PreviousSnapshot.ApprovedOnUtc)</dd>
                             </dl>
@@ -289,7 +302,7 @@
                             <dt class="col-sm-4">Quantity</dt>
                             <dd class="col-sm-8">@Model.Detail.ProliferationGranular.Quantity</dd>
                             <dt class="col-sm-4">Remarks</dt>
-                            <dd class="col-sm-8">@Model.Detail.ProliferationGranular.Remarks ?? "—"</dd>
+                            <dd class="col-sm-8">@formatRemarks(Model.Detail.ProliferationGranular.Remarks)</dd>
                         </dl>
                         @if (Model.Detail.ProliferationGranular.PreviousSnapshot is not null)
                         {
@@ -299,7 +312,7 @@
                                 <dt class="col-sm-4">Quantity</dt>
                                 <dd class="col-sm-8">@Model.Detail.ProliferationGranular.PreviousSnapshot.Quantity</dd>
                                 <dt class="col-sm-4">Remarks</dt>
-                                <dd class="col-sm-8">@Model.Detail.ProliferationGranular.PreviousSnapshot.Remarks ?? "—"</dd>
+                                <dd class="col-sm-8">@formatRemarks(Model.Detail.ProliferationGranular.PreviousSnapshot.Remarks)</dd>
                                 <dt class="col-sm-4">Approved on</dt>
                                 <dd class="col-sm-8">@formatDateTime(Model.Detail.ProliferationGranular.PreviousSnapshot.ApprovedOnUtc)</dd>
                             </dl>
