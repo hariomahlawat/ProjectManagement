@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Authorization;
 
 namespace ProjectManagement.Services.Projects;
 
@@ -69,11 +70,11 @@ public sealed class ProjectMetaChangeDecisionService
             return ProjectMetaDecisionResult.RequestNotFound();
         }
 
-        if (user.IsHoD && !user.IsAdmin &&
-            !string.Equals(project.HodUserId, user.UserId, StringComparison.OrdinalIgnoreCase))
+        // SECTION: Authorization guard
+        if (!ApprovalAuthorization.CanApproveProjectChanges(user.IsAdmin, user.IsHoD))
         {
             _logger.LogWarning(
-                "User {UserId} attempted to decide meta change request {RequestId} for project {ProjectId} but is not the assigned HoD.",
+                "User {UserId} attempted to decide meta change request {RequestId} for project {ProjectId} without approval privileges.",
                 user.UserId,
                 input.RequestId,
                 request.ProjectId);

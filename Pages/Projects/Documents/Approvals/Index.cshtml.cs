@@ -12,6 +12,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Authorization;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Pages.Projects.Documents.Approvals;
@@ -42,7 +43,7 @@ public sealed class IndexModel : PageModel
 
         var project = await _db.Projects
             .AsNoTracking()
-            .Select(p => new { p.Id, p.Name, p.HodUserId })
+            .Select(p => new { p.Id, p.Name })
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
         if (project is null)
@@ -50,7 +51,7 @@ public sealed class IndexModel : PageModel
             return NotFound();
         }
 
-        if (!UserCanModerate(project.HodUserId, userId))
+        if (!UserCanModerate())
         {
             return Forbid();
         }
@@ -63,17 +64,8 @@ public sealed class IndexModel : PageModel
         return Page();
     }
 
-    private bool UserCanModerate(string? hodUserId, string userId)
-    {
-        var principal = _userContext.User;
-        if (principal.IsInRole("Admin"))
-        {
-            return true;
-        }
-
-        return principal.IsInRole("HoD") &&
-            string.Equals(hodUserId, userId, StringComparison.OrdinalIgnoreCase);
-    }
+    private bool UserCanModerate()
+        => ApprovalAuthorization.CanApproveProjectChanges(_userContext.User);
 
     private async Task<IReadOnlyList<PendingRequestViewModel>> LoadPendingRequestsAsync(int projectId, CancellationToken cancellationToken)
     {

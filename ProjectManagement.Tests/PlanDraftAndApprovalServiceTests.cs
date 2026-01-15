@@ -261,7 +261,7 @@ public class PlanDraftAndApprovalServiceTests
 
         var approval = new PlanApprovalService(db, new TestClock(), NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullPlanNotificationService());
 
-        await Assert.ThrowsAsync<ForbiddenException>(() => approval.ApproveLatestDraftAsync(9, "hod-user"));
+        await Assert.ThrowsAsync<ForbiddenException>(() => approval.ApproveLatestDraftAsync(9, "hod-user", isAdmin: false, isHoD: true));
     }
 
     [Fact]

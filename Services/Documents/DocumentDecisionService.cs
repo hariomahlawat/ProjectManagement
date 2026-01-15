@@ -3,8 +3,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Helpers;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Authorization;
 
 namespace ProjectManagement.Services.Documents;
 
@@ -30,9 +32,14 @@ public sealed class DocumentDecisionService : IDocumentDecisionService
     public async Task<ProjectDocumentRequest> ApproveAsync(
         int requestId,
         string decidedByUserId,
+        bool isAdmin,
+        bool isHoD,
         string? note,
         CancellationToken cancellationToken)
     {
+        // SECTION: Authorization guard
+        EnsureCanApprove(isAdmin, isHoD);
+
         if (string.IsNullOrWhiteSpace(decidedByUserId))
         {
             throw new ArgumentException("Decided by user id is required.", nameof(decidedByUserId));
@@ -83,9 +90,14 @@ public sealed class DocumentDecisionService : IDocumentDecisionService
     public async Task<ProjectDocumentRequest> RejectAsync(
         int requestId,
         string decidedByUserId,
+        bool isAdmin,
+        bool isHoD,
         string? note,
         CancellationToken cancellationToken)
     {
+        // SECTION: Authorization guard
+        EnsureCanApprove(isAdmin, isHoD);
+
         if (string.IsNullOrWhiteSpace(decidedByUserId))
         {
             throw new ArgumentException("Decided by user id is required.", nameof(decidedByUserId));
@@ -186,5 +198,14 @@ public sealed class DocumentDecisionService : IDocumentDecisionService
 
         var document = await _documentService.SoftDeleteAsync(request.DocumentId.Value, decidedByUserId, cancellationToken);
         document.RequestId = request.Id;
+    }
+
+    // SECTION: Authorization helpers
+    private static void EnsureCanApprove(bool isAdmin, bool isHoD)
+    {
+        if (!ApprovalAuthorization.CanApproveProjectChanges(isAdmin, isHoD))
+        {
+            throw new ForbiddenException("Only Admin or HoD users can approve document requests.");
+        }
     }
 }

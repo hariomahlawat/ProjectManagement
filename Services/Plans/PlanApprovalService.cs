@@ -12,6 +12,7 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Services.Authorization;
 using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Services.Plans;
@@ -94,8 +95,23 @@ public class PlanApprovalService
     public Task SubmitForApprovalAsync(int projectId, string userId, CancellationToken cancellationToken = default)
         => SubmitAsync(projectId, userId, cancellationToken);
 
-    public async Task<bool> ApproveLatestDraftAsync(int projectId, string hodUserId, CancellationToken cancellationToken = default)
+    public async Task<bool> ApproveLatestDraftAsync(
+        int projectId,
+        string hodUserId,
+        bool isAdmin,
+        bool isHoD,
+        CancellationToken cancellationToken = default)
     {
+        // SECTION: Authorization guard
+        if (!ApprovalAuthorization.CanApproveProjectChanges(isAdmin, isHoD))
+        {
+            _logger.LogWarning(
+                "Plan approval forbidden. ProjectId={ProjectId}, UserId={UserId}",
+                projectId,
+                hodUserId);
+            throw new ForbiddenException("Only Admin or HoD users can approve plan drafts.");
+        }
+
         if (string.IsNullOrWhiteSpace(hodUserId))
         {
             throw new ArgumentException("A valid approver identifier is required.", nameof(hodUserId));
@@ -112,6 +128,15 @@ public class PlanApprovalService
         if (plan == null)
         {
             return false;
+        }
+
+        if (string.Equals(plan.SubmittedByUserId, hodUserId, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(
+                "Plan approval forbidden for self-approval. ProjectId={ProjectId}, UserId={UserId}",
+                projectId,
+                hodUserId);
+            throw new ForbiddenException("You cannot approve your own plan submission.");
         }
 
         var project = await _db.Projects
@@ -182,9 +207,14 @@ public class PlanApprovalService
         return true;
     }
 
-    public async Task ApproveAsync(int projectId, string approverUserId, CancellationToken cancellationToken = default)
+    public async Task ApproveAsync(
+        int projectId,
+        string approverUserId,
+        bool isAdmin,
+        bool isHoD,
+        CancellationToken cancellationToken = default)
     {
-        var approved = await ApproveLatestDraftAsync(projectId, approverUserId, cancellationToken);
+        var approved = await ApproveLatestDraftAsync(projectId, approverUserId, isAdmin, isHoD, cancellationToken);
         if (!approved)
         {
             throw new InvalidOperationException("No plan is currently pending approval for this project.");
@@ -211,8 +241,24 @@ public class PlanApprovalService
         return index >= 0 ? index : int.MaxValue;
     }
 
-    public async Task<bool> RejectLatestPendingAsync(int projectId, string hodUserId, string? reason, CancellationToken cancellationToken = default)
+    public async Task<bool> RejectLatestPendingAsync(
+        int projectId,
+        string hodUserId,
+        bool isAdmin,
+        bool isHoD,
+        string? reason,
+        CancellationToken cancellationToken = default)
     {
+        // SECTION: Authorization guard
+        if (!ApprovalAuthorization.CanApproveProjectChanges(isAdmin, isHoD))
+        {
+            _logger.LogWarning(
+                "Plan rejection forbidden. ProjectId={ProjectId}, UserId={UserId}",
+                projectId,
+                hodUserId);
+            throw new ForbiddenException("Only Admin or HoD users can reject plan drafts.");
+        }
+
         if (string.IsNullOrWhiteSpace(hodUserId))
         {
             throw new ArgumentException("A valid approver identifier is required.", nameof(hodUserId));
@@ -263,7 +309,13 @@ public class PlanApprovalService
         return true;
     }
 
-    public async Task RejectAsync(int projectId, string approverUserId, string note, CancellationToken cancellationToken = default)
+    public async Task RejectAsync(
+        int projectId,
+        string approverUserId,
+        bool isAdmin,
+        bool isHoD,
+        string note,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(approverUserId))
         {
@@ -276,7 +328,7 @@ public class PlanApprovalService
             throw new PlanApprovalValidationException(new[] { "A rejection note is required." });
         }
 
-        var rejected = await RejectLatestPendingAsync(projectId, approverUserId, trimmedNote, cancellationToken);
+        var rejected = await RejectLatestPendingAsync(projectId, approverUserId, isAdmin, isHoD, trimmedNote, cancellationToken);
 
         if (!rejected)
         {

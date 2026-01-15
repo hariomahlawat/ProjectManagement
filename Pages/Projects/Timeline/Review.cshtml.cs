@@ -16,7 +16,7 @@ using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Pages.Projects.Timeline;
 
-[Authorize(Roles = "HoD")]
+[Authorize(Roles = "Admin,HoD")]
 [ValidateAntiForgeryToken]
 public class ReviewModel : PageModel
 {
@@ -65,6 +65,10 @@ public class ReviewModel : PageModel
             return Forbid();
         }
 
+        // SECTION: Authorization context
+        var isAdmin = User.IsInRole("Admin");
+        var isHoD = User.IsInRole("HoD");
+
         // NEW: try to detect if the latest pending plan is an auto realignment and surface it
         await LoadRealignmentInfoAsync(id, ct);
 
@@ -72,7 +76,7 @@ public class ReviewModel : PageModel
         {
             if (string.Equals(Input.Decision, "Reject", StringComparison.OrdinalIgnoreCase))
             {
-                var rejected = await _approval.RejectLatestPendingAsync(id, userId, Input.Note, ct);
+                var rejected = await _approval.RejectLatestPendingAsync(id, userId, isAdmin, isHoD, Input.Note, ct);
                 if (rejected)
                 {
                     TempData["Flash"] = "Draft rejected and returned to the Project Officer.";
@@ -88,7 +92,7 @@ public class ReviewModel : PageModel
 
             if (string.Equals(Input.Decision, "Approve", StringComparison.OrdinalIgnoreCase))
             {
-                var approved = await _approval.ApproveLatestDraftAsync(id, userId, ct);
+                var approved = await _approval.ApproveLatestDraftAsync(id, userId, isAdmin, isHoD, ct);
                 if (approved)
                 {
                     TempData["Flash"] = "Plan approved.";

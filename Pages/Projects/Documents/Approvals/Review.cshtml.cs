@@ -10,9 +10,11 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
+using ProjectManagement.Helpers;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Authorization;
 using ProjectManagement.Services.Documents;
 using ProjectManagement.Utilities;
 
@@ -142,16 +144,31 @@ public sealed class ReviewModel : PageModel
             return Challenge();
         }
 
+        // SECTION: Authorization context
+        var principal = _userContext.User;
+
         try
         {
             switch (action)
             {
                 case DecisionAction.Approve:
-                    await _decisionService.ApproveAsync(entity.Id, userId, Input.Note, cancellationToken);
+                    await _decisionService.ApproveAsync(
+                        entity.Id,
+                        userId,
+                        principal.IsInRole("Admin"),
+                        principal.IsInRole("HoD"),
+                        Input.Note,
+                        cancellationToken);
                     TempData["Flash"] = GetApproveMessage(entity.RequestType);
                     break;
                 case DecisionAction.Reject:
-                    await _decisionService.RejectAsync(entity.Id, userId, Input.Note, cancellationToken);
+                    await _decisionService.RejectAsync(
+                        entity.Id,
+                        userId,
+                        principal.IsInRole("Admin"),
+                        principal.IsInRole("HoD"),
+                        Input.Note,
+                        cancellationToken);
                     TempData["Flash"] = "Document request rejected.";
                     break;
                 default:
@@ -165,6 +182,11 @@ public sealed class ReviewModel : PageModel
         {
             TempData["Error"] = "This request has already been processed.";
             return RedirectToPage("./Index", new { id = projectId });
+        }
+        catch (ForbiddenException ex)
+        {
+            TempData["Error"] = ex.Message;
+            return Forbid();
         }
         catch (FileNotFoundException ex)
         {
@@ -202,7 +224,7 @@ public sealed class ReviewModel : PageModel
 
         var project = await _db.Projects
             .AsNoTracking()
-            .Select(p => new { p.Id, p.Name, p.HodUserId })
+            .Select(p => new { p.Id, p.Name })
             .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
 
         if (project is null)
@@ -211,8 +233,7 @@ public sealed class ReviewModel : PageModel
         }
 
         var principal = _userContext.User;
-        var authorised = principal.IsInRole("Admin") ||
-            (principal.IsInRole("HoD") && string.Equals(project.HodUserId, userId, StringComparison.OrdinalIgnoreCase));
+        var authorised = ApprovalAuthorization.CanApproveProjectChanges(principal);
 
         if (!authorised)
         {
