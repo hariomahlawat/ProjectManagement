@@ -118,6 +118,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Text = "Pending approvals",
                 Page = "/Approvals/Pending/Index",
                 RequiredRoles = new[] { "Admin", "HoD" },
+                BadgeViewComponentName = "PendingApprovalsBadge",
                 Icon = "bi-check2-square"
             },
         };
