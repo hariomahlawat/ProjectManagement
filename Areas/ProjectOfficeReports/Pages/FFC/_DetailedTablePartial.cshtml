@@ -1,6 +1,9 @@
 @using System.Linq
-@using System.Text.Encodings.Web
 @model IReadOnlyList<ProjectManagement.Services.Ffc.FfcDetailedGroupVm>
+
+@{
+    var canEdit = User.IsInRole("HoD") || User.IsInRole("Admin");
+}
 
 @if (Model is null || !Model.Any())
 {
@@ -38,16 +41,17 @@ else
                         </td>
                     </tr>
 
-                    var overallRemarks = group.OverallRemarks ?? string.Empty;
-                    var remarksProvided = !string.IsNullOrWhiteSpace(overallRemarks);
-                    var remarksCell = remarksProvided
-                        ? HtmlEncoder.Default.Encode(overallRemarks)
-                        : "<span class=\"ffc-dtable__remarks-empty\">No overall remarks recorded.</span>";
+                    var overallRemarksText = group.OverallRemarks ?? string.Empty;
+                    var overallRemarksDisplay = group.OverallRemarksDisplay ?? string.Empty;
+                    var overallHasRemarks = !string.IsNullOrWhiteSpace(overallRemarksDisplay);
                     var rowSpan = group.Rows.Count;
 
                     for (var index = 0; index < group.Rows.Count; index++)
                     {
                         var row = group.Rows[index];
+                        var progressText = row.ProgressText ?? string.Empty;
+                        var progressHasValue = !string.IsNullOrWhiteSpace(progressText);
+                        var isProgressEditable = canEdit && row.IsProgressEditable;
                         <tr>
                             <td class="text-muted">@row.Serial</td>
                             <td>
@@ -74,10 +78,71 @@ else
                             </td>
                             <td class="text-end">@row.Quantity</td>
                             <td>@row.Status</td>
-                            <td>@row.Progress</td>
+                            @* SECTION: Progress cell *@
+                            <td data-kind="progress"
+                                data-ffc-project-id="@row.FfcProjectId"
+                                data-editable="@isProgressEditable.ToString().ToLowerInvariant()"
+                                data-maxlen="2000"
+                                data-empty-text="No progress recorded.">
+                                @if (isProgressEditable)
+                                {
+                                    <div class="display-text">
+                                        <span class="display-value@(progressHasValue ? string.Empty : " text-muted fst-italic")">
+                                            @(progressHasValue ? progressText : "No progress recorded.")
+                                        </span>
+                                        <span class="inline-status text-success small ms-2 d-none" role="status"></span>
+                                    </div>
+                                    <div class="editor d-none">
+                                        <textarea class="form-control form-control-sm" rows="3" maxlength="2000">@progressText</textarea>
+                                        <div class="mt-2 d-flex gap-2">
+                                            <button type="button" class="btn btn-sm btn-primary js-inline-save">Save</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary js-inline-cancel">Cancel</button>
+                                        </div>
+                                    </div>
+                                    <div class="inline-error text-danger small mt-1 d-none" role="alert"></div>
+                                }
+                                else
+                                {
+                                    <span class="@(progressHasValue ? string.Empty : "text-muted fst-italic")">
+                                        @(progressHasValue ? progressText : "No progress recorded.")
+                                    </span>
+                                }
+                            </td>
                             @if (index == 0)
                             {
-                                <td rowspan="@rowSpan" class="align-top">@Html.Raw(remarksCell)</td>
+                                var isOverallEditable = canEdit;
+                                @* SECTION: Overall remarks cell *@
+                                <td rowspan="@rowSpan"
+                                    class="align-top"
+                                    data-kind="overall"
+                                    data-ffc-record-id="@group.FfcRecordId"
+                                    data-editable="@isOverallEditable.ToString().ToLowerInvariant()"
+                                    data-maxlen="4000"
+                                    data-empty-text="No overall remarks recorded.">
+                                    @if (isOverallEditable)
+                                    {
+                                        <div class="display-text">
+                                            <span class="display-value@(overallHasRemarks ? string.Empty : " text-muted fst-italic")">
+                                                @(overallHasRemarks ? overallRemarksDisplay : "No overall remarks recorded.")
+                                            </span>
+                                            <span class="inline-status text-success small ms-2 d-none" role="status"></span>
+                                        </div>
+                                        <div class="editor d-none">
+                                            <textarea class="form-control form-control-sm" rows="4" maxlength="4000">@overallRemarksText</textarea>
+                                            <div class="mt-2 d-flex gap-2">
+                                                <button type="button" class="btn btn-sm btn-primary js-inline-save">Save</button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary js-inline-cancel">Cancel</button>
+                                            </div>
+                                        </div>
+                                        <div class="inline-error text-danger small mt-1 d-none" role="alert"></div>
+                                    }
+                                    else
+                                    {
+                                        <span class="@(overallHasRemarks ? string.Empty : "text-muted fst-italic")">
+                                            @(overallHasRemarks ? overallRemarksDisplay : "No overall remarks recorded.")
+                                        </span>
+                                    }
+                                </td>
                             }
                         </tr>
                     }

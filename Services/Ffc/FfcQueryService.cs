@@ -27,21 +27,33 @@ public interface IFfcQueryService
 }
 
 public sealed record FfcDetailedGroupVm(
+    long FfcRecordId,
     string CountryName,
     string CountryCode,
     int Year,
     string? OverallRemarks,
+    string? OverallRemarksDisplay,
     IReadOnlyList<FfcDetailedRowVm> Rows,
     bool HasIncomplete);
 
 public sealed record FfcDetailedRowVm(
+    long FfcProjectId,
     int Serial,
     string ProjectName,
     int? LinkedProjectId,
     decimal? CostInCr,
     int Quantity,
     string Status,
-    string? Progress);
+    string? ProgressText,
+    FfcProgressSource ProgressSource,
+    bool IsProgressEditable);
+
+public enum FfcProgressSource
+{
+    ExternalProjectRemark = 0,
+    FfcProjectRemark = 1,
+    Computed = 2
+}
 
 // SECTION: Query service
 public sealed class FfcQueryService : IFfcQueryService
@@ -166,16 +178,19 @@ public sealed class FfcQueryService : IFfcQueryService
                     var bucketLabel = FfcProjectBucketHelper.GetBucketLabel(bucket);
                     var effectiveName = ResolveProjectName(project, projectNameMap);
                     var costInCr = ResolveProjectCost(project.LinkedProjectId, projectCostMap);
-                    var progressRemark = BuildProgressRemark(project, bucket, stageSummaryMap, remarkMap);
+                    var progressInfo = BuildProgressInfo(project, bucket, stageSummaryMap, remarkMap);
 
                     return new FfcDetailedRowVm(
+                        FfcProjectId: project.Id,
                         Serial: index + 1,
                         ProjectName: effectiveName,
                         LinkedProjectId: project.LinkedProjectId,
                         CostInCr: costInCr,
                         Quantity: quantity,
                         Status: bucketLabel,
-                        Progress: progressRemark
+                        ProgressText: progressInfo.Text,
+                        ProgressSource: progressInfo.Source,
+                        IsProgressEditable: progressInfo.Source != FfcProgressSource.Computed
                     );
                 })
                 .ToList();
@@ -190,10 +205,12 @@ public sealed class FfcQueryService : IFfcQueryService
             }
 
             result.Add(new FfcDetailedGroupVm(
+                FfcRecordId: group.Key.RecordId,
                 CountryName: group.Key.CountryName ?? string.Empty,
                 CountryCode: (group.Key.CountryIso3 ?? string.Empty).ToUpperInvariant(),
                 Year: group.Key.Year,
-                OverallRemarks: FormatRemark(group.Key.OverallRemarks),
+                OverallRemarks: group.Key.OverallRemarks,
+                OverallRemarksDisplay: FormatRemark(group.Key.OverallRemarks),
                 Rows: projectRows,
                 HasIncomplete: hasIncomplete));
         }
@@ -259,7 +276,7 @@ public sealed class FfcQueryService : IFfcQueryService
         return costMap.TryGetValue(id, out var cost) ? cost : null;
     }
 
-    private static string? BuildProgressRemark(
+    private static ProgressInfo BuildProgressInfo(
         FfcProjectProjection project,
         FfcDeliveryBucket bucket,
         IReadOnlyDictionary<int, string?> stageSummaryMap,
@@ -271,37 +288,39 @@ public sealed class FfcQueryService : IFfcQueryService
         {
             if (project.LinkedProjectId is int linkedId && TryGetNonEmpty(remarkMap, linkedId, out var externalRemark))
             {
-                return externalRemark;
+                return new ProgressInfo(externalRemark, FfcProgressSource.ExternalProjectRemark);
             }
 
-            return remarkFromFfc;
+            return new ProgressInfo(remarkFromFfc, FfcProgressSource.FfcProjectRemark);
         }
 
         if (project.LinkedProjectId is int deliveredId)
         {
             if (TryGetNonEmpty(stageSummaryMap, deliveredId, out var stageSummary))
             {
-                return stageSummary;
+                return new ProgressInfo(stageSummary, FfcProgressSource.Computed);
             }
 
             if (TryGetNonEmpty(remarkMap, deliveredId, out var externalRemark))
             {
-                return externalRemark;
+                return new ProgressInfo(externalRemark, FfcProgressSource.ExternalProjectRemark);
             }
         }
 
         if (bucket == FfcDeliveryBucket.Installed && project.InstalledOn is DateOnly installedOn)
         {
-            return $"Installed on {FormatDate(installedOn)}";
+            return new ProgressInfo($"Installed on {FormatDate(installedOn)}", FfcProgressSource.Computed);
         }
 
         if (bucket == FfcDeliveryBucket.DeliveredNotInstalled && project.DeliveredOn is DateOnly deliveredOn)
         {
-            return $"Delivered on {FormatDate(deliveredOn)}";
+            return new ProgressInfo($"Delivered on {FormatDate(deliveredOn)}", FfcProgressSource.Computed);
         }
 
-        return remarkFromFfc;
+        return new ProgressInfo(remarkFromFfc, FfcProgressSource.FfcProjectRemark);
     }
+
+    private sealed record ProgressInfo(string? Text, FfcProgressSource Source);
 
     private static bool TryGetNonEmpty(IReadOnlyDictionary<int, string?> source, int key, out string value)
     {
