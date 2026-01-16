@@ -34,3 +34,12 @@
         </div>
     </div>
 </div>
+
+<form method="post" id="ffc-inline-edit-token" class="d-none">
+    @Html.AntiForgeryToken()
+</form>
+
+@section Scripts
+{
+    <script src="~/js/pages/project-office-reports/ffc/ffc-map-table-detailed-inline-edit.js" asp-append-version="true"></script>
+}
