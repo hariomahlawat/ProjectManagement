@@ -50,6 +50,7 @@ else
                     {
                         var row = group.Rows[index];
                         var progressText = row.ProgressText ?? string.Empty;
+                        var progressTextRaw = row.ProgressTextRaw ?? progressText;
                         var progressHasValue = !string.IsNullOrWhiteSpace(progressText);
                         var isProgressEditable = canEdit && row.IsProgressEditable;
                         <tr>
@@ -81,6 +82,8 @@ else
                             @* SECTION: Progress cell *@
                             <td data-kind="progress"
                                 data-ffc-project-id="@row.FfcProjectId"
+                                data-linked-project-id="@(row.LinkedProjectId?.ToString() ?? string.Empty)"
+                                data-external-remark-id="@(row.ExternalRemarkId?.ToString() ?? string.Empty)"
                                 data-editable="@isProgressEditable.ToString().ToLowerInvariant()"
                                 data-maxlen="2000"
                                 data-empty-text="No progress recorded.">
@@ -93,7 +96,7 @@ else
                                         <span class="inline-status text-success small ms-2 d-none" role="status"></span>
                                     </div>
                                     <div class="editor d-none">
-                                        <textarea class="form-control form-control-sm" rows="3" maxlength="2000">@progressText</textarea>
+                                        <textarea class="form-control form-control-sm" rows="3" maxlength="2000">@progressTextRaw</textarea>
                                         <div class="mt-2 d-flex gap-2">
                                             <button type="button" class="btn btn-sm btn-primary js-inline-save">Save</button>
                                             <button type="button" class="btn btn-sm btn-outline-secondary js-inline-cancel">Cancel</button>

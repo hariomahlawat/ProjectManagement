@@ -45,6 +45,8 @@ public sealed record FfcDetailedRowVm(
     int Quantity,
     string Status,
     string? ProgressText,
+    string? ProgressTextRaw,
+    int? ExternalRemarkId,
     FfcProgressSource ProgressSource,
     bool IsProgressEditable);
 
@@ -149,8 +151,8 @@ public sealed class FfcQueryService : IFfcQueryService
         }
 
         var remarkMap = linkedProjectIds.Length == 0
-            ? new Dictionary<int, string?>()
-            : await LoadRemarkSummariesAsync(linkedProjectIds, from, to, cancellationToken);
+            ? new Dictionary<int, RemarkSummary?>()
+            : await LoadRemarkSummariesAsync(linkedProjectIds, cancellationToken);
 
         var groups = projects
             .GroupBy(project => new
@@ -188,7 +190,9 @@ public sealed class FfcQueryService : IFfcQueryService
                         CostInCr: costInCr,
                         Quantity: quantity,
                         Status: bucketLabel,
-                        ProgressText: progressInfo.Text,
+                        ProgressText: progressInfo.DisplayText,
+                        ProgressTextRaw: progressInfo.RawText,
+                        ExternalRemarkId: progressInfo.ExternalRemarkId,
                         ProgressSource: progressInfo.Source,
                         IsProgressEditable: progressInfo.Source != FfcProgressSource.Computed
                     );
@@ -280,47 +284,50 @@ public sealed class FfcQueryService : IFfcQueryService
         FfcProjectProjection project,
         FfcDeliveryBucket bucket,
         IReadOnlyDictionary<int, string?> stageSummaryMap,
-        IReadOnlyDictionary<int, string?> remarkMap)
+        IReadOnlyDictionary<int, RemarkSummary?> remarkMap)
     {
         string? remarkFromFfc = FormatRemark(project.Remarks);
+        string? remarkRaw = string.IsNullOrWhiteSpace(project.Remarks) ? null : project.Remarks.Trim();
 
         if (bucket == FfcDeliveryBucket.Planned)
         {
             if (project.LinkedProjectId is int linkedId && TryGetNonEmpty(remarkMap, linkedId, out var externalRemark))
             {
-                return new ProgressInfo(externalRemark, FfcProgressSource.ExternalProjectRemark);
+                return new ProgressInfo(externalRemark.DisplayText, externalRemark.RawText, FfcProgressSource.ExternalProjectRemark, externalRemark.RemarkId);
             }
 
-            return new ProgressInfo(remarkFromFfc, FfcProgressSource.FfcProjectRemark);
+            return new ProgressInfo(remarkFromFfc, remarkRaw, FfcProgressSource.FfcProjectRemark, null);
         }
 
         if (project.LinkedProjectId is int deliveredId)
         {
             if (TryGetNonEmpty(stageSummaryMap, deliveredId, out var stageSummary))
             {
-                return new ProgressInfo(stageSummary, FfcProgressSource.Computed);
+                return new ProgressInfo(stageSummary, stageSummary, FfcProgressSource.Computed, null);
             }
 
             if (TryGetNonEmpty(remarkMap, deliveredId, out var externalRemark))
             {
-                return new ProgressInfo(externalRemark, FfcProgressSource.ExternalProjectRemark);
+                return new ProgressInfo(externalRemark.DisplayText, externalRemark.RawText, FfcProgressSource.ExternalProjectRemark, externalRemark.RemarkId);
             }
         }
 
         if (bucket == FfcDeliveryBucket.Installed && project.InstalledOn is DateOnly installedOn)
         {
-            return new ProgressInfo($"Installed on {FormatDate(installedOn)}", FfcProgressSource.Computed);
+            var message = $"Installed on {FormatDate(installedOn)}";
+            return new ProgressInfo(message, message, FfcProgressSource.Computed, null);
         }
 
         if (bucket == FfcDeliveryBucket.DeliveredNotInstalled && project.DeliveredOn is DateOnly deliveredOn)
         {
-            return new ProgressInfo($"Delivered on {FormatDate(deliveredOn)}", FfcProgressSource.Computed);
+            var message = $"Delivered on {FormatDate(deliveredOn)}";
+            return new ProgressInfo(message, message, FfcProgressSource.Computed, null);
         }
 
-        return new ProgressInfo(remarkFromFfc, FfcProgressSource.FfcProjectRemark);
+        return new ProgressInfo(remarkFromFfc, remarkRaw, FfcProgressSource.FfcProjectRemark, null);
     }
 
-    private sealed record ProgressInfo(string? Text, FfcProgressSource Source);
+    private sealed record ProgressInfo(string? DisplayText, string? RawText, FfcProgressSource Source, int? ExternalRemarkId);
 
     private static bool TryGetNonEmpty(IReadOnlyDictionary<int, string?> source, int key, out string value)
     {
@@ -335,6 +342,21 @@ public sealed class FfcQueryService : IFfcQueryService
         }
 
         value = string.Empty;
+        return false;
+    }
+
+    private static bool TryGetNonEmpty(IReadOnlyDictionary<int, RemarkSummary?> source, int key, out RemarkSummary value)
+    {
+        if (source.TryGetValue(key, out var raw) && raw is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(raw.RawText))
+            {
+                value = raw;
+                return true;
+            }
+        }
+
+        value = RemarkSummary.Empty;
         return false;
     }
 
@@ -449,23 +471,15 @@ public sealed class FfcQueryService : IFfcQueryService
         string? CountryName);
 
     // SECTION: External remarks
-    private async Task<Dictionary<int, string?>> LoadRemarkSummariesAsync(
+    private async Task<Dictionary<int, RemarkSummary?>> LoadRemarkSummariesAsync(
         int[] projectIds,
-        DateOnly from,
-        DateOnly to,
         CancellationToken cancellationToken)
     {
-        var fromDateTime = from.ToDateTime(TimeOnly.MinValue);
-        var toDateTime = to.ToDateTime(new TimeOnly(23, 59, 59));
-
         var remarks = await _db.Remarks
             .AsNoTracking()
             .Where(remark => projectIds.Contains(remark.ProjectId)
                 && !remark.IsDeleted
                 && remark.Type == RemarkType.External)
-            .Where(remark =>
-                (remark.EventDate != default && remark.EventDate >= from && remark.EventDate <= to)
-                || (remark.EventDate == default && remark.CreatedAtUtc >= fromDateTime && remark.CreatedAtUtc <= toDateTime))
             .Select(remark => new
             {
                 remark.ProjectId,
@@ -486,7 +500,14 @@ public sealed class FfcQueryService : IFfcQueryService
                         .ThenByDescending(item => item.Id)
                         .FirstOrDefault();
 
-                    return latest is null ? null : FormatRemark(latest.Body);
+                    return latest is null
+                        ? null
+                        : new RemarkSummary(latest.Id, latest.Body, FormatRemark(latest.Body));
                 });
+    }
+
+    private sealed record RemarkSummary(int RemarkId, string RawText, string DisplayText)
+    {
+        public static readonly RemarkSummary Empty = new(0, string.Empty, string.Empty);
     }
 }
