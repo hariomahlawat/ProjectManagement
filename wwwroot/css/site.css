@@ -949,6 +949,55 @@ main[role="main"] {
         background-color: #ffffff;
     }
 
+/* SECTION: FFC detailed table inline remarks */
+.ffc-dtable__editable-cell {
+    cursor: text;
+    transition: background-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.ffc-dtable__editable-cell:hover {
+    background-color: rgba(59, 130, 246, 0.06);
+}
+
+.ffc-dtable__editable-cell.editing {
+    background-color: rgba(59, 130, 246, 0.08);
+    box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+
+.ffc-dtable__remark-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.ffc-dtable__edit-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.ffc-dtable__save-indicator {
+    font-size: 0.75rem;
+    color: #16a34a;
+}
+
+.ffc-dtable__saved-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 0.35rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.5rem;
+    background-color: rgba(34, 197, 94, 0.12);
+    color: #15803d;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.ffc-dtable__error {
+    margin-top: 0.35rem;
+}
+
 
 .ffc-record-card__section-title {
     font-size: .75rem;

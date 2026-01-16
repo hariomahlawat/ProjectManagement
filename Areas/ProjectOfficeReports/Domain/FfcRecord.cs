@@ -23,6 +23,8 @@ public class FfcRecord
     public string? InstallationRemarks { get; set; }
 
     public string? OverallRemarks { get; set; }
+    public DateTimeOffset? OverallRemarksUpdatedAtUtc { get; set; }
+    public string? OverallRemarksUpdatedByUserId { get; set; }
     public bool IsDeleted { get; set; }
     public string? CreatedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
