@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
@@ -27,18 +28,21 @@ public class MapTableDetailedModel : PageModel
     private readonly IFfcQueryService _ffcQueryService;
     private readonly IRemarkService _remarkService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ILogger<MapTableDetailedModel> _logger;
 
     // SECTION: Construction
     public MapTableDetailedModel(
         ApplicationDbContext db,
         IFfcQueryService ffcQueryService,
         IRemarkService remarkService,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        ILogger<MapTableDetailedModel> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _ffcQueryService = ffcQueryService ?? throw new ArgumentNullException(nameof(ffcQueryService));
         _remarkService = remarkService ?? throw new ArgumentNullException(nameof(remarkService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     // SECTION: Filter state
@@ -251,6 +255,11 @@ public class MapTableDetailedModel : PageModel
             return NotFound(new { message = "Project row not found." });
         }
 
+        if (request.LinkedProjectId.HasValue && request.LinkedProjectId != project.LinkedProjectId)
+        {
+            return BadRequest(new { message = "Linked project reference does not match the selected row." });
+        }
+
         string? updatedBy = User.Identity?.Name;
         DateTimeOffset updatedAt = DateTimeOffset.UtcNow;
 
@@ -267,10 +276,64 @@ public class MapTableDetailedModel : PageModel
                 return Forbid();
             }
 
-            Remark remark;
             try
             {
-                remark = await _remarkService.CreateRemarkAsync(new CreateRemarkRequest(
+                var remarkId = request.ExternalRemarkId.GetValueOrDefault();
+                var existingRemark = remarkId > 0
+                    ? await _db.Remarks
+                        .AsNoTracking()
+                        .Where(item => item.Id == remarkId
+                            && item.ProjectId == linkedProjectId
+                            && !item.IsDeleted
+                            && item.Type == RemarkType.External)
+                        .Select(item => new
+                        {
+                            item.Id,
+                            item.ProjectId,
+                            item.Scope,
+                            item.EventDate,
+                            item.StageRef,
+                            item.StageNameSnapshot,
+                            item.RowVersion,
+                            item.CreatedAtUtc,
+                            item.LastEditedAtUtc
+                        })
+                        .FirstOrDefaultAsync(cancellationToken)
+                    : null;
+
+                if (existingRemark is not null)
+                {
+                    var updatedRemark = await _remarkService.EditRemarkAsync(existingRemark.Id, new EditRemarkRequest(
+                        Actor: actor,
+                        Body: normalized,
+                        Scope: existingRemark.Scope,
+                        EventDate: existingRemark.EventDate,
+                        StageRef: existingRemark.StageRef,
+                        StageNameSnapshot: existingRemark.StageNameSnapshot,
+                        Meta: "FFC Detailed Table progress update",
+                        RowVersion: existingRemark.RowVersion), cancellationToken);
+
+                    if (updatedRemark is null)
+                    {
+                        return NotFound(new { message = "External remark not found." });
+                    }
+
+                    updatedAt = updatedRemark.LastEditedAtUtc.HasValue
+                        ? new DateTimeOffset(updatedRemark.LastEditedAtUtc.Value, TimeSpan.Zero)
+                        : new DateTimeOffset(updatedRemark.CreatedAtUtc, TimeSpan.Zero);
+
+                    return new JsonResult(new
+                    {
+                        ok = true,
+                        progressText = normalized,
+                        renderedProgressText = FormatRemarkForDisplay(normalized),
+                        updatedAtUtc = updatedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
+                        updatedBy,
+                        externalRemarkId = updatedRemark.Id
+                    });
+                }
+
+                var createdRemark = await _remarkService.CreateRemarkAsync(new CreateRemarkRequest(
                     ProjectId: linkedProjectId,
                     Actor: actor,
                     Type: RemarkType.External,
@@ -280,13 +343,28 @@ public class MapTableDetailedModel : PageModel
                     StageRef: null,
                     StageNameSnapshot: null,
                     Meta: "FFC Detailed Table progress update"), cancellationToken);
+
+                updatedAt = new DateTimeOffset(createdRemark.CreatedAtUtc, TimeSpan.Zero);
+
+                return new JsonResult(new
+                {
+                    ok = true,
+                    progressText = normalized,
+                    renderedProgressText = FormatRemarkForDisplay(normalized),
+                    updatedAtUtc = updatedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
+                    updatedBy,
+                    externalRemarkId = createdRemark.Id
+                });
             }
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { message = ex.Message });
             }
-
-            updatedAt = new DateTimeOffset(remark.CreatedAtUtc, TimeSpan.Zero);
+            catch (Exception ex)
+            {
+                LogProgressUpdateFailure(ex, request, linkedProjectId);
+                return StatusCode(500, new { ok = false, message = "Unable to save. See server logs for details." });
+            }
         }
         else
         {
@@ -301,7 +379,8 @@ public class MapTableDetailedModel : PageModel
             progressText = normalized,
             renderedProgressText = FormatRemarkForDisplay(normalized),
             updatedAtUtc = updatedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
-            updatedBy
+            updatedBy,
+            externalRemarkId = request.ExternalRemarkId
         });
     }
 
@@ -430,6 +509,30 @@ public class MapTableDetailedModel : PageModel
         return Task.FromResult<RemarkActorContext?>(new RemarkActorContext(userId, primary, roles));
     }
 
+    private void LogProgressUpdateFailure(Exception ex, UpdateProgressRequest request, int linkedProjectId)
+    {
+        var userId = _userManager.GetUserId(User);
+        var roles = new List<string>();
+        if (User.IsInRole("Admin"))
+        {
+            roles.Add("Admin");
+        }
+
+        if (User.IsInRole("HoD"))
+        {
+            roles.Add("HoD");
+        }
+
+        _logger.LogError(
+            ex,
+            "Failed to update FFC progress. FfcProjectId={FfcProjectId}, LinkedProjectId={LinkedProjectId}, ExternalRemarkId={ExternalRemarkId}, UserId={UserId}, Roles={Roles}",
+            request.FfcProjectId,
+            linkedProjectId,
+            request.ExternalRemarkId,
+            userId ?? string.Empty,
+            roles.Count == 0 ? "None" : string.Join(",", roles));
+    }
+
     public sealed class UpdateOverallRemarksRequest
     {
         [Required]
@@ -444,5 +547,9 @@ public class MapTableDetailedModel : PageModel
         public long FfcProjectId { get; set; }
 
         public string? ProgressText { get; set; }
+
+        public int? LinkedProjectId { get; set; }
+
+        public int? ExternalRemarkId { get; set; }
     }
 }

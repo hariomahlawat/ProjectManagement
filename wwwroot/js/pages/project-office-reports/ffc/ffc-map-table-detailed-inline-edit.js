@@ -169,6 +169,8 @@
         const textarea = cell.querySelector(selectors.textarea);
         const payload = textarea ? textarea.value : "";
         const token = getToken();
+        const linkedProjectId = cell.dataset.linkedProjectId ? Number(cell.dataset.linkedProjectId) : null;
+        const externalRemarkId = cell.dataset.externalRemarkId ? Number(cell.dataset.externalRemarkId) : null;
 
         const response = await fetch(endpoints[kind], {
             method: "POST",
@@ -179,7 +181,12 @@
             body: JSON.stringify(
                 kind === "overall"
                     ? { ffcRecordId: Number(cell.dataset.ffcRecordId), overallRemarks: payload }
-                    : { ffcProjectId: Number(cell.dataset.ffcProjectId), progressText: payload }
+                    : {
+                        ffcProjectId: Number(cell.dataset.ffcProjectId),
+                        progressText: payload,
+                        linkedProjectId,
+                        externalRemarkId
+                    }
             )
         });
 
@@ -216,6 +223,9 @@
                     : data.renderedProgressText ?? data.progressText;
 
                 endEdit(cell, rawValue, displayValue);
+                if (cell.dataset.kind === "progress" && data.externalRemarkId) {
+                    cell.dataset.externalRemarkId = String(data.externalRemarkId);
+                }
                 return;
             }
 
