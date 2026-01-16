@@ -5,11 +5,14 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using ProjectManagement.Services.Ffc;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
@@ -17,14 +20,21 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 [Authorize]
 public class MapTableDetailedModel : PageModel
 {
+    private const int MaxRowRemarkLength = 2000;
+    private const int MaxOverallRemarkLength = 4000;
     private readonly ApplicationDbContext _db;
     private readonly IFfcQueryService _ffcQueryService;
+    private readonly UserManager<ApplicationUser> _userManager;
 
     // SECTION: Construction
-    public MapTableDetailedModel(ApplicationDbContext db, IFfcQueryService ffcQueryService)
+    public MapTableDetailedModel(
+        ApplicationDbContext db,
+        IFfcQueryService ffcQueryService,
+        UserManager<ApplicationUser> userManager)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _ffcQueryService = ffcQueryService ?? throw new ArgumentNullException(nameof(ffcQueryService));
+        _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
     }
 
     // SECTION: Filter state
@@ -136,7 +146,7 @@ public class MapTableDetailedModel : PageModel
 
                 worksheet.Cell(rowIndex, columnIndex++).Value = project.Quantity;
                 worksheet.Cell(rowIndex, columnIndex++).Value = project.Status;
-                worksheet.Cell(rowIndex, columnIndex++).Value = project.Progress ?? string.Empty;
+                worksheet.Cell(rowIndex, columnIndex++).Value = ResolveProgressDisplay(project);
                 worksheet.Cell(rowIndex, columnIndex++).Value = group.OverallRemarks ?? string.Empty;
 
                 rowIndex++;
@@ -163,6 +173,133 @@ public class MapTableDetailedModel : PageModel
             fileContents: stream.ToArray(),
             contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             fileDownloadName: fileName);
+    }
+
+    // SECTION: Inline edit handlers
+    [Authorize(Roles = "HoD,Admin")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> OnPostUpdateRowRemarkAsync([FromBody] RowRemarkUpdateRequest request, CancellationToken cancellationToken)
+    {
+        if (request is null || request.FfcProjectId <= 0)
+        {
+            return BadRequest(new { ok = false, message = "Invalid request payload." });
+        }
+
+        if (!TryDecodeRowVersion(request.RowVersion, out var expectedRowVersion))
+        {
+            return BadRequest(new { ok = false, message = "Missing or invalid row version." });
+        }
+
+        var normalized = NormalizeRemark(request.Remark);
+        if (normalized.Length > MaxRowRemarkLength)
+        {
+            return BadRequest(new { ok = false, message = $"Remarks cannot exceed {MaxRowRemarkLength} characters." });
+        }
+
+        var entity = await _db.FfcProjects
+            .FirstOrDefaultAsync(project => project.Id == request.FfcProjectId, cancellationToken);
+
+        if (entity is null)
+        {
+            return NotFound(new { ok = false, message = "Project row not found." });
+        }
+
+        if (!entity.RowVersion.SequenceEqual(expectedRowVersion))
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { ok = false, message = "This row was updated by someone else. Please refresh." });
+        }
+
+        var userId = _userManager.GetUserId(User) ?? string.Empty;
+        var userName = await ResolveUserDisplayNameAsync(userId, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+
+        entity.ProgressRemarks = normalized;
+        entity.ProgressRemarksUpdatedAtUtc = now;
+        entity.ProgressRemarksUpdatedByUserId = userId;
+        entity.UpdatedAt = now;
+
+        _db.Entry(entity).Property(x => x.RowVersion).OriginalValue = expectedRowVersion;
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { ok = false, message = "This row was updated by someone else. Please refresh." });
+        }
+
+        return new JsonResult(new
+        {
+            ok = true,
+            remark = entity.ProgressRemarks ?? string.Empty,
+            updatedAtUtc = entity.ProgressRemarksUpdatedAtUtc,
+            updatedBy = userName,
+            rowVersion = Convert.ToBase64String(entity.RowVersion)
+        });
+    }
+
+    [Authorize(Roles = "HoD,Admin")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> OnPostUpdateOverallRemarkAsync([FromBody] OverallRemarkUpdateRequest request, CancellationToken cancellationToken)
+    {
+        if (request is null || request.FfcRecordId <= 0)
+        {
+            return BadRequest(new { ok = false, message = "Invalid request payload." });
+        }
+
+        if (!TryDecodeRowVersion(request.RowVersion, out var expectedRowVersion))
+        {
+            return BadRequest(new { ok = false, message = "Missing or invalid row version." });
+        }
+
+        var normalized = NormalizeRemark(request.Remark);
+        if (normalized.Length > MaxOverallRemarkLength)
+        {
+            return BadRequest(new { ok = false, message = $"Remarks cannot exceed {MaxOverallRemarkLength} characters." });
+        }
+
+        var entity = await _db.FfcRecords
+            .FirstOrDefaultAsync(record => record.Id == request.FfcRecordId, cancellationToken);
+
+        if (entity is null)
+        {
+            return NotFound(new { ok = false, message = "FFC record not found." });
+        }
+
+        if (!entity.RowVersion.SequenceEqual(expectedRowVersion))
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { ok = false, message = "This row was updated by someone else. Please refresh." });
+        }
+
+        var userId = _userManager.GetUserId(User) ?? string.Empty;
+        var userName = await ResolveUserDisplayNameAsync(userId, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+
+        entity.OverallRemarks = normalized;
+        entity.OverallRemarksUpdatedAtUtc = now;
+        entity.OverallRemarksUpdatedByUserId = userId;
+        entity.UpdatedAt = now;
+
+        _db.Entry(entity).Property(x => x.RowVersion).OriginalValue = expectedRowVersion;
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return StatusCode(StatusCodes.Status409Conflict, new { ok = false, message = "This row was updated by someone else. Please refresh." });
+        }
+
+        return new JsonResult(new
+        {
+            ok = true,
+            remark = entity.OverallRemarks ?? string.Empty,
+            updatedAtUtc = entity.OverallRemarksUpdatedAtUtc,
+            updatedBy = userName,
+            rowVersion = Convert.ToBase64String(entity.RowVersion)
+        });
     }
 
     // SECTION: Helper methods
@@ -225,4 +362,68 @@ public class MapTableDetailedModel : PageModel
 
         return matchedId == 0 ? null : matchedId;
     }
+
+    // SECTION: Inline edit helpers
+    private static string NormalizeRemark(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value
+            .Trim()
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal);
+    }
+
+    private static bool TryDecodeRowVersion(string? value, out byte[] rowVersion)
+    {
+        rowVersion = Array.Empty<byte>();
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        try
+        {
+            rowVersion = Convert.FromBase64String(value);
+            return rowVersion.Length > 0;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    private async Task<string> ResolveUserDisplayNameAsync(string userId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return "Unknown";
+        }
+
+        var name = await _db.Users
+            .Where(user => user.Id == userId)
+            .Select(user => user.FullName)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return string.IsNullOrWhiteSpace(name) ? (User.Identity?.Name ?? "Unknown") : name;
+    }
+
+    private static string ResolveProgressDisplay(FfcDetailedRowVm project)
+    {
+        if (!string.IsNullOrWhiteSpace(project.ProgressRemarks))
+        {
+            return project.ProgressRemarks;
+        }
+
+        return project.Progress ?? string.Empty;
+    }
+
+    // SECTION: Inline edit contracts
+    public sealed record RowRemarkUpdateRequest(long FfcProjectId, string? Remark, string? RowVersion);
+
+    public sealed record OverallRemarkUpdateRequest(long FfcRecordId, string? Remark, string? RowVersion);
 }

@@ -760,6 +760,7 @@ namespace ProjectManagement.Data
                 entity.Property(x => x.InstallationYes).HasDefaultValue(false);
                 entity.Property(x => x.IsDeleted).HasDefaultValue(false);
                 entity.Property(x => x.CreatedByUserId).HasMaxLength(450);
+                entity.Property(x => x.OverallRemarksUpdatedByUserId).HasMaxLength(450);
                 entity.Property(x => x.CreatedAt).HasDefaultValueSql("now() at time zone 'utc'");
                 entity.Property(x => x.UpdatedAt).HasDefaultValueSql("now() at time zone 'utc'");
 
@@ -767,6 +768,7 @@ namespace ProjectManagement.Data
                 {
                     entity.Property(x => x.CreatedAt).HasColumnType("timestamp with time zone");
                     entity.Property(x => x.UpdatedAt).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.OverallRemarksUpdatedAtUtc).HasColumnType("timestamp with time zone");
                 }
 
                 entity.HasIndex(x => new { x.CountryId, x.Year })
@@ -800,9 +802,12 @@ namespace ProjectManagement.Data
 
             builder.Entity<FfcProject>(entity =>
             {
+                ConfigureRowVersion(entity);
                 entity.ToTable("FfcProjects");
                 entity.Property(x => x.Name).HasMaxLength(256).IsRequired();
                 entity.Property(x => x.Remarks).HasColumnType("text");
+                entity.Property(x => x.ProgressRemarks).HasMaxLength(2000);
+                entity.Property(x => x.ProgressRemarksUpdatedByUserId).HasMaxLength(450);
                 entity.Property(x => x.Quantity).HasDefaultValue(1);
                 entity.Property(x => x.IsDelivered).HasDefaultValue(false);
                 entity.Property(x => x.IsInstalled).HasDefaultValue(false);
@@ -813,6 +818,7 @@ namespace ProjectManagement.Data
                 {
                     entity.Property(x => x.CreatedAt).HasColumnType("timestamp with time zone");
                     entity.Property(x => x.UpdatedAt).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.ProgressRemarksUpdatedAtUtc).HasColumnType("timestamp with time zone");
                 }
 
                 entity.HasIndex(x => x.FfcRecordId)

@@ -27,21 +27,26 @@ public interface IFfcQueryService
 }
 
 public sealed record FfcDetailedGroupVm(
+    long FfcRecordId,
     string CountryName,
     string CountryCode,
     int Year,
     string? OverallRemarks,
+    string RowVersionBase64,
     IReadOnlyList<FfcDetailedRowVm> Rows,
     bool HasIncomplete);
 
 public sealed record FfcDetailedRowVm(
+    long FfcProjectId,
     int Serial,
     string ProjectName,
     int? LinkedProjectId,
     decimal? CostInCr,
     int Quantity,
     string Status,
-    string? Progress);
+    string? Progress,
+    string? ProgressRemarks,
+    string RowVersionBase64);
 
 // SECTION: Query service
 public sealed class FfcQueryService : IFfcQueryService
@@ -67,6 +72,7 @@ public sealed class FfcQueryService : IFfcQueryService
                 project.Id,
                 project.Name,
                 project.Remarks,
+                project.ProgressRemarks,
                 project.Quantity,
                 project.IsDelivered,
                 project.IsInstalled,
@@ -74,9 +80,11 @@ public sealed class FfcQueryService : IFfcQueryService
                 project.InstalledOn,
                 project.LinkedProjectId,
                 project.LinkedProject != null ? project.LinkedProject.Name : null,
+                project.RowVersion,
                 project.Record.Id,
                 project.Record.Year,
                 project.Record.OverallRemarks,
+                project.Record.RowVersion,
                 project.Record.Country.IsoCode,
                 project.Record.Country.Name))
             .ToListAsync(cancellationToken);
@@ -147,7 +155,8 @@ public sealed class FfcQueryService : IFfcQueryService
                 project.Year,
                 project.CountryName,
                 project.CountryIso3,
-                project.OverallRemarks
+                project.OverallRemarks,
+                project.RecordRowVersion
             })
             .OrderByDescending(group => group.Key.Year)
             .ThenBy(group => group.Key.CountryName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
@@ -169,13 +178,16 @@ public sealed class FfcQueryService : IFfcQueryService
                     var progressRemark = BuildProgressRemark(project, bucket, stageSummaryMap, remarkMap);
 
                     return new FfcDetailedRowVm(
+                        FfcProjectId: project.Id,
                         Serial: index + 1,
                         ProjectName: effectiveName,
                         LinkedProjectId: project.LinkedProjectId,
                         CostInCr: costInCr,
                         Quantity: quantity,
                         Status: bucketLabel,
-                        Progress: progressRemark
+                        Progress: progressRemark,
+                        ProgressRemarks: project.ProgressRemarks,
+                        RowVersionBase64: EncodeRowVersion(project.RowVersion)
                     );
                 })
                 .ToList();
@@ -190,10 +202,12 @@ public sealed class FfcQueryService : IFfcQueryService
             }
 
             result.Add(new FfcDetailedGroupVm(
+                FfcRecordId: group.Key.RecordId,
                 CountryName: group.Key.CountryName ?? string.Empty,
                 CountryCode: (group.Key.CountryIso3 ?? string.Empty).ToUpperInvariant(),
                 Year: group.Key.Year,
-                OverallRemarks: FormatRemark(group.Key.OverallRemarks),
+                OverallRemarks: group.Key.OverallRemarks,
+                RowVersionBase64: EncodeRowVersion(group.Key.RecordRowVersion),
                 Rows: projectRows,
                 HasIncomplete: hasIncomplete));
         }
@@ -346,6 +360,9 @@ public sealed class FfcQueryService : IFfcQueryService
 
     private static string FormatDate(DateOnly date) => date.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
 
+    private static string EncodeRowVersion(byte[]? rowVersion)
+        => rowVersion is { Length: > 0 } ? Convert.ToBase64String(rowVersion) : string.Empty;
+
     private static string? BuildStageSummary(IEnumerable<ProjectStage> projectStages)
     {
         static string FmtDate(DateOnly? value) => value?.ToString("d MMM yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
@@ -416,6 +433,7 @@ public sealed class FfcQueryService : IFfcQueryService
         long Id,
         string? Name,
         string? Remarks,
+        string? ProgressRemarks,
         int Quantity,
         bool IsDelivered,
         bool IsInstalled,
@@ -423,9 +441,11 @@ public sealed class FfcQueryService : IFfcQueryService
         DateOnly? InstalledOn,
         int? LinkedProjectId,
         string? LinkedProjectName,
+        byte[] RowVersion,
         long RecordId,
         int Year,
         string? OverallRemarks,
+        byte[] RecordRowVersion,
         string? CountryIso3,
         string? CountryName);
 

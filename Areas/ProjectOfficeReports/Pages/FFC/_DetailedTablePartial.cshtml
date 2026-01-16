@@ -1,6 +1,9 @@
 @using System.Linq
-@using System.Text.Encodings.Web
 @model IReadOnlyList<ProjectManagement.Services.Ffc.FfcDetailedGroupVm>
+
+@{
+    var canEditRemarks = User.IsInRole("HoD") || User.IsInRole("Admin");
+}
 
 @if (Model is null || !Model.Any())
 {
@@ -40,14 +43,17 @@ else
 
                     var overallRemarks = group.OverallRemarks ?? string.Empty;
                     var remarksProvided = !string.IsNullOrWhiteSpace(overallRemarks);
-                    var remarksCell = remarksProvided
-                        ? HtmlEncoder.Default.Encode(overallRemarks)
-                        : "<span class=\"ffc-dtable__remarks-empty\">No overall remarks recorded.</span>";
                     var rowSpan = group.Rows.Count;
 
                     for (var index = 0; index < group.Rows.Count; index++)
                     {
                         var row = group.Rows[index];
+                        var progressDisplay = string.IsNullOrWhiteSpace(row.ProgressRemarks)
+                            ? row.Progress ?? string.Empty
+                            : row.ProgressRemarks;
+                        var progressPlaceholder = string.IsNullOrWhiteSpace(row.Progress)
+                            ? "Add remarks"
+                            : row.Progress;
                         <tr>
                             <td class="text-muted">@row.Serial</td>
                             <td>
@@ -74,10 +80,84 @@ else
                             </td>
                             <td class="text-end">@row.Quantity</td>
                             <td>@row.Status</td>
-                            <td>@row.Progress</td>
+                            <td class="align-top @(canEditRemarks ? "ffc-dtable__editable-cell" : string.Empty)"
+                                data-edit-kind="row"
+                                data-id="@row.FfcProjectId"
+                                data-rowversion="@row.RowVersionBase64"
+                                data-derived="@row.Progress">
+                                @if (canEditRemarks)
+                                {
+                                    <div class="ffc-dtable__remark-display">
+                                        @if (!string.IsNullOrWhiteSpace(progressDisplay))
+                                        {
+                                            <div class="ffc-dtable__remark-text">@progressDisplay</div>
+                                        }
+                                        else
+                                        {
+                                            <span class="ffc-dtable__remarks-empty">No progress remarks recorded.</span>
+                                        }
+                                        <span class="ffc-dtable__saved-badge d-none" role="status">Saved</span>
+                                    </div>
+                                    <div class="ffc-dtable__remark-editor d-none">
+                                        <textarea class="form-control form-control-sm ffc-remark-input"
+                                                  rows="4"
+                                                  maxlength="2000"
+                                                  placeholder="@progressPlaceholder">@row.ProgressRemarks</textarea>
+                                        <div class="ffc-dtable__edit-controls">
+                                            <button type="button" class="btn btn-sm btn-primary ffc-remark-save">Save</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary ffc-remark-cancel">Cancel</button>
+                                            <span class="ffc-dtable__save-indicator d-none" role="status"></span>
+                                        </div>
+                                        <div class="ffc-dtable__error text-danger small d-none" role="alert"></div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    @progressDisplay
+                                }
+                            </td>
                             @if (index == 0)
                             {
-                                <td rowspan="@rowSpan" class="align-top">@Html.Raw(remarksCell)</td>
+                                <td rowspan="@rowSpan"
+                                    class="align-top @(canEditRemarks ? "ffc-dtable__editable-cell" : string.Empty)"
+                                    data-edit-kind="overall"
+                                    data-id="@group.FfcRecordId"
+                                    data-rowversion="@group.RowVersionBase64">
+                                    @if (canEditRemarks)
+                                    {
+                                    <div class="ffc-dtable__remark-display">
+                                        @if (remarksProvided)
+                                        {
+                                            <div class="ffc-dtable__remark-text">@overallRemarks</div>
+                                        }
+                                        else
+                                        {
+                                            <span class="ffc-dtable__remarks-empty">No overall remarks recorded.</span>
+                                        }
+                                        <span class="ffc-dtable__saved-badge d-none" role="status">Saved</span>
+                                    </div>
+                                        <div class="ffc-dtable__remark-editor d-none">
+                                            <textarea class="form-control form-control-sm ffc-remark-input"
+                                                      rows="6"
+                                                      maxlength="4000"
+                                                      placeholder="Add overall remarks">@overallRemarks</textarea>
+                                            <div class="ffc-dtable__edit-controls">
+                                                <button type="button" class="btn btn-sm btn-primary ffc-remark-save">Save</button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary ffc-remark-cancel">Cancel</button>
+                                                <span class="ffc-dtable__save-indicator d-none" role="status"></span>
+                                            </div>
+                                            <div class="ffc-dtable__error text-danger small d-none" role="alert"></div>
+                                        </div>
+                                    }
+                                    else if (remarksProvided)
+                                    {
+                                        @overallRemarks
+                                    }
+                                    else
+                                    {
+                                        <span class="ffc-dtable__remarks-empty">No overall remarks recorded.</span>
+                                    }
+                                </td>
                             }
                         </tr>
                     }

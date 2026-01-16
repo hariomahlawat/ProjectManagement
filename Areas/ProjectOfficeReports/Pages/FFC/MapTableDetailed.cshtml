@@ -30,7 +30,18 @@
 
     <div class="pm-card pm-card--content">
         <div class="pm-card__body">
+            @* SECTION: Inline edit anti-forgery token *@
+            <form method="post" class="d-none" id="ffc-inline-edit-token">
+                @Html.AntiForgeryToken()
+            </form>
             <partial name="_DetailedTablePartial" model="Model.Groups" />
         </div>
     </div>
 </div>
+
+@section Scripts {
+    @* SECTION: Page scripts *@
+    <script src="~/js/pages/project-office-reports/ffc/ffc-map-table-detailed-inline-edit.js"
+            asp-append-version="true"
+            defer></script>
+}

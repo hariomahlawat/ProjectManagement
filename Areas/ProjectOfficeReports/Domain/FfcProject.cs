@@ -9,6 +9,9 @@ public class FfcProject
     public long FfcRecordId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Remarks { get; set; }
+    public string? ProgressRemarks { get; set; }
+    public DateTimeOffset? ProgressRemarksUpdatedAtUtc { get; set; }
+    public string? ProgressRemarksUpdatedByUserId { get; set; }
     public int? LinkedProjectId { get; set; }
     public int Quantity { get; set; } = 1;
     public bool IsDelivered { get; set; }
@@ -17,6 +20,7 @@ public class FfcProject
     public DateOnly? InstalledOn { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     public FfcRecord Record { get; set; } = null!;
     public Project? LinkedProject { get; set; }
