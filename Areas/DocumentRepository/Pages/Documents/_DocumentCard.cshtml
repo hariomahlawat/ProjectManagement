@@ -1,11 +1,22 @@
 @model ProjectManagement.Areas.DocumentRepository.Models.DocumentSearchResultVm
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@using System
+@using System.Collections.Generic
+@using System.Linq
 @inject IAuthorizationService AuthorizationService
 
 @{
     var canEdit = await AuthorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata");
     var canSoftDelete = await AuthorizationService.AuthorizeAsync(User, "DocRepo.SoftDelete");
-    var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+    // SECTION: Return URL
+    var queryParams = QueryHelpers.ParseQuery(Context.Request.QueryString.Value);
+    var filteredQuery = new QueryBuilder(
+        queryParams
+            .Where(kvp => !string.Equals(kvp.Key, "partial", StringComparison.OrdinalIgnoreCase))
+            .SelectMany(kvp => kvp.Value, (kvp, value) => new KeyValuePair<string, string?>(kvp.Key, value))
+    );
+    var returnUrl = $"{Context.Request.Path}{filteredQuery}";
     var readerUrl = Model.IsActive ? Url.Page("./Reader", new { id = Model.Id, returnUrl }) : string.Empty;
 }
 
