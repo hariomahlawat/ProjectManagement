@@ -15,7 +15,7 @@
     var filteredQuery = new QueryBuilder(
         queryParams
             .Where(kvp => !string.Equals(kvp.Key, "partial", StringComparison.OrdinalIgnoreCase))
-            .SelectMany(kvp => kvp.Value, (kvp, value) => new KeyValuePair<string, string?>(kvp.Key, value))
+            .SelectMany(kvp => kvp.Value, (kvp, value) => new KeyValuePair<string, string>(kvp.Key, value ?? string.Empty))
     );
     var returnUrl = $"{Context.Request.Path}{filteredQuery}";
     var readerUrl = Model.IsActive ? Url.Page("./Reader", new { id = Model.Id, returnUrl }) : string.Empty;
