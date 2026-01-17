@@ -1,0 +1,108 @@
+@page "/Projects/Partners/{id:int}/Edit"
+@model ProjectManagement.Pages.Projects.Partners.EditModel
+@{
+    ViewData["Title"] = "Edit Industry Partner";
+}
+
+<div class="container-xxl py-4">
+    <!-- SECTION: Page header -->
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <p class="text-uppercase text-muted small mb-1">Industry Partners</p>
+            <h1 class="h3 mb-1">Edit @Model.Partner.FirmName</h1>
+            <p class="text-muted mb-0">Update firm details and status.</p>
+        </div>
+        <a class="btn btn-outline-secondary" asp-page="/Projects/Partners/Details" asp-route-id="@Model.Partner.Id">Back to partner</a>
+    </div>
+
+    <form method="post" class="row g-4">
+        <!-- SECTION: Partner details -->
+        <div class="col-lg-8">
+            <div class="card pm-card pm-shadow h-100">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Partner details</h2>
+                </div>
+                <div class="card-body vstack gap-3">
+                    <div>
+                        <label asp-for="Input.FirmName" class="form-label">Firm name</label>
+                        <input asp-for="Input.FirmName" class="form-control" />
+                        <span asp-validation-for="Input.FirmName" class="text-danger"></span>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="Input.PartnerType" class="form-label">Partner type</label>
+                            <select asp-for="Input.PartnerType" class="form-select">
+                                <option value="">Select</option>
+                                @foreach (var type in Model.PartnerTypeOptions)
+                                {
+                                    <option value="@type">@type</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Input.Status" class="form-label">Status</label>
+                            <select asp-for="Input.Status" class="form-select">
+                                @foreach (var status in Model.StatusOptions)
+                                {
+                                    <option value="@status">@status</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label asp-for="Input.AddressText" class="form-label">Address</label>
+                        <textarea asp-for="Input.AddressText" class="form-control" rows="3"></textarea>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label asp-for="Input.City" class="form-label">City</label>
+                            <input asp-for="Input.City" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Input.State" class="form-label">State</label>
+                            <input asp-for="Input.State" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Input.Pincode" class="form-label">Pincode</label>
+                            <input asp-for="Input.Pincode" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label asp-for="Input.Website" class="form-label">Website</label>
+                        <input asp-for="Input.Website" class="form-control" />
+                    </div>
+
+                    <div>
+                        <label asp-for="Input.Notes" class="form-label">Internal notes</label>
+                        <textarea asp-for="Input.Notes" class="form-control" rows="4"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION: Actions -->
+        <div class="col-lg-4">
+            <div class="card pm-card pm-shadow h-100">
+                <div class="card-header">
+                    <h2 class="h6 mb-0">Actions</h2>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">Save changes to update partner metadata.</p>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Save changes</button>
+                        <a class="btn btn-outline-secondary" asp-page="/Projects/Partners/Details" asp-route-id="@Model.Partner.Id">Cancel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts
+{
+    <partial name="_ValidationScriptsPartial" />
+}

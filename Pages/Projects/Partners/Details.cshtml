@@ -1,0 +1,571 @@
+@page "/Projects/Partners/{id:int}"
+@model ProjectManagement.Pages.Projects.Partners.DetailsModel
+@using System
+@using ProjectManagement.Configuration
+@using ProjectManagement.Models.Partners
+@{
+    ViewData["Title"] = Model.Partner.FirmName;
+    var activeTab = string.IsNullOrWhiteSpace(Model.Tab) ? "Overview" : Model.Tab;
+
+    string StatusBadgeClass(string status) => status switch
+    {
+        "Active" => "text-bg-success",
+        "Inactive" => "text-bg-secondary",
+        "Caution" => "text-bg-warning",
+        "Blacklisted" => "text-bg-danger",
+        _ => "text-bg-light"
+    };
+}
+
+@section Styles
+{
+    <link rel="stylesheet" href="~/css/partners-ui.css" asp-append-version="true" />
+}
+
+<div class="container-xxl py-4">
+    <!-- SECTION: Header -->
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <p class="text-uppercase text-muted small mb-1">Industry Partners</p>
+            <h1 class="h3 mb-1">@Model.Partner.FirmName</h1>
+            <div class="d-flex gap-2 flex-wrap">
+                <span class="badge rounded-pill @StatusBadgeClass(Model.Partner.Status)">@Model.Partner.Status</span>
+                @if (!string.IsNullOrWhiteSpace(Model.Partner.PartnerType))
+                {
+                    <span class="badge rounded-pill text-bg-light border">@Model.Partner.PartnerType</span>
+                }
+            </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+            <a class="btn btn-outline-secondary" asp-page="/Projects/Partners/Index">Back to list</a>
+            <authorize policy="@Policies.Partners.Manage">
+                <button type="button"
+                        class="btn btn-outline-primary"
+                        data-bs-toggle="offcanvas"
+                        data-bs-target="#ocAddContact"
+                        aria-controls="ocAddContact">
+                    Add contact
+                </button>
+                <button type="button"
+                        class="btn btn-outline-primary"
+                        data-bs-toggle="offcanvas"
+                        data-bs-target="#ocAddAttachment"
+                        aria-controls="ocAddAttachment">
+                    Upload attachment
+                </button>
+                <a class="btn btn-primary" asp-page="/Projects/Partners/Edit" asp-route-id="@Model.Partner.Id">Edit partner</a>
+            </authorize>
+            <authorize policy="@Policies.Partners.LinkToProject">
+                <button type="button"
+                        class="btn btn-outline-primary"
+                        data-bs-toggle="offcanvas"
+                        data-bs-target="#ocLinkProject"
+                        aria-controls="ocLinkProject">
+                    Link project
+                </button>
+            </authorize>
+        </div>
+    </div>
+
+    <!-- SECTION: Layout -->
+    <div class="row g-4">
+        <!-- SECTION: Left rail navigation -->
+        <div class="col-lg-3 col-xxl-2">
+            <nav class="list-group partner-rail" aria-label="Partner sections">
+                <a class="list-group-item list-group-item-action @(activeTab == "Overview" ? "active" : string.Empty)"
+                   asp-page="/Projects/Partners/Details"
+                   asp-route-id="@Model.Partner.Id"
+                   asp-route-tab="Overview">Overview</a>
+                <a class="list-group-item list-group-item-action @(activeTab == "Contacts" ? "active" : string.Empty)"
+                   asp-page="/Projects/Partners/Details"
+                   asp-route-id="@Model.Partner.Id"
+                   asp-route-tab="Contacts">Contacts</a>
+                <a class="list-group-item list-group-item-action @(activeTab == "Attachments" ? "active" : string.Empty)"
+                   asp-page="/Projects/Partners/Details"
+                   asp-route-id="@Model.Partner.Id"
+                   asp-route-tab="Attachments">Attachments</a>
+                <a class="list-group-item list-group-item-action @(activeTab == "Projects" ? "active" : string.Empty)"
+                   asp-page="/Projects/Partners/Details"
+                   asp-route-id="@Model.Partner.Id"
+                   asp-route-tab="Projects">Associated projects</a>
+            </nav>
+        </div>
+
+        <!-- SECTION: Tab content -->
+        <div class="col-lg-9 col-xxl-10">
+            @if (activeTab == "Overview")
+            {
+                <div class="card pm-card pm-shadow">
+                    <div class="card-body">
+                        <div class="row g-4">
+                            <div class="col-lg-6">
+                                <h2 class="h6 text-uppercase text-muted">Address</h2>
+                                <p class="mb-2">@(string.IsNullOrWhiteSpace(Model.Partner.AddressText) ? "—" : Model.Partner.AddressText)</p>
+                                <p class="text-muted mb-0">
+                                    @(string.IsNullOrWhiteSpace(Model.Partner.City) ? "" : Model.Partner.City)
+                                    @(string.IsNullOrWhiteSpace(Model.Partner.State) ? "" : $", {Model.Partner.State}")
+                                    @(string.IsNullOrWhiteSpace(Model.Partner.Pincode) ? "" : $" - {Model.Partner.Pincode}")
+                                </p>
+                            </div>
+                            <div class="col-lg-6">
+                                <h2 class="h6 text-uppercase text-muted">Website</h2>
+                                <p class="mb-3">
+                                    @if (!string.IsNullOrWhiteSpace(Model.Partner.Website))
+                                    {
+                                        <a href="@Model.Partner.Website" target="_blank" rel="noopener">@Model.Partner.Website</a>
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
+                                </p>
+                                <h2 class="h6 text-uppercase text-muted">Notes</h2>
+                                <p class="mb-0">@(string.IsNullOrWhiteSpace(Model.Partner.Notes) ? "—" : Model.Partner.Notes)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (activeTab == "Contacts")
+            {
+                <div class="card pm-card pm-shadow">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h2 class="h5 mb-0">Contacts</h2>
+                            <authorize policy="@Policies.Partners.Manage">
+                                <button type="button"
+                                        class="btn btn-outline-primary btn-sm"
+                                        data-bs-toggle="offcanvas"
+                                        data-bs-target="#ocAddContact"
+                                        aria-controls="ocAddContact">
+                                    Add contact
+                                </button>
+                            </authorize>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        @if (!Model.Partner.Contacts.Any())
+                        {
+                            <p class="text-muted mb-0">No contacts added yet.</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Phone</th>
+                                            <th>Email</th>
+                                            <th class="text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var contact in Model.Partner.Contacts.OrderByDescending(c => c.IsPrimary))
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <div class="fw-semibold">@contact.Name</div>
+                                                    <small class="text-muted">@contact.Designation</small>
+                                                    @if (contact.IsPrimary)
+                                                    {
+                                                        <span class="badge rounded-pill text-bg-primary ms-2">Primary</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    @if (contact.Phones.Any())
+                                                    {
+                                                        <div class="d-flex flex-wrap gap-2">
+                                                            @foreach (var phone in contact.Phones)
+                                                            {
+                                                                <span class="badge rounded-pill text-bg-light border">@phone.Label: @phone.PhoneNumber</span>
+                                                            }
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>—</span>
+                                                    }
+                                                </td>
+                                                <td>@(contact.Email ?? "—")</td>
+                                                <td class="text-end">
+                                                    <authorize policy="@Policies.Partners.Manage">
+                                                        @if (!contact.IsPrimary)
+                                                        {
+                                                            <form method="post"
+                                                                  asp-page-handler="SetPrimary"
+                                                                  asp-route-id="@Model.Partner.Id"
+                                                                  asp-route-contactId="@contact.Id"
+                                                                  class="d-inline">
+                                                                <button class="btn btn-outline-secondary btn-sm" type="submit">Set primary</button>
+                                                            </form>
+                                                        }
+                                                    </authorize>
+                                                    <authorize policy="@Policies.Partners.Delete">
+                                                        <form method="post"
+                                                              asp-page-handler="DeleteContact"
+                                                              asp-route-id="@Model.Partner.Id"
+                                                              asp-route-contactId="@contact.Id"
+                                                              class="d-inline">
+                                                            <button class="btn btn-outline-danger btn-sm" type="submit">Delete</button>
+                                                        </form>
+                                                    </authorize>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else if (activeTab == "Attachments")
+            {
+                <div class="card pm-card pm-shadow">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h2 class="h5 mb-0">Attachments</h2>
+                            <authorize policy="@Policies.Partners.Manage">
+                                <button type="button"
+                                        class="btn btn-outline-primary btn-sm"
+                                        data-bs-toggle="offcanvas"
+                                        data-bs-target="#ocAddAttachment"
+                                        aria-controls="ocAddAttachment">
+                                    Upload attachment
+                                </button>
+                            </authorize>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        @if (!Model.Attachments.Any())
+                        {
+                            <p class="text-muted mb-0">No attachments uploaded yet.</p>
+                        }
+                        else
+                        {
+                            <div class="list-group list-group-flush">
+                                @foreach (var attachment in Model.Attachments)
+                                {
+                                    <div class="list-group-item d-flex justify-content-between align-items-start">
+                                        <div class="me-3">
+                                            <div class="fw-semibold">@attachment.Title</div>
+                                            <small class="text-muted">@attachment.AttachmentType • @attachment.FileName</small>
+                                            <div class="mt-2">
+                                                <a class="btn btn-outline-secondary btn-sm" href="@attachment.DownloadUrl">Download</a>
+                                            </div>
+                                        </div>
+                                        @if (attachment.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            <img src="@attachment.InlineUrl" alt="@attachment.Title" class="rounded border" style="max-width: 120px;" />
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else if (activeTab == "Projects")
+            {
+                <div class="card pm-card pm-shadow">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h2 class="h5 mb-0">Associated projects</h2>
+                            <authorize policy="@Policies.Partners.LinkToProject">
+                                <button type="button"
+                                        class="btn btn-outline-primary btn-sm"
+                                        data-bs-toggle="offcanvas"
+                                        data-bs-target="#ocLinkProject"
+                                        aria-controls="ocLinkProject">
+                                    Link project
+                                </button>
+                            </authorize>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        @if (!Model.Partner.ProjectLinks.Any())
+                        {
+                            <p class="text-muted mb-0">No project links yet.</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Project</th>
+                                            <th>Role</th>
+                                            <th>Status</th>
+                                            <th>Notes</th>
+                                            <th class="text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var link in Model.Partner.ProjectLinks.OrderByDescending(l => l.Status == IndustryPartnerAssociationStatuses.Active))
+                                        {
+                                            var updateFormId = $"link-update-{link.ProjectId}";
+                                            <tr>
+                                                <td>
+                                                    <a asp-page="/Projects/Overview" asp-route-id="@link.ProjectId">@link.Project?.Name</a>
+                                                </td>
+                                                <td>
+                                                    <authorize policy="@Policies.Partners.LinkToProject">
+                                                        <select name="ProjectLink.Role" form="@updateFormId" class="form-select form-select-sm">
+                                                            @foreach (var role in Model.RoleOptions)
+                                                            {
+                                                                <option value="@role" selected="@(role == link.Role)">@role</option>
+                                                            }
+                                                        </select>
+                                                    </authorize>
+                                                    <authorize policy="@Policies.Partners.View">
+                                                        @if (!User.IsInRole(RoleNames.Admin) && !User.IsInRole(RoleNames.HoD) && !User.IsInRole(RoleNames.Mco) && !User.IsInRole(RoleNames.ProjectOfficer))
+                                                        {
+                                                            <span>@link.Role</span>
+                                                        }
+                                                    </authorize>
+                                                </td>
+                                                <td>
+                                                    <authorize policy="@Policies.Partners.LinkToProject">
+                                                        <select name="ProjectLink.Status" form="@updateFormId" class="form-select form-select-sm">
+                                                            @foreach (var status in Model.StatusOptions)
+                                                            {
+                                                                <option value="@status" selected="@(status == link.Status)">@status</option>
+                                                            }
+                                                        </select>
+                                                    </authorize>
+                                                    <authorize policy="@Policies.Partners.View">
+                                                        @if (!User.IsInRole(RoleNames.Admin) && !User.IsInRole(RoleNames.HoD) && !User.IsInRole(RoleNames.Mco) && !User.IsInRole(RoleNames.ProjectOfficer))
+                                                        {
+                                                            <span>@link.Status</span>
+                                                        }
+                                                    </authorize>
+                                                </td>
+                                                <td class="text-wrap" style="max-width: 340px;">
+                                                    <authorize policy="@Policies.Partners.LinkToProject">
+                                                        <textarea name="ProjectLink.Notes" form="@updateFormId" class="form-control form-control-sm" rows="2">@link.Notes</textarea>
+                                                    </authorize>
+                                                    <authorize policy="@Policies.Partners.View">
+                                                        @if (!User.IsInRole(RoleNames.Admin) && !User.IsInRole(RoleNames.HoD) && !User.IsInRole(RoleNames.Mco) && !User.IsInRole(RoleNames.ProjectOfficer))
+                                                        {
+                                                            <span>@link.Notes</span>
+                                                        }
+                                                    </authorize>
+                                                </td>
+                                                <td class="text-end">
+                                                    <authorize policy="@Policies.Partners.LinkToProject">
+                                                        <form method="post"
+                                                              asp-page-handler="UpdateProject"
+                                                              asp-route-id="@Model.Partner.Id"
+                                                              asp-route-projectId="@link.ProjectId"
+                                                              id="@updateFormId"
+                                                              class="d-inline">
+                                                            <button type="submit" class="btn btn-outline-secondary btn-sm">Update</button>
+                                                        </form>
+                                                        <form method="post"
+                                                              asp-page-handler="UnlinkProject"
+                                                              asp-route-id="@Model.Partner.Id"
+                                                              asp-route-projectId="@link.ProjectId"
+                                                              class="d-inline">
+                                                            <button type="submit" class="btn btn-outline-danger btn-sm">Remove</button>
+                                                        </form>
+                                                    </authorize>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- SECTION: Offcanvas state -->
+    @{
+        string? autoOpen = null;
+
+        if (!ViewData.ModelState.IsValid)
+        {
+            if (activeTab == "Contacts" && ViewData.ModelState.Keys.Any(k => k.StartsWith("Contact.", StringComparison.Ordinal)))
+            {
+                autoOpen = "ocAddContact";
+            }
+            else if (activeTab == "Attachments" && ViewData.ModelState.Keys.Any(k => k.StartsWith("Attachment.", StringComparison.Ordinal)))
+            {
+                autoOpen = "ocAddAttachment";
+            }
+            else if (activeTab == "Projects" &&
+                     (ViewData.ModelState.Keys.Any(k => k.StartsWith("ProjectLink.", StringComparison.Ordinal)) ||
+                      ViewData.ModelState.ContainsKey(string.Empty)))
+            {
+                autoOpen = "ocLinkProject";
+            }
+        }
+    }
+    <div class="d-none" data-partner-offcanvas="@autoOpen"></div>
+
+    <!-- SECTION: Offcanvas drawers -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="ocAddContact" aria-labelledby="ocAddContactLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="ocAddContactLabel">Add contact</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <authorize policy="@Policies.Partners.Manage">
+                <form method="post" asp-page-handler="AddContact" asp-route-id="@Model.Partner.Id" class="vstack gap-3">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    <div>
+                        <label asp-for="Contact.Name" class="form-label">Name</label>
+                        <input asp-for="Contact.Name" class="form-control" />
+                        <span asp-validation-for="Contact.Name" class="text-danger"></span>
+                    </div>
+                    <div>
+                        <label asp-for="Contact.Designation" class="form-label">Designation</label>
+                        <input asp-for="Contact.Designation" class="form-control" />
+                    </div>
+                    <div>
+                        <label asp-for="Contact.Email" class="form-label">Email</label>
+                        <input asp-for="Contact.Email" class="form-control" />
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label asp-for="Contact.MobilePhone" class="form-label">Mobile</label>
+                            <input asp-for="Contact.MobilePhone" class="form-control" />
+                            <span asp-validation-for="Contact.MobilePhone" class="text-danger"></span>
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="Contact.OfficePhone" class="form-label">Office</label>
+                            <input asp-for="Contact.OfficePhone" class="form-control" />
+                            <span asp-validation-for="Contact.OfficePhone" class="text-danger"></span>
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="Contact.WhatsAppPhone" class="form-label">WhatsApp</label>
+                            <input asp-for="Contact.WhatsAppPhone" class="form-control" />
+                            <span asp-validation-for="Contact.WhatsAppPhone" class="text-danger"></span>
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input asp-for="Contact.IsPrimary" class="form-check-input" />
+                        <label asp-for="Contact.IsPrimary" class="form-check-label">Set as primary</label>
+                    </div>
+                    <div>
+                        <label asp-for="Contact.Notes" class="form-label">Notes</label>
+                        <textarea asp-for="Contact.Notes" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Save contact</button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+                    </div>
+                </form>
+            </authorize>
+        </div>
+    </div>
+
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="ocAddAttachment" aria-labelledby="ocAddAttachmentLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="ocAddAttachmentLabel">Upload attachment</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <authorize policy="@Policies.Partners.Manage">
+                <form method="post"
+                      enctype="multipart/form-data"
+                      asp-page-handler="AddAttachment"
+                      asp-route-id="@Model.Partner.Id"
+                      class="vstack gap-3">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    <div>
+                        <label asp-for="Attachment.File" class="form-label">File</label>
+                        <input asp-for="Attachment.File" type="file" class="form-control" />
+                        <span asp-validation-for="Attachment.File" class="text-danger"></span>
+                    </div>
+                    <div>
+                        <label asp-for="Attachment.Title" class="form-label">Title</label>
+                        <input asp-for="Attachment.Title" class="form-control" />
+                    </div>
+                    <div>
+                        <label asp-for="Attachment.AttachmentType" class="form-label">Type</label>
+                        <select asp-for="Attachment.AttachmentType" class="form-select">
+                            <option value="">Select</option>
+                            @foreach (var type in Model.AttachmentTypeOptions)
+                            {
+                                <option value="@type">@type</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label asp-for="Attachment.Notes" class="form-label">Notes</label>
+                        <textarea asp-for="Attachment.Notes" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Upload</button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+                    </div>
+                </form>
+            </authorize>
+        </div>
+    </div>
+
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="ocLinkProject" aria-labelledby="ocLinkProjectLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="ocLinkProjectLabel">Link project</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <authorize policy="@Policies.Partners.LinkToProject">
+                <form method="post"
+                      asp-page-handler="LinkProject"
+                      asp-route-id="@Model.Partner.Id"
+                      class="vstack gap-3">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    <div>
+                        <label asp-for="ProjectLink.ProjectId" class="form-label">Project</label>
+                        <select asp-for="ProjectLink.ProjectId" class="form-select">
+                            <option value="">Select project</option>
+                            @foreach (var project in Model.ProjectOptions)
+                            {
+                                <option value="@project.Id">@project.Name (@project.LifecycleStatus)</option>
+                            }
+                        </select>
+                        <span asp-validation-for="ProjectLink.ProjectId" class="text-danger"></span>
+                    </div>
+                    <div>
+                        <label asp-for="ProjectLink.Role" class="form-label">Role</label>
+                        <select asp-for="ProjectLink.Role" class="form-select">
+                            @foreach (var role in Model.RoleOptions)
+                            {
+                                <option value="@role">@role</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label asp-for="ProjectLink.Status" class="form-label">Status</label>
+                        <select asp-for="ProjectLink.Status" class="form-select">
+                            @foreach (var status in Model.StatusOptions)
+                            {
+                                <option value="@status">@status</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label asp-for="ProjectLink.Notes" class="form-label">Notes</label>
+                        <textarea asp-for="ProjectLink.Notes" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Link project</button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+                    </div>
+                </form>
+            </authorize>
+        </div>
+    </div>
+</div>
+
+@section Scripts
+{
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/partners-details.js" asp-append-version="true"></script>
+}

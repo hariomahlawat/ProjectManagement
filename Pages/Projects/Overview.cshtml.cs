@@ -22,11 +22,14 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Configuration;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Utilities;
 using ProjectManagement.ViewModels;
+using ProjectManagement.Models.Partners;
+using ProjectManagement.ViewModels.Partners;
 
 namespace ProjectManagement.Pages.Projects
 {
@@ -40,13 +43,15 @@ namespace ProjectManagement.Pages.Projects
         private readonly PlanReadService _planRead;
         private readonly ILogger<OverviewModel> _logger;
         private readonly IClock _clock;
+        private readonly IAuthorizationService _authorizationService;
         private readonly ProjectRemarksPanelService _remarksPanelService;
         private readonly ProjectLifecycleService _lifecycleService;
         private readonly ProjectMediaAggregator _mediaAggregator;
+        private readonly IAuditService _audit;
 
         public PlanCompareService PlanCompare { get; }
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, ProjectMediaAggregator mediaAggregator)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, IAuthorizationService authorizationService, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, ProjectMediaAggregator mediaAggregator, IAuditService audit)
         {
             _db = db;
             _procureRead = procureRead;
@@ -56,9 +61,11 @@ namespace ProjectManagement.Pages.Projects
             PlanCompare = planCompare;
             _logger = logger;
             _clock = clock;
+            _authorizationService = authorizationService;
             _remarksPanelService = remarksPanelService;
             _lifecycleService = lifecycleService;
             _mediaAggregator = mediaAggregator;
+            _audit = audit;
         }
 
         public Project Project { get; private set; } = default!;
@@ -94,6 +101,9 @@ namespace ProjectManagement.Pages.Projects
         public ProjectRemarkSummaryViewModel RemarkSummary { get; private set; } = ProjectRemarkSummaryViewModel.Empty;
         public ProjectTotSummaryViewModel TotSummary { get; private set; } = ProjectTotSummaryViewModel.Empty;
         public ProjectCostSummaryViewModel CostSummary { get; private set; } = ProjectCostSummaryViewModel.Empty;
+        public IReadOnlyList<ProjectIndustryPartnerVm> IndustryPartners { get; private set; } = Array.Empty<ProjectIndustryPartnerVm>();
+        public IReadOnlyList<IndustryPartnerOptionVm> IndustryPartnerOptions { get; private set; } = Array.Empty<IndustryPartnerOptionVm>();
+        public bool CanLinkIndustryPartners { get; private set; }
         public bool CanManageTot { get; private set; }
         public ProjectMediaCollectionViewModel MediaCollections { get; private set; } = ProjectMediaCollectionViewModel.Empty;
         public IReadOnlyCollection<int> AvailableMediaTotIds { get; private set; } = Array.Empty<int>();
@@ -133,6 +143,9 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty]
         public CancelLifecycleInput CancelProjectInput { get; set; } = new();
 
+        [BindProperty]
+        public ProjectIndustryPartnerInput PartnerInput { get; set; } = new();
+
         public sealed class CompleteLifecycleInput
         {
             public int ProjectId { get; set; }
@@ -154,6 +167,21 @@ namespace ProjectManagement.Pages.Projects
             public DateOnly? CancelledOn { get; set; }
 
             public string? Reason { get; set; }
+        }
+
+        public sealed class ProjectIndustryPartnerInput
+        {
+            public int PartnerId { get; set; }
+
+            public string Role { get; set; } = IndustryPartnerRoles.JointDevelopmentPartner;
+
+            public string Status { get; set; } = IndustryPartnerAssociationStatuses.Active;
+
+            public DateOnly? FromDate { get; set; }
+
+            public DateOnly? ToDate { get; set; }
+
+            public string? Notes { get; set; }
         }
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
@@ -181,6 +209,31 @@ namespace ProjectManagement.Pages.Projects
             var (totSnapshot, totRequestSnapshot) = await LoadTotDataAsync(project.Id, ct);
 
             Project = project;
+
+            // SECTION: Industry partner associations
+            CanLinkIndustryPartners = Policies.Partners.LinkAllowedRoles.Any(User.IsInRole);
+            IndustryPartners = await _db.ProjectIndustryPartners
+                .AsNoTracking()
+                .Include(link => link.Partner)
+                .Where(link => link.ProjectId == project.Id)
+                .OrderByDescending(link => link.Status == IndustryPartnerAssociationStatuses.Active)
+                .ThenBy(link => link.Partner.FirmName)
+                .Select(link => new ProjectIndustryPartnerVm(
+                    link.ProjectId,
+                    link.PartnerId,
+                    link.Partner.FirmName,
+                    link.Role,
+                    link.Status,
+                    link.FromDate,
+                    link.ToDate,
+                    link.Notes))
+                .ToListAsync(ct);
+
+            IndustryPartnerOptions = await _db.IndustryPartners
+                .AsNoTracking()
+                .OrderBy(partner => partner.FirmName)
+                .Select(partner => new IndustryPartnerOptionVm(partner.Id, partner.FirmName, partner.Status))
+                .ToListAsync(ct);
 
             Photos = project.Photos
                 .OrderBy(p => p.Ordinal)
@@ -625,6 +678,147 @@ namespace ProjectManagement.Pages.Projects
             }
 
             return RedirectToPage(new { id });
+        }
+
+        // SECTION: Industry partners link handlers
+        public async Task<IActionResult> OnPostLinkPartnerAsync(int id, CancellationToken ct)
+        {
+            var authorizationResult = await EnsurePartnerLinkAuthorizationAsync();
+            if (authorizationResult is not null)
+            {
+                return authorizationResult;
+            }
+
+            if (PartnerInput.PartnerId <= 0)
+            {
+                ModelState.AddModelError(nameof(PartnerInput.PartnerId), "Select a partner to link.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                await OnGetAsync(id, ct);
+                return Page();
+            }
+
+            var existing = await _db.ProjectIndustryPartners
+                .AnyAsync(link => link.ProjectId == id && link.PartnerId == PartnerInput.PartnerId, ct);
+
+            if (existing)
+            {
+                TempData["ToastMessage"] = "Partner is already linked to this project.";
+                return RedirectToPage(new { id });
+            }
+
+            var now = _clock.UtcNow.UtcDateTime;
+            var userId = _users.GetUserId(User) ?? string.Empty;
+
+            var link = new ProjectIndustryPartner
+            {
+                ProjectId = id,
+                PartnerId = PartnerInput.PartnerId,
+                Role = string.IsNullOrWhiteSpace(PartnerInput.Role) ? IndustryPartnerRoles.JointDevelopmentPartner : PartnerInput.Role,
+                Status = string.IsNullOrWhiteSpace(PartnerInput.Status) ? IndustryPartnerAssociationStatuses.Active : PartnerInput.Status,
+                FromDate = PartnerInput.FromDate,
+                ToDate = PartnerInput.ToDate,
+                Notes = string.IsNullOrWhiteSpace(PartnerInput.Notes) ? null : PartnerInput.Notes.Trim(),
+                CreatedAtUtc = now,
+                CreatedByUserId = userId
+            };
+
+            _db.ProjectIndustryPartners.Add(link);
+            await _db.SaveChangesAsync(ct);
+
+            await _audit.LogAsync(
+                "Partners.ProjectLinked",
+                userId: userId,
+                data: new Dictionary<string, string?>
+                {
+                    ["ProjectId"] = id.ToString(CultureInfo.InvariantCulture),
+                    ["PartnerId"] = PartnerInput.PartnerId.ToString(CultureInfo.InvariantCulture)
+                });
+
+            return RedirectToPage(new { id });
+        }
+
+        public async Task<IActionResult> OnPostUnlinkPartnerAsync(int id, int partnerId, CancellationToken ct)
+        {
+            var authorizationResult = await EnsurePartnerLinkAuthorizationAsync();
+            if (authorizationResult is not null)
+            {
+                return authorizationResult;
+            }
+
+            var link = await _db.ProjectIndustryPartners
+                .FirstOrDefaultAsync(item => item.ProjectId == id && item.PartnerId == partnerId, ct);
+
+            if (link is null)
+            {
+                return NotFound();
+            }
+
+            _db.ProjectIndustryPartners.Remove(link);
+            await _db.SaveChangesAsync(ct);
+
+            await _audit.LogAsync(
+                "Partners.ProjectUnlinked",
+                userId: _users.GetUserId(User),
+                data: new Dictionary<string, string?>
+                {
+                    ["ProjectId"] = id.ToString(CultureInfo.InvariantCulture),
+                    ["PartnerId"] = partnerId.ToString(CultureInfo.InvariantCulture)
+                });
+
+            return RedirectToPage(new { id });
+        }
+
+        public async Task<IActionResult> OnPostUpdatePartnerAsync(int id, int partnerId, CancellationToken ct)
+        {
+            var authorizationResult = await EnsurePartnerLinkAuthorizationAsync();
+            if (authorizationResult is not null)
+            {
+                return authorizationResult;
+            }
+
+            var link = await _db.ProjectIndustryPartners
+                .FirstOrDefaultAsync(item => item.ProjectId == id && item.PartnerId == partnerId, ct);
+
+            if (link is null)
+            {
+                return NotFound();
+            }
+
+            link.Role = string.IsNullOrWhiteSpace(PartnerInput.Role) ? IndustryPartnerRoles.JointDevelopmentPartner : PartnerInput.Role;
+            link.Status = string.IsNullOrWhiteSpace(PartnerInput.Status) ? IndustryPartnerAssociationStatuses.Active : PartnerInput.Status;
+            link.FromDate = PartnerInput.FromDate;
+            link.ToDate = PartnerInput.ToDate;
+            link.Notes = string.IsNullOrWhiteSpace(PartnerInput.Notes) ? null : PartnerInput.Notes.Trim();
+            link.UpdatedAtUtc = _clock.UtcNow.UtcDateTime;
+            link.UpdatedByUserId = _users.GetUserId(User) ?? string.Empty;
+
+            await _db.SaveChangesAsync(ct);
+
+            await _audit.LogAsync(
+                "Partners.ProjectAssociationUpdated",
+                userId: _users.GetUserId(User),
+                data: new Dictionary<string, string?>
+                {
+                    ["ProjectId"] = id.ToString(CultureInfo.InvariantCulture),
+                    ["PartnerId"] = partnerId.ToString(CultureInfo.InvariantCulture)
+                });
+
+            return RedirectToPage(new { id });
+        }
+
+        // SECTION: Authorization helpers
+        private async Task<IActionResult?> EnsurePartnerLinkAuthorizationAsync()
+        {
+            var authorization = await _authorizationService.AuthorizeAsync(User, Policies.Partners.LinkToProject);
+            if (authorization.Succeeded)
+            {
+                return null;
+            }
+
+            return Forbid();
         }
 
         private async Task LoadDocumentOverviewAsync(Project project, bool isAdmin, bool isHoD, HashSet<int> availableTotIds, CancellationToken ct)
