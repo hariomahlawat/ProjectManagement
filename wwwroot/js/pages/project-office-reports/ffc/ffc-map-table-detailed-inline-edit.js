@@ -31,6 +31,16 @@
 
     const normalizeDisplayText = (value) => (value || "").trim();
 
+    // SECTION: Identifier parsing
+    const parseNullableId = (value) => {
+        if (value === undefined || value === null) {
+            return null;
+        }
+
+        const numberValue = Number(value);
+        return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : null;
+    };
+
     const setDisplayValue = (cell, text) => {
         const displayValue = cell.querySelector(".display-value");
         if (!displayValue) {
@@ -169,8 +179,8 @@
         const textarea = cell.querySelector(selectors.textarea);
         const payload = textarea ? textarea.value : "";
         const token = getToken();
-        const linkedProjectId = cell.dataset.linkedProjectId ? Number(cell.dataset.linkedProjectId) : null;
-        const externalRemarkId = cell.dataset.externalRemarkId ? Number(cell.dataset.externalRemarkId) : null;
+        const linkedProjectId = parseNullableId(cell.dataset.linkedProjectId);
+        const externalRemarkId = parseNullableId(cell.dataset.externalRemarkId);
 
         const response = await fetch(endpoints[kind], {
             method: "POST",

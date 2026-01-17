@@ -263,15 +263,32 @@ public class MapTableDetailedModel : PageModel
             return NotFound(new { message = "Project row not found." });
         }
 
-        if (request.LinkedProjectId.HasValue && request.LinkedProjectId != project.LinkedProjectId)
+        // SECTION: Request sanitisation
+        var linkedProjectId = NormalizeOptionalId(request.LinkedProjectId);
+        var externalRemarkId = NormalizeOptionalId(request.ExternalRemarkId);
+        var projectLinkedProjectId = NormalizeOptionalId(project.LinkedProjectId);
+
+        if (linkedProjectId.HasValue && projectLinkedProjectId != linkedProjectId)
         {
             return BadRequest(new { message = "Linked project reference does not match the selected row." });
+        }
+
+        if (projectLinkedProjectId.HasValue)
+        {
+            var linkedProjectExists = await _db.Projects
+                .AsNoTracking()
+                .AnyAsync(item => item.Id == projectLinkedProjectId.Value, cancellationToken);
+
+            if (!linkedProjectExists)
+            {
+                return BadRequest(new { message = "Linked project not found. Please fix the linkage." });
+            }
         }
 
         string? updatedBy = User.Identity?.Name;
         DateTimeOffset updatedAt = DateTimeOffset.UtcNow;
 
-        if (project.LinkedProjectId is int linkedProjectId)
+        if (projectLinkedProjectId is int linkedProjectId)
         {
             try
             {
@@ -289,7 +306,7 @@ public class MapTableDetailedModel : PageModel
                 // SECTION: Resolve remark for edit (latest external remark preferred)
                 var existingRemark = await ResolveExternalRemarkAsync(
                     linkedProjectId,
-                    request.ExternalRemarkId,
+                    externalRemarkId,
                     cancellationToken);
 
                 if (existingRemark is not null)
@@ -392,7 +409,7 @@ public class MapTableDetailedModel : PageModel
             renderedProgressText = FormatRemarkForDisplay(normalized),
             updatedAtUtc = updatedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
             updatedBy,
-            externalRemarkId = request.ExternalRemarkId
+            externalRemarkId
         });
     }
 
@@ -486,6 +503,12 @@ public class MapTableDetailedModel : PageModel
 
         const int limit = 200;
         return text.Length <= limit ? text : string.Concat(text.AsSpan(0, limit), "…");
+    }
+
+    // SECTION: Identifier helpers
+    private static int? NormalizeOptionalId(int? value)
+    {
+        return value.HasValue && value.Value > 0 ? value : null;
     }
 
     // SECTION: Metadata helpers

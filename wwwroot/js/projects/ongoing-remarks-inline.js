@@ -6,12 +6,10 @@
   const selectors = {
     tableRoot: "#oprTableRoot",
     tokenInput: "#oprInlineRemarkToken input[name=\"__RequestVerificationToken\"]",
-    remarkCell: ".opr-remark-cell",
-    display: ".opr-remark-display",
-    displayText: ".opr-remark-text",
+    remarkCell: ".js-ongoing-remark-cell",
+    display: ".pm-remark-text",
     editor: ".opr-remark-editor",
     textarea: ".opr-remark-editor-input",
-    editButton: ".opr-remark-edit",
     saveButton: ".opr-remark-save",
     cancelButton: ".opr-remark-cancel",
     error: ".opr-remark-error"
@@ -36,7 +34,38 @@
   // SECTION: Utilities
   const getToken = () => (tokenInput ? tokenInput.value : "");
 
-  const getCell = (event) => {
+  const getRemarkField = (remark, key) => {
+    if (!remark || typeof remark !== "object") {
+      return undefined;
+    }
+
+    const pascalKey = key.charAt(0).toUpperCase() + key.slice(1);
+    if (key in remark) {
+      return remark[key];
+    }
+
+    if (pascalKey in remark) {
+      return remark[pascalKey];
+    }
+
+    return undefined;
+  };
+
+  const normalizeRemark = (remark) => {
+    if (!remark) {
+      return null;
+    }
+
+    return {
+      id: getRemarkField(remark, "id"),
+      scope: getRemarkField(remark, "scope"),
+      eventDate: getRemarkField(remark, "eventDate"),
+      rowVersion: getRemarkField(remark, "rowVersion"),
+      body: getRemarkField(remark, "body")
+    };
+  };
+
+  const getCellFromEvent = (event) => {
     const target = event.target;
     if (!(target instanceof Element)) {
       return null;
@@ -45,9 +74,45 @@
     return target.closest(selectors.remarkCell);
   };
 
+  const ensureEditor = (cell) => {
+    let editor = cell.querySelector(selectors.editor);
+    if (editor) {
+      return editor;
+    }
+
+    editor = document.createElement("div");
+    editor.className = "opr-remark-editor d-none";
+
+    const textarea = document.createElement("textarea");
+    textarea.className = "form-control opr-remark-editor-input";
+    textarea.rows = 3;
+
+    const actions = document.createElement("div");
+    actions.className = "d-flex gap-2 mt-2";
+
+    const saveButton = document.createElement("button");
+    saveButton.type = "button";
+    saveButton.className = "btn btn-sm btn-primary opr-remark-save";
+    saveButton.textContent = "Save";
+
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.className = "btn btn-sm btn-outline-secondary opr-remark-cancel";
+    cancelButton.textContent = "Cancel";
+
+    const error = document.createElement("div");
+    error.className = "text-danger opr-remark-error d-none mt-2";
+
+    actions.append(saveButton, cancelButton);
+    editor.append(textarea, actions, error);
+    cell.append(editor);
+
+    return editor;
+  };
+
   const setEditorState = (cell, isEditing) => {
     const display = cell.querySelector(selectors.display);
-    const editor = cell.querySelector(selectors.editor);
+    const editor = ensureEditor(cell);
 
     display?.classList.toggle("d-none", isEditing);
     editor?.classList.toggle("d-none", !isEditing);
@@ -88,7 +153,7 @@
   };
 
   const updateDisplay = (cell, value) => {
-    const displayText = cell.querySelector(selectors.displayText);
+    const displayText = cell.querySelector(selectors.display);
     if (!displayText) {
       return;
     }
@@ -110,10 +175,10 @@
       cancelEdit(activeCell);
     }
 
-    const textarea = cell.querySelector(selectors.textarea);
+    const textarea = ensureEditor(cell).querySelector(selectors.textarea);
     if (textarea) {
       const emptyText = cell.dataset.emptyText || "N/A";
-      const displayText = cell.querySelector(selectors.displayText);
+      const displayText = cell.querySelector(selectors.display);
       const displayValue = displayText ? displayText.textContent || "" : "";
       const rawBody = cell.dataset.remarkBody || "";
       const normalizedDisplay = displayValue.trim();
@@ -143,13 +208,15 @@
   };
 
   const setRemarkData = (cell, data, fallbackBody) => {
-    const body = typeof data?.body === "string" ? data.body : fallbackBody;
-    const rowVersion = typeof data?.rowVersion === "string" ? data.rowVersion : cell.dataset.rowVersion || "";
-    const remarkId = typeof data?.id === "number" ? data.id : Number(cell.dataset.remarkId || 0);
-    const eventDate = typeof data?.eventDate === "string" ? data.eventDate : cell.dataset.eventDate || todayIst;
-    const scope = typeof data?.scope === "string" ? data.scope : cell.dataset.scope || "General";
+    const normalized = normalizeRemark(data);
+    const body = typeof normalized?.body === "string" ? normalized.body : fallbackBody;
+    const rowVersion = typeof normalized?.rowVersion === "string" ? normalized.rowVersion : cell.dataset.rowVersion || "";
+    const remarkId = typeof normalized?.id === "number" ? normalized.id : Number(cell.dataset.remarkId || 0);
+    const eventDate = typeof normalized?.eventDate === "string" ? normalized.eventDate : cell.dataset.eventDate || todayIst;
+    const scope = typeof normalized?.scope === "string" ? normalized.scope : cell.dataset.scope || "General";
 
     cell.dataset.remarkBody = body || "";
+    cell.dataset.currentText = body || "";
     cell.dataset.rowVersion = rowVersion;
     cell.dataset.remarkId = String(remarkId);
     cell.dataset.eventDate = eventDate;
@@ -158,37 +225,57 @@
     updateDisplay(cell, body);
   };
 
-  // SECTION: Network
+  // SECTION: Network helpers
+  const fetchLatestExternalRemark = async (projectId) => {
+    const response = await fetch(
+      `/api/projects/${projectId}/remarks?scope=General&type=External&pageSize=1&page=1`
+    );
+
+    if (!response.ok) {
+      return { ok: false, status: response.status };
+    }
+
+    const data = await response.json().catch(() => null);
+    const items = data?.items || data?.Items || [];
+    const latest = items.length ? normalizeRemark(items[0]) : null;
+    return { ok: true, data: latest };
+  };
+
   const saveRemark = async (cell) => {
     const textarea = cell.querySelector(selectors.textarea);
     const body = textarea ? textarea.value.trim() : "";
 
     const projectId = Number(cell.dataset.projectId || 0);
     const remarkId = Number(cell.dataset.remarkId || 0);
-    const scope = cell.dataset.scope || "General";
-    const eventDate = cell.dataset.eventDate || todayIst;
-    const rowVersion = cell.dataset.rowVersion || "";
 
-    const isUpdate = remarkId > 0;
+    let latestRemark = null;
+    if (remarkId > 0) {
+      const latestResponse = await fetchLatestExternalRemark(projectId);
+      if (!latestResponse.ok) {
+        return { ok: false, status: latestResponse.status, body };
+      }
+
+      latestRemark = latestResponse.data;
+    }
+
+    const isUpdate = Boolean(latestRemark?.id);
     const endpoint = isUpdate
-      ? `/api/projects/${projectId}/remarks/${remarkId}`
+      ? `/api/projects/${projectId}/remarks/${latestRemark.id}`
       : `/api/projects/${projectId}/remarks`;
 
     const payload = isUpdate
       ? {
         body,
-        scope,
-        eventDate,
-        rowVersion,
-        actorRole: "HoD",
+        scope: latestRemark?.scope || cell.dataset.scope || "General",
+        eventDate: latestRemark?.eventDate || cell.dataset.eventDate || todayIst,
+        rowVersion: latestRemark?.rowVersion || cell.dataset.rowVersion || "",
         meta: "Inline edit from Ongoing Projects table"
       }
       : {
         type: "External",
         scope: "General",
-        eventDate: todayIst || eventDate,
+        eventDate: todayIst || cell.dataset.eventDate || "",
         body,
-        actorRole: "HoD",
         meta: "Inline create from Ongoing Projects table"
       };
 
@@ -222,9 +309,14 @@
   };
 
   // SECTION: Event handlers
-  const handleEditClick = (event) => {
-    const cell = getCell(event);
-    if (!cell) {
+  const handleCellDblClick = (event) => {
+    const cell = getCellFromEvent(event);
+    if (!cell || cell.dataset.canEdit !== "1") {
+      return;
+    }
+
+    const target = event.target;
+    if (target instanceof Element && target.closest(selectors.editor)) {
       return;
     }
 
@@ -233,7 +325,7 @@
   };
 
   const handleCancelClick = (event) => {
-    const cell = getCell(event);
+    const cell = getCellFromEvent(event);
     if (!cell) {
       return;
     }
@@ -243,7 +335,7 @@
   };
 
   const handleSaveClick = async (event) => {
-    const cell = getCell(event);
+    const cell = getCellFromEvent(event);
     if (!cell) {
       return;
     }
@@ -269,6 +361,8 @@
       } else if (result.status === 400) {
         const message = result.data?.detail || result.data?.title || "Invalid remark data.";
         setError(cell, message);
+      } else if (result.status === 404) {
+        setError(cell, "Latest remark could not be found. Please retry.");
       } else {
         setError(cell, "Unable to save remark right now.");
       }
@@ -280,15 +374,14 @@
   };
 
   // SECTION: Event wiring
+  document.addEventListener("dblclick", handleCellDblClick);
   document.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof Element)) {
       return;
     }
 
-    if (target.closest(selectors.editButton)) {
-      handleEditClick(event);
-    } else if (target.closest(selectors.cancelButton)) {
+    if (target.closest(selectors.cancelButton)) {
       handleCancelClick(event);
     } else if (target.closest(selectors.saveButton)) {
       void handleSaveClick(event);

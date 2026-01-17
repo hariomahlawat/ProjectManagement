@@ -485,37 +485,29 @@ else
                                     <td>@FormatDate(row.AonDate)</td>
                                     <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
                                     <td class="col-stage">@FormatDate(row.PresentStagePdc)</td>
-                                    <td class="col-remarks">
-                                        <div class="opr-remark-cell"
-                                             data-project-id="@row.ProjectId"
-                                             data-remark-id="@remarkId"
-                                             data-row-version="@remarkRowVersion"
-                                             data-event-date="@remarkEventDate"
-                                             data-scope="@remarkScope"
-                                             data-remark-body="@remarkBody"
-                                             data-empty-text="N/A"
-                                             data-can-edit="@(Model.CanInlineEditExternalRemarks ? "1" : "0")">
-                                            <div class="opr-remark-display d-flex justify-content-between align-items-start gap-2">
-                                                <span class="opr-remark-text @(hasRemarkBody ? string.Empty : "text-muted fst-italic")">
-                                                    @FormatValue(remarkBody)
-                                                </span>
-                                                @if (Model.CanInlineEditExternalRemarks)
-                                                {
-                                                    <button type="button" class="btn btn-sm btn-link opr-remark-edit">Edit</button>
-                                                }
+                                    <td class="col-remarks js-ongoing-remark-cell"
+                                        data-project-id="@row.ProjectId"
+                                        data-remark-id="@remarkId"
+                                        data-row-version="@remarkRowVersion"
+                                        data-event-date="@remarkEventDate"
+                                        data-scope="@remarkScope"
+                                        data-remark-body="@remarkBody"
+                                        data-current-text="@remarkBody"
+                                        data-empty-text="N/A"
+                                        data-can-edit="@(Model.CanInlineEditExternalRemarks ? "1" : "0")">
+                                        @if (Model.CanInlineEditExternalRemarks)
+                                        {
+                                            <div class="pm-remark-text @(hasRemarkBody ? string.Empty : "text-muted fst-italic")"
+                                                 title="Double-click to edit">
+                                                @FormatValue(remarkBody)
                                             </div>
-                                            @if (Model.CanInlineEditExternalRemarks)
-                                            {
-                                                <div class="opr-remark-editor d-none">
-                                                    <textarea class="form-control opr-remark-editor-input" rows="3"></textarea>
-                                                    <div class="d-flex gap-2 mt-2">
-                                                        <button type="button" class="btn btn-sm btn-primary opr-remark-save">Save</button>
-                                                        <button type="button" class="btn btn-sm btn-outline-secondary opr-remark-cancel">Cancel</button>
-                                                    </div>
-                                                    <div class="text-danger opr-remark-error d-none mt-2"></div>
-                                                </div>
-                                            }
-                                        </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="pm-remark-text @(hasRemarkBody ? string.Empty : "text-muted fst-italic")">
+                                                @FormatValue(remarkBody)
+                                            </div>
+                                        }
                                     </td>
                                     <td>@FormatValue(row.LeadPoName)</td>
                                 </tr>
@@ -554,37 +546,29 @@ else
                                     <td>@FormatDate(row.AonDate)</td>
                                     <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
                                     <td class="col-stage">@FormatDate(row.PresentStagePdc)</td>
-                                    <td class="col-remarks">
-                                        <div class="opr-remark-cell"
-                                             data-project-id="@row.ProjectId"
-                                             data-remark-id="@remarkId"
-                                             data-row-version="@remarkRowVersion"
-                                             data-event-date="@remarkEventDate"
-                                             data-scope="@remarkScope"
-                                             data-remark-body="@remarkBody"
-                                             data-empty-text="N/A"
-                                             data-can-edit="@(Model.CanInlineEditExternalRemarks ? "1" : "0")">
-                                            <div class="opr-remark-display d-flex justify-content-between align-items-start gap-2">
-                                                <span class="opr-remark-text @(hasRemarkBody ? string.Empty : "text-muted fst-italic")">
-                                                    @FormatValue(remarkBody)
-                                                </span>
-                                                @if (Model.CanInlineEditExternalRemarks)
-                                                {
-                                                    <button type="button" class="btn btn-sm btn-link opr-remark-edit">Edit</button>
-                                                }
+                                    <td class="col-remarks js-ongoing-remark-cell"
+                                        data-project-id="@row.ProjectId"
+                                        data-remark-id="@remarkId"
+                                        data-row-version="@remarkRowVersion"
+                                        data-event-date="@remarkEventDate"
+                                        data-scope="@remarkScope"
+                                        data-remark-body="@remarkBody"
+                                        data-current-text="@remarkBody"
+                                        data-empty-text="N/A"
+                                        data-can-edit="@(Model.CanInlineEditExternalRemarks ? "1" : "0")">
+                                        @if (Model.CanInlineEditExternalRemarks)
+                                        {
+                                            <div class="pm-remark-text @(hasRemarkBody ? string.Empty : "text-muted fst-italic")"
+                                                 title="Double-click to edit">
+                                                @FormatValue(remarkBody)
                                             </div>
-                                            @if (Model.CanInlineEditExternalRemarks)
-                                            {
-                                                <div class="opr-remark-editor d-none">
-                                                    <textarea class="form-control opr-remark-editor-input" rows="3"></textarea>
-                                                    <div class="d-flex gap-2 mt-2">
-                                                        <button type="button" class="btn btn-sm btn-primary opr-remark-save">Save</button>
-                                                        <button type="button" class="btn btn-sm btn-outline-secondary opr-remark-cancel">Cancel</button>
-                                                    </div>
-                                                    <div class="text-danger opr-remark-error d-none mt-2"></div>
-                                                </div>
-                                            }
-                                        </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="pm-remark-text @(hasRemarkBody ? string.Empty : "text-muted fst-italic")">
+                                                @FormatValue(remarkBody)
+                                            </div>
+                                        }
                                     </td>
                                     <td>@FormatValue(row.LeadPoName)</td>
                                 </tr>
