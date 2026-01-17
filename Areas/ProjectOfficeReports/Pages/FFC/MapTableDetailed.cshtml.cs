@@ -272,19 +272,19 @@ public class MapTableDetailedModel : PageModel
 
         if (project.LinkedProjectId is int linkedProjectId)
         {
-            if (string.IsNullOrWhiteSpace(normalized))
-            {
-                return BadRequest(new { message = "Progress text cannot be empty for linked projects." });
-            }
-
-            var actor = await BuildRemarkActorContextAsync(cancellationToken);
-            if (actor is null)
-            {
-                return Forbid();
-            }
-
             try
             {
+                if (string.IsNullOrWhiteSpace(normalized))
+                {
+                    return BadRequest(new { message = "Progress text cannot be empty for linked projects." });
+                }
+
+                var actor = await BuildRemarkActorContextAsync(cancellationToken);
+                if (actor is null)
+                {
+                    return Forbid();
+                }
+
                 // SECTION: Resolve remark for edit (latest external remark preferred)
                 var existingRemark = await ResolveExternalRemarkAsync(
                     linkedProjectId,
@@ -369,7 +369,7 @@ public class MapTableDetailedModel : PageModel
             catch (DbUpdateException ex)
             {
                 LogProgressUpdateFailure(ex, request, linkedProjectId);
-                return StatusCode(500, new { ok = false, message = "Unable to save. See server logs for details." });
+                return BadRequest(new { message = "Unable to save progress due to a database constraint. See server logs for details." });
             }
             catch (Exception ex)
             {
