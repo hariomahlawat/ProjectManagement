@@ -278,28 +278,11 @@ public class MapTableDetailedModel : PageModel
 
             try
             {
-                var remarkId = request.ExternalRemarkId.GetValueOrDefault();
-                var existingRemark = remarkId > 0
-                    ? await _db.Remarks
-                        .AsNoTracking()
-                        .Where(item => item.Id == remarkId
-                            && item.ProjectId == linkedProjectId
-                            && !item.IsDeleted
-                            && item.Type == RemarkType.External)
-                        .Select(item => new
-                        {
-                            item.Id,
-                            item.ProjectId,
-                            item.Scope,
-                            item.EventDate,
-                            item.StageRef,
-                            item.StageNameSnapshot,
-                            item.RowVersion,
-                            item.CreatedAtUtc,
-                            item.LastEditedAtUtc
-                        })
-                        .FirstOrDefaultAsync(cancellationToken)
-                    : null;
+                // SECTION: Resolve remark for edit (latest external remark preferred)
+                var existingRemark = await ResolveExternalRemarkAsync(
+                    linkedProjectId,
+                    request.ExternalRemarkId,
+                    cancellationToken);
 
                 if (existingRemark is not null)
                 {
@@ -509,6 +492,72 @@ public class MapTableDetailedModel : PageModel
         return Task.FromResult<RemarkActorContext?>(new RemarkActorContext(userId, primary, roles));
     }
 
+    // SECTION: External remark helpers
+    private async Task<ExternalRemarkSnapshot?> ResolveExternalRemarkAsync(
+        int linkedProjectId,
+        int? externalRemarkId,
+        CancellationToken cancellationToken)
+    {
+        if (externalRemarkId.HasValue && externalRemarkId.Value > 0)
+        {
+            var byId = await LoadExternalRemarkByIdAsync(linkedProjectId, externalRemarkId.Value, cancellationToken);
+            if (byId is not null)
+            {
+                return byId;
+            }
+        }
+
+        return await LoadLatestExternalRemarkAsync(linkedProjectId, cancellationToken);
+    }
+
+    private Task<ExternalRemarkSnapshot?> LoadExternalRemarkByIdAsync(
+        int linkedProjectId,
+        int externalRemarkId,
+        CancellationToken cancellationToken)
+    {
+        return _db.Remarks
+            .AsNoTracking()
+            .Where(item => item.Id == externalRemarkId
+                && item.ProjectId == linkedProjectId
+                && !item.IsDeleted
+                && item.Type == RemarkType.External)
+            .Select(item => new ExternalRemarkSnapshot(
+                item.Id,
+                item.ProjectId,
+                item.Scope,
+                item.EventDate,
+                item.StageRef,
+                item.StageNameSnapshot,
+                item.RowVersion,
+                item.CreatedAtUtc,
+                item.LastEditedAtUtc))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private Task<ExternalRemarkSnapshot?> LoadLatestExternalRemarkAsync(
+        int linkedProjectId,
+        CancellationToken cancellationToken)
+    {
+        return _db.Remarks
+            .AsNoTracking()
+            .Where(item => item.ProjectId == linkedProjectId
+                && !item.IsDeleted
+                && item.Type == RemarkType.External)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Select(item => new ExternalRemarkSnapshot(
+                item.Id,
+                item.ProjectId,
+                item.Scope,
+                item.EventDate,
+                item.StageRef,
+                item.StageNameSnapshot,
+                item.RowVersion,
+                item.CreatedAtUtc,
+                item.LastEditedAtUtc))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     private void LogProgressUpdateFailure(Exception ex, UpdateProgressRequest request, int linkedProjectId)
     {
         var userId = _userManager.GetUserId(User);
@@ -552,4 +601,15 @@ public class MapTableDetailedModel : PageModel
 
         public int? ExternalRemarkId { get; set; }
     }
+
+    private sealed record ExternalRemarkSnapshot(
+        int Id,
+        int ProjectId,
+        RemarkScope Scope,
+        DateOnly EventDate,
+        int? StageRef,
+        string? StageNameSnapshot,
+        byte[] RowVersion,
+        DateTime CreatedAtUtc,
+        DateTime? LastEditedAtUtc);
 }
