@@ -22,6 +22,7 @@ using ProjectManagement.Services.Remarks;
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 
 [Authorize]
+[ValidateAntiForgeryToken]
 public class MapTableDetailedModel : PageModel
 {
     private readonly ApplicationDbContext _db;
@@ -184,10 +185,13 @@ public class MapTableDetailedModel : PageModel
     }
 
     // SECTION: Inline editing handlers
-    [Authorize(Roles = "HoD,Admin")]
-    [ValidateAntiForgeryToken]
     public async Task<IActionResult> OnPostUpdateOverallRemarksAsync([FromBody] UpdateOverallRemarksRequest request, CancellationToken cancellationToken)
     {
+        if (!User.IsInRole("Admin") && !User.IsInRole("HoD"))
+        {
+            return Forbid();
+        }
+
         if (request is null)
         {
             return BadRequest(new { message = "Request payload is missing." });
@@ -227,10 +231,13 @@ public class MapTableDetailedModel : PageModel
         });
     }
 
-    [Authorize(Roles = "HoD,Admin")]
-    [ValidateAntiForgeryToken]
     public async Task<IActionResult> OnPostUpdateProgressAsync([FromBody] UpdateProgressRequest request, CancellationToken cancellationToken)
     {
+        if (!User.IsInRole("Admin") && !User.IsInRole("HoD"))
+        {
+            return Forbid();
+        }
+
         if (request is null)
         {
             return BadRequest(new { message = "Request payload is missing." });
@@ -607,7 +614,7 @@ public class MapTableDetailedModel : PageModel
         int ProjectId,
         RemarkScope Scope,
         DateOnly EventDate,
-        int? StageRef,
+        string? StageRef,
         string? StageNameSnapshot,
         byte[] RowVersion,
         DateTime CreatedAtUtc,
