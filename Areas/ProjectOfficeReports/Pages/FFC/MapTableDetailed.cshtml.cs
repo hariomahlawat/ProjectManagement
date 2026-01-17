@@ -22,6 +22,7 @@ using ProjectManagement.Services.Remarks;
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 
 [Authorize]
+[ValidateAntiForgeryToken]
 public class MapTableDetailedModel : PageModel
 {
     private readonly ApplicationDbContext _db;
@@ -184,10 +185,13 @@ public class MapTableDetailedModel : PageModel
     }
 
     // SECTION: Inline editing handlers
-    [Authorize(Roles = "HoD,Admin")]
-    [ValidateAntiForgeryToken]
     public async Task<IActionResult> OnPostUpdateOverallRemarksAsync([FromBody] UpdateOverallRemarksRequest request, CancellationToken cancellationToken)
     {
+        if (!User.IsInRole("Admin") && !User.IsInRole("HoD"))
+        {
+            return Forbid();
+        }
+
         if (request is null)
         {
             return BadRequest(new { message = "Request payload is missing." });
@@ -227,10 +231,13 @@ public class MapTableDetailedModel : PageModel
         });
     }
 
-    [Authorize(Roles = "HoD,Admin")]
-    [ValidateAntiForgeryToken]
     public async Task<IActionResult> OnPostUpdateProgressAsync([FromBody] UpdateProgressRequest request, CancellationToken cancellationToken)
     {
+        if (!User.IsInRole("Admin") && !User.IsInRole("HoD"))
+        {
+            return Forbid();
+        }
+
         if (request is null)
         {
             return BadRequest(new { message = "Request payload is missing." });
@@ -286,34 +293,50 @@ public class MapTableDetailedModel : PageModel
 
                 if (existingRemark is not null)
                 {
-                    var updatedRemark = await _remarkService.EditRemarkAsync(existingRemark.Id, new EditRemarkRequest(
-                        Actor: actor,
-                        Body: normalized,
-                        Scope: existingRemark.Scope,
-                        EventDate: existingRemark.EventDate,
-                        StageRef: existingRemark.StageRef,
-                        StageNameSnapshot: existingRemark.StageNameSnapshot,
-                        Meta: "FFC Detailed Table progress update",
-                        RowVersion: existingRemark.RowVersion), cancellationToken);
-
-                    if (updatedRemark is null)
+                    try
                     {
-                        return NotFound(new { message = "External remark not found." });
+                        var updatedRemark = await _remarkService.EditRemarkAsync(existingRemark.Id, new EditRemarkRequest(
+                            Actor: actor,
+                            Body: normalized,
+                            Scope: existingRemark.Scope,
+                            EventDate: existingRemark.EventDate,
+                            StageRef: existingRemark.StageRef,
+                            StageNameSnapshot: existingRemark.StageNameSnapshot,
+                            Meta: "FFC Detailed Table progress update",
+                            RowVersion: existingRemark.RowVersion), cancellationToken);
+
+                        if (updatedRemark is null)
+                        {
+                            return NotFound(new { message = "External remark not found." });
+                        }
+
+                        updatedAt = updatedRemark.LastEditedAtUtc.HasValue
+                            ? new DateTimeOffset(updatedRemark.LastEditedAtUtc.Value, TimeSpan.Zero)
+                            : new DateTimeOffset(updatedRemark.CreatedAtUtc, TimeSpan.Zero);
+
+                        return new JsonResult(new
+                        {
+                            ok = true,
+                            progressText = normalized,
+                            renderedProgressText = FormatRemarkForDisplay(normalized),
+                            updatedAtUtc = updatedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
+                            updatedBy,
+                            externalRemarkId = updatedRemark.Id
+                        });
                     }
-
-                    updatedAt = updatedRemark.LastEditedAtUtc.HasValue
-                        ? new DateTimeOffset(updatedRemark.LastEditedAtUtc.Value, TimeSpan.Zero)
-                        : new DateTimeOffset(updatedRemark.CreatedAtUtc, TimeSpan.Zero);
-
-                    return new JsonResult(new
+                    catch (InvalidOperationException)
                     {
-                        ok = true,
-                        progressText = normalized,
-                        renderedProgressText = FormatRemarkForDisplay(normalized),
-                        updatedAtUtc = updatedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
-                        updatedBy,
-                        externalRemarkId = updatedRemark.Id
-                    });
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        // SECTION: Fallback to new remark when edit fails unexpectedly
+                        _logger.LogWarning(
+                            ex,
+                            "Failed to edit external remark for linked project. LinkedProjectId={LinkedProjectId}, ExternalRemarkId={ExternalRemarkId}",
+                            linkedProjectId,
+                            existingRemark.Id);
+                    }
                 }
 
                 var createdRemark = await _remarkService.CreateRemarkAsync(new CreateRemarkRequest(
@@ -607,7 +630,7 @@ public class MapTableDetailedModel : PageModel
         int ProjectId,
         RemarkScope Scope,
         DateOnly EventDate,
-        int? StageRef,
+        string? StageRef,
         string? StageNameSnapshot,
         byte[] RowVersion,
         DateTime CreatedAtUtc,
