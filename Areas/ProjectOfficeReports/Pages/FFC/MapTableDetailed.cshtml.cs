@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -302,7 +303,7 @@ public class MapTableDetailedModel : PageModel
                             EventDate: existingRemark.EventDate,
                             StageRef: existingRemark.StageRef,
                             StageNameSnapshot: existingRemark.StageNameSnapshot,
-                            Meta: "FFC Detailed Table progress update",
+                            Meta: BuildFfcMeta("progress", project.FfcRecordId, project.Id, linkedProjectId),
                             RowVersion: existingRemark.RowVersion), cancellationToken);
 
                         if (updatedRemark is null)
@@ -348,7 +349,7 @@ public class MapTableDetailedModel : PageModel
                     EventDate: DateOnly.FromDateTime(IstClock.ToIst(DateTime.UtcNow)),
                     StageRef: null,
                     StageNameSnapshot: null,
-                    Meta: "FFC Detailed Table progress update"), cancellationToken);
+                    Meta: BuildFfcMeta("progress", project.FfcRecordId, project.Id, linkedProjectId)), cancellationToken);
 
                 updatedAt = new DateTimeOffset(createdRemark.CreatedAtUtc, TimeSpan.Zero);
 
@@ -487,6 +488,19 @@ public class MapTableDetailedModel : PageModel
         return text.Length <= limit ? text : string.Concat(text.AsSpan(0, limit), "…");
     }
 
+    // SECTION: Metadata helpers
+    private static string BuildFfcMeta(string kind, long ffcRecordId, long ffcProjectId, int linkedProjectId)
+    {
+        return JsonSerializer.Serialize(new
+        {
+            source = "ProjectOfficeReports.FFC.MapTableDetailed",
+            kind,
+            ffcRecordId,
+            ffcProjectId,
+            linkedProjectId
+        });
+    }
+
     private Task<RemarkActorContext?> BuildRemarkActorContextAsync(CancellationToken cancellationToken)
     {
         _ = cancellationToken;
@@ -608,6 +622,16 @@ public class MapTableDetailedModel : PageModel
             request.ExternalRemarkId,
             userId ?? string.Empty,
             roles.Count == 0 ? "None" : string.Join(",", roles));
+
+        // SECTION: Database exception details
+        if (ex is DbUpdateException { InnerException: Npgsql.PostgresException postgresException })
+        {
+            _logger.LogError(
+                "PostgresException SqlState={SqlState}, Constraint={Constraint}, Detail={Detail}",
+                postgresException.SqlState,
+                postgresException.ConstraintName,
+                postgresException.Detail);
+        }
     }
 
     public sealed class UpdateOverallRemarksRequest
