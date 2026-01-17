@@ -245,12 +245,26 @@ namespace ProjectManagement.Services.Projects
                     })
                     .ToArray();
 
-                // latest EXTERNAL (if any)
+                // SECTION: Latest external remark (if any)
                 var latestExternal = remarksForProject
                     .Where(r => r.Type == RemarkType.External)
                     .OrderByDescending(r => r.CreatedAtUtc)
-                    .Select(r => r.Body)
                     .FirstOrDefault();
+
+                OngoingProjectExternalRemarkDto? latestExternalDto = null;
+                if (latestExternal != null)
+                {
+                    latestExternalDto = new OngoingProjectExternalRemarkDto
+                    {
+                        Id = latestExternal.Id,
+                        Body = latestExternal.Body,
+                        EventDate = latestExternal.EventDate,
+                        Scope = latestExternal.Scope,
+                        RowVersion = latestExternal.RowVersion is { Length: > 0 } rowVersion
+                            ? Convert.ToBase64String(rowVersion)
+                            : string.Empty
+                    };
+                }
 
                 result.Add(new OngoingProjectRowDto
                 {
@@ -270,7 +284,7 @@ namespace ProjectManagement.Services.Projects
                     PresentStagePdc = presentStagePdc,
                     Stages = stageDtos,
                     RecentInternalRemarks = recentInternal,
-                    LatestExternalRemark = latestExternal
+                    LatestExternalRemark = latestExternalDto
                 });
             }
 
@@ -396,7 +410,17 @@ namespace ProjectManagement.Services.Projects
         public IReadOnlyList<OngoingProjectStageDto> Stages { get; init; } = Array.Empty<OngoingProjectStageDto>();
 
         public IReadOnlyList<OngoingProjectRemarkDto> RecentInternalRemarks { get; init; } = Array.Empty<OngoingProjectRemarkDto>();
-        public string? LatestExternalRemark { get; init; }
+        public OngoingProjectExternalRemarkDto? LatestExternalRemark { get; init; }
+    }
+
+    // SECTION: Latest external remark details for inline editing
+    public sealed class OngoingProjectExternalRemarkDto
+    {
+        public int Id { get; init; }
+        public string Body { get; init; } = "";
+        public DateOnly EventDate { get; init; }
+        public RemarkScope Scope { get; init; } = RemarkScope.General;
+        public string RowVersion { get; init; } = "";
     }
 
     public sealed class OngoingProjectStageDto

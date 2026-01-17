@@ -69,8 +69,8 @@ namespace ProjectManagement.Services.Projects
                 ws.Cell(row, col++).Value =
                     item.LastCompletedStageDate?.ToString("dd-MMM-yyyy") ?? string.Empty;
 
-                // latest external remark
-                ws.Cell(row, col++).Value = item.LatestExternalRemark ?? string.Empty;
+                // SECTION: Latest external remark
+                ws.Cell(row, col++).Value = item.LatestExternalRemark?.Body ?? string.Empty;
 
                 //
                 // >>> FIXED SECTION BELOW <<<

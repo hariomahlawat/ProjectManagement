@@ -348,7 +348,7 @@ else
                         <section class="ongoing-remarks border-top">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span class="ongoing-remarks__title">Recent internal remarks (last 10 days)</span>
-                                @if (!string.IsNullOrWhiteSpace(item.LatestExternalRemark))
+                                @if (!string.IsNullOrWhiteSpace(item.LatestExternalRemark?.Body))
                                 {
                                     <span class="badge bg-body-secondary text-muted">has external note</span>
                                 }
@@ -410,6 +410,18 @@ else
                 .ToList();
         }
 
+        <!-- SECTION: Table inline remark metadata -->
+        <div id="oprTableRoot"
+             data-today-ist="@Model.TodayIstIso"
+             data-can-edit="@(Model.CanInlineEditExternalRemarks ? "1" : "0")">
+            @if (Model.CanInlineEditExternalRemarks)
+            {
+                <div id="oprInlineRemarkToken" class="d-none">
+                    @Html.AntiForgeryToken()
+                </div>
+            }
+        </div>
+
         <div class="pm-card-table shadow-sm border-0">
             <div class="pm-table-wrap table-responsive ongoing-table-wrap">
                 <table class="table pm-table pm-table-sm align-middle mb-0 ongoing-table">
@@ -451,6 +463,15 @@ else
 
                             @foreach (var row in rows)
                             {
+                                // SECTION: Latest external remark metadata
+                                var latestExternal = row.LatestExternalRemark;
+                                var remarkBody = latestExternal?.Body ?? string.Empty;
+                                var remarkEventDate = latestExternal?.EventDate.ToString("yyyy-MM-dd") ?? Model.TodayIstIso;
+                                var remarkScope = latestExternal?.Scope.ToString() ?? RemarkScope.General.ToString();
+                                var remarkRowVersion = latestExternal?.RowVersion ?? string.Empty;
+                                var remarkId = latestExternal?.Id ?? 0;
+                                var hasRemarkBody = !string.IsNullOrWhiteSpace(remarkBody);
+
                                 <tr>
                                     <td>
                                         <a asp-page="/Projects/Overview"
@@ -464,7 +485,38 @@ else
                                     <td>@FormatDate(row.AonDate)</td>
                                     <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
                                     <td class="col-stage">@FormatDate(row.PresentStagePdc)</td>
-                                    <td class="col-remarks">@FormatValue(row.LatestExternalRemark)</td>
+                                    <td class="col-remarks">
+                                        <div class="opr-remark-cell"
+                                             data-project-id="@row.ProjectId"
+                                             data-remark-id="@remarkId"
+                                             data-row-version="@remarkRowVersion"
+                                             data-event-date="@remarkEventDate"
+                                             data-scope="@remarkScope"
+                                             data-remark-body="@remarkBody"
+                                             data-empty-text="N/A"
+                                             data-can-edit="@(Model.CanInlineEditExternalRemarks ? "1" : "0")">
+                                            <div class="opr-remark-display d-flex justify-content-between align-items-start gap-2">
+                                                <span class="opr-remark-text @(hasRemarkBody ? string.Empty : "text-muted fst-italic")">
+                                                    @FormatValue(remarkBody)
+                                                </span>
+                                                @if (Model.CanInlineEditExternalRemarks)
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-link opr-remark-edit">Edit</button>
+                                                }
+                                            </div>
+                                            @if (Model.CanInlineEditExternalRemarks)
+                                            {
+                                                <div class="opr-remark-editor d-none">
+                                                    <textarea class="form-control opr-remark-editor-input" rows="3"></textarea>
+                                                    <div class="d-flex gap-2 mt-2">
+                                                        <button type="button" class="btn btn-sm btn-primary opr-remark-save">Save</button>
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary opr-remark-cancel">Cancel</button>
+                                                    </div>
+                                                    <div class="text-danger opr-remark-error d-none mt-2"></div>
+                                                </div>
+                                            }
+                                        </div>
+                                    </td>
                                     <td>@FormatValue(row.LeadPoName)</td>
                                 </tr>
                             }
@@ -480,6 +532,15 @@ else
 
                             foreach (var row in uncategorizedItems)
                             {
+                                // SECTION: Latest external remark metadata
+                                var latestExternal = row.LatestExternalRemark;
+                                var remarkBody = latestExternal?.Body ?? string.Empty;
+                                var remarkEventDate = latestExternal?.EventDate.ToString("yyyy-MM-dd") ?? Model.TodayIstIso;
+                                var remarkScope = latestExternal?.Scope.ToString() ?? RemarkScope.General.ToString();
+                                var remarkRowVersion = latestExternal?.RowVersion ?? string.Empty;
+                                var remarkId = latestExternal?.Id ?? 0;
+                                var hasRemarkBody = !string.IsNullOrWhiteSpace(remarkBody);
+
                                 <tr>
                                     <td>
                                         <a asp-page="/Projects/Overview"
@@ -493,7 +554,38 @@ else
                                     <td>@FormatDate(row.AonDate)</td>
                                     <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
                                     <td class="col-stage">@FormatDate(row.PresentStagePdc)</td>
-                                    <td class="col-remarks">@FormatValue(row.LatestExternalRemark)</td>
+                                    <td class="col-remarks">
+                                        <div class="opr-remark-cell"
+                                             data-project-id="@row.ProjectId"
+                                             data-remark-id="@remarkId"
+                                             data-row-version="@remarkRowVersion"
+                                             data-event-date="@remarkEventDate"
+                                             data-scope="@remarkScope"
+                                             data-remark-body="@remarkBody"
+                                             data-empty-text="N/A"
+                                             data-can-edit="@(Model.CanInlineEditExternalRemarks ? "1" : "0")">
+                                            <div class="opr-remark-display d-flex justify-content-between align-items-start gap-2">
+                                                <span class="opr-remark-text @(hasRemarkBody ? string.Empty : "text-muted fst-italic")">
+                                                    @FormatValue(remarkBody)
+                                                </span>
+                                                @if (Model.CanInlineEditExternalRemarks)
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-link opr-remark-edit">Edit</button>
+                                                }
+                                            </div>
+                                            @if (Model.CanInlineEditExternalRemarks)
+                                            {
+                                                <div class="opr-remark-editor d-none">
+                                                    <textarea class="form-control opr-remark-editor-input" rows="3"></textarea>
+                                                    <div class="d-flex gap-2 mt-2">
+                                                        <button type="button" class="btn btn-sm btn-primary opr-remark-save">Save</button>
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary opr-remark-cancel">Cancel</button>
+                                                    </div>
+                                                    <div class="text-danger opr-remark-error d-none mt-2"></div>
+                                                </div>
+                                            }
+                                        </div>
+                                    </td>
                                     <td>@FormatValue(row.LeadPoName)</td>
                                 </tr>
                             }
@@ -511,6 +603,9 @@ else
 
 @section Scripts {
     <script src="~/js/projects/ongoing.js"
+            asp-append-version="true"
+            defer></script>
+    <script src="~/js/projects/ongoing-remarks-inline.js"
             asp-append-version="true"
             defer></script>
 }
