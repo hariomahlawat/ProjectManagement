@@ -264,11 +264,11 @@ public class MapTableDetailedModel : PageModel
         }
 
         // SECTION: Request sanitisation
-        var linkedProjectId = NormalizeOptionalId(request.LinkedProjectId);
+        var requestedLinkedProjectId = NormalizeOptionalId(request.LinkedProjectId);
         var externalRemarkId = NormalizeOptionalId(request.ExternalRemarkId);
         var projectLinkedProjectId = NormalizeOptionalId(project.LinkedProjectId);
 
-        if (linkedProjectId.HasValue && projectLinkedProjectId != linkedProjectId)
+        if (requestedLinkedProjectId.HasValue && projectLinkedProjectId != requestedLinkedProjectId)
         {
             return BadRequest(new { message = "Linked project reference does not match the selected row." });
         }
@@ -288,7 +288,7 @@ public class MapTableDetailedModel : PageModel
         string? updatedBy = User.Identity?.Name;
         DateTimeOffset updatedAt = DateTimeOffset.UtcNow;
 
-        if (projectLinkedProjectId is int linkedProjectId)
+        if (projectLinkedProjectId is int resolvedLinkedProjectId)
         {
             try
             {
@@ -305,7 +305,7 @@ public class MapTableDetailedModel : PageModel
 
                 // SECTION: Resolve remark for edit (latest external remark preferred)
                 var existingRemark = await ResolveExternalRemarkAsync(
-                    linkedProjectId,
+                    resolvedLinkedProjectId,
                     externalRemarkId,
                     cancellationToken);
 
@@ -320,7 +320,7 @@ public class MapTableDetailedModel : PageModel
                             EventDate: existingRemark.EventDate,
                             StageRef: existingRemark.StageRef,
                             StageNameSnapshot: existingRemark.StageNameSnapshot,
-                            Meta: BuildFfcMeta("progress", project.FfcRecordId, project.Id, linkedProjectId),
+                            Meta: BuildFfcMeta("progress", project.FfcRecordId, project.Id, resolvedLinkedProjectId),
                             RowVersion: existingRemark.RowVersion), cancellationToken);
 
                         if (updatedRemark is null)
@@ -352,13 +352,13 @@ public class MapTableDetailedModel : PageModel
                         _logger.LogWarning(
                             ex,
                             "Failed to edit external remark for linked project. LinkedProjectId={LinkedProjectId}, ExternalRemarkId={ExternalRemarkId}",
-                            linkedProjectId,
+                            resolvedLinkedProjectId,
                             existingRemark.Id);
                     }
                 }
 
                 var createdRemark = await _remarkService.CreateRemarkAsync(new CreateRemarkRequest(
-                    ProjectId: linkedProjectId,
+                    ProjectId: resolvedLinkedProjectId,
                     Actor: actor,
                     Type: RemarkType.External,
                     Scope: RemarkScope.General,
@@ -366,7 +366,7 @@ public class MapTableDetailedModel : PageModel
                     EventDate: DateOnly.FromDateTime(IstClock.ToIst(DateTime.UtcNow)),
                     StageRef: null,
                     StageNameSnapshot: null,
-                    Meta: BuildFfcMeta("progress", project.FfcRecordId, project.Id, linkedProjectId)), cancellationToken);
+                    Meta: BuildFfcMeta("progress", project.FfcRecordId, project.Id, resolvedLinkedProjectId)), cancellationToken);
 
                 updatedAt = new DateTimeOffset(createdRemark.CreatedAtUtc, TimeSpan.Zero);
 
@@ -386,12 +386,12 @@ public class MapTableDetailedModel : PageModel
             }
             catch (DbUpdateException ex)
             {
-                LogProgressUpdateFailure(ex, request, linkedProjectId);
+                LogProgressUpdateFailure(ex, request, resolvedLinkedProjectId);
                 return BadRequest(new { message = "Unable to save progress due to a database constraint. See server logs for details." });
             }
             catch (Exception ex)
             {
-                LogProgressUpdateFailure(ex, request, linkedProjectId);
+                LogProgressUpdateFailure(ex, request, resolvedLinkedProjectId);
                 return StatusCode(500, new { ok = false, message = "Unable to save. See server logs for details." });
             }
         }
