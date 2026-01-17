@@ -69,6 +69,10 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         public IReadOnlyList<OngoingProjectRowDto> Items { get; private set; }
             = Array.Empty<OngoingProjectRowDto>();
 
+        // SECTION: Inline external remark editing metadata
+        public bool CanInlineEditExternalRemarks { get; private set; }
+        public string TodayIstIso { get; private set; } = string.Empty;
+
         public async Task OnGetAsync(CancellationToken cancellationToken)
         {
             View = NormalizeView(View);
@@ -86,6 +90,10 @@ namespace ProjectManagement.Pages.Projects.Ongoing
                 officerId,
                 search,
                 cancellationToken);
+
+            // SECTION: Inline external remark editing access + IST date
+            CanInlineEditExternalRemarks = User.IsInRole("HoD");
+            TodayIstIso = ResolveTodayIstIso(_clock.UtcNow);
 
             BuildHeaderCounts();
         }
@@ -239,6 +247,37 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             }
 
             return "timeline";
+        }
+
+        // SECTION: IST helper (yyyy-MM-dd)
+        private static string ResolveTodayIstIso(DateTimeOffset utcNow)
+        {
+            var indiaTimeZone = GetIndiaTimeZone();
+            var local = TimeZoneInfo.ConvertTime(utcNow, indiaTimeZone);
+            var today = DateOnly.FromDateTime(local.DateTime);
+            return today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        private static TimeZoneInfo GetIndiaTimeZone()
+        {
+            string[] timeZoneIds = { "India Standard Time", "Asia/Kolkata" };
+
+            foreach (var timeZoneId in timeZoneIds)
+            {
+                try
+                {
+                    return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+                }
+                catch (TimeZoneNotFoundException)
+                {
+                }
+                catch (InvalidTimeZoneException)
+                {
+                }
+            }
+
+            var offset = TimeSpan.FromHours(5.5);
+            return TimeZoneInfo.CreateCustomTimeZone("Asia/Kolkata", offset, "India Standard Time", "India Standard Time");
         }
     }
 
