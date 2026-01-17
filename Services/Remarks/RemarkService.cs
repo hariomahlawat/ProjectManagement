@@ -34,6 +34,7 @@ public sealed class RemarkService : IRemarkService
     public const string EditWindowMessage = "You can edit your remark within 3 hours of posting.";
     public const string DeleteWindowMessage = "You can delete your remark within 3 hours of posting.";
     public const string StageNotInProjectMessage = "Selected stage does not belong to this project.";
+    public const string LegacyAuthorUserId = "LEGACY";
 
     private static readonly Regex MentionPlaceholderRegex = new("@\\[(?<name>[^\\]]+)\\]\\(user:(?<id>[^)]+)\\)", RegexOptions.Compiled);
 
@@ -232,6 +233,29 @@ public sealed class RemarkService : IRemarkService
             }
             LogDecision("Edit", false, editPermission.ReasonCode, request.Actor, remark.Id, remark.ProjectId);
             throw new InvalidOperationException(editPermission.Message ?? PermissionDeniedMessage);
+        }
+
+        // SECTION: Legacy snapshot backfill for audit safety
+        var needsLegacyAuthor = string.IsNullOrWhiteSpace(remark.AuthorUserId);
+        var needsLegacyBody = remark.Body is null;
+        if (needsLegacyAuthor)
+        {
+            remark.AuthorUserId = LegacyAuthorUserId;
+        }
+
+        if (needsLegacyBody)
+        {
+            remark.Body = string.Empty;
+        }
+
+        if (needsLegacyAuthor || needsLegacyBody)
+        {
+            _logger.LogWarning(
+                "Backfilled legacy remark fields before edit. RemarkId={RemarkId}, ProjectId={ProjectId}, BackfilledAuthor={BackfilledAuthor}, BackfilledBody={BackfilledBody}",
+                remark.Id,
+                remark.ProjectId,
+                needsLegacyAuthor,
+                needsLegacyBody);
         }
 
         var processedBody = await PrepareRemarkBodyAsync(request.Body, cancellationToken);

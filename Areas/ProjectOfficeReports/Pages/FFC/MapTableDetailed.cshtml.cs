@@ -366,6 +366,11 @@ public class MapTableDetailedModel : PageModel
             {
                 return BadRequest(new { message = ex.Message });
             }
+            catch (DbUpdateException ex)
+            {
+                LogProgressUpdateFailure(ex, request, linkedProjectId);
+                return StatusCode(500, new { ok = false, message = "Unable to save. See server logs for details." });
+            }
             catch (Exception ex)
             {
                 LogProgressUpdateFailure(ex, request, linkedProjectId);
