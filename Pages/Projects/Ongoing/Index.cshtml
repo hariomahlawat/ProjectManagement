@@ -11,6 +11,12 @@
     // SECTION: View state
     var isTableView = string.Equals(Model.View, "table", StringComparison.OrdinalIgnoreCase);
 
+    // SECTION: Inline remark defaults
+    var remarkType = RemarkType.External.ToString();
+    var actorRole = Model.CanInlineEditExternalRemarks
+        ? RemarkActorRole.HeadOfDepartment.ToString()
+        : RemarkActorRole.ProjectOfficer.ToString();
+
     // turn <span class="remark-mention">…</span> into a small pill
     string RenderRemark(string? text)
     {
@@ -491,6 +497,8 @@ else
                                         data-row-version="@remarkRowVersion"
                                         data-event-date="@remarkEventDate"
                                         data-scope="@remarkScope"
+                                        data-type="@remarkType"
+                                        data-actor-role="@actorRole"
                                         data-remark-body="@remarkBody"
                                         data-current-text="@remarkBody"
                                         data-empty-text="N/A"
@@ -552,6 +560,8 @@ else
                                         data-row-version="@remarkRowVersion"
                                         data-event-date="@remarkEventDate"
                                         data-scope="@remarkScope"
+                                        data-type="@remarkType"
+                                        data-actor-role="@actorRole"
                                         data-remark-body="@remarkBody"
                                         data-current-text="@remarkBody"
                                         data-empty-text="N/A"

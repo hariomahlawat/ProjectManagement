@@ -59,6 +59,8 @@
     return {
       id: getRemarkField(remark, "id"),
       scope: getRemarkField(remark, "scope"),
+      type: getRemarkField(remark, "type"),
+      actorRole: getRemarkField(remark, "actorRole"),
       eventDate: getRemarkField(remark, "eventDate"),
       rowVersion: getRemarkField(remark, "rowVersion"),
       body: getRemarkField(remark, "body")
@@ -214,6 +216,8 @@
     const remarkId = typeof normalized?.id === "number" ? normalized.id : Number(cell.dataset.remarkId || 0);
     const eventDate = typeof normalized?.eventDate === "string" ? normalized.eventDate : cell.dataset.eventDate || todayIst;
     const scope = typeof normalized?.scope === "string" ? normalized.scope : cell.dataset.scope || "General";
+    const type = typeof normalized?.type === "string" ? normalized.type : cell.dataset.type || "External";
+    const actorRole = typeof normalized?.actorRole === "string" ? normalized.actorRole : cell.dataset.actorRole || "ProjectOfficer";
 
     cell.dataset.remarkBody = body || "";
     cell.dataset.currentText = body || "";
@@ -221,6 +225,8 @@
     cell.dataset.remarkId = String(remarkId);
     cell.dataset.eventDate = eventDate;
     cell.dataset.scope = scope;
+    cell.dataset.type = type;
+    cell.dataset.actorRole = actorRole;
 
     updateDisplay(cell, body);
   };
@@ -247,6 +253,13 @@
 
     const projectId = Number(cell.dataset.projectId || 0);
     const remarkId = Number(cell.dataset.remarkId || 0);
+    const ctx = {
+      body,
+      scope: cell.dataset.scope || "General",
+      type: cell.dataset.type || "External",
+      eventDate: cell.dataset.eventDate || todayIst,
+      actorRole: cell.dataset.actorRole || "ProjectOfficer"
+    };
 
     let latestRemark = null;
     if (remarkId > 0) {
@@ -265,18 +278,19 @@
 
     const payload = isUpdate
       ? {
-        body,
-        scope: latestRemark?.scope || cell.dataset.scope || "General",
-        eventDate: latestRemark?.eventDate || cell.dataset.eventDate || todayIst,
-        rowVersion: latestRemark?.rowVersion || cell.dataset.rowVersion || "",
-        meta: "Inline edit from Ongoing Projects table"
+        body: ctx.body,
+        scope: ctx.scope || "General",
+        type: ctx.type || "External",
+        eventDate: ctx.eventDate || todayIst,
+        actorRole: ctx.actorRole || "ProjectOfficer",
+        rowVersion: latestRemark?.rowVersion || cell.dataset.rowVersion || ""
       }
       : {
-        type: "External",
-        scope: "General",
-        eventDate: todayIst || cell.dataset.eventDate || "",
-        body,
-        meta: "Inline create from Ongoing Projects table"
+        type: ctx.type || "External",
+        scope: ctx.scope || "General",
+        body: ctx.body,
+        eventDate: ctx.eventDate || todayIst,
+        actorRole: ctx.actorRole || "ProjectOfficer"
       };
 
     const headers = {
