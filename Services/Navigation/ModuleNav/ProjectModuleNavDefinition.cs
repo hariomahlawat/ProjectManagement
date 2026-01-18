@@ -43,6 +43,14 @@ public static class ProjectModuleNavDefinition
         },
         new()
         {
+            Text = "Create",
+            Page = "/Projects/Create",
+            Icon = "bi-plus-circle",
+            AuthorizationPolicy = "Project.Create"
+        },
+
+        new()
+        {
             Text = "Pending approvals",
             Page = "/Approvals/Pending/Index",
             RequiredRoles = new[] { RoleNames.Admin, RoleNames.HoD },
