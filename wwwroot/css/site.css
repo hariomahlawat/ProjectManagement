@@ -6360,11 +6360,11 @@ body.has-project-photo-preview-dialog {
 
 
 .pm-topbar__inner {
-    height: 54px;
+    height: 48px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
+    gap: .75rem;
 }
 
 .pm-topbar__left {
@@ -6389,8 +6389,8 @@ body.has-project-photo-preview-dialog {
 .pm-top-tabs__item {
     display: inline-flex;
     align-items: center;
-    padding: 0 .85rem;
-    height: 54px; /* same as bar so underline is at bottom */
+    padding: 0 .5rem;
+    height: 48px; /* same as bar so underline is at bottom */
     font-size: .78rem;
     font-weight: 500;
     color: #64748b;
