@@ -6465,6 +6465,7 @@ body.has-project-photo-preview-dialog {
     display: flex;
     align-items: center;
     gap: 1.1rem;
+    height: 48px;
 }
 
 .pm-module-subnav-spacer {
@@ -6474,6 +6475,8 @@ body.has-project-photo-preview-dialog {
     visibility: hidden;
     pointer-events: none;
     user-select: none;
+    height: 48px;
+    overflow: hidden;
 }
 
 .pm-module-subnav {
