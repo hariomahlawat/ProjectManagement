@@ -150,7 +150,7 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
 
         if (!string.IsNullOrEmpty(item.AuthorizationPolicy))
         {
-            var authorizationResult = await _authorizationService.AuthorizeAsync(User, null, item.AuthorizationPolicy);
+            var authorizationResult = await _authorizationService.AuthorizeAsync(HttpContext.User, null, item.AuthorizationPolicy);
             if (!authorizationResult.Succeeded)
             {
                 return false;
