@@ -6486,7 +6486,8 @@ body.has-project-photo-preview-dialog {
     display: flex;
     align-items: center;
     gap: .25rem;
-    width: 100%;
+    flex: 1 1 auto;
+    min-width: 0;
     overflow-x: auto;
     overflow-y: hidden;
     white-space: nowrap;
@@ -6530,6 +6531,15 @@ body.has-project-photo-preview-dialog {
 .pm-module-subnav__dropdown {
     display: inline-flex;
     align-items: center;
+}
+
+/* ---------- Projects module sub-nav overflow (layout & layering) ---------- */
+.pm-subnav__overflow {
+    flex: 0 0 auto;
+}
+
+.pm-subnav__overflow .dropdown-menu {
+    z-index: 2000;
 }
 
 .pm-module-subnav__menu {
