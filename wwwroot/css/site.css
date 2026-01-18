@@ -6353,6 +6353,9 @@ body.has-project-photo-preview-dialog {
 .pm-topbar {
     background: #ffffff;
     border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    position: sticky;
+    top: 0;
+    z-index: 60;
 }
 
 
@@ -6452,20 +6455,44 @@ body.has-project-photo-preview-dialog {
 .pm-module-subnav-wrap {
     position: sticky;
     top: 54px;
-    z-index: 10;
+    z-index: 55;
+    background: #ffffff;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+/* ---------- Projects module sub-nav alignment row ---------- */
+.pm-module-subnav-row {
+    display: flex;
+    align-items: center;
+    gap: 1.1rem;
+}
+
+.pm-module-subnav-spacer {
+    display: flex;
+    align-items: center;
+    gap: 1.1rem;
+    visibility: hidden;
+    pointer-events: none;
+    user-select: none;
 }
 
 .pm-module-subnav {
-    background: #ffffff;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    background: transparent;
+    border-bottom: none;
     height: 48px;
     display: flex;
     align-items: center;
     gap: .25rem;
     width: 100%;
     overflow-x: auto;
+    overflow-y: hidden;
     white-space: nowrap;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.pm-module-subnav::-webkit-scrollbar {
+    height: 0;
 }
 
 .pm-module-subnav__item {
@@ -6494,6 +6521,12 @@ body.has-project-photo-preview-dialog {
 .pm-module-subnav__badge {
     display: inline-flex;
     align-items: center;
+}
+
+@media (max-width: 768px) {
+    .pm-module-subnav-spacer {
+        display: none;
+    }
 }
 
 
