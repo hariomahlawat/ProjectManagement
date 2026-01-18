@@ -5,38 +5,60 @@
     <!-- ===========================
          PROJECT MODULE SUB-NAV
          =========================== -->
-    <nav class="pm-module-subnav" aria-label="Projects module">
-        @foreach (var tab in Model.Tabs)
-        {
-            var classes = "pm-module-subnav__item" + (tab.IsActive ? " is-active" : string.Empty);
-
-            if (!string.IsNullOrEmpty(tab.Url))
-            {
-                <a class="@classes" href="@tab.Url" @(tab.IsActive ? "aria-current=\"page\"" : null)>
-                    @if (!string.IsNullOrEmpty(tab.Icon))
-                    {
-                        <i class="bi @tab.Icon me-1" aria-hidden="true"></i>
-                    }
-                    <span>@tab.Text</span>
-
-                    @if (!string.IsNullOrEmpty(tab.BadgeViewComponentName))
-                    {
-                        <span class="pm-module-subnav__badge ms-2">
-                            @await Component.InvokeAsync(tab.BadgeViewComponentName!, tab.BadgeViewComponentParameters ?? new { })
-                        </span>
-                    }
-                </a>
-            }
-            else
-            {
-                <span class="@classes">
-                    @if (!string.IsNullOrEmpty(tab.Icon))
-                    {
-                        <i class="bi @tab.Icon me-1" aria-hidden="true"></i>
-                    }
-                    <span>@tab.Text</span>
+    <div class="pm-module-subnav-row">
+        <!-- ===========================
+             SUB-NAV SPACER (TAB ALIGNMENT)
+             =========================== -->
+        <div class="pm-module-subnav-spacer" aria-hidden="true">
+            <span class="pm-drawer-toggle">
+                <span class="navbar-toggler pm-drawer-toggle__button">
+                    <span class="pm-drawer-toggle__icon" aria-hidden="true"><i class="bi bi-list"></i></span>
+                    <span class="pm-drawer-toggle__label">Menu</span>
                 </span>
+            </span>
+
+            <span class="pm-brand">
+                <img src="~/img/logos/artrac.png" class="pm-nav-logo" alt="" />
+                <span class="pm-brand__text">PRISM ERP</span>
+            </span>
+        </div>
+
+        <!-- ===========================
+             SUB-NAV TABS
+             =========================== -->
+        <nav class="pm-module-subnav" aria-label="Projects module">
+            @foreach (var tab in Model.Tabs)
+            {
+                var classes = "pm-module-subnav__item" + (tab.IsActive ? " is-active" : string.Empty);
+
+                if (!string.IsNullOrEmpty(tab.Url))
+                {
+                    <a class="@classes" href="@tab.Url" @(tab.IsActive ? "aria-current=\"page\"" : null)>
+                        @if (!string.IsNullOrEmpty(tab.Icon))
+                        {
+                            <i class="bi @tab.Icon me-1" aria-hidden="true"></i>
+                        }
+                        <span>@tab.Text</span>
+
+                        @if (!string.IsNullOrEmpty(tab.BadgeViewComponentName))
+                        {
+                            <span class="pm-module-subnav__badge ms-2">
+                                @await Component.InvokeAsync(tab.BadgeViewComponentName!, tab.BadgeViewComponentParameters ?? new { })
+                            </span>
+                        }
+                    </a>
+                }
+                else
+                {
+                    <span class="@classes">
+                        @if (!string.IsNullOrEmpty(tab.Icon))
+                        {
+                            <i class="bi @tab.Icon me-1" aria-hidden="true"></i>
+                        }
+                        <span>@tab.Text</span>
+                    </span>
+                }
             }
-        }
-    </nav>
+        </nav>
+    </div>
 }
