@@ -139,7 +139,7 @@ public static class AdminModuleNavDefinition
         },
         new()
         {
-            Text = "Line dirs",
+            Text = "Line dtes",
             Area = "Admin",
             Page = "/Lookups/LineDirectorates/Index",
             Icon = "bi-diagram-2",
