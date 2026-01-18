@@ -61,17 +61,6 @@ public static class AdminModuleNavDefinition
         },
         new()
         {
-            Text = "Archived",
-            Page = "/Projects/Index",
-            Icon = "bi-archive",
-            RouteValues = new Dictionary<string, object?>
-            {
-                ["IncludeArchived"] = "true"
-            },
-            RequiredRoles = new[] { RoleNames.Admin }
-        },
-        new()
-        {
             Text = "Recycle bin",
             Area = "Admin",
             Page = "/Documents/Recycle",
