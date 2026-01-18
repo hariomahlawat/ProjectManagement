@@ -181,6 +181,22 @@
         </div>
       </div>
     </div>
+    @* SECTION: Quick links *@
+    <div class="card shadow-sm mt-3">
+      <div class="card-body">
+        <h5 class="card-title h6 mb-2">Quick links</h5>
+        <p class="card-text small text-muted">Shortcuts to additional admin utilities and maintenance tools.</p>
+        <div class="d-flex flex-wrap gap-2">
+          <a asp-area="Admin" asp-page="/Diagnostics/DbHealth" class="btn btn-sm btn-outline-primary">DB health</a>
+          <a asp-area="Admin" asp-page="/Analytics/Logins" class="btn btn-sm btn-outline-primary">Login scatter</a>
+          <a asp-area="ProjectOfficeReports" asp-page="/Projects/LegacyImport" class="btn btn-sm btn-outline-primary">Legacy import</a>
+          <a asp-area="Admin" asp-page="/Documents/IngestExternalPdfs" class="btn btn-sm btn-outline-primary">Ingest PDFs</a>
+          <a asp-page="/Settings/Holidays/Index" class="btn btn-sm btn-outline-primary">Manage holidays</a>
+          <a asp-page="/Celebrations/Index" class="btn btn-sm btn-outline-primary">Manage celebrations</a>
+          <a asp-area="Admin" asp-page="/Help" class="btn btn-sm btn-outline-primary">Admin help</a>
+        </div>
+      </div>
+    </div>
   </div>
   <div class="col-lg-4">
     <div class="card shadow-sm">

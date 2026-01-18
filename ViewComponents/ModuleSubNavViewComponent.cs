@@ -70,15 +70,22 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
             : null;
 
         var projectModuleItems = ProjectModuleNavDefinition.Build();
-        if (!IsInProjectsScope(currentPage, projectModuleItems))
+        var adminModuleItems = AdminModuleNavDefinition.Build();
+        var isInProjectsScope = IsInProjectsScope(currentPage, projectModuleItems);
+        var isInAdminScope = IsInAdminScope(currentArea, currentPage, adminModuleItems);
+
+        if (!isInProjectsScope && !isInAdminScope)
         {
             return Content(string.Empty);
         }
 
+        var moduleItems = isInAdminScope ? adminModuleItems : projectModuleItems;
+        var moduleLabel = isInAdminScope ? "Admin module" : "Projects module";
+
         // ===========================
         // AUTHORIZATION FILTERING
         // ===========================
-        var visibleItems = await FilterAuthorizedItemsAsync(projectModuleItems);
+        var visibleItems = await FilterAuthorizedItemsAsync(moduleItems);
         if (visibleItems.Count == 0)
         {
             return Content(string.Empty);
@@ -93,7 +100,8 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
 
         return View(new ModuleSubNavViewModel
         {
-            Tabs = tabs
+            Tabs = tabs,
+            AriaLabel = moduleLabel
         });
     }
 
@@ -116,6 +124,27 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
             !string.IsNullOrWhiteSpace(item.Page)
             && string.Equals(item.Page, currentPage, StringComparison.OrdinalIgnoreCase)
             && string.IsNullOrEmpty(item.Area));
+    }
+
+    private static bool IsInAdminScope(
+        string? currentArea,
+        string? currentPage,
+        IReadOnlyList<NavigationItem> adminItems)
+    {
+        if (string.Equals(currentArea, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(currentPage))
+        {
+            return false;
+        }
+
+        return adminItems.Any(item =>
+            !string.IsNullOrWhiteSpace(item.Page)
+            && string.Equals(item.Page, currentPage, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(item.Area ?? string.Empty, currentArea ?? string.Empty, StringComparison.OrdinalIgnoreCase));
     }
 
     // ===========================
@@ -307,6 +336,8 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
 public sealed record class ModuleSubNavViewModel
 {
     public required IReadOnlyList<ModuleSubNavItem> Tabs { get; init; }
+
+    public required string AriaLabel { get; init; }
 }
 
 public sealed record class ModuleSubNavItem
