@@ -3,7 +3,7 @@
 @if (Model.Tabs?.Any() ?? false)
 {
     <!-- ===========================
-         PROJECT MODULE SUB-NAV
+         MODULE SUB-NAV
          =========================== -->
     <div class="pm-module-subnav-row">
         <!-- ===========================
@@ -26,7 +26,7 @@
         <!-- ===========================
              SUB-NAV TABS
              =========================== -->
-        <nav class="pm-module-subnav" aria-label="Projects module">
+        <nav class="pm-module-subnav" aria-label="@Model.AriaLabel">
             @foreach (var tab in Model.Tabs)
             {
                 var classes = "pm-module-subnav__item" + (tab.IsActive ? " is-active" : string.Empty);
