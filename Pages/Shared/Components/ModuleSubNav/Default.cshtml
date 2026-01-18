@@ -1,0 +1,42 @@
+@model ProjectManagement.ViewComponents.ModuleSubNavViewModel
+
+@if (Model.Tabs?.Any() ?? false)
+{
+    <!-- ===========================
+         PROJECT MODULE SUB-NAV
+         =========================== -->
+    <nav class="pm-module-subnav" aria-label="Projects module">
+        @foreach (var tab in Model.Tabs)
+        {
+            var classes = "pm-module-subnav__item" + (tab.IsActive ? " is-active" : string.Empty);
+
+            if (!string.IsNullOrEmpty(tab.Url))
+            {
+                <a class="@classes" href="@tab.Url" @(tab.IsActive ? "aria-current=\"page\"" : null)>
+                    @if (!string.IsNullOrEmpty(tab.Icon))
+                    {
+                        <i class="bi @tab.Icon me-1" aria-hidden="true"></i>
+                    }
+                    <span>@tab.Text</span>
+
+                    @if (!string.IsNullOrEmpty(tab.BadgeViewComponentName))
+                    {
+                        <span class="pm-module-subnav__badge ms-2">
+                            @await Component.InvokeAsync(tab.BadgeViewComponentName!, tab.BadgeViewComponentParameters ?? new { })
+                        </span>
+                    }
+                </a>
+            }
+            else
+            {
+                <span class="@classes">
+                    @if (!string.IsNullOrEmpty(tab.Icon))
+                    {
+                        <i class="bi @tab.Icon me-1" aria-hidden="true"></i>
+                    }
+                    <span>@tab.Text</span>
+                </span>
+            }
+        }
+    </nav>
+}

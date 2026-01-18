@@ -9,6 +9,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Navigation;
+using ProjectManagement.Services.Navigation.ModuleNav;
 
 namespace ProjectManagement.Services.Navigation;
 
@@ -81,47 +82,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
         // ===========================
         // PROJECT MODULE NAVIGATION
         // ===========================
-        var projectModuleChildren = new List<NavigationItem>
-        {
-            new()
-            {
-                Text = "Projects repository",
-                Page = "/Projects/Index",
-                Icon = "bi-collection"
-            },
-            new()
-            {
-                Text = "Ongoing projects",
-                Page = "/Projects/Ongoing/Index",
-                Icon = "bi-clock-history"
-            },
-            new()
-            {
-                Text = "Completed projects summary",
-                Page = "/Projects/CompletedSummary/Index",
-                Icon = "bi-clipboard-data"
-            },
-            new()
-            {
-                Text = "Process",
-                Page = "/Process/Index",
-                Icon = "bi-diagram-3"
-            },
-            new()
-            {
-                Text = "Analytics",
-                Page = "/Analytics/Index",
-                Icon = "bi-graph-up"
-            },
-            new()
-            {
-                Text = "Pending approvals",
-                Page = "/Approvals/Pending/Index",
-                RequiredRoles = new[] { "Admin", "HoD" },
-                BadgeViewComponentName = "PendingApprovalsBadge",
-                Icon = "bi-check2-square"
-            },
-        };
+        var projectModuleChildren = ProjectModuleNavDefinition.Build();
 
         items.Add(new NavigationItem
         {

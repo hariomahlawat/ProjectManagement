@@ -85,6 +85,15 @@
     </header>
 
     <!-- ===========================
+         PROJECTS MODULE SUB-NAV
+         =========================== -->
+    <div class="pm-module-subnav-wrap">
+        <div class="container-fluid px-3 px-md-4 px-lg-5">
+            @await Component.InvokeAsync("ModuleSubNav")
+        </div>
+    </div>
+
+    <!-- ===========================
          MAIN CONTENT
          =========================== -->
     <main role="main" class="pb-2@(useFullWidth ? " analytics-main" : string.Empty)">
