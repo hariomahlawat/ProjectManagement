@@ -40,6 +40,12 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
         "View"
     };
 
+    // ===========================
+    // ADMIN OVERFLOW SETTINGS
+    // ===========================
+    private const int AdminPrimaryTabCount = 7;
+    private const string AdminOverflowLabel = "More";
+
     private readonly LinkGenerator _linkGenerator;
     private readonly IAuthorizationService _authorizationService;
 
@@ -98,9 +104,37 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
         var tabs = visibleItems.Select(item => BuildTab(item, currentArea, currentPage, currentController, currentAction, preservedQuery))
             .ToList();
 
+        // ===========================
+        // OVERFLOW SPLIT (ADMIN ONLY)
+        // ===========================
+        var primaryTabs = tabs;
+        var overflowTabs = Array.Empty<ModuleSubNavItem>();
+        var isOverflowActive = false;
+
+        if (isInAdminScope && tabs.Count > AdminPrimaryTabCount)
+        {
+            primaryTabs = tabs.Take(AdminPrimaryTabCount).ToList();
+            overflowTabs = tabs.Skip(AdminPrimaryTabCount).ToList();
+            isOverflowActive = overflowTabs.Any(tab => tab.IsActive);
+
+            if (isOverflowActive)
+            {
+                var activeOverflow = overflowTabs.First(tab => tab.IsActive);
+                var lastPrimary = primaryTabs[^1];
+                primaryTabs.RemoveAt(primaryTabs.Count - 1);
+
+                overflowTabs.Remove(activeOverflow);
+                primaryTabs.Add(activeOverflow);
+                overflowTabs.Insert(0, lastPrimary);
+            }
+        }
+
         return View(new ModuleSubNavViewModel
         {
-            Tabs = tabs,
+            Tabs = primaryTabs,
+            OverflowTabs = overflowTabs,
+            OverflowLabel = AdminOverflowLabel,
+            IsOverflowActive = isOverflowActive,
             AriaLabel = moduleLabel
         });
     }
@@ -336,6 +370,12 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
 public sealed record class ModuleSubNavViewModel
 {
     public required IReadOnlyList<ModuleSubNavItem> Tabs { get; init; }
+
+    public required IReadOnlyList<ModuleSubNavItem> OverflowTabs { get; init; }
+
+    public required string OverflowLabel { get; init; }
+
+    public required bool IsOverflowActive { get; init; }
 
     public required string AriaLabel { get; init; }
 }

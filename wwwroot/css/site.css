@@ -6526,6 +6526,23 @@ body.has-project-photo-preview-dialog {
     align-items: center;
 }
 
+/* ---------- Projects module sub-nav overflow ---------- */
+.pm-module-subnav__dropdown {
+    display: inline-flex;
+    align-items: center;
+}
+
+.pm-module-subnav__menu {
+    min-width: 15rem;
+    border-radius: .75rem;
+    padding: .35rem;
+}
+
+.pm-module-subnav__menu .dropdown-item {
+    border-radius: .5rem;
+    font-size: .9rem;
+}
+
 @media (max-width: 768px) {
     .pm-module-subnav-spacer {
         display: none;
