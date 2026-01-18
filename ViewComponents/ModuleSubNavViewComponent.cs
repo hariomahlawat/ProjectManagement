@@ -108,7 +108,7 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
         // OVERFLOW SPLIT (ADMIN ONLY)
         // ===========================
         var primaryTabs = tabs;
-        var overflowTabs = Array.Empty<ModuleSubNavItem>();
+        var overflowTabs = new List<ModuleSubNavItem>();
         var isOverflowActive = false;
 
         if (isInAdminScope && tabs.Count > AdminPrimaryTabCount)
