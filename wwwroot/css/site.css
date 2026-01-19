@@ -6502,18 +6502,31 @@ body.has-project-photo-preview-dialog {
 .pm-module-subnav__item {
     display: inline-flex;
     align-items: center;
+    gap: .35rem;
     height: 44px;
     padding: 0 .75rem;
     font-size: .78rem;
     font-weight: 500;
     color: #64748b;
     text-decoration: none;
+    background: transparent;
+    border: none;
     border-bottom: 2px solid transparent;
+    border-radius: 0;
+    box-shadow: none;
+    appearance: none;
+    cursor: pointer;
     transition: color .12s ease-out, border-color .12s ease-out;
 }
 
     .pm-module-subnav__item:hover {
         color: #0f172a;
+    }
+
+    .pm-module-subnav__item:focus,
+    .pm-module-subnav__item:focus-visible {
+        outline: none;
+        box-shadow: none;
     }
 
     .pm-module-subnav__item.is-active {
@@ -6535,11 +6548,31 @@ body.has-project-photo-preview-dialog {
 
 /* ---------- Projects module sub-nav overflow (layout & layering) ---------- */
 .pm-subnav__overflow {
+    display: flex;
+    align-items: center;
+    padding-left: .25rem;
+    margin-left: .25rem;
     flex: 0 0 auto;
+    position: relative;
+}
+
+.pm-subnav__overflow::before {
+    content: "";
+    display: block;
+    width: 1px;
+    height: 18px;
+    background: rgba(148, 163, 184, 0.35);
+    margin-right: .5rem;
 }
 
 .pm-subnav__overflow .dropdown-menu {
     z-index: 2000;
+}
+
+/* ---------- Projects module sub-nav overflow (open state) ---------- */
+.pm-subnav__overflow.show .pm-module-subnav__item {
+    color: #0f172a;
+    border-bottom-color: #3b82f6;
 }
 
 .pm-module-subnav__menu {
