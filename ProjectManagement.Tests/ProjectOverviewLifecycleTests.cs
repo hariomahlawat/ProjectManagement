@@ -119,7 +119,8 @@ public sealed class ProjectOverviewLifecycleTests
 
         Assert.IsType<PageResult>(result);
         Assert.True(overview.LifecycleActions.CanManageLifecycle);
-        Assert.False(overview.LifecycleActions.HasActions);
+        Assert.True(overview.LifecycleActions.HasActions);
+        Assert.True(overview.LifecycleActions.CanReactivate);
         Assert.Equal(ProjectLifecycleStatus.Cancelled, overview.LifecycleActions.Status);
     }
 

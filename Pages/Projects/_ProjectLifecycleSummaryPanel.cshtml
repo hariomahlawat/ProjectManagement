@@ -1,0 +1,57 @@
+@using System.Linq
+@using ProjectManagement.Models
+@model ProjectManagement.Pages.Projects.OverviewModel
+
+@{
+    var lifecycle = Model.LifecycleSummary;
+    var lifecycleVariant = lifecycle.Status switch
+    {
+        ProjectLifecycleStatus.Completed => "success",
+        ProjectLifecycleStatus.Cancelled => "danger",
+        _ => "secondary"
+    };
+}
+
+<!-- SECTION: Lifecycle summary panel -->
+<div class="card pm-card">
+    <div class="card-header pm-card-header">
+        <div class="pm-card-heading">
+            <span class="pm-card-icon" aria-hidden="true">
+                <i class="bi bi-flag"></i>
+            </span>
+            <div>
+                <h2 class="pm-card-title h5 mb-0">Lifecycle summary</h2>
+                <p class="pm-card-subtitle mb-0">Project status after completion.</p>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            @if (!string.IsNullOrWhiteSpace(lifecycle.BadgeText))
+            {
+                <span class="badge text-bg-secondary">@lifecycle.BadgeText</span>
+            }
+        </div>
+    </div>
+    <div class="card-body pm-card-body d-flex flex-column gap-3">
+        <div>
+            <span class="badge text-bg-@lifecycleVariant">@lifecycle.StatusLabel</span>
+            @if (!string.IsNullOrWhiteSpace(lifecycle.PrimaryDetail))
+            {
+                <p class="mt-2 mb-0">@lifecycle.PrimaryDetail</p>
+            }
+            @if (!string.IsNullOrWhiteSpace(lifecycle.SecondaryDetail))
+            {
+                <p class="text-muted mb-0">@lifecycle.SecondaryDetail</p>
+            }
+        </div>
+        @if (lifecycle.Facts.Any())
+        {
+            <dl class="row small mb-0">
+                @foreach (var fact in lifecycle.Facts)
+                {
+                    <dt class="col-sm-4">@fact.Label</dt>
+                    <dd class="col-sm-8">@fact.Value</dd>
+                }
+            </dl>
+        }
+    </div>
+</div>

@@ -104,6 +104,18 @@ public static class Audit
             return new AuditEvent("Project.LifecycleCancelled", userId, data);
         }
 
+        public static AuditEvent ProjectLifecycleReactivated(int projectId, string userId, ProjectLifecycleStatus previousStatus, string? reason)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["PreviousStatus"] = previousStatus.ToString(),
+                ["Reason"] = reason
+            };
+
+            return new AuditEvent("Project.LifecycleReactivated", userId, data);
+        }
+
         public static AuditEvent ProjectDocumentRequested(int projectId, int requestId, string userId, ProjectDocumentRequestType type, int? documentId)
         {
             var data = new Dictionary<string, string?>

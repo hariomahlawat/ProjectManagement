@@ -17,6 +17,8 @@ public sealed class ProjectLifecycleActionsViewModel
 
     public bool CanCancel { get; init; }
 
+    public bool CanReactivate { get; init; }
+
     public int? CompletedYear { get; init; }
 
     public DateOnly? CompletedOn { get; init; }
@@ -25,5 +27,5 @@ public sealed class ProjectLifecycleActionsViewModel
 
     public string? CancelReason { get; init; }
 
-    public bool HasActions => CanMarkCompleted || CanEndorseCompletedDate || CanCancel;
+    public bool HasActions => CanMarkCompleted || CanEndorseCompletedDate || CanCancel || CanReactivate;
 }

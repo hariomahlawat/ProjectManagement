@@ -157,17 +157,14 @@
         <partial name="_ProjectModerationActions" model="Model" />
     }
 
-    @if (!Model.LifecycleSummary.ShowPostCompletionView)
-    {
-        <div class="alert alert-warning d-flex align-items-center justify-content-between@(Model.HasBackfill ? string.Empty : " d-none")"
-             role="alert"
-             data-backfill-banner>
-            <div>
-                <strong>Action needed:</strong> Some earlier stages were auto-completed and need dates or costs.
-            </div>
-            <button type="button" class="btn btn-sm btn-warning text-dark" data-action="open-backfill">Backfill now</button>
+    <div class="alert alert-warning d-flex align-items-center justify-content-between@(Model.HasBackfill ? string.Empty : " d-none")"
+         role="alert"
+         data-backfill-banner>
+        <div>
+            <strong>Action needed:</strong> Some earlier stages were auto-completed and need dates or costs.
         </div>
-    }
+        <button type="button" class="btn btn-sm btn-warning text-dark" data-action="open-backfill">Backfill now</button>
+    </div>
 
     @if (project?.HodUserId == null || project?.LeadPoUserId == null)
     {
@@ -195,7 +192,7 @@
         </div>
     }
 
-    @if (!Model.LifecycleSummary.ShowPostCompletionView && planState.HasPendingSubmission)
+    @if (planState.HasPendingSubmission)
     {
         <div class="alert alert-info d-flex align-items-center justify-content-between" role="alert">
             <div>
@@ -229,299 +226,299 @@
         </div>
     }
 
-    @if (Model.LifecycleSummary.ShowPostCompletionView)
+    @if (Model.LifecycleSummary.Status != ProjectLifecycleStatus.Active || Model.LifecycleSummary.IsLegacy)
     {
-        <partial name="_ProjectPostCompletion" model="Model" />
+        <!-- SECTION: Lifecycle summary card -->
+        <partial name="_ProjectLifecycleSummaryPanel" model="Model" />
     }
-    else
-    {
-        <div class="row g-3 mb-4">
-            <div class="col-lg-8 d-flex flex-column gap-3">
-                <partial name="_ProjectOverviewCard" model="Model" />
-                <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
-                <div class="card pm-card">
-                    @{
-                        var stageTotal = Model.Stages.Count;
-                        var stageCompleted = Model.Stages.Count(s => s.Status == StageStatus.Completed);
-                        var stageBlocked = Model.Stages.Count(s => s.Status == StageStatus.Blocked);
-                        var stageProgressPercent = stageTotal == 0
-                            ? 0
-                            : (int)Math.Round((decimal)stageCompleted / stageTotal * 100, MidpointRounding.AwayFromZero);
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8 d-flex flex-column gap-3">
+            <partial name="_ProjectOverviewCard" model="Model" />
+            <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
+            <div class="card pm-card">
+                @{
+                    var stageTotal = Model.Stages.Count;
+                    var stageCompleted = Model.Stages.Count(s => s.Status == StageStatus.Completed);
+                    var stageBlocked = Model.Stages.Count(s => s.Status == StageStatus.Blocked);
+                    var stageProgressPercent = stageTotal == 0
+                        ? 0
+                        : (int)Math.Round((decimal)stageCompleted / stageTotal * 100, MidpointRounding.AwayFromZero);
+                }
+                <div class="card-header pm-card-header">
+                    <div class="pm-card-heading">
+                        <span class="pm-card-icon" aria-hidden="true">
+                            <i class="bi bi-list-check"></i>
+                        </span>
+                        <div>
+                            <h3 class="pm-card-title h5 mb-0">Stage progress</h3>
+                            <p class="pm-card-subtitle mb-0">Current status.</p>
+                        </div>
+                    </div>
+                    @if (stageTotal > 0)
+                    {
+                        <div class="pm-card-meta">
+                            <div class="pm-card-progress" aria-hidden="true">
+                                <span class="pm-card-progress-bar" data-stage-progress="@stageProgressPercent"></span>
+                            </div>
+                            <span class="text-muted small">@stageCompleted of @stageTotal completed</span>
+                            @if (stageBlocked > 0)
+                            {
+                                <span class="badge bg-warning-subtle text-warning-emphasis small">@stageBlocked blocked</span>
+                            }
+                        </div>
                     }
+                </div>
+                <div class="card-body pm-card-body">
+                    @if (!Model.Stages.Any())
+                    {
+                        <p class="mb-0 text-muted">No stage updates recorded yet.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Stage</th>
+                                        <th>Status</th>
+                                        <th>Completed On</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var stage in Model.Stages)
+                                    {
+                                        <tr>
+                                            <td>@stage.StageCode</td>
+                                            <td>@stage.Status</td>
+                                            <td>@(stage.CompletedOn?.ToString("dd MMM yyyy") ?? "—")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+            <partial name="_ProjectMediaTabs" model="Model" />
+        </div>
+        <div class="col-lg-4 d-flex flex-column gap-3">
+            <partial name="_ProjectTotPanel" model="Model" />
+            @if (Model.IsDocumentApprover && Model.DocumentPendingRequests.Any())
+            {
+                <div class="card pm-card">
                     <div class="card-header pm-card-header">
                         <div class="pm-card-heading">
                             <span class="pm-card-icon" aria-hidden="true">
-                                <i class="bi bi-list-check"></i>
+                                <i class="bi bi-inbox"></i>
                             </span>
                             <div>
-                                <h3 class="pm-card-title h5 mb-0">Stage progress</h3>
-                                <p class="pm-card-subtitle mb-0">Current status.</p>
+                                <h3 class="pm-card-title h6 mb-0">Document requests</h3>
+                                <p class="pm-card-subtitle mb-0">Newest submissions awaiting your decision.</p>
                             </div>
                         </div>
-                        @if (stageTotal > 0)
-                        {
-                            <div class="pm-card-meta">
-                                <div class="pm-card-progress" aria-hidden="true">
-                                    <span class="pm-card-progress-bar" data-stage-progress="@stageProgressPercent"></span>
-                                </div>
-                                <span class="text-muted small">@stageCompleted of @stageTotal completed</span>
-                                @if (stageBlocked > 0)
-                                {
-                                    <span class="badge bg-warning-subtle text-warning-emphasis small">@stageBlocked blocked</span>
-                                }
-                            </div>
-                        }
                     </div>
-                    <div class="card-body pm-card-body">
-                        @if (!Model.Stages.Any())
+                    <div class="card-body pm-card-body d-flex flex-column gap-3">
+                        @foreach (var request in Model.DocumentPendingRequests)
                         {
-                            <p class="mb-0 text-muted">No stage updates recorded yet.</p>
-                        }
-                        else
-                        {
-                            <div class="table-responsive">
-                                <table class="table align-middle mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th>Stage</th>
-                                            <th>Status</th>
-                                            <th>Completed On</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var stage in Model.Stages)
-                                        {
-                                            <tr>
-                                                <td>@stage.StageCode</td>
-                                                <td>@stage.Status</td>
-                                                <td>@(stage.CompletedOn?.ToString("dd MMM yyyy") ?? "—")</td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
+                            <div class="border rounded p-3">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <div>
+                                        <div class="fw-semibold">@request.Title</div>
+                                        <div class="text-muted small">@request.StageDisplayName · @request.RequestTypeLabel</div>
+                                        <div class="text-muted small">@request.RequestedSummary</div>
+                                        <div class="text-muted small">@request.FileName (@request.FileSizeDisplay)</div>
+                                    </div>
+                                    <span class="badge text-bg-warning">Pending</span>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 mt-3">
+                                    <form method="post"
+                                          class="d-inline"
+                                          asp-page="/Projects/Documents/Approvals/Review"
+                                          asp-page-handler="Approve"
+                                          asp-route-id="@Model.Project!.Id"
+                                          asp-route-requestId="@request.RequestId">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="Input.RequestId" value="@request.RequestId" />
+                                        <input type="hidden" name="Input.RowVersion" value="@request.RowVersion" />
+                                        <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                                    </form>
+                                    <form method="post"
+                                          class="d-inline"
+                                          asp-page="/Projects/Documents/Approvals/Review"
+                                          asp-page-handler="Reject"
+                                          asp-route-id="@Model.Project!.Id"
+                                          asp-route-requestId="@request.RequestId">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="Input.RequestId" value="@request.RequestId" />
+                                        <input type="hidden" name="Input.RowVersion" value="@request.RowVersion" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Reject</button>
+                                    </form>
+                                    <a class="btn btn-sm btn-outline-secondary"
+                                       asp-page="/Projects/Documents/Approvals/Review"
+                                       asp-route-id="@Model.Project!.Id"
+                                       asp-route-requestId="@request.RequestId">Review</a>
+                                </div>
                             </div>
                         }
+                        <a class="btn btn-sm btn-outline-secondary align-self-start"
+                           asp-page="/Projects/Documents/Approvals/Index"
+                           asp-route-id="@Model.Project!.Id">View all requests</a>
                     </div>
                 </div>
-                <partial name="_ProjectMediaTabs" model="Model" />
-            </div>
-            <div class="col-lg-4 d-flex flex-column gap-3">
-                <partial name="_ProjectTotPanel" model="Model" />
-                @if (Model.IsDocumentApprover && Model.DocumentPendingRequests.Any())
-                {
-                    <div class="card pm-card">
-                        <div class="card-header pm-card-header">
-                            <div class="pm-card-heading">
-                                <span class="pm-card-icon" aria-hidden="true">
-                                    <i class="bi bi-inbox"></i>
-                                </span>
-                                <div>
-                                    <h3 class="pm-card-title h6 mb-0">Document requests</h3>
-                                    <p class="pm-card-subtitle mb-0">Newest submissions awaiting your decision.</p>
-                                </div>
+            }
+            @if (Model.MetaChangeRequest is { } metaRequest)
+            {
+            if (isHoD || isAdmin)
+            {
+                <div class="card pm-card">
+                    <div class="card-header pm-card-header">
+                        <div class="pm-card-heading">
+                            <span class="pm-card-icon" aria-hidden="true">
+                                <i class="bi bi-clipboard2-data"></i>
+                            </span>
+                            <div>
+                                <h3 class="pm-card-title h6 mb-0">Meta change pending</h3>
+                                <p class="pm-card-subtitle mb-0">Requested @metaRequest.RequestedOnUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</p>
                             </div>
-                        </div>
-                        <div class="card-body pm-card-body d-flex flex-column gap-3">
-                            @foreach (var request in Model.DocumentPendingRequests)
-                            {
-                                <div class="border rounded p-3">
-                                    <div class="d-flex justify-content-between align-items-start gap-2">
-                                        <div>
-                                            <div class="fw-semibold">@request.Title</div>
-                                            <div class="text-muted small">@request.StageDisplayName · @request.RequestTypeLabel</div>
-                                            <div class="text-muted small">@request.RequestedSummary</div>
-                                            <div class="text-muted small">@request.FileName (@request.FileSizeDisplay)</div>
-                                        </div>
-                                        <span class="badge text-bg-warning">Pending</span>
-                                    </div>
-                                    <div class="d-flex flex-wrap gap-2 mt-3">
-                                        <form method="post"
-                                              class="d-inline"
-                                              asp-page="/Projects/Documents/Approvals/Review"
-                                              asp-page-handler="Approve"
-                                              asp-route-id="@Model.Project!.Id"
-                                              asp-route-requestId="@request.RequestId">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="Input.RequestId" value="@request.RequestId" />
-                                            <input type="hidden" name="Input.RowVersion" value="@request.RowVersion" />
-                                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
-                                        </form>
-                                        <form method="post"
-                                              class="d-inline"
-                                              asp-page="/Projects/Documents/Approvals/Review"
-                                              asp-page-handler="Reject"
-                                              asp-route-id="@Model.Project!.Id"
-                                              asp-route-requestId="@request.RequestId">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="Input.RequestId" value="@request.RequestId" />
-                                            <input type="hidden" name="Input.RowVersion" value="@request.RowVersion" />
-                                            <button type="submit" class="btn btn-sm btn-outline-danger">Reject</button>
-                                        </form>
-                                        <a class="btn btn-sm btn-outline-secondary"
-                                           asp-page="/Projects/Documents/Approvals/Review"
-                                           asp-route-id="@Model.Project!.Id"
-                                           asp-route-requestId="@request.RequestId">Review</a>
-                                    </div>
-                                </div>
-                            }
-                            <a class="btn btn-sm btn-outline-secondary align-self-start"
-                               asp-page="/Projects/Documents/Approvals/Index"
-                               asp-route-id="@Model.Project!.Id">View all requests</a>
                         </div>
                     </div>
-                }
-                @if (Model.MetaChangeRequest is { } metaRequest)
-                {
-                if (isHoD || isAdmin)
-                {
-                    <div class="card pm-card">
-                        <div class="card-header pm-card-header">
-                            <div class="pm-card-heading">
-                                <span class="pm-card-icon" aria-hidden="true">
-                                    <i class="bi bi-clipboard2-data"></i>
-                                </span>
-                                <div>
-                                    <h3 class="pm-card-title h6 mb-0">Meta change pending</h3>
-                                    <p class="pm-card-subtitle mb-0">Requested @metaRequest.RequestedOnUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="card-body pm-card-body d-flex flex-column gap-3">
-                            @if (metaRequest.HasDrift)
-                            {
-                                <div class="alert alert-warning border-warning-subtle bg-warning-subtle text-dark" role="alert">
-                                    <div class="fw-semibold">Project details have changed since this request was raised</div>
-                                    <div class="small mb-2">Review the diffs below. You may approve, reject, or open direct edit to reconcile.</div>
-                                    <ul class="small mb-0 ps-3">
-                                        @foreach (var drift in metaRequest.Drift)
+                    <div class="card-body pm-card-body d-flex flex-column gap-3">
+                        @if (metaRequest.HasDrift)
+                        {
+                            <div class="alert alert-warning border-warning-subtle bg-warning-subtle text-dark" role="alert">
+                                <div class="fw-semibold">Project details have changed since this request was raised</div>
+                                <div class="small mb-2">Review the diffs below. You may approve, reject, or open direct edit to reconcile.</div>
+                                <ul class="small mb-0 ps-3">
+                                    @foreach (var drift in metaRequest.Drift)
+                                    {
+                                        if (drift.IsProjectRecord)
                                         {
-                                            if (drift.IsProjectRecord)
-                                            {
-                                                <li>@drift.Field: @drift.CurrentValue.</li>
-                                            }
-                                            else
-                                            {
-                                                <li>@drift.Field changed: <span class="fw-semibold">@drift.OriginalValue</span> → <span class="fw-semibold">@drift.CurrentValue</span></li>
-                                            }
+                                            <li>@drift.Field: @drift.CurrentValue.</li>
                                         }
-                                    </ul>
+                                        else
+                                        {
+                                            <li>@drift.Field changed: <span class="fw-semibold">@drift.OriginalValue</span> → <span class="fw-semibold">@drift.CurrentValue</span></li>
+                                        }
+                                    }
+                                </ul>
+                            </div>
+                        }
+                        <div>
+                            <div class="fw-semibold">@metaRequest.RequestedBy</div>
+                            @if (!string.IsNullOrWhiteSpace(metaRequest.RequestNote))
+                            {
+                                <div class="mt-2">
+                                    <div class="text-muted small text-uppercase">PO note</div>
+                                    <div>@metaRequest.RequestNote</div>
                                 </div>
                             }
+                        </div>
+                        <div class="d-flex flex-column gap-3">
                             <div>
-                                <div class="fw-semibold">@metaRequest.RequestedBy</div>
-                                @if (!string.IsNullOrWhiteSpace(metaRequest.RequestNote))
-                                {
-                                    <div class="mt-2">
-                                        <div class="text-muted small text-uppercase">PO note</div>
-                                        <div>@metaRequest.RequestNote</div>
-                                    </div>
-                                }
-                            </div>
-                            <div class="d-flex flex-column gap-3">
+                                <div class="fw-semibold">Name</div>
+                                <div class="text-muted small">Current</div>
+                                <div>@metaRequest.Name.CurrentValue</div>
+                                <div class="text-muted small mt-1">Proposed</div>
                                 <div>
-                                    <div class="fw-semibold">Name</div>
-                                    <div class="text-muted small">Current</div>
-                                    <div>@metaRequest.Name.CurrentValue</div>
-                                    <div class="text-muted small mt-1">Proposed</div>
-                                    <div>
-                                        <span class="fw-semibold">@metaRequest.Name.ProposedValue</span>
-                                        @if (metaRequest.Name.HasChanged)
-                                        {
-                                            <span class="badge text-bg-warning ms-1">Changed</span>
-                                        }
-                                    </div>
-                                </div>
-                                <div>
-                                    <div class="fw-semibold">Description</div>
-                                    <div class="text-muted small">Current</div>
-                                    <div>@metaRequest.Description.CurrentValue</div>
-                                    <div class="text-muted small mt-1">Proposed</div>
-                                    <div class="border rounded p-2 bg-light">
-                                        @metaRequest.Description.ProposedValue
-                                    </div>
-                                    @if (metaRequest.Description.HasChanged)
+                                    <span class="fw-semibold">@metaRequest.Name.ProposedValue</span>
+                                    @if (metaRequest.Name.HasChanged)
                                     {
-                                        <span class="badge text-bg-warning mt-1">Changed</span>
+                                        <span class="badge text-bg-warning ms-1">Changed</span>
                                     }
                                 </div>
-                                <div>
-                                    <div class="fw-semibold">Case file number</div>
-                                    <div class="text-muted small">Current</div>
-                                    <div>@metaRequest.CaseFileNumber.CurrentValue</div>
-                                    <div class="text-muted small mt-1">Proposed</div>
-                                    <div>
-                                        <span class="fw-semibold">@metaRequest.CaseFileNumber.ProposedValue</span>
-                                        @if (metaRequest.CaseFileNumber.HasChanged)
-                                        {
-                                            <span class="badge text-bg-warning ms-1">Changed</span>
-                                        }
-                                    </div>
+                            </div>
+                            <div>
+                                <div class="fw-semibold">Description</div>
+                                <div class="text-muted small">Current</div>
+                                <div>@metaRequest.Description.CurrentValue</div>
+                                <div class="text-muted small mt-1">Proposed</div>
+                                <div class="border rounded p-2 bg-light">
+                                    @metaRequest.Description.ProposedValue
                                 </div>
+                                @if (metaRequest.Description.HasChanged)
+                                {
+                                    <span class="badge text-bg-warning mt-1">Changed</span>
+                                }
+                            </div>
+                            <div>
+                                <div class="fw-semibold">Case file number</div>
+                                <div class="text-muted small">Current</div>
+                                <div>@metaRequest.CaseFileNumber.CurrentValue</div>
+                                <div class="text-muted small mt-1">Proposed</div>
                                 <div>
-                                    <div class="fw-semibold">Category</div>
-                                    <div class="text-muted small">Current</div>
-                                    <div>@metaRequest.Category.CurrentValue</div>
-                                    <div class="text-muted small mt-1">Proposed</div>
-                                    <div>
-                                        <span class="fw-semibold">@metaRequest.Category.ProposedValue</span>
-                                        @if (metaRequest.Category.HasChanged)
-                                        {
-                                            <span class="badge text-bg-warning ms-1">Changed</span>
-                                        }
-                                    </div>
+                                    <span class="fw-semibold">@metaRequest.CaseFileNumber.ProposedValue</span>
+                                    @if (metaRequest.CaseFileNumber.HasChanged)
+                                    {
+                                        <span class="badge text-bg-warning ms-1">Changed</span>
+                                    }
                                 </div>
+                            </div>
+                            <div>
+                                <div class="fw-semibold">Category</div>
+                                <div class="text-muted small">Current</div>
+                                <div>@metaRequest.Category.CurrentValue</div>
+                                <div class="text-muted small mt-1">Proposed</div>
                                 <div>
-                                    <div class="fw-semibold">Technical category</div>
-                                    <div class="text-muted small">Current</div>
-                                    <div>@metaRequest.TechnicalCategory.CurrentValue</div>
-                                    <div class="text-muted small mt-1">Proposed</div>
-                                    <div>
-                                        <span class="fw-semibold">@metaRequest.TechnicalCategory.ProposedValue</span>
-                                        @if (metaRequest.TechnicalCategory.HasChanged)
-                                        {
-                                            <span class="badge text-bg-warning ms-1">Changed</span>
-                                        }
-                                    </div>
+                                    <span class="fw-semibold">@metaRequest.Category.ProposedValue</span>
+                                    @if (metaRequest.Category.HasChanged)
+                                    {
+                                        <span class="badge text-bg-warning ms-1">Changed</span>
+                                    }
                                 </div>
+                            </div>
+                            <div>
+                                <div class="fw-semibold">Technical category</div>
+                                <div class="text-muted small">Current</div>
+                                <div>@metaRequest.TechnicalCategory.CurrentValue</div>
+                                <div class="text-muted small mt-1">Proposed</div>
                                 <div>
-                                    <div class="fw-semibold">Project type</div>
-                                    <div class="text-muted small">Current</div>
-                                    <div>@metaRequest.ProjectType.CurrentValue</div>
-                                    <div class="text-muted small mt-1">Proposed</div>
-                                    <div>
-                                        <span class="fw-semibold">@metaRequest.ProjectType.ProposedValue</span>
-                                        @if (metaRequest.ProjectType.HasChanged)
-                                        {
-                                            <span class="badge text-bg-warning ms-1">Changed</span>
-                                        }
-                                    </div>
+                                    <span class="fw-semibold">@metaRequest.TechnicalCategory.ProposedValue</span>
+                                    @if (metaRequest.TechnicalCategory.HasChanged)
+                                    {
+                                        <span class="badge text-bg-warning ms-1">Changed</span>
+                                    }
                                 </div>
+                            </div>
+                            <div>
+                                <div class="fw-semibold">Project type</div>
+                                <div class="text-muted small">Current</div>
+                                <div>@metaRequest.ProjectType.CurrentValue</div>
+                                <div class="text-muted small mt-1">Proposed</div>
                                 <div>
-                                    <div class="fw-semibold">Build (repeat / re-manufacture)</div>
-                                    <div class="text-muted small">Current</div>
-                                    <div>@metaRequest.IsBuild.CurrentValue</div>
-                                    <div class="text-muted small mt-1">Proposed</div>
-                                    <div>
-                                        <span class="fw-semibold">@metaRequest.IsBuild.ProposedValue</span>
-                                        @if (metaRequest.IsBuild.HasChanged)
-                                        {
-                                            <span class="badge text-bg-warning ms-1">Changed</span>
-                                        }
-                                    </div>
+                                    <span class="fw-semibold">@metaRequest.ProjectType.ProposedValue</span>
+                                    @if (metaRequest.ProjectType.HasChanged)
+                                    {
+                                        <span class="badge text-bg-warning ms-1">Changed</span>
+                                    }
                                 </div>
+                            </div>
+                            <div>
+                                <div class="fw-semibold">Build (repeat / re-manufacture)</div>
+                                <div class="text-muted small">Current</div>
+                                <div>@metaRequest.IsBuild.CurrentValue</div>
+                                <div class="text-muted small mt-1">Proposed</div>
                                 <div>
-                                    <div class="fw-semibold">Sponsoring Unit</div>
-                                    <div class="text-muted small">Current</div>
-                                    <div>@metaRequest.SponsoringUnit.CurrentValue</div>
-                                    <div class="text-muted small mt-1">Proposed</div>
-                                    <div>
-                                        <span class="fw-semibold">@metaRequest.SponsoringUnit.ProposedValue</span>
-                                        @if (metaRequest.SponsoringUnit.HasChanged)
-                                        {
-                                            <span class="badge text-bg-warning ms-1">Changed</span>
-                                        }
-                                    </div>
+                                    <span class="fw-semibold">@metaRequest.IsBuild.ProposedValue</span>
+                                    @if (metaRequest.IsBuild.HasChanged)
+                                    {
+                                        <span class="badge text-bg-warning ms-1">Changed</span>
+                                    }
                                 </div>
+                            </div>
+                            <div>
+                                <div class="fw-semibold">Sponsoring Unit</div>
+                                <div class="text-muted small">Current</div>
+                                <div>@metaRequest.SponsoringUnit.CurrentValue</div>
+                                <div class="text-muted small mt-1">Proposed</div>
+                                <div>
+                                    <span class="fw-semibold">@metaRequest.SponsoringUnit.ProposedValue</span>
+                                    @if (metaRequest.SponsoringUnit.HasChanged)
+                                    {
+                                        <span class="badge text-bg-warning ms-1">Changed</span>
+                                    }
+                                </div>
+                            </div>
                                 <div>
                                     <div class="fw-semibold">Sponsoring Line Dte</div>
                                     <div class="text-muted small">Current</div>
