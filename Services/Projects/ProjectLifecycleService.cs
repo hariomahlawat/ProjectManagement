@@ -190,4 +190,53 @@ public sealed class ProjectLifecycleService
 
         return ProjectLifecycleOperationResult.Success();
     }
+
+    public async Task<ProjectLifecycleOperationResult> ReactivateAsync(
+        int projectId,
+        string actorUserId,
+        string? reason,
+        CancellationToken cancellationToken = default)
+    {
+        // SECTION: Reactivate lifecycle
+        if (string.IsNullOrWhiteSpace(actorUserId))
+        {
+            throw new ArgumentException("A valid user is required to update the lifecycle.", nameof(actorUserId));
+        }
+
+        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
+        if (project is null)
+        {
+            return ProjectLifecycleOperationResult.NotFound();
+        }
+
+        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed &&
+            project.LifecycleStatus != ProjectLifecycleStatus.Cancelled)
+        {
+            return ProjectLifecycleOperationResult.InvalidStatus("Only completed or cancelled projects can be reactivated.");
+        }
+
+        var trimmedReason = reason?.Trim();
+        if (!string.IsNullOrWhiteSpace(trimmedReason) && trimmedReason.Length > 512)
+        {
+            return ProjectLifecycleOperationResult.ValidationFailed("Reactivation reason must be 512 characters or fewer.");
+        }
+
+        var previousStatus = project.LifecycleStatus;
+        project.LifecycleStatus = ProjectLifecycleStatus.Active;
+        project.CompletedOn = null;
+        project.CompletedYear = null;
+        project.CancelledOn = null;
+        project.CancelReason = null;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await Audit.Events.ProjectLifecycleReactivated(
+                project.Id,
+                actorUserId,
+                previousStatus,
+                trimmedReason)
+            .WriteAsync(_audit);
+
+        return ProjectLifecycleOperationResult.Success();
+    }
 }

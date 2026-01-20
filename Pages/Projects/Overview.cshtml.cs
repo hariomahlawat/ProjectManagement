@@ -133,6 +133,9 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty]
         public CancelLifecycleInput CancelProjectInput { get; set; } = new();
 
+        [BindProperty]
+        public ReactivateLifecycleInput ReactivateProjectInput { get; set; } = new();
+
         public sealed class CompleteLifecycleInput
         {
             public int ProjectId { get; set; }
@@ -152,6 +155,13 @@ namespace ProjectManagement.Pages.Projects
             public int ProjectId { get; set; }
 
             public DateOnly? CancelledOn { get; set; }
+
+            public string? Reason { get; set; }
+        }
+
+        public sealed class ReactivateLifecycleInput
+        {
+            public int ProjectId { get; set; }
 
             public string? Reason { get; set; }
         }
@@ -317,6 +327,10 @@ namespace ProjectManagement.Pages.Projects
             CancelProjectInput.ProjectId = project.Id;
             CancelProjectInput.CancelledOn = project.CancelledOn ?? todayLocalDate;
             CancelProjectInput.Reason = project.CancelReason;
+
+            // SECTION: Reactivate lifecycle defaults
+            ReactivateProjectInput ??= new ReactivateLifecycleInput();
+            ReactivateProjectInput.ProjectId = project.Id;
 
             LifecycleActions = BuildLifecycleActions(project, isAdmin, isHoD, isThisProjectsHod);
 
@@ -622,6 +636,44 @@ namespace ProjectManagement.Pages.Projects
             else
             {
                 TempData["Error"] = result.ErrorMessage ?? "Unable to cancel project.";
+            }
+
+            return RedirectToPage(new { id });
+        }
+
+        public async Task<IActionResult> OnPostReactivateAsync(int id, CancellationToken ct)
+        {
+            // SECTION: Reactivate lifecycle request
+            if (ReactivateProjectInput is null || ReactivateProjectInput.ProjectId != id)
+            {
+                return BadRequest();
+            }
+
+            if (!User.IsInRole("Admin") && !User.IsInRole("HoD"))
+            {
+                return Forbid();
+            }
+
+            var userId = _users.GetUserId(User);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Forbid();
+            }
+
+            var result = await _lifecycleService.ReactivateAsync(id, userId, ReactivateProjectInput.Reason, ct);
+
+            if (result.Status == ProjectLifecycleOperationStatus.NotFound)
+            {
+                return NotFound();
+            }
+
+            if (result.IsSuccess)
+            {
+                TempData["Flash"] = "Project reactivated and set to active.";
+            }
+            else
+            {
+                TempData["Error"] = result.ErrorMessage ?? "Unable to reactivate project.";
             }
 
             return RedirectToPage(new { id });
@@ -1017,6 +1069,9 @@ namespace ProjectManagement.Pages.Projects
         private ProjectLifecycleActionsViewModel BuildLifecycleActions(Project project, bool isAdmin, bool isHoD, bool isAssignedHoD)
         {
             var canManage = isAdmin || isHoD || isAssignedHoD;
+            var canReactivate = (isAdmin || isHoD) &&
+                (project.LifecycleStatus == ProjectLifecycleStatus.Completed ||
+                 project.LifecycleStatus == ProjectLifecycleStatus.Cancelled);
 
             var canMarkCompleted = canManage &&
                 (project.LifecycleStatus == ProjectLifecycleStatus.Active ||
@@ -1036,6 +1091,7 @@ namespace ProjectManagement.Pages.Projects
                 CanMarkCompleted = canMarkCompleted,
                 CanEndorseCompletedDate = canEndorse,
                 CanCancel = canCancel,
+                CanReactivate = canReactivate,
                 CompletedYear = project.CompletedYear,
                 CompletedOn = project.CompletedOn,
                 CancelledOn = project.CancelledOn,
