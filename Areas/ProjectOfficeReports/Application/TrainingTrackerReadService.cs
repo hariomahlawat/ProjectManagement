@@ -381,38 +381,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         // ============================================================
         public async Task<TrainingKpiDto> GetKpisAsync(TrainingTrackerQuery? query, CancellationToken cancellationToken)
         {
-            var trainings = BuildFilteredQuery(query);
-
-            var projections = await trainings
-                .Select(x => new TrainingListProjection(
-                    x.Id,
-                    x.TrainingTypeId,
-                    x.TrainingType!.Name,
-                    x.StartDate,
-                    x.EndDate,
-                    x.TrainingMonth,
-                    x.TrainingYear,
-                    x.LegacyOfficerCount,
-                    x.LegacyJcoCount,
-                    x.LegacyOrCount,
-                    x.Counters != null ? x.Counters.Officers : (int?)null,
-                    x.Counters != null ? x.Counters.JuniorCommissionedOfficers : (int?)null,
-                    x.Counters != null ? x.Counters.OtherRanks : (int?)null,
-                    x.Counters != null ? x.Counters.Total : (int?)null,
-                    x.Counters != null ? x.Counters.Source : (TrainingCounterSource?)null,
-                    x.Notes,
-                    x.RowVersion,
-                    x.ProjectLinks
-                        .OrderBy(link => link.Project != null ? link.Project.Name : string.Empty)
-                        .Select(link => new TrainingProjectSnapshot(link.ProjectId, link.Project != null ? link.Project.Name : string.Empty))
-                        .ToList()))
-                .ToListAsync(cancellationToken);
-
-            var filtered = projections
-                .Where(item => MatchesDate(item, query?.From, query?.To))
-                .Where(item => MatchesCategory(item, query?.Category))
-                .Select(ToListItem)
-                .ToList();
+            var filtered = await GetFilteredTrainingsAsync(query, cancellationToken);
 
             // top-level totals
             var totalTrainings = filtered.Count;
@@ -448,6 +417,62 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 ByTechnicalCategory = byTechnicalCategory,
                 ByTrainingYear = byTrainingYear
             };
+        }
+
+        // ============================================================
+        // PROJECT BREAKDOWN (TECHNICAL CATEGORY)
+        // ============================================================
+        public async Task<IReadOnlyList<TechnicalCategoryProjectBreakdownDto>> GetProjectBreakdownForTechnicalCategoryAsync(
+            TrainingTrackerQuery? query,
+            int technicalCategoryId,
+            CancellationToken cancellationToken)
+        {
+            // --------------------------------------------------------
+            // enforce technical category in the filtered query
+            // --------------------------------------------------------
+            var effectiveQuery = BuildQueryWithTechnicalCategory(query, technicalCategoryId);
+            var filtered = await GetFilteredTrainingsAsync(effectiveQuery, cancellationToken);
+
+            var trainingIds = filtered.Select(item => item.Id).ToArray();
+            if (trainingIds.Length == 0)
+            {
+                return Array.Empty<TechnicalCategoryProjectBreakdownDto>();
+            }
+
+            // --------------------------------------------------------
+            // load project links for the technical category
+            // --------------------------------------------------------
+            var projectRows = await _db.TrainingProjects
+                .AsNoTracking()
+                .Where(link => trainingIds.Contains(link.TrainingId))
+                .Where(link => link.Project != null && link.Project.TechnicalCategoryId == technicalCategoryId)
+                .Select(link => new
+                {
+                    link.TrainingId,
+                    link.ProjectId,
+                    ProjectName = link.Project!.Name
+                })
+                .ToListAsync(cancellationToken);
+
+            if (projectRows.Count == 0)
+            {
+                return Array.Empty<TechnicalCategoryProjectBreakdownDto>();
+            }
+
+            // --------------------------------------------------------
+            // aggregate per project (distinct training sessions)
+            // --------------------------------------------------------
+            var aggregated = projectRows
+                .GroupBy(row => new { row.ProjectId, row.ProjectName })
+                .Select(group => new TechnicalCategoryProjectBreakdownDto(
+                    group.Key.ProjectId,
+                    group.Key.ProjectName,
+                    group.Select(row => row.TrainingId).Distinct().Count()))
+                .OrderByDescending(row => row.TrainingSessions)
+                .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return aggregated;
         }
 
         // ============================================================
@@ -793,6 +818,73 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
 
             return trainings;
+        }
+
+        // ============================================================
+        // FILTERED PROJECTIONS (shared for KPI + breakdown)
+        // ============================================================
+        private async Task<List<TrainingListItem>> GetFilteredTrainingsAsync(
+            TrainingTrackerQuery? query,
+            CancellationToken cancellationToken)
+        {
+            var trainings = BuildFilteredQuery(query);
+
+            var projections = await trainings
+                .Select(x => new TrainingListProjection(
+                    x.Id,
+                    x.TrainingTypeId,
+                    x.TrainingType!.Name,
+                    x.StartDate,
+                    x.EndDate,
+                    x.TrainingMonth,
+                    x.TrainingYear,
+                    x.LegacyOfficerCount,
+                    x.LegacyJcoCount,
+                    x.LegacyOrCount,
+                    x.Counters != null ? x.Counters.Officers : (int?)null,
+                    x.Counters != null ? x.Counters.JuniorCommissionedOfficers : (int?)null,
+                    x.Counters != null ? x.Counters.OtherRanks : (int?)null,
+                    x.Counters != null ? x.Counters.Total : (int?)null,
+                    x.Counters != null ? x.Counters.Source : (TrainingCounterSource?)null,
+                    x.Notes,
+                    x.RowVersion,
+                    x.ProjectLinks
+                        .OrderBy(link => link.Project != null ? link.Project.Name : string.Empty)
+                        .Select(link => new TrainingProjectSnapshot(link.ProjectId, link.Project != null ? link.Project.Name : string.Empty))
+                        .ToList()))
+                .ToListAsync(cancellationToken);
+
+            var filtered = projections
+                .Where(item => MatchesDate(item, query?.From, query?.To))
+                .Where(item => MatchesCategory(item, query?.Category))
+                .Select(ToListItem)
+                .ToList();
+
+            return filtered;
+        }
+
+        private static TrainingTrackerQuery BuildQueryWithTechnicalCategory(
+            TrainingTrackerQuery? query,
+            int technicalCategoryId)
+        {
+            var effectiveQuery = new TrainingTrackerQuery
+            {
+                ProjectTechnicalCategoryId = technicalCategoryId,
+                Category = query?.Category,
+                From = query?.From,
+                To = query?.To,
+                Search = query?.Search
+            };
+
+            if (query is not null)
+            {
+                foreach (var trainingTypeId in query.TrainingTypeIds)
+                {
+                    effectiveQuery.TrainingTypeIds.Add(trainingTypeId);
+                }
+            }
+
+            return effectiveQuery;
         }
 
         // ============================================================
