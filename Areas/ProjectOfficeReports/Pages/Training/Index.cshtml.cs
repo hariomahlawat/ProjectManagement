@@ -77,6 +77,11 @@ public class IndexModel : PageModel
         new("Other Ranks", TrainingCategory.OtherRank.ToString())
     };
 
+    // project breakdown (per technical category)
+    public IReadOnlyList<TechnicalCategoryProjectBreakdownDto> ProjectBreakdown { get; private set; } =
+        Array.Empty<TechnicalCategoryProjectBreakdownDto>();
+    public string? SelectedProjectName { get; private set; }
+
     // dashboard shows only a slice
     public IReadOnlyList<TrainingRowViewModel> Trainings { get; private set; } = Array.Empty<TrainingRowViewModel>();
     public bool HasResults => Trainings.Count > 0;
@@ -232,6 +237,27 @@ public class IndexModel : PageModel
         // ------------------------------------------------------------
         Kpis = await _readService.GetKpisAsync(query, cancellationToken);
 
+        // ------------------------------------------------------------
+        // project breakdown (per technical category)
+        // ------------------------------------------------------------
+        ProjectBreakdown = Array.Empty<TechnicalCategoryProjectBreakdownDto>();
+        SelectedProjectName = null;
+
+        if (Filter.ProjectTechnicalCategoryId.HasValue)
+        {
+            ProjectBreakdown = await _readService.GetProjectBreakdownForTechnicalCategoryAsync(
+                query,
+                Filter.ProjectTechnicalCategoryId.Value,
+                cancellationToken);
+
+            if (Filter.ProjectId.HasValue)
+            {
+                SelectedProjectName = ProjectBreakdown
+                    .FirstOrDefault(project => project.ProjectId == Filter.ProjectId.Value)
+                    ?.ProjectName;
+            }
+        }
+
         // aggregate strength for KPI cards (total)
         TotalOfficers = results.Sum(r => r.CounterOfficers);
         TotalJcos = results.Sum(r => r.CounterJcos);
@@ -286,6 +312,7 @@ public class IndexModel : PageModel
     {
         var query = new TrainingTrackerQuery
         {
+            ProjectId = filter.ProjectId,
             ProjectTechnicalCategoryId = filter.ProjectTechnicalCategoryId,
             From = filter.From,
             To = filter.To,
@@ -325,6 +352,9 @@ public class IndexModel : PageModel
     {
         [Display(Name = "Training type")]
         public Guid? TypeId { get; set; }
+
+        [Display(Name = "Project")]
+        public int? ProjectId { get; set; }
 
         [Display(Name = "Project technical category")]
         public int? ProjectTechnicalCategoryId { get; set; }
