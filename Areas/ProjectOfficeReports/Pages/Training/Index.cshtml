@@ -578,14 +578,15 @@ else
                                 <th scope="col">Total</th>
                                 <th scope="col">Strength</th>
                                 <th scope="col">Projects</th>
-                                <th scope="col">Notes/ Remarks</th>
+                                <th scope="col">Unit(s)</th>
                                 <th scope="col" class="text-end">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach (var training in Model.Trainings)
                             {
-                                var extraProjects = training.ProjectNames.Count > 2 ? training.ProjectNames.Count - 2 : 0;
+                                var projectCount = training.ProjectNames.Count;
+                                var unitCount = training.Units.Count;
                                 <tr>
                                     <td>
                                         <div class="fw-semibold">@training.TrainingTypeName</div>
@@ -610,33 +611,76 @@ else
                                     <td>
                                         <span class="badge bg-light text-dark fw-normal">@training.Strength</span>
                                     </td>
+                                    @* ------------------------------------------------------------ *@
+                                    @* projects (inline expandable) *@
+                                    @* ------------------------------------------------------------ *@
                                     <td class="pm-util-minw-180">
-                                        @if (training.ProjectNames.Count == 0)
+                                        @if (projectCount == 0)
                                         {
                                             <span class="text-muted">None linked</span>
                                         }
-                                        else
+                                        else if (projectCount <= 2)
                                         {
                                             <ul class="list-unstyled mb-0 small text-truncate-2">
-                                                @foreach (var project in training.ProjectNames.Take(2))
+                                                @foreach (var project in training.ProjectNames)
                                                 {
                                                     <li>@project</li>
                                                 }
                                             </ul>
-                                            @if (extraProjects > 0)
-                                            {
-                                                <div class="small text-secondary">+ @extraProjects more</div>
-                                            }
-                                        }
-                                    </td>
-                                    <td class="small text-truncate pm-util-maxw-200">
-                                        @if (string.IsNullOrWhiteSpace(training.Notes))
-                                        {
-                                            <span class="text-muted">None</span>
                                         }
                                         else
                                         {
-                                            @training.Notes
+                                            <details class="pm-expand">
+                                                <summary class="pm-expand__summary">
+                                                    <div class="pm-expand__summary-text">
+                                                        <ul class="list-unstyled mb-0 small text-truncate-2">
+                                                            @foreach (var project in training.ProjectNames.Take(2))
+                                                            {
+                                                                <li>@project</li>
+                                                            }
+                                                        </ul>
+                                                    </div>
+                                                    <span class="pm-expand__more small">See all (@projectCount)</span>
+                                                </summary>
+                                                <div class="pm-expand__body small">
+                                                    <ul class="list-unstyled mb-0">
+                                                        @foreach (var project in training.ProjectNames)
+                                                        {
+                                                            <li>@project</li>
+                                                        }
+                                                    </ul>
+                                                </div>
+                                            </details>
+                                        }
+                                    </td>
+                                    @* ------------------------------------------------------------ *@
+                                    @* units (inline expandable) *@
+                                    @* ------------------------------------------------------------ *@
+                                    <td class="small pm-util-maxw-200">
+                                        @if (unitCount == 0)
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                        else if (unitCount == 1)
+                                        {
+                                            @training.UnitDisplay
+                                        }
+                                        else
+                                        {
+                                            <details class="pm-expand">
+                                                <summary class="pm-expand__summary">
+                                                    <span class="pm-expand__summary-text">@training.UnitDisplay</span>
+                                                    <span class="pm-expand__more small">See all (@unitCount)</span>
+                                                </summary>
+                                                <div class="pm-expand__body small">
+                                                    <ul class="list-unstyled mb-0">
+                                                        @foreach (var unit in training.Units)
+                                                        {
+                                                            <li>@unit</li>
+                                                        }
+                                                    </ul>
+                                                </div>
+                                            </details>
                                         }
                                     </td>
                                     <td class="text-end">

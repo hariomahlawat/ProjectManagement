@@ -221,8 +221,9 @@ public sealed class TrainingIndexPageTests
                 "1 – 2 – 3",
                 6,
                 TrainingCounterSource.Legacy,
-                "Routine update",
-                new[] { "Project Atlas" })
+                new[] { "Project Atlas" },
+                new[] { "Signal Unit" },
+                "Signal Unit")
         };
 
         SetProperty(model, nameof(IndexModel.Trainings), trainings);

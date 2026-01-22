@@ -373,6 +373,29 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 .Take(pageSize)
                 .ToList();
 
+            // ------------------------------------------------------------
+            // units (page slice only)
+            // ------------------------------------------------------------
+            if (items.Count > 0)
+            {
+                var unitLookup = await LoadTrainingUnitsAsync(items.Select(item => item.Id).ToArray(), cancellationToken);
+
+                items = items
+                    .Select(item =>
+                    {
+                        var units = unitLookup.TryGetValue(item.Id, out var unitNames)
+                            ? unitNames
+                            : Array.Empty<string>();
+
+                        return item with
+                        {
+                            Units = units,
+                            UnitDisplay = BuildUnitDisplay(units)
+                        };
+                    })
+                    .ToList();
+            }
+
             return new PagedResult<TrainingListItem>(items, total, pageNumber, pageSize);
         }
 
@@ -989,7 +1012,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 source,
                 projection.Notes,
                 projection.Projects,
-                projection.RowVersion);
+                projection.RowVersion,
+                Array.Empty<string>(),
+                NoUnitsDisplay);
         }
 
         private static string FormatStrength(int officers, int jcos, int ors)
@@ -1102,6 +1127,50 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         {
             var endYear = startYear + 1;
             return $"{startYear}-{endYear % 100:00}";
+        }
+
+        // ============================================================
+        // UNIT HELPERS
+        // ============================================================
+        private static readonly string NoUnitsDisplay = "—";
+
+        private static string BuildUnitDisplay(IReadOnlyList<string> units)
+        {
+            if (units.Count == 0)
+            {
+                return NoUnitsDisplay;
+            }
+
+            return units[0];
+        }
+
+        private async Task<Dictionary<Guid, IReadOnlyList<string>>> LoadTrainingUnitsAsync(
+            Guid[] trainingIds,
+            CancellationToken cancellationToken)
+        {
+            if (trainingIds.Length == 0)
+            {
+                return new Dictionary<Guid, IReadOnlyList<string>>();
+            }
+
+            var rows = await _db.TrainingTrainees
+                .AsNoTracking()
+                .Where(trainee => trainingIds.Contains(trainee.TrainingId)
+                    && trainee.UnitName != null
+                    && trainee.UnitName != string.Empty)
+                .Select(trainee => new { trainee.TrainingId, UnitName = trainee.UnitName! })
+                .ToListAsync(cancellationToken);
+
+            return rows
+                .GroupBy(row => row.TrainingId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => (IReadOnlyList<string>)group
+                        .Select(row => row.UnitName)
+                        .Where(unitName => !string.IsNullOrWhiteSpace(unitName))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(unitName => unitName, StringComparer.OrdinalIgnoreCase)
+                        .ToList());
         }
 
         private static string FormatPeriod(TrainingListItem item)
@@ -1289,7 +1358,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         TrainingCounterSource CounterSource,
         string? Notes,
         IReadOnlyList<TrainingProjectSnapshot> Projects,
-        byte[] RowVersion)
+        byte[] RowVersion,
+        IReadOnlyList<string> Units,
+        string UnitDisplay)
     {
         public IReadOnlyList<string> ProjectNames => Projects.Select(project => project.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList();
     };
