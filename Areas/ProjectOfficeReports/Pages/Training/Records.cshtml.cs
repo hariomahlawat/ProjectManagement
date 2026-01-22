@@ -210,8 +210,9 @@ public class RecordsModel : PageModel
         string Strength,
         int Total,
         TrainingCounterSource Source,
-        string? Notes,
-        IReadOnlyList<string> ProjectNames)
+        IReadOnlyList<string> ProjectNames,
+        IReadOnlyList<string> Units,
+        string UnitDisplay)
     {
         public string? PeriodDayCount { get; init; }
 
@@ -226,8 +227,9 @@ public class RecordsModel : PageModel
                 strength,
                 item.CounterTotal,
                 item.CounterSource,
-                item.Notes,
-                item.ProjectNames)
+                item.ProjectNames,
+                item.Units,
+                item.UnitDisplay)
             {
                 PeriodDayCount = dayCount
             };

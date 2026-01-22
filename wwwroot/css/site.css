@@ -2936,6 +2936,44 @@ summary::marker {
             top: .45rem;
         }
 
+/* ---------- Expandable inline lists ---------- */
+.pm-expand {
+    display: block;
+}
+
+.pm-expand summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+.pm-expand summary::-webkit-details-marker {
+    display: none;
+}
+
+.pm-expand__summary {
+    display: flex;
+    align-items: flex-start;
+    gap: .5rem;
+}
+
+.pm-expand__summary-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.pm-expand__more {
+    color: var(--pm-primary);
+    white-space: nowrap;
+}
+
+.pm-expand[open] .pm-expand__more {
+    display: none;
+}
+
+.pm-expand__body {
+    margin-top: .35rem;
+}
+
 /* ---------- Buttons ---------- */
 .btn-primary {
     background: var(--pm-primary);

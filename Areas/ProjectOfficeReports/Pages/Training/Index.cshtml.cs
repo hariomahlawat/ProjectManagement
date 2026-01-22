@@ -213,24 +213,16 @@ public class IndexModel : PageModel
         var results = await _readService.SearchAsync(query, cancellationToken);
 
         // ------------------------------------------------------------
-        // map rows (we want most recent at top)
+        // fetch the dashboard slice with units
         // ------------------------------------------------------------
-        var ordered = results
-            .OrderByDescending(r => r.StartDate ?? r.EndDate) // recency
-            .ThenByDescending(r => r.CounterTotal)
-            .ToList();
+        var paged = await _readService.SearchPagedAsync(
+            query,
+            pageNumber: 1,
+            pageSize: DashboardTrainingRowLimit,
+            cancellationToken);
 
-        // full count (for “View all”)
-        var totalCount = ordered.Count;
-
-        // take only the dashboard slice
-        var slice = ordered
-            .Take(DashboardTrainingRowLimit)
-            .Select(TrainingRowViewModel.FromListItem)
-            .ToList();
-
-        Trainings = slice;
-        HasMoreRecords = totalCount > DashboardTrainingRowLimit;
+        Trainings = paged.Items.Select(TrainingRowViewModel.FromListItem).ToList();
+        HasMoreRecords = paged.TotalCount > DashboardTrainingRowLimit;
 
         // ------------------------------------------------------------
         // KPIs (unchanged)
@@ -460,8 +452,9 @@ public class IndexModel : PageModel
         string Strength,
         int Total,
         TrainingCounterSource Source,
-        string? Notes,
-        IReadOnlyList<string> ProjectNames)
+        IReadOnlyList<string> ProjectNames,
+        IReadOnlyList<string> Units,
+        string UnitDisplay)
     {
         public string? PeriodDayCount { get; init; }
 
@@ -476,8 +469,9 @@ public class IndexModel : PageModel
                 strength,
                 item.CounterTotal,
                 item.CounterSource,
-                item.Notes,
-                item.ProjectNames)
+                item.ProjectNames,
+                item.Units,
+                item.UnitDisplay)
             {
                 PeriodDayCount = dayCount
             };
