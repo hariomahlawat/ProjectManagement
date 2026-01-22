@@ -7,6 +7,7 @@
 
     var activeFilters = 0;
     if (Model.Filter.TypeId.HasValue && Model.Filter.TypeId.Value != Guid.Empty) activeFilters++;
+    if (Model.Filter.ProjectId.HasValue) activeFilters++;
     if (Model.Filter.ProjectTechnicalCategoryId.HasValue) activeFilters++;
     if (Model.Filter.Category.HasValue) activeFilters++;
     if (Model.Filter.From.HasValue || Model.Filter.To.HasValue) activeFilters++;
@@ -173,6 +174,7 @@ else
                 {
                     <a asp-page="./Records"
                        asp-route-TypeId="@(Model.Filter.TypeId)"
+                       asp-route-ProjectId="@(Model.Filter.ProjectId)"
                        asp-route-ProjectTechnicalCategoryId="@(Model.Filter.ProjectTechnicalCategoryId)"
                        asp-route-Category="@(Model.Filter.Category)"
                        asp-route-From="@(Model.Filter.From?.ToString("yyyy-MM-dd"))"
@@ -185,6 +187,7 @@ else
                 {
                     <a asp-page="./Records"
                        asp-route-TypeId="@(Model.Filter.TypeId)"
+                       asp-route-ProjectId="@(Model.Filter.ProjectId)"
                        asp-route-ProjectTechnicalCategoryId="@(Model.Filter.ProjectTechnicalCategoryId)"
                        asp-route-Category="@(Model.Filter.Category)"
                        asp-route-From="@(Model.Filter.From?.ToString("yyyy-MM-dd"))"
@@ -215,6 +218,7 @@ else
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
+                    <input type="hidden" asp-for="Filter.ProjectId" />
                     <div class="row g-3">
                         <div class="col-lg-4">
                             <label asp-for="Filter.TypeId" class="form-label small text-uppercase text-secondary fw-semibold"></label>

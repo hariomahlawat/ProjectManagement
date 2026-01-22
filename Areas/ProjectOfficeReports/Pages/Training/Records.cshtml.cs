@@ -114,6 +114,7 @@ public class RecordsModel : PageModel
     {
         var query = new TrainingTrackerQuery
         {
+            ProjectId = filter.ProjectId,
             ProjectTechnicalCategoryId = filter.ProjectTechnicalCategoryId,
             From = filter.From,
             To = filter.To,
@@ -154,7 +155,7 @@ public class RecordsModel : PageModel
                 var text = string.IsNullOrEmpty(prefix) ? c.Name : $"{prefix}{c.Name}";
                 var isSelected = selectedId.HasValue && selectedId.Value == c.Id;
                 options.Add(new SelectListItem(text, c.Id.ToString(), isSelected));
-                AddOptions(c.Id, string.Concat(prefix, "— "));
+                AddOptions(c.Id, string.Concat(prefix, "â€” "));
             }
         }
 
@@ -180,6 +181,9 @@ public class RecordsModel : PageModel
     {
         [Display(Name = "Training type")]
         public Guid? TypeId { get; set; }
+
+        [Display(Name = "Project")]
+        public int? ProjectId { get; set; }
 
         [Display(Name = "Project technical category")]
         public int? ProjectTechnicalCategoryId { get; set; }
@@ -213,7 +217,7 @@ public class RecordsModel : PageModel
 
         public static TrainingRowViewModel FromListItem(TrainingListItem item)
         {
-            var strength = $"{item.CounterOfficers:N0} – {item.CounterJcos:N0} – {item.CounterOrs:N0}";
+            var strength = $"{item.CounterOfficers:N0} â€“ {item.CounterJcos:N0} â€“ {item.CounterOrs:N0}";
             var (period, dayCount) = FormatPeriod(item);
             return new TrainingRowViewModel(
                 item.Id,
@@ -237,7 +241,7 @@ public class RecordsModel : PageModel
 
                 var start = item.StartDate?.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture) ?? "(not set)";
                 var end = item.EndDate?.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture) ?? start;
-                var period = start == end ? start : $"{start} – {end}";
+                var period = start == end ? start : $"{start} â€“ {end}";
 
                 if (item.StartDate.HasValue && normalizedEnd.HasValue)
                 {
