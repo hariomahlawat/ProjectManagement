@@ -346,6 +346,38 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             int pageSize,
             CancellationToken cancellationToken)
         {
+            // ------------------------------------------------------------
+            // resolve & page
+            // ------------------------------------------------------------
+            var all = await SearchAsync(query, cancellationToken);
+
+            return await BuildPagedResultAsync(all, pageNumber, pageSize, cancellationToken);
+        }
+
+        // ============================================================
+        // PAGED LIST SEARCH (using pre-fetched results)
+        // ============================================================
+        public Task<PagedResult<TrainingListItem>> SearchPagedAsync(
+            IReadOnlyList<TrainingListItem> prefetchedResults,
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken)
+        {
+            return BuildPagedResultAsync(prefetchedResults, pageNumber, pageSize, cancellationToken);
+        }
+
+        // ============================================================
+        // PAGED LIST HELPERS
+        // ============================================================
+        private async Task<PagedResult<TrainingListItem>> BuildPagedResultAsync(
+            IReadOnlyList<TrainingListItem> all,
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken)
+        {
+            // ------------------------------------------------------------
+            // normalize paging inputs
+            // ------------------------------------------------------------
             if (pageNumber < 1)
             {
                 pageNumber = 1;
@@ -356,13 +388,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 pageSize = 20;
             }
 
-            // reuse existing logic so filters/date/category stay in ONE place
-            var all = await SearchAsync(query, cancellationToken);
-
-            // your SearchAsync already gives you filtered rows,
-            // but not ordered by recency consistently, so let’s do that here
+            // ------------------------------------------------------------
+            // ordering
+            // ------------------------------------------------------------
             var ordered = all
-                .OrderByDescending(r => r.StartDate ?? r.EndDate)  // recent first
+                .OrderByDescending(r => r.StartDate ?? r.EndDate) // recent first
                 .ThenByDescending(r => r.CounterTotal)
                 .ToList();
 

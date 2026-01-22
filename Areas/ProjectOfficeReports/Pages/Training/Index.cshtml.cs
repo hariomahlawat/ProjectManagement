@@ -216,7 +216,7 @@ public class IndexModel : PageModel
         // fetch the dashboard slice with units
         // ------------------------------------------------------------
         var paged = await _readService.SearchPagedAsync(
-            query,
+            results,
             pageNumber: 1,
             pageSize: DashboardTrainingRowLimit,
             cancellationToken);
