@@ -65,12 +65,13 @@
             <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
             <input type="hidden" asp-for="Input.ProjectId" />
 
+            <!-- SECTION: Stage selection (optional) -->
             <div class="mb-3">
                 <label asp-for="Input.StageId" class="form-label">Stage</label>
                 @if (Model.HasStageOptions)
                 {
                     <select asp-for="Input.StageId" asp-items="Model.StageOptions" class="form-select" data-doc-stage-select>
-                        <option value="">Select a stage</option>
+                        <option value="">No stage (general)</option>
                     </select>
                 }
                 else
@@ -83,7 +84,7 @@
                 <div id="doc-stage-help" class="form-text">
                     @if (Model.HasStageOptions)
                     {
-                        <text>You can upload for any stage (past or present).</text>
+                        <text>Stage selection is optional. Choose one when relevant.</text>
                     }
                     else
                     {
@@ -92,6 +93,7 @@
                 </div>
             </div>
 
+            <!-- SECTION: Transfer of Technology -->
             @if (Model.Project?.Tot is not null)
             {
                 <div class="mb-3">
@@ -112,26 +114,29 @@
                 </div>
             }
 
+            <!-- SECTION: Nomenclature -->
             <div class="mb-3">
                 <label asp-for="Input.Nomenclature" class="form-label">Nomenclature</label>
                 <input asp-for="Input.Nomenclature" class="form-control" autocomplete="off" />
+                <div class="form-text">Optional. When uploading multiple files, each file will be named using this value plus the filename.</div>
                 <span asp-validation-for="Input.Nomenclature" class="text-danger"></span>
             </div>
 
+            <!-- SECTION: Multi-file upload -->
             <div class="mb-3" data-doc-dropzone>
-                <label class="form-label" for="fileInput">Upload file</label>
+                <label class="form-label" for="fileInput">Upload files</label>
                 <div class="doc-request-drop border border-2 border-secondary-subtle rounded-3 p-4 text-center" data-doc-drop-target tabindex="0" role="button" aria-describedby="doc-upload-help doc-stage-help">
-                    <div class="fw-semibold" data-doc-drop-label>Drag &amp; drop a file or browse</div>
+                    <div class="fw-semibold" data-doc-drop-label>Drag &amp; drop files or browse</div>
                     <div class="text-muted small" data-doc-drop-filename></div>
                 </div>
-                <input asp-for="Input.File" class="form-control visually-hidden" id="fileInput" data-doc-file data-max-size="@Model.MaxFileSizeBytes" data-allowed="@allowedTypesAttribute" data-extensions="@allowedExtensionsAttribute" />
-                <span asp-validation-for="Input.File" class="text-danger"></span>
+                <input asp-for="Input.Files" class="form-control visually-hidden" id="fileInput" data-doc-file data-max-size="@Model.MaxFileSizeBytes" data-allowed="@allowedTypesAttribute" data-extensions="@allowedExtensionsAttribute" multiple />
+                <span asp-validation-for="Input.Files" class="text-danger"></span>
                 <div id="doc-upload-help" class="form-text">
                     @if (!string.IsNullOrEmpty(allowedTypesText))
                     {
                         <text>Allowed types: @allowedTypesText. </text>
                     }
-                    <text>Maximum size: @maxFileSizeText.</text>
+                    <text>Maximum size: @maxFileSizeText per file.</text>
                 </div>
             </div>
 

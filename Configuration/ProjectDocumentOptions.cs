@@ -29,7 +29,8 @@ namespace ProjectManagement.Configuration
 
         public string TempSubPath { get; set; } = "temp";
 
-        public int MaxSizeMb { get; set; } = 25;
+        // SECTION: Upload constraints
+        public int MaxSizeMb { get; set; } = 100;
 
         public HashSet<string> AllowedMimeTypes { get; set; } =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase)
