@@ -289,11 +289,61 @@ function initAutoShowModals() {
   modals.forEach(showModalElement);
 }
 
+// ----------------------------------------------------
+// PHOTO UPLOAD GUARDRAILS
+// ----------------------------------------------------
+
+// SECTION: Formatting helpers
+function formatMb(bytes) {
+  return (bytes / (1024 * 1024)).toFixed(1);
+}
+
+// SECTION: Photo upload interactions
+function initPhotoUploadInputs() {
+  const inputs = document.querySelectorAll('[data-photo-upload-input]');
+  inputs.forEach(input => {
+    const summaryId = input.getAttribute('aria-describedby')
+      ?.split(' ')
+      .map(id => id.trim())
+      .find(id => id.endsWith('photo-summary'));
+    const summaryEl = summaryId ? document.getElementById(summaryId) : null;
+    const maxFiles = Number(input.getAttribute('data-max-files') || '0');
+    const maxBytes = Number(input.getAttribute('data-max-bytes') || '0');
+
+    input.addEventListener('change', () => {
+      const files = Array.from(input.files || []);
+      if (!summaryEl) {
+        return;
+      }
+
+      // SECTION: Count guardrail
+      if (maxFiles > 0 && files.length > maxFiles) {
+        showToast(`You can upload up to ${maxFiles} photos at a time.`, 'danger');
+      }
+
+      // SECTION: Summary rendering
+      const totalBytes = files.reduce((sum, file) => sum + (file.size || 0), 0);
+      summaryEl.textContent = files.length === 0
+        ? ''
+        : `Selected: ${files.length} file(s), total ${formatMb(totalBytes)} MB.`;
+
+      // SECTION: Size guardrail
+      if (maxBytes > 0) {
+        const oversized = files.find(file => (file.size || 0) > maxBytes);
+        if (oversized) {
+          showToast(`\"${oversized.name}\" exceeds the per-photo limit. Please choose a smaller file.`, 'danger');
+        }
+      }
+    });
+  });
+}
+
 function init() {
   initToasts();
   initConfirmations();
   initDisableOnSubmit();
   initAutoShowModals();
+  initPhotoUploadInputs();
 }
 
 if (document.readyState === 'loading') {

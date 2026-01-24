@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +10,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels;
@@ -21,22 +21,36 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.SocialMedia;
 [Authorize(Policy = ProjectOfficeReportsPolicies.ManageSocialMediaEvents)]
 public sealed class EditModel : PageModel
 {
+    // SECTION: Dependencies
     private readonly SocialMediaEventService _eventService;
     private readonly SocialMediaPlatformService _platformService;
     private readonly ISocialMediaEventPhotoService _photoService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly SocialMediaPhotoOptions _photoOptions;
 
     public EditModel(
         SocialMediaEventService eventService,
         SocialMediaPlatformService platformService,
         ISocialMediaEventPhotoService photoService,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        IOptions<SocialMediaPhotoOptions> photoOptions)
     {
         _eventService = eventService ?? throw new ArgumentNullException(nameof(eventService));
         _platformService = platformService ?? throw new ArgumentNullException(nameof(platformService));
         _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+        _photoOptions = photoOptions.Value;
     }
+
+    // SECTION: Upload configuration helpers
+    public long SocialPhotoMaxBytes => _photoOptions.MaxFileSizeBytes;
+
+    public int SocialPhotoMaxFiles => _photoOptions.MaxFilesPerUpload;
+
+    public int SocialPhotoMaxMb => Math.Max(1, (int)Math.Floor(SocialPhotoMaxBytes / 1024d / 1024d));
+
+    public string SocialPhotoHelpText =>
+        $"JPEG, PNG, or WebP images up to {SocialPhotoMaxMb} MB each. You can select up to {SocialPhotoMaxFiles} files.";
 
     [BindProperty]
     public SocialMediaEventEditModel Input { get; set; } = new();
@@ -161,10 +175,21 @@ public sealed class EditModel : PageModel
             return RedirectToPage("Index");
         }
 
+        // SECTION: Upload guardrails
         var uploads = Uploads?.Where(file => file != null).ToList() ?? new List<IFormFile>();
         if (uploads.Count == 0)
         {
             ModelState.AddModelError(nameof(Uploads), "Please select at least one photo to upload.");
+            await LoadAsync(id, cancellationToken);
+            return Page();
+        }
+
+        var maxBytes = SocialPhotoMaxBytes;
+        var maxMb = SocialPhotoMaxMb;
+
+        if (uploads.Count > SocialPhotoMaxFiles)
+        {
+            ModelState.AddModelError(nameof(Uploads), $"You can upload up to {SocialPhotoMaxFiles} photos at a time.");
             await LoadAsync(id, cancellationToken);
             return Page();
         }
@@ -176,13 +201,27 @@ public sealed class EditModel : PageModel
             return Page();
         }
 
+        if (uploads.Any(file => file.Length > maxBytes))
+        {
+            ModelState.AddModelError(nameof(Uploads), $"One or more photos exceed {maxMb} MB. Please choose smaller files.");
+            await LoadAsync(id, cancellationToken);
+            return Page();
+        }
+
         var caption = string.IsNullOrWhiteSpace(UploadCaption) ? null : UploadCaption!.Trim();
         var userId = _userManager.GetUserId(User) ?? string.Empty;
         var successfulUploads = 0;
         var errors = new List<string>();
 
+        // SECTION: Upload processing
         foreach (var file in uploads)
         {
+            if (file.Length > maxBytes)
+            {
+                errors.Add($"File exceeds the maximum size of {maxMb} MB.");
+                continue;
+            }
+
             await using var stream = file.OpenReadStream();
             var result = await _photoService.UploadAsync(id, stream, file.FileName, file.ContentType, caption, userId, cancellationToken);
             switch (result.Outcome)
@@ -290,6 +329,7 @@ public sealed class EditModel : PageModel
         return RedirectToPage(new { id });
     }
 
+    // SECTION: Page data loading
     private async Task<bool> LoadAsync(Guid id, CancellationToken cancellationToken)
     {
         var details = await _eventService.GetDetailsAsync(id, cancellationToken);
@@ -351,6 +391,7 @@ public sealed class EditModel : PageModel
         return true;
     }
 
+    // SECTION: Existence helpers
     private async Task<bool> EnsureEventExistsAsync(Guid id, CancellationToken cancellationToken)
     {
         var details = await _eventService.GetDetailsAsync(id, cancellationToken);

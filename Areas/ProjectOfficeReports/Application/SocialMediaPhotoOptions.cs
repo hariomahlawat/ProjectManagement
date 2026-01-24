@@ -8,8 +8,12 @@ public sealed class SocialMediaPhotoOptions
     private int? _minWidth;
     private int? _minHeight;
 
-    public long MaxFileSizeBytes { get; set; } = 5 * 1024 * 1024;
+    // SECTION: Upload limits
+    public long MaxFileSizeBytes { get; set; } = 10 * 1024 * 1024;
 
+    public int MaxFilesPerUpload { get; set; } = 20;
+
+    // SECTION: Validation thresholds
     public int? MinWidth
     {
         get => _minWidth;
@@ -22,6 +26,7 @@ public sealed class SocialMediaPhotoOptions
         set => _minHeight = NormalizeMinimum(value);
     }
 
+    // SECTION: Supported content types
     public HashSet<string> AllowedContentTypes { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg",
@@ -29,6 +34,7 @@ public sealed class SocialMediaPhotoOptions
         "image/webp"
     };
 
+    // SECTION: Derivative generation
     public Dictionary<string, SocialMediaPhotoDerivativeOptions> Derivatives { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
         ["story"] = new SocialMediaPhotoDerivativeOptions { Width = 1080, Height = 1920, Quality = 85 },
@@ -36,6 +42,7 @@ public sealed class SocialMediaPhotoOptions
         ["thumb"] = new SocialMediaPhotoDerivativeOptions { Width = 600, Height = 600, Quality = 80 }
     };
 
+    // SECTION: Storage configuration
     public string StoragePrefix { get; set; } = "org/social/{eventId}";
 
     private static int? NormalizeMinimum(int? value)

@@ -119,9 +119,13 @@ else
                                        asp-for="Uploads"
                                        accept="image/*"
                                        multiple
-                                       aria-describedby="visit-photo-help" />
+                                       data-photo-upload-input
+                                       data-max-files="@Model.VisitPhotoMaxFiles"
+                                       data-max-bytes="@Model.VisitPhotoMaxBytes"
+                                       aria-describedby="visit-photo-help visit-photo-summary" />
                                 <span asp-validation-for="Uploads" class="text-danger"></span>
-                                <div class="form-text" id="visit-photo-help">JPEG, PNG or WebP up to 5 MB each. Select multiple files to upload them together.</div>
+                                <div class="form-text" id="visit-photo-help">@Model.VisitPhotoHelpText</div>
+                                <div class="form-text" id="visit-photo-summary" data-photo-upload-summary></div>
                             </div>
                             <div class="visit-form-grid__field">
                                 <label asp-for="UploadCaption" class="form-label">Caption for uploaded photos</label>
