@@ -803,7 +803,7 @@ namespace ProjectManagement.Pages.Analytics
                 .Select(p => new ProjectStageCategorySnapshot(
                     p.LifecycleStatus,
                     p.CategoryId,
-                    p.Category != null ? p.Category.ParentCategoryId : null,
+                    p.Category != null ? p.Category.ParentId : null,
                     p.ProjectStages
                         .OrderBy(s => s.SortOrder)
                         .ThenBy(s => s.StageCode)
@@ -866,7 +866,7 @@ namespace ProjectManagement.Pages.Analytics
                     s.ActualStart,
                     s.CompletedOn,
                     s.Project!.CategoryId,
-                    ParentCategoryId = s.Project.Category != null ? s.Project.Category.ParentCategoryId : null
+                    ParentCategoryId = s.Project.Category != null ? s.Project.Category.ParentId : null
                 })
                 .ToListAsync(cancellationToken);
 
