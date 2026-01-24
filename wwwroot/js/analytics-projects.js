@@ -12,6 +12,16 @@ const paletteFallback = [
 ];
 
 const lifecycleStatuses = ['Ongoing', 'Completed', 'Cancelled'];
+const chartRegistry = new Map();
+
+// SECTION: Ongoing analytics storage keys
+const ongoingStorageKeys = {
+  stageCategories: 'analytics.ongoing.stage.categories',
+  durationCategories: 'analytics.ongoing.duration.categories',
+  stageShowLabels: 'analytics.ongoing.stage.showLabels',
+  durationShowLabels: 'analytics.ongoing.duration.showLabels'
+};
+// END SECTION
 
 function getPalette() {
   if (window.PMTheme && typeof window.PMTheme.getChartPalette === 'function') {
@@ -220,6 +230,262 @@ function createBarChart(
 }
 // END SECTION
 
+// SECTION: Value labels plugin
+const valueLabelsPlugin = {
+  id: 'valueLabels',
+  afterDatasetsDraw(chart, _args, pluginOptions) {
+    if (!pluginOptions?.display) {
+      return;
+    }
+
+    const mode = pluginOptions.mode ?? 'stack-total';
+    const formatter = typeof pluginOptions.formatter === 'function'
+      ? pluginOptions.formatter
+      : (value) => value;
+
+    if (mode === 'dataset') {
+      drawDatasetLabels(chart, formatter);
+      return;
+    }
+
+    drawStackTotals(chart, formatter);
+  }
+};
+
+if (window.Chart && typeof window.Chart.register === 'function') {
+  window.Chart.register(valueLabelsPlugin);
+}
+
+function drawStackTotals(chart, formatter) {
+  const metas = chart.getSortedVisibleDatasetMetas();
+  if (!metas.length) {
+    return;
+  }
+
+  const totals = new Array(chart.data.labels.length).fill(0);
+
+  metas.forEach((meta) => {
+    const dataset = chart.data.datasets[meta.index];
+    meta.data.forEach((_bar, index) => {
+      totals[index] += toNumber(dataset.data[index]);
+    });
+  });
+
+  const anchorMeta = metas[metas.length - 1];
+  const { ctx } = chart;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = getPalette().axisColor;
+
+  anchorMeta.data.forEach((bar, index) => {
+    const total = totals[index];
+    if (!total) {
+      return;
+    }
+
+    ctx.fillText(String(formatter(total)), bar.x, bar.y - 4);
+  });
+
+  ctx.restore();
+}
+
+function drawDatasetLabels(chart, formatter) {
+  const metas = chart.getSortedVisibleDatasetMetas();
+  if (!metas.length) {
+    return;
+  }
+
+  const { ctx } = chart;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = getPalette().axisColor;
+
+  metas.forEach((meta) => {
+    const dataset = chart.data.datasets[meta.index];
+    meta.data.forEach((bar, index) => {
+      const value = toNumber(dataset.data[index]);
+      if (!value) {
+        return;
+      }
+
+      ctx.fillText(String(formatter(value)), bar.x, bar.y - 4);
+    });
+  });
+
+  ctx.restore();
+}
+// END SECTION
+
+// SECTION: Stacked and grouped bar helpers
+function createStackedBarChart(canvas, { labels, datasets, options }) {
+  if (!canvas || !window.Chart) {
+    return null;
+  }
+
+  const rawLabels = Array.isArray(labels) ? labels : [];
+  const wrappedLabels = rawLabels.map((label) => wrapLabel(label, MAX_STAGE_AXIS_LABEL_LENGTH));
+
+  return renderWithTheme(canvas, (ctx, palette) => {
+    const resolvedDatasets = datasets.map((dataset, index) => ({
+      ...dataset,
+      backgroundColor: palette.accents[index % palette.accents.length],
+      borderRadius: 4
+    }));
+
+    return new window.Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: wrappedLabels,
+        datasets: resolvedDatasets
+      },
+      options: mergeChartOptions(
+        {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              stacked: true,
+              ticks: {
+                autoSkip: false,
+                maxRotation: 0,
+                minRotation: 0,
+                color: palette.axisColor
+              },
+              grid: { color: palette.gridColor }
+            },
+            y: {
+              stacked: true,
+              beginAtZero: true,
+              ticks: { color: palette.axisColor },
+              grid: { color: palette.gridColor }
+            }
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'bottom',
+              labels: { color: palette.axisColor }
+            },
+            valueLabels: {
+              display: false,
+              mode: 'stack-total'
+            }
+          }
+        },
+        options
+      )
+    });
+  });
+}
+
+function createGroupedBarChart(canvas, { labels, datasets, options }) {
+  if (!canvas || !window.Chart) {
+    return null;
+  }
+
+  const rawLabels = Array.isArray(labels) ? labels : [];
+  const wrappedLabels = rawLabels.map((label) => wrapLabel(label, MAX_STAGE_AXIS_LABEL_LENGTH));
+
+  return renderWithTheme(canvas, (ctx, palette) => {
+    const resolvedDatasets = datasets.map((dataset, index) => ({
+      ...dataset,
+      backgroundColor: palette.accents[index % palette.accents.length],
+      borderRadius: 4
+    }));
+
+    return new window.Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: wrappedLabels,
+        datasets: resolvedDatasets
+      },
+      options: mergeChartOptions(
+        {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              stacked: false,
+              ticks: {
+                autoSkip: false,
+                maxRotation: 0,
+                minRotation: 0,
+                color: palette.axisColor
+              },
+              grid: { color: palette.gridColor }
+            },
+            y: {
+              stacked: false,
+              beginAtZero: true,
+              ticks: { color: palette.axisColor },
+              grid: { color: palette.gridColor }
+            }
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'bottom',
+              labels: { color: palette.axisColor }
+            },
+            valueLabels: {
+              display: false,
+              mode: 'dataset'
+            }
+          }
+        },
+        options
+      )
+    });
+  });
+}
+
+function buildCategoryDatasets(points, valueKey, { stacked }) {
+  const stages = [];
+  const stageIndex = new Map();
+  const categories = [];
+  const categoryIndex = new Map();
+
+  points.forEach((point) => {
+    if (!stageIndex.has(point.stageCode)) {
+      stageIndex.set(point.stageCode, stages.length);
+      stages.push({ code: point.stageCode, name: point.stageName });
+    }
+
+    const categoryKey = String(point.parentCategoryId);
+    if (!categoryIndex.has(categoryKey)) {
+      categoryIndex.set(categoryKey, categories.length);
+      categories.push({ id: point.parentCategoryId, name: point.categoryName });
+    }
+  });
+
+  const datasets = categories.map((category) => ({
+    label: category.name,
+    data: new Array(stages.length).fill(0),
+    stack: stacked ? 'byCategory' : undefined
+  }));
+
+  points.forEach((point) => {
+    const stageIdx = stageIndex.get(point.stageCode);
+    const categoryIdx = categoryIndex.get(String(point.parentCategoryId));
+    if (stageIdx === undefined || categoryIdx === undefined) {
+      return;
+    }
+
+    datasets[categoryIdx].data[stageIdx] = toNumber(point[valueKey]);
+  });
+
+  return {
+    labels: stages.map((stage) => stage.name),
+    categories,
+    datasets
+  };
+}
+// END SECTION
+
 // SECTION: Chart option helpers
 function mergeChartOptions(base, override) {
   if (!override) {
@@ -255,6 +521,11 @@ function renderWithTheme(canvas, config) {
     return null;
   }
 
+  const context = canvas.getContext('2d');
+  if (!context) {
+    return null;
+  }
+
   const existing = typeof window.Chart.getChart === 'function'
     ? window.Chart.getChart(canvas)
     : null;
@@ -263,7 +534,9 @@ function renderWithTheme(canvas, config) {
     existing.destroy();
   }
 
-  return new window.Chart(canvas.getContext('2d'), config);
+  const palette = getPalette();
+  const resolvedConfig = typeof config === 'function' ? config(context, palette) : config;
+  return new window.Chart(context, resolvedConfig);
 }
 
 function ensureNumber(value) {
@@ -292,6 +565,24 @@ function parseSeries(canvas) {
     return JSON.parse(payload);
   } catch (error) {
     console.error('Failed to parse analytics series payload.', error);
+    return [];
+  }
+}
+
+function parseSeriesByCategory(canvas) {
+  if (!canvas) {
+    return [];
+  }
+
+  const payload = canvas.dataset?.seriesByCategory;
+  if (!payload) {
+    return [];
+  }
+
+  try {
+    return JSON.parse(payload);
+  } catch (error) {
+    console.error('Failed to parse analytics category breakdown payload.', error);
     return [];
   }
 }
@@ -531,6 +822,208 @@ function initCompletedAnalytics() {
 }
 // END SECTION
 
+// SECTION: Ongoing chart controls helpers
+function bindCategoryControls({
+  canvas,
+  chart,
+  categories,
+  categoriesKey,
+  labelsKey,
+  labelMode,
+  filename
+}) {
+  if (!canvas || !chart) {
+    return;
+  }
+
+  chartRegistry.set(canvas.id, chart);
+  chart.$categoryIds = categories.map((category) => category.id);
+
+  const controls = document.querySelector(`[data-chart-controls-for="${canvas.id}"]`);
+  if (!controls) {
+    return;
+  }
+
+  const select = controls.querySelector('[data-chart-category-multiselect]');
+  const selectAllButton = controls.querySelector('[data-chart-select-all]');
+  const clearButton = controls.querySelector('[data-chart-clear]');
+  const showLabelsToggle = controls.querySelector('[data-chart-show-labels]');
+  const downloadButton = controls.querySelector('[data-chart-download]');
+
+  populateCategorySelect(select, categories);
+
+  const defaultCategoryIds = categories.map((category) => String(category.id));
+  const persistedCategoryIds = readStoredList(categoriesKey);
+  const initialCategoryIds = persistedCategoryIds.length ? persistedCategoryIds : defaultCategoryIds;
+  setSelectValues(select, initialCategoryIds);
+  applyCategorySelection(chart, initialCategoryIds);
+
+  const persistedShowLabels = readStoredBoolean(labelsKey, false);
+  setToggleChecked(showLabelsToggle, persistedShowLabels);
+  applyLabelToggle(chart, persistedShowLabels, labelMode);
+
+  select?.addEventListener('change', () => {
+    const selected = getSelectedValues(select);
+    storeList(categoriesKey, selected);
+    applyCategorySelection(chart, selected);
+  });
+
+  selectAllButton?.addEventListener('click', () => {
+    setSelectValues(select, defaultCategoryIds);
+    storeList(categoriesKey, defaultCategoryIds);
+    applyCategorySelection(chart, defaultCategoryIds);
+  });
+
+  clearButton?.addEventListener('click', () => {
+    setSelectValues(select, []);
+    storeList(categoriesKey, []);
+    applyCategorySelection(chart, []);
+  });
+
+  showLabelsToggle?.addEventListener('change', () => {
+    const checked = Boolean(showLabelsToggle.checked);
+    storeBoolean(labelsKey, checked);
+    applyLabelToggle(chart, checked, labelMode);
+  });
+
+  downloadButton?.addEventListener('click', () => {
+    downloadCanvasPng(canvas, filename);
+  });
+}
+
+function populateCategorySelect(select, categories) {
+  if (!select) {
+    return;
+  }
+
+  select.innerHTML = '';
+  categories.forEach((category) => {
+    const option = document.createElement('option');
+    option.value = String(category.id);
+    option.textContent = category.name;
+    select.appendChild(option);
+  });
+}
+
+function applyCategorySelection(chart, selectedIds) {
+  const selected = new Set(selectedIds);
+
+  chart.data.datasets.forEach((dataset, index) => {
+    const datasetId = String(chart.$categoryIds?.[index] ?? '');
+    dataset.hidden = !selected.has(datasetId);
+  });
+
+  chart.update();
+}
+
+function applyLabelToggle(chart, checked, mode) {
+  if (!chart.options.plugins) {
+    chart.options.plugins = {};
+  }
+
+  chart.options.plugins.valueLabels = {
+    ...(chart.options.plugins.valueLabels ?? {}),
+    display: checked,
+    mode
+  };
+
+  chart.update();
+}
+
+function downloadCanvasPng(canvas, filename) {
+  if (!canvas?.toBlob) {
+    return;
+  }
+
+  canvas.toBlob((blob) => {
+    if (!blob) {
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  });
+}
+
+function getSelectedValues(select) {
+  if (!select) {
+    return [];
+  }
+
+  return Array.from(select.selectedOptions).map((option) => option.value);
+}
+
+function setSelectValues(select, values) {
+  if (!select) {
+    return;
+  }
+
+  const allowed = new Set(values);
+  Array.from(select.options).forEach((option) => {
+    option.selected = allowed.has(option.value);
+  });
+}
+
+function setToggleChecked(toggle, checked) {
+  if (!toggle) {
+    return;
+  }
+
+  toggle.checked = checked;
+}
+
+function readStoredList(key) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map((value) => String(value)) : [];
+  } catch (error) {
+    console.warn('Unable to read stored analytics selection.', error);
+    return [];
+  }
+}
+
+function storeList(key, values) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(values));
+  } catch (error) {
+    console.warn('Unable to store analytics selection.', error);
+  }
+}
+
+function readStoredBoolean(key, fallback) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw === null) {
+      return fallback;
+    }
+
+    return raw === 'true';
+  } catch (error) {
+    console.warn('Unable to read stored analytics toggle.', error);
+    return fallback;
+  }
+}
+
+function storeBoolean(key, value) {
+  try {
+    window.localStorage.setItem(key, value ? 'true' : 'false');
+  } catch (error) {
+    console.warn('Unable to store analytics toggle.', error);
+  }
+}
+// END SECTION
+
 // SECTION: Ongoing analytics initialiser
 function initOngoingAnalytics() {
   const categoryCanvas = document.getElementById('ongoing-by-category-chart');
@@ -548,44 +1041,127 @@ function initOngoingAnalytics() {
   }
 
   if (stageCanvas) {
-    const series = parseSeries(stageCanvas);
-    if (series.length) {
-      createBarChart(stageCanvas, {
-        labels: series.map((point) => point.name),
-        values: series.map((point) => point.count),
-        label: 'Projects'
-      });
-    }
-  }
-
-  if (durationCanvas) {
-    const series = parseSeries(durationCanvas);
-    if (series.length) {
-      const labels = series.map((point) => getStageAxisLabel(point));
-      createBarChart(durationCanvas, {
-        labels,
-        values: series.map((point) => point.days),
-        label: 'Average days in stage',
-        backgroundColor: getAccentColor(2),
+    const seriesByCategory = parseSeriesByCategory(stageCanvas);
+    if (seriesByCategory.length) {
+      const built = buildCategoryDatasets(seriesByCategory, 'count', { stacked: true });
+      const chart = createStackedBarChart(stageCanvas, {
+        labels: built.labels.map((label) => getStageAxisLabel({ name: label })),
+        datasets: built.datasets,
         options: {
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
           plugins: {
             tooltip: {
               callbacks: {
-                title: createStageTooltipTitle(series)
+                label(context) {
+                  const value = toNumber(context.parsed?.y);
+                  return `${context.dataset.label}: ${value}`;
+                }
               }
+            },
+            valueLabels: {
+              formatter: (value) => Math.round(toNumber(value))
             }
           },
           scales: {
-            x: {
+            y: {
               ticks: {
-                autoSkip: false,
-                maxRotation: 0,
-                minRotation: 0
+                precision: 0
               }
             }
           }
         }
       });
+
+      bindCategoryControls({
+        canvas: stageCanvas,
+        chart,
+        categories: built.categories,
+        categoriesKey: ongoingStorageKeys.stageCategories,
+        labelsKey: ongoingStorageKeys.stageShowLabels,
+        labelMode: 'stack-total',
+        filename: 'ongoing-projects-by-stage.png'
+      });
+    } else {
+      const series = parseSeries(stageCanvas);
+      if (series.length) {
+        createBarChart(stageCanvas, {
+          labels: series.map((point) => point.name),
+          values: series.map((point) => point.count),
+          label: 'Projects'
+        });
+      }
+    }
+  }
+
+  if (durationCanvas) {
+    const seriesByCategory = parseSeriesByCategory(durationCanvas);
+    if (seriesByCategory.length) {
+      const built = buildCategoryDatasets(seriesByCategory, 'days', { stacked: false });
+      const chart = createGroupedBarChart(durationCanvas, {
+        labels: built.labels.map((label) => getStageAxisLabel({ name: label })),
+        datasets: built.datasets,
+        options: {
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label(context) {
+                  const value = toNumber(context.parsed?.y);
+                  return `${context.dataset.label}: ${value.toFixed(1)} days`;
+                }
+              }
+            },
+            valueLabels: {
+              formatter: (value) => toNumber(value).toFixed(1)
+            }
+          }
+        }
+      });
+
+      bindCategoryControls({
+        canvas: durationCanvas,
+        chart,
+        categories: built.categories,
+        categoriesKey: ongoingStorageKeys.durationCategories,
+        labelsKey: ongoingStorageKeys.durationShowLabels,
+        labelMode: 'dataset',
+        filename: 'ongoing-stage-duration-by-category.png'
+      });
+    } else {
+      const series = parseSeries(durationCanvas);
+      if (series.length) {
+        const labels = series.map((point) => getStageAxisLabel(point));
+        createBarChart(durationCanvas, {
+          labels,
+          values: series.map((point) => point.days),
+          label: 'Average days in stage',
+          backgroundColor: getAccentColor(2),
+          options: {
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  title: createStageTooltipTitle(series)
+                }
+              }
+            },
+            scales: {
+              x: {
+                ticks: {
+                  autoSkip: false,
+                  maxRotation: 0,
+                  minRotation: 0
+                }
+              }
+            }
+          }
+        });
+      }
     }
   }
 }

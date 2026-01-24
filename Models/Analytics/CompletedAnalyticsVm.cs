@@ -20,4 +20,20 @@ public sealed record AnalyticsStageDurationPoint(string StageCode, string Name, 
 public sealed record CompletedPerYearPoint(int Year, int Count);
 
 public sealed record CompletedPerYearByParentCategoryPoint(int Year, string CategoryName, int Count);
+
+// SECTION: Ongoing analytics category breakdown DTOs
+public sealed record OngoingStageCountByCategoryPoint(
+    string StageCode,
+    string StageName,
+    int ParentCategoryId,
+    string CategoryName,
+    int Count);
+
+public sealed record OngoingStageDurationByCategoryPoint(
+    string StageCode,
+    string StageName,
+    int ParentCategoryId,
+    string CategoryName,
+    double Days);
+// END SECTION
 // END SECTION
