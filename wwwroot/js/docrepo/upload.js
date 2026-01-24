@@ -7,6 +7,10 @@
         return;
     }
 
+    // SECTION: Upload constraints
+    const maxSizeRaw = parseInt(input.dataset.maxSize || '0', 10);
+    const maxSizeBytes = Number.isNaN(maxSizeRaw) || maxSizeRaw <= 0 ? Number.POSITIVE_INFINITY : maxSizeRaw;
+
     const showPlaceholder = () => {
         frame.classList.add('d-none');
         frame.removeAttribute('src');
@@ -34,9 +38,22 @@
         const file = input.files && input.files[0];
         if (!file) {
             showPlaceholder();
+            input.setCustomValidity('');
             return;
         }
 
+        // SECTION: Client-side size validation
+        if (file.size && file.size > maxSizeBytes) {
+            const sizeMb = Math.max(1, Math.round(maxSizeBytes / (1024 * 1024)));
+            const message = `File must be ${sizeMb} MB or smaller.`;
+            input.setCustomValidity(message);
+            input.reportValidity();
+            input.value = '';
+            showPlaceholder();
+            return;
+        }
+
+        input.setCustomValidity('');
         const url = URL.createObjectURL(file);
         showFrame(url);
     });

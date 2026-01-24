@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
@@ -12,6 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.AspNetCore.Server.IIS;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -478,6 +480,31 @@ builder.Services.AddOptions<ProjectDocumentOptions>()
     .Bind(builder.Configuration.GetSection("ProjectDocuments"))
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<ProjectDocumentOptions>, ProjectDocumentOptionsValidator>();
+
+// SECTION: Centralized upload request limits (configuration-driven)
+var configuredMaxSizeMb = builder.Configuration.GetValue<int?>("ProjectDocuments:MaxSizeMb") ?? 0;
+var configuredMaxBodySizeBytes = configuredMaxSizeMb > 0
+    ? (long?)configuredMaxSizeMb * 1024L * 1024L
+    : null;
+
+if (configuredMaxBodySizeBytes.HasValue)
+{
+    builder.Services.Configure<FormOptions>(options =>
+    {
+        options.MultipartBodyLengthLimit = configuredMaxBodySizeBytes.Value;
+    });
+
+    builder.Services.Configure<IISServerOptions>(options =>
+    {
+        options.MaxRequestBodySize = configuredMaxBodySizeBytes.Value;
+    });
+
+    builder.WebHost.ConfigureKestrel(options =>
+    {
+        options.Limits.MaxRequestBodySize = configuredMaxBodySizeBytes.Value;
+    });
+}
+
 builder.Services.AddOptions<ProjectVideoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectVideos"));
 builder.Services.AddSingleton<IConfigureOptions<ProjectPhotoOptions>, ProjectPhotoOptionsSetup>();

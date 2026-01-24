@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -27,6 +28,12 @@ namespace ProjectManagement.Pages.Projects.Documents;
 [AutoValidateAntiforgeryToken]
 public class UploadRequestModel : PageModel
 {
+    // SECTION: Constants
+    private const int MaxNomenclatureLength = 200;
+    private const string FilesFieldKey = "Input.Files";
+    private const string StageFieldKey = "Input.StageId";
+
+    // SECTION: Dependencies
     private readonly ApplicationDbContext _db;
     private readonly IUserContext _userContext;
     private readonly IDocumentService _documentService;
@@ -111,35 +118,32 @@ public class UploadRequestModel : PageModel
 
         StageOptions = await BuildStageOptionsAsync(id, cancellationToken);
 
+        // SECTION: Stage validation (optional)
         if (!HasStageOptions)
         {
             Input.StageId = null;
         }
-        else if (Input.StageId is null)
-        {
-            ModelState.AddModelError("Input.StageId", "Select a stage.");
-        }
-        else
+        else if (Input.StageId.HasValue)
         {
             var stageExists = await _db.ProjectStages
-                .AnyAsync(s => s.ProjectId == id && s.Id == Input.StageId, cancellationToken);
+                .AnyAsync(s => s.ProjectId == id && s.Id == Input.StageId.Value, cancellationToken);
             if (!stageExists)
             {
-                ModelState.AddModelError("Input.StageId", "Select a valid stage.");
+                ModelState.AddModelError(StageFieldKey, "Select a valid stage.");
             }
         }
 
-        if (Input.File is null)
+        // SECTION: Files validation
+        var files = GetSelectedFiles(Input.Files);
+        if (files.Count == 0)
         {
-            ModelState.AddModelError("Input.File", "Select a file to upload.");
+            ModelState.AddModelError(FilesFieldKey, "Select at least one file to upload.");
         }
 
-        Input.Nomenclature = Input.Nomenclature?.Trim() ?? string.Empty;
-        if (Input.Nomenclature.Length == 0)
-        {
-            ModelState.AddModelError("Input.Nomenclature", "Enter a nomenclature.");
-        }
+        // SECTION: Nomenclature preparation (optional base value)
+        var baseNomenclature = NormalizeBaseNomenclature(Input.Nomenclature);
 
+        // SECTION: Transfer of Technology validation
         var tot = Project?.Tot;
         var canLinkTot = tot is not null && tot.Status != ProjectTotStatus.NotRequired;
         if (Input.LinkToTot && !canLinkTot)
@@ -162,57 +166,154 @@ public class UploadRequestModel : PageModel
             return Challenge();
         }
 
-        DocumentFileDescriptor? tempFile = null;
-        var token = _documentService.CreateTempRequestToken();
+        // SECTION: Multi-file processing
+        var tempFiles = new List<DocumentFileDescriptor>(files.Count);
+        var createdRequests = 0;
 
         try
         {
-            await using var stream = Input.File!.OpenReadStream();
-            tempFile = await _documentService.SaveTempAsync(
-                token,
-                stream,
-                Input.File.FileName,
-                Input.File.ContentType,
-                cancellationToken);
+            foreach (var (file, index) in files.Select((value, i) => (value, i)))
+            {
+                var token = _documentService.CreateTempRequestToken();
 
-            await _requestService.CreateUploadRequestAsync(
-                Input.ProjectId,
-                Input.StageId,
-                Input.Nomenclature,
-                Input.LinkToTot ? Project!.Tot!.Id : (int?)null,
-                tempFile,
-                userId,
-                cancellationToken);
+                await using var stream = file.OpenReadStream();
+                var tempFile = await _documentService.SaveTempAsync(
+                    token,
+                    stream,
+                    file.FileName,
+                    file.ContentType,
+                    cancellationToken);
 
-            TempData["Flash"] = "Document upload request submitted for moderation.";
+                tempFiles.Add(tempFile);
+
+                var nomenclature = BuildPerFileNomenclature(baseNomenclature, files.Count, tempFile.OriginalFileName);
+
+                await _requestService.CreateUploadRequestAsync(
+                    Input.ProjectId,
+                    Input.StageId,
+                    nomenclature,
+                    Input.LinkToTot ? Project!.Tot!.Id : (int?)null,
+                    tempFile,
+                    userId,
+                    cancellationToken);
+
+                createdRequests = index + 1;
+            }
+
+            TempData["Flash"] = files.Count == 1
+                ? "Submitted 1 file for moderation."
+                : FormattableString.Invariant($"Submitted {files.Count} file(s) for moderation.");
+
             return RedirectToPage("../Overview", new { id = Input.ProjectId });
         }
         catch (InvalidOperationException ex)
         {
             _logger.LogWarning(ex, "Validation failed while staging upload request for project {ProjectId}", Input.ProjectId);
-            ModelState.AddModelError("Input.File", ex.Message);
+            ModelState.AddModelError(FilesFieldKey, FormatFileErrorMessage(ex.Message, files, createdRequests));
         }
         catch (IOException ex)
         {
             _logger.LogError(ex, "File read failed while staging upload request for project {ProjectId}", Input.ProjectId);
-            ModelState.AddModelError("Input.File", "We couldn't read the uploaded file. Please try again with a fresh upload.");
+            ModelState.AddModelError(FilesFieldKey, "We couldn't read the uploaded file. Please try again with a fresh upload.");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error while staging upload request for project {ProjectId}", Input.ProjectId);
-            ModelState.AddModelError(string.Empty, "We couldn't process the file. Please try again.");
+            ModelState.AddModelError(string.Empty, "We couldn't process the files. Please try again.");
         }
         finally
         {
-            if (!ModelState.IsValid && tempFile is not null)
+            if (!ModelState.IsValid)
             {
-                await _documentService.DeleteTempAsync(tempFile.StorageKey, cancellationToken);
+                foreach (var tempFile in tempFiles)
+                {
+                    await _documentService.DeleteTempAsync(tempFile.StorageKey, cancellationToken);
+                }
             }
         }
 
         return Page();
     }
 
+    // SECTION: Validation helpers
+    private static List<IFormFile> GetSelectedFiles(IEnumerable<IFormFile>? files)
+        => files?
+            .Where(file => file is not null && file.Length > 0)
+            .ToList()
+            ?? new List<IFormFile>();
+
+    private static string? NormalizeBaseNomenclature(string? nomenclature)
+    {
+        var trimmed = nomenclature?.Trim();
+        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+    }
+
+    private static string BuildPerFileNomenclature(string? baseNomenclature, int totalFiles, string originalFileName)
+    {
+        var fileBaseName = Path.GetFileNameWithoutExtension(originalFileName);
+        if (string.IsNullOrWhiteSpace(fileBaseName))
+        {
+            fileBaseName = "document";
+        }
+
+        // SECTION: Single-file behaviour
+        if (totalFiles == 1)
+        {
+            return TrimToLength(baseNomenclature ?? fileBaseName, MaxNomenclatureLength);
+        }
+
+        // SECTION: Multi-file behaviour
+        if (string.IsNullOrWhiteSpace(baseNomenclature))
+        {
+            return TrimToLength(fileBaseName, MaxNomenclatureLength);
+        }
+
+        var combined = $"{baseNomenclature} - {fileBaseName}";
+        return TrimToLength(combined, MaxNomenclatureLength);
+    }
+
+    private static string TrimToLength(string value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        return value.Substring(0, maxLength);
+    }
+
+    private static string FormatFileErrorMessage(string message, IReadOnlyList<IFormFile> files, int createdRequests)
+    {
+        if (files.Count <= 1)
+        {
+            return message;
+        }
+
+        var failedIndex = Math.Clamp(createdRequests, 0, files.Count - 1);
+        var failedFileName = files[failedIndex].FileName;
+        var sanitizedMessage = string.IsNullOrWhiteSpace(message) ? "The upload could not be processed." : message.Trim();
+
+        var builder = new StringBuilder();
+        builder.Append("Upload failed for ");
+        builder.Append(failedFileName);
+        builder.Append('.');
+
+        if (!sanitizedMessage.EndsWith('.', StringComparison.Ordinal))
+        {
+            builder.Append(' ');
+            builder.Append(sanitizedMessage);
+        }
+        else
+        {
+            builder.Append(' ');
+            builder.Append(sanitizedMessage.TrimEnd('.'));
+            builder.Append('.');
+        }
+
+        return builder.ToString();
+    }
+
+    // SECTION: Access control
     private async Task<IActionResult?> EnsureProjectAccessAsync(int projectId, CancellationToken cancellationToken)
     {
         var userId = _userContext.UserId;
@@ -256,6 +357,7 @@ public class UploadRequestModel : PageModel
             string.Equals(project.HodUserId, userId, StringComparison.OrdinalIgnoreCase);
     }
 
+    // SECTION: Stage options
     private async Task<IEnumerable<SelectListItem>> BuildStageOptionsAsync(int projectId, CancellationToken cancellationToken)
     {
         var stages = await _db.ProjectStages
@@ -280,12 +382,10 @@ public class UploadRequestModel : PageModel
 
         public int? StageId { get; set; }
 
-        [Required]
-        [MaxLength(200)]
-        public string Nomenclature { get; set; } = string.Empty;
+        [MaxLength(MaxNomenclatureLength)]
+        public string? Nomenclature { get; set; }
 
-        [Required]
-        public IFormFile? File { get; set; }
+        public List<IFormFile> Files { get; set; } = new();
 
         public bool LinkToTot { get; set; }
     }

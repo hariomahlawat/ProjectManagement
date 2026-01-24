@@ -16,7 +16,8 @@ public class DocRepoOptions
     public int? IngestionDocumentCategoryId { get; set; }
         = null;
     public string IngestionUserId { get; set; } = "system";
-    public long MaxFileSizeBytes { get; set; } = 52_428_800;
+    // SECTION: Upload constraints
+    public long MaxFileSizeBytes { get; set; } = 104_857_600;
     public string? OcrExecutablePath { get; set; }
     public string? OcrWorkRoot { get; set; }
     public string OcrInput { get; set; } = "input";

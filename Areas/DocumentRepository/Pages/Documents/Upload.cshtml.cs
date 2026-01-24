@@ -1,3 +1,4 @@
+using System;
 using System.Buffers;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
@@ -8,6 +9,8 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Services.DocRepo;
@@ -16,8 +19,6 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents;
 
 [Authorize(Policy = "DocRepo.Upload")]
 [EnableRateLimiting("docUpload")]
-[RequestFormLimits(MultipartBodyLengthLimit = 52_428_800)]
-[RequestSizeLimit(52_428_800)]
 public class UploadModel : PageModel
 {
     private readonly ApplicationDbContext _db;
@@ -25,19 +26,22 @@ public class UploadModel : PageModel
     private readonly IFileScanner _scanner;
     private readonly IDocRepoAuditService _audit;
     private readonly IAuthorizationService _authorizationService;
+    private readonly ProjectDocumentOptions _documentOptions;
 
     public UploadModel(
         ApplicationDbContext db,
         IDocStorage storage,
         IFileScanner scanner,
         IDocRepoAuditService audit,
-        IAuthorizationService authorizationService)
+        IAuthorizationService authorizationService,
+        IOptions<ProjectDocumentOptions> documentOptions)
     {
         _db = db;
         _storage = storage;
         _scanner = scanner;
         _audit = audit;
         _authorizationService = authorizationService;
+        _documentOptions = documentOptions?.Value ?? throw new ArgumentNullException(nameof(documentOptions));
     }
 
     public IReadOnlyList<OfficeCategory> OfficeOptions { get; private set; } = Array.Empty<OfficeCategory>();
@@ -47,6 +51,8 @@ public class UploadModel : PageModel
     public string? PdfPreviewUrl { get; private set; }
     public bool HasPreview => !string.IsNullOrEmpty(PdfPreviewUrl);
     public bool CanMarkAots { get; private set; }
+    // SECTION: Upload constraints
+    public long MaxFileSizeBytes => (long)_documentOptions.MaxSizeMb * 1024L * 1024L;
 
     public class InputModel
     {
@@ -105,9 +111,11 @@ public class UploadModel : PageModel
             return Page();
         }
 
-        if (Input.File.Length > 52_428_800)
+        // SECTION: File size validation (configuration-driven)
+        if (MaxFileSizeBytes > 0 && Input.File.Length > MaxFileSizeBytes)
         {
-            ModelState.AddModelError(nameof(Input.File), "File exceeds 50 MB limit.");
+            var maxSizeMb = Math.Max(1, _documentOptions.MaxSizeMb);
+            ModelState.AddModelError(nameof(Input.File), FormattableString.Invariant($"File exceeds the {maxSizeMb} MB limit."));
             return Page();
         }
 

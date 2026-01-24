@@ -12,12 +12,13 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.DependencyInjection;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Pages.Projects.Documents;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Documents;
@@ -45,7 +46,7 @@ public sealed class ProjectDocumentUploadRequestPageTests
                 ProjectId = 1,
                 StageId = null,
                 Nomenclature = "Spec Sheet",
-                File = CreateFormFile()
+                Files = new List<IFormFile> { CreateFormFile("test.pdf") }
             }
         };
 
@@ -56,11 +57,75 @@ public sealed class ProjectDocumentUploadRequestPageTests
         var redirect = Assert.IsType<RedirectToPageResult>(result);
         Assert.Equal("../Overview", redirect.PageName);
         Assert.False(page.HasStageOptions);
-        Assert.Null(requestService.LastStageId);
+        Assert.All(requestService.Requests, request => Assert.Null(request.StageId));
     }
 
     [Fact]
-    public async Task OnPost_ReturnsValidationError_WhenNomenclatureWhitespace()
+    public async Task OnPost_AllowsMissingStage_WhenStagesExist()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 1, leadPoUserId: "po-1");
+        await SeedStageAsync(db, 1, 10, StageCodes.Planning, sortOrder: 1);
+
+        var userContext = new FakeUserContext("po-1", "Project Officer");
+        var documentService = new StubDocumentService();
+        var requestService = new RecordingDocumentRequestService();
+        var options = Options.Create(new ProjectDocumentOptions());
+
+        var page = new UploadRequestModel(db, userContext, documentService, requestService, options, NullLogger<UploadRequestModel>.Instance)
+        {
+            Input = new UploadRequestModel.UploadInputModel
+            {
+                ProjectId = 1,
+                StageId = null,
+                Files = new List<IFormFile> { CreateFormFile("stage-optional.pdf") }
+            }
+        };
+
+        ConfigurePageContext(page, userContext.User);
+
+        var result = await page.OnPostAsync(1, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Single(requestService.Requests);
+        Assert.Null(requestService.Requests[0].StageId);
+    }
+
+    [Fact]
+    public async Task OnPost_ReturnsValidationError_WhenStageDoesNotBelongToProject()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 1, leadPoUserId: "po-1");
+        await SeedProjectAsync(db, 2, leadPoUserId: "po-2");
+        await SeedStageAsync(db, 2, 20, StageCodes.Execution, sortOrder: 1);
+
+        var userContext = new FakeUserContext("po-1", "Project Officer");
+        var documentService = new StubDocumentService();
+        var requestService = new RecordingDocumentRequestService();
+        var options = Options.Create(new ProjectDocumentOptions());
+
+        var page = new UploadRequestModel(db, userContext, documentService, requestService, options, NullLogger<UploadRequestModel>.Instance)
+        {
+            Input = new UploadRequestModel.UploadInputModel
+            {
+                ProjectId = 1,
+                StageId = 20,
+                Files = new List<IFormFile> { CreateFormFile("invalid-stage.pdf") }
+            }
+        };
+
+        ConfigurePageContext(page, userContext.User);
+
+        var result = await page.OnPostAsync(1, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        var stageState = page.ModelState["Input.StageId"] ?? throw new Xunit.Sdk.XunitException("Expected model state entry for stage.");
+        Assert.Contains(stageState.Errors, error => error.ErrorMessage == "Select a valid stage.");
+        Assert.Empty(requestService.Requests);
+    }
+
+    [Fact]
+    public async Task OnPost_ReturnsValidationError_WhenNoFilesSelected()
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, 1, leadPoUserId: "po-1");
@@ -76,8 +141,7 @@ public sealed class ProjectDocumentUploadRequestPageTests
             {
                 ProjectId = 1,
                 StageId = null,
-                Nomenclature = "   ",
-                File = CreateFormFile()
+                Files = new List<IFormFile>()
             }
         };
 
@@ -86,10 +150,82 @@ public sealed class ProjectDocumentUploadRequestPageTests
         var result = await page.OnPostAsync(1, CancellationToken.None);
 
         Assert.IsType<PageResult>(result);
-        var nomenclatureState = page.ModelState["Input.Nomenclature"] ?? throw new Xunit.Sdk.XunitException("Expected model state entry for nomenclature.");
-        Assert.Contains(nomenclatureState.Errors, error => error.ErrorMessage == "Enter a nomenclature.");
+        var fileState = page.ModelState["Input.Files"] ?? throw new Xunit.Sdk.XunitException("Expected model state entry for files.");
+        Assert.Contains(fileState.Errors, error => error.ErrorMessage == "Select at least one file to upload.");
+        Assert.Empty(requestService.Requests);
     }
 
+    [Fact]
+    public async Task OnPost_CreatesOneRequestPerFile_WithDerivedNomenclature()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 1, leadPoUserId: "po-1");
+        await SeedStageAsync(db, 1, 10, StageCodes.Execution, sortOrder: 1);
+
+        var userContext = new FakeUserContext("po-1", "Project Officer");
+        var documentService = new StubDocumentService();
+        var requestService = new RecordingDocumentRequestService();
+        var options = Options.Create(new ProjectDocumentOptions());
+
+        var page = new UploadRequestModel(db, userContext, documentService, requestService, options, NullLogger<UploadRequestModel>.Instance)
+        {
+            Input = new UploadRequestModel.UploadInputModel
+            {
+                ProjectId = 1,
+                StageId = 10,
+                Nomenclature = "Batch Upload",
+                Files = new List<IFormFile>
+                {
+                    CreateFormFile("alpha.pdf"),
+                    CreateFormFile("beta.pdf")
+                }
+            }
+        };
+
+        ConfigurePageContext(page, userContext.User);
+
+        var result = await page.OnPostAsync(1, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal("Submitted 2 file(s) for moderation.", page.TempData["Flash"]);
+        Assert.Equal(2, requestService.Requests.Count);
+        Assert.All(requestService.Requests, request => Assert.Equal(10, request.StageId));
+        Assert.Collection(
+            requestService.Requests,
+            first => Assert.Equal("Batch Upload - alpha", first.Title),
+            second => Assert.Equal("Batch Upload - beta", second.Title));
+    }
+
+    [Fact]
+    public async Task OnPost_UsesFileNameAsNomenclature_WhenBaseMissing()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 1, leadPoUserId: "po-1");
+
+        var userContext = new FakeUserContext("po-1", "Project Officer");
+        var documentService = new StubDocumentService();
+        var requestService = new RecordingDocumentRequestService();
+        var options = Options.Create(new ProjectDocumentOptions());
+
+        var page = new UploadRequestModel(db, userContext, documentService, requestService, options, NullLogger<UploadRequestModel>.Instance)
+        {
+            Input = new UploadRequestModel.UploadInputModel
+            {
+                ProjectId = 1,
+                Files = new List<IFormFile> { CreateFormFile("gamma.pdf") }
+            }
+        };
+
+        ConfigurePageContext(page, userContext.User);
+
+        var result = await page.OnPostAsync(1, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Single(requestService.Requests);
+        Assert.Equal("gamma", requestService.Requests[0].Title);
+    }
+
+    // SECTION: Test helpers
     private static void ConfigurePageContext(PageModel page, ClaimsPrincipal user)
     {
         var httpContext = new DefaultHttpContext
@@ -109,11 +245,11 @@ public sealed class ProjectDocumentUploadRequestPageTests
         page.TempData = new TempDataDictionary(httpContext, tempDataProvider);
     }
 
-    private static IFormFile CreateFormFile()
+    private static IFormFile CreateFormFile(string fileName)
     {
         var content = new byte[] { 1, 2, 3, 4 };
         var stream = new MemoryStream(content);
-        return new FormFile(stream, 0, content.Length, "file", "test.pdf")
+        return new FormFile(stream, 0, content.Length, "file", fileName)
         {
             Headers = new HeaderDictionary(),
             ContentType = "application/pdf"
@@ -137,6 +273,18 @@ public sealed class ProjectDocumentUploadRequestPageTests
             CreatedByUserId = "creator",
             LeadPoUserId = leadPoUserId,
             RowVersion = new byte[] { 1 }
+        });
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedStageAsync(ApplicationDbContext db, int projectId, int stageId, string stageCode, int sortOrder)
+    {
+        db.ProjectStages.Add(new ProjectStage
+        {
+            Id = stageId,
+            ProjectId = projectId,
+            StageCode = stageCode,
+            SortOrder = sortOrder
         });
         await db.SaveChangesAsync();
     }
@@ -196,18 +344,20 @@ public sealed class ProjectDocumentUploadRequestPageTests
 
     private sealed class RecordingDocumentRequestService : IDocumentRequestService
     {
-        public int? LastStageId { get; private set; }
+        public List<ProjectDocumentRequest> Requests { get; } = new();
 
         public Task<ProjectDocumentRequest> CreateUploadRequestAsync(int projectId, int? stageId, string nomenclature, int? totId, DocumentFileDescriptor file, string requestedByUserId, CancellationToken cancellationToken)
         {
-            LastStageId = stageId;
-            return Task.FromResult(new ProjectDocumentRequest
+            var request = new ProjectDocumentRequest
             {
                 ProjectId = projectId,
                 StageId = stageId,
                 Title = nomenclature,
                 RequestedByUserId = requestedByUserId
-            });
+            };
+
+            Requests.Add(request);
+            return Task.FromResult(request);
         }
 
         public Task<ProjectDocumentRequest> CreateReplaceRequestAsync(int documentId, string? newTitle, DocumentFileDescriptor file, string requestedByUserId, CancellationToken cancellationToken)

@@ -2,6 +2,31 @@
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.UploadModel
 @{
     ViewData["Title"] = "Upload document (PDF)";
+
+    // SECTION: File size formatting
+    string FormatFileSize(long bytes)
+    {
+        if (bytes <= 0)
+        {
+            return "0 bytes";
+        }
+
+        string[] suffixes = { "bytes", "KB", "MB", "GB", "TB" };
+        double size = bytes;
+        var suffixIndex = 0;
+
+        while (size >= 1024 && suffixIndex < suffixes.Length - 1)
+        {
+            size /= 1024;
+            suffixIndex++;
+        }
+
+        return suffixIndex == 0
+            ? FormattableString.Invariant($"{bytes} {suffixes[suffixIndex]}")
+            : FormattableString.Invariant($"{size:0.#} {suffixes[suffixIndex]}");
+    }
+
+    var maxFileSizeText = FormatFileSize(Model.MaxFileSizeBytes);
 }
 
 <!-- simple breadcrumb, no extra model needed -->
@@ -54,7 +79,7 @@
                         <div>
                             <label class="form-label" asp-for="Input.File">Choose file</label>
                             <input class="form-control" asp-for="Input.File" type="file" accept="application/pdf"
-                                   data-docrepo-upload-input id="pdfInput" />
+                                   data-docrepo-upload-input data-max-size="@Model.MaxFileSizeBytes" id="pdfInput" />
                             <span class="text-danger" asp-validation-for="Input.File"></span>
                         </div>
 
@@ -118,7 +143,7 @@
                     </form>
                 </div>
                 <div class="card-footer small text-muted">
-                    PDF up to 50&nbsp;MB. Scanned PDFs will be queued for OCR.
+                    PDF up to @maxFileSizeText. Scanned PDFs will be queued for OCR.
                 </div>
             </div>
         </div>
