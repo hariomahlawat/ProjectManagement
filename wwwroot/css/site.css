@@ -2946,7 +2946,8 @@ summary::marker {
     cursor: pointer;
 }
 
-.pm-expand summary::-webkit-details-marker {
+/* ======== Section: Expandable summary marker suppression ======== */
+.pm-expand summary::marker {
     display: none;
 }
 
