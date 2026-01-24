@@ -298,7 +298,8 @@ public class UploadRequestModel : PageModel
         builder.Append(failedFileName);
         builder.Append('.');
 
-        if (!sanitizedMessage.EndsWith('.', StringComparison.Ordinal))
+        // ======== Section: Format sanitized error message ========
+        if (!sanitizedMessage.EndsWith(".", StringComparison.Ordinal))
         {
             builder.Append(' ');
             builder.Append(sanitizedMessage);
