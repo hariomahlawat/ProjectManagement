@@ -43,13 +43,18 @@
                     <!-- SECTION: Stage chart controls -->
                     <div class="analytics-chart-controls" data-chart-controls-for="ongoing-by-stage-chart">
                         <div class="analytics-chart-controls__group">
-                            <label class="form-label analytics-chart-controls__label" for="ongoingStageCategories">
+                            <label class="form-label analytics-chart-controls__label" for="ongoingStageCategoriesChips">
                                 Categories
                             </label>
-                            <select id="ongoingStageCategories"
-                                    class="form-select form-select-sm analytics-chart-controls__select"
-                                    multiple
-                                    data-chart-category-multiselect></select>
+                            <div id="ongoingStageCategoriesChips"
+                                 class="analytics-chip-picker"
+                                 data-chart-category-chips
+                                 aria-label="Category filter"></div>
+                            <div class="analytics-chart-controls__hint text-muted"
+                                 data-chart-category-hint
+                                 hidden>
+                                At least one category must remain selected.
+                            </div>
                             <div class="analytics-chart-controls__actions">
                                 <button type="button"
                                         class="btn btn-sm btn-outline-secondary"
@@ -58,8 +63,9 @@
                                 </button>
                                 <button type="button"
                                         class="btn btn-sm btn-outline-secondary"
-                                        data-chart-clear>
-                                    Clear
+                                        data-chart-clear
+                                        title="Reset selection to all categories">
+                                    Reset
                                 </button>
                             </div>
                         </div>
@@ -105,13 +111,18 @@
                     <!-- SECTION: Stage duration chart controls -->
                     <div class="analytics-chart-controls" data-chart-controls-for="ongoing-stage-duration-chart">
                         <div class="analytics-chart-controls__group">
-                            <label class="form-label analytics-chart-controls__label" for="ongoingDurationCategories">
+                            <label class="form-label analytics-chart-controls__label" for="ongoingDurationCategoriesChips">
                                 Categories
                             </label>
-                            <select id="ongoingDurationCategories"
-                                    class="form-select form-select-sm analytics-chart-controls__select"
-                                    multiple
-                                    data-chart-category-multiselect></select>
+                            <div id="ongoingDurationCategoriesChips"
+                                 class="analytics-chip-picker"
+                                 data-chart-category-chips
+                                 aria-label="Category filter"></div>
+                            <div class="analytics-chart-controls__hint text-muted"
+                                 data-chart-category-hint
+                                 hidden>
+                                At least one category must remain selected.
+                            </div>
                             <div class="analytics-chart-controls__actions">
                                 <button type="button"
                                         class="btn btn-sm btn-outline-secondary"
@@ -120,8 +131,9 @@
                                 </button>
                                 <button type="button"
                                         class="btn btn-sm btn-outline-secondary"
-                                        data-chart-clear>
-                                    Clear
+                                        data-chart-clear
+                                        title="Reset selection to all categories">
+                                    Reset
                                 </button>
                             </div>
                         </div>

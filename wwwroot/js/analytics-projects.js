@@ -230,6 +230,13 @@ function createBarChart(
 }
 // END SECTION
 
+// SECTION: Numeric helpers
+function toNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+// END SECTION
+
 // SECTION: Value labels plugin
 const valueLabelsPlugin = {
   id: 'valueLabels',
@@ -309,6 +316,11 @@ function drawDatasetLabels(chart, formatter) {
     meta.data.forEach((bar, index) => {
       const value = toNumber(dataset.data[index]);
       if (!value) {
+        return;
+      }
+
+      const barHeight = Math.abs((bar.base ?? bar.y) - bar.y);
+      if (barHeight < 18) {
         return;
       }
 
@@ -465,7 +477,8 @@ function buildCategoryDatasets(points, valueKey, { stacked }) {
   const datasets = categories.map((category) => ({
     label: category.name,
     data: new Array(stages.length).fill(0),
-    stack: stacked ? 'byCategory' : undefined
+    stack: stacked ? 'byCategory' : undefined,
+    $categoryId: String(category.id)
   }));
 
   points.forEach((point) => {
@@ -624,6 +637,37 @@ function renderEmptyState(canvas) {
   placeholder.setAttribute('role', 'status');
   placeholder.textContent = message;
   container.appendChild(placeholder);
+}
+// END SECTION
+
+// SECTION: Chart error state helpers
+function renderChartErrorState(canvas, error) {
+  if (!canvas) {
+    return;
+  }
+
+  console.error('Analytics chart failed to initialise.', error);
+  const cardBody = canvas.closest('.analytics-card__body');
+  if (!cardBody) {
+    return;
+  }
+
+  const chartContainer = canvas.closest('.analytics-card__chart');
+  if (chartContainer) {
+    chartContainer.remove();
+  } else {
+    canvas.remove();
+  }
+
+  if (cardBody.querySelector('.analytics-error-state')) {
+    return;
+  }
+
+  const message = document.createElement('div');
+  message.className = 'analytics-error-state';
+  message.setAttribute('role', 'status');
+  message.textContent = 'Unable to render chart. Please refresh. If the issue persists, contact admin.';
+  cardBody.appendChild(message);
 }
 // END SECTION
 
@@ -830,55 +874,79 @@ function bindCategoryControls({
   categoriesKey,
   labelsKey,
   labelMode,
-  filename
+  filenameBase
 }) {
-  if (!canvas || !chart) {
+  if (!canvas || !chart || !Array.isArray(categories) || !categories.length) {
     return;
   }
 
   chartRegistry.set(canvas.id, chart);
-  chart.$categoryIds = categories.map((category) => category.id);
+  chart.$categoryIds = categories.map((category) => String(category.id));
 
   const controls = document.querySelector(`[data-chart-controls-for="${canvas.id}"]`);
   if (!controls) {
     return;
   }
 
-  const select = controls.querySelector('[data-chart-category-multiselect]');
+  const chipHost = controls.querySelector('[data-chart-category-chips]');
+  if (!chipHost) {
+    return;
+  }
+
   const selectAllButton = controls.querySelector('[data-chart-select-all]');
-  const clearButton = controls.querySelector('[data-chart-clear]');
+  const resetButton = controls.querySelector('[data-chart-clear]');
   const showLabelsToggle = controls.querySelector('[data-chart-show-labels]');
   const downloadButton = controls.querySelector('[data-chart-download]');
 
-  populateCategorySelect(select, categories);
+  const availableIds = categories.map((category) => String(category.id));
+  const initialSelection = resolveInitialCategorySelection(categoriesKey, availableIds);
+  let selected = new Set(initialSelection);
 
-  const defaultCategoryIds = categories.map((category) => String(category.id));
-  const persistedCategoryIds = readStoredList(categoriesKey);
-  const initialCategoryIds = persistedCategoryIds.length ? persistedCategoryIds : defaultCategoryIds;
-  setSelectValues(select, initialCategoryIds);
-  applyCategorySelection(chart, initialCategoryIds);
+  applyCategorySelection(chart, initialSelection);
+  renderCategoryChips(chipHost, categories, selected, (categoryId) => {
+    const nextSelection = toggleCategorySelection(selected, categoryId);
+    if (!nextSelection) {
+      showCategoryHint(controls, true);
+      return;
+    }
+
+    selected = nextSelection;
+    persistAndApplyCategorySelection({
+      chart,
+      chipHost,
+      categoriesKey,
+      selected,
+      availableIds
+    });
+  });
 
   const persistedShowLabels = readStoredBoolean(labelsKey, false);
   setToggleChecked(showLabelsToggle, persistedShowLabels);
   applyLabelToggle(chart, persistedShowLabels, labelMode);
 
-  select?.addEventListener('change', () => {
-    const selected = getSelectedValues(select);
-    storeList(categoriesKey, selected);
-    applyCategorySelection(chart, selected);
-  });
-
   selectAllButton?.addEventListener('click', () => {
-    setSelectValues(select, defaultCategoryIds);
-    storeList(categoriesKey, defaultCategoryIds);
-    applyCategorySelection(chart, defaultCategoryIds);
+    selected = new Set(availableIds);
+    persistAndApplyCategorySelection({
+      chart,
+      chipHost,
+      categoriesKey,
+      selected,
+      availableIds
+    });
   });
 
-  clearButton?.addEventListener('click', () => {
-    setSelectValues(select, []);
-    storeList(categoriesKey, []);
-    applyCategorySelection(chart, []);
+  // SECTION: Reset button always returns to all categories
+  resetButton?.addEventListener('click', () => {
+    selected = new Set(availableIds);
+    persistAndApplyCategorySelection({
+      chart,
+      chipHost,
+      categoriesKey,
+      selected,
+      availableIds
+    });
   });
+  // END SECTION
 
   showLabelsToggle?.addEventListener('change', () => {
     const checked = Boolean(showLabelsToggle.checked);
@@ -887,35 +955,97 @@ function bindCategoryControls({
   });
 
   downloadButton?.addEventListener('click', () => {
-    downloadCanvasPng(canvas, filename);
+    downloadCanvasPng(canvas, filenameBase);
   });
 }
 
-function populateCategorySelect(select, categories) {
-  if (!select) {
-    return;
+// SECTION: Category chip rendering helpers
+function renderCategoryChips(host, categories, selectedIds, onToggle) {
+  host.innerHTML = '';
+
+  categories.forEach((category) => {
+    const id = String(category.id);
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = `chip${selectedIds.has(id) ? ' is-selected' : ''}`;
+    chip.textContent = category.name;
+    chip.dataset.categoryId = id;
+    chip.setAttribute('aria-pressed', selectedIds.has(id) ? 'true' : 'false');
+
+    chip.addEventListener('click', () => onToggle(id));
+    host.appendChild(chip);
+  });
+}
+
+function updateChipSelection(host, selectedIds) {
+  host.querySelectorAll('.chip').forEach((chip) => {
+    const id = chip.dataset.categoryId;
+    const isSelected = selectedIds.has(id);
+    chip.classList.toggle('is-selected', isSelected);
+    chip.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+  });
+}
+// END SECTION
+
+// SECTION: Category selection state helpers
+function resolveInitialCategorySelection(storageKey, availableIds) {
+  const stored = readStoredList(storageKey);
+  const validStored = stored.filter((id) => availableIds.includes(id));
+  return validStored.length ? validStored : availableIds;
+}
+
+function toggleCategorySelection(selected, categoryId) {
+  const nextSelection = new Set(selected);
+  if (nextSelection.has(categoryId)) {
+    if (nextSelection.size === 1) {
+      return null;
+    }
+
+    nextSelection.delete(categoryId);
+    return nextSelection;
   }
 
-  select.innerHTML = '';
-  categories.forEach((category) => {
-    const option = document.createElement('option');
-    option.value = String(category.id);
-    option.textContent = category.name;
-    select.appendChild(option);
-  });
+  nextSelection.add(categoryId);
+  return nextSelection;
 }
 
-function applyCategorySelection(chart, selectedIds) {
-  const selected = new Set(selectedIds);
+function persistAndApplyCategorySelection({ chart, chipHost, categoriesKey, selected, availableIds }) {
+  const orderedSelection = availableIds.filter((id) => selected.has(id));
+  const safeList = orderedSelection.length ? orderedSelection : availableIds;
+  storeList(categoriesKey, safeList);
+  applyCategorySelection(chart, safeList);
+  updateChipSelection(chipHost, new Set(safeList));
+}
+// END SECTION
+
+// SECTION: Category selection application helpers
+function applyCategorySelection(chart, selectedCategoryIds) {
+  const selected = new Set(selectedCategoryIds.map((id) => String(id)));
 
   chart.data.datasets.forEach((dataset, index) => {
-    const datasetId = String(chart.$categoryIds?.[index] ?? '');
+    const datasetId = String(dataset.$categoryId ?? chart.$categoryIds?.[index] ?? '');
     dataset.hidden = !selected.has(datasetId);
   });
 
   chart.update();
 }
 
+function showCategoryHint(controls, show) {
+  const hint = controls.querySelector('[data-chart-category-hint]');
+  if (!hint) {
+    return;
+  }
+
+  hint.hidden = !show;
+  if (show) {
+    window.setTimeout(() => {
+      hint.hidden = true;
+    }, 2500);
+  }
+}
+// END SECTION
+
+// SECTION: Label toggle helpers
 function applyLabelToggle(chart, checked, mode) {
   if (!chart.options.plugins) {
     chart.options.plugins = {};
@@ -929,11 +1059,16 @@ function applyLabelToggle(chart, checked, mode) {
 
   chart.update();
 }
+// END SECTION
 
-function downloadCanvasPng(canvas, filename) {
+// SECTION: Download helpers
+function downloadCanvasPng(canvas, filenameBase) {
   if (!canvas?.toBlob) {
     return;
   }
+
+  const resolvedBase = filenameBase || canvas.id || 'chart';
+  const filename = `${resolvedBase}-${formatDateStamp(new Date())}.png`;
 
   canvas.toBlob((blob) => {
     if (!blob) {
@@ -951,25 +1086,15 @@ function downloadCanvasPng(canvas, filename) {
   });
 }
 
-function getSelectedValues(select) {
-  if (!select) {
-    return [];
-  }
-
-  return Array.from(select.selectedOptions).map((option) => option.value);
+function formatDateStamp(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}${month}${day}`;
 }
+// END SECTION
 
-function setSelectValues(select, values) {
-  if (!select) {
-    return;
-  }
-
-  const allowed = new Set(values);
-  Array.from(select.options).forEach((option) => {
-    option.selected = allowed.has(option.value);
-  });
-}
-
+// SECTION: Storage helpers
 function setToggleChecked(toggle, checked) {
   if (!toggle) {
     return;
@@ -980,25 +1105,17 @@ function setToggleChecked(toggle, checked) {
 
 function readStoredList(key) {
   try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) {
-      return [];
-    }
-
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map((value) => String(value)) : [];
-  } catch (error) {
-    console.warn('Unable to read stored analytics selection.', error);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
     return [];
   }
 }
 
-function storeList(key, values) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(values));
-  } catch (error) {
-    console.warn('Unable to store analytics selection.', error);
-  }
+function storeList(key, list) {
+  localStorage.setItem(key, JSON.stringify(list));
 }
 
 function readStoredBoolean(key, fallback) {
@@ -1024,6 +1141,9 @@ function storeBoolean(key, value) {
 }
 // END SECTION
 
+
+// END SECTION
+
 // SECTION: Ongoing analytics initialiser
 function initOngoingAnalytics() {
   const categoryCanvas = document.getElementById('ongoing-by-category-chart');
@@ -1041,127 +1161,135 @@ function initOngoingAnalytics() {
   }
 
   if (stageCanvas) {
-    const seriesByCategory = parseSeriesByCategory(stageCanvas);
-    if (seriesByCategory.length) {
-      const built = buildCategoryDatasets(seriesByCategory, 'count', { stacked: true });
-      const chart = createStackedBarChart(stageCanvas, {
-        labels: built.labels.map((label) => getStageAxisLabel({ name: label })),
-        datasets: built.datasets,
-        options: {
-          interaction: {
-            mode: 'index',
-            intersect: false
-          },
-          plugins: {
-            tooltip: {
-              callbacks: {
-                label(context) {
-                  const value = toNumber(context.parsed?.y);
-                  return `${context.dataset.label}: ${value}`;
+    try {
+      const seriesByCategory = parseSeriesByCategory(stageCanvas);
+      if (seriesByCategory.length) {
+        const built = buildCategoryDatasets(seriesByCategory, 'count', { stacked: true });
+        const chart = createStackedBarChart(stageCanvas, {
+          labels: built.labels.map((label) => getStageAxisLabel({ name: label })),
+          datasets: built.datasets,
+          options: {
+            interaction: {
+              mode: 'index',
+              intersect: false
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label(context) {
+                    const value = toNumber(context.parsed?.y);
+                    return `${context.dataset.label}: ${value}`;
+                  }
                 }
+              },
+              valueLabels: {
+                formatter: (value) => Math.round(toNumber(value))
               }
             },
-            valueLabels: {
-              formatter: (value) => Math.round(toNumber(value))
-            }
-          },
-          scales: {
-            y: {
-              ticks: {
-                precision: 0
+            scales: {
+              y: {
+                ticks: {
+                  precision: 0
+                }
               }
             }
           }
-        }
-      });
-
-      bindCategoryControls({
-        canvas: stageCanvas,
-        chart,
-        categories: built.categories,
-        categoriesKey: ongoingStorageKeys.stageCategories,
-        labelsKey: ongoingStorageKeys.stageShowLabels,
-        labelMode: 'stack-total',
-        filename: 'ongoing-projects-by-stage.png'
-      });
-    } else {
-      const series = parseSeries(stageCanvas);
-      if (series.length) {
-        createBarChart(stageCanvas, {
-          labels: series.map((point) => point.name),
-          values: series.map((point) => point.count),
-          label: 'Projects'
         });
+
+        bindCategoryControls({
+          canvas: stageCanvas,
+          chart,
+          categories: built.categories,
+          categoriesKey: ongoingStorageKeys.stageCategories,
+          labelsKey: ongoingStorageKeys.stageShowLabels,
+          labelMode: 'stack-total',
+          filenameBase: 'ongoing-by-stage'
+        });
+      } else {
+        const series = parseSeries(stageCanvas);
+        if (series.length) {
+          createBarChart(stageCanvas, {
+            labels: series.map((point) => point.name),
+            values: series.map((point) => point.count),
+            label: 'Projects'
+          });
+        }
       }
+    } catch (error) {
+      renderChartErrorState(stageCanvas, error);
     }
   }
 
   if (durationCanvas) {
-    const seriesByCategory = parseSeriesByCategory(durationCanvas);
-    if (seriesByCategory.length) {
-      const built = buildCategoryDatasets(seriesByCategory, 'days', { stacked: false });
-      const chart = createGroupedBarChart(durationCanvas, {
-        labels: built.labels.map((label) => getStageAxisLabel({ name: label })),
-        datasets: built.datasets,
-        options: {
-          interaction: {
-            mode: 'index',
-            intersect: false
-          },
-          plugins: {
-            tooltip: {
-              callbacks: {
-                label(context) {
-                  const value = toNumber(context.parsed?.y);
-                  return `${context.dataset.label}: ${value.toFixed(1)} days`;
-                }
-              }
-            },
-            valueLabels: {
-              formatter: (value) => toNumber(value).toFixed(1)
-            }
-          }
-        }
-      });
-
-      bindCategoryControls({
-        canvas: durationCanvas,
-        chart,
-        categories: built.categories,
-        categoriesKey: ongoingStorageKeys.durationCategories,
-        labelsKey: ongoingStorageKeys.durationShowLabels,
-        labelMode: 'dataset',
-        filename: 'ongoing-stage-duration-by-category.png'
-      });
-    } else {
-      const series = parseSeries(durationCanvas);
-      if (series.length) {
-        const labels = series.map((point) => getStageAxisLabel(point));
-        createBarChart(durationCanvas, {
-          labels,
-          values: series.map((point) => point.days),
-          label: 'Average days in stage',
-          backgroundColor: getAccentColor(2),
+    try {
+      const seriesByCategory = parseSeriesByCategory(durationCanvas);
+      if (seriesByCategory.length) {
+        const built = buildCategoryDatasets(seriesByCategory, 'days', { stacked: false });
+        const chart = createGroupedBarChart(durationCanvas, {
+          labels: built.labels.map((label) => getStageAxisLabel({ name: label })),
+          datasets: built.datasets,
           options: {
+            interaction: {
+              mode: 'index',
+              intersect: false
+            },
             plugins: {
               tooltip: {
                 callbacks: {
-                  title: createStageTooltipTitle(series)
+                  label(context) {
+                    const value = toNumber(context.parsed?.y);
+                    return `${context.dataset.label}: ${value.toFixed(1)} days`;
+                  }
                 }
-              }
-            },
-            scales: {
-              x: {
-                ticks: {
-                  autoSkip: false,
-                  maxRotation: 0,
-                  minRotation: 0
-                }
+              },
+              valueLabels: {
+                formatter: (value) => toNumber(value).toFixed(1)
               }
             }
           }
         });
+
+        bindCategoryControls({
+          canvas: durationCanvas,
+          chart,
+          categories: built.categories,
+          categoriesKey: ongoingStorageKeys.durationCategories,
+          labelsKey: ongoingStorageKeys.durationShowLabels,
+          labelMode: 'dataset',
+          filenameBase: 'ongoing-stage-duration'
+        });
+      } else {
+        const series = parseSeries(durationCanvas);
+        if (series.length) {
+          const labels = series.map((point) => getStageAxisLabel(point));
+          createBarChart(durationCanvas, {
+            labels,
+            values: series.map((point) => point.days),
+            label: 'Average days in stage',
+            backgroundColor: getAccentColor(2),
+            options: {
+              plugins: {
+                tooltip: {
+                  callbacks: {
+                    title: createStageTooltipTitle(series)
+                  }
+                }
+              },
+              scales: {
+                x: {
+                  ticks: {
+                    autoSkip: false,
+                    maxRotation: 0,
+                    minRotation: 0
+                  }
+                }
+              }
+            }
+          });
+        }
       }
+    } catch (error) {
+      renderChartErrorState(durationCanvas, error);
     }
   }
 }
