@@ -138,7 +138,7 @@ public class NewModel : PageModel
                         continue;
                     }
 
-                    await using var stream = file.OpenReadStream(maxBytes);
+                    await using var stream = file.OpenReadStream();
                     var uploadResult = await _photoService.UploadAsync(result.Entity.Id, stream, file.FileName, file.ContentType, caption, userId, cancellationToken);
                     if (uploadResult.Outcome == VisitPhotoUploadOutcome.Success)
                     {

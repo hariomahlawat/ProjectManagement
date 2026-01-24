@@ -222,7 +222,7 @@ public sealed class EditModel : PageModel
                 continue;
             }
 
-            await using var stream = file.OpenReadStream(maxBytes);
+            await using var stream = file.OpenReadStream();
             var result = await _photoService.UploadAsync(id, stream, file.FileName, file.ContentType, caption, userId, cancellationToken);
             switch (result.Outcome)
             {
