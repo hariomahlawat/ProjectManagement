@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Models;
@@ -19,18 +20,36 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits;
 [Authorize(Policy = ProjectOfficeReportsPolicies.ManageVisits)]
 public class EditModel : PageModel
 {
+    // SECTION: Dependencies
     private readonly VisitService _visitService;
     private readonly VisitTypeService _visitTypeService;
     private readonly IVisitPhotoService _photoService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly VisitPhotoOptions _photoOptions;
 
-    public EditModel(VisitService visitService, VisitTypeService visitTypeService, IVisitPhotoService photoService, UserManager<ApplicationUser> userManager)
+    public EditModel(
+        VisitService visitService,
+        VisitTypeService visitTypeService,
+        IVisitPhotoService photoService,
+        UserManager<ApplicationUser> userManager,
+        IOptions<VisitPhotoOptions> photoOptions)
     {
         _visitService = visitService;
         _visitTypeService = visitTypeService;
         _photoService = photoService;
         _userManager = userManager;
+        _photoOptions = photoOptions.Value;
     }
+
+    // SECTION: Upload configuration helpers
+    public long VisitPhotoMaxBytes => _photoOptions.MaxFileSizeBytes;
+
+    public int VisitPhotoMaxFiles => _photoOptions.MaxFilesPerUpload;
+
+    public int VisitPhotoMaxMb => Math.Max(1, (int)Math.Floor(VisitPhotoMaxBytes / 1024d / 1024d));
+
+    public string VisitPhotoHelpText =>
+        $"JPEG, PNG or WebP up to {VisitPhotoMaxMb} MB each. You can select up to {VisitPhotoMaxFiles} files.";
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -143,9 +162,20 @@ public class EditModel : PageModel
 
         var uploads = CollectUploadFiles();
 
+        // SECTION: Upload guardrails
         if (uploads.Count == 0)
         {
             ModelState.AddModelError(nameof(Uploads), "Please select at least one photo to upload.");
+            await LoadAsync(visitId, cancellationToken);
+            return Page();
+        }
+
+        var maxBytes = VisitPhotoMaxBytes;
+        var maxMb = VisitPhotoMaxMb;
+
+        if (uploads.Count > VisitPhotoMaxFiles)
+        {
+            ModelState.AddModelError(nameof(Uploads), $"You can upload up to {VisitPhotoMaxFiles} photos at a time.");
             await LoadAsync(visitId, cancellationToken);
             return Page();
         }
@@ -157,14 +187,28 @@ public class EditModel : PageModel
             return Page();
         }
 
+        if (uploads.Any(file => file.Length > maxBytes))
+        {
+            ModelState.AddModelError(nameof(Uploads), $"One or more photos exceed {maxMb} MB. Please choose smaller files.");
+            await LoadAsync(visitId, cancellationToken);
+            return Page();
+        }
+
         var caption = string.IsNullOrWhiteSpace(UploadCaption) ? null : UploadCaption!.Trim();
         var userId = _userManager.GetUserId(User) ?? string.Empty;
         var successfulUploads = 0;
         var errors = new List<string>();
 
+        // SECTION: Upload processing
         foreach (var file in uploads)
         {
-            await using var stream = file.OpenReadStream();
+            if (file.Length > maxBytes)
+            {
+                errors.Add($"File exceeds the maximum size of {maxMb} MB.");
+                continue;
+            }
+
+            await using var stream = file.OpenReadStream(maxBytes);
             var result = await _photoService.UploadAsync(visitId, stream, file.FileName, file.ContentType, caption, userId, cancellationToken);
 
             if (result.Outcome == VisitPhotoUploadOutcome.Success)
@@ -277,6 +321,7 @@ public class EditModel : PageModel
         return RedirectToPage(new { id = visitId });
     }
 
+    // SECTION: Visit resolution helpers
     private Guid ResolveVisitId(Guid id)
     {
         if (id != Guid.Empty)
@@ -301,6 +346,7 @@ public class EditModel : PageModel
         return Guid.Empty;
     }
 
+    // SECTION: Page data loading
     private async Task<bool> LoadAsync(Guid id, CancellationToken cancellationToken)
     {
         var details = await _visitService.GetDetailsAsync(id, cancellationToken);
@@ -349,11 +395,13 @@ public class EditModel : PageModel
         return true;
     }
 
+    // SECTION: Authorization helpers
     private bool IsProjectOfficeMember()
     {
         return User.IsInRole("Project Office") || User.IsInRole("ProjectOffice");
     }
 
+    // SECTION: ModelState helpers
     private void ClearInputValidationErrors()
     {
         var prefix = nameof(Input);

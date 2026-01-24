@@ -5,12 +5,17 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
 public sealed class VisitPhotoOptions
 {
-    public long MaxFileSizeBytes { get; set; } = 5 * 1024 * 1024;
+    // SECTION: Upload limits
+    public long MaxFileSizeBytes { get; set; } = 10 * 1024 * 1024;
 
+    public int MaxFilesPerUpload { get; set; } = 20;
+
+    // SECTION: Validation thresholds
     public int MinWidth { get; set; } = 720;
 
     public int MinHeight { get; set; } = 540;
 
+    // SECTION: Supported content types
     public HashSet<string> AllowedContentTypes { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg",
@@ -18,6 +23,7 @@ public sealed class VisitPhotoOptions
         "image/webp"
     };
 
+    // SECTION: Derivative generation
     public Dictionary<string, VisitPhotoDerivativeOptions> Derivatives { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
         ["xl"] = new VisitPhotoDerivativeOptions { Width = 1600, Height = 1200, Quality = 90 },
@@ -26,6 +32,7 @@ public sealed class VisitPhotoOptions
         ["xs"] = new VisitPhotoDerivativeOptions { Width = 400, Height = 300, Quality = 75 }
     };
 
+    // SECTION: Storage configuration
     public string StoragePrefix { get; set; } = "project-office-reports/visits";
 }
 

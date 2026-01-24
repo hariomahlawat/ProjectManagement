@@ -95,9 +95,26 @@ public sealed class VisitPhotoService : IVisitPhotoService
             return VisitPhotoUploadResult.NotFound();
         }
 
-        // track concurrency
+        // SECTION: Concurrency tracking
         _db.Entry(visit).Property(x => x.RowVersion).OriginalValue = visit.RowVersion;
 
+        // SECTION: Stream pre-validation
+        if (content.CanSeek)
+        {
+            if (content.Length == 0)
+            {
+                return VisitPhotoUploadResult.Invalid("Uploaded file is empty.");
+            }
+
+            if (content.Length > _options.MaxFileSizeBytes)
+            {
+                return VisitPhotoUploadResult.TooLarge(_options.MaxFileSizeBytes);
+            }
+
+            content.Position = 0;
+        }
+
+        // SECTION: Buffering for scanning and image processing
         await using var buffer = new MemoryStream();
         await content.CopyToAsync(buffer, cancellationToken);
 
@@ -118,7 +135,7 @@ public sealed class VisitPhotoService : IVisitPhotoService
             return VisitPhotoUploadResult.TooLarge(_options.MaxFileSizeBytes);
         }
 
-        // detect type
+        // SECTION: Detect type
         buffer.Position = 0;
         IImageFormat? detectedFormat = await Image.DetectFormatAsync(buffer, cancellationToken);
         if (detectedFormat == null)

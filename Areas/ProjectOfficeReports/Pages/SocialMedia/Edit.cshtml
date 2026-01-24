@@ -94,9 +94,18 @@
                 <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" asp-route-id="@Model.Input.Id" class="row g-3" data-social-disable-on-submit>
                     <div class="col-12">
                         <label asp-for="Uploads" class="form-label">Add photos</label>
-                        <input asp-for="Uploads" class="form-control" type="file" accept="image/*" multiple />
+                        <input asp-for="Uploads"
+                               class="form-control"
+                               type="file"
+                               accept="image/*"
+                               multiple
+                               data-photo-upload-input
+                               data-max-files="@Model.SocialPhotoMaxFiles"
+                               data-max-bytes="@Model.SocialPhotoMaxBytes"
+                               aria-describedby="social-photo-help social-photo-summary" />
                         <span asp-validation-for="Uploads" class="text-danger"></span>
-                        <div class="form-text">JPEG, PNG, or WebP images recommended. Upload multiple files to save time.</div>
+                        <div class="form-text" id="social-photo-help">@Model.SocialPhotoHelpText</div>
+                        <div class="form-text" id="social-photo-summary" data-photo-upload-summary></div>
                     </div>
                     <div class="col-12">
                         <label asp-for="UploadCaption" class="form-label">Caption for uploaded photos</label>

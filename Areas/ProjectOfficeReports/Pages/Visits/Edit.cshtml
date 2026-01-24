@@ -184,9 +184,19 @@ else
                         <div class="visit-form-grid visit-form-grid--single">
                             <div class="visit-form-grid__field">
                                 <label class="form-label" for="visit-edit-photo">Photos</label>
-                                <input id="visit-edit-photo" class="form-control" type="file" asp-for="Uploads" accept="image/*" multiple />
+                                <input id="visit-edit-photo"
+                                       class="form-control"
+                                       type="file"
+                                       asp-for="Uploads"
+                                       accept="image/*"
+                                       multiple
+                                       data-photo-upload-input
+                                       data-max-files="@Model.VisitPhotoMaxFiles"
+                                       data-max-bytes="@Model.VisitPhotoMaxBytes"
+                                       aria-describedby="visit-edit-photo-help visit-edit-photo-summary" />
                                 <span asp-validation-for="Uploads" class="text-danger"></span>
-                                <div class="form-text">JPEG, PNG or WebP up to 5 MB each. Select multiple files to upload together.</div>
+                                <div class="form-text" id="visit-edit-photo-help">@Model.VisitPhotoHelpText</div>
+                                <div class="form-text" id="visit-edit-photo-summary" data-photo-upload-summary></div>
                             </div>
                             <div class="visit-form-grid__field">
                                 <label asp-for="UploadCaption" class="form-label">Caption for uploaded photos</label>

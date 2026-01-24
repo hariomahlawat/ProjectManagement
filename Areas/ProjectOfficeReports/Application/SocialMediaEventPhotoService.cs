@@ -114,8 +114,26 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
             return SocialMediaEventPhotoUploadResult.NotFound();
         }
 
+        // SECTION: Concurrency tracking
         _db.Entry(socialEvent).Property(x => x.RowVersion).OriginalValue = socialEvent.RowVersion;
 
+        // SECTION: Stream pre-validation
+        if (content.CanSeek)
+        {
+            if (content.Length == 0)
+            {
+                return SocialMediaEventPhotoUploadResult.Invalid("Uploaded file is empty.");
+            }
+
+            if (content.Length > _options.MaxFileSizeBytes)
+            {
+                return SocialMediaEventPhotoUploadResult.TooLarge(_options.MaxFileSizeBytes);
+            }
+
+            content.Position = 0;
+        }
+
+        // SECTION: Buffering for scanning and image processing
         await using var buffer = new MemoryStream();
         await content.CopyToAsync(buffer, cancellationToken);
 
@@ -136,6 +154,7 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
             return SocialMediaEventPhotoUploadResult.TooLarge(_options.MaxFileSizeBytes);
         }
 
+        // SECTION: Detect type
         buffer.Position = 0;
         IImageFormat? detectedFormat = await Image.DetectFormatAsync(buffer, cancellationToken);
         if (detectedFormat == null)
