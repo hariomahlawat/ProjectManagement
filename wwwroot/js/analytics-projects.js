@@ -1115,7 +1115,11 @@ function readStoredList(key) {
 }
 
 function storeList(key, list) {
-  localStorage.setItem(key, JSON.stringify(list));
+  try {
+    window.localStorage.setItem(key, JSON.stringify(list));
+  } catch (error) {
+    console.warn('Unable to store analytics category selection.', error);
+  }
 }
 
 function readStoredBoolean(key, fallback) {
