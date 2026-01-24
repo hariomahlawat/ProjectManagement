@@ -13,5 +13,11 @@ public sealed class OngoingAnalyticsVm
 
     public IReadOnlyList<AnalyticsStageDurationPoint> AvgStageDurations { get; init; } =
         Array.Empty<AnalyticsStageDurationPoint>();
+
+    public IReadOnlyList<OngoingStageCountByCategoryPoint> ByStageByCategory { get; init; } =
+        Array.Empty<OngoingStageCountByCategoryPoint>();
+
+    public IReadOnlyList<OngoingStageDurationByCategoryPoint> AvgStageDurationsByCategory { get; init; } =
+        Array.Empty<OngoingStageDurationByCategoryPoint>();
 }
 // END SECTION

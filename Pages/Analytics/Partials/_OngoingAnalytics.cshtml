@@ -34,15 +34,61 @@
             <!-- Card: stage distribution -->
             <article class="analytics-card">
                 <header class="analytics-card__header">
-                    <h2 class="analytics-card__title">Ongoing projects by current stage</h2>
-                    <p class="analytics-card__meta">How many ongoing projects are currently in each stage.</p>
+                    <div class="analytics-card__title-block">
+                        <h2 class="analytics-card__title">Ongoing projects by current stage</h2>
+                        <p class="analytics-card__meta">
+                            How many ongoing projects are currently in each stage, split by category.
+                        </p>
+                    </div>
+                    <!-- SECTION: Stage chart controls -->
+                    <div class="analytics-chart-controls" data-chart-controls-for="ongoing-by-stage-chart">
+                        <div class="analytics-chart-controls__group">
+                            <label class="form-label analytics-chart-controls__label" for="ongoingStageCategories">
+                                Categories
+                            </label>
+                            <select id="ongoingStageCategories"
+                                    class="form-select form-select-sm analytics-chart-controls__select"
+                                    multiple
+                                    data-chart-category-multiselect></select>
+                            <div class="analytics-chart-controls__actions">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        data-chart-select-all>
+                                    Select all
+                                </button>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        data-chart-clear>
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="analytics-chart-controls__toggles">
+                            <div class="form-check form-switch analytics-chart-controls__toggle">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       id="ongoingStageShowLabels"
+                                       data-chart-show-labels />
+                                <label class="form-check-label" for="ongoingStageShowLabels">Show labels</label>
+                            </div>
+
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary"
+                                    data-chart-download>
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                    <!-- END SECTION -->
                 </header>
                 <div class="analytics-card__body">
                     <div class="analytics-card__chart">
                         <canvas id="ongoing-by-stage-chart"
                                 aria-label="Ongoing projects by current stage"
                                 role="img"
-                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByStage, jsonOptions))'></canvas>
+                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByStage, jsonOptions))'
+                                data-series-by-category='@Html.Raw(JsonSerializer.Serialize(Model.ByStageByCategory, jsonOptions))'></canvas>
                     </div>
                 </div>
             </article>
@@ -50,17 +96,61 @@
             <!-- Card: time-in-stage -->
             <article class="analytics-card analytics-card--wide">
                 <header class="analytics-card__header">
-                    <h2 class="analytics-card__title">Average time spent in each stage</h2>
-                    <p class="analytics-card__meta">
-                        Average number of days ongoing projects spend in each stage.
-                    </p>
+                    <div class="analytics-card__title-block">
+                        <h2 class="analytics-card__title">Average time spent in each stage</h2>
+                        <p class="analytics-card__meta">
+                            Average number of days ongoing projects spend in each stage, grouped by category.
+                        </p>
+                    </div>
+                    <!-- SECTION: Stage duration chart controls -->
+                    <div class="analytics-chart-controls" data-chart-controls-for="ongoing-stage-duration-chart">
+                        <div class="analytics-chart-controls__group">
+                            <label class="form-label analytics-chart-controls__label" for="ongoingDurationCategories">
+                                Categories
+                            </label>
+                            <select id="ongoingDurationCategories"
+                                    class="form-select form-select-sm analytics-chart-controls__select"
+                                    multiple
+                                    data-chart-category-multiselect></select>
+                            <div class="analytics-chart-controls__actions">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        data-chart-select-all>
+                                    Select all
+                                </button>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        data-chart-clear>
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="analytics-chart-controls__toggles">
+                            <div class="form-check form-switch analytics-chart-controls__toggle">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       id="ongoingDurationShowLabels"
+                                       data-chart-show-labels />
+                                <label class="form-check-label" for="ongoingDurationShowLabels">Show labels</label>
+                            </div>
+
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary"
+                                    data-chart-download>
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                    <!-- END SECTION -->
                 </header>
                 <div class="analytics-card__body">
                     <div class="analytics-card__chart">
                         <canvas id="ongoing-stage-duration-chart"
                                 aria-label="Average time spent in each stage"
                                 role="img"
-                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.AvgStageDurations, jsonOptions))'></canvas>
+                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.AvgStageDurations, jsonOptions))'
+                                data-series-by-category='@Html.Raw(JsonSerializer.Serialize(Model.AvgStageDurationsByCategory, jsonOptions))'></canvas>
                     </div>
                 </div>
             </article>

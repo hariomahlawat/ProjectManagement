@@ -221,13 +221,17 @@ namespace ProjectManagement.Pages.Analytics
             var byCategory = await BuildCategoryCountsAsync(ongoingQuery, cancellationToken);
             var byStage = await BuildOngoingStageDistributionAsync(cancellationToken);
             var stageDurations = await BuildOngoingStageDurationsAsync(cancellationToken);
+            var byStageByCategory = await BuildOngoingStageDistributionByParentCategoryAsync(cancellationToken);
+            var stageDurationsByCategory = await BuildOngoingStageDurationsByParentCategoryAsync(cancellationToken);
 
             return new OngoingAnalyticsVm
             {
                 TotalOngoingProjects = total,
                 ByCategory = byCategory,
                 ByStage = byStage,
-                AvgStageDurations = stageDurations
+                AvgStageDurations = stageDurations,
+                ByStageByCategory = byStageByCategory,
+                AvgStageDurationsByCategory = stageDurationsByCategory
             };
             // END SECTION
         }
@@ -787,6 +791,117 @@ namespace ProjectManagement.Pages.Analytics
                 .ToList();
         }
 
+        private async Task<IReadOnlyList<OngoingStageCountByCategoryPoint>> BuildOngoingStageDistributionByParentCategoryAsync(
+            CancellationToken cancellationToken)
+        {
+            // SECTION: Ongoing stage distribution by parent category aggregation
+            var stageSnapshots = await _db.Projects
+                .AsNoTracking()
+                .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active)
+                .Include(p => p.Category)
+                .Include(p => p.ProjectStages)
+                .Select(p => new ProjectStageCategorySnapshot(
+                    p.LifecycleStatus,
+                    p.CategoryId,
+                    p.Category != null ? p.Category.ParentCategoryId : null,
+                    p.ProjectStages
+                        .OrderBy(s => s.SortOrder)
+                        .ThenBy(s => s.StageCode)
+                        .Select(s => new StageSnapshot(
+                            s.StageCode,
+                            s.Status,
+                            s.SortOrder,
+                            s.CompletedOn))
+                        .ToList()))
+                .ToListAsync(cancellationToken);
+
+            var aggregations = new Dictionary<(string StageCode, int ParentCategoryId), int>();
+
+            foreach (var project in stageSnapshots)
+            {
+                var stage = DetermineCurrentStage(new ProjectStageSnapshot(project.Status, project.Stages));
+                if (stage is null || string.IsNullOrWhiteSpace(stage.StageCode))
+                {
+                    continue;
+                }
+
+                var parentCategoryId = ResolveParentCategoryId(project.CategoryId, project.ParentCategoryId);
+                var key = (stage.StageCode, parentCategoryId);
+                aggregations.TryGetValue(key, out var existing);
+                aggregations[key] = existing + 1;
+            }
+
+            var categoryNames = await LoadCategoryNamesAsync(
+                aggregations.Keys.Select(k => new CategoryAggregation { Id = k.ParentCategoryId, Count = 0 }),
+                cancellationToken);
+
+            var stageOrder = BuildStageOrderLookup(aggregations.Keys.Select(k => k.StageCode));
+
+            return aggregations
+                .Select(item => new OngoingStageCountByCategoryPoint(
+                    item.Key.StageCode,
+                    StageCodes.DisplayNameOf(item.Key.StageCode),
+                    item.Key.ParentCategoryId,
+                    ResolveName(item.Key.ParentCategoryId, categoryNames),
+                    item.Value))
+                .OrderBy(point => stageOrder.TryGetValue(point.StageCode, out var order) ? order : int.MaxValue)
+                .ThenBy(point => point.CategoryName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            // END SECTION
+        }
+
+        private async Task<IReadOnlyList<OngoingStageDurationByCategoryPoint>> BuildOngoingStageDurationsByParentCategoryAsync(
+            CancellationToken cancellationToken)
+        {
+            // SECTION: Ongoing stage duration by parent category aggregation
+            var stageRows = await _db.ProjectStages
+                .AsNoTracking()
+                .Where(s => s.Project != null
+                    && !s.Project.IsDeleted
+                    && !s.Project.IsArchived
+                    && s.Project.LifecycleStatus == ProjectLifecycleStatus.Active)
+                .Select(s => new
+                {
+                    s.StageCode,
+                    s.ActualStart,
+                    s.CompletedOn,
+                    s.Project!.CategoryId,
+                    ParentCategoryId = s.Project.Category != null ? s.Project.Category.ParentCategoryId : null
+                })
+                .ToListAsync(cancellationToken);
+
+            var durationGroups = stageRows
+                .Where(s => !string.IsNullOrWhiteSpace(s.StageCode) && s.ActualStart.HasValue)
+                .GroupBy(
+                    s => new
+                    {
+                        StageCode = s.StageCode!,
+                        ParentCategoryId = ResolveParentCategoryId(s.CategoryId, s.ParentCategoryId)
+                    });
+
+            var durationByStageAndCategory = durationGroups.ToDictionary(
+                g => (g.Key.StageCode, g.Key.ParentCategoryId),
+                g => g.Average(item => CalculateStageDurationDays(item.ActualStart, item.CompletedOn)));
+
+            var categoryNames = await LoadCategoryNamesAsync(
+                durationByStageAndCategory.Keys.Select(k => new CategoryAggregation { Id = k.ParentCategoryId, Count = 0 }),
+                cancellationToken);
+
+            var stageOrder = BuildStageOrderLookup(durationByStageAndCategory.Keys.Select(k => k.StageCode));
+
+            return durationByStageAndCategory
+                .Select(item => new OngoingStageDurationByCategoryPoint(
+                    item.Key.StageCode,
+                    StageCodes.DisplayNameOf(item.Key.StageCode),
+                    item.Key.ParentCategoryId,
+                    ResolveName(item.Key.ParentCategoryId, categoryNames),
+                    item.Value))
+                .OrderBy(point => stageOrder.TryGetValue(point.StageCode, out var order) ? order : int.MaxValue)
+                .ThenBy(point => point.CategoryName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            // END SECTION
+        }
+
         private static double CalculateStageDurationDays(DateOnly? start, DateOnly? end)
         {
             if (!start.HasValue)
@@ -798,6 +913,30 @@ namespace ProjectManagement.Pages.Analytics
             var effectiveEnd = (end ?? DateOnly.FromDateTime(DateTime.UtcNow)).ToDateTime(TimeOnly.MinValue);
             var duration = (effectiveEnd - startDate).TotalDays;
             return duration < 0 ? 0 : duration;
+        }
+
+        private static int ResolveParentCategoryId(int? categoryId, int? parentCategoryId) =>
+            parentCategoryId ?? categoryId ?? 0;
+
+        private static IReadOnlyDictionary<string, int> BuildStageOrderLookup(IEnumerable<string> stageCodes)
+        {
+            var knownCodes = StageCodes.All
+                .Select((code, index) => new { code, index })
+                .ToDictionary(item => item.code, item => item.index, StringComparer.OrdinalIgnoreCase);
+
+            var adHocCodes = stageCodes
+                .Where(code => !knownCodes.ContainsKey(code))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(code => StageCodes.DisplayNameOf(code), StringComparer.OrdinalIgnoreCase)
+                .Select((code, index) => new { code, index = knownCodes.Count + index })
+                .ToDictionary(item => item.code, item => item.index, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var pair in adHocCodes)
+            {
+                knownCodes[pair.Key] = pair.Value;
+            }
+
+            return knownCodes;
         }
 
         private static StageSnapshot? DetermineCurrentStage(ProjectStageSnapshot project)
@@ -857,6 +996,12 @@ namespace ProjectManagement.Pages.Analytics
 
         private sealed record ProjectStageSnapshot(
             ProjectLifecycleStatus Status,
+            IReadOnlyList<StageSnapshot> Stages);
+
+        private sealed record ProjectStageCategorySnapshot(
+            ProjectLifecycleStatus Status,
+            int? CategoryId,
+            int? ParentCategoryId,
             IReadOnlyList<StageSnapshot> Stages);
 
         private sealed class CompletedPerYearParentAggregation
