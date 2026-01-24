@@ -103,8 +103,41 @@
                         }
                         else
                         {
-                            <div class="d-flex align-items-center justify-content-center w-100 h-100 rounded border bg-light text-muted">
-                                <span>No cover photo</span>
+                            @* SECTION: Cover photo empty-state with role-based actions. *@
+                            <div class="project-photo-cover-empty text-center">
+                                <div class="project-photo-cover-empty__icon" aria-hidden="true">
+                                    <i class="bi bi-image"></i>
+                                </div>
+
+                                @if (canManagePhotos)
+                                {
+                                    <div class="project-photo-cover-empty__title">Add a cover photo</div>
+                                    <div class="project-photo-cover-empty__hint text-muted small">
+                                        Optional. Helps recognise the project quickly.
+                                    </div>
+
+                                    <div class="d-flex flex-wrap gap-2 justify-content-center mt-3">
+                                        <a class="btn btn-sm btn-primary"
+                                           asp-page="/Projects/Photos/Upload"
+                                           asp-route-id="@Model.Project!.Id"
+                                           asp-route-cover="true">
+                                            Upload cover photo
+                                        </a>
+
+                                        <a class="btn btn-sm btn-outline-secondary"
+                                           asp-page="/Projects/Photos/Index"
+                                           asp-route-id="@Model.Project!.Id">
+                                            Manage photos
+                                        </a>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="project-photo-cover-empty__title">No cover photo</div>
+                                    <div class="project-photo-cover-empty__hint text-muted small">
+                                        A cover image has not been set for this project.
+                                    </div>
+                                }
                             </div>
                         }
                     </div>
