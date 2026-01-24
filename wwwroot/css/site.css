@@ -4644,6 +4644,43 @@ body.has-expanded-project-photo-editor {
   display: block;
 }
 
+/* ---------- Cover photo empty-state (Option B) ---------- */
+.project-photo-cover-empty {
+  padding: 1.25rem;
+  border-radius: 0.5rem;
+  border: 1px dashed var(--pm-border);
+  background: var(--pm-card);
+}
+
+.project-photo-cover-empty__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 0.75rem;
+  border: 1px solid var(--pm-border);
+  background: rgba(15, 23, 42, 0.03);
+  color: var(--pm-text-secondary);
+}
+
+.project-photo-cover-empty__title {
+  font-weight: 600;
+}
+
+.project-photo-cover-empty__hint {
+  margin-top: 0.25rem;
+}
+
+.project-photo-cover-frame .project-photo-cover-empty {
+  /* SECTION: Ensure a balanced empty-state height within the cover frame. */
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 .project-photo-preview-frame {
   position: relative;
   width: 100%;

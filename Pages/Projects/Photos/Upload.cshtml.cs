@@ -51,7 +51,7 @@ public class UploadModel : PageModel
         _ => "Unknown"
     };
 
-    public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetAsync(int id, bool cover, CancellationToken cancellationToken)
     {
         var userId = _userContext.UserId;
         if (string.IsNullOrEmpty(userId))
@@ -76,6 +76,9 @@ public class UploadModel : PageModel
         Input.ProjectId = project.Id;
         Input.RowVersion = Convert.ToBase64String(project.RowVersion);
         Input.LinkToTot = false;
+
+        // SECTION: Default cover selection when launched from cover CTA.
+        Input.SetAsCover = cover;
 
         return Page();
     }
