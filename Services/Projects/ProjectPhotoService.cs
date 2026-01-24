@@ -630,7 +630,7 @@ namespace ProjectManagement.Services.Projects
                     using var clone = image.Clone(ctx => ctx.Resize(new ResizeOptions
                     {
                         // SECTION: Derivative scaling
-                        Mode = ResizeMode.Stretch,
+                        Mode = ResizeMode.Max,
                         Size = new Size(derivative.Width, derivative.Height),
                         Sampler = KnownResamplers.Lanczos3
                     }));
@@ -776,19 +776,16 @@ namespace ProjectManagement.Services.Projects
 
         private static Rectangle ValidateCrop(int width, int height, ProjectPhotoCrop crop)
         {
+            // SECTION: Positive dimension validation.
             if (crop.Width <= 0 || crop.Height <= 0)
             {
                 throw new InvalidOperationException("Crop dimensions must be positive.");
             }
 
+            // SECTION: Crop bounds validation.
             if (crop.X < 0 || crop.Y < 0 || crop.X + crop.Width > width || crop.Y + crop.Height > height)
             {
                 throw new InvalidOperationException("Crop rectangle must be within the image bounds.");
-            }
-
-            if (Math.Abs(crop.Width * 3 - crop.Height * 4) > 2)
-            {
-                throw new InvalidOperationException("Crop rectangle must maintain a 4:3 aspect ratio.");
             }
 
             return new Rectangle(crop.X, crop.Y, crop.Width, crop.Height);
@@ -796,34 +793,8 @@ namespace ProjectManagement.Services.Projects
 
         private static Rectangle CalculateDefaultCrop(int width, int height)
         {
-            var desiredRatio = 4d / 3d;
-            var currentRatio = width / (double)height;
-
-            if (Math.Abs(currentRatio - desiredRatio) < 0.0001)
-            {
-                return new Rectangle(0, 0, width, height);
-            }
-
-            int cropWidth;
-            int cropHeight;
-            if (currentRatio > desiredRatio)
-            {
-                cropHeight = height;
-                cropWidth = (int)Math.Round(height * desiredRatio);
-            }
-            else
-            {
-                cropWidth = width;
-                cropHeight = (int)Math.Round(width / desiredRatio);
-            }
-
-            var x = (width - cropWidth) / 2;
-            var y = (height - cropHeight) / 2;
-
-            cropWidth = cropHeight * 4 / 3;
-            cropHeight = cropWidth * 3 / 4;
-
-            return new Rectangle(x, y, cropWidth, cropHeight);
+            // SECTION: Default crop uses the full image to preserve arbitrary aspect ratios.
+            return new Rectangle(0, 0, width, height);
         }
 
         private static bool DetectTransparency(Image<Rgba32> image)

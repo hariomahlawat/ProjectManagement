@@ -182,8 +182,9 @@ public class UploadModel : PageModel
         catch (InvalidOperationException ex)
         {
             _logger.LogWarning(ex, "Invalid crop selection while uploading photo for project {ProjectId}", id);
+            // SECTION: Crop validation messaging without aspect-ratio constraints.
             ModelState.AddModelError(string.Empty,
-                "We couldn't process that crop. Keep the crop box inside the image, maintain the 4:3 ratio, and try again.");
+                "We couldn't process that crop. Keep the crop selection within the image bounds and try again.");
             return Page();
         }
         catch (Exception ex)

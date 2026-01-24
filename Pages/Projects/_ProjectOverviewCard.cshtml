@@ -86,7 +86,8 @@
         <div class="row g-4 align-items-start">
             <div class="col-12 col-lg-5 col-xl-4">
                 <div class="project-photo-cover">
-                    <div class="ratio ratio-4x3 w-100">
+                    @* SECTION: Cover photo frame without aspect-ratio lock. *@
+                    <div class="project-photo-cover-frame w-100">
                         @if (coverPhoto != null)
                         {
                             <picture>
@@ -94,8 +95,6 @@
                                         srcset="@coverSrcSet"
                                         sizes="(min-width: 1200px) 360px, (min-width: 992px) 320px, 100vw" />
                                 <img class="w-100 h-100 object-fit-cover rounded border"
-                                     width="360"
-                                     height="270"
                                      src="@coverXs"
                                      srcset="@coverSrcSet"
                                      sizes="(min-width: 1200px) 360px, (min-width: 992px) 320px, 100vw"

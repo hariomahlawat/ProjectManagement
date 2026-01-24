@@ -4627,10 +4627,26 @@ body.has-expanded-project-photo-editor {
   gap: 0.5rem;
 }
 
+.project-photo-cover-frame {
+  /* SECTION: Stable cover frame without aspect-ratio lock. */
+  width: 100%;
+  max-height: 360px;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  border: 1px solid var(--pm-border);
+  background: var(--pm-card);
+}
+
+.project-photo-cover-frame img {
+  /* SECTION: Preserve natural aspect ratio while fitting the frame. */
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
 .project-photo-preview-frame {
   position: relative;
   width: 100%;
-  aspect-ratio: 4 / 3;
   border-radius: 0.5rem;
   overflow: hidden;
   border: 1px solid var(--pm-border);
