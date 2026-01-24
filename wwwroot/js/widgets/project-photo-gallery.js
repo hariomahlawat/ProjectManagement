@@ -1,5 +1,4 @@
 (function () {
-  const ASPECT_RATIO = 4 / 3;
   const DEFAULT_SIZES = {
     xl: { width: 1600, height: 1200 },
     md: { width: 1200, height: 900 },
@@ -132,133 +131,30 @@
   }
 
   function quantizeCropBox(cropBox, naturalWidth, naturalHeight) {
+    // SECTION: Quantize crop box by rounding to integers and clamping to bounds.
     if (!cropBox || !isPositiveNumber(naturalWidth) || !isPositiveNumber(naturalHeight)) {
       return null;
     }
 
     const safeWidth = Math.floor(naturalWidth);
     const safeHeight = Math.floor(naturalHeight);
-    const maxX = Math.max(0, safeWidth - 1);
-    const maxY = Math.max(0, safeHeight - 1);
 
     const clampInt = (value, min, max) => {
-      if (!Number.isFinite(value)) {
-        return min;
-      }
+      if (!Number.isFinite(value)) return min;
       const rounded = Math.round(value);
       return Math.min(Math.max(rounded, min), max);
     };
 
-    const clampDimension = (value, min, max) => {
-      if (!Number.isFinite(value)) {
-        return min;
-      }
-      const rounded = Math.round(value);
-      return Math.min(Math.max(rounded, min), max);
-    };
+    const x = clampInt(cropBox.x, 0, Math.max(0, safeWidth - 1));
+    const y = clampInt(cropBox.y, 0, Math.max(0, safeHeight - 1));
 
-    const roundedX = clampInt(cropBox.x, 0, maxX);
-    const roundedY = clampInt(cropBox.y, 0, maxY);
+    const maxWidth = Math.max(1, safeWidth - x);
+    const maxHeight = Math.max(1, safeHeight - y);
 
-    const maxWidth = Math.max(1, safeWidth - roundedX);
-    const maxHeight = Math.max(1, safeHeight - roundedY);
+    const width = clampInt(cropBox.width, 1, maxWidth);
+    const height = clampInt(cropBox.height, 1, maxHeight);
 
-    const widthValues = new Set();
-    const heightValues = new Set();
-
-    const pushWidth = (value) => {
-      if (!Number.isFinite(value)) {
-        return;
-      }
-      const clamped = clampDimension(value, 1, maxWidth);
-      widthValues.add(clamped);
-    };
-
-    const pushHeight = (value) => {
-      if (!Number.isFinite(value)) {
-        return;
-      }
-      const clamped = clampDimension(value, 1, maxHeight);
-      heightValues.add(clamped);
-    };
-
-    pushWidth(cropBox.width);
-    pushWidth(Math.floor(cropBox.width));
-    pushWidth(Math.ceil(cropBox.width));
-    pushHeight(cropBox.height);
-    pushHeight(Math.floor(cropBox.height));
-    pushHeight(Math.ceil(cropBox.height));
-
-    const candidates = new Map();
-    const addCandidate = (rawWidth, rawHeight) => {
-      if (!Number.isFinite(rawWidth) || !Number.isFinite(rawHeight)) {
-        return;
-      }
-      const width = clampDimension(rawWidth, 1, maxWidth);
-      const height = clampDimension(rawHeight, 1, maxHeight);
-      const key = `${width}x${height}`;
-      if (candidates.has(key)) {
-        return;
-      }
-
-      const ratioDiff = Math.abs(width * 3 - height * 4);
-      const distance = Math.abs(width - cropBox.width) + Math.abs(height - cropBox.height);
-      candidates.set(key, { width, height, ratioDiff, distance });
-    };
-
-    const widthList = Array.from(widthValues);
-    const heightList = Array.from(heightValues);
-
-    widthList.forEach((width) => {
-      heightList.forEach((height) => {
-        addCandidate(width, height);
-      });
-      addCandidate(width, width / ASPECT_RATIO);
-    });
-
-    heightList.forEach((height) => {
-      addCandidate(height * ASPECT_RATIO, height);
-    });
-
-    if (candidates.size === 0) {
-      return null;
-    }
-
-    let best = null;
-    candidates.forEach((candidate) => {
-      const priority = candidate.ratioDiff <= 1 ? 0 : 1;
-      if (!best) {
-        best = { ...candidate, priority };
-        return;
-      }
-
-      if (priority < best.priority) {
-        best = { ...candidate, priority };
-        return;
-      }
-
-      if (priority === best.priority) {
-        if (candidate.ratioDiff < best.ratioDiff) {
-          best = { ...candidate, priority };
-          return;
-        }
-
-        if (candidate.ratioDiff === best.ratioDiff && candidate.distance < best.distance) {
-          best = { ...candidate, priority };
-        }
-      }
-    });
-
-    if (!best) {
-      return null;
-    }
-
-    return {
-      x: roundedX,
-      y: roundedY,
-      width: best.width,
-      height: best.height
-    };
+    return { x, y, width, height };
   }
 
   function initPhotoEditor(editor) {
@@ -781,8 +677,9 @@
         return;
       }
 
-      selection.aspectRatio = ASPECT_RATIO;
-      selection.initialAspectRatio = ASPECT_RATIO;
+      // SECTION: Unlock aspect ratio for freeform crop selection.
+      selection.aspectRatio = NaN;
+      selection.initialAspectRatio = NaN;
       selection.initialCoverage = 1;
       selection.movable = true;
       selection.resizable = true;
@@ -811,9 +708,7 @@
         viewMode: 1,
         background: false,
         autoCropArea: 1,
-        responsive: true,
-        aspectRatio: ASPECT_RATIO,
-        initialAspectRatio: ASPECT_RATIO
+        responsive: true
       });
 
       isModernCropper = cropper && typeof cropper.getCropperSelection === 'function' && typeof cropper.getCropperCanvas === 'function' && typeof cropper.getCropperImage === 'function';
@@ -837,7 +732,8 @@
       } else {
         selection = null;
         if (cropper && typeof cropper.setAspectRatio === 'function') {
-          cropper.setAspectRatio(ASPECT_RATIO);
+          // SECTION: Ensure legacy cropper allows arbitrary aspect ratios.
+          cropper.setAspectRatio(NaN);
         }
         if (legacyListenerCleanup) {
           legacyListenerCleanup();
