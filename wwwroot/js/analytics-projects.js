@@ -1411,7 +1411,11 @@ function createExportHeaderFooterPlugin({
   };
 }
 
-function createExportDataLabelsPlugin({ scale = 1, maxLabelCount = 15 } = {}) {
+function createExportDataLabelsPlugin({
+  scale = 1,
+  maxLabelCount = 15,
+  minSegmentPx = 18
+} = {}) {
   const formatNumber = (value) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) {
@@ -1425,6 +1429,28 @@ function createExportDataLabelsPlugin({ scale = 1, maxLabelCount = 15 } = {}) {
     return labels.length > maxLabelCount;
   };
 
+  const getBarTotals = (datasets, labelCount) =>
+    Array.from({ length: labelCount }, (_, index) =>
+      datasets.reduce((sum, dataset) => sum + ensureNumber(dataset.data?.[index]), 0)
+    );
+
+  const getNonZeroCount = (datasets, index) =>
+    datasets.reduce((count, dataset) => {
+      const value = ensureNumber(dataset.data?.[index]);
+      return value > 0 ? count + 1 : count;
+    }, 0);
+
+  const getFirstElementAtIndex = (chart, index) => {
+    for (let datasetIndex = 0; datasetIndex < chart.data.datasets.length; datasetIndex += 1) {
+      const meta = chart.getDatasetMeta(datasetIndex);
+      const element = meta?.data?.[index];
+      if (element) {
+        return element;
+      }
+    }
+    return null;
+  };
+
   return {
     id: 'exportDataLabels',
     afterDatasetsDraw(chart) {
@@ -1435,10 +1461,12 @@ function createExportDataLabelsPlugin({ scale = 1, maxLabelCount = 15 } = {}) {
       const isHorizontal = chart.options?.indexAxis === 'y';
 
       ctx.save();
-      ctx.fillStyle = '#111827';
-      ctx.font = `${12 * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+
+      // SECTION: Export label typography
+      const segmentFontSize = 16 * scale;
+      const totalFontSize = 18 * scale;
+      const labelFontFamily = '"Inter", "Segoe UI", Arial, sans-serif';
+      // END SECTION
 
       if (type === 'bar') {
         const yScale = chart.scales?.y;
@@ -1448,11 +1476,10 @@ function createExportDataLabelsPlugin({ scale = 1, maxLabelCount = 15 } = {}) {
           Boolean(chart.options?.scales?.y?.stacked) ||
           datasets.some((dataset) => dataset.stack);
         const skipSegmentLabels = stacked && shouldSkipSegmentLabels(chart);
+        const totals = stacked ? getBarTotals(datasets, labels.length) : [];
+        const minSegmentHeight = minSegmentPx * scale;
 
-        const totals = labels.map((_, index) =>
-          datasets.reduce((sum, dataset) => sum + ensureNumber(dataset.data?.[index]), 0)
-        );
-
+        // SECTION: Segment labels
         datasets.forEach((dataset, datasetIndex) => {
           const meta = chart.getDatasetMeta(datasetIndex);
           if (!meta?.data?.length) {
@@ -1465,8 +1492,22 @@ function createExportDataLabelsPlugin({ scale = 1, maxLabelCount = 15 } = {}) {
               return;
             }
 
-            if (stacked && skipSegmentLabels) {
-              return;
+            if (stacked) {
+              if (skipSegmentLabels) {
+                return;
+              }
+
+              const nonZeroCount = getNonZeroCount(datasets, index);
+              if (nonZeroCount <= 1) {
+                return;
+              }
+
+              const size = isHorizontal
+                ? Math.abs(element.base - element.x)
+                : Math.abs(element.base - element.y);
+              if (size < minSegmentHeight) {
+                return;
+              }
             }
 
             const valueLabel = formatNumber(rawValue);
@@ -1474,27 +1515,41 @@ function createExportDataLabelsPlugin({ scale = 1, maxLabelCount = 15 } = {}) {
               return;
             }
 
-            const size = isHorizontal
-              ? Math.abs(element.base - element.x)
-              : Math.abs(element.base - element.y);
-            if (stacked && size < 14 * scale) {
-              return;
-            }
+            ctx.font = `600 ${segmentFontSize}px ${labelFontFamily}`;
+            ctx.fillStyle = stacked ? '#f9fafb' : '#111827';
+            ctx.strokeStyle = stacked ? 'rgba(17, 24, 39, 0.35)' : 'transparent';
+            ctx.lineWidth = stacked ? 2 * scale : 0;
 
-            const x = element.x;
-            const y = element.y;
-            const offset = 8 * scale;
+            let x = 0;
+            let y = 0;
 
-            if (isHorizontal) {
-              ctx.textAlign = 'left';
-              ctx.fillText(valueLabel, x + offset, y);
-            } else {
+            if (stacked) {
+              ctx.textBaseline = 'middle';
               ctx.textAlign = 'center';
-              ctx.fillText(valueLabel, x, y - offset);
+              x = isHorizontal ? (element.x + element.base) / 2 : element.x;
+              y = isHorizontal ? element.y : (element.y + element.base) / 2;
+              ctx.strokeText(valueLabel, x, y);
+              ctx.fillText(valueLabel, x, y);
+            } else {
+              const offset = 10 * scale;
+              if (isHorizontal) {
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                x = element.x + offset;
+                y = element.y;
+              } else {
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                x = element.x;
+                y = element.y - offset;
+              }
+              ctx.fillText(valueLabel, x, y);
             }
           });
         });
+        // END SECTION
 
+        // SECTION: Total labels for stacked bars
         if (stacked && (yScale || xScale)) {
           totals.forEach((total, index) => {
             if (!total) {
@@ -1506,19 +1561,29 @@ function createExportDataLabelsPlugin({ scale = 1, maxLabelCount = 15 } = {}) {
               return;
             }
 
+            const anchor = getFirstElementAtIndex(chart, index);
+            if (!anchor) {
+              return;
+            }
+
+            ctx.font = `700 ${totalFontSize}px ${labelFontFamily}`;
+            ctx.fillStyle = '#111827';
+            ctx.textBaseline = 'middle';
+
             if (isHorizontal && xScale) {
               const x = xScale.getPixelForValue(total);
-              const y = chart.getDatasetMeta(0)?.data?.[index]?.y ?? 0;
+              const y = anchor.y ?? 0;
               ctx.textAlign = 'left';
-              ctx.fillText(valueLabel, x + 10 * scale, y);
+              ctx.fillText(valueLabel, x + 12 * scale, y);
             } else if (yScale) {
-              const x = chart.getDatasetMeta(0)?.data?.[index]?.x ?? 0;
+              const x = anchor.x ?? 0;
               const y = yScale.getPixelForValue(total);
               ctx.textAlign = 'center';
-              ctx.fillText(valueLabel, x, y - 10 * scale);
+              ctx.fillText(valueLabel, x, y - 12 * scale);
             }
           });
         }
+        // END SECTION
       }
 
       if (type === 'doughnut' || type === 'pie') {
@@ -1552,7 +1617,10 @@ function createExportDataLabelsPlugin({ scale = 1, maxLabelCount = 15 } = {}) {
           const x = arc.x + Math.cos(angle) * radius;
           const y = arc.y + Math.sin(angle) * radius;
 
+          ctx.font = `600 ${segmentFontSize}px ${labelFontFamily}`;
           ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#111827';
           ctx.fillText(labelText, x, y);
         });
       }
@@ -1614,15 +1682,39 @@ function exportChartAsPngFullHd(chart, opts = {}) {
     plugins: Array.isArray(chart.config.plugins) ? [...chart.config.plugins] : []
   };
 
+  // SECTION: Export-specific chart options
   exportConfig.options = exportConfig.options || {};
   exportConfig.options.responsive = false;
   exportConfig.options.animation = false;
   exportConfig.options.maintainAspectRatio = false;
+  exportConfig.options.devicePixelRatio = scale;
+  exportConfig.options.plugins = exportConfig.options.plugins || {};
+  exportConfig.options.plugins.datalabels = false;
+  exportConfig.options.plugins.legend = exportConfig.options.plugins.legend || {};
+  exportConfig.options.plugins.legend.labels = exportConfig.options.plugins.legend.labels || {};
+  exportConfig.options.plugins.legend.labels.font = {
+    ...(exportConfig.options.plugins.legend.labels.font || {}),
+    size: 20
+  };
+
+  exportConfig.options.scales = exportConfig.options.scales || {};
+  const scaleKeys = Object.keys(exportConfig.options.scales);
+  scaleKeys.forEach((key) => {
+    const axis = exportConfig.options.scales[key] || {};
+    axis.ticks = axis.ticks || {};
+    axis.ticks.font = {
+      ...(axis.ticks.font || {}),
+      size: 18
+    };
+    exportConfig.options.scales[key] = axis;
+  });
+  // END SECTION
+
   exportConfig.options.layout = exportConfig.options.layout || {};
   exportConfig.options.layout.padding = exportConfig.options.layout.padding || {};
-  exportConfig.options.layout.padding.top = 40 * scale;
-  exportConfig.options.layout.padding.left = 40 * scale;
-  exportConfig.options.layout.padding.right = 40 * scale;
+  exportConfig.options.layout.padding.top = 28 * scale;
+  exportConfig.options.layout.padding.left = 24 * scale;
+  exportConfig.options.layout.padding.right = 24 * scale;
   exportConfig.options.layout.padding.bottom = 160 * scale;
 
   exportConfig.plugins.push({
