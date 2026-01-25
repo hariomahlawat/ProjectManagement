@@ -1300,6 +1300,269 @@ function getCssVar(name, fallback) {
   return value ? value.trim() : fallback;
 }
 
+// SECTION: Export-only helpers
+function formatExportTimestamp() {
+  return new Date().toLocaleString();
+}
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) {
+  if (!text) {
+    return { lines: 0, height: 0 };
+  }
+
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let currentLine = '';
+
+  words.forEach((word) => {
+    const candidate = currentLine ? `${currentLine} ${word}` : word;
+    if (ctx.measureText(candidate).width > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = candidate;
+    }
+  });
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  const limitedLines = lines.slice(0, maxLines);
+  limitedLines.forEach((line, index) => {
+    ctx.fillText(line, x, y + index * lineHeight);
+  });
+
+  return { lines: limitedLines.length, height: limitedLines.length * lineHeight };
+}
+
+function createExportHeaderFooterPlugin({
+  title,
+  meta,
+  contextLine,
+  timestamp,
+  branding,
+  scale = 1
+}) {
+  return {
+    id: 'exportHeaderFooter',
+    afterDraw(chart) {
+      const ctx = chart.ctx;
+      const padding = chart.options?.layout?.padding ?? {};
+      const left = padding.left ?? 0;
+      const right = padding.right ?? 0;
+      const top = padding.top ?? 0;
+      const bottom = padding.bottom ?? 0;
+      const maxWidth = chart.width - left - right;
+
+      ctx.save();
+      ctx.fillStyle = '#111827';
+      ctx.textBaseline = 'top';
+
+      // SECTION: Header branding
+      if (branding) {
+        ctx.font = `${12 * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
+        ctx.textAlign = 'right';
+        ctx.fillText(
+          branding,
+          chart.width - right,
+          Math.max(0, (top - 16 * scale) / 2)
+        );
+      }
+      // END SECTION
+
+      // SECTION: Footer content
+      const footerTop = chart.height - bottom + 12 * scale;
+      let cursorY = footerTop;
+
+      ctx.textAlign = 'left';
+      ctx.font = `600 ${18 * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
+      const titleMetrics = drawWrappedText(
+        ctx,
+        title,
+        left,
+        cursorY,
+        maxWidth,
+        22 * scale,
+        2
+      );
+      cursorY += titleMetrics.height + 6 * scale;
+
+      ctx.font = `${14 * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
+      const metaMetrics = drawWrappedText(
+        ctx,
+        meta,
+        left,
+        cursorY,
+        maxWidth,
+        18 * scale,
+        2
+      );
+      cursorY += metaMetrics.height + 6 * scale;
+
+      const detailLine = [contextLine, timestamp].filter(Boolean).join(' • ');
+      ctx.fillStyle = '#4b5563';
+      ctx.font = `${12 * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
+      drawWrappedText(ctx, detailLine, left, cursorY, maxWidth, 16 * scale, 1);
+      // END SECTION
+
+      ctx.restore();
+    }
+  };
+}
+
+function createExportDataLabelsPlugin({ scale = 1, maxLabelCount = 15 } = {}) {
+  const formatNumber = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      return '';
+    }
+    return parsed.toLocaleString();
+  };
+
+  const shouldSkipSegmentLabels = (chart) => {
+    const labels = chart.data?.labels ?? [];
+    return labels.length > maxLabelCount;
+  };
+
+  return {
+    id: 'exportDataLabels',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      const type = chart.config.type;
+      const datasets = chart.data?.datasets ?? [];
+      const labels = chart.data?.labels ?? [];
+      const isHorizontal = chart.options?.indexAxis === 'y';
+
+      ctx.save();
+      ctx.fillStyle = '#111827';
+      ctx.font = `${12 * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      if (type === 'bar') {
+        const yScale = chart.scales?.y;
+        const xScale = chart.scales?.x;
+        const stacked =
+          Boolean(chart.options?.scales?.x?.stacked) ||
+          Boolean(chart.options?.scales?.y?.stacked) ||
+          datasets.some((dataset) => dataset.stack);
+        const skipSegmentLabels = stacked && shouldSkipSegmentLabels(chart);
+
+        const totals = labels.map((_, index) =>
+          datasets.reduce((sum, dataset) => sum + ensureNumber(dataset.data?.[index]), 0)
+        );
+
+        datasets.forEach((dataset, datasetIndex) => {
+          const meta = chart.getDatasetMeta(datasetIndex);
+          if (!meta?.data?.length) {
+            return;
+          }
+
+          meta.data.forEach((element, index) => {
+            const rawValue = ensureNumber(dataset.data?.[index]);
+            if (!rawValue) {
+              return;
+            }
+
+            if (stacked && skipSegmentLabels) {
+              return;
+            }
+
+            const valueLabel = formatNumber(rawValue);
+            if (!valueLabel) {
+              return;
+            }
+
+            const size = isHorizontal
+              ? Math.abs(element.base - element.x)
+              : Math.abs(element.base - element.y);
+            if (stacked && size < 14 * scale) {
+              return;
+            }
+
+            const x = element.x;
+            const y = element.y;
+            const offset = 8 * scale;
+
+            if (isHorizontal) {
+              ctx.textAlign = 'left';
+              ctx.fillText(valueLabel, x + offset, y);
+            } else {
+              ctx.textAlign = 'center';
+              ctx.fillText(valueLabel, x, y - offset);
+            }
+          });
+        });
+
+        if (stacked && (yScale || xScale)) {
+          totals.forEach((total, index) => {
+            if (!total) {
+              return;
+            }
+
+            const valueLabel = formatNumber(total);
+            if (!valueLabel) {
+              return;
+            }
+
+            if (isHorizontal && xScale) {
+              const x = xScale.getPixelForValue(total);
+              const y = chart.getDatasetMeta(0)?.data?.[index]?.y ?? 0;
+              ctx.textAlign = 'left';
+              ctx.fillText(valueLabel, x + 10 * scale, y);
+            } else if (yScale) {
+              const x = chart.getDatasetMeta(0)?.data?.[index]?.x ?? 0;
+              const y = yScale.getPixelForValue(total);
+              ctx.textAlign = 'center';
+              ctx.fillText(valueLabel, x, y - 10 * scale);
+            }
+          });
+        }
+      }
+
+      if (type === 'doughnut' || type === 'pie') {
+        const dataset = datasets[0];
+        const meta = chart.getDatasetMeta(0);
+        if (!dataset || !meta?.data?.length) {
+          ctx.restore();
+          return;
+        }
+
+        const values = dataset.data?.map((value) => ensureNumber(value)) ?? [];
+        const total = values.reduce((sum, value) => sum + value, 0);
+        const showPercentages = values.length <= 10;
+
+        meta.data.forEach((arc, index) => {
+          const value = values[index];
+          if (!value || !total) {
+            return;
+          }
+
+          const percent = Math.round((value / total) * 100);
+          const labelText = showPercentages
+            ? `${formatNumber(value)} (${percent}%)`
+            : formatNumber(value);
+          if (!labelText) {
+            return;
+          }
+
+          const angle = (arc.startAngle + arc.endAngle) / 2;
+          const radius = (arc.outerRadius + arc.innerRadius) / 2;
+          const x = arc.x + Math.cos(angle) * radius;
+          const y = arc.y + Math.sin(angle) * radius;
+
+          ctx.textAlign = 'center';
+          ctx.fillText(labelText, x, y);
+        });
+      }
+
+      ctx.restore();
+    }
+  };
+}
+// END SECTION
+
 function sanitizeFilename(name) {
   return (name || 'chart')
     .trim()
@@ -1331,11 +1594,18 @@ function cloneForExport(value) {
 function exportChartAsPngFullHd(chart, opts = {}) {
   const width = opts.width ?? 1920;
   const height = opts.height ?? 1080;
-    const backgroundColor = (opts.backgroundColor ?? getCssVar('--pm-card', '')) || '#ffffff';
+  const scale = opts.scale ?? 2;
+  const title = opts.title ?? '';
+  const meta = opts.meta ?? '';
+  const contextLine = opts.contextLine ?? '';
+  const branding = opts.branding ?? '';
+  const backgroundColor = (opts.backgroundColor ?? getCssVar('--pm-card', '')) || '#ffffff';
 
+  const hiResWidth = width * scale;
+  const hiResHeight = height * scale;
   const offscreen = document.createElement('canvas');
-  offscreen.width = width;
-  offscreen.height = height;
+  offscreen.width = hiResWidth;
+  offscreen.height = hiResHeight;
 
   const exportConfig = {
     type: chart.config.type,
@@ -1347,6 +1617,13 @@ function exportChartAsPngFullHd(chart, opts = {}) {
   exportConfig.options = exportConfig.options || {};
   exportConfig.options.responsive = false;
   exportConfig.options.animation = false;
+  exportConfig.options.maintainAspectRatio = false;
+  exportConfig.options.layout = exportConfig.options.layout || {};
+  exportConfig.options.layout.padding = exportConfig.options.layout.padding || {};
+  exportConfig.options.layout.padding.top = 40 * scale;
+  exportConfig.options.layout.padding.left = 40 * scale;
+  exportConfig.options.layout.padding.right = 40 * scale;
+  exportConfig.options.layout.padding.bottom = 160 * scale;
 
   exportConfig.plugins.push({
     id: 'exportBackgroundFill',
@@ -1360,8 +1637,25 @@ function exportChartAsPngFullHd(chart, opts = {}) {
     }
   });
 
+  exportConfig.plugins.push(
+    createExportDataLabelsPlugin({ scale }),
+    createExportHeaderFooterPlugin({
+      title,
+      meta,
+      contextLine,
+      timestamp: formatExportTimestamp(),
+      branding,
+      scale
+    })
+  );
+
   const exportChart = new Chart(offscreen.getContext('2d'), exportConfig);
-  const dataUrl = offscreen.toDataURL('image/png', 1.0);
+  const finalCanvas = document.createElement('canvas');
+  finalCanvas.width = width;
+  finalCanvas.height = height;
+  const finalCtx = finalCanvas.getContext('2d');
+  finalCtx.drawImage(offscreen, 0, 0, width, height);
+  const dataUrl = finalCanvas.toDataURL('image/png', 1.0);
 
   exportChart.destroy();
   return dataUrl;
@@ -1403,10 +1697,22 @@ function initAnalyticsChartDownloads() {
 
       const card = btn.closest('.analytics-card');
       const titleEl = card ? card.querySelector('.analytics-card__title') : null;
+      const metaEl = card ? card.querySelector('.analytics-card__meta') : null;
       const titleText = titleEl ? titleEl.textContent : 'chart';
+      const metaText = metaEl ? metaEl.textContent : '';
+      const tabValue = document.querySelector('.analytics-page')?.dataset?.analyticsTab ?? '';
+      const contextLine = tabValue ? `Analytics - ${tabValue}` : 'Analytics';
       const filenameBase = sanitizeFilename(titleText);
 
-      const png = exportChartAsPngFullHd(chart, { width: 1920, height: 1080 });
+      const png = exportChartAsPngFullHd(chart, {
+        width: 1920,
+        height: 1080,
+        scale: 2,
+        title: titleText,
+        meta: metaText,
+        contextLine,
+        branding: 'PRISM ERP'
+      });
       triggerDownload(png, filenameBase);
     });
   });
