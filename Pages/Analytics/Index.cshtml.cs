@@ -24,8 +24,12 @@ namespace ProjectManagement.Pages.Analytics
         private readonly IProjectAnalyticsService _projectAnalyticsService;
         private CoeAnalyticsVm? _cachedCoeAnalytics;
 
+        // SECTION: Analytics constants
         private const string DefaultCoeSubcategoryName = "Unspecified";
         private const int MaxCoeSubcategoryBuckets = 10;
+        private const string UnassignedStageCode = "UNASSIGNED";
+        private const string UnassignedStageName = "Unassigned";
+        // END SECTION
         private static readonly string[] CoeCategoryKeywords =
         {
             "coe",
@@ -310,13 +314,12 @@ namespace ProjectManagement.Pages.Analytics
             foreach (var project in stageSnapshots)
             {
                 var stage = DetermineCurrentStage(project);
-                if (stage is null || string.IsNullOrWhiteSpace(stage.StageCode))
-                {
-                    continue;
-                }
+                var stageCode = string.IsNullOrWhiteSpace(stage?.StageCode)
+                    ? UnassignedStageCode
+                    : stage!.StageCode.Trim();
 
-                counts.TryGetValue(stage.StageCode, out var existing);
-                counts[stage.StageCode] = existing + 1;
+                counts.TryGetValue(stageCode, out var existing);
+                counts[stageCode] = existing + 1;
             }
 
             var orderedCodes = StageCodes.All
@@ -753,13 +756,12 @@ namespace ProjectManagement.Pages.Analytics
             foreach (var project in stageSnapshots)
             {
                 var stage = DetermineCurrentStage(project);
-                if (stage is null || string.IsNullOrWhiteSpace(stage.StageCode))
-                {
-                    continue;
-                }
+                var stageCode = string.IsNullOrWhiteSpace(stage?.StageCode)
+                    ? UnassignedStageCode
+                    : stage!.StageCode.Trim();
 
-                counts.TryGetValue(stage.StageCode, out var existing);
-                counts[stage.StageCode] = existing + 1;
+                counts.TryGetValue(stageCode, out var existing);
+                counts[stageCode] = existing + 1;
             }
 
             var orderedCodes = StageCodes.All
@@ -769,7 +771,12 @@ namespace ProjectManagement.Pages.Analytics
                 .ToList();
 
             return orderedCodes
-                .Select(code => new AnalyticsStageCountPoint(StageCodes.DisplayNameOf(code), counts[code]))
+                .Select(code =>
+                    new AnalyticsStageCountPoint(
+                        string.Equals(code, UnassignedStageCode, StringComparison.OrdinalIgnoreCase)
+                            ? UnassignedStageName
+                            : StageCodes.DisplayNameOf(code),
+                        counts[code]))
                 .ToList();
         }
 
@@ -804,12 +811,9 @@ namespace ProjectManagement.Pages.Analytics
             foreach (var project in stageSnapshots)
             {
                 var stage = DetermineCurrentStage(new ProjectStageSnapshot(project.LifecycleStatus, project.Stages));
-                if (stage is null || string.IsNullOrWhiteSpace(stage.StageCode))
-                {
-                    continue;
-                }
-
-                var stageCode = stage.StageCode.Trim();
+                var stageCode = string.IsNullOrWhiteSpace(stage?.StageCode)
+                    ? UnassignedStageCode
+                    : stage!.StageCode.Trim();
                 var key = (StageCode: stageCode, CategoryId: project.ParentCategoryId);
                 counts.TryGetValue(key, out var existing);
                 counts[key] = existing + 1;
@@ -846,7 +850,9 @@ namespace ProjectManagement.Pages.Analytics
                 {
                     points.Add(new OngoingStageByParentCategoryPoint(
                         StageCode: stageCode,
-                        StageName: StageCodes.DisplayNameOf(stageCode),
+                        StageName: string.Equals(stageCode, UnassignedStageCode, StringComparison.OrdinalIgnoreCase)
+                            ? UnassignedStageName
+                            : StageCodes.DisplayNameOf(stageCode),
                         CategoryName: ResolveName(kvp.Key.CategoryId, parentCategoryNames),
                         Count: kvp.Value));
                 }
