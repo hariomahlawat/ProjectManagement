@@ -37,20 +37,20 @@
         <nav class="analytics-left-nav" aria-label="Analytics views">
           <a
             asp-page="./Index"
-            asp-route-tab="Completed"
-            class="analytics-left-nav__item @(Model.ActiveTab == AnalyticsTab.Completed ? "is-active" : null)"
-          >
-            <div class="analytics-left-nav__title">Completed projects</div>
-            <div class="analytics-left-nav__meta">@Model.CompletedCount projects</div>
-          </a>
-
-          <a
-            asp-page="./Index"
             asp-route-tab="Ongoing"
             class="analytics-left-nav__item @(Model.ActiveTab == AnalyticsTab.Ongoing ? "is-active" : null)"
           >
             <div class="analytics-left-nav__title">Ongoing projects</div>
             <div class="analytics-left-nav__meta">@Model.OngoingCount projects</div>
+          </a>
+
+          <a
+            asp-page="./Index"
+            asp-route-tab="Completed"
+            class="analytics-left-nav__item @(Model.ActiveTab == AnalyticsTab.Completed ? "is-active" : null)"
+          >
+            <div class="analytics-left-nav__title">Completed projects</div>
+            <div class="analytics-left-nav__meta">@Model.CompletedCount projects</div>
           </a>
 
           <a
