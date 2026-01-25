@@ -20,4 +20,10 @@ public sealed record AnalyticsStageDurationPoint(string StageCode, string Name, 
 public sealed record CompletedPerYearPoint(int Year, int Count);
 
 public sealed record CompletedPerYearByParentCategoryPoint(int Year, string CategoryName, int Count);
+
+public sealed record OngoingStageByParentCategoryPoint(
+    string StageCode,
+    string StageName,
+    string CategoryName,
+    int Count);
 // END SECTION

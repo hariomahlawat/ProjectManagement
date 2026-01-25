@@ -492,6 +492,107 @@ function createCompletedPerYearStackedChart(canvas, points) {
 }
 // END SECTION
 
+// SECTION: Ongoing analytics chart builders
+function createOngoingStageStackedChart(canvas, points) {
+  if (!canvas || !window.Chart || !Array.isArray(points) || !points.length) {
+    return null;
+  }
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    return null;
+  }
+
+  const stageCodes = [];
+  points.forEach((point) => {
+    if (point?.stageCode && !stageCodes.includes(point.stageCode)) {
+      stageCodes.push(point.stageCode);
+    }
+  });
+
+  const stageAxisPoints = stageCodes.map((code) => {
+    const match = points.find((point) => point.stageCode === code);
+    return {
+      name: match?.stageName ?? match?.stageCode ?? '',
+      stageCode: code
+    };
+  });
+
+  const axisLabels = stageAxisPoints.map((point) => getStageAxisLabel(point));
+
+  const categories = Array.from(
+    new Set(points.map((point) => point.categoryName ?? 'Uncategorized'))
+  ).sort((first, second) => first.localeCompare(second));
+
+  const palette = getPalette();
+  const accentColors = palette.accents && palette.accents.length ? palette.accents : paletteFallback;
+
+  const datasets = categories.map((category, index) => ({
+    label: category,
+    data: stageCodes.map((stageCode) => {
+      const match = points.find(
+        (point) => point.stageCode === stageCode && point.categoryName === category
+      );
+      return ensureNumber(match?.count);
+    }),
+    backgroundColor: accentColors[index % accentColors.length],
+    borderWidth: 1
+  }));
+
+  return renderWithTheme(canvas, {
+    type: 'bar',
+    data: {
+      labels: axisLabels,
+      datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { color: palette.axisColor }
+        },
+        tooltip: {
+          callbacks: {
+            title: createStageTooltipTitle(stageAxisPoints),
+            footer(context) {
+              const total = context.reduce(
+                (sum, entry) => sum + ensureNumber(entry.parsed?.y),
+                0
+              );
+              return `Total: ${total}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: {
+            autoSkip: false,
+            maxRotation: 0,
+            minRotation: 0
+          }
+        },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          ticks: {
+            precision: 0
+          },
+          grid: { color: palette.gridColor }
+        }
+      }
+    }
+  });
+}
+// END SECTION
+
 function initCompletedAnalytics() {
   const data = getCompletedAnalyticsData();
   if (!data) {
@@ -550,11 +651,19 @@ function initOngoingAnalytics() {
   if (stageCanvas) {
     const series = parseSeries(stageCanvas);
     if (series.length) {
-      createBarChart(stageCanvas, {
-        labels: series.map((point) => point.name),
-        values: series.map((point) => point.count),
-        label: 'Projects'
-      });
+      const looksStacked =
+        Object.prototype.hasOwnProperty.call(series[0], 'categoryName') &&
+        Object.prototype.hasOwnProperty.call(series[0], 'stageCode');
+
+      if (looksStacked) {
+        createOngoingStageStackedChart(stageCanvas, series);
+      } else {
+        createBarChart(stageCanvas, {
+          labels: series.map((point) => point.name),
+          values: series.map((point) => point.count),
+          label: 'Projects'
+        });
+      }
     }
   }
 
