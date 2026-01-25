@@ -456,21 +456,31 @@ function createGroupedBarChart(canvas, { labels, datasets, options }) {
 }
 
 function buildCategoryDatasets(points, valueKey, { stacked }) {
+  // SECTION: Defensive payload normalisation
+  const safePoints = Array.isArray(points)
+    ? points.filter((point) => point && typeof point === 'object')
+    : [];
+  // END SECTION
+
   const stages = [];
   const stageIndex = new Map();
   const categories = [];
   const categoryIndex = new Map();
 
-  points.forEach((point) => {
-    if (!stageIndex.has(point.stageCode)) {
-      stageIndex.set(point.stageCode, stages.length);
-      stages.push({ code: point.stageCode, name: point.stageName });
+  safePoints.forEach((point) => {
+    const stageCode = String(point.stageCode ?? '').trim();
+    const stageName = String(point.stageName ?? stageCode || 'Unknown stage').trim();
+
+    if (!stageIndex.has(stageCode)) {
+      stageIndex.set(stageCode, stages.length);
+      stages.push({ code: stageCode, name: stageName });
     }
 
-    const categoryKey = String(point.parentCategoryId);
-    if (!categoryIndex.has(categoryKey)) {
-      categoryIndex.set(categoryKey, categories.length);
-      categories.push({ id: point.parentCategoryId, name: point.categoryName });
+    const categoryId = String(point.parentCategoryId ?? '').trim();
+    const categoryName = String(point.categoryName ?? 'Uncategorized').trim();
+    if (!categoryIndex.has(categoryId)) {
+      categoryIndex.set(categoryId, categories.length);
+      categories.push({ id: categoryId, name: categoryName });
     }
   });
 
@@ -481,9 +491,11 @@ function buildCategoryDatasets(points, valueKey, { stacked }) {
     $categoryId: String(category.id)
   }));
 
-  points.forEach((point) => {
-    const stageIdx = stageIndex.get(point.stageCode);
-    const categoryIdx = categoryIndex.get(String(point.parentCategoryId));
+  safePoints.forEach((point) => {
+    const stageCode = String(point.stageCode ?? '').trim();
+    const categoryId = String(point.parentCategoryId ?? '').trim();
+    const stageIdx = stageIndex.get(stageCode);
+    const categoryIdx = categoryIndex.get(categoryId);
     if (stageIdx === undefined || categoryIdx === undefined) {
       return;
     }
