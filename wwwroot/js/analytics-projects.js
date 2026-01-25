@@ -1304,20 +1304,24 @@ function getCssVar(name, fallback) {
 const EXPORT_PROFILE = {
   width: 1920,
   height: 1080,
-  scale: 2,
-  fontLegend: 24,
-  fontTicksX: 20,
-  fontTicksY: 18,
-  fontDataLabel: 24,
-  fontTotalLabel: 28,
-  legendPadding: 18,
-  legendBoxWidth: 28,
-  layoutPadding: {
-    top: 40,
-    left: 24,
-    right: 24,
-    bottom: 150
-  }
+  dpr: 2
+};
+
+const EXPORT_TYPOGRAPHY = {
+  legend: 26,
+  xTicks: 22,
+  yTicks: 20,
+  dataLabel: 22,
+  totalLabel: 30,
+  title: 28,
+  subtitle: 18
+};
+
+const EXPORT_PADDING = {
+  top: 30,
+  right: 40,
+  bottom: 40,
+  left: 40
 };
 // END SECTION
 
@@ -1433,11 +1437,11 @@ function createExportHeaderFooterPlugin({
 }
 
 function createExportDataLabelsPlugin({
-  scale = 1,
   maxLabelCount = 15,
   minSegmentPx = 18,
-  fontSegment = 16,
-  fontTotal = 18
+  fontSegment = EXPORT_TYPOGRAPHY.dataLabel,
+  fontTotal = EXPORT_TYPOGRAPHY.totalLabel,
+  fontWeight = '700'
 } = {}) {
   const formatNumber = (value) => {
     const parsed = Number(value);
@@ -1486,8 +1490,10 @@ function createExportDataLabelsPlugin({
       ctx.save();
 
       // SECTION: Export label typography
-      const segmentFontSize = fontSegment * scale;
-      const totalFontSize = fontTotal * scale;
+      const pluginOptions = chart.options?.plugins?.exportValueLabels ?? {};
+      const segmentFontSize = pluginOptions.segmentFontSize ?? fontSegment;
+      const totalFontSize = pluginOptions.totalFontSize ?? fontTotal;
+      const weight = pluginOptions.fontWeight ?? fontWeight;
       const labelFontFamily = '"Inter", "Segoe UI", Arial, sans-serif';
       // END SECTION
 
@@ -1500,7 +1506,7 @@ function createExportDataLabelsPlugin({
           datasets.some((dataset) => dataset.stack);
         const skipSegmentLabels = stacked && shouldSkipSegmentLabels(chart);
         const totals = stacked ? getBarTotals(datasets, labels.length) : [];
-        const minSegmentHeight = minSegmentPx * scale;
+        const minSegmentHeight = minSegmentPx;
 
         // SECTION: Segment labels
         datasets.forEach((dataset, datasetIndex) => {
@@ -1538,10 +1544,10 @@ function createExportDataLabelsPlugin({
               return;
             }
 
-            ctx.font = `600 ${segmentFontSize}px ${labelFontFamily}`;
+            ctx.font = `${weight} ${segmentFontSize}px ${labelFontFamily}`;
             ctx.fillStyle = stacked ? '#f9fafb' : '#111827';
             ctx.strokeStyle = stacked ? 'rgba(17, 24, 39, 0.35)' : 'transparent';
-            ctx.lineWidth = stacked ? 3 * scale : 0;
+            ctx.lineWidth = stacked ? 3 : 0;
 
             let x = 0;
             let y = 0;
@@ -1554,7 +1560,7 @@ function createExportDataLabelsPlugin({
               ctx.strokeText(valueLabel, x, y);
               ctx.fillText(valueLabel, x, y);
             } else {
-              const offset = 10 * scale;
+              const offset = 10;
               if (isHorizontal) {
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'middle';
@@ -1589,7 +1595,7 @@ function createExportDataLabelsPlugin({
               return;
             }
 
-            ctx.font = `700 ${totalFontSize}px ${labelFontFamily}`;
+            ctx.font = `${weight} ${totalFontSize}px ${labelFontFamily}`;
             ctx.fillStyle = '#111827';
             ctx.textBaseline = 'middle';
 
@@ -1597,12 +1603,12 @@ function createExportDataLabelsPlugin({
               const x = xScale.getPixelForValue(total);
               const y = anchor.y ?? 0;
               ctx.textAlign = 'left';
-              ctx.fillText(valueLabel, x + 12 * scale, y);
+              ctx.fillText(valueLabel, x + 12, y);
             } else if (yScale) {
               const x = anchor.x ?? 0;
               const y = yScale.getPixelForValue(total);
               ctx.textAlign = 'center';
-              ctx.fillText(valueLabel, x, y - 12 * scale);
+              ctx.fillText(valueLabel, x, y - 12);
             }
           });
         }
@@ -1640,7 +1646,7 @@ function createExportDataLabelsPlugin({
           const x = arc.x + Math.cos(angle) * radius;
           const y = arc.y + Math.sin(angle) * radius;
 
-          ctx.font = `600 ${segmentFontSize}px ${labelFontFamily}`;
+          ctx.font = `${weight} ${segmentFontSize}px ${labelFontFamily}`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillStyle = '#111827';
@@ -1683,63 +1689,95 @@ function cloneForExport(value) {
 }
 
 // SECTION: Export theme overrides
-function applyExportTheme(config, profile, scale) {
-  config.options = config.options || {};
-  config.options.responsive = false;
-  config.options.animation = false;
-  config.options.maintainAspectRatio = false;
-  config.options.devicePixelRatio = scale;
-  config.options.plugins = config.options.plugins || {};
-  config.options.plugins.datalabels = false;
-  config.options.plugins.legend = config.options.plugins.legend || {};
-  config.options.plugins.legend.labels = config.options.plugins.legend.labels || {};
-  config.options.plugins.legend.labels.font = {
-    ...(config.options.plugins.legend.labels.font || {}),
-    size: profile.fontLegend
+function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
+  exportConfig.options = exportConfig.options || {};
+  exportConfig.options.plugins = exportConfig.options.plugins || {};
+  exportConfig.options.scales = exportConfig.options.scales || {};
+  exportConfig.options.layout = exportConfig.options.layout || {};
+
+  // SECTION: Export-only rendering rules
+  exportConfig.options.responsive = false;
+  exportConfig.options.animation = false;
+  exportConfig.options.maintainAspectRatio = false;
+  exportConfig.options.devicePixelRatio = dpr;
+  exportConfig.options.layout.padding = EXPORT_PADDING;
+  exportConfig.options.plugins.datalabels = false;
+  // END SECTION
+
+  // SECTION: Legend typography
+  exportConfig.options.plugins.legend = exportConfig.options.plugins.legend || {};
+  exportConfig.options.plugins.legend.labels = exportConfig.options.plugins.legend.labels || {};
+  exportConfig.options.plugins.legend.labels.font = {
+    ...(exportConfig.options.plugins.legend.labels.font || {}),
+    size: EXPORT_TYPOGRAPHY.legend,
+    weight: '600'
   };
-  config.options.plugins.legend.labels.padding = profile.legendPadding;
-  config.options.plugins.legend.labels.boxWidth = profile.legendBoxWidth;
+  // END SECTION
 
-  config.options.scales = config.options.scales || {};
-  Object.keys(config.options.scales).forEach((key) => {
-    const axis = config.options.scales[key] || {};
-    axis.ticks = axis.ticks || {};
-    const axisId = axis.axis || key;
-    axis.ticks.font = {
-      ...(axis.ticks.font || {}),
-      size: axisId === 'x' ? profile.fontTicksX : profile.fontTicksY
+  // SECTION: Title/subtitle typography
+  if (exportConfig.options.plugins.title?.display) {
+    exportConfig.options.plugins.title.font = {
+      size: EXPORT_TYPOGRAPHY.title,
+      weight: '700'
     };
-    axis.ticks.maxRotation = axis.ticks.maxRotation ?? 0;
-    axis.ticks.minRotation = axis.ticks.minRotation ?? 0;
-    axis.ticks.autoSkip = axis.ticks.autoSkip ?? true;
-    config.options.scales[key] = axis;
-  });
+  }
+  if (exportConfig.options.plugins.subtitle?.display) {
+    exportConfig.options.plugins.subtitle.font = {
+      size: EXPORT_TYPOGRAPHY.subtitle,
+      weight: '500'
+    };
+  }
+  // END SECTION
 
-  config.options.layout = config.options.layout || {};
-  config.options.layout.padding = config.options.layout.padding || {};
-  config.options.layout.padding.top = profile.layoutPadding.top * scale;
-  config.options.layout.padding.left = profile.layoutPadding.left * scale;
-  config.options.layout.padding.right = profile.layoutPadding.right * scale;
-  config.options.layout.padding.bottom = profile.layoutPadding.bottom * scale;
+  // SECTION: Axis typography
+  if (exportConfig.options.scales.x?.ticks) {
+    exportConfig.options.scales.x.ticks.font = {
+      ...(exportConfig.options.scales.x.ticks.font || {}),
+      size: EXPORT_TYPOGRAPHY.xTicks,
+      weight: '600'
+    };
+    exportConfig.options.scales.x.ticks.padding = 10;
+    exportConfig.options.scales.x.ticks.maxRotation = 0;
+    exportConfig.options.scales.x.ticks.minRotation = 0;
+  }
+
+  if (exportConfig.options.scales.y?.ticks) {
+    exportConfig.options.scales.y.ticks.font = {
+      ...(exportConfig.options.scales.y.ticks.font || {}),
+      size: EXPORT_TYPOGRAPHY.yTicks,
+      weight: '600'
+    };
+    exportConfig.options.scales.y.ticks.padding = 10;
+  }
+  // END SECTION
+
+  // SECTION: Export value label overrides
+  exportConfig.options.plugins.exportValueLabels = {
+    segmentFontSize: EXPORT_TYPOGRAPHY.dataLabel,
+    totalFontSize: EXPORT_TYPOGRAPHY.totalLabel,
+    fontWeight: '700'
+  };
+  // END SECTION
 }
 // END SECTION
 
 function exportChartAsPngFullHd(chart, opts = {}) {
   const width = opts.width ?? EXPORT_PROFILE.width;
   const height = opts.height ?? EXPORT_PROFILE.height;
-  const scale = opts.scale ?? EXPORT_PROFILE.scale;
-  const profile = opts.profile ?? EXPORT_PROFILE;
+  const dpr = opts.dpr ?? EXPORT_PROFILE.dpr;
   const title = opts.title ?? '';
   const meta = opts.meta ?? '';
   const contextLine = opts.contextLine ?? '';
   const branding = opts.branding ?? '';
   const backgroundColor = (opts.backgroundColor ?? getCssVar('--pm-card', '')) || '#ffffff';
 
-  const hiResWidth = width * scale;
-  const hiResHeight = height * scale;
+  const hiResWidth = width * dpr;
+  const hiResHeight = height * dpr;
   const offscreen = document.createElement('canvas');
   offscreen.width = hiResWidth;
   offscreen.height = hiResHeight;
+  offscreen.style.width = `${width}px`;
+  offscreen.style.height = `${height}px`;
 
   const exportConfig = {
     type: chart.config.type,
@@ -1749,7 +1787,7 @@ function exportChartAsPngFullHd(chart, opts = {}) {
   };
 
   // SECTION: Export theme overrides
-  applyExportTheme(exportConfig, profile, scale);
+  applyExportChartOverrides(exportConfig, dpr);
   // END SECTION
 
   exportConfig.plugins.push({
@@ -1766,9 +1804,8 @@ function exportChartAsPngFullHd(chart, opts = {}) {
 
   exportConfig.plugins.push(
     createExportDataLabelsPlugin({
-      scale,
-      fontSegment: profile.fontDataLabel,
-      fontTotal: profile.fontTotalLabel
+      fontSegment: EXPORT_TYPOGRAPHY.dataLabel,
+      fontTotal: EXPORT_TYPOGRAPHY.totalLabel
     }),
     createExportHeaderFooterPlugin({
       title,
@@ -1776,7 +1813,7 @@ function exportChartAsPngFullHd(chart, opts = {}) {
       contextLine,
       timestamp: formatExportTimestamp(),
       branding,
-      scale
+      scale: 1
     })
   );
 
@@ -1838,7 +1875,7 @@ function initAnalyticsChartDownloads() {
       const png = exportChartAsPngFullHd(chart, {
         width: 1920,
         height: 1080,
-        scale: 2,
+        dpr: 2,
         title: titleText,
         meta: metaText,
         contextLine,
