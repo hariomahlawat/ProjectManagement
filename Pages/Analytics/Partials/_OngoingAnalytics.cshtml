@@ -7,6 +7,10 @@
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
+
+    var stageSeries = Model.ByStageByParentCategory.Count > 0
+        ? Model.ByStageByParentCategory
+        : Model.ByStage;
     // END SECTION
 }
 
@@ -42,7 +46,7 @@
                         <canvas id="ongoing-by-stage-chart"
                                 aria-label="Ongoing projects by current stage"
                                 role="img"
-                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByStage, jsonOptions))'></canvas>
+                                data-series='@Html.Raw(JsonSerializer.Serialize(stageSeries, jsonOptions))'></canvas>
                     </div>
                 </div>
             </article>
