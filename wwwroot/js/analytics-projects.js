@@ -1707,13 +1707,19 @@ function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
   exportConfig.options.plugins = exportConfig.options.plugins || {};
   exportConfig.options.scales = exportConfig.options.scales || {};
   exportConfig.options.layout = exportConfig.options.layout || {};
+  const scale = dpr;
 
   // SECTION: Export-only rendering rules
   exportConfig.options.responsive = false;
   exportConfig.options.animation = false;
   exportConfig.options.maintainAspectRatio = false;
   exportConfig.options.devicePixelRatio = dpr;
-  exportConfig.options.layout.padding = EXPORT_PADDING;
+  exportConfig.options.layout.padding = {
+    top: EXPORT_PADDING.top * scale,
+    right: EXPORT_PADDING.right * scale,
+    bottom: EXPORT_PADDING.bottom * scale,
+    left: EXPORT_PADDING.left * scale
+  };
   exportConfig.options.plugins.datalabels = false;
   // END SECTION
 
@@ -1722,24 +1728,25 @@ function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
   exportConfig.options.plugins.legend.labels = exportConfig.options.plugins.legend.labels || {};
   exportConfig.options.plugins.legend.labels.font = {
     ...(exportConfig.options.plugins.legend.labels.font || {}),
-    size: EXPORT_TYPOGRAPHY.legend,
+    size: EXPORT_TYPOGRAPHY.legend * scale,
     weight: '600'
   };
-  exportConfig.options.plugins.legend.labels.boxWidth = 20;
-  exportConfig.options.plugins.legend.labels.padding = 18;
+  exportConfig.options.plugins.legend.labels.boxWidth = 20 * scale;
+  exportConfig.options.plugins.legend.labels.boxHeight = 20 * scale;
+  exportConfig.options.plugins.legend.labels.padding = 18 * scale;
   exportConfig.options.plugins.legend.labels.usePointStyle = false;
   // END SECTION
 
   // SECTION: Title/subtitle typography
   if (exportConfig.options.plugins.title?.display) {
     exportConfig.options.plugins.title.font = {
-      size: EXPORT_TYPOGRAPHY.title,
+      size: EXPORT_TYPOGRAPHY.title * scale,
       weight: '700'
     };
   }
   if (exportConfig.options.plugins.subtitle?.display) {
     exportConfig.options.plugins.subtitle.font = {
-      size: EXPORT_TYPOGRAPHY.subtitle,
+      size: EXPORT_TYPOGRAPHY.subtitle * scale,
       weight: '500'
     };
   }
@@ -1749,10 +1756,11 @@ function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
   if (exportConfig.options.scales.x?.ticks) {
     exportConfig.options.scales.x.ticks.font = {
       ...(exportConfig.options.scales.x.ticks.font || {}),
-      size: EXPORT_TYPOGRAPHY.axisX,
+      size: EXPORT_TYPOGRAPHY.axisX * scale,
       weight: '600'
     };
-    exportConfig.options.scales.x.ticks.padding = 12;
+    exportConfig.options.scales.x.ticks.padding =
+      (exportConfig.options.scales.x.ticks.padding ?? 12) * scale;
     exportConfig.options.scales.x.ticks.maxRotation = 0;
     exportConfig.options.scales.x.ticks.minRotation = 0;
   }
@@ -1760,17 +1768,18 @@ function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
   if (exportConfig.options.scales.y?.ticks) {
     exportConfig.options.scales.y.ticks.font = {
       ...(exportConfig.options.scales.y.ticks.font || {}),
-      size: EXPORT_TYPOGRAPHY.axisY,
+      size: EXPORT_TYPOGRAPHY.axisY * scale,
       weight: '600'
     };
-    exportConfig.options.scales.y.ticks.padding = 12;
+    exportConfig.options.scales.y.ticks.padding =
+      (exportConfig.options.scales.y.ticks.padding ?? 12) * scale;
   }
   // END SECTION
 
   // SECTION: Export value label overrides
   exportConfig.options.plugins.exportValueLabels = {
-    segmentFontSize: EXPORT_TYPOGRAPHY.dataLabel,
-    totalFontSize: EXPORT_TYPOGRAPHY.totalLabel,
+    segmentFontSize: EXPORT_TYPOGRAPHY.dataLabel * scale,
+    totalFontSize: EXPORT_TYPOGRAPHY.totalLabel * scale,
     fontWeight: '700'
   };
   // END SECTION
@@ -1781,6 +1790,7 @@ function exportChartAsPngFullHd(chart, opts = {}) {
   const width = opts.width ?? EXPORT_PROFILE.width;
   const height = opts.height ?? EXPORT_PROFILE.height;
   const dpr = opts.dpr ?? EXPORT_PROFILE.dpr;
+  const scale = dpr;
   const title = opts.title ?? '';
   const meta = opts.meta ?? '';
   const contextLine = opts.contextLine ?? '';
@@ -1829,7 +1839,7 @@ function exportChartAsPngFullHd(chart, opts = {}) {
       contextLine,
       timestamp: formatExportTimestamp(),
       branding,
-      scale: 1
+      scale
     })
   );
 
