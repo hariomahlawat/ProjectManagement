@@ -18,11 +18,21 @@
     <div class="analytics-grid analytics-grid--completed">
         <!-- SECTION: Projects completed per year -->
         <article class="analytics-card analytics-card--wide">
-            <header class="analytics-card__header">
-                <h2 class="analytics-card__title">Projects completed per year</h2>
-                <p class="analytics-card__subtitle">
-                    Year-wise view of projects reaching completion, broken down by parent project category.
-                </p>
+            <header class="analytics-card__header analytics-card__header--with-actions">
+                <div class="analytics-card__header-text">
+                    <h2 class="analytics-card__title">Projects completed per year</h2>
+                    <p class="analytics-card__subtitle">
+                        Year-wise view of projects reaching completion, broken down by parent project category.
+                    </p>
+                </div>
+
+                <button type="button"
+                        class="analytics-chart-download-btn"
+                        data-chart-download-target="completedPerYearChart"
+                        aria-label="Download chart as PNG"
+                        title="Download chart as PNG">
+                    <i class="bi bi-download" aria-hidden="true"></i>
+                </button>
             </header>
 
             <div class="analytics-card__body">
@@ -35,11 +45,21 @@
 
         <!-- SECTION: Completed projects by category -->
         <article class="analytics-card">
-            <header class="analytics-card__header">
-                <h2 class="analytics-card__title">Completed projects by category</h2>
-                <p class="analytics-card__subtitle">
-                    Breakdown of completed projects in each project category.
-                </p>
+            <header class="analytics-card__header analytics-card__header--with-actions">
+                <div class="analytics-card__header-text">
+                    <h2 class="analytics-card__title">Completed projects by category</h2>
+                    <p class="analytics-card__subtitle">
+                        Breakdown of completed projects in each project category.
+                    </p>
+                </div>
+
+                <button type="button"
+                        class="analytics-chart-download-btn"
+                        data-chart-download-target="completedByCategoryChart"
+                        aria-label="Download chart as PNG"
+                        title="Download chart as PNG">
+                    <i class="bi bi-download" aria-hidden="true"></i>
+                </button>
             </header>
 
             <div class="analytics-card__body">
@@ -52,11 +72,21 @@
 
         <!-- SECTION: Completed projects by technical category -->
         <article class="analytics-card">
-            <header class="analytics-card__header">
-                <h2 class="analytics-card__title">Completed projects by technical category</h2>
-                <p class="analytics-card__subtitle">
-                    Number of completed projects in each technical category.
-                </p>
+            <header class="analytics-card__header analytics-card__header--with-actions">
+                <div class="analytics-card__header-text">
+                    <h2 class="analytics-card__title">Completed projects by technical category</h2>
+                    <p class="analytics-card__subtitle">
+                        Number of completed projects in each technical category.
+                    </p>
+                </div>
+
+                <button type="button"
+                        class="analytics-chart-download-btn"
+                        data-chart-download-target="completedByTechnicalChart"
+                        aria-label="Download chart as PNG"
+                        title="Download chart as PNG">
+                    <i class="bi bi-download" aria-hidden="true"></i>
+                </button>
             </header>
 
             <div class="analytics-card__body">

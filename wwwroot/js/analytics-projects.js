@@ -1293,6 +1293,126 @@ function initStageHotspotsChart() {
 }
 // END SECTION
 
+// SECTION: Analytics chart export helpers
+function getCssVar(name, fallback) {
+  const css = getComputedStyle(document.documentElement);
+  const value = css.getPropertyValue(name);
+  return value ? value.trim() : fallback;
+}
+
+function sanitizeFilename(name) {
+  return (name || 'chart')
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '')
+    .replace(/\s+/g, '-')
+    .toLowerCase();
+}
+
+function cloneForExport(value) {
+  if (Array.isArray(value)) {
+    return value.map(cloneForExport);
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  if (value instanceof Date) {
+    return new Date(value.getTime());
+  }
+
+  const out = {};
+  Object.keys(value).forEach((key) => {
+    out[key] = cloneForExport(value[key]);
+  });
+  return out;
+}
+
+function exportChartAsPngFullHd(chart, opts = {}) {
+  const width = opts.width ?? 1920;
+  const height = opts.height ?? 1080;
+  const backgroundColor = opts.backgroundColor ?? (getCssVar('--pm-card', '') || '#ffffff');
+
+  const offscreen = document.createElement('canvas');
+  offscreen.width = width;
+  offscreen.height = height;
+
+  const exportConfig = {
+    type: chart.config.type,
+    data: cloneForExport(chart.config.data),
+    options: cloneForExport(chart.config.options),
+    plugins: Array.isArray(chart.config.plugins) ? [...chart.config.plugins] : []
+  };
+
+  exportConfig.options = exportConfig.options || {};
+  exportConfig.options.responsive = false;
+  exportConfig.options.animation = false;
+
+  exportConfig.plugins.push({
+    id: 'exportBackgroundFill',
+    beforeDraw(c) {
+      const ctx = c.ctx;
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.fillStyle = backgroundColor;
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.restore();
+    }
+  });
+
+  const exportChart = new Chart(offscreen.getContext('2d'), exportConfig);
+  const dataUrl = offscreen.toDataURL('image/png', 1.0);
+
+  exportChart.destroy();
+  return dataUrl;
+}
+
+function triggerDownload(dataUrl, filenameBase) {
+  const today = new Date().toISOString().slice(0, 10);
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  link.download = `${filenameBase}-${today}.png`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function initAnalyticsChartDownloads() {
+  const buttons = document.querySelectorAll('[data-chart-download-target]');
+  if (!buttons.length) {
+    return;
+  }
+
+  buttons.forEach((btn) => {
+    const targetId = btn.dataset.chartDownloadTarget;
+    const canvas = targetId ? document.getElementById(targetId) : null;
+
+    if (!canvas) {
+      btn.disabled = true;
+      return;
+    }
+
+    const chartInstance = Chart.getChart(canvas);
+    btn.disabled = !chartInstance;
+
+    btn.addEventListener('click', () => {
+      const chart = Chart.getChart(canvas);
+      if (!chart) {
+        return;
+      }
+
+      const card = btn.closest('.analytics-card');
+      const titleEl = card ? card.querySelector('.analytics-card__title') : null;
+      const titleText = titleEl ? titleEl.textContent : 'chart';
+      const filenameBase = sanitizeFilename(titleText);
+
+      const png = exportChartAsPngFullHd(chart, { width: 1920, height: 1080 });
+      triggerDownload(png, filenameBase);
+    });
+  });
+}
+// END SECTION
+
 // SECTION: Analytics bootstrap
 function hydrateAnalytics() {
   const page = document.querySelector('.analytics-page');
@@ -1309,6 +1429,8 @@ function hydrateAnalytics() {
   } else if (document.querySelector('.analytics-panel--insights')) {
     initStageTimeInsights();
   }
+
+  initAnalyticsChartDownloads();
 }
 
 function initAnalyticsBootstrap() {
