@@ -53,7 +53,7 @@ namespace ProjectManagement.Pages.Analytics
             ProjectLifecycleFilter.All
         };
 
-        public AnalyticsTab ActiveTab { get; private set; } = AnalyticsTab.Completed;
+        public AnalyticsTab ActiveTab { get; private set; } = AnalyticsTab.Ongoing;
 
         [BindProperty(SupportsGet = true, Name = "categoryId")]
         public int? StageTimeCategoryId { get; set; }
@@ -85,10 +85,10 @@ namespace ProjectManagement.Pages.Analytics
         {
             ActiveTab = tab?.ToLowerInvariant() switch
             {
-                "ongoing" => AnalyticsTab.Ongoing,
+                "completed" => AnalyticsTab.Completed,
                 "coe" => AnalyticsTab.Coe,
                 "insights" => AnalyticsTab.Insights,
-                _ => AnalyticsTab.Completed
+                _ => AnalyticsTab.Ongoing
             };
 
             await LoadAnalyticsAsync(cancellationToken);
