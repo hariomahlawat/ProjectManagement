@@ -1331,7 +1331,7 @@ function cloneForExport(value) {
 function exportChartAsPngFullHd(chart, opts = {}) {
   const width = opts.width ?? 1920;
   const height = opts.height ?? 1080;
-  const backgroundColor = opts.backgroundColor ?? (getCssVar('--pm-card', '') || '#ffffff');
+  const backgroundColor = opts.backgroundColor ?? getCssVar('--pm-card', '') || '#ffffff';
 
   const offscreen = document.createElement('canvas');
   offscreen.width = width;
