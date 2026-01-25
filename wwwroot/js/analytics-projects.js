@@ -1300,6 +1300,27 @@ function getCssVar(name, fallback) {
   return value ? value.trim() : fallback;
 }
 
+// SECTION: Export profile constants
+const EXPORT_PROFILE = {
+  width: 1920,
+  height: 1080,
+  scale: 2,
+  fontLegend: 24,
+  fontTicksX: 20,
+  fontTicksY: 18,
+  fontDataLabel: 24,
+  fontTotalLabel: 28,
+  legendPadding: 18,
+  legendBoxWidth: 28,
+  layoutPadding: {
+    top: 40,
+    left: 24,
+    right: 24,
+    bottom: 150
+  }
+};
+// END SECTION
+
 // SECTION: Export-only helpers
 function formatExportTimestamp() {
   return new Date().toLocaleString();
@@ -1414,7 +1435,9 @@ function createExportHeaderFooterPlugin({
 function createExportDataLabelsPlugin({
   scale = 1,
   maxLabelCount = 15,
-  minSegmentPx = 18
+  minSegmentPx = 18,
+  fontSegment = 16,
+  fontTotal = 18
 } = {}) {
   const formatNumber = (value) => {
     const parsed = Number(value);
@@ -1463,8 +1486,8 @@ function createExportDataLabelsPlugin({
       ctx.save();
 
       // SECTION: Export label typography
-      const segmentFontSize = 16 * scale;
-      const totalFontSize = 18 * scale;
+      const segmentFontSize = fontSegment * scale;
+      const totalFontSize = fontTotal * scale;
       const labelFontFamily = '"Inter", "Segoe UI", Arial, sans-serif';
       // END SECTION
 
@@ -1518,7 +1541,7 @@ function createExportDataLabelsPlugin({
             ctx.font = `600 ${segmentFontSize}px ${labelFontFamily}`;
             ctx.fillStyle = stacked ? '#f9fafb' : '#111827';
             ctx.strokeStyle = stacked ? 'rgba(17, 24, 39, 0.35)' : 'transparent';
-            ctx.lineWidth = stacked ? 2 * scale : 0;
+            ctx.lineWidth = stacked ? 3 * scale : 0;
 
             let x = 0;
             let y = 0;
@@ -1659,10 +1682,53 @@ function cloneForExport(value) {
   return out;
 }
 
+// SECTION: Export theme overrides
+function applyExportTheme(config, profile, scale) {
+  config.options = config.options || {};
+  config.options.responsive = false;
+  config.options.animation = false;
+  config.options.maintainAspectRatio = false;
+  config.options.devicePixelRatio = scale;
+  config.options.plugins = config.options.plugins || {};
+  config.options.plugins.datalabels = false;
+  config.options.plugins.legend = config.options.plugins.legend || {};
+  config.options.plugins.legend.labels = config.options.plugins.legend.labels || {};
+  config.options.plugins.legend.labels.font = {
+    ...(config.options.plugins.legend.labels.font || {}),
+    size: profile.fontLegend
+  };
+  config.options.plugins.legend.labels.padding = profile.legendPadding;
+  config.options.plugins.legend.labels.boxWidth = profile.legendBoxWidth;
+
+  config.options.scales = config.options.scales || {};
+  Object.keys(config.options.scales).forEach((key) => {
+    const axis = config.options.scales[key] || {};
+    axis.ticks = axis.ticks || {};
+    const axisId = axis.axis || key;
+    axis.ticks.font = {
+      ...(axis.ticks.font || {}),
+      size: axisId === 'x' ? profile.fontTicksX : profile.fontTicksY
+    };
+    axis.ticks.maxRotation = axis.ticks.maxRotation ?? 0;
+    axis.ticks.minRotation = axis.ticks.minRotation ?? 0;
+    axis.ticks.autoSkip = axis.ticks.autoSkip ?? true;
+    config.options.scales[key] = axis;
+  });
+
+  config.options.layout = config.options.layout || {};
+  config.options.layout.padding = config.options.layout.padding || {};
+  config.options.layout.padding.top = profile.layoutPadding.top * scale;
+  config.options.layout.padding.left = profile.layoutPadding.left * scale;
+  config.options.layout.padding.right = profile.layoutPadding.right * scale;
+  config.options.layout.padding.bottom = profile.layoutPadding.bottom * scale;
+}
+// END SECTION
+
 function exportChartAsPngFullHd(chart, opts = {}) {
-  const width = opts.width ?? 1920;
-  const height = opts.height ?? 1080;
-  const scale = opts.scale ?? 2;
+  const width = opts.width ?? EXPORT_PROFILE.width;
+  const height = opts.height ?? EXPORT_PROFILE.height;
+  const scale = opts.scale ?? EXPORT_PROFILE.scale;
+  const profile = opts.profile ?? EXPORT_PROFILE;
   const title = opts.title ?? '';
   const meta = opts.meta ?? '';
   const contextLine = opts.contextLine ?? '';
@@ -1682,40 +1748,9 @@ function exportChartAsPngFullHd(chart, opts = {}) {
     plugins: Array.isArray(chart.config.plugins) ? [...chart.config.plugins] : []
   };
 
-  // SECTION: Export-specific chart options
-  exportConfig.options = exportConfig.options || {};
-  exportConfig.options.responsive = false;
-  exportConfig.options.animation = false;
-  exportConfig.options.maintainAspectRatio = false;
-  exportConfig.options.devicePixelRatio = scale;
-  exportConfig.options.plugins = exportConfig.options.plugins || {};
-  exportConfig.options.plugins.datalabels = false;
-  exportConfig.options.plugins.legend = exportConfig.options.plugins.legend || {};
-  exportConfig.options.plugins.legend.labels = exportConfig.options.plugins.legend.labels || {};
-  exportConfig.options.plugins.legend.labels.font = {
-    ...(exportConfig.options.plugins.legend.labels.font || {}),
-    size: 20
-  };
-
-  exportConfig.options.scales = exportConfig.options.scales || {};
-  const scaleKeys = Object.keys(exportConfig.options.scales);
-  scaleKeys.forEach((key) => {
-    const axis = exportConfig.options.scales[key] || {};
-    axis.ticks = axis.ticks || {};
-    axis.ticks.font = {
-      ...(axis.ticks.font || {}),
-      size: 18
-    };
-    exportConfig.options.scales[key] = axis;
-  });
+  // SECTION: Export theme overrides
+  applyExportTheme(exportConfig, profile, scale);
   // END SECTION
-
-  exportConfig.options.layout = exportConfig.options.layout || {};
-  exportConfig.options.layout.padding = exportConfig.options.layout.padding || {};
-  exportConfig.options.layout.padding.top = 28 * scale;
-  exportConfig.options.layout.padding.left = 24 * scale;
-  exportConfig.options.layout.padding.right = 24 * scale;
-  exportConfig.options.layout.padding.bottom = 160 * scale;
 
   exportConfig.plugins.push({
     id: 'exportBackgroundFill',
@@ -1730,7 +1765,11 @@ function exportChartAsPngFullHd(chart, opts = {}) {
   });
 
   exportConfig.plugins.push(
-    createExportDataLabelsPlugin({ scale }),
+    createExportDataLabelsPlugin({
+      scale,
+      fontSegment: profile.fontDataLabel,
+      fontTotal: profile.fontTotalLabel
+    }),
     createExportHeaderFooterPlugin({
       title,
       meta,
