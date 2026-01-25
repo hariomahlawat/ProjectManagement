@@ -22,11 +22,21 @@
         <div class="analytics-layout__row analytics-layout__row--coe-grid">
             <!-- SECTION: CoE stage chart -->
             <article class="analytics-card">
-                <header class="analytics-card__header">
-                    <h2 class="analytics-card__title">Ongoing CoE projects by current stage</h2>
-                    <p class="analytics-card__meta">
-                        Current stage distribution for active CoE projects.
-                    </p>
+                <header class="analytics-card__header analytics-card__header--with-actions">
+                    <div class="analytics-card__header-text">
+                        <h2 class="analytics-card__title">Ongoing CoE projects by current stage</h2>
+                        <p class="analytics-card__meta">
+                            Current stage distribution for active CoE projects.
+                        </p>
+                    </div>
+
+                    <button type="button"
+                            class="analytics-chart-download-btn"
+                            data-chart-download-target="coe-by-stage-chart"
+                            aria-label="Download chart as PNG"
+                            title="Download chart as PNG">
+                        <i class="bi bi-download" aria-hidden="true"></i>
+                    </button>
                 </header>
                 <div class="analytics-card__body">
                     @if (!Model.HasCoeProjects)
@@ -49,11 +59,21 @@
 
             <!-- SECTION: CoE sub-category lifecycle chart -->
             <article class="analytics-card analytics-card--coe-subcategories">
-                <header class="analytics-card__header">
-                    <h2 class="analytics-card__title">CoE sub-categories by lifecycle</h2>
-                    <p class="analytics-card__meta">
-                        Distribution of CoE sub-categories across lifecycle statuses.
-                    </p>
+                <header class="analytics-card__header analytics-card__header--with-actions">
+                    <div class="analytics-card__header-text">
+                        <h2 class="analytics-card__title">CoE sub-categories by lifecycle</h2>
+                        <p class="analytics-card__meta">
+                            Distribution of CoE sub-categories across lifecycle statuses.
+                        </p>
+                    </div>
+
+                    <button type="button"
+                            class="analytics-chart-download-btn"
+                            data-chart-download-target="coe-subcategories-by-lifecycle-chart"
+                            aria-label="Download chart as PNG"
+                            title="Download chart as PNG">
+                        <i class="bi bi-download" aria-hidden="true"></i>
+                    </button>
                 </header>
                 <div class="analytics-card__body">
                     @if (!Model.HasSubcategoryBreakdown)

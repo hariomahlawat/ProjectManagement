@@ -22,9 +22,19 @@
 
             <!-- Card: category distribution -->
             <article class="analytics-card">
-                <header class="analytics-card__header">
-                    <h2 class="analytics-card__title">Ongoing projects by category</h2>
-                    <p class="analytics-card__meta">Breakdown of ongoing projects in each project category.</p>
+                <header class="analytics-card__header analytics-card__header--with-actions">
+                    <div class="analytics-card__header-text">
+                        <h2 class="analytics-card__title">Ongoing projects by category</h2>
+                        <p class="analytics-card__meta">Breakdown of ongoing projects in each project category.</p>
+                    </div>
+
+                    <button type="button"
+                            class="analytics-chart-download-btn"
+                            data-chart-download-target="ongoing-by-category-chart"
+                            aria-label="Download chart as PNG"
+                            title="Download chart as PNG">
+                        <i class="bi bi-download" aria-hidden="true"></i>
+                    </button>
                 </header>
                 <div class="analytics-card__body">
                     <div class="analytics-card__chart">
@@ -38,9 +48,19 @@
 
             <!-- Card: stage distribution -->
             <article class="analytics-card">
-                <header class="analytics-card__header">
-                    <h2 class="analytics-card__title">Ongoing projects by current stage</h2>
-                    <p class="analytics-card__meta">How many ongoing projects are currently in each stage.</p>
+                <header class="analytics-card__header analytics-card__header--with-actions">
+                    <div class="analytics-card__header-text">
+                        <h2 class="analytics-card__title">Ongoing projects by current stage</h2>
+                        <p class="analytics-card__meta">How many ongoing projects are currently in each stage.</p>
+                    </div>
+
+                    <button type="button"
+                            class="analytics-chart-download-btn"
+                            data-chart-download-target="ongoing-by-stage-chart"
+                            aria-label="Download chart as PNG"
+                            title="Download chart as PNG">
+                        <i class="bi bi-download" aria-hidden="true"></i>
+                    </button>
                 </header>
                 <div class="analytics-card__body">
                     <div class="analytics-card__chart">
@@ -54,11 +74,21 @@
 
             <!-- Card: time-in-stage -->
             <article class="analytics-card analytics-card--wide">
-                <header class="analytics-card__header">
-                    <h2 class="analytics-card__title">Average time spent in each stage</h2>
-                    <p class="analytics-card__meta">
-                        Average number of days ongoing projects spend in each stage.
-                    </p>
+                <header class="analytics-card__header analytics-card__header--with-actions">
+                    <div class="analytics-card__header-text">
+                        <h2 class="analytics-card__title">Average time spent in each stage</h2>
+                        <p class="analytics-card__meta">
+                            Average number of days ongoing projects spend in each stage.
+                        </p>
+                    </div>
+
+                    <button type="button"
+                            class="analytics-chart-download-btn"
+                            data-chart-download-target="ongoing-stage-duration-chart"
+                            aria-label="Download chart as PNG"
+                            title="Download chart as PNG">
+                        <i class="bi bi-download" aria-hidden="true"></i>
+                    </button>
                 </header>
                 <div class="analytics-card__body">
                     <div class="analytics-card__chart">
