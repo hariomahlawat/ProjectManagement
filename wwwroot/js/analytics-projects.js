@@ -418,10 +418,25 @@ function buildCategoryColorMapping({ donutPoints, stackedPoints }) {
 // END SECTION
 
 // SECTION: Stage axis helpers
-const stageAxisLabelOverrides = {
+const stageAxisCodeOverrides = {
   EAS: 'EAS',
   SO: 'SO'
 };
+
+const stageAxisNameOverrides = {
+  'SOW Vetting': 'SoW',
+  'Scope of Work Vetting': 'SoW',
+  Benchmarking: 'BM',
+  Development: 'Devp'
+};
+
+function normalizeStageAxisLabel(label) {
+  if (!label) {
+    return '';
+  }
+
+  return stageAxisNameOverrides[label] ?? label;
+}
 
 function getStageAxisLabel(point) {
   if (!point) {
@@ -432,20 +447,20 @@ function getStageAxisLabel(point) {
   const code = point.stageCode ?? '';
 
   const normalizedCode = code.toUpperCase();
-  const overrideLabel = stageAxisLabelOverrides[normalizedCode];
+  const overrideLabel = stageAxisCodeOverrides[normalizedCode];
   if (overrideLabel) {
-    return overrideLabel;
+    return normalizeStageAxisLabel(overrideLabel);
   }
 
   if (!name) {
-    return code;
+    return normalizeStageAxisLabel(code);
   }
 
   if (name.length <= MAX_STAGE_AXIS_LABEL_LENGTH || !code) {
-    return name;
+    return normalizeStageAxisLabel(name);
   }
 
-  return code;
+  return normalizeStageAxisLabel(code);
 }
 
 function createStageTooltipTitle(series) {
@@ -820,13 +835,6 @@ function initOngoingAnalytics() {
 // END SECTION
 
 // SECTION: CoE analytics initialiser
-// Stage label overrides specific to the CoE stage chart
-const coeStageLabelOverrides = {
-  'SOW Vetting': 'SoW',
-  Development: 'Devp',
-  Benchmarking: 'BM'
-};
-
 function initCoeAnalytics() {
   const stageCanvas = document.getElementById('coe-by-stage-chart');
   const subcategoryCanvas = document.getElementById('coe-subcategories-by-lifecycle-chart');
@@ -841,10 +849,7 @@ function initCoeAnalytics() {
       stageCode: point.stageKey || ''
     }));
 
-    const axisLabels = stageAxisPoints.map((point) => {
-      const label = getStageAxisLabel(point);
-      return coeStageLabelOverrides[label] ?? label;
-    });
+    const axisLabels = stageAxisPoints.map((point) => getStageAxisLabel(point));
 
     createBarChart(stageCanvas, {
       labels: axisLabels,
