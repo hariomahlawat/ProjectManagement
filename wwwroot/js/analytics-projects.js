@@ -1,3 +1,4 @@
+// SECTION: Palette helpers
 const paletteFallback = [
   '#2563eb',
   '#f97316',
@@ -14,17 +15,38 @@ const paletteFallback = [
 const lifecycleStatuses = ['Ongoing', 'Completed', 'Cancelled'];
 
 function getPalette() {
-  if (window.PMTheme && typeof window.PMTheme.getChartPalette === 'function') {
-    const palette = window.PMTheme.getChartPalette();
-    if (palette && Array.isArray(palette.accents)) {
-      return palette;
-    }
-  }
-
-  return {
+  const defaultPalette = {
     axisColor: '#4b5563',
     gridColor: '#e5e7eb',
+    neutral: '#9ca3af',
     accents: paletteFallback
+  };
+
+  if (!window.PMTheme || typeof window.PMTheme.getChartPalette !== 'function') {
+    return defaultPalette;
+  }
+
+  const themePalette = window.PMTheme.getChartPalette();
+  if (!themePalette || !Array.isArray(themePalette.accents)) {
+    return defaultPalette;
+  }
+
+  const themeAccents = themePalette.accents
+    .map((value) => (value ?? '').trim())
+    .filter(Boolean);
+
+  const combinedAccents = [...themeAccents];
+  paletteFallback.forEach((fallback) => {
+    if (!combinedAccents.includes(fallback)) {
+      combinedAccents.push(fallback);
+    }
+  });
+
+  return {
+    axisColor: (themePalette.axisColor ?? '').trim() || defaultPalette.axisColor,
+    gridColor: (themePalette.gridColor ?? '').trim() || defaultPalette.gridColor,
+    neutral: (themePalette.neutral ?? '').trim() || defaultPalette.neutral,
+    accents: combinedAccents.length ? combinedAccents : defaultPalette.accents
   };
 }
 
@@ -42,6 +64,7 @@ function getLifecycleColor(status) {
   };
   return lifecycleColors[status] || getAccentColor(0);
 }
+// END SECTION
 
 const stageTimeBucketKeys = {
   below: 'Below1Cr',
@@ -355,7 +378,12 @@ function buildCategoryColorMapping({ donutPoints, stackedPoints }) {
   }
 
   const unassignedLabels = ['Unassigned', 'Uncategorized'];
-  const unassignedLabel = unassignedLabels.find((label) => totals.has(label));
+  const unassignedLabel = Array.from(totals.keys()).find((label) => {
+    const normalizedLabel = String(label ?? '').trim().toLowerCase();
+    return unassignedLabels.some(
+      (candidate) => candidate.toLowerCase() === normalizedLabel
+    );
+  });
   const unassignedTotal = unassignedLabel ? totals.get(unassignedLabel) ?? 0 : 0;
 
   if (unassignedLabel) {
