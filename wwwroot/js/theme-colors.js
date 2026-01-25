@@ -13,15 +13,22 @@
 
   // SECTION: Chart palette
   function getChartPalette() {
+    var accents = [
+      getCssVar('--pm-chart-accent-1'),
+      getCssVar('--pm-chart-accent-2'),
+      getCssVar('--pm-chart-accent-3'),
+      getCssVar('--pm-chart-accent-4'),
+      getCssVar('--pm-chart-accent-5'),
+      getCssVar('--pm-chart-accent-6')
+    ]
+      .map(function (value) { return (value || '').trim(); })
+      .filter(Boolean);
+
     return {
       axisColor: getCssVar('--pm-chart-axis'),
       gridColor: getCssVar('--pm-chart-grid'),
-      accents: [
-        getCssVar('--pm-chart-accent-1'),
-        getCssVar('--pm-chart-accent-2'),
-        getCssVar('--pm-chart-accent-3'),
-        getCssVar('--pm-chart-accent-4')
-      ]
+      neutral: getCssVar('--pm-chart-neutral'),
+      accents: accents
     };
   }
   // END SECTION
