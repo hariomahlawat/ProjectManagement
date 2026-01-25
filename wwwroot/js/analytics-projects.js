@@ -1308,23 +1308,23 @@ const EXPORT_PROFILE = {
 };
 
 const EXPORT_TYPOGRAPHY = {
-  legend: 28,
+  legend: 32,
   axisX: 26,
-  axisY: 24,
-  dataLabel: 36,
-  totalLabel: 46,
-  footerTitle: 32,
-  footerText: 24,
-  watermark: 18,
-  title: 32,
-  subtitle: 24
+  axisY: 26,
+  dataLabel: 26,
+  totalLabel: 34,
+  footerTitle: 30,
+  footerText: 26,
+  watermark: 24,
+  title: 36,
+  subtitle: 28
 };
 
 const EXPORT_PADDING = {
-  top: 60,
-  right: 48,
-  bottom: 44,
-  left: 48
+  top: 100,
+  right: 100,
+  bottom: 200,
+  left: 100
 };
 // END SECTION
 
