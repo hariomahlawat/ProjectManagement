@@ -336,6 +336,59 @@ function renderEmptyState(canvas) {
 }
 // END SECTION
 
+// SECTION: Category color mapping
+function buildCategoryColorMapping({ donutPoints, stackedPoints }) {
+  const totals = new Map();
+  const hasDonutPoints = Array.isArray(donutPoints) && donutPoints.length;
+  const hasStackedPoints = Array.isArray(stackedPoints) && stackedPoints.length;
+
+  if (hasDonutPoints) {
+    donutPoints.forEach((point) => {
+      const key = point?.name ?? 'Unassigned';
+      totals.set(key, ensureNumber(point?.count));
+    });
+  } else if (hasStackedPoints) {
+    stackedPoints.forEach((point) => {
+      const key = point?.categoryName ?? 'Unassigned';
+      totals.set(key, (totals.get(key) ?? 0) + ensureNumber(point?.count));
+    });
+  }
+
+  const unassignedLabels = ['Unassigned', 'Uncategorized'];
+  const unassignedLabel = unassignedLabels.find((label) => totals.has(label));
+  const unassignedTotal = unassignedLabel ? totals.get(unassignedLabel) ?? 0 : 0;
+
+  if (unassignedLabel) {
+    totals.delete(unassignedLabel);
+  }
+
+  const rankedCategories = Array.from(totals.entries())
+    .sort((first, second) => {
+      const totalDifference = second[1] - first[1];
+      return totalDifference !== 0 ? totalDifference : first[0].localeCompare(second[0]);
+    })
+    .map(([name]) => name);
+
+  const palette = getPalette();
+  const accentColors = palette.accents && palette.accents.length ? palette.accents : paletteFallback;
+  const categoryColorMap = new Map();
+
+  rankedCategories.forEach((name, index) => {
+    categoryColorMap.set(name, accentColors[index % accentColors.length]);
+  });
+
+  if (unassignedLabel && unassignedTotal >= 0) {
+    categoryColorMap.set(unassignedLabel, palette.neutral ?? '#9ca3af');
+    rankedCategories.push(unassignedLabel);
+  }
+
+  return {
+    categoryColorMap,
+    rankedCategories
+  };
+}
+// END SECTION
+
 // SECTION: Stage axis helpers
 const stageAxisLabelOverrides = {
   EAS: 'EAS',
@@ -493,7 +546,12 @@ function createCompletedPerYearStackedChart(canvas, points) {
 // END SECTION
 
 // SECTION: Ongoing analytics chart builders
-function createOngoingStageStackedChart(canvas, points) {
+function createOngoingStageStackedChart(
+  canvas,
+  points,
+  categoryColorMap = new Map(),
+  categoryOrder = []
+) {
   if (!canvas || !window.Chart || !Array.isArray(points) || !points.length) {
     return null;
   }
@@ -520,14 +578,25 @@ function createOngoingStageStackedChart(canvas, points) {
 
   const axisLabels = stageAxisPoints.map((point) => getStageAxisLabel(point));
 
-  const categories = Array.from(
-    new Set(points.map((point) => point.categoryName ?? 'Uncategorized'))
-  ).sort((first, second) => first.localeCompare(second));
+  const detectedCategories = Array.from(
+    new Set(points.map((point) => point.categoryName ?? 'Unassigned'))
+  );
+  let orderedCategories = detectedCategories.sort((first, second) =>
+    first.localeCompare(second)
+  );
+
+  if (Array.isArray(categoryOrder) && categoryOrder.length) {
+    const orderedSet = categoryOrder.filter((category) => detectedCategories.includes(category));
+    const remainingCategories = detectedCategories.filter(
+      (category) => !orderedSet.includes(category)
+    );
+    orderedCategories = [...orderedSet, ...remainingCategories];
+  }
 
   const palette = getPalette();
   const accentColors = palette.accents && palette.accents.length ? palette.accents : paletteFallback;
 
-  const datasets = categories.map((category, index) => ({
+  const datasets = orderedCategories.map((category, index) => ({
     label: category,
     data: stageCodes.map((stageCode) => {
       const match = points.find(
@@ -535,7 +604,7 @@ function createOngoingStageStackedChart(canvas, points) {
       );
       return ensureNumber(match?.count);
     }),
-    backgroundColor: accentColors[index % accentColors.length],
+    backgroundColor: categoryColorMap.get(category) ?? accentColors[index % accentColors.length],
     borderWidth: 1
   }));
 
@@ -638,29 +707,51 @@ function initOngoingAnalytics() {
   const stageCanvas = document.getElementById('ongoing-by-stage-chart');
   const durationCanvas = document.getElementById('ongoing-stage-duration-chart');
 
+  const categorySeries = categoryCanvas ? parseSeries(categoryCanvas) : [];
+  const stageSeries = stageCanvas ? parseSeries(stageCanvas) : [];
+  const { categoryColorMap, rankedCategories } = buildCategoryColorMapping({
+    donutPoints: categorySeries,
+    stackedPoints: stageSeries
+  });
+
   if (categoryCanvas) {
-    const series = parseSeries(categoryCanvas);
-    if (series.length) {
+    if (categorySeries.length) {
+      const categoryLookup = new Map(
+        categorySeries.map((point) => [point.name ?? 'Unassigned', ensureNumber(point.count)])
+      );
+      const orderedLabels = rankedCategories.length
+        ? rankedCategories.filter((label) => categoryLookup.has(label))
+        : categorySeries.map((point) => point.name ?? 'Unassigned');
+      const orderedValues = orderedLabels.map((label) => categoryLookup.get(label) ?? 0);
+      const orderedColors = orderedLabels.map(
+        (label, index) => categoryColorMap.get(label) ?? getAccentColor(index)
+      );
+
       createDoughnutChart(categoryCanvas, {
-        labels: series.map((point) => point.name),
-        values: series.map((point) => point.count)
+        labels: orderedLabels,
+        values: orderedValues,
+        colors: orderedColors
       });
     }
   }
 
   if (stageCanvas) {
-    const series = parseSeries(stageCanvas);
-    if (series.length) {
+    if (stageSeries.length) {
       const looksStacked =
-        Object.prototype.hasOwnProperty.call(series[0], 'categoryName') &&
-        Object.prototype.hasOwnProperty.call(series[0], 'stageCode');
+        Object.prototype.hasOwnProperty.call(stageSeries[0], 'categoryName') &&
+        Object.prototype.hasOwnProperty.call(stageSeries[0], 'stageCode');
 
       if (looksStacked) {
-        createOngoingStageStackedChart(stageCanvas, series);
+        createOngoingStageStackedChart(
+          stageCanvas,
+          stageSeries,
+          categoryColorMap,
+          rankedCategories
+        );
       } else {
         createBarChart(stageCanvas, {
-          labels: series.map((point) => point.name),
-          values: series.map((point) => point.count),
+          labels: stageSeries.map((point) => point.name),
+          values: stageSeries.map((point) => point.count),
           label: 'Projects'
         });
       }
