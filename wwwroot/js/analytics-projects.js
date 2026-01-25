@@ -1308,17 +1308,20 @@ const EXPORT_PROFILE = {
 };
 
 const EXPORT_TYPOGRAPHY = {
-  legend: 26,
-  xTicks: 22,
-  yTicks: 20,
-  dataLabel: 22,
-  totalLabel: 30,
-  title: 28,
-  subtitle: 18
+  legend: 28,
+  axisX: 26,
+  axisY: 24,
+  dataLabel: 40,
+  totalLabel: 52,
+  footerTitle: 32,
+  footerText: 24,
+  watermark: 18,
+  title: 32,
+  subtitle: 24
 };
 
 const EXPORT_PADDING = {
-  top: 30,
+  top: 44,
   right: 40,
   bottom: 40,
   left: 40
@@ -1386,7 +1389,7 @@ function createExportHeaderFooterPlugin({
 
       // SECTION: Header branding
       if (branding) {
-        ctx.font = `${12 * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
+        ctx.font = `${EXPORT_TYPOGRAPHY.watermark * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
         ctx.textAlign = 'right';
         ctx.fillText(
           branding,
@@ -1401,34 +1404,42 @@ function createExportHeaderFooterPlugin({
       let cursorY = footerTop;
 
       ctx.textAlign = 'left';
-      ctx.font = `600 ${18 * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
+      ctx.font = `600 ${EXPORT_TYPOGRAPHY.footerTitle * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
       const titleMetrics = drawWrappedText(
         ctx,
         title,
         left,
         cursorY,
         maxWidth,
-        22 * scale,
+        (EXPORT_TYPOGRAPHY.footerTitle + 6) * scale,
         2
       );
       cursorY += titleMetrics.height + 6 * scale;
 
-      ctx.font = `${14 * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
+      ctx.font = `${EXPORT_TYPOGRAPHY.footerText * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
       const metaMetrics = drawWrappedText(
         ctx,
         meta,
         left,
         cursorY,
         maxWidth,
-        18 * scale,
+        (EXPORT_TYPOGRAPHY.footerText + 4) * scale,
         2
       );
       cursorY += metaMetrics.height + 6 * scale;
 
       const detailLine = [contextLine, timestamp].filter(Boolean).join(' • ');
       ctx.fillStyle = '#4b5563';
-      ctx.font = `${12 * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
-      drawWrappedText(ctx, detailLine, left, cursorY, maxWidth, 16 * scale, 1);
+      ctx.font = `${EXPORT_TYPOGRAPHY.watermark * scale}px "Inter", "Segoe UI", Arial, sans-serif`;
+      drawWrappedText(
+        ctx,
+        detailLine,
+        left,
+        cursorY,
+        maxWidth,
+        (EXPORT_TYPOGRAPHY.watermark + 4) * scale,
+        1
+      );
       // END SECTION
 
       ctx.restore();
@@ -1600,15 +1611,17 @@ function createExportDataLabelsPlugin({
             ctx.textBaseline = 'middle';
 
             if (isHorizontal && xScale) {
+              const offset = Math.round(totalFontSize * 0.35);
               const x = xScale.getPixelForValue(total);
               const y = anchor.y ?? 0;
               ctx.textAlign = 'left';
-              ctx.fillText(valueLabel, x + 12, y);
+              ctx.fillText(valueLabel, x + offset, y);
             } else if (yScale) {
+              const offset = Math.round(totalFontSize * 0.35);
               const x = anchor.x ?? 0;
               const y = yScale.getPixelForValue(total);
               ctx.textAlign = 'center';
-              ctx.fillText(valueLabel, x, y - 12);
+              ctx.fillText(valueLabel, x, y - offset);
             }
           });
         }
@@ -1712,6 +1725,9 @@ function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
     size: EXPORT_TYPOGRAPHY.legend,
     weight: '600'
   };
+  exportConfig.options.plugins.legend.labels.boxWidth = 20;
+  exportConfig.options.plugins.legend.labels.padding = 18;
+  exportConfig.options.plugins.legend.labels.usePointStyle = false;
   // END SECTION
 
   // SECTION: Title/subtitle typography
@@ -1733,10 +1749,10 @@ function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
   if (exportConfig.options.scales.x?.ticks) {
     exportConfig.options.scales.x.ticks.font = {
       ...(exportConfig.options.scales.x.ticks.font || {}),
-      size: EXPORT_TYPOGRAPHY.xTicks,
+      size: EXPORT_TYPOGRAPHY.axisX,
       weight: '600'
     };
-    exportConfig.options.scales.x.ticks.padding = 10;
+    exportConfig.options.scales.x.ticks.padding = 12;
     exportConfig.options.scales.x.ticks.maxRotation = 0;
     exportConfig.options.scales.x.ticks.minRotation = 0;
   }
@@ -1744,10 +1760,10 @@ function applyExportChartOverrides(exportConfig, dpr = EXPORT_PROFILE.dpr) {
   if (exportConfig.options.scales.y?.ticks) {
     exportConfig.options.scales.y.ticks.font = {
       ...(exportConfig.options.scales.y.ticks.font || {}),
-      size: EXPORT_TYPOGRAPHY.yTicks,
+      size: EXPORT_TYPOGRAPHY.axisY,
       weight: '600'
     };
-    exportConfig.options.scales.y.ticks.padding = 10;
+    exportConfig.options.scales.y.ticks.padding = 12;
   }
   // END SECTION
 
