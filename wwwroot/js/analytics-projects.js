@@ -1311,8 +1311,8 @@ const EXPORT_TYPOGRAPHY = {
   legend: 28,
   axisX: 26,
   axisY: 24,
-  dataLabel: 40,
-  totalLabel: 52,
+  dataLabel: 36,
+  totalLabel: 46,
   footerTitle: 32,
   footerText: 24,
   watermark: 18,
@@ -1321,10 +1321,10 @@ const EXPORT_TYPOGRAPHY = {
 };
 
 const EXPORT_PADDING = {
-  top: 44,
-  right: 40,
-  bottom: 40,
-  left: 40
+  top: 60,
+  right: 48,
+  bottom: 44,
+  left: 48
 };
 // END SECTION
 
@@ -1591,6 +1591,16 @@ function createExportDataLabelsPlugin({
 
         // SECTION: Total labels for stacked bars
         if (stacked && (yScale || xScale)) {
+          // SECTION: Total label placement guards
+          const chartArea = chart.chartArea || {};
+          const chartTop = chartArea.top ?? 0;
+          const chartBottom = chartArea.bottom ?? chart.height;
+          const chartLeft = chartArea.left ?? 0;
+          const chartRight = chartArea.right ?? chart.width;
+          const horizontalPadding = totalFontSize * 0.6;
+          const verticalPadding = totalFontSize * 0.8;
+          // END SECTION
+
           totals.forEach((total, index) => {
             if (!total) {
               return;
@@ -1612,16 +1622,20 @@ function createExportDataLabelsPlugin({
 
             if (isHorizontal && xScale) {
               const offset = Math.round(totalFontSize * 0.35);
-              const x = xScale.getPixelForValue(total);
-              const y = anchor.y ?? 0;
+              let x = xScale.getPixelForValue(total) + offset;
+              let y = anchor.y ?? 0;
+              x = Math.min(Math.max(x, chartLeft + horizontalPadding), chartRight - horizontalPadding);
+              y = Math.min(Math.max(y, chartTop + horizontalPadding), chartBottom - horizontalPadding);
               ctx.textAlign = 'left';
-              ctx.fillText(valueLabel, x + offset, y);
+              ctx.fillText(valueLabel, x, y);
             } else if (yScale) {
-              const offset = Math.round(totalFontSize * 0.35);
-              const x = anchor.x ?? 0;
-              const y = yScale.getPixelForValue(total);
+              const offset = Math.round(totalFontSize * 0.45);
+              let x = anchor.x ?? 0;
+              let y = yScale.getPixelForValue(total) - offset;
+              x = Math.min(Math.max(x, chartLeft + horizontalPadding), chartRight - horizontalPadding);
+              y = Math.min(Math.max(y, chartTop + verticalPadding), chartBottom - verticalPadding);
               ctx.textAlign = 'center';
-              ctx.fillText(valueLabel, x, y - offset);
+              ctx.fillText(valueLabel, x, y);
             }
           });
         }
