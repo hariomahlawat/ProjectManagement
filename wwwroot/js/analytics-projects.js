@@ -475,6 +475,20 @@ function createStageTooltipTitle(series) {
 }
 // END SECTION
 
+// SECTION: Stage duration tooltip helpers
+function createStageDurationTooltipLabel(series) {
+  return (context) => {
+    const value = ensureNumber(context.raw);
+    const formatted = Number.isFinite(value) ? value.toFixed(1) : '0.0';
+    const label = context.dataset?.label || 'Value';
+    const sampleSize = ensureNumber(series[context.dataIndex]?.sampleSize);
+    const sampleNote = sampleSize > 0 && sampleSize <= 2 ? ' (limited sample)' : '';
+
+    return `${label}: ${formatted} days${sampleNote}`;
+  };
+}
+// END SECTION
+
 // SECTION: Completed analytics helpers
 function getCompletedAnalyticsData() {
   const panel = document.querySelector('.analytics-panel--completed');
@@ -804,31 +818,70 @@ function initOngoingAnalytics() {
   if (durationCanvas) {
     const series = parseSeries(durationCanvas);
     if (series.length) {
-      const labels = series.map((point) => getStageAxisLabel(point));
-      createBarChart(durationCanvas, {
-        labels,
-        values: series.map((point) => point.days),
-        label: 'Average days in stage',
-        backgroundColor: getAccentColor(2),
-        options: {
-          plugins: {
-            tooltip: {
-              callbacks: {
-                title: createStageTooltipTitle(series)
+      // SECTION: Stage duration (mean vs median)
+      const labels = series.map((point) => getStageAxisLabel(point)).map((label) => wrapLabel(label));
+      const meanValues = series.map((point) => ensureNumber(point.days));
+      const medianValues = series.map((point) => ensureNumber(point.medianDays));
+      const palette = getPalette();
+
+      renderWithTheme(durationCanvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Mean (Average)',
+              data: meanValues,
+              backgroundColor: getAccentColor(2),
+              borderRadius: 4,
+              maxBarThickness: 40
+            },
+            {
+              label: 'Median',
+              data: medianValues,
+              backgroundColor: getAccentColor(0),
+              borderRadius: 4,
+              maxBarThickness: 40
+            }
+          ]
+        },
+        options: mergeChartOptions(
+          {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: true,
+                position: 'bottom',
+                labels: { color: palette.axisColor }
+              },
+              tooltip: {
+                callbacks: {
+                  title: createStageTooltipTitle(series),
+                  label: createStageDurationTooltipLabel(series)
+                }
+              }
+            },
+            scales: {
+              x: {
+                ticks: { autoSkip: false, maxRotation: 0, minRotation: 0, color: palette.axisColor },
+                grid: { color: palette.gridColor }
+              },
+              y: {
+                beginAtZero: true,
+                ticks: { color: palette.axisColor },
+                grid: { color: palette.gridColor }
               }
             }
           },
-          scales: {
-            x: {
-              ticks: {
-                autoSkip: false,
-                maxRotation: 0,
-                minRotation: 0
-              }
+          {
+            scales: {
+              x: { ticks: { autoSkip: false, maxRotation: 0, minRotation: 0 } }
             }
           }
-        }
+        )
       });
+      // END SECTION
     }
   }
 }

@@ -883,33 +883,56 @@ namespace ProjectManagement.Pages.Analytics
                 .ToListAsync(cancellationToken);
 
             // SECTION: Stage duration aggregation
-            var durationsByCode = stageRows
+            var durationListsByCode = stageRows
                 .Where(s => !string.IsNullOrWhiteSpace(s.StageCode) && s.ActualStart.HasValue)
                 .GroupBy(s => s.StageCode!, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(
                     g => g.Key,
-                    g => g.Average(item => CalculateStageDurationDays(item.ActualStart, item.CompletedOn)),
+                    g => g.Select(item => CalculateStageDurationDays(item.ActualStart, item.CompletedOn)).ToList(),
                     StringComparer.OrdinalIgnoreCase);
 
             var orderedStages = StageCodes.All
-                .Select(code => new AnalyticsStageDurationPoint(
-                    code,
-                    StageCodes.DisplayNameOf(code),
-                    durationsByCode.TryGetValue(code, out var avgDays) ? avgDays : 0));
+                .Select(code =>
+                {
+                    if (!durationListsByCode.TryGetValue(code, out var durations))
+                    {
+                        return new AnalyticsStageDurationPoint(
+                            code,
+                            StageCodes.DisplayNameOf(code),
+                            0,
+                            0,
+                            0);
+                    }
 
-            var adHocStages = durationsByCode.Keys
+                    return new AnalyticsStageDurationPoint(
+                        code,
+                        StageCodes.DisplayNameOf(code),
+                        durations.Count > 0 ? durations.Average() : 0,
+                        CalculateMedian(durations),
+                        durations.Count);
+                });
+
+            var adHocStages = durationListsByCode.Keys
                 .Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase))
                 .OrderBy(code => StageCodes.DisplayNameOf(code), StringComparer.OrdinalIgnoreCase)
-                .Select(code => new AnalyticsStageDurationPoint(
-                    code,
-                    StageCodes.DisplayNameOf(code),
-                    durationsByCode[code]));
+                .Select(code =>
+                {
+                    var durations = durationListsByCode[code];
+                    return new AnalyticsStageDurationPoint(
+                        code,
+                        StageCodes.DisplayNameOf(code),
+                        durations.Count > 0 ? durations.Average() : 0,
+                        CalculateMedian(durations),
+                        durations.Count);
+                });
 
             return orderedStages
                 .Concat(adHocStages)
                 .ToList();
+            // END SECTION
         }
 
+        // SECTION: Stage duration helpers
         private static double CalculateStageDurationDays(DateOnly? start, DateOnly? end)
         {
             if (!start.HasValue)
@@ -922,6 +945,25 @@ namespace ProjectManagement.Pages.Analytics
             var duration = (effectiveEnd - startDate).TotalDays;
             return duration < 0 ? 0 : duration;
         }
+
+        private static double CalculateMedian(IReadOnlyList<double> values)
+        {
+            if (values == null || values.Count == 0)
+            {
+                return 0;
+            }
+
+            var ordered = values.OrderBy(value => value).ToList();
+            var mid = ordered.Count / 2;
+
+            if (ordered.Count % 2 == 1)
+            {
+                return ordered[mid];
+            }
+
+            return (ordered[mid - 1] + ordered[mid]) / 2.0;
+        }
+        // END SECTION
 
         private static StageSnapshot? DetermineCurrentStage(ProjectStageSnapshot project)
         {
