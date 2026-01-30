@@ -162,7 +162,7 @@ else
                                 <div class="ongoing-card__thumb" aria-hidden="true">
                                     @if (item.CoverPhotoId.HasValue)
                                     {
-                                        <img src="@Url.Page("/Projects/Photos/View", new { id = item.ProjectId, photoId = item.CoverPhotoId.Value, size = "xs", v = item.CoverPhotoVersion })"
+                                        <img src="@Url.Page("/Projects/Photos/View", new { id = item.ProjectId, photoId = item.CoverPhotoId.Value, size = "sm", v = item.CoverPhotoVersion })"
                                              loading="lazy"
                                              alt=""
                                              class="ongoing-card__thumb-img" />
