@@ -6326,9 +6326,17 @@ body.has-project-photo-preview-dialog {
     background: #fff;
     border-radius: 0.85rem;
     /* SECTION: Timeline card header layout constants */
-    --thumb-size: 64px;
+    --thumb-size: 80px;
     --thumb-gap: 12px;
     --thumb-offset: calc(var(--thumb-size) + var(--thumb-gap));
+}
+
+/* SECTION: Timeline card header layout constants (small screens) */
+@media (max-width: 576px) {
+    .ongoing-card {
+        --thumb-size: 64px;
+        --thumb-gap: 10px;
+    }
 }
 
 .ongoing-card__header {
@@ -6377,7 +6385,7 @@ body.has-project-photo-preview-dialog {
     justify-content: center;
     background: #e9ecef;
     color: #adb5bd;
-    font-size: 1.1rem;
+    font-size: 1.35rem;
 }
 
 .ongoing-card__meta-divider {
