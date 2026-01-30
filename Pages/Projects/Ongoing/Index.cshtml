@@ -37,10 +37,10 @@
 
     // SECTION: Table helpers
     string FormatDate(DateOnly? date)
-        => date.HasValue ? date.Value.ToString("dd-MMM-yyyy") : "N/A";
+        => date.HasValue ? date.Value.ToString("dd-MMM-yy") : "N/A";
 
     string FormatMilestoneDate(DateOnly? date)
-        => date.HasValue ? date.Value.ToString("dd-MMM-yyyy") : "NA";
+        => date.HasValue ? date.Value.ToString("dd-MMM-yy") : "NA";
 
     string FormatValue(string? value)
         => string.IsNullOrWhiteSpace(value) ? "N/A" : value;
