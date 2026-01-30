@@ -155,41 +155,127 @@ else
             <div class="col-12">
                 <article class="ongoing-card card border-0 shadow-sm h-100">
                     <div class="card-body p-0">
+                        @{
+                            // SECTION: Timeline helper values
+                            var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+                            var cur = item.Stages[currentIdx];
+                            var presentStage = item.PresentStage;
+
+                            // SECTION: Days to PDC / overdue
+                            int? daysToPdc = null;
+                            bool isOverdue = false;
+                            if (cur.PlannedDue.HasValue)
+                            {
+                                daysToPdc = (cur.PlannedDue.Value.ToDateTime(TimeOnly.MinValue) -
+                                today.ToDateTime(TimeOnly.MinValue)).Days;
+                                if (daysToPdc < 0)
+                                {
+                                    isOverdue = true;
+                                    daysToPdc = Math.Abs(daysToPdc.Value);
+                                }
+                            }
+                        }
+
                         <!-- SECTION: Timeline card header -->
                         <header class="ongoing-card__header">
-                            <!-- SECTION: Header left (thumbnail + text) -->
-                            <div class="ongoing-card__header-left">
-                                <div class="ongoing-card__thumb" aria-hidden="true">
-                                    @if (item.CoverPhotoId.HasValue)
-                                    {
-                                        <img src="@Url.Page("/Projects/Photos/View", new { id = item.ProjectId, photoId = item.CoverPhotoId.Value, size = "sm", v = item.CoverPhotoVersion })"
-                                             loading="lazy"
-                                             alt=""
-                                             class="ongoing-card__thumb-img" />
-                                    }
-                                    else
-                                    {
-                                        <div class="ongoing-card__thumb-placeholder" aria-hidden="true">
-                                            <i class="bi bi-image" aria-hidden="true"></i>
-                                        </div>
-                                    }
-                                </div>
-                                <div class="ongoing-card__header-text">
-                                    <h2 class="ongoing-card__title mb-1">
-                                        <a asp-page="/Projects/Overview"
-                                           asp-route-id="@item.ProjectId"
-                                           class="text-decoration-none">
-                                            @item.ProjectName
-                                        </a>
-                                    </h2>
-                                    <p class="ongoing-card__meta mb-0">
-                                        @FormatValue(item.ProjectCategoryName)
-                                        <span class="ongoing-card__meta-divider">•</span>
-                                        Cost: @item.CostLakhsText
+                            <!-- SECTION: Header thumbnail -->
+                            <div class="ongoing-card__thumb" aria-hidden="true">
+                                @if (item.CoverPhotoId.HasValue)
+                                {
+                                    <img src="@Url.Page("/Projects/Photos/View", new { id = item.ProjectId, photoId = item.CoverPhotoId.Value, size = "sm", v = item.CoverPhotoVersion })"
+                                         loading="lazy"
+                                         alt=""
+                                         class="ongoing-card__thumb-img" />
+                                }
+                                else
+                                {
+                                    <div class="ongoing-card__thumb-placeholder" aria-hidden="true">
+                                        <i class="bi bi-image" aria-hidden="true"></i>
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- SECTION: Header main content -->
+                            <div class="ongoing-card__main">
+                                <h2 class="ongoing-card__title mb-1">
+                                    <a asp-page="/Projects/Overview"
+                                       asp-route-id="@item.ProjectId"
+                                       class="text-decoration-none">
+                                        @item.ProjectName
+                                    </a>
+                                </h2>
+                                <p class="ongoing-card__meta mb-1">
+                                    @FormatValue(item.ProjectCategoryName)
+                                    <span class="ongoing-card__meta-divider">•</span>
+                                    Cost: @item.CostLakhsText
+                                </p>
+                                <div class="ongoing-card__stage-summary">
+                                    <p class="mb-0">
+                                        <span class="ongoing-card__label">Current stage</span>
+                                        @if (cur.Status == StageStatus.Completed)
+                                        {
+                                            <span class="fw-medium">@cur.Name</span>
+                                            @if (cur.ActualCompletedOn.HasValue)
+                                            {
+                                                @: (@cur.ActualCompletedOn.Value.ToString("dd-MMM-yyyy"))
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">date not available</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="fw-medium">@cur.Name</span>
+                                            @if (cur.PlannedDue.HasValue)
+                                            {
+                                                @: (PDC: @cur.PlannedDue.Value.ToString("dd-MMM-yyyy"))
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">PDC: N/A</span>
+                                            }
+                                        }
+
+                                        <!-- SECTION: Stage age -->
+                                        <span class="ms-2 text-muted ongoing-card__stage-chip">
+                                            @if (presentStage.DaysSinceStartOrLastCompletion.HasValue)
+                                            {
+                                                var daysInCurrent = presentStage.DaysSinceStartOrLastCompletion.Value;
+                                                @: • @daysInCurrent day@(daysInCurrent == 1 ? "" : "s") in this stage
+                                            }
+                                        </span>
+
+                                        @if (cur.Status != StageStatus.Completed)
+                                        {
+                                            if (cur.PlannedDue.HasValue)
+                                            {
+                                                if (!isOverdue)
+                                                {
+                                                    <span class="ms-2 text-success ongoing-card__stage-chip">
+                                                        @daysToPdc day@(daysToPdc == 1 ? "" : "s") to PDC
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="ms-2 text-danger ongoing-card__stage-chip">
+                                                        overdue by @daysToPdc day@(daysToPdc == 1 ? "" : "s")
+                                                    </span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="ms-2 text-muted ongoing-card__stage-chip">
+                                                    • no PDC set
+                                                </span>
+                                            }
+                                        }
                                     </p>
                                 </div>
                             </div>
-                            <div class="text-md-end">
+
+                            <!-- SECTION: Header right meta -->
+                            <div class="ongoing-card__right">
                                 <p class="ongoing-card__label mb-0">Last completed</p>
                                 <p class="ongoing-card__last mb-0">
                                     @if (!string.IsNullOrEmpty(item.LastCompletedStageName))
@@ -197,7 +283,7 @@ else
                                         @item.LastCompletedStageName
                                         if (item.LastCompletedStageDate.HasValue)
                                         {
-                                            @: (@item.LastCompletedStageDate.Value.ToString("dd-MMM-yyyy"))
+                                            @: (@item.LastCompletedStageDate.Value.ToString("dd-MMM-yy"))
                                         }
                                         else
                                         {
@@ -211,95 +297,6 @@ else
                                 </p>
                             </div>
                         </header>
-
-                        @{
-                            // SECTION: Timeline helper values
-                            var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-                        }
-                        <!-- SECTION: Current stage line -->
-                        <div class="ongoing-card__info">
-                            @{
-                                var cur = item.Stages[currentIdx];
-                                var presentStage = item.PresentStage;
-
-                                // SECTION: Days to PDC / overdue
-                                int? daysToPdc = null;
-                                bool isOverdue = false;
-                                if (cur.PlannedDue.HasValue)
-                                {
-                                    daysToPdc = (cur.PlannedDue.Value.ToDateTime(TimeOnly.MinValue) -
-                                    today.ToDateTime(TimeOnly.MinValue)).Days;
-                                    if (daysToPdc < 0)
-                                    {
-                                        isOverdue = true;
-                                        daysToPdc = Math.Abs(daysToPdc.Value);
-                                    }
-                                }
-                            }
-                            <div class="ongoing-card__stage-summary">
-                                <p class="mb-0">
-                                    <span class="ongoing-card__label">Current stage</span>
-                                    @if (cur.Status == StageStatus.Completed)
-                                    {
-                                        <span class="fw-medium">@cur.Name</span>
-                                        @if (cur.ActualCompletedOn.HasValue)
-                                        {
-                                            @: (@cur.ActualCompletedOn.Value.ToString("dd-MMM-yyyy"))
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">date not available</span>
-                                        }
-                                    }
-                                    else
-                                    {
-                                        <span class="fw-medium">@cur.Name</span>
-                                        @if (cur.PlannedDue.HasValue)
-                                        {
-                                            @: (PDC: @cur.PlannedDue.Value.ToString("dd-MMM-yyyy"))
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">PDC: N/A</span>
-                                        }
-                                    }
-
-                                    <!-- SECTION: Stage age -->
-                                    <span class="ms-2 text-muted ongoing-card__stage-chip">
-                                        @if (presentStage.DaysSinceStartOrLastCompletion.HasValue)
-                                        {
-                                            var daysInCurrent = presentStage.DaysSinceStartOrLastCompletion.Value;
-                                            @: • @daysInCurrent day@(daysInCurrent == 1 ? "" : "s") in this stage
-                                        }
-                                    </span>
-
-                                    @if (cur.Status != StageStatus.Completed)
-                                    {
-                                        if (cur.PlannedDue.HasValue)
-                                        {
-                                            if (!isOverdue)
-                                            {
-                                                <span class="ms-2 text-success ongoing-card__stage-chip">
-                                                    @daysToPdc day@(daysToPdc == 1 ? "" : "s") to PDC
-                                                </span>
-                                            }
-                                            else
-                                            {
-                                                <span class="ms-2 text-danger ongoing-card__stage-chip">
-                                                    overdue by @daysToPdc day@(daysToPdc == 1 ? "" : "s")
-                                                </span>
-                                            }
-                                        }
-                                        else
-                                        {
-                                            <span class="ms-2 text-muted ongoing-card__stage-chip">
-                                                • no PDC set
-                                            </span>
-                                        }
-                                    }
-                                </p>
-                            </div>
-                        </div>
 
 
                         <!-- SECTION: Timeline -->
