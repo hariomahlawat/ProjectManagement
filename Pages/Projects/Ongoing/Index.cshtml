@@ -154,17 +154,37 @@ else
                     <div class="card-body p-0">
                         <!-- SECTION: Timeline card header -->
                         <header class="ongoing-card__header">
-                            <div>
-                                <h2 class="ongoing-card__title mb-1">
-                                    <a asp-page="/Projects/Overview"
-                                       asp-route-id="@item.ProjectId"
-                                       class="text-decoration-none">
-                                        @item.ProjectName
-                                    </a>
-                                </h2>
-                                <p class="ongoing-card__meta mb-0">
-                                    @item.ProjectCategoryName
-                                </p>
+                            <!-- SECTION: Header left (thumbnail + text) -->
+                            <div class="ongoing-card__header-left">
+                                <div class="ongoing-card__thumb" aria-hidden="true">
+                                    @if (item.CoverPhotoId.HasValue)
+                                    {
+                                        <img src="@Url.Page("/Projects/Photos/View", new { id = item.ProjectId, photoId = item.CoverPhotoId.Value, size = "xs", v = item.CoverPhotoVersion })"
+                                             loading="lazy"
+                                             alt=""
+                                             class="ongoing-card__thumb-img" />
+                                    }
+                                    else
+                                    {
+                                        <div class="ongoing-card__thumb-placeholder" aria-hidden="true">
+                                            <i class="bi bi-image" aria-hidden="true"></i>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="ongoing-card__header-text">
+                                    <h2 class="ongoing-card__title mb-1">
+                                        <a asp-page="/Projects/Overview"
+                                           asp-route-id="@item.ProjectId"
+                                           class="text-decoration-none">
+                                            @item.ProjectName
+                                        </a>
+                                    </h2>
+                                    <p class="ongoing-card__meta mb-0">
+                                        @FormatValue(item.ProjectCategoryName)
+                                        <span class="ongoing-card__meta-divider">•</span>
+                                        Cost: @item.CostLakhsText
+                                    </p>
+                                </div>
                             </div>
                             <div class="text-md-end">
                                 <p class="ongoing-card__label mb-0">Last completed</p>
