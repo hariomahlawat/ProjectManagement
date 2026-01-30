@@ -39,6 +39,9 @@
     string FormatDate(DateOnly? date)
         => date.HasValue ? date.Value.ToString("dd-MMM-yyyy") : "N/A";
 
+    string FormatMilestoneDate(DateOnly? date)
+        => date.HasValue ? date.Value.ToString("dd-MMM-yyyy") : "NA";
+
     string FormatValue(string? value)
         => string.IsNullOrWhiteSpace(value) ? "N/A" : value;
 
@@ -504,8 +507,8 @@ else
                                     </td>
                                     <td>@FormatValue(row.ProjectCategoryName)</td>
                                     <td>@row.CostLakhsText</td>
-                                    <td>@FormatDate(row.IpaDate)</td>
-                                    <td>@FormatDate(row.AonDate)</td>
+                                    <td>@FormatMilestoneDate(row.IpaDate)</td>
+                                    <td>@FormatMilestoneDate(row.AonDate)</td>
                                     <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
                                     <td class="col-stage">@FormatDate(row.PresentStagePdc)</td>
                                     <td class="col-remarks js-ongoing-remark-cell"
@@ -567,8 +570,8 @@ else
                                     </td>
                                     <td>@FormatValue(row.ProjectCategoryName)</td>
                                     <td>@row.CostLakhsText</td>
-                                    <td>@FormatDate(row.IpaDate)</td>
-                                    <td>@FormatDate(row.AonDate)</td>
+                                    <td>@FormatMilestoneDate(row.IpaDate)</td>
+                                    <td>@FormatMilestoneDate(row.AonDate)</td>
                                     <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
                                     <td class="col-stage">@FormatDate(row.PresentStagePdc)</td>
                                     <td class="col-remarks js-ongoing-remark-cell"
