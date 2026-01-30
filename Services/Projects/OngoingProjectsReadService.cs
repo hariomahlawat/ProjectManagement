@@ -80,7 +80,9 @@ namespace ProjectManagement.Services.Projects
                     LeadPoName = p.LeadPoUser != null
                         ? (p.LeadPoUser.FullName ?? p.LeadPoUser.UserName)
                         : null,
-                    p.WorkflowVersion
+                    p.WorkflowVersion,
+                    p.CoverPhotoId,
+                    p.CoverPhotoVersion
                 })
                 .ToListAsync(cancellationToken);
 
@@ -90,6 +92,27 @@ namespace ProjectManagement.Services.Projects
             }
 
             var projectIds = projects.Select(p => p.Id).ToArray();
+
+            // SECTION: Cover photo versions (batched read to avoid N+1)
+            var coverPhotoIds = projects
+                .Where(x => x.CoverPhotoId.HasValue)
+                .Select(x => x.CoverPhotoId!.Value)
+                .Distinct()
+                .ToArray();
+
+            var coverPhotoVersionByProject = new Dictionary<int, int?>();
+            if (coverPhotoIds.Length > 0)
+            {
+                var coverPhotos = await _db.ProjectPhotos
+                    .AsNoTracking()
+                    .Where(p => projectIds.Contains(p.ProjectId) && coverPhotoIds.Contains(p.Id))
+                    .Select(p => new { p.ProjectId, p.Version })
+                    .ToListAsync(cancellationToken);
+
+                coverPhotoVersionByProject = coverPhotos
+                    .GroupBy(p => p.ProjectId)
+                    .ToDictionary(g => g.Key, g => (int?)g.First().Version);
+            }
 
             // SECTION: Cost facts (batched read to avoid N+1)
             var pncFacts = await _db.ProjectPncFacts
@@ -164,6 +187,15 @@ namespace ProjectManagement.Services.Projects
 
             foreach (var proj in projects)
             {
+                // SECTION: Resolve cover photo version fallback
+                int? resolvedCoverPhotoVersion = null;
+                if (proj.CoverPhotoId.HasValue)
+                {
+                    resolvedCoverPhotoVersion = coverPhotoVersionByProject.TryGetValue(proj.Id, out var version)
+                        ? version
+                        : proj.CoverPhotoVersion;
+                }
+
                 // SECTION: Cost selection (PNC -> L1 -> AON -> IPA)
                 decimal? pnc = pncByProject.TryGetValue(proj.Id, out var pncVal) ? pncVal : null;
                 decimal? l1 = l1ByProject.TryGetValue(proj.Id, out var l1Val) ? l1Val : null;
@@ -373,7 +405,9 @@ namespace ProjectManagement.Services.Projects
                     Stages = stageDtos,
                     RecentInternalRemarks = recentInternal,
                     LatestExternalRemark = latestExternalDto,
-                    CostLakhsText = costText
+                    CostLakhsText = costText,
+                    CoverPhotoId = proj.CoverPhotoId,
+                    CoverPhotoVersion = resolvedCoverPhotoVersion
                 });
             }
 
@@ -502,6 +536,9 @@ namespace ProjectManagement.Services.Projects
         public OngoingProjectExternalRemarkDto? LatestExternalRemark { get; init; }
 
         public string CostLakhsText { get; init; } = "NA";
+
+        public int? CoverPhotoId { get; init; }
+        public int? CoverPhotoVersion { get; init; }
     }
 
     // SECTION: Latest external remark details for inline editing
