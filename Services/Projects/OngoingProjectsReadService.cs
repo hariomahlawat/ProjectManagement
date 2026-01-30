@@ -226,12 +226,16 @@ namespace ProjectManagement.Services.Projects
                     label = "IPA Cost";
                 }
 
-                string costText = "NA";
+                // SECTION: Cost formatting (full + short)
+                string costFull = "NA";
+                string costShort = "NA";
                 if (chosenInInr.HasValue && label != null)
                 {
                     var lakhs = chosenInInr.Value / 100000m;
                     var lakhsText = lakhs.ToString("0.##", CultureInfo.InvariantCulture);
-                    costText = $"{lakhsText} lakhs ({label})";
+                    var shortLabel = label.Replace(" Cost", string.Empty, StringComparison.Ordinal);
+                    costFull = $"{lakhsText} lakhs ({label})";
+                    costShort = $"{lakhsText} ({shortLabel})";
                 }
 
                 // stages grouped by code
@@ -405,7 +409,9 @@ namespace ProjectManagement.Services.Projects
                     Stages = stageDtos,
                     RecentInternalRemarks = recentInternal,
                     LatestExternalRemark = latestExternalDto,
-                    CostLakhsText = costText,
+                    CostLakhsText = costFull,
+                    CostLakhsFull = costFull,
+                    CostLakhsShort = costShort,
                     CoverPhotoId = proj.CoverPhotoId,
                     CoverPhotoVersion = resolvedCoverPhotoVersion
                 });
@@ -536,6 +542,8 @@ namespace ProjectManagement.Services.Projects
         public OngoingProjectExternalRemarkDto? LatestExternalRemark { get; init; }
 
         public string CostLakhsText { get; init; } = "NA";
+        public string CostLakhsFull { get; init; } = "NA";
+        public string CostLakhsShort { get; init; } = "NA";
 
         public int? CoverPhotoId { get; init; }
         public int? CoverPhotoVersion { get; init; }

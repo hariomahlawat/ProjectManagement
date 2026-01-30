@@ -6148,6 +6148,51 @@ body.has-project-photo-preview-dialog {
     height: auto;
 }
 
+/* --- SECTION: Ongoing projects table layout --- */
+.ongoing-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.ongoing-table .col-project {
+    width: 240px;
+}
+
+.ongoing-table .col-category {
+    width: 110px;
+}
+
+.ongoing-table .col-cost {
+    width: 120px;
+}
+
+.ongoing-table .col-date {
+    width: 90px;
+}
+
+.ongoing-table .col-pdc {
+    width: 105px;
+}
+
+.ongoing-table .col-stage {
+    width: 160px;
+}
+
+.ongoing-table .col-remarks {
+    width: auto;
+}
+
+/* --- SECTION: Ongoing projects table cell rules --- */
+.ongoing-table td.col-date,
+.ongoing-table td.col-pdc {
+    white-space: nowrap;
+    text-align: center;
+}
+
+.ongoing-table td.col-cost {
+    white-space: nowrap;
+}
+
 .ongoing-table th.col-stage,
 .ongoing-table td.col-stage {
     background-color: var(--pm-surface-foam);
@@ -6161,6 +6206,38 @@ body.has-project-photo-preview-dialog {
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
+    word-break: break-word;
+}
+
+/* --- SECTION: Project name cell (thumbnail + text) --- */
+.projcell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.projcell__thumb {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex: 0 0 auto;
+    background: #f1f3f5;
+}
+
+.projcell__thumb--placeholder {
+    display: grid;
+    place-items: center;
+    color: #9aa3ad;
+}
+
+.projcell__text {
+    min-width: 0;
+}
+
+.projcell__text .project-link {
+    display: inline;
     word-break: break-word;
 }
 

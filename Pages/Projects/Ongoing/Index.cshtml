@@ -453,24 +453,24 @@ else
             <div class="pm-table-wrap table-responsive ongoing-table-wrap">
                 <table class="table pm-table pm-table-sm align-middle mb-0 ongoing-table">
                     <colgroup>
-                        <col />
-                        <col />
-                        <col />
-                        <col />
-                        <col />
+                        <col class="col-project" />
+                        <col class="col-category" />
+                        <col class="col-cost" />
+                        <col class="col-date" />
+                        <col class="col-date" />
                         <col class="col-stage" />
-                        <col class="col-stage" />
-                        <col />
+                        <col class="col-pdc" />
+                        <col class="col-remarks" />
                     </colgroup>
                     <thead>
                         <tr>
-                            <th>Project name</th>
-                            <th>Category</th>
-                            <th>Cost (In Lakhs)</th>
-                            <th>IPA date</th>
-                            <th>AoN date</th>
+                            <th class="col-project">Project name</th>
+                            <th class="col-category">Category</th>
+                            <th class="col-cost">Cost (In Lakhs)</th>
+                            <th class="col-date">IPA date</th>
+                            <th class="col-date">AoN date</th>
                             <th class="col-stage">Present stage</th>
-                            <th class="col-stage">Present stage PDC</th>
+                            <th class="col-pdc">Present stage PDC</th>
                             <th class="col-remarks">Remarks</th>
                         </tr>
                     </thead>
@@ -500,19 +500,37 @@ else
                                 var hasRemarkBody = !string.IsNullOrWhiteSpace(remarkBody);
 
                                 <tr>
-                                    <td>
-                                        <a asp-page="/Projects/Overview"
-                                           asp-route-id="@row.ProjectId"
-                                           class="text-decoration-none fw-semibold">
-                                            @row.ProjectName
-                                        </a>
+                                    <td class="col-project">
+                                        <!-- SECTION: Project name cell (thumbnail + link) -->
+                                        <div class="projcell">
+                                            @if (row.CoverPhotoId.HasValue)
+                                            {
+                                                <img class="projcell__thumb"
+                                                     src="@Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.CoverPhotoId.Value, size = "xs", v = row.CoverPhotoVersion })"
+                                                     alt=""
+                                                     loading="lazy" />
+                                            }
+                                            else
+                                            {
+                                                <div class="projcell__thumb projcell__thumb--placeholder" aria-hidden="true">
+                                                    <span class="bi bi-image" aria-hidden="true"></span>
+                                                </div>
+                                            }
+                                            <div class="projcell__text">
+                                                <a asp-page="/Projects/Overview"
+                                                   asp-route-id="@row.ProjectId"
+                                                   class="project-link text-decoration-none fw-semibold">
+                                                    @row.ProjectName
+                                                </a>
+                                            </div>
+                                        </div>
                                     </td>
-                                    <td>@FormatValue(row.ProjectCategoryName)</td>
-                                    <td>@row.CostLakhsText</td>
-                                    <td>@FormatMilestoneDate(row.IpaDate)</td>
-                                    <td>@FormatMilestoneDate(row.AonDate)</td>
+                                    <td class="col-category">@FormatValue(row.ProjectCategoryName)</td>
+                                    <td class="col-cost" title="@row.CostLakhsFull">@row.CostLakhsShort</td>
+                                    <td class="col-date">@FormatMilestoneDate(row.IpaDate)</td>
+                                    <td class="col-date">@FormatMilestoneDate(row.AonDate)</td>
                                     <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
-                                    <td class="col-stage">@FormatDate(row.PresentStagePdc)</td>
+                                    <td class="col-pdc">@FormatDate(row.PresentStagePdc)</td>
                                     <td class="col-remarks js-ongoing-remark-cell"
                                         data-project-id="@row.ProjectId"
                                         data-remark-id="@remarkId"
@@ -563,19 +581,37 @@ else
                                 var hasRemarkBody = !string.IsNullOrWhiteSpace(remarkBody);
 
                                 <tr>
-                                    <td>
-                                        <a asp-page="/Projects/Overview"
-                                           asp-route-id="@row.ProjectId"
-                                           class="text-decoration-none fw-semibold">
-                                            @row.ProjectName
-                                        </a>
+                                    <td class="col-project">
+                                        <!-- SECTION: Project name cell (thumbnail + link) -->
+                                        <div class="projcell">
+                                            @if (row.CoverPhotoId.HasValue)
+                                            {
+                                                <img class="projcell__thumb"
+                                                     src="@Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.CoverPhotoId.Value, size = "xs", v = row.CoverPhotoVersion })"
+                                                     alt=""
+                                                     loading="lazy" />
+                                            }
+                                            else
+                                            {
+                                                <div class="projcell__thumb projcell__thumb--placeholder" aria-hidden="true">
+                                                    <span class="bi bi-image" aria-hidden="true"></span>
+                                                </div>
+                                            }
+                                            <div class="projcell__text">
+                                                <a asp-page="/Projects/Overview"
+                                                   asp-route-id="@row.ProjectId"
+                                                   class="project-link text-decoration-none fw-semibold">
+                                                    @row.ProjectName
+                                                </a>
+                                            </div>
+                                        </div>
                                     </td>
-                                    <td>@FormatValue(row.ProjectCategoryName)</td>
-                                    <td>@row.CostLakhsText</td>
-                                    <td>@FormatMilestoneDate(row.IpaDate)</td>
-                                    <td>@FormatMilestoneDate(row.AonDate)</td>
+                                    <td class="col-category">@FormatValue(row.ProjectCategoryName)</td>
+                                    <td class="col-cost" title="@row.CostLakhsFull">@row.CostLakhsShort</td>
+                                    <td class="col-date">@FormatMilestoneDate(row.IpaDate)</td>
+                                    <td class="col-date">@FormatMilestoneDate(row.AonDate)</td>
                                     <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
-                                    <td class="col-stage">@FormatDate(row.PresentStagePdc)</td>
+                                    <td class="col-pdc">@FormatDate(row.PresentStagePdc)</td>
                                     <td class="col-remarks js-ongoing-remark-cell"
                                         data-project-id="@row.ProjectId"
                                         data-remark-id="@remarkId"
