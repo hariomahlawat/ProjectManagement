@@ -236,67 +236,69 @@ else
                                     }
                                 }
                             }
-                            <p class="mb-0">
-                                <span class="ongoing-card__label">Current stage</span>
-                                @if (cur.Status == StageStatus.Completed)
-                                {
-                                    <span class="fw-medium">@cur.Name</span>
-                                    @if (cur.ActualCompletedOn.HasValue)
+                            <div class="ongoing-card__stage-summary">
+                                <p class="mb-0">
+                                    <span class="ongoing-card__label">Current stage</span>
+                                    @if (cur.Status == StageStatus.Completed)
                                     {
-                                        @: (@cur.ActualCompletedOn.Value.ToString("dd-MMM-yyyy"))
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">date not available</span>
-                                    }
-                                }
-                                else
-                                {
-                                    <span class="fw-medium">@cur.Name</span>
-                                    @if (cur.PlannedDue.HasValue)
-                                    {
-                                        @: (PDC: @cur.PlannedDue.Value.ToString("dd-MMM-yyyy"))
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">PDC: N/A</span>
-                                    }
-                                }
-
-                                <!-- SECTION: Stage age -->
-                                <span class="ms-2 text-muted ongoing-card__stage-chip">
-                                    @if (presentStage.DaysSinceStartOrLastCompletion.HasValue)
-                                    {
-                                        var daysInCurrent = presentStage.DaysSinceStartOrLastCompletion.Value;
-                                        @: • @daysInCurrent day@(daysInCurrent == 1 ? "" : "s") in this stage
-                                    }
-                                </span>
-
-                                @if (cur.Status != StageStatus.Completed)
-                                {
-                                    if (cur.PlannedDue.HasValue)
-                                    {
-                                        if (!isOverdue)
+                                        <span class="fw-medium">@cur.Name</span>
+                                        @if (cur.ActualCompletedOn.HasValue)
                                         {
-                                            <span class="ms-2 text-success ongoing-card__stage-chip">
-                                                @daysToPdc day@(daysToPdc == 1 ? "" : "s") to PDC
-                                            </span>
+                                            @: (@cur.ActualCompletedOn.Value.ToString("dd-MMM-yyyy"))
                                         }
                                         else
                                         {
-                                            <span class="ms-2 text-danger ongoing-card__stage-chip">
-                                                overdue by @daysToPdc day@(daysToPdc == 1 ? "" : "s")
-                                            </span>
+                                            <span class="text-muted">date not available</span>
                                         }
                                     }
                                     else
                                     {
-                                        <span class="ms-2 text-muted ongoing-card__stage-chip">
-                                            • no PDC set
-                                        </span>
+                                        <span class="fw-medium">@cur.Name</span>
+                                        @if (cur.PlannedDue.HasValue)
+                                        {
+                                            @: (PDC: @cur.PlannedDue.Value.ToString("dd-MMM-yyyy"))
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">PDC: N/A</span>
+                                        }
                                     }
-                                }
-                            </p>
+
+                                    <!-- SECTION: Stage age -->
+                                    <span class="ms-2 text-muted ongoing-card__stage-chip">
+                                        @if (presentStage.DaysSinceStartOrLastCompletion.HasValue)
+                                        {
+                                            var daysInCurrent = presentStage.DaysSinceStartOrLastCompletion.Value;
+                                            @: • @daysInCurrent day@(daysInCurrent == 1 ? "" : "s") in this stage
+                                        }
+                                    </span>
+
+                                    @if (cur.Status != StageStatus.Completed)
+                                    {
+                                        if (cur.PlannedDue.HasValue)
+                                        {
+                                            if (!isOverdue)
+                                            {
+                                                <span class="ms-2 text-success ongoing-card__stage-chip">
+                                                    @daysToPdc day@(daysToPdc == 1 ? "" : "s") to PDC
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="ms-2 text-danger ongoing-card__stage-chip">
+                                                    overdue by @daysToPdc day@(daysToPdc == 1 ? "" : "s")
+                                                </span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="ms-2 text-muted ongoing-card__stage-chip">
+                                                • no PDC set
+                                            </span>
+                                        }
+                                    }
+                                </p>
+                            </div>
                         </div>
 
 
