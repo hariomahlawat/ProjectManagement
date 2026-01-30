@@ -6248,6 +6248,10 @@ body.has-project-photo-preview-dialog {
 .ongoing-card {
     background: #fff;
     border-radius: 0.85rem;
+    /* SECTION: Timeline card header layout constants */
+    --thumb-size: 64px;
+    --thumb-gap: 12px;
+    --thumb-offset: calc(var(--thumb-size) + var(--thumb-gap));
 }
 
 .ongoing-card__header {
@@ -6261,7 +6265,7 @@ body.has-project-photo-preview-dialog {
 .ongoing-card__header-left {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: var(--thumb-gap);
     min-width: 0;
 }
 
@@ -6271,9 +6275,9 @@ body.has-project-photo-preview-dialog {
 
 .ongoing-card__thumb {
     flex: 0 0 auto;
-    width: 52px;
-    height: 52px;
-    border-radius: 0.6rem;
+    width: var(--thumb-size);
+    height: var(--thumb-size);
+    border-radius: 10px;
     overflow: hidden;
     background: #f1f3f5;
     display: flex;
@@ -6327,6 +6331,11 @@ body.has-project-photo-preview-dialog {
 .ongoing-card__info {
     padding: 0 1.25rem 0.75rem 1.25rem;
     border-bottom: 1px solid rgba(0,0,0,.035);
+}
+
+/* SECTION: Timeline card stage summary alignment */
+.ongoing-card__stage-summary {
+    padding-left: var(--thumb-offset);
 }
 
 /* stage metadata chips */
