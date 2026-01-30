@@ -505,7 +505,7 @@ namespace ProjectManagement.Services.Projects
             var stage = stages.FirstOrDefault(s =>
                 string.Equals(s.Code, stageCode, StringComparison.OrdinalIgnoreCase));
 
-            return stage?.ActualCompletedOn ?? stage?.ActualStart;
+            return stage?.ActualCompletedOn;
         }
     }
 
