@@ -8306,3 +8306,114 @@ body {
     color: #475569 !important;
     line-height: 1.6;
 }
+
+/* =========================
+   Ongoing Projects – Top Area
+   ========================= */
+
+.ongoing-top {
+    margin-bottom: 1rem;
+}
+
+.ongoing-top__title {
+    font-size: 2rem;
+    line-height: 1.15;
+    margin: 0;
+}
+
+.ongoing-top__kpis {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.kpi-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(0, 0, 0, 0.02);
+    font-size: 0.85rem;
+}
+
+/* Command Bar container */
+.cmdbar {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* Filters row: filters-first */
+.cmdbar__filters {
+    display: grid;
+    grid-template-columns: 240px minmax(320px, 1fr) minmax(280px, 1fr);
+    gap: 1rem;
+    align-items: end;
+}
+
+/* Make officer visually dominant */
+.cmdbar__field--officer select,
+.cmdbar__field--officer .form-select {
+    font-weight: 600;
+}
+
+/* Labels */
+.cmdbar__label {
+    display: block;
+    font-size: 0.8rem;
+    color: rgba(0, 0, 0, 0.65);
+    margin-bottom: 0.35rem;
+}
+
+/* Actions row */
+.cmdbar__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.9rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* Segmented control */
+.segmented {
+    display: inline-flex;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.segmented__item {
+    padding: 0.45rem 0.75rem;
+    text-decoration: none;
+    color: inherit;
+    font-size: 0.9rem;
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.segmented__item:last-child {
+    border-right: none;
+}
+
+.segmented__item.is-active {
+    background: #0d6efd;
+    color: #fff;
+}
+
+/* Responsive: stack filters cleanly */
+@media (max-width: 992px) {
+    .cmdbar__filters {
+        grid-template-columns: 1fr;
+    }
+
+    .cmdbar__actions {
+        justify-content: flex-start;
+    }
+}

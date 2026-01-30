@@ -45,73 +45,105 @@
     string FormatValue(string? value)
         => string.IsNullOrWhiteSpace(value) ? "N/A" : value;
 
+    // SECTION: KPI helpers
+    int GetCategoryCount(string categoryName)
+    {
+        var match = Model.FilteredCategoryCounts
+            .FirstOrDefault(category => string.Equals(
+                category.CategoryName,
+                categoryName,
+                StringComparison.OrdinalIgnoreCase));
+
+        return match?.Count ?? 0;
+    }
+
 }
 
-<!-- SECTION: Page header -->
-<div class="ongoing-projects__header mb-3">
-    <h1 class="mb-0">Ongoing projects – progress &amp; timelines</h1>
-    <span class="ongoing-projects__counts">@Model.HeaderCountsText</span>
-</div>
+<!-- SECTION: Ongoing projects top area -->
+<div class="ongoing-top">
+    <!-- SECTION: Page header + KPI chips -->
+    <div class="ongoing-top__header">
+        <div class="ongoing-top__titleblock">
+            <h1 class="ongoing-top__title">Ongoing projects – progress &amp; timelines</h1>
+            <div class="ongoing-top__kpis" aria-label="Project counts">
+                <span class="kpi-chip">Total <strong>@Model.FilteredTotal</strong></span>
+                <span class="kpi-chip">CoE <strong>@GetCategoryCount("CoE")</strong></span>
+                <span class="kpi-chip">DCD <strong>@GetCategoryCount("DCD")</strong></span>
+                <span class="kpi-chip">Other <strong>@GetCategoryCount("Other")</strong></span>
+            </div>
+        </div>
+    </div>
 
-<form id="ongoingProjectsFilterForm"
-      method="get"
-      class="row g-3 align-items-end mb-4"
-      novalidate>
-    <!-- SECTION: Persist view selection -->
-    <input type="hidden" asp-for="View" />
-    <div class="col-12 col-md-3">
-        <label asp-for="ProjectCategoryId" class="form-label">Project category</label>
-        <select asp-for="ProjectCategoryId"
-                asp-items="Model.ProjectCategoryOptions"
-                class="form-select form-select-sm"></select>
-    </div>
-    <div class="col-12 col-md-3">
-        <label asp-for="ProjectOfficerId" class="form-label">Project officer</label>
-        <select asp-for="ProjectOfficerId"
-                asp-items="Model.ProjectOfficerOptions"
-                class="form-select form-select-sm"></select>
-    </div>
-    <div class="col-12 col-md-3">
-        <label asp-for="Search" class="form-label">Search by project name</label>
-        <input asp-for="Search" class="form-control form-control-sm" />
-    </div>
-    <div class="col-12 col-md-3 d-flex gap-2 justify-content-md-end align-items-center">
-        <!-- SECTION: View toggle -->
-        <div class="btn-group btn-group-sm me-1" role="group" aria-label="View switcher">
+    <!-- SECTION: Command bar -->
+    <form id="ongoingProjectsFilterForm"
+          method="get"
+          class="cmdbar"
+          novalidate>
+        <!-- SECTION: Persist view selection -->
+        <input type="hidden" asp-for="View" />
+
+        <!-- SECTION: Filters row -->
+        <div class="cmdbar__filters">
+            <div class="cmdbar__field cmdbar__field--category">
+                <label asp-for="ProjectCategoryId" class="cmdbar__label">Project category</label>
+                <select asp-for="ProjectCategoryId"
+                        asp-items="Model.ProjectCategoryOptions"
+                        class="form-select form-select-sm"></select>
+            </div>
+            <div class="cmdbar__field cmdbar__field--officer">
+                <label asp-for="ProjectOfficerId" class="cmdbar__label">Project officer</label>
+                <select asp-for="ProjectOfficerId"
+                        asp-items="Model.ProjectOfficerOptions"
+                        class="form-select form-select-sm"></select>
+            </div>
+            <div class="cmdbar__field cmdbar__field--search">
+                <label asp-for="Search" class="cmdbar__label">Search by project name</label>
+                <input asp-for="Search" class="form-control form-control-sm" />
+            </div>
+        </div>
+
+        <!-- SECTION: Actions row -->
+        <div class="cmdbar__actions">
+            <div class="segmented" role="tablist" aria-label="View">
+                <a asp-page="./Index"
+                   asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
+                   asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
+                   asp-route-Search="@Model.Search"
+                   asp-route-View="timeline"
+                   class="segmented__item @(isTableView ? string.Empty : "is-active")"
+                   role="tab"
+                   aria-selected="@(!isTableView)"
+                   aria-current="@(isTableView ? null : "page")">
+                    Timeline view
+                </a>
+                <a asp-page="./Index"
+                   asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
+                   asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
+                   asp-route-Search="@Model.Search"
+                   asp-route-View="table"
+                   class="segmented__item @(isTableView ? "is-active" : string.Empty)"
+                   role="tab"
+                   aria-selected="@isTableView"
+                   aria-current="@(isTableView ? "page" : null)">
+                    Table view
+                </a>
+            </div>
+            <button type="submit" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-funnel" aria-hidden="true"></i>
+                <span>Filter</span>
+            </button>
             <a asp-page="./Index"
+               asp-page-handler="Export"
                asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
                asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
                asp-route-Search="@Model.Search"
-               asp-route-View="timeline"
-               class="btn @(isTableView ? "btn-outline-primary" : "btn-primary")"
-               aria-pressed="@(!isTableView)">
-                Timeline view
-            </a>
-            <a asp-page="./Index"
-               asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
-               asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
-               asp-route-Search="@Model.Search"
-               asp-route-View="table"
-               class="btn @(isTableView ? "btn-primary" : "btn-outline-primary")"
-               aria-pressed="@isTableView">
-                Table view
+               asp-route-View="@Model.View"
+               class="btn btn-sm btn-outline-secondary">
+                Export
             </a>
         </div>
-        <button type="submit" class="btn btn-sm btn-primary">
-            <i class="bi bi-funnel" aria-hidden="true"></i>
-            <span>Filter</span>
-        </button>
-        <a asp-page="./Index"
-           asp-page-handler="Export"
-           asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
-           asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
-           asp-route-Search="@Model.Search"
-           asp-route-View="@Model.View"
-           class="btn btn-sm btn-outline-secondary">
-            Export
-        </a>
-    </div>
-</form>
+    </form>
+</div>
 
 @if (Model.Items.Count == 0)
 {
