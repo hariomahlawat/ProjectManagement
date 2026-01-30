@@ -25,7 +25,7 @@ namespace ProjectManagement.Services.Projects
             var col = 1;
             ws.Cell(1, col++).Value = "Project name";
             ws.Cell(1, col++).Value = "Project category";
-            ws.Cell(1, col++).Value = "Project officer";
+            ws.Cell(1, col++).Value = "Cost (In Lakhs)";
             ws.Cell(1, col++).Value = "Current stage";
             ws.Cell(1, col++).Value = "Current stage date / PDC";
             ws.Cell(1, col++).Value = "Last completed stage";
@@ -44,7 +44,7 @@ namespace ProjectManagement.Services.Projects
                 col = 1;
                 ws.Cell(row, col++).Value = item.ProjectName;
                 ws.Cell(row, col++).Value = item.ProjectCategoryName;
-                ws.Cell(row, col++).Value = item.LeadPoName;
+                ws.Cell(row, col++).Value = item.CostLakhsText;
 
                 // current stage (name)
                 ws.Cell(row, col++).Value = item.CurrentStageName;
