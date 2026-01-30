@@ -9,6 +9,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -90,6 +91,55 @@ namespace ProjectManagement.Services.Projects
 
             var projectIds = projects.Select(p => p.Id).ToArray();
 
+            // SECTION: Cost facts (batched read to avoid N+1)
+            var pncFacts = await _db.ProjectPncFacts
+                .AsNoTracking()
+                .Where(x => projectIds.Contains(x.ProjectId))
+                .Select(x => new { x.ProjectId, x.PncCost, x.CreatedOnUtc })
+                .ToListAsync(cancellationToken);
+
+            var l1Facts = await _db.ProjectCommercialFacts
+                .AsNoTracking()
+                .Where(x => projectIds.Contains(x.ProjectId))
+                .Select(x => new { x.ProjectId, x.L1Cost, x.CreatedOnUtc })
+                .ToListAsync(cancellationToken);
+
+            var aonFacts = await _db.ProjectAonFacts
+                .AsNoTracking()
+                .Where(x => projectIds.Contains(x.ProjectId))
+                .Select(x => new { x.ProjectId, x.AonCost, x.CreatedOnUtc })
+                .ToListAsync(cancellationToken);
+
+            var ipaFacts = await _db.ProjectIpaFacts
+                .AsNoTracking()
+                .Where(x => projectIds.Contains(x.ProjectId))
+                .Select(x => new { x.ProjectId, x.IpaCost, x.CreatedOnUtc })
+                .ToListAsync(cancellationToken);
+
+            var pncByProject = pncFacts
+                .GroupBy(x => x.ProjectId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (decimal?)g.OrderByDescending(x => x.CreatedOnUtc).First().PncCost);
+
+            var l1ByProject = l1Facts
+                .GroupBy(x => x.ProjectId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (decimal?)g.OrderByDescending(x => x.CreatedOnUtc).First().L1Cost);
+
+            var aonByProject = aonFacts
+                .GroupBy(x => x.ProjectId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (decimal?)g.OrderByDescending(x => x.CreatedOnUtc).First().AonCost);
+
+            var ipaByProject = ipaFacts
+                .GroupBy(x => x.ProjectId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (decimal?)g.OrderByDescending(x => x.CreatedOnUtc).First().IpaCost);
+
             // 1) stages for the selected projects
             var allStages = await _db.ProjectStages
                 .AsNoTracking()
@@ -114,6 +164,44 @@ namespace ProjectManagement.Services.Projects
 
             foreach (var proj in projects)
             {
+                // SECTION: Cost selection (PNC -> L1 -> AON -> IPA)
+                decimal? pnc = pncByProject.TryGetValue(proj.Id, out var pncVal) ? pncVal : null;
+                decimal? l1 = l1ByProject.TryGetValue(proj.Id, out var l1Val) ? l1Val : null;
+                decimal? aon = aonByProject.TryGetValue(proj.Id, out var aonVal) ? aonVal : null;
+                decimal? ipa = ipaByProject.TryGetValue(proj.Id, out var ipaVal) ? ipaVal : null;
+
+                decimal? chosenInInr = null;
+                string? label = null;
+
+                if (pnc.HasValue)
+                {
+                    chosenInInr = pnc;
+                    label = "PNC Cost";
+                }
+                else if (l1.HasValue)
+                {
+                    chosenInInr = l1;
+                    label = "L1 Cost";
+                }
+                else if (aon.HasValue)
+                {
+                    chosenInInr = aon;
+                    label = "AON Cost";
+                }
+                else if (ipa.HasValue)
+                {
+                    chosenInInr = ipa;
+                    label = "IPA Cost";
+                }
+
+                string costText = "NA";
+                if (chosenInInr.HasValue && label != null)
+                {
+                    var lakhs = chosenInInr.Value / 100000m;
+                    var lakhsText = lakhs.ToString("0.##", CultureInfo.InvariantCulture);
+                    costText = $"{lakhsText} lakhs ({label})";
+                }
+
                 // stages grouped by code
                 var stagesForProject = allStages
                     .Where(s => s.ProjectId == proj.Id)
@@ -284,7 +372,8 @@ namespace ProjectManagement.Services.Projects
                     PresentStagePdc = presentStagePdc,
                     Stages = stageDtos,
                     RecentInternalRemarks = recentInternal,
-                    LatestExternalRemark = latestExternalDto
+                    LatestExternalRemark = latestExternalDto,
+                    CostLakhsText = costText
                 });
             }
 
@@ -411,6 +500,8 @@ namespace ProjectManagement.Services.Projects
 
         public IReadOnlyList<OngoingProjectRemarkDto> RecentInternalRemarks { get; init; } = Array.Empty<OngoingProjectRemarkDto>();
         public OngoingProjectExternalRemarkDto? LatestExternalRemark { get; init; }
+
+        public string CostLakhsText { get; init; } = "NA";
     }
 
     // SECTION: Latest external remark details for inline editing

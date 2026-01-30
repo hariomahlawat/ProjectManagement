@@ -164,10 +164,6 @@ else
                                 </h2>
                                 <p class="ongoing-card__meta mb-0">
                                     @item.ProjectCategoryName
-                                    @if (!string.IsNullOrWhiteSpace(item.LeadPoName))
-                                    {
-                                        @: • Officer: @item.LeadPoName
-                                    }
                                 </p>
                             </div>
                             <div class="text-md-end">
@@ -436,21 +432,21 @@ else
                         <col />
                         <col />
                         <col />
-                        <col class="col-stage" />
-                        <col class="col-stage" />
                         <col />
+                        <col class="col-stage" />
+                        <col class="col-stage" />
                         <col />
                     </colgroup>
                     <thead>
                         <tr>
                             <th>Project name</th>
                             <th>Category</th>
+                            <th>Cost (In Lakhs)</th>
                             <th>IPA date</th>
                             <th>AoN date</th>
                             <th class="col-stage">Present stage</th>
                             <th class="col-stage">Present stage PDC</th>
                             <th class="col-remarks">Remarks</th>
-                            <th>Project Officer</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -487,6 +483,7 @@ else
                                         </a>
                                     </td>
                                     <td>@FormatValue(row.ProjectCategoryName)</td>
+                                    <td>@row.CostLakhsText</td>
                                     <td>@FormatDate(row.IpaDate)</td>
                                     <td>@FormatDate(row.AonDate)</td>
                                     <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
@@ -517,7 +514,6 @@ else
                                             </div>
                                         }
                                     </td>
-                                    <td>@FormatValue(row.LeadPoName)</td>
                                 </tr>
                             }
                         }
@@ -550,6 +546,7 @@ else
                                         </a>
                                     </td>
                                     <td>@FormatValue(row.ProjectCategoryName)</td>
+                                    <td>@row.CostLakhsText</td>
                                     <td>@FormatDate(row.IpaDate)</td>
                                     <td>@FormatDate(row.AonDate)</td>
                                     <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
@@ -580,7 +577,6 @@ else
                                             </div>
                                         }
                                     </td>
-                                    <td>@FormatValue(row.LeadPoName)</td>
                                 </tr>
                             }
                         }
