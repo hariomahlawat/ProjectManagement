@@ -90,43 +90,49 @@
         <div class="ongoing-top__pipeline" aria-label="Stage bucket distribution">
             @if (Model.FilteredTotal > 0)
             {
-                <div class="stage-pipeline" role="group" aria-label="Stage pipeline">
-                    <div class="stage-pipeline__seg stage-pipeline__seg--apvl"
-                         style="--grow:@Model.BucketApvlCount"
-                         title="Apvl: FS, SOW, IPA">
-                        <span class="stage-pipeline__label">Apvl</span>
-                        <span class="stage-pipeline__count">@Model.BucketApvlCount</span>
+                <div class="stage-pipeline-wrap" aria-label="Stage distribution">
+                    <div class="stage-pipeline-wrap__caption">Stage distribution</div>
+
+                    <div class="stage-pipeline" role="group" aria-label="Stage pipeline">
+                        <div class="stage-pipeline__seg stage-pipeline__seg--apvl"
+                             style="--grow:@Model.BucketApvlCount"
+                             title="Apvl: FS, SOW, IPA">
+                            <span class="stage-pipeline__label">Apvl</span>
+                            <span class="stage-pipeline__count">@Model.BucketApvlCount</span>
+                        </div>
+
+                        <div class="stage-pipeline__seg stage-pipeline__seg--aon"
+                             style="--grow:@Model.BucketAonCount"
+                             title="AoN: AON">
+                            <span class="stage-pipeline__label">AoN</span>
+                            <span class="stage-pipeline__count">@Model.BucketAonCount</span>
+                        </div>
+
+                        <div class="stage-pipeline__seg stage-pipeline__seg--proc"
+                             style="--grow:@Model.BucketProcCount"
+                             title="GeM/Proc: BID, TEC, BM, COB, PNC, EAS, SO">
+                            <span class="stage-pipeline__label">GeM / Proc</span>
+                            <span class="stage-pipeline__count">@Model.BucketProcCount</span>
+                        </div>
+
+                        <div class="stage-pipeline__seg stage-pipeline__seg--devp"
+                             style="--grow:@Model.BucketDevpCount"
+                             title="Devp: DEVP, ATP, PAYMENT, TOT">
+                            <span class="stage-pipeline__label">Devp</span>
+                            <span class="stage-pipeline__count">@Model.BucketDevpCount</span>
+                        </div>
                     </div>
 
-                    <div class="stage-pipeline__seg stage-pipeline__seg--aon"
-                         style="--grow:@Model.BucketAonCount"
-                         title="AoN: AON">
-                        <span class="stage-pipeline__label">AoN</span>
-                        <span class="stage-pipeline__count">@Model.BucketAonCount</span>
-                    </div>
-
-                    <div class="stage-pipeline__seg stage-pipeline__seg--proc"
-                         style="--grow:@Model.BucketProcCount"
-                         title="GeM/Proc: BID, TEC, BM, COB, PNC, EAS, SO">
-                        <span class="stage-pipeline__label">GeM / Proc</span>
-                        <span class="stage-pipeline__count">@Model.BucketProcCount</span>
-                    </div>
-
-                    <div class="stage-pipeline__seg stage-pipeline__seg--devp"
-                         style="--grow:@Model.BucketDevpCount"
-                         title="Devp: DEVP, ATP, PAYMENT, TOT">
-                        <span class="stage-pipeline__label">Devp</span>
-                        <span class="stage-pipeline__count">@Model.BucketDevpCount</span>
-                    </div>
+                    @if (Model.BucketUnknownCount > 0)
+                    {
+                        <div class="stage-pipeline-wrap__meta">
+                            <span class="stage-pipeline__unknown"
+                                  title="Unknown current stage code found">
+                                Unknown: @Model.BucketUnknownCount
+                            </span>
+                        </div>
+                    }
                 </div>
-
-                @if (Model.BucketUnknownCount > 0)
-                {
-                    <span class="stage-pipeline__unknown"
-                          title="Unknown current stage code found">
-                        Unknown: @Model.BucketUnknownCount
-                    </span>
-                }
             }
             else
             {

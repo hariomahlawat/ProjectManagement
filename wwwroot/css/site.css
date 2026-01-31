@@ -8479,30 +8479,65 @@ body {
 }
 
 /* -- SECTION: Ongoing projects stage pipeline -- */
+.stage-pipeline-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+}
+
+.stage-pipeline-wrap__caption {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: rgba(15, 23, 42, 0.55);
+    text-align: center;
+    line-height: 1;
+}
+
+.stage-pipeline-wrap__meta {
+    display: flex;
+    justify-content: center;
+}
+
 .stage-pipeline {
     display: flex;
     align-items: stretch;
-    height: 34px;
+    height: 36px;
     border-radius: 999px;
     overflow: hidden;
-    border: 1px solid rgba(15, 23, 42, 0.12);
-    background: rgba(148, 163, 184, 0.1);
+    border: 1px solid rgba(15, 23, 42, 0.10);
+    background: var(--pm-card);
     min-width: 380px;
     max-width: 520px;
+    cursor: default;
 }
 
 .stage-pipeline__seg {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.35rem;
+    gap: 0.28rem;
     padding: 0 0.7rem;
     flex-basis: 0;
     flex-grow: var(--grow);
-    min-width: 80px;
+    min-width: 72px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: default;
+    user-select: none;
+}
+
+.stage-pipeline__seg::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: rgba(var(--pm-accent-rgb), 0.22);
 }
 
 .stage-pipeline__seg:not(:last-child) {
@@ -8510,9 +8545,9 @@ body {
 }
 
 .stage-pipeline__label {
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: rgba(15, 23, 42, 0.65);
+    font-size: 0.78rem;
+    font-weight: 650;
+    color: rgba(15, 23, 42, 0.58);
 }
 
 .stage-pipeline__count {
@@ -8538,8 +8573,20 @@ body {
     background: rgba(var(--pm-accent-rgb), 0.15);
 }
 
-.stage-pipeline__seg:hover {
-    filter: brightness(0.985);
+.stage-pipeline__seg--apvl::before {
+    background: rgba(var(--pm-accent-rgb), 0.22);
+}
+
+.stage-pipeline__seg--aon::before {
+    background: rgba(var(--pm-accent-rgb), 0.28);
+}
+
+.stage-pipeline__seg--proc::before {
+    background: rgba(var(--pm-accent-rgb), 0.34);
+}
+
+.stage-pipeline__seg--devp::before {
+    background: rgba(var(--pm-accent-rgb), 0.40);
 }
 
 .stage-pipeline__unknown {
