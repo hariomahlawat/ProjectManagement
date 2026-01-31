@@ -504,14 +504,19 @@ namespace ProjectManagement.Services.Projects
         }
 
         // SECTION: Stage milestone helpers
-        private static DateOnly? ResolveStageMilestoneDate(
+        internal static DateOnly? ResolveStageMilestoneDate(
             IEnumerable<OngoingProjectStageDto> stages,
             string stageCode)
         {
             var stage = stages.FirstOrDefault(s =>
                 string.Equals(s.Code, stageCode, StringComparison.OrdinalIgnoreCase));
 
-            return stage?.ActualCompletedOn;
+            if (stage == null || stage.Status != StageStatus.Completed)
+            {
+                return null;
+            }
+
+            return stage.ActualCompletedOn;
         }
     }
 

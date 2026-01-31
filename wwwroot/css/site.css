@@ -6159,15 +6159,15 @@ body.has-project-photo-preview-dialog {
 }
 
 .ongoing-table .col-category {
-    width: 110px;
+    width: 100px;
 }
 
 .ongoing-table .col-cost {
-    width: 120px;
+    width: 105px;
 }
 
 .ongoing-table .col-date {
-    width: 90px;
+    width: 80px;
 }
 
 .ongoing-table .col-pdc {
@@ -6175,7 +6175,7 @@ body.has-project-photo-preview-dialog {
 }
 
 .ongoing-table .col-stage {
-    width: 160px;
+    width: 150px;
 }
 
 .ongoing-table .col-remarks {
@@ -6326,13 +6326,13 @@ body.has-project-photo-preview-dialog {
     background: #fff;
     border-radius: 0.85rem;
     /* SECTION: Timeline card header layout constants */
-    --thumb-size: 80px;
+    --thumb-size: 96px;
 }
 
 /* SECTION: Timeline card header layout constants (small screens) */
 @media (max-width: 576px) {
     .ongoing-card {
-        --thumb-size: 64px;
+        --thumb-size: 72px;
     }
 }
 
@@ -6341,7 +6341,7 @@ body.has-project-photo-preview-dialog {
     grid-template-columns: var(--thumb-size) 1fr auto;
     grid-template-areas: "thumb main right";
     gap: 12px 18px;
-    padding: 1.25rem 1.25rem 1rem 1.25rem;
+    padding: 1rem 1.25rem;
     align-items: start;
     border-bottom: 1px solid rgba(0,0,0,.035);
 }
@@ -6418,13 +6418,21 @@ body.has-project-photo-preview-dialog {
 }
 
 /* SECTION: Timeline card stage summary alignment */
-.ongoing-card__stage-summary {
-    margin-top: 0.35rem;
-}
-
 /* stage metadata chips */
 .ongoing-card__stage-chip {
     font-size: 0.7rem;
+}
+
+/* SECTION: Timeline card stage line */
+.ongoing-card__stage-line {
+    padding: 0.4rem 1.25rem 0.85rem;
+    padding-left: calc(var(--thumb-size) + 1.25rem + 18px);
+    font-size: 0.85rem;
+    color: #495057;
+}
+
+.ongoing-card__stage-line .ongoing-card__label {
+    margin-right: 0.35rem;
 }
 
 /* SECTION: Timeline card header responsive layout */
@@ -8315,6 +8323,14 @@ body {
     margin-bottom: 1rem;
 }
 
+.ongoing-top__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
 .ongoing-top__title {
     font-size: 2rem;
     line-height: 1.15;
@@ -8325,7 +8341,7 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    margin-top: 0.5rem;
+    justify-content: flex-end;
 }
 
 .kpi-chip {
@@ -8342,17 +8358,17 @@ body {
 /* Command Bar container */
 .cmdbar {
     margin-top: 1rem;
-    padding: 1rem;
+    padding: 0.85rem 1rem;
     border-radius: 12px;
     border: 1px solid rgba(0, 0, 0, 0.08);
     background: #fff;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-/* Filters row: filters-first */
-.cmdbar__filters {
+/* Filters + actions row */
+.cmdbar__row {
     display: grid;
-    grid-template-columns: 240px minmax(320px, 1fr) minmax(280px, 1fr);
+    grid-template-columns: minmax(260px, 1.6fr) minmax(180px, 1fr) minmax(200px, 1.2fr) auto;
     gap: 1rem;
     align-items: end;
 }
@@ -8376,7 +8392,6 @@ body {
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;
-    margin-top: 0.9rem;
     align-items: center;
     flex-wrap: wrap;
 }
@@ -8409,7 +8424,7 @@ body {
 
 /* Responsive: stack filters cleanly */
 @media (max-width: 992px) {
-    .cmdbar__filters {
+    .cmdbar__row {
         grid-template-columns: 1fr;
     }
 
