@@ -18,6 +18,21 @@
     }
   }
 
+  // SECTION: KPI chip interactions
+  const kpiChips = form.querySelectorAll('.js-kpi-chip');
+
+  kpiChips.forEach((chip) => {
+    chip.addEventListener('click', () => {
+      if (!categorySelect) {
+        return;
+      }
+
+      const categoryId = chip.dataset.categoryId ?? '';
+      categorySelect.value = categoryId;
+      submitFilters();
+    });
+  });
+
   categorySelect?.addEventListener('change', submitFilters);
   officerSelect?.addEventListener('change', submitFilters);
 

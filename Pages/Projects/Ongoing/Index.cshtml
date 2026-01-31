@@ -10,6 +10,13 @@
 
     // SECTION: View state
     var isTableView = string.Equals(Model.View, "table", StringComparison.OrdinalIgnoreCase);
+    var isTotalActive = !Model.ProjectCategoryId.HasValue;
+    var isCoeActive = Model.ProjectCategoryId.HasValue
+        && Model.ProjectCategoryId == Model.ChipCoECategoryId;
+    var isDcdActive = Model.ProjectCategoryId.HasValue
+        && Model.ProjectCategoryId == Model.ChipDcdCategoryId;
+    var isOtherActive = Model.ProjectCategoryId.HasValue
+        && Model.ProjectCategoryId == Model.ChipOtherRdCategoryId;
 
     // SECTION: Inline remark defaults
     var remarkType = RemarkType.External.ToString();
@@ -53,10 +60,51 @@
     <div class="ongoing-top__header">
         <h1 class="ongoing-top__title">Ongoing projects</h1>
         <div class="ongoing-top__kpis" aria-label="Project counts">
-            <span class="kpi-chip">Total <strong>@Model.ChipTotalCount</strong></span>
-            <span class="kpi-chip">CoE <strong>@Model.ChipCoECount</strong></span>
-            <span class="kpi-chip">DCD <strong>@Model.ChipDcdCount</strong></span>
-            <span class="kpi-chip">Other R&amp;D <strong>@Model.ChipOtherRdCount</strong></span>
+            <!-- SECTION: KPI chip filters -->
+            <button type="button"
+                    class="kpi-chip js-kpi-chip @(isTotalActive ? "is-active" : string.Empty)"
+                    data-category-id=""
+                    aria-pressed="@isTotalActive">
+                <span class="kpi-chip__label">Total</span>
+                <span class="kpi-chip__count">@Model.ChipTotalCount</span>
+                @if (isTotalActive)
+                {
+                    <span class="kpi-chip__close" aria-hidden="true">×</span>
+                }
+            </button>
+            <button type="button"
+                    class="kpi-chip js-kpi-chip @(isCoeActive ? "is-active" : string.Empty)"
+                    data-category-id="@(Model.ChipCoECategoryId?.ToString() ?? string.Empty)"
+                    aria-pressed="@isCoeActive">
+                <span class="kpi-chip__label">CoE</span>
+                <span class="kpi-chip__count">@Model.ChipCoECount</span>
+                @if (isCoeActive)
+                {
+                    <span class="kpi-chip__close" aria-hidden="true">×</span>
+                }
+            </button>
+            <button type="button"
+                    class="kpi-chip js-kpi-chip @(isDcdActive ? "is-active" : string.Empty)"
+                    data-category-id="@(Model.ChipDcdCategoryId?.ToString() ?? string.Empty)"
+                    aria-pressed="@isDcdActive">
+                <span class="kpi-chip__label">DCD</span>
+                <span class="kpi-chip__count">@Model.ChipDcdCount</span>
+                @if (isDcdActive)
+                {
+                    <span class="kpi-chip__close" aria-hidden="true">×</span>
+                }
+            </button>
+            <button type="button"
+                    class="kpi-chip js-kpi-chip @(isOtherActive ? "is-active" : string.Empty)"
+                    data-category-id="@(Model.ChipOtherRdCategoryId?.ToString() ?? string.Empty)"
+                    aria-pressed="@isOtherActive">
+                <span class="kpi-chip__label">Other R&amp;D</span>
+                <span class="kpi-chip__count">@Model.ChipOtherRdCount</span>
+                @if (isOtherActive)
+                {
+                    <span class="kpi-chip__close" aria-hidden="true">×</span>
+                }
+            </button>
         </div>
     </div>
 

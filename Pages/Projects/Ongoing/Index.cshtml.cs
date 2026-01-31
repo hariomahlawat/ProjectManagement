@@ -66,6 +66,9 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         public int ChipCoECount { get; private set; }
         public int ChipDcdCount { get; private set; }
         public int ChipOtherRdCount { get; private set; }
+        public int? ChipCoECategoryId { get; private set; }
+        public int? ChipDcdCategoryId { get; private set; }
+        public int? ChipOtherRdCategoryId { get; private set; }
 
         public IReadOnlyList<CategoryCountDto> FilteredCategoryCounts { get; private set; }
             = Array.Empty<CategoryCountDto>();
@@ -174,6 +177,10 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             var coeCategory = orderedCategories.FirstOrDefault(category => StartsWithIgnoreCase(category.Name, "CoE"));
             var dcdCategory = orderedCategories.FirstOrDefault(category => StartsWithIgnoreCase(category.Name, "DCD"));
             var otherCategory = orderedCategories.FirstOrDefault(category => StartsWithIgnoreCase(category.Name, "Other"));
+
+            ChipCoECategoryId = coeCategory?.Id;
+            ChipDcdCategoryId = dcdCategory?.Id;
+            ChipOtherRdCategoryId = otherCategory?.Id;
 
             var countsByCategory = Items
                 .Where(item => item.ProjectCategoryId.HasValue)
