@@ -36,13 +36,13 @@
   flex-direction: column;
   gap: var(--ops-gap-xs);
   background-color: var(--pm-card);
-  border: 1px solid color-mix(in oklab, var(--pm-border-muted) 78%, black);
+  border: 1px solid rgba(15, 23, 42, 0.10);
   border-radius: 16px;
   padding: 1rem 1.1rem;
   color: inherit;
   text-decoration: none;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
-  transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
   min-height: 120px;
   position: relative;
   overflow: hidden;
@@ -53,32 +53,47 @@
   content: "";
   position: absolute;
   inset: 0 0 auto 0;
-  height: 46px;
+  height: 44px;
   background: linear-gradient(
-    180deg,
-    color-mix(in oklab, var(--pm-primary) 8%, white) 0%,
-    rgba(255, 255, 255, 0) 100%
+    90deg,
+    rgba(37, 99, 235, 0.10) 0%,
+    rgba(37, 99, 235, 0.04) 55%,
+    rgba(37, 99, 235, 0.00) 100%
   );
   pointer-events: none;
 }
 /* END SECTION */
 
-    .ops-signals__tile:hover {
-        /* Fallback for tools / old browsers */
-        border-color: var(--pm-primary);
-        /* Modern browsers */
-        border-color: color-mix(in oklab, var(--pm-primary) 26%, var(--pm-border-muted));
-        box-shadow: 0 14px 36px rgba(15, 23, 42, 0.12);
-        transform: translateY(-1px);
-    }
+/* SECTION: Tile content layering */
+.ops-signals__head,
+.ops-signals__value,
+.ops-signals__caption,
+.ops-signals__spark,
+.ops-signals__delta {
+  position: relative;
+  z-index: 1;
+}
+/* END SECTION */
 
-    .ops-signals__tile:focus-visible {
-        /* Fallback */
-        outline: 3px solid var(--pm-primary);
-        /* Modern browsers */
-        outline: 3px solid color-mix(in oklab, var(--pm-primary) 52%, white);
-        outline-offset: 2px;
-    }
+/* SECTION: Tile interactions */
+.ops-signals__tile:hover {
+  border-color: rgba(37, 99, 235, 0.35);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.10), 0 10px 22px rgba(37, 99, 235, 0.10);
+  transform: translateY(-2px);
+  background: rgba(248, 250, 252, 0.55);
+}
+
+.ops-signals__tile:active {
+  transform: translateY(0);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.10);
+}
+
+.ops-signals__tile:focus-visible {
+  outline: none;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.10), 0 0 0 4px rgba(37, 99, 235, 0.18);
+  border-color: rgba(37, 99, 235, 0.45);
+}
+/* END SECTION */
 
 
 .ops-signals__head {
