@@ -8,13 +8,12 @@
 
 /* Dashboard-only elevation tuning: reduces washed-out feel */
 .dashboard .card {
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+    border: 1px solid var(--pm-border);
+    box-shadow: var(--pm-shadow);
 }
 
-.dashboard .card.shadow-sm {
-    /* override Bootstrap shadow-sm to match dashboard elevation */
-    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08) !important;
+.dashboard .card:hover {
+    transform: translateY(-1px);
 }
 
 /* Base shell for dashboard cards to match Analytics polish */
@@ -33,19 +32,21 @@
 
 /* SECTION: Dashboard section & card hierarchy */
 .dashboard-main-content {
-    background: var(--pm-page-bg);
-    padding: 1.25rem 1.25rem 2rem;
-    border-radius: 1.5rem;
-    box-shadow: var(--pm-shadow);
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+    overflow: visible;
 }
 
 .dashboard-section {
-    border-radius: 1.5rem;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    background: rgba(148, 163, 184, 0.08);
-    padding: 1.25rem;
-    box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
-    margin-bottom: 1.5rem;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+    overflow: visible;
 }
 
 .dashboard-card {
