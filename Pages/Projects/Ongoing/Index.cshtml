@@ -5,7 +5,7 @@
 @using ProjectManagement.Models.Remarks
 @model ProjectManagement.Pages.Projects.Ongoing.IndexModel
 @{
-    ViewData["Title"] = "Ongoing projects – progress & timelines";
+    ViewData["Title"] = "Ongoing projects";
     ViewData["UseFullWidth"] = true;
 
     // SECTION: View state
@@ -63,14 +63,12 @@
 <div class="ongoing-top">
     <!-- SECTION: Page header + KPI chips -->
     <div class="ongoing-top__header">
-        <div class="ongoing-top__titleblock">
-            <h1 class="ongoing-top__title">Ongoing projects – progress &amp; timelines</h1>
-            <div class="ongoing-top__kpis" aria-label="Project counts">
-                <span class="kpi-chip">Total <strong>@Model.FilteredTotal</strong></span>
-                <span class="kpi-chip">CoE <strong>@GetCategoryCount("CoE")</strong></span>
-                <span class="kpi-chip">DCD <strong>@GetCategoryCount("DCD")</strong></span>
-                <span class="kpi-chip">Other <strong>@GetCategoryCount("Other")</strong></span>
-            </div>
+        <h1 class="ongoing-top__title">Ongoing projects</h1>
+        <div class="ongoing-top__kpis" aria-label="Project counts">
+            <span class="kpi-chip">Total <strong>@Model.FilteredTotal</strong></span>
+            <span class="kpi-chip">CoE <strong>@GetCategoryCount("CoE")</strong></span>
+            <span class="kpi-chip">DCD <strong>@GetCategoryCount("DCD")</strong></span>
+            <span class="kpi-chip">Other <strong>@GetCategoryCount("Other")</strong></span>
         </div>
     </div>
 
