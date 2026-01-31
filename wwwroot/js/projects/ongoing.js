@@ -19,7 +19,7 @@
   }
 
   // SECTION: KPI chip interactions
-  const kpiChips = form.querySelectorAll('.js-kpi-chip');
+  const kpiChips = document.querySelectorAll('.js-kpi-chip');
 
   kpiChips.forEach((chip) => {
     chip.addEventListener('click', () => {
