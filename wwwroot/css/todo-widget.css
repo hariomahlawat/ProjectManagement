@@ -2,7 +2,7 @@
 .todo-widget {
     --mission-panel-surface: var(--pm-surface-elevated);
     --mission-panel-border: var(--pm-border-muted);
-    --mission-panel-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    --mission-panel-shadow: var(--pm-shadow);
     --mission-panel-header-bg: linear-gradient(135deg, rgba(13, 110, 253, .08), rgba(25, 135, 84, .05));
     --mission-panel-ring-fill: var(--pm-primary-strong);
     --mission-panel-ring-track: rgba(13, 110, 253, .18);

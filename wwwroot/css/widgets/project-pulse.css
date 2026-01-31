@@ -7,7 +7,7 @@
   --pp-border: var(--pm-border-muted, var(--pm-border));
   background-color: var(--pm-card);
   border-radius: 18px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  box-shadow: var(--pm-shadow);
   padding: 1rem 1.25rem 0.9rem;
   border: 1px solid var(--pp-border);
 }
@@ -135,8 +135,8 @@
 .ppulse__card {
   background: transparent;
   border-radius: 14px;
-  border: 1px solid color-mix(in oklab, var(--pp-border) 55%, white);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+  border: 1px solid var(--pm-border);
+  box-shadow: none;
 }
 
 .ppulse__link {
