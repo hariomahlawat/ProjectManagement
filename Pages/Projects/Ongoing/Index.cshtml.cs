@@ -61,6 +61,12 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         // SECTION: Header counts summary
         public int FilteredTotal { get; private set; }
 
+        // SECTION: KPI chip counts
+        public int ChipTotalCount { get; private set; }
+        public int ChipCoECount { get; private set; }
+        public int ChipDcdCount { get; private set; }
+        public int ChipOtherRdCount { get; private set; }
+
         public IReadOnlyList<CategoryCountDto> FilteredCategoryCounts { get; private set; }
             = Array.Empty<CategoryCountDto>();
 
@@ -152,6 +158,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         {
             // SECTION: Build filtered totals and category breakdown
             FilteredTotal = Items.Count;
+            ChipTotalCount = Items.Count;
 
             var categoryLookup = _categories.ToDictionary(c => c.Id);
 
@@ -159,6 +166,14 @@ namespace ProjectManagement.Pages.Projects.Ongoing
                 .Where(category => category.ParentId is null)
                 .OrderBy(category => category.Name)
                 .ToList();
+
+            // SECTION: Resolve top-level IDs for KPI chips (prefix match)
+            static bool StartsWithIgnoreCase(string value, string prefix)
+                => value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+
+            var coeCategory = orderedCategories.FirstOrDefault(category => StartsWithIgnoreCase(category.Name, "CoE"));
+            var dcdCategory = orderedCategories.FirstOrDefault(category => StartsWithIgnoreCase(category.Name, "DCD"));
+            var otherCategory = orderedCategories.FirstOrDefault(category => StartsWithIgnoreCase(category.Name, "Other"));
 
             var countsByCategory = Items
                 .Where(item => item.ProjectCategoryId.HasValue)
@@ -180,6 +195,16 @@ namespace ProjectManagement.Pages.Projects.Ongoing
                 .Where(categoryId => categoryId.HasValue)
                 .GroupBy(categoryId => categoryId!.Value)
                 .ToDictionary(group => group.Key, group => group.Count());
+
+            ChipCoECount = (coeCategory != null && countsByCategory.TryGetValue(coeCategory.Id, out var coeCount))
+                ? coeCount
+                : 0;
+            ChipDcdCount = (dcdCategory != null && countsByCategory.TryGetValue(dcdCategory.Id, out var dcdCount))
+                ? dcdCount
+                : 0;
+            ChipOtherRdCount = (otherCategory != null && countsByCategory.TryGetValue(otherCategory.Id, out var otherCount))
+                ? otherCount
+                : 0;
 
             var orderedCounts = new List<CategoryCountDto>();
 
