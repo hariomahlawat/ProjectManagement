@@ -83,9 +83,61 @@
 <div class="ongoing-top">
     <!-- SECTION: Page header + KPI chips -->
     <div class="ongoing-top__header">
+        <!-- SECTION: Page title -->
         <h1 class="ongoing-top__title">Ongoing projects</h1>
+
+        <!-- SECTION: Stage pipeline -->
+        <div class="ongoing-top__pipeline" aria-label="Stage bucket distribution">
+            @if (Model.FilteredTotal > 0)
+            {
+                <div class="stage-pipeline" role="group" aria-label="Stage pipeline">
+                    <div class="stage-pipeline__seg stage-pipeline__seg--apvl"
+                         style="--grow:@Model.BucketApvlCount"
+                         title="Apvl: FS, SOW, IPA">
+                        <span class="stage-pipeline__label">Apvl</span>
+                        <span class="stage-pipeline__count">@Model.BucketApvlCount</span>
+                    </div>
+
+                    <div class="stage-pipeline__seg stage-pipeline__seg--aon"
+                         style="--grow:@Model.BucketAonCount"
+                         title="AoN: AON">
+                        <span class="stage-pipeline__label">AoN</span>
+                        <span class="stage-pipeline__count">@Model.BucketAonCount</span>
+                    </div>
+
+                    <div class="stage-pipeline__seg stage-pipeline__seg--proc"
+                         style="--grow:@Model.BucketProcCount"
+                         title="GeM/Proc: BID, TEC, BM, COB, PNC, EAS, SO">
+                        <span class="stage-pipeline__label">GeM / Proc</span>
+                        <span class="stage-pipeline__count">@Model.BucketProcCount</span>
+                    </div>
+
+                    <div class="stage-pipeline__seg stage-pipeline__seg--devp"
+                         style="--grow:@Model.BucketDevpCount"
+                         title="Devp: DEVP, ATP, PAYMENT, TOT">
+                        <span class="stage-pipeline__label">Devp</span>
+                        <span class="stage-pipeline__count">@Model.BucketDevpCount</span>
+                    </div>
+                </div>
+
+                @if (Model.BucketUnknownCount > 0)
+                {
+                    <span class="stage-pipeline__unknown"
+                          title="Unknown current stage code found">
+                        Unknown: @Model.BucketUnknownCount
+                    </span>
+                }
+            }
+            else
+            {
+                <div class="stage-pipeline stage-pipeline--empty" aria-label="No projects">
+                    <span class="stage-pipeline__empty-text">No ongoing projects</span>
+                </div>
+            }
+        </div>
+
+        <!-- SECTION: KPI chip filters -->
         <div class="ongoing-top__kpis" aria-label="Project counts">
-            <!-- SECTION: KPI chip filters -->
             <button type="button"
                     class="kpi-chip js-kpi-chip @(isTotalActive ? "is-active" : string.Empty)"
                     data-category-id=""
@@ -131,37 +183,6 @@
                 }
             </button>
         </div>
-    </div>
-
-    <!-- SECTION: Stage bucket summary -->
-    <div class="ongoing-top__buckets" aria-label="Stage bucket counts">
-        <span class="kpi-chip kpi-chip--static" title="Apvl: FS, SOW, IPA">
-            <span class="kpi-chip__label">Apvl</span>
-            <span class="kpi-chip__count">@Model.BucketApvlCount</span>
-        </span>
-
-        <span class="kpi-chip kpi-chip--static" title="AoN: AON">
-            <span class="kpi-chip__label">AoN</span>
-            <span class="kpi-chip__count">@Model.BucketAonCount</span>
-        </span>
-
-        <span class="kpi-chip kpi-chip--static" title="GeM/Proc: BID, TEC, BM, COB, PNC, EAS, SO">
-            <span class="kpi-chip__label">GeM / Proc</span>
-            <span class="kpi-chip__count">@Model.BucketProcCount</span>
-        </span>
-
-        <span class="kpi-chip kpi-chip--static" title="Devp: DEVP, ATP, PAYMENT, TOT">
-            <span class="kpi-chip__label">Devp</span>
-            <span class="kpi-chip__count">@Model.BucketDevpCount</span>
-        </span>
-
-        @if (Model.BucketUnknownCount > 0)
-        {
-            <span class="kpi-chip kpi-chip--static" title="Unknown current stage code found">
-                <span class="kpi-chip__label">Unknown</span>
-                <span class="kpi-chip__count">@Model.BucketUnknownCount</span>
-            </span>
-        }
     </div>
 
     <!-- SECTION: Command bar -->

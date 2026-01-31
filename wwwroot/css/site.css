@@ -8390,11 +8390,10 @@ body {
 }
 
 .ongoing-top__header {
-    display: flex;
-    align-items: baseline;
-    justify-content: flex-start;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
     gap: 0.75rem;
-    flex-wrap: wrap;
 }
 
 .ongoing-top__title {
@@ -8412,13 +8411,12 @@ body {
     justify-content: flex-end;
 }
 
-/* -- SECTION: Ongoing projects bucket chips -- */
-.ongoing-top__buckets {
+/* -- SECTION: Ongoing projects stage pipeline container -- */
+.ongoing-top__pipeline {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
     gap: 0.5rem;
-    margin-top: 0.5rem;
-    justify-content: flex-end;
 }
 
 /* -- SECTION: Ongoing projects KPI chips -- */
@@ -8478,6 +8476,110 @@ body {
 
 .kpi-chip.is-active .kpi-chip__close {
     display: inline-flex;
+}
+
+/* -- SECTION: Ongoing projects stage pipeline -- */
+.stage-pipeline {
+    display: flex;
+    align-items: stretch;
+    height: 34px;
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    background: rgba(148, 163, 184, 0.1);
+    min-width: 380px;
+    max-width: 520px;
+}
+
+.stage-pipeline__seg {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0 0.7rem;
+    flex-basis: 0;
+    flex-grow: var(--grow);
+    min-width: 80px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stage-pipeline__seg:not(:last-child) {
+    border-right: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.stage-pipeline__label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: rgba(15, 23, 42, 0.65);
+}
+
+.stage-pipeline__count {
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+/* Same accent hue, different opacities. */
+.stage-pipeline__seg--apvl {
+    background: rgba(var(--pm-accent-rgb), 0.06);
+}
+
+.stage-pipeline__seg--aon {
+    background: rgba(var(--pm-accent-rgb), 0.09);
+}
+
+.stage-pipeline__seg--proc {
+    background: rgba(var(--pm-accent-rgb), 0.12);
+}
+
+.stage-pipeline__seg--devp {
+    background: rgba(var(--pm-accent-rgb), 0.15);
+}
+
+.stage-pipeline__seg:hover {
+    filter: brightness(0.985);
+}
+
+.stage-pipeline__unknown {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: rgba(15, 23, 42, 0.6);
+}
+
+.stage-pipeline--empty {
+    justify-content: center;
+    min-width: 260px;
+    max-width: 420px;
+}
+
+.stage-pipeline__empty-text {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: rgba(15, 23, 42, 0.6);
+}
+
+/* -- SECTION: Ongoing projects top area responsive -- */
+@media (max-width: 992px) {
+    .ongoing-top__header {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+
+    .ongoing-top__pipeline {
+        justify-content: flex-start;
+    }
+
+    .ongoing-top__kpis {
+        margin-left: 0;
+        justify-content: flex-start;
+    }
+
+    .stage-pipeline {
+        min-width: 100%;
+        max-width: 100%;
+    }
 }
 
 /* Command Bar container */
