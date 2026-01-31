@@ -395,6 +395,7 @@ builder.Services.AddScoped<IApprovalQueueService, ApprovalQueueService>();
 builder.Services.AddScoped<ApprovalDecisionService>();
 builder.Services.AddScoped<ProjectFactsService>();
 builder.Services.AddScoped<ProjectFactsReadService>();
+builder.Services.AddScoped<IProjectCostResolver, ProjectCostResolver>();
 builder.Services.AddScoped<ProjectProcurementReadService>();
 builder.Services.AddScoped<CompletedProjectsSummaryService>();
 builder.Services.AddScoped<ProjectTimelineReadService>();
