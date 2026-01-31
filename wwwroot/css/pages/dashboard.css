@@ -31,6 +31,32 @@
     box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
 }
 
+/* SECTION: Dashboard section & card hierarchy */
+.dashboard-main-content {
+    background: var(--pm-page-bg);
+    padding: 1.25rem 1.25rem 2rem;
+    border-radius: 1.5rem;
+    box-shadow: var(--pm-shadow);
+}
+
+.dashboard-section {
+    border-radius: 1.5rem;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: rgba(148, 163, 184, 0.08);
+    padding: 1.25rem;
+    box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
+    margin-bottom: 1.5rem;
+}
+
+.dashboard-card {
+    border-radius: 1.25rem;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 12px 34px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+    background: var(--pm-card);
+}
+/* END SECTION */
+
 /* Light, cool dashboard canvas behind the cards */
 .analytics-main {
     background: linear-gradient(
@@ -523,112 +549,6 @@
     border-color: rgba(37, 99, 235, 0.7);
     background: rgba(37, 99, 235, 0.06);
 }
-
-/* My projects PDC groups */
-.dashboard-my-projects__pdc-groups {
-    margin-top: 0.25rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
-    max-height: none !important; /* override pm-scroll */
-    overflow-y: visible !important; /* override pm-scroll */
-}
-
-.dashboard-my-projects__pdc-group-title {
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--pm-text-secondary);
-}
-
-/* 2-column grid of PDC cards */
-.dashboard-my-projects__pdc-list {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-}
-
-/* Collapse to 1 column on smaller viewports */
-@media (max-width: 991.98px) {
-    .dashboard-my-projects__pdc-list {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* PDC alert rows – white cards */
-.myproj-stage-widget__pdc-row {
-    background-color: var(--pm-card);
-    border-radius: 1rem;
-    border: 1px solid var(--pm-border-muted);
-    padding: 0.75rem 1rem;
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
-    transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.10s ease;
-}
-
-    .myproj-stage-widget__pdc-row:hover,
-    .myproj-stage-widget__pdc-row:focus-within {
-        background-color: rgba(37, 99, 235, 0.02);
-        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
-        transform: translateY(-1px);
-    }
-
-/* Make the whole card clickable; no extra grey background */
-.dashboard-my-projects__pdc-link {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 0.6rem;
-    text-decoration: none;
-    color: inherit;
-    background: transparent;
-    box-shadow: none;
-    padding: 0;
-}
-
-.dashboard-my-projects__pdc-text {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-}
-
-.dashboard-my-projects__pdc-name {
-    font-size: 0.9rem;
-    font-weight: 600;
-    line-height: 1.3;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.dashboard-my-projects__pdc-stage {
-    font-size: 0.78rem;
-    color: var(--pm-text-muted);
-}
-
-.dashboard-my-projects__pdc-meta {
-    flex-shrink: 0;
-    text-align: right;
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    white-space: nowrap;
-}
-
-    .dashboard-my-projects__pdc-meta .badge {
-        font-size: 0.7rem;
-    }
-
-/* Active row highlight (optional) */
-.myproj-stage-widget__pdc-row.is-active {
-    border-color: rgba(37, 99, 235, 0.65);
-}
-
-    .myproj-stage-widget__pdc-row.is-active .dashboard-my-projects__pdc-name {
-        font-weight: 600;
-    }
 
 /* Responsive header tweaks */
 @media (max-width: 576px) {

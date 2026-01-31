@@ -100,183 +100,185 @@
         </div>
     </div>
 
-    @* SECTION: Critical PDC alerts *@
-    @if (Model.HasMyProjects)
-    {
-        // Flatten all projects assigned to the user
-        var pdcProjects = Model.MyProjectSections
-        .SelectMany(projectSection => projectSection.Items)
-        .ToList();
-
-        // Buckets
-        var overdueProjects = pdcProjects
-        .Where(project => project.StageSummary?.IsOverdue == true)
-        .ToList();
-
-        var dueSoonProjects = pdcProjects
-        .Where(project => project.StageSummary is { IsOverdue: false, DaysToPdc: <= 30, PlannedDue: not null })
-        .ToList();
-
-        var notSetProjects = pdcProjects
-        .Where(project => project.StageSummary is null || project.StageSummary.PlannedDue is null)
-        .ToList();
-
-        if (overdueProjects.Any() || dueSoonProjects.Any() || notSetProjects.Any())
+    <div class="col-12">
+        @* SECTION: Critical PDC alerts *@
+        @if (Model.HasMyProjects)
         {
-            <div class="dashboard-my-projects__pdc-groups pm-scroll" role="list">
-                @* PDC overdue *@
-                @if (overdueProjects.Any())
-                {
-                    <div class="dashboard-my-projects__pdc-group">
-                        <p class="dashboard-my-projects__pdc-group-title text-uppercase text-secondary fw-semibold small mb-2">
-                            PDC overdue
-                        </p>
-                        <div class="dashboard-my-projects__pdc-list" role="list">
-                            @foreach (var project in overdueProjects)
-                            {
-                                var stage = project.StageSummary;
-                                <div class="myproj-stage-widget__pdc-row" data-project-id="@project.ProjectId" role="listitem">
-                                    <a asp-page="/Projects/Overview"
-                                       asp-route-id="@project.ProjectId"
-                                       class="dashboard-my-projects__pdc-link">
-                                        <div class="myproj-stage-widget__pdc-main">
-                                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                                <div class="dashboard-my-projects__pdc-name" title="@project.Name">
-                                                    @project.Name
-                                                </div>
-                                                <span class="badge rounded-pill text-bg-danger">
-                                                    PDC overdue
-                                                </span>
-                                            </div>
+            // Flatten all projects assigned to the user
+            var pdcProjects = Model.MyProjectSections
+            .SelectMany(projectSection => projectSection.Items)
+            .ToList();
 
-                                            <div class="small text-muted">
-                                                @if (stage is not null)
+            // Buckets
+            var overdueProjects = pdcProjects
+            .Where(project => project.StageSummary?.IsOverdue == true)
+            .ToList();
+
+            var dueSoonProjects = pdcProjects
+            .Where(project => project.StageSummary is { IsOverdue: false, DaysToPdc: <= 30, PlannedDue: not null })
+            .ToList();
+
+            var notSetProjects = pdcProjects
+            .Where(project => project.StageSummary is null || project.StageSummary.PlannedDue is null)
+            .ToList();
+
+            if (overdueProjects.Any() || dueSoonProjects.Any() || notSetProjects.Any())
+            {
+                <div class="dashboard-my-projects__pdc-groups pm-scroll" role="list">
+                    @* PDC overdue *@
+                    @if (overdueProjects.Any())
+                    {
+                        <div class="dashboard-my-projects__pdc-group">
+                            <p class="dashboard-my-projects__pdc-group-title text-uppercase text-secondary fw-semibold small mb-2">
+                                PDC overdue
+                            </p>
+                            <div class="dashboard-my-projects__pdc-list" role="list">
+                                @foreach (var project in overdueProjects)
+                                {
+                                    var stage = project.StageSummary;
+                                    <div class="myproj-stage-widget__pdc-row" data-project-id="@project.ProjectId" role="listitem">
+                                        <a asp-page="/Projects/Overview"
+                                           asp-route-id="@project.ProjectId"
+                                           class="dashboard-my-projects__pdc-link">
+                                            <div class="myproj-stage-widget__pdc-main">
+                                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                                    <div class="dashboard-my-projects__pdc-name" title="@project.Name">
+                                                        @project.Name
+                                                    </div>
+                                                    <span class="badge rounded-pill text-bg-danger">
+                                                        PDC overdue
+                                                    </span>
+                                                </div>
+
+                                                <div class="small text-muted">
+                                                    @if (stage is not null)
+                                                    {
+                                                        @:Stage: @stage.StageName (@stage.StageCode)
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>Stage data unavailable</span>
+                                                    }
+                                                </div>
+
+                                                @if (stage?.DaysToPdc is { } daysLate)
                                                 {
-                                                    @:Stage: @stage.StageName (@stage.StageCode)
-                                                }
-                                                else
-                                                {
-                                                    <span>Stage data unavailable</span>
+                                                    <div class="small text-danger mt-1">
+                                                        Overdue by @daysLate day@(daysLate == 1 ? string.Empty : "s")
+                                                    </div>
                                                 }
                                             </div>
-
-                                            @if (stage?.DaysToPdc is { } daysLate)
-                                            {
-                                                <div class="small text-danger mt-1">
-                                                    Overdue by @daysLate day@(daysLate == 1 ? string.Empty : "s")
-                                                </div>
-                                            }
-                                        </div>
-                                    </a>
-                                </div>
-                            }
+                                        </a>
+                                    </div>
+                                }
+                            </div>
                         </div>
-                    </div>
-                }
+                    }
 
-                @* PDC in next 30 days *@
-                @if (dueSoonProjects.Any())
-                {
-                    <div class="dashboard-my-projects__pdc-group">
-                        <p class="dashboard-my-projects__pdc-group-title text-uppercase text-secondary fw-semibold small mb-2">
-                            PDC in next 30 days
-                        </p>
-                        <div class="dashboard-my-projects__pdc-list" role="list">
-                            @foreach (var project in dueSoonProjects)
-                            {
-                                var stage = project.StageSummary;
-                                <div class="myproj-stage-widget__pdc-row" data-project-id="@project.ProjectId" role="listitem">
-                                    <a asp-page="/Projects/Overview"
-                                       asp-route-id="@project.ProjectId"
-                                       class="dashboard-my-projects__pdc-link">
-                                        <div class="myproj-stage-widget__pdc-main">
-                                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                                <div class="dashboard-my-projects__pdc-name" title="@project.Name">
-                                                    @project.Name
+                    @* PDC in next 30 days *@
+                    @if (dueSoonProjects.Any())
+                    {
+                        <div class="dashboard-my-projects__pdc-group">
+                            <p class="dashboard-my-projects__pdc-group-title text-uppercase text-secondary fw-semibold small mb-2">
+                                PDC in next 30 days
+                            </p>
+                            <div class="dashboard-my-projects__pdc-list" role="list">
+                                @foreach (var project in dueSoonProjects)
+                                {
+                                    var stage = project.StageSummary;
+                                    <div class="myproj-stage-widget__pdc-row" data-project-id="@project.ProjectId" role="listitem">
+                                        <a asp-page="/Projects/Overview"
+                                           asp-route-id="@project.ProjectId"
+                                           class="dashboard-my-projects__pdc-link">
+                                            <div class="myproj-stage-widget__pdc-main">
+                                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                                    <div class="dashboard-my-projects__pdc-name" title="@project.Name">
+                                                        @project.Name
+                                                    </div>
+                                                    <span class="badge rounded-pill text-bg-success">
+                                                        PDC in next 30 days
+                                                    </span>
                                                 </div>
-                                                <span class="badge rounded-pill text-bg-success">
-                                                    PDC in next 30 days
-                                                </span>
-                                            </div>
 
-                                            <div class="small text-muted">
-                                                @if (stage is not null)
-                                                {
-                                                    @:Stage: @stage.StageName (@stage.StageCode)
-                                                }
-                                                else
-                                                {
-                                                    <span>Stage data unavailable</span>
-                                                }
-                                            </div>
-
-                                            @if (stage?.DaysToPdc is { } daysToGo)
-                                            {
-                                                <div class="small text-success mt-1">
-                                                    @daysToGo day@(daysToGo == 1 ? string.Empty : "s") to PDC
+                                                <div class="small text-muted">
+                                                    @if (stage is not null)
+                                                    {
+                                                        @:Stage: @stage.StageName (@stage.StageCode)
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>Stage data unavailable</span>
+                                                    }
                                                 </div>
-                                            }
-                                        </div>
-                                    </a>
-                                </div>
-                            }
+
+                                                @if (stage?.DaysToPdc is { } daysToGo)
+                                                {
+                                                    <div class="small text-success mt-1">
+                                                        @daysToGo day@(daysToGo == 1 ? string.Empty : "s") to PDC
+                                                    </div>
+                                                }
+                                            </div>
+                                        </a>
+                                    </div>
+                                }
+                            </div>
                         </div>
-                    </div>
-                }
+                    }
 
-                @* PDC not set *@
-                @if (notSetProjects.Any())
-                {
-                    <div class="dashboard-my-projects__pdc-group">
-                        <p class="dashboard-my-projects__pdc-group-title text-uppercase text-secondary fw-semibold small mb-2">
-                            PDC not set
-                        </p>
-                        <div class="dashboard-my-projects__pdc-list" role="list">
-                            @foreach (var project in notSetProjects)
-                            {
-                                var stage = project.StageSummary;
-                                <div class="myproj-stage-widget__pdc-row" data-project-id="@project.ProjectId" role="listitem">
-                                    <a asp-page="/Projects/Overview"
-                                       asp-route-id="@project.ProjectId"
-                                       class="dashboard-my-projects__pdc-link">
-                                        <div class="myproj-stage-widget__pdc-main">
-                                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                                <div class="dashboard-my-projects__pdc-name" title="@project.Name">
-                                                    @project.Name
+                    @* PDC not set *@
+                    @if (notSetProjects.Any())
+                    {
+                        <div class="dashboard-my-projects__pdc-group">
+                            <p class="dashboard-my-projects__pdc-group-title text-uppercase text-secondary fw-semibold small mb-2">
+                                PDC not set
+                            </p>
+                            <div class="dashboard-my-projects__pdc-list" role="list">
+                                @foreach (var project in notSetProjects)
+                                {
+                                    var stage = project.StageSummary;
+                                    <div class="myproj-stage-widget__pdc-row" data-project-id="@project.ProjectId" role="listitem">
+                                        <a asp-page="/Projects/Overview"
+                                           asp-route-id="@project.ProjectId"
+                                           class="dashboard-my-projects__pdc-link">
+                                            <div class="myproj-stage-widget__pdc-main">
+                                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                                    <div class="dashboard-my-projects__pdc-name" title="@project.Name">
+                                                        @project.Name
+                                                    </div>
+                                                    <span class="badge rounded-pill text-bg-secondary">
+                                                        PDC not set
+                                                    </span>
                                                 </div>
-                                                <span class="badge rounded-pill text-bg-secondary">
-                                                    PDC not set
-                                                </span>
-                                            </div>
 
-                                            <div class="small text-muted">
-                                                @if (stage is not null)
-                                                {
-                                                    @:Stage: @stage.StageName (@stage.StageCode)
-                                                }
-                                                else
-                                                {
-                                                    <span>Stage data unavailable</span>
-                                                }
+                                                <div class="small text-muted">
+                                                    @if (stage is not null)
+                                                    {
+                                                        @:Stage: @stage.StageName (@stage.StageCode)
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>Stage data unavailable</span>
+                                                    }
+                                                </div>
                                             </div>
-                                        </div>
-                                    </a>
-                                </div>
-                            }
+                                        </a>
+                                    </div>
+                                }
+                            </div>
                         </div>
-                    </div>
-                }
-            </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-secondary small mb-0">No critical PDC alerts right now.</p>
+            }
         }
         else
         {
-            <p class="text-secondary small mb-0">No critical PDC alerts right now.</p>
+            <p class="text-secondary small mb-0">Add yourself to a project to see its PDC.</p>
         }
-    }
-    else
-    {
-        <p class="text-secondary small mb-0">Add yourself to a project to see its PDC.</p>
-    }
+    </div>
 
 
 <div class="pm-drawer pm-drawer--end"
