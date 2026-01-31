@@ -8422,6 +8422,35 @@ body {
     flex-wrap: wrap;
 }
 
+/* -- SECTION: Command bar link button -- */
+.cmdbar__link-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.55rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: rgba(13, 110, 253, 0.85);
+    text-decoration: none;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: transparent;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.cmdbar__link-button:hover,
+.cmdbar__link-button:focus-visible {
+    color: rgba(13, 110, 253, 1);
+    background: rgba(13, 110, 253, 0.08);
+    border-color: rgba(13, 110, 253, 0.15);
+    text-decoration: none;
+}
+
+.cmdbar__link-button:focus-visible {
+    outline: 2px solid rgba(13, 110, 253, 0.35);
+    outline-offset: 2px;
+}
+
 /* Segmented control */
 .segmented {
     display: inline-flex;

@@ -17,6 +17,10 @@
         && Model.ProjectCategoryId == Model.ChipDcdCategoryId;
     var isOtherActive = Model.ProjectCategoryId.HasValue
         && Model.ProjectCategoryId == Model.ChipOtherRdCategoryId;
+    // SECTION: Filter state
+    var hasFilters = Model.ProjectCategoryId.HasValue
+        || Model.ProjectOfficerId.HasValue
+        || !string.IsNullOrWhiteSpace(Model.Search);
 
     // SECTION: Inline remark defaults
     var remarkType = RemarkType.External.ToString();
@@ -162,6 +166,17 @@
                     Table view
                 </a>
             </div>
+            @if (hasFilters)
+            {
+                <!-- SECTION: Clear filters -->
+                <a asp-page="./Index"
+                   asp-route-ProjectCategoryId=""
+                   asp-route-ProjectOfficerId=""
+                   asp-route-Search=""
+                   class="cmdbar__link-button">
+                    Clear filters
+                </a>
+            }
             <button type="submit" class="btn btn-sm btn-outline-primary">
                 <i class="bi bi-funnel" aria-hidden="true"></i>
                 <span>Filter</span>
