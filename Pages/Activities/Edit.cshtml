@@ -21,6 +21,8 @@
     <h1 class="h3 mb-3">@(isEdit ? "Edit activity" : "Add activity")</h1>
 
     <form method="post" class="needs-validation" novalidate enctype="multipart/form-data">
+        <!-- Section: Activity identity -->
+        <input type="hidden" asp-for="Input.Id" />
         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
         <div class="card mb-3">
