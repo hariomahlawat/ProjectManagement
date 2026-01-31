@@ -8523,7 +8523,7 @@ body {
     padding: 0 0.7rem;
     flex-basis: 0;
     flex-grow: var(--grow);
-    min-width: 64px;
+    min-width: 56px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -8547,12 +8547,13 @@ body {
 }
 
 .stage-pipeline__label {
-    max-width: 86px;
+    /* SECTION: Stage pipeline label text */
+    max-width: none;
     font-size: 0.76rem;
     font-weight: 600;
     color: rgba(15, 23, 42, 0.55);
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
+    text-overflow: clip;
     white-space: nowrap;
 }
 
