@@ -36,28 +36,48 @@
   flex-direction: column;
   gap: var(--ops-gap-xs);
   background-color: var(--pm-card);
-  border: 1px solid var(--pm-border-muted, var(--pm-border));
+  border: 1px solid color-mix(in oklab, var(--pm-border-muted) 78%, black);
   border-radius: 16px;
   padding: 1rem 1.1rem;
   color: inherit;
   text-decoration: none;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+  transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
   min-height: 120px;
+  position: relative;
+  overflow: hidden;
 }
+
+/* SECTION: Tile surface accent */
+.ops-signals__tile::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 46px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--pm-primary) 8%, white) 0%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  pointer-events: none;
+}
+/* END SECTION */
 
     .ops-signals__tile:hover {
         /* Fallback for tools / old browsers */
         border-color: var(--pm-primary);
         /* Modern browsers */
-        border-color: color-mix(in srgb, var(--pm-primary) 30%, var(--pm-border));
+        border-color: color-mix(in oklab, var(--pm-primary) 26%, var(--pm-border-muted));
+        box-shadow: 0 14px 36px rgba(15, 23, 42, 0.12);
+        transform: translateY(-1px);
     }
 
     .ops-signals__tile:focus-visible {
         /* Fallback */
-        outline: 2px solid var(--pm-primary);
+        outline: 3px solid var(--pm-primary);
         /* Modern browsers */
-        outline: 2px solid color-mix(in srgb, var(--pm-primary) 50%, white);
+        outline: 3px solid color-mix(in oklab, var(--pm-primary) 52%, white);
+        outline-offset: 2px;
     }
 
 
@@ -70,11 +90,20 @@
 .ops-signals__icon {
   font-size: 1rem;
   color: var(--pm-primary, var(--pm-primary));
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklab, var(--pm-primary) 10%, white);
+  border: 1px solid color-mix(in oklab, var(--pm-primary) 16%, white);
 }
 
 .ops-signals__label {
   font-size: 0.85rem;
-  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
+  color: var(--pm-text-primary);
+  font-weight: 600;
 }
 
 .ops-signals__value {
