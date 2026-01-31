@@ -10,6 +10,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.Ffc;
 
@@ -61,10 +62,12 @@ public enum FfcProgressSource
 public sealed class FfcQueryService : IFfcQueryService
 {
     private readonly ApplicationDbContext _db;
+    private readonly IProjectCostResolver _costResolver;
 
-    public FfcQueryService(ApplicationDbContext db)
+    public FfcQueryService(ApplicationDbContext db, IProjectCostResolver costResolver)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _costResolver = costResolver ?? throw new ArgumentNullException(nameof(costResolver));
     }
 
     public async Task<IReadOnlyList<FfcDetailedGroupVm>> GetDetailedGroupsAsync(
@@ -119,7 +122,6 @@ public sealed class FfcQueryService : IFfcQueryService
                 {
                     project.Id,
                     project.Name,
-                    project.CostLakhs,
                     Stages = project.ProjectStages
                         .Select(stage => new
                         {
@@ -135,8 +137,10 @@ public sealed class FfcQueryService : IFfcQueryService
             projectNameMap = projectSnapshots
                 .ToDictionary(x => x.Id, x => x.Name ?? string.Empty);
 
-            projectCostMap = projectSnapshots
-                .ToDictionary(x => x.Id, x => ConvertLakhsToCr(x.CostLakhs));
+            // SECTION: Resolve project costs (CostLakhs -> PNC -> L1 -> AON -> IPA)
+            var costResolutions = await _costResolver.ResolveCostInCrAsync(linkedProjectIds, cancellationToken);
+            projectCostMap = costResolutions
+                .ToDictionary(entry => entry.Key, entry => entry.Value.CostInCr);
 
             stageSummaryMap = projectSnapshots
                 .ToDictionary(
@@ -358,16 +362,6 @@ public sealed class FfcQueryService : IFfcQueryService
 
         value = RemarkSummary.Empty;
         return false;
-    }
-
-    private static decimal? ConvertLakhsToCr(decimal? costLakhs)
-    {
-        if (!costLakhs.HasValue)
-        {
-            return null;
-        }
-
-        return decimal.Divide(costLakhs.Value, 100m);
     }
 
     private static string FormatRemark(string? remark)
