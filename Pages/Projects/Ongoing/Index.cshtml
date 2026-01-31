@@ -19,7 +19,7 @@
         && Model.ProjectCategoryId == Model.ChipOtherRdCategoryId;
     // SECTION: Filter state
     var hasFilters = Model.ProjectCategoryId.HasValue
-        || Model.ProjectOfficerId.HasValue
+        || !string.IsNullOrWhiteSpace(Model.ProjectOfficerId)
         || !string.IsNullOrWhiteSpace(Model.Search);
 
     // SECTION: Inline remark defaults
