@@ -6342,7 +6342,7 @@ body.has-project-photo-preview-dialog {
 
 /* --- SECTION: Ongoing projects cards --- */
 .ongoing-card {
-    background: #fff;
+    background: var(--pm-card);
     border-radius: 0.85rem;
     border-left: 2px solid transparent;
     /* SECTION: Timeline card header layout constants */
@@ -6376,7 +6376,8 @@ body.has-project-photo-preview-dialog {
     gap: 12px 18px;
     padding: 1.25rem 1.25rem 1rem 1.25rem;
     align-items: start;
-    border-bottom: 1px solid rgba(0,0,0,.035);
+    background: var(--pm-surface-subtle);
+    border-bottom: 1px solid var(--pm-border-subtle);
 }
 
 /* SECTION: Ongoing timeline header thumbnail */
