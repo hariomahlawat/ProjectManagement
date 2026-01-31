@@ -8341,12 +8341,43 @@ body {
 .kpi-chip {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.25rem 0.6rem;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
     border-radius: 999px;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    background: rgba(148, 163, 184, 0.15);
     font-size: 0.85rem;
+    font-weight: 600;
+    color: #0f172a;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.kpi-chip__label {
+    color: rgba(15, 23, 42, 0.6);
+    font-weight: 500;
+}
+
+.kpi-chip__count {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.kpi-chip__close {
+    display: none;
+    font-size: 0.9rem;
+    line-height: 1;
+    color: rgba(15, 23, 42, 0.55);
+}
+
+.kpi-chip.is-active {
+    border-color: rgba(15, 23, 42, 0.25);
+    background: rgba(148, 163, 184, 0.28);
+}
+
+.kpi-chip.is-active .kpi-chip__close {
+    display: inline-flex;
 }
 
 /* Command Bar container */
