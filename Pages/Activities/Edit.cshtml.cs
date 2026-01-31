@@ -126,7 +126,7 @@ public sealed class EditModel : PageModel
         return Page();
     }
 
-    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostAsync(int? id, CancellationToken cancellationToken)
     {
         if (!IsManager(User))
         {
@@ -134,6 +134,11 @@ public sealed class EditModel : PageModel
         }
 
         Input ??= new InputModel();
+        // Section: Resolve activity identity
+        if (!Input.Id.HasValue && id.HasValue)
+        {
+            Input.Id = id;
+        }
         Activity? existing = null;
 
         if (Input.Id.HasValue)
