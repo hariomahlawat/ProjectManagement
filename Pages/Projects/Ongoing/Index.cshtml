@@ -56,6 +56,27 @@
     string FormatValue(string? value)
         => string.IsNullOrWhiteSpace(value) ? "N/A" : value;
 
+    // SECTION: Category accent helper
+    string GetCategoryAccentClass(int? categoryId)
+    {
+        if (!categoryId.HasValue)
+        {
+            return "ongoing-card--other";
+        }
+
+        if (Model.ChipCoECategoryId.HasValue && categoryId == Model.ChipCoECategoryId)
+        {
+            return "ongoing-card--coe";
+        }
+
+        if (Model.ChipDcdCategoryId.HasValue && categoryId == Model.ChipDcdCategoryId)
+        {
+            return "ongoing-card--dcd";
+        }
+
+        return "ongoing-card--other";
+    }
+
 }
 
 <!-- SECTION: Ongoing projects top area -->
@@ -234,7 +255,7 @@ else
             }
 
             <div class="col-12">
-                <article class="ongoing-card card border-0 shadow-sm h-100">
+                <article class="ongoing-card @GetCategoryAccentClass(item.ProjectCategoryId) card border-0 shadow-sm h-100">
                     <div class="card-body p-0">
                         @{
                             // SECTION: Timeline helper values
@@ -292,10 +313,10 @@ else
                                 </p>
                                 <div class="ongoing-card__stage-summary">
                                     <p class="mb-0">
-                                        <span class="ongoing-card__label">Current stage</span>
+                                        <span class="ongoing-card__current-label">Current stage</span>
                                         @if (cur.Status == StageStatus.Completed)
                                         {
-                                            <span class="fw-medium">@cur.Name</span>
+                                            <span class="ongoing-card__current-value">@cur.Name</span>
                                             @if (cur.ActualCompletedOn.HasValue)
                                             {
                                                 @: (@cur.ActualCompletedOn.Value.ToString("dd-MMM-yyyy"))
@@ -307,7 +328,7 @@ else
                                         }
                                         else
                                         {
-                                            <span class="fw-medium">@cur.Name</span>
+                                            <span class="ongoing-card__current-value">@cur.Name</span>
                                             @if (cur.PlannedDue.HasValue)
                                             {
                                                 @: (PDC: @cur.PlannedDue.Value.ToString("dd-MMM-yyyy"))
@@ -339,15 +360,15 @@ else
                                                 }
                                                 else
                                                 {
-                                                    <span class="ms-2 text-danger ongoing-card__stage-chip">
+                                                    <span class="ms-2 oc-pill oc-pill--danger">
                                                         overdue by @daysToPdc day@(daysToPdc == 1 ? "" : "s")
                                                     </span>
                                                 }
                                             }
                                             else
                                             {
-                                                <span class="ms-2 text-muted ongoing-card__stage-chip">
-                                                    • no PDC set
+                                                <span class="ms-2 oc-pill oc-pill--neutral">
+                                                    no PDC set
                                                 </span>
                                             }
                                         }
@@ -357,11 +378,11 @@ else
 
                             <!-- SECTION: Header right meta -->
                             <div class="ongoing-card__right">
-                                <p class="ongoing-card__label mb-0">Last completed</p>
+                                <p class="ongoing-card__lc-label mb-0">Last completed</p>
                                 <p class="ongoing-card__last mb-0">
                                     @if (!string.IsNullOrEmpty(item.LastCompletedStageName))
                                     {
-                                        @item.LastCompletedStageName
+                                        <span class="ongoing-card__lc-value">@item.LastCompletedStageName</span>
                                         if (item.LastCompletedStageDate.HasValue)
                                         {
                                             @: (@item.LastCompletedStageDate.Value.ToString("dd-MMM-yy"))
@@ -455,7 +476,7 @@ else
                                 <span class="ongoing-remarks__title">Recent internal remarks (last 10 days)</span>
                                 @if (!string.IsNullOrWhiteSpace(item.LatestExternalRemark?.Body))
                                 {
-                                    <span class="badge bg-body-secondary text-muted">has external note</span>
+                                    <span class="oc-pill oc-pill--neutral">has external note</span>
                                 }
                             </div>
 
