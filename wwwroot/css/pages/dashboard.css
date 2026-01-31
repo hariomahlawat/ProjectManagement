@@ -6,6 +6,17 @@
     --dashboard-gap-large: 1.5rem; /* 3 & 4 */
 }
 
+/* Dashboard-only elevation tuning: reduces washed-out feel */
+.dashboard .card {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+}
+
+.dashboard .card.shadow-sm {
+    /* override Bootstrap shadow-sm to match dashboard elevation */
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08) !important;
+}
+
 /* Base shell for dashboard cards to match Analytics polish */
 .dashboard-card-shell,
 .ppulse,
@@ -22,7 +33,14 @@
 
 /* Light, cool dashboard canvas behind the cards */
 .analytics-main {
-    background-color: var(--pm-page-bg);
+    background: linear-gradient(
+        180deg,
+        rgba(226, 232, 240, 0.55) 0%,
+        var(--pm-page-bg) 42%,
+        var(--pm-page-bg) 100%
+    );
+    min-height: 100vh;
+    padding: 24px;
 }
 /* END SECTION */
 
