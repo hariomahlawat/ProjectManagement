@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 
@@ -69,6 +70,13 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         public int? ChipCoECategoryId { get; private set; }
         public int? ChipDcdCategoryId { get; private set; }
         public int? ChipOtherRdCategoryId { get; private set; }
+
+        // SECTION: Stage bucket counts
+        public int BucketApvlCount { get; private set; }
+        public int BucketAonCount { get; private set; }
+        public int BucketProcCount { get; private set; }
+        public int BucketDevpCount { get; private set; }
+        public int BucketUnknownCount { get; private set; }
 
         public IReadOnlyList<CategoryCountDto> FilteredCategoryCounts { get; private set; }
             = Array.Empty<CategoryCountDto>();
@@ -162,6 +170,37 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             // SECTION: Build filtered totals and category breakdown
             FilteredTotal = Items.Count;
             ChipTotalCount = Items.Count;
+
+            // SECTION: Stage bucket breakdown
+            BucketApvlCount = 0;
+            BucketAonCount = 0;
+            BucketProcCount = 0;
+            BucketDevpCount = 0;
+            BucketUnknownCount = 0;
+
+            foreach (var item in Items)
+            {
+                var bucket = StageBuckets.Of(item.CurrentStageCode);
+
+                switch (bucket)
+                {
+                    case StageBucket.Approval:
+                        BucketApvlCount++;
+                        break;
+                    case StageBucket.Aon:
+                        BucketAonCount++;
+                        break;
+                    case StageBucket.Procurement:
+                        BucketProcCount++;
+                        break;
+                    case StageBucket.Development:
+                        BucketDevpCount++;
+                        break;
+                    default:
+                        BucketUnknownCount++;
+                        break;
+                }
+            }
 
             var categoryLookup = _categories.ToDictionary(c => c.Id);
 

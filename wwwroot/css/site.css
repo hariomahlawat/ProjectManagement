@@ -8412,6 +8412,15 @@ body {
     justify-content: flex-end;
 }
 
+/* -- SECTION: Ongoing projects bucket chips -- */
+.ongoing-top__buckets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    justify-content: flex-end;
+}
+
 /* -- SECTION: Ongoing projects KPI chips -- */
 .kpi-chip {
     display: inline-flex;
@@ -8431,6 +8440,15 @@ body {
 .kpi-chip:hover {
     background: rgba(15, 23, 42, 0.04);
     border-color: rgba(15, 23, 42, 0.16);
+}
+
+.kpi-chip--static {
+    cursor: default;
+}
+
+.kpi-chip--static:hover {
+    background: rgba(148, 163, 184, 0.15);
+    border-color: rgba(15, 23, 42, 0.12);
 }
 
 .kpi-chip__label {

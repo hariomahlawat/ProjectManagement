@@ -133,6 +133,37 @@
         </div>
     </div>
 
+    <!-- SECTION: Stage bucket summary -->
+    <div class="ongoing-top__buckets" aria-label="Stage bucket counts">
+        <span class="kpi-chip kpi-chip--static" title="Apvl: FS, SOW, IPA">
+            <span class="kpi-chip__label">Apvl</span>
+            <span class="kpi-chip__count">@Model.BucketApvlCount</span>
+        </span>
+
+        <span class="kpi-chip kpi-chip--static" title="AoN: AON">
+            <span class="kpi-chip__label">AoN</span>
+            <span class="kpi-chip__count">@Model.BucketAonCount</span>
+        </span>
+
+        <span class="kpi-chip kpi-chip--static" title="GeM/Proc: BID, TEC, BM, COB, PNC, EAS, SO">
+            <span class="kpi-chip__label">GeM / Proc</span>
+            <span class="kpi-chip__count">@Model.BucketProcCount</span>
+        </span>
+
+        <span class="kpi-chip kpi-chip--static" title="Devp: DEVP, ATP, PAYMENT, TOT">
+            <span class="kpi-chip__label">Devp</span>
+            <span class="kpi-chip__count">@Model.BucketDevpCount</span>
+        </span>
+
+        @if (Model.BucketUnknownCount > 0)
+        {
+            <span class="kpi-chip kpi-chip--static" title="Unknown current stage code found">
+                <span class="kpi-chip__label">Unknown</span>
+                <span class="kpi-chip__count">@Model.BucketUnknownCount</span>
+            </span>
+        }
+    </div>
+
     <!-- SECTION: Command bar -->
     <form id="ongoingProjectsFilterForm"
           method="get"
