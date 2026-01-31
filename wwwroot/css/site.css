@@ -137,6 +137,11 @@
     --pm-accent-gold-dark: #5f4800;
     --pm-accent-mint: #7cc4a5;
     --pm-accent-lavender: #b89ce5;
+    /* -- SECTION: RGB tokens for subtle accents -- */
+    --pm-accent-rgb: 59, 130, 246;
+    --pm-success-rgb: 22, 163, 74;
+    --pm-danger-rgb: 185, 28, 28;
+    --pm-purple-rgb: 139, 92, 246;
     /* -- SECTION: Project palette -- */
     --pm-project-hero-gradient-start: #f6e9ff;
     --pm-project-hero-gradient-mid: #e8f5ff;
@@ -6182,6 +6187,20 @@ body.has-project-photo-preview-dialog {
     width: auto;
 }
 
+/* --- SECTION: Ongoing projects table polish --- */
+.ongoing-table thead th {
+    background: rgba(15, 23, 42, 0.03);
+    border-bottom: 1px solid var(--pm-border);
+}
+
+.ongoing-table tbody tr:not(.table-light):nth-child(even) {
+    background: rgba(15, 23, 42, 0.015);
+}
+
+.ongoing-table tbody tr:not(.table-light):hover td {
+    background: rgba(37, 99, 235, 0.04);
+}
+
 /* --- SECTION: Ongoing projects table cell rules --- */
 .ongoing-table td.col-date,
 .ongoing-table td.col-pdc {
@@ -6199,7 +6218,7 @@ body.has-project-photo-preview-dialog {
 }
 
 .ongoing-table tbody tr:hover td.col-stage {
-    background-color: var(--pm-surface-foam);
+    background-color: rgba(37, 99, 235, 0.04);
 }
 
 .ongoing-table td.col-remarks {
@@ -6321,12 +6340,26 @@ body.has-project-photo-preview-dialog {
     margin: 0;
 }
 
-/* ongoing projects cards */
+/* --- SECTION: Ongoing projects cards --- */
 .ongoing-card {
     background: #fff;
     border-radius: 0.85rem;
+    border-left: 2px solid transparent;
     /* SECTION: Timeline card header layout constants */
     --thumb-size: 80px;
+}
+
+/* --- SECTION: Ongoing projects card category accents --- */
+.ongoing-card--coe {
+    border-left-color: rgba(var(--pm-accent-rgb), 0.45);
+}
+
+.ongoing-card--dcd {
+    border-left-color: rgba(var(--pm-success-rgb), 0.45);
+}
+
+.ongoing-card--other {
+    border-left-color: rgba(var(--pm-purple-rgb), 0.4);
 }
 
 /* SECTION: Timeline card header layout constants (small screens) */
@@ -6402,15 +6435,24 @@ body.has-project-photo-preview-dialog {
 }
 
 .ongoing-card__meta {
-    font-size: 0.8rem;
-    color: #6c757d;
+    font-size: 0.82rem;
+    color: var(--pm-muted);
 }
 
-.ongoing-card__label {
+/* --- SECTION: Ongoing projects card header labels & values --- */
+.ongoing-card__lc-label,
+.ongoing-card__current-label {
     font-size: 0.65rem;
     text-transform: uppercase;
-    letter-spacing: .04em;
-    color: #6c757d;
+    letter-spacing: 0.04em;
+    color: var(--pm-muted);
+}
+
+.ongoing-card__lc-value,
+.ongoing-card__current-value {
+    font-size: 0.78rem;
+    color: var(--pm-text);
+    font-weight: 500;
 }
 
 .ongoing-card__last {
@@ -6425,6 +6467,33 @@ body.has-project-photo-preview-dialog {
 /* stage metadata chips */
 .ongoing-card__stage-chip {
     font-size: 0.7rem;
+}
+
+/* --- SECTION: Ongoing projects status pills --- */
+.oc-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.18rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    background: rgba(15, 23, 42, 0.04);
+    color: var(--pm-text);
+    white-space: nowrap;
+}
+
+.oc-pill--danger {
+    background: rgba(var(--pm-danger-rgb), 0.1);
+    border-color: rgba(var(--pm-danger-rgb), 0.22);
+    color: rgb(var(--pm-danger-rgb));
+}
+
+.oc-pill--neutral {
+    background: rgba(15, 23, 42, 0.04);
+    border-color: rgba(15, 23, 42, 0.1);
+    color: var(--pm-muted);
 }
 
 /* SECTION: Timeline card header responsive layout */
@@ -6510,7 +6579,7 @@ body.has-project-photo-preview-dialog {
 .ongoing-timeline__line {
     width: 50px;
     height: 2px;
-    background: rgba(0,0,0,.08);
+    background: rgba(15, 23, 42, 0.12);
     border-radius: 999px;
 }
 
@@ -8313,6 +8382,10 @@ body {
 
 .ongoing-top {
     margin-bottom: 1rem;
+    background: var(--pm-surface-soft);
+    border: 1px solid var(--pm-border);
+    border-radius: 14px;
+    padding: 16px 16px 12px 16px;
 }
 
 .ongoing-top__header {
@@ -8338,6 +8411,7 @@ body {
     justify-content: flex-end;
 }
 
+/* -- SECTION: Ongoing projects KPI chips -- */
 .kpi-chip {
     display: inline-flex;
     align-items: center;
@@ -8350,7 +8424,12 @@ body {
     font-weight: 600;
     color: #0f172a;
     cursor: pointer;
-    transition: border-color 0.2s ease, background-color 0.2s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.kpi-chip:hover {
+    background: rgba(15, 23, 42, 0.04);
+    border-color: rgba(15, 23, 42, 0.16);
 }
 
 .kpi-chip__label {
@@ -8371,9 +8450,11 @@ body {
     color: rgba(15, 23, 42, 0.55);
 }
 
+/* Active chip should look filled, not just bordered */
 .kpi-chip.is-active {
-    border-color: rgba(15, 23, 42, 0.25);
-    background: rgba(148, 163, 184, 0.28);
+    background: rgba(var(--pm-accent-rgb), 0.1);
+    border-color: rgba(var(--pm-accent-rgb), 0.3);
+    color: var(--pm-primary-strong);
 }
 
 .kpi-chip.is-active .kpi-chip__close {
@@ -8381,12 +8462,13 @@ body {
 }
 
 /* Command Bar container */
+/* -- SECTION: Ongoing projects filters container -- */
 .cmdbar {
     margin-top: 1rem;
     padding: 1rem;
     border-radius: 12px;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    background: #fff;
+    border: 1px solid var(--pm-border);
+    background: var(--pm-card);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
