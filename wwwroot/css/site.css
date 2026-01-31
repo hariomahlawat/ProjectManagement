@@ -8483,14 +8483,15 @@ body {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 6px;
+    gap: 4px;
 }
 
 .stage-pipeline-wrap__caption {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 700;
-    letter-spacing: 0.02em;
-    color: rgba(15, 23, 42, 0.55);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(15, 23, 42, 0.45);
     text-align: center;
     line-height: 1;
 }
@@ -8503,7 +8504,7 @@ body {
 .stage-pipeline {
     display: flex;
     align-items: stretch;
-    height: 36px;
+    height: 38px;
     border-radius: 999px;
     overflow: hidden;
     border: 1px solid rgba(15, 23, 42, 0.10);
@@ -8522,7 +8523,7 @@ body {
     padding: 0 0.7rem;
     flex-basis: 0;
     flex-grow: var(--grow);
-    min-width: 72px;
+    min-width: 64px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -8534,26 +8535,31 @@ body {
     content: "";
     position: absolute;
     top: 0;
-    left: 0;
-    right: 0;
+    left: 8px;
+    right: 8px;
     height: 3px;
-    background: rgba(var(--pm-accent-rgb), 0.22);
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.25);
 }
 
-.stage-pipeline__seg:not(:last-child) {
-    border-right: 1px solid rgba(15, 23, 42, 0.08);
+.stage-pipeline__seg + .stage-pipeline__seg {
+    border-left: 1px solid rgba(15, 23, 42, 0.06);
 }
 
 .stage-pipeline__label {
-    font-size: 0.78rem;
-    font-weight: 650;
-    color: rgba(15, 23, 42, 0.58);
+    max-width: 86px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: rgba(15, 23, 42, 0.55);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .stage-pipeline__count {
-    font-size: 0.92rem;
-    font-weight: 800;
-    color: #0f172a;
+    font-size: 0.9rem;
+    font-weight: 750;
+    color: rgba(15, 23, 42, 0.9);
 }
 
 /* Same accent hue, different opacities. */
@@ -8574,19 +8580,19 @@ body {
 }
 
 .stage-pipeline__seg--apvl::before {
-    background: rgba(var(--pm-accent-rgb), 0.22);
+    background: rgba(34, 197, 94, 0.22);
 }
 
 .stage-pipeline__seg--aon::before {
-    background: rgba(var(--pm-accent-rgb), 0.28);
+    background: rgba(59, 130, 246, 0.25);
 }
 
 .stage-pipeline__seg--proc::before {
-    background: rgba(var(--pm-accent-rgb), 0.34);
+    background: rgba(245, 158, 11, 0.22);
 }
 
 .stage-pipeline__seg--devp::before {
-    background: rgba(var(--pm-accent-rgb), 0.40);
+    background: rgba(168, 85, 247, 0.22);
 }
 
 .stage-pipeline__unknown {
