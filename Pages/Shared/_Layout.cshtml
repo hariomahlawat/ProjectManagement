@@ -21,6 +21,7 @@
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
         var isOngoingProjectsPage = string.Equals(currentPage, "/Projects/Ongoing/Index", StringComparison.OrdinalIgnoreCase);
+        var isDocumentRepositoryPage = string.Equals(currentArea, "DocumentRepository", StringComparison.OrdinalIgnoreCase);
         var useFullWidth = (ViewData["UseFullWidth"] as bool?) == true;
         var mainContainerClass = useFullWidth
             ? "container-fluid analytics-shell px-3 px-lg-4 px-xxl-5"
@@ -54,7 +55,12 @@
                     </a>
                     <a asp-page="/Projects/Ongoing/Index"
                        class="pm-top-tabs__item @(isOngoingProjectsPage ? "is-active" : string.Empty)">
-                        Ongoing Projects
+                        Projects
+                    </a>
+                    <a asp-area="DocumentRepository"
+                       asp-page="/Documents/Index"
+                       class="pm-top-tabs__item @(isDocumentRepositoryPage ? "is-active" : string.Empty)">
+                        Documents
                     </a>
                 </nav>
             </div>
