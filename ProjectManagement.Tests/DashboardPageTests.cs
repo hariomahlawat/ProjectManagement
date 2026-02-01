@@ -23,7 +23,9 @@ using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Pages.Dashboard;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Dashboard;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.ViewModels.Dashboard;
 using Xunit;
@@ -387,6 +389,18 @@ namespace ProjectManagement.Tests
                     OngoingCount = 0,
                     TotalProjects = 0,
                     OngoingByProjectCategory = Array.Empty<CategorySlice>(),
+                    OngoingStageDistributionTotal = new StageDistributionResult(
+                        Array.Empty<StageDistributionItem>(),
+                        ProjectLifecycleFilter.Active),
+                    OngoingStageDistributionByCategory = Array.Empty<OngoingStageDistributionCategoryVm>(),
+                    OngoingBucketsByKey = new Dictionary<string, OngoingBucketSetVm>
+                    {
+                        ["total"] = new OngoingBucketSetVm(0, 0, 0, 0, 0, 0)
+                    },
+                    OngoingBucketFilters = new[]
+                    {
+                        new OngoingBucketFilterVm("total", "Total")
+                    },
                     AllByTechnicalCategoryTop = Array.Empty<CategorySlice>(),
                     RemainingTechCategories = 0,
                     UniqueCompletedByTechnicalCategory = Array.Empty<TreemapNode>(),

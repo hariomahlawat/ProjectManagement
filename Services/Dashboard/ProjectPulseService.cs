@@ -8,6 +8,8 @@ using Microsoft.Extensions.Caching.Memory;
 using ProjectManagement.Areas.Dashboard.Components.ProjectPulse;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Analytics;
 
 namespace ProjectManagement.Services.Dashboard;
 
@@ -28,12 +30,14 @@ public sealed class ProjectPulseService : IProjectPulseService
 
     private readonly ApplicationDbContext _db;
     private readonly IMemoryCache _cache;
+    private readonly IProjectAnalyticsService _analytics;
     // END SECTION
 
-    public ProjectPulseService(ApplicationDbContext db, IMemoryCache cache)
+    public ProjectPulseService(ApplicationDbContext db, IMemoryCache cache, IProjectAnalyticsService analytics)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+        _analytics = analytics ?? throw new ArgumentNullException(nameof(analytics));
     }
 
     // SECTION: Public API
@@ -65,6 +69,17 @@ public sealed class ProjectPulseService : IProjectPulseService
             .CountAsync(cancellationToken);
 
         var ongoingByCategory = await BuildOngoingByCategoryAsync(cancellationToken);
+        var parentCategoryCounts = await BuildParentCategoryCountsAsync(cancellationToken);
+        var ongoingStageTotal = await _analytics.GetStageDistributionAsync(
+            ProjectLifecycleFilter.Active,
+            categoryId: null,
+            technicalCategoryId: null,
+            cancellationToken);
+        var ongoingStageByCategory = await BuildOngoingStageDistributionsByCategoryAsync(
+            parentCategoryCounts,
+            cancellationToken);
+        var ongoingBucketsByKey = BuildOngoingBucketsByKey(ongoingStageTotal, ongoingStageByCategory);
+        var ongoingBucketFilters = BuildOngoingBucketFilters(parentCategoryCounts);
         var (technicalTop, remainingTechnical) = await BuildTechnicalCategorySeriesAsync(cancellationToken);
         var uniqueCompletedByTech = await BuildUniqueCompletedByTechnicalCategoryTreemapAsync(cancellationToken);
         var uniqueCompletedByType = await BuildUniqueCompletedByProjectTypeTreemapAsync(cancellationToken);
@@ -80,6 +95,10 @@ public sealed class ProjectPulseService : IProjectPulseService
             OngoingCount = ongoing,
             TotalProjects = total,
             OngoingByProjectCategory = ongoingByCategory,
+            OngoingStageDistributionTotal = ongoingStageTotal,
+            OngoingStageDistributionByCategory = ongoingStageByCategory,
+            OngoingBucketsByKey = ongoingBucketsByKey,
+            OngoingBucketFilters = ongoingBucketFilters,
             AllByTechnicalCategoryTop = technicalTop,
             RemainingTechCategories = remainingTechnical,
             UniqueCompletedByTechnicalCategory = uniqueCompletedByTech,
@@ -174,6 +193,159 @@ public sealed class ProjectPulseService : IProjectPulseService
 
         return ongoingSeries;
     }
+
+    private async Task<IReadOnlyList<ParentCategoryCount>> BuildParentCategoryCountsAsync(CancellationToken cancellationToken)
+    {
+        // SECTION: Parent category counts for ongoing projects
+        var categorizedProjects = await _db.Projects
+            .AsNoTracking()
+            .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active)
+            .Select(p => new
+            {
+                ParentCategoryId = p.CategoryId.HasValue
+                    ? (p.Category!.ParentId ?? p.CategoryId)
+                    : (int?)null
+            })
+            .ToListAsync(cancellationToken);
+
+        var groupedByParent = categorizedProjects
+            .GroupBy(x => x.ParentCategoryId)
+            .Select(g => new
+            {
+                ParentCategoryId = g.Key,
+                Count = g.Count()
+            })
+            .Where(x => x.ParentCategoryId.HasValue)
+            .ToList();
+
+        var categoryIds = groupedByParent
+            .Select(x => x.ParentCategoryId!.Value)
+            .Distinct()
+            .ToList();
+
+        var categoryNames = await _db.ProjectCategories
+            .AsNoTracking()
+            .Where(c => categoryIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
+
+        return groupedByParent
+            .Select(g => new ParentCategoryCount(
+                g.ParentCategoryId!.Value,
+                categoryNames.TryGetValue(g.ParentCategoryId!.Value, out var label) ? label : "Unknown",
+                g.Count))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        // END SECTION
+    }
+
+    private async Task<IReadOnlyList<OngoingStageDistributionCategoryVm>> BuildOngoingStageDistributionsByCategoryAsync(
+        IReadOnlyList<ParentCategoryCount> parentCategoryCounts,
+        CancellationToken cancellationToken)
+    {
+        // SECTION: Ongoing stage distributions by parent category
+        if (parentCategoryCounts.Count == 0)
+        {
+            return Array.Empty<OngoingStageDistributionCategoryVm>();
+        }
+
+        var distributions = new List<OngoingStageDistributionCategoryVm>();
+        foreach (var category in parentCategoryCounts)
+        {
+            var distribution = await _analytics.GetStageDistributionAsync(
+                ProjectLifecycleFilter.Active,
+                categoryId: category.ParentCategoryId,
+                technicalCategoryId: null,
+                cancellationToken);
+
+            distributions.Add(new OngoingStageDistributionCategoryVm(
+                category.ParentCategoryId,
+                category.Label,
+                distribution));
+        }
+
+        return distributions;
+        // END SECTION
+    }
+
+    private static IReadOnlyDictionary<string, OngoingBucketSetVm> BuildOngoingBucketsByKey(
+        StageDistributionResult totalDistribution,
+        IReadOnlyList<OngoingStageDistributionCategoryVm> categoryDistributions)
+    {
+        // SECTION: Bucket aggregation mapping
+        var buckets = new Dictionary<string, OngoingBucketSetVm>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["total"] = BuildBucketSet(totalDistribution)
+        };
+
+        foreach (var category in categoryDistributions)
+        {
+            buckets[$"cat-{category.ParentCategoryId}"] = BuildBucketSet(category.StageDistribution);
+        }
+
+        return buckets;
+        // END SECTION
+    }
+
+    private static IReadOnlyList<OngoingBucketFilterVm> BuildOngoingBucketFilters(
+        IReadOnlyList<ParentCategoryCount> parentCategoryCounts)
+    {
+        // SECTION: Bucket filter list
+        var filters = new List<OngoingBucketFilterVm>
+        {
+            new("total", "Total")
+        };
+
+        filters.AddRange(parentCategoryCounts.Select(category =>
+            new OngoingBucketFilterVm($"cat-{category.ParentCategoryId}", category.Label)));
+
+        return filters;
+        // END SECTION
+    }
+
+    private static OngoingBucketSetVm BuildBucketSet(StageDistributionResult distribution)
+    {
+        // SECTION: Bucket set builder
+        var total = 0;
+        var apvl = 0;
+        var aon = 0;
+        var tender = 0;
+        var devp = 0;
+        var other = 0;
+
+        foreach (var item in distribution.Items)
+        {
+            var count = item.Count;
+            total += count;
+
+            switch (StageBuckets.Of(item.StageCode))
+            {
+                case StageBucket.Approval:
+                    apvl += count;
+                    break;
+                case StageBucket.Aon:
+                    aon += count;
+                    break;
+                case StageBucket.Procurement:
+                    tender += count;
+                    break;
+                case StageBucket.Development:
+                    devp += count;
+                    break;
+                case StageBucket.Unknown:
+                    other += count;
+                    break;
+            }
+        }
+
+        return new OngoingBucketSetVm(total, apvl, aon, tender, devp, other);
+        // END SECTION
+    }
+    // END SECTION
+
+    // SECTION: Private records
+    private sealed record ParentCategoryCount(int ParentCategoryId, string Label, int Count);
+    // END SECTION
 
     private async Task<IReadOnlyList<TreemapNode>> BuildUniqueCompletedByTechnicalCategoryTreemapAsync(
         CancellationToken cancellationToken)

@@ -20,6 +20,19 @@
       return [];
     }
   }
+
+  function safeParseObject(el, attr, fallback) {
+    try {
+      var raw = el.getAttribute(attr);
+      if (!raw) {
+        return fallback;
+      }
+      return JSON.parse(raw);
+    } catch (err) {
+      console.warn('Project pulse payload parsing failed', err); // eslint-disable-line no-console
+      return fallback;
+    }
+  }
   // END SECTION
 
   // SECTION: Chart builders
@@ -97,6 +110,63 @@
     });
   }
 
+  function buildStackedBar(ctx, payload) {
+    if (!payload || !payload.labels || !payload.series) {
+      return null;
+    }
+
+    var labels = payload.labels.map(function (label) { return String(label || ''); });
+    var datasets = payload.series.map(function (series, idx) {
+      var data = Array.isArray(series.data) ? series.data : [];
+      return {
+        label: series.label || '',
+        data: data.map(function (value) { return Number(value) || 0; }),
+        backgroundColor: palette[idx % palette.length],
+        borderRadius: 4,
+        maxBarThickness: 24
+      };
+    });
+
+    if (!labels.length || !datasets.length) {
+      return null;
+    }
+
+    return new ChartCtor(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { display: true }, tooltip: { enabled: true } },
+        scales: {
+          x: {
+            stacked: true,
+            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' },
+            ticks: {
+              display: true,
+              color: '#6b7280',
+              font: { size: 10 }
+            }
+          },
+          y: {
+            stacked: true,
+            beginAtZero: true,
+            ticks: {
+              precision: 0,
+              color: '#9ca3af',
+              font: { size: 10 }
+            },
+            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' }
+          }
+        }
+      }
+    });
+  }
+
   function buildBar(ctx, series, axisLabels) {
     axisLabels = axisLabels || {};
     var xLabel = axisLabels.x || axisLabels.X || '';
@@ -146,6 +216,100 @@
         }
       }
     });
+  }
+  // END SECTION
+
+  // SECTION: Ongoing bucket filters
+  function initOngoingBuckets(root) {
+    var container = root.querySelector('[data-ppulse-ongoing-buckets]');
+    if (!container) {
+      return;
+    }
+
+    var buckets = safeParseObject(container, 'data-buckets-json', {});
+    var filters = Array.prototype.slice.call(container.querySelectorAll('[data-bucket-key]'));
+    var segments = Array.prototype.slice.call(container.querySelectorAll('[data-bucket]'));
+    if (!filters.length || !segments.length) {
+      return;
+    }
+
+    function readNumber(value) {
+      return Number(value) || 0;
+    }
+
+    function normalizeBucket(key, fallback) {
+      if (key && Object.prototype.hasOwnProperty.call(buckets, key)) {
+        return buckets[key];
+      }
+      if (fallback && Object.prototype.hasOwnProperty.call(buckets, fallback)) {
+        return buckets[fallback];
+      }
+      return null;
+    }
+
+    function updateSegments(bucket) {
+      if (!bucket) {
+        return;
+      }
+
+      var total = readNumber(bucket.total || bucket.Total);
+      var values = {
+        apvl: readNumber(bucket.apvl || bucket.Apvl),
+        aon: readNumber(bucket.aon || bucket.AoN || bucket.Aon),
+        tender: readNumber(bucket.tender || bucket.Tender),
+        devp: readNumber(bucket.devp || bucket.Devp),
+        other: readNumber(bucket.other || bucket.Other)
+      };
+
+      segments.forEach(function (segment) {
+        var key = segment.getAttribute('data-bucket');
+        var value = values[key] || 0;
+        var percent = total > 0 ? (value / total) * 100 : 0;
+        var label = segment.querySelector('[data-bucket-value]');
+        if (label) {
+          label.textContent = value.toString();
+        }
+
+        segment.style.width = percent.toFixed(2) + '%';
+
+        if (total > 0 && value === 0) {
+          segment.classList.add('is-hidden');
+        } else {
+          segment.classList.remove('is-hidden');
+        }
+      });
+    }
+
+    function setActiveFilter(filter) {
+      filters.forEach(function (item) {
+        var isActive = item === filter;
+        item.classList.toggle('is-active', isActive);
+        item.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
+    }
+
+    function applyKey(key) {
+      var fallbackKey = container.getAttribute('data-default-key') || 'total';
+      var bucket = normalizeBucket(key, fallbackKey);
+      if (!bucket) {
+        return;
+      }
+      updateSegments(bucket);
+    }
+
+    filters.forEach(function (filter) {
+      filter.addEventListener('click', function () {
+        setActiveFilter(filter);
+        applyKey(filter.getAttribute('data-bucket-key'));
+      });
+    });
+
+    var initialFilter = filters.find(function (filter) {
+      return filter.classList.contains('is-active');
+    }) || filters[0];
+
+    setActiveFilter(initialFilter);
+    applyKey(initialFilter.getAttribute('data-bucket-key'));
   }
   // END SECTION
 
@@ -381,6 +545,22 @@
           return;
         }
       }
+      if (kind === 'stacked-bar') {
+        if (!hasChart) {
+          return;
+        }
+        var stackedCanvas = host.querySelector('canvas');
+        if (!stackedCanvas) {
+          return;
+        }
+        var stackedPayload = safeParseObject(host, 'data-chart-json', null);
+        var stackedChart = buildStackedBar(stackedCanvas.getContext('2d'), stackedPayload);
+        if (stackedChart) {
+          charts.push(stackedChart);
+        }
+        return;
+      }
+
       var series = safeParse(host, 'data-series');
       if (!series.length) {
         return;
@@ -418,6 +598,7 @@
     }
 
     initTabs(root, hydrateChart);
+    initOngoingBuckets(root);
 
     if ('IntersectionObserver' in window) {
       var observer = new IntersectionObserver(function (entries) {
