@@ -7,15 +7,6 @@
   }
 
   // SECTION: Utilities
-  function safeParse(el, attr) {
-    try {
-      return JSON.parse(el.getAttribute(attr) || '[]');
-    } catch (err) {
-      console.warn('Project pulse chart parsing failed', err); // eslint-disable-line no-console
-      return [];
-    }
-  }
-
   function safeParseObject(el, attr, fallback) {
     try {
       var raw = el.getAttribute(attr);
@@ -256,147 +247,11 @@
   }
   // END SECTION
 
-  // SECTION: Treemap builder
-  function buildTreemap(host, series) {
-    if (!host || !series.length) {
-      return;
-    }
-
-    var parsed = series
-      .map(function (item) {
-        var label = item && (item.label || item.Label) ? (item.label || item.Label) : '';
-        var count = item && (typeof item.count !== 'undefined' ? item.count : item.Count);
-        var url = item && (item.url || item.Url) ? (item.url || item.Url) : null;
-        return {
-          label: String(label),
-          count: Number(count) || 0,
-          url: url ? String(url) : null
-        };
-      })
-      .filter(function (item) { return item.count > 0; });
-
-    if (!parsed.length) {
-      return;
-    }
-
-    var total = parsed.reduce(function (sum, item) { return sum + item.count; }, 0);
-    if (!total) {
-      return;
-    }
-
-    host.innerHTML = '';
-    host.setAttribute('data-hydrated', 'true');
-
-    var styles = window.getComputedStyle(host);
-    var paddingX = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
-    var paddingY = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom);
-    var width = (host.clientWidth || host.offsetWidth) - paddingX;
-    var height = (host.clientHeight || host.offsetHeight) - paddingY;
-    if (!width || !height) {
-      return;
-    }
-
-    var horizontal = true;
-    var offsetX = parseFloat(styles.paddingLeft);
-    var offsetY = parseFloat(styles.paddingTop);
-    var remainingWidth = width;
-    var remainingHeight = height;
-
-    parsed.forEach(function (item, idx) {
-      var isLast = idx === parsed.length - 1;
-      var area = Math.max(1, Math.round((item.count / total) * width * height));
-      var tileWidth;
-      var tileHeight;
-
-      if (horizontal) {
-        tileWidth = remainingWidth;
-        tileHeight = isLast ? remainingHeight : Math.max(1, Math.round(area / remainingWidth));
-      } else {
-        tileHeight = remainingHeight;
-        tileWidth = isLast ? remainingWidth : Math.max(1, Math.round(area / remainingHeight));
-      }
-
-      tileWidth = Math.min(tileWidth, remainingWidth);
-      tileHeight = Math.min(tileHeight, remainingHeight);
-
-      var tile = createTreemapTile(item, tileWidth, tileHeight);
-      tile.style.left = offsetX + 'px';
-      tile.style.top = offsetY + 'px';
-      tile.style.width = tileWidth + 'px';
-      tile.style.height = tileHeight + 'px';
-      host.appendChild(tile);
-
-      if (horizontal) {
-        offsetY += tileHeight;
-        remainingHeight -= tileHeight;
-      } else {
-        offsetX += tileWidth;
-        remainingWidth -= tileWidth;
-      }
-
-      horizontal = !horizontal;
-    });
-  }
-
-  function createTreemapTile(item, tileWidth, tileHeight) {
-    var tile = document.createElement(item.url ? 'button' : 'div');
-    tile.className = 'ppulse__treemap-tile' + (item.url ? ' ppulse__treemap-tile--link' : '');
-    tile.title = item.label + ': ' + item.count;
-    if (item.url) {
-      tile.type = 'button';
-      tile.setAttribute('data-url', item.url);
-      tile.addEventListener('click', function () {
-        window.location.href = item.url;
-      });
-    }
-
-    // SECTION: Treemap tile modes (height-first with width override)
-    var isMicro = tileHeight < 22;
-    var isOneLine = !isMicro && tileHeight < 34 && tileWidth >= 140;
-    var isTiny = !isMicro && !isOneLine && tileHeight < 34;
-
-    if (isMicro) {
-      tile.classList.add('ppulse__treemap-tile--micro');
-    } else if (isOneLine) {
-      tile.classList.add('ppulse__treemap-tile--one-line');
-    } else if (isTiny) {
-      tile.classList.add('ppulse__treemap-tile--tiny');
-    }
-    // END SECTION
-
-    var label = document.createElement('span');
-    label.textContent = item.label;
-    var count = document.createElement('strong');
-    count.textContent = item.count.toString();
-
-    tile.appendChild(label);
-    tile.appendChild(count);
-
-    return tile;
-  }
-  // END SECTION
-
   // SECTION: Tabs
-  function initTabs(root, hydrateChart) {
+  function initTabs(root) {
     var containers = root.querySelectorAll('[data-ppulse-tabs]');
     if (!containers || containers.length === 0) {
       return;
-    }
-
-    function isTreemap(host) {
-      return host && host.getAttribute('data-chart') === 'treemap';
-    }
-
-    function hydratePanel(panel) {
-      if (!panel) {
-        return;
-      }
-      var charts = Array.prototype.slice.call(panel.querySelectorAll('.ppulse__chart'));
-      charts.forEach(function (chart) {
-        if (isTreemap(chart)) {
-          hydrateChart(chart);
-        }
-      });
     }
 
     containers.forEach(function (container) {
@@ -423,10 +278,6 @@
           }
         });
 
-        var activePanel = panels.find(function (panel) {
-          return panel.getAttribute('data-panel') === nextKey;
-        });
-        hydratePanel(activePanel);
       }
 
       tabs.forEach(function (tab) {
@@ -474,49 +325,10 @@
       return;
     }
 
-    var hosts = Array.prototype.slice.call(root.querySelectorAll('.ppulse__chart[data-chart="treemap"]'));
-
-    function hydrateChart(host) {
-      if (host.getAttribute('data-hydrated') === 'true') {
-        return;
-      }
-      var panel = host.closest('[role="tabpanel"]');
-      if (panel && panel.hasAttribute('hidden')) {
-        return;
-      }
-
-      var series = safeParse(host, 'data-series');
-      if (!series.length) {
-        return;
-      }
-
-      buildTreemap(host, series);
-    }
-
-    function hydrateAll() {
-      hosts.forEach(hydrateChart);
-      hosts = [];
-    }
-
     var updateStagePills = initStagePills(root);
 
-    initTabs(root, hydrateChart);
+    initTabs(root);
     initOngoingBuckets(root, updateStagePills);
-
-    if ('IntersectionObserver' in window) {
-      var observer = new IntersectionObserver(function (entries) {
-        entries.forEach(function (entry) {
-          if (!entry.isIntersecting) {
-            return;
-          }
-          observer.unobserve(entry.target);
-          hydrateAll();
-        });
-      }, { rootMargin: '80px' });
-      observer.observe(root);
-    } else {
-      hydrateAll();
-    }
   }
   // END SECTION
 

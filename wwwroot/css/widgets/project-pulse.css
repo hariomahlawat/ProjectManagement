@@ -524,117 +524,69 @@
 }
 /* END SECTION */
 
-/* SECTION: Treemap */
-.ppulse__treemap-block {
-  margin-bottom: var(--pp-gap-sm);
-}
-
-.ppulse__treemap-title {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
-  margin-bottom: 6px;
-}
-
-.ppulse__treemap {
-  position: relative;
-  height: 148px;
-  padding: 6px;
-  gap: 6px;
-}
-
-.ppulse__treemap-tile {
-  position: absolute;
+/* SECTION: Completed ranked bar list */
+.ppulse__barlist-wrap {
+  height: 110px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  gap: 2px;
-  padding: 8px;
-  border-radius: 10px;
-  border: 1px solid color-mix(in oklab, var(--pp-border) 45%, white);
-  background: color-mix(in oklab, var(--pm-primary, var(--pm-primary)) 12%, white);
-  color: var(--pm-text);
-  font-size: 0.72rem;
-  line-height: 1.2;
-  overflow: hidden;
-  text-align: left;
-}
-
-.ppulse__treemap-tile > span {
-  display: block;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ppulse__treemap-tile strong {
-  font-size: 0.85rem;
-}
-
-/* One-line mode: shallow but wide tiles */
-.ppulse__treemap-tile--one-line {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.ppulse__treemap-tile--one-line > span {
-  display: block;
-  max-width: calc(100% - 40px);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ppulse__treemap-tile--one-line > strong {
-  font-size: 0.85rem;
-}
-
-.ppulse__treemap-tile--tiny {
-  padding: 5px;
-}
-
-.ppulse__treemap-tile--tiny > span {
-  display: none;
-}
-
-.ppulse__treemap-tile--tiny > strong {
-  font-size: 0.8rem;
-}
-
-.ppulse__treemap-tile--micro {
-  padding: 4px;
   justify-content: center;
 }
 
-.ppulse__treemap-tile--micro > span {
-  display: none;
+.ppulse__barlist {
+  height: 110px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+  padding: 2px 0;
 }
 
-.ppulse__treemap-tile--micro > strong {
-  font-size: 0.75rem;
+.ppulse__barrow {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(140px, 2fr) auto;
+  gap: 10px;
+  align-items: center;
+  height: 16px;
 }
 
-.ppulse__treemap-tile--link {
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+.ppulse__barlabel {
+  font-size: 12px;
+  color: var(--pm-muted-text, var(--pm-text-secondary, var(--pm-accent-slate-mid)));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.ppulse__treemap-tile--link:hover,
-.ppulse__treemap-tile--link:focus-visible {
-  border-color: color-mix(in oklab, var(--pm-primary, var(--pm-primary)) 35%, white);
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
-  transform: translateY(-1px);
+.ppulse__bartrack {
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pm-border) 35%, transparent);
+  position: relative;
+  overflow: hidden;
 }
 
-.ppulse__treemap-empty {
-  padding: 12px;
-  border-radius: 10px;
-  border: 1px dashed color-mix(in oklab, var(--pp-border) 55%, white);
-  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
-  font-size: 0.78rem;
+.ppulse__barfill {
+  height: 100%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pm-accent, var(--pm-primary)) 18%, transparent);
+}
+
+.ppulse__barvalue {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.ppulse__barcount {
+  color: var(--pm-text);
+  font-weight: 600;
+}
+
+.ppulse__barpct {
+  color: var(--pm-muted-text, var(--pm-text-secondary, var(--pm-accent-slate-mid)));
+  font-size: 11px;
 }
 /* END SECTION */
 
@@ -753,24 +705,11 @@
   margin-top: 0;
 }
 
-/* Crucial: reduce treemap height drastically */
-.ppulse__card--completed .ppulse__treemap {
-  height: 110px;
-  margin: 0;
-  padding: 4px;
-  gap: 4px;
-}
-
-.ppulse__card--completed .ppulse__treemap-tile {
-  padding: 5px;
-  border-radius: 9px;
-  font-size: 0.7rem;
-}
-
-/* Reduce wasted vertical space in completed card */
-.ppulse__card--completed .ppulse__chart {
+/* SECTION: Completed bar list spacing */
+.ppulse__card--completed .ppulse__barlist {
   margin: 0;
 }
+/* END SECTION */
 
 .ppulse__empty--compact {
   padding: 10px;
