@@ -89,8 +89,62 @@ namespace ProjectManagement.Utilities.Reporting
                             }
                             break;
 
-                        case int or long or short or byte or decimal or double or float:
-                            cell.Value = value;
+                        case int intValue:
+                            cell.Value = intValue;
+                            if (!numberFormatted[i])
+                            {
+                                sheet.Column(i + 1).Style.NumberFormat.Format = "0";
+                                numberFormatted[i] = true;
+                            }
+                            break;
+
+                        case long longValue:
+                            cell.Value = longValue;
+                            if (!numberFormatted[i])
+                            {
+                                sheet.Column(i + 1).Style.NumberFormat.Format = "0";
+                                numberFormatted[i] = true;
+                            }
+                            break;
+
+                        case short shortValue:
+                            cell.Value = shortValue;
+                            if (!numberFormatted[i])
+                            {
+                                sheet.Column(i + 1).Style.NumberFormat.Format = "0";
+                                numberFormatted[i] = true;
+                            }
+                            break;
+
+                        case byte byteValue:
+                            cell.Value = byteValue;
+                            if (!numberFormatted[i])
+                            {
+                                sheet.Column(i + 1).Style.NumberFormat.Format = "0";
+                                numberFormatted[i] = true;
+                            }
+                            break;
+
+                        case decimal decimalValue:
+                            cell.Value = decimalValue;
+                            if (!numberFormatted[i])
+                            {
+                                sheet.Column(i + 1).Style.NumberFormat.Format = "0";
+                                numberFormatted[i] = true;
+                            }
+                            break;
+
+                        case double doubleValue:
+                            cell.Value = doubleValue;
+                            if (!numberFormatted[i])
+                            {
+                                sheet.Column(i + 1).Style.NumberFormat.Format = "0";
+                                numberFormatted[i] = true;
+                            }
+                            break;
+
+                        case float floatValue:
+                            cell.Value = floatValue;
                             if (!numberFormatted[i])
                             {
                                 sheet.Column(i + 1).Style.NumberFormat.Format = "0";
