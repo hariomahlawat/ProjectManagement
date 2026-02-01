@@ -1,6 +1,7 @@
 @model ProjectManagement.Areas.Dashboard.Components.ProjectPulse.ProjectPulseVm
 @using System
 @using System.Collections.Generic
+@using System.Globalization
 @using System.Linq
 @using System.Text.Json
 @using ProjectManagement.Areas.Dashboard.Components.ProjectPulse
@@ -9,24 +10,6 @@
 @* SECTION: Serialization helpers *@
 @{
     var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-    string Serialize<T>(IReadOnlyList<T> source) => JsonSerializer.Serialize(source, jsonOptions);
-
-    string DescribeCategories(string heading, IReadOnlyList<CategorySlice> slices)
-    {
-        if (slices.Count == 0)
-        {
-            return $"{heading} data is not available";
-        }
-
-        var details = string.Join(", ", slices.Select(slice => $"{slice.Label} {slice.Count}"));
-        return $"{heading}: {details}";
-    }
-
-    IReadOnlyList<CategorySlice> AsSlices(IEnumerable<TreemapNode> nodes)
-    {
-        return nodes.Select(node => new CategorySlice(node.Label, node.Count)).ToList();
-    }
-
     Dictionary<string, int> BuildStageMap(StageDistributionResult distribution)
     {
         return distribution.Items
@@ -237,9 +220,6 @@
     <article class="ppulse__card pulse-item-card ppulse__card--completed">
       <div class="ppulse__link">
         @{
-            var techSeriesJson = Html.Raw(Serialize(Model.UniqueCompletedByTechnicalCategory));
-            var typeSeriesJson = Html.Raw(Serialize(Model.UniqueCompletedByProjectType));
-
             var techCount = Model.UniqueCompletedByTechnicalCategory.Count;
             var typeCount = Model.UniqueCompletedByProjectType.Count;
 
@@ -266,7 +246,7 @@
             </div>
 
             <div class="ppulse__completed-tabs">
-              <div class="ppulse__tablist" role="tablist" aria-label="Completed treemap views">
+              <div class="ppulse__tablist" role="tablist" aria-label="Completed breakdown views">
                 <button
                   type="button"
                   class="ppulse__tab"
@@ -319,21 +299,50 @@
                 aria-labelledby="@techTabId"
                 data-panel="tech"
               >
-                @if (techCount == 0)
-                {
-                  <div class="ppulse__empty ppulse__empty--compact">No data available</div>
+                @* SECTION: Completed bar list (technical category) *@
+                @{
+                    var techSeries = Model.UniqueCompletedByTechnicalCategory ?? new List<TreemapNode>();
+                    var techTotal = techSeries.Sum(item => item.Count);
+                    var techMax = techSeries.Count > 0 ? techSeries.Max(item => item.Count) : 0;
                 }
-                else
-                {
-                  <div
-                    class="ppulse__chart ppulse__treemap"
-                    data-chart="treemap"
-                    data-series='@techSeriesJson'
-                    role="img"
-                    aria-label='@DescribeCategories("Unique completed by technical category", AsSlices(Model.UniqueCompletedByTechnicalCategory))'
-                  >
-                  </div>
-                }
+
+                <div class="ppulse__barlist-wrap">
+                  @if (techCount == 0)
+                  {
+                    <div class="ppulse__empty ppulse__empty--compact">No data available</div>
+                  }
+                  else
+                  {
+                    <div class="ppulse__barlist" role="list" aria-label="Completed projects breakdown by technical category">
+                      @foreach (var item in techSeries)
+                      {
+                        var pctOfMax = techMax > 0 ? (item.Count * 100.0 / techMax) : 0;
+                        var pctOfTotal = techTotal > 0 ? (item.Count * 100.0 / techTotal) : 0;
+                        var pctLabel = Math.Round(pctOfTotal);
+                        var pctWidth = pctOfMax.ToString("0.##", CultureInfo.InvariantCulture);
+
+                        <div
+                          class="ppulse__barrow"
+                          role="listitem"
+                          title="@item.Label (@item.Count, @pctLabel%)"
+                          aria-label="@item.Label: @item.Count projects, @pctLabel%"
+                        >
+                          <div class="ppulse__barlabel">@item.Label</div>
+
+                          <div class="ppulse__bartrack">
+                            <div class="ppulse__barfill" style="width:@pctWidth%"></div>
+                          </div>
+
+                          <div class="ppulse__barvalue">
+                            <span class="ppulse__barcount">@item.Count</span>
+                            <span class="ppulse__barpct">@($"{pctLabel}%")</span>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+                @* END SECTION *@
               </div>
 
               <div
@@ -344,21 +353,50 @@
                 data-panel="type"
                 hidden
               >
-                @if (typeCount == 0)
-                {
-                  <div class="ppulse__empty ppulse__empty--compact">No data available</div>
+                @* SECTION: Completed bar list (project type) *@
+                @{
+                    var typeSeries = Model.UniqueCompletedByProjectType ?? new List<TreemapNode>();
+                    var typeTotal = typeSeries.Sum(item => item.Count);
+                    var typeMax = typeSeries.Count > 0 ? typeSeries.Max(item => item.Count) : 0;
                 }
-                else
-                {
-                  <div
-                    class="ppulse__chart ppulse__treemap"
-                    data-chart="treemap"
-                    data-series='@typeSeriesJson'
-                    role="img"
-                    aria-label='@DescribeCategories("Unique completed by project type", AsSlices(Model.UniqueCompletedByProjectType))'
-                  >
-                  </div>
-                }
+
+                <div class="ppulse__barlist-wrap">
+                  @if (typeCount == 0)
+                  {
+                    <div class="ppulse__empty ppulse__empty--compact">No data available</div>
+                  }
+                  else
+                  {
+                    <div class="ppulse__barlist" role="list" aria-label="Completed projects breakdown by project type">
+                      @foreach (var item in typeSeries)
+                      {
+                        var pctOfMax = typeMax > 0 ? (item.Count * 100.0 / typeMax) : 0;
+                        var pctOfTotal = typeTotal > 0 ? (item.Count * 100.0 / typeTotal) : 0;
+                        var pctLabel = Math.Round(pctOfTotal);
+                        var pctWidth = pctOfMax.ToString("0.##", CultureInfo.InvariantCulture);
+
+                        <div
+                          class="ppulse__barrow"
+                          role="listitem"
+                          title="@item.Label (@item.Count, @pctLabel%)"
+                          aria-label="@item.Label: @item.Count projects, @pctLabel%"
+                        >
+                          <div class="ppulse__barlabel">@item.Label</div>
+
+                          <div class="ppulse__bartrack">
+                            <div class="ppulse__barfill" style="width:@pctWidth%"></div>
+                          </div>
+
+                          <div class="ppulse__barvalue">
+                            <span class="ppulse__barcount">@item.Count</span>
+                            <span class="ppulse__barpct">@($"{pctLabel}%")</span>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+                @* END SECTION *@
               </div>
             </div>
           </div>
