@@ -212,7 +212,7 @@
       tileWidth = Math.min(tileWidth, remainingWidth);
       tileHeight = Math.min(tileHeight, remainingHeight);
 
-      var tile = createTreemapTile(item);
+      var tile = createTreemapTile(item, tileWidth, tileHeight);
       tile.style.left = offsetX + 'px';
       tile.style.top = offsetY + 'px';
       tile.style.width = tileWidth + 'px';
@@ -231,15 +231,25 @@
     });
   }
 
-  function createTreemapTile(item) {
+  function createTreemapTile(item, tileWidth, tileHeight) {
     var tile = document.createElement(item.url ? 'button' : 'div');
     tile.className = 'ppulse__treemap-tile' + (item.url ? ' ppulse__treemap-tile--link' : '');
+    tile.title = item.label + ': ' + item.count;
     if (item.url) {
       tile.type = 'button';
       tile.setAttribute('data-url', item.url);
       tile.addEventListener('click', function () {
         window.location.href = item.url;
       });
+    }
+
+    var isMicro = (tileHeight < 22) || (tileWidth < 55);
+    var isTiny = (tileHeight < 32) || (tileWidth < 90);
+
+    if (isMicro) {
+      tile.classList.add('ppulse__treemap-tile--micro');
+    } else if (isTiny) {
+      tile.classList.add('ppulse__treemap-tile--tiny');
     }
 
     var label = document.createElement('span');
