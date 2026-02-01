@@ -28,11 +28,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return Array.Empty<string>();
             }
 
-            var like = $"%{term}%";
+            var like = $"%{EscapeLikePattern(term)}%";
             var results = await _db.ProliferationGranularEntries
                 .AsNoTracking()
                 .Where(x => x.ApprovalStatus == ApprovalStatus.Approved)
-                .Where(x => x.UnitName != null && EF.Functions.ILike(x.UnitName, like))
+                .Where(x => x.UnitName != null && EF.Functions.ILike(x.UnitName, like, "\\"))
                 .Select(x => x.UnitName!)
                 .Distinct()
                 .OrderBy(x => x)
@@ -61,6 +61,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             DateOnly? fromDate = q.FromDateUtc.HasValue ? DateOnly.FromDateTime(q.FromDateUtc.Value) : null;
             DateOnly? toDate = q.ToDateUtc.HasValue ? DateOnly.FromDateTime(q.ToDateUtc.Value) : null;
+
+            if (q.Report != ProliferationReportKind.YearlyReconciliation
+                && fromDate.HasValue
+                && toDate.HasValue
+                && fromDate.Value > toDate.Value)
+            {
+                throw new InvalidOperationException("From date must be on or before To date.");
+            }
 
             return q.Report switch
             {
@@ -95,7 +103,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             var columns = pageDto.Columns.Select(c => (c.Key, c.Label)).ToList();
             var rows = pageDto.Rows.Select(RowToDictionary).ToList();
-            var filters = BuildFilterDictionary(q);
+            var filters = await BuildFilterDictionaryAsync(q, ct);
 
             var title = $"Proliferation Report: {q.Report}";
             var bytes = _excel.Build(q.Report, columns, rows, title, filters);
@@ -107,6 +115,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         }
 
         // SECTION: Helpers
+        private static string EscapeLikePattern(string value)
+        {
+            return value
+                .Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("%", "\\%", StringComparison.Ordinal)
+                .Replace("_", "\\_", StringComparison.Ordinal);
+        }
+
         private static IDictionary<string, object?> RowToDictionary(ProliferationReportRowDto r)
         {
             return new Dictionary<string, object?>
@@ -115,13 +131,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 ["projectCode"] = r.ProjectCode,
                 ["sourceLabel"] = r.SourceLabel,
                 ["unitName"] = r.UnitName,
-                ["proliferationDate"] = r.ProliferationDateUtc?.ToString("yyyy-MM-dd"),
+                ["proliferationDate"] = r.ProliferationDateUtc?.Date,
                 ["year"] = r.Year,
                 ["quantity"] = r.Quantity,
                 ["totalQuantity"] = r.TotalQuantity,
                 ["uniqueUnits"] = r.UniqueUnits,
-                ["firstDate"] = r.FirstProliferationDateUtc?.ToString("yyyy-MM-dd"),
-                ["lastDate"] = r.LastProliferationDateUtc?.ToString("yyyy-MM-dd"),
+                ["firstDate"] = r.FirstProliferationDateUtc?.Date,
+                ["lastDate"] = r.LastProliferationDateUtc?.Date,
                 ["yearlyApprovedTotal"] = r.YearlyApprovedTotal,
                 ["granularApprovedTotal"] = r.GranularApprovedTotal,
                 ["preferenceMode"] = r.PreferenceMode,
@@ -131,19 +147,57 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             };
         }
 
-        private static IDictionary<string, string> BuildFilterDictionary(ProliferationReportQueryDto q)
+        // SECTION: Export filter labels
+        private async Task<IDictionary<string, string>> BuildFilterDictionaryAsync(ProliferationReportQueryDto q, CancellationToken ct)
         {
+            string projectLabel = string.Empty;
+            if (q.ProjectId.HasValue)
+            {
+                var p = await _db.Projects
+                    .AsNoTracking()
+                    .Where(x => x.Id == q.ProjectId.Value)
+                    .Select(x => new { x.Name, x.CaseFileNumber })
+                    .FirstOrDefaultAsync(ct);
+
+                if (p != null)
+                {
+                    projectLabel = string.IsNullOrWhiteSpace(p.CaseFileNumber)
+                        ? p.Name
+                        : $"{p.Name} ({p.CaseFileNumber})";
+                }
+            }
+
+            string projectCategoryName = string.Empty;
+            if (q.ProjectCategoryId.HasValue)
+            {
+                projectCategoryName = await _db.ProjectCategories
+                    .AsNoTracking()
+                    .Where(x => x.Id == q.ProjectCategoryId.Value)
+                    .Select(x => x.Name)
+                    .FirstOrDefaultAsync(ct) ?? string.Empty;
+            }
+
+            string technicalCategoryName = string.Empty;
+            if (q.TechnicalCategoryId.HasValue)
+            {
+                technicalCategoryName = await _db.TechnicalCategories
+                    .AsNoTracking()
+                    .Where(x => x.Id == q.TechnicalCategoryId.Value)
+                    .Select(x => x.Name)
+                    .FirstOrDefaultAsync(ct) ?? string.Empty;
+            }
+
             return new Dictionary<string, string>
             {
                 ["Report"] = q.Report.ToString(),
                 ["Source"] = q.Source?.ToDisplayName() ?? "All",
                 ["Approval status"] = string.IsNullOrWhiteSpace(q.ApprovalStatus) ? "Approved" : q.ApprovalStatus!.Trim(),
-                ["ProjectId"] = q.ProjectId?.ToString() ?? string.Empty,
-                ["UnitName"] = q.UnitName?.Trim() ?? string.Empty,
+                ["Project"] = projectLabel,
+                ["Unit name"] = q.UnitName?.Trim() ?? string.Empty,
                 ["From"] = q.FromDateUtc?.ToString("yyyy-MM-dd") ?? string.Empty,
                 ["To"] = q.ToDateUtc?.ToString("yyyy-MM-dd") ?? string.Empty,
-                ["Project category"] = q.ProjectCategoryId?.ToString() ?? string.Empty,
-                ["Technical category"] = q.TechnicalCategoryId?.ToString() ?? string.Empty
+                ["Project category"] = projectCategoryName,
+                ["Technical category"] = technicalCategoryName
             };
         }
 
@@ -205,7 +259,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             if (!string.IsNullOrWhiteSpace(q.UnitName))
             {
                 var unit = q.UnitName.Trim();
-                g = g.Where(x => x.UnitName != null && EF.Functions.ILike(x.UnitName, unit));
+                var like = $"%{EscapeLikePattern(unit)}%";
+                g = g.Where(x => x.UnitName != null && EF.Functions.ILike(x.UnitName, like, "\\"));
             }
 
             return g;

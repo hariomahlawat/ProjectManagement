@@ -271,10 +271,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
             if (!string.IsNullOrWhiteSpace(q))
             {
-                var term = $"%{q.Trim()}%";
+                var term = $"%{EscapeLikePattern(q.Trim())}%";
                 projects = projects.Where(p =>
-                    EF.Functions.ILike(p.Name, term) ||
-                    (p.CaseFileNumber != null && EF.Functions.ILike(p.CaseFileNumber, term)));
+                    EF.Functions.ILike(p.Name, term, "\\") ||
+                    (p.CaseFileNumber != null && EF.Functions.ILike(p.CaseFileNumber, term, "\\")));
             }
 
             var results = await projects
@@ -949,6 +949,15 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
             var escaped = value.Replace("\"", "\"\"");
             return $"\"{escaped}\"";
+        }
+
+        // SECTION: Search helpers
+        private static string EscapeLikePattern(string value)
+        {
+            return value
+                .Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("%", "\\%", StringComparison.Ordinal)
+                .Replace("_", "\\_", StringComparison.Ordinal);
         }
 
         // SECTION: Manage list helpers

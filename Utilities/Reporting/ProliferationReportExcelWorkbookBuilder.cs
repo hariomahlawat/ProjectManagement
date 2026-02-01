@@ -13,7 +13,6 @@ namespace ProjectManagement.Utilities.Reporting
             string title,
             IDictionary<string, string> filters)
         {
-            // SECTION: Parameter guard (unused report for now)
             _ = report;
 
             using var workbook = new XLWorkbook();
@@ -21,6 +20,7 @@ namespace ProjectManagement.Utilities.Reporting
             // SECTION: Header
             var sheet = workbook.Worksheets.Add("Report");
             sheet.Cell(1, 1).Value = title;
+            sheet.Cell(1, 1).Style.Font.Bold = true;
             sheet.Cell(2, 1).Value = $"Generated on (UTC): {DateTime.UtcNow:yyyy-MM-dd HH:mm}";
 
             // SECTION: Filters
@@ -28,7 +28,8 @@ namespace ProjectManagement.Utilities.Reporting
             foreach (var kv in filters)
             {
                 sheet.Cell(filterRow, 1).Value = kv.Key;
-                sheet.Cell(filterRow, 2).Value = kv.Value;
+                sheet.Cell(filterRow, 1).Style.Font.Bold = true;
+                sheet.Cell(filterRow, 2).Value = kv.Value ?? string.Empty;
                 filterRow++;
             }
 
@@ -40,21 +41,82 @@ namespace ProjectManagement.Utilities.Reporting
                 sheet.Cell(headerRow, i + 1).Style.Font.Bold = true;
             }
 
-            // SECTION: Rows
+            // SECTION: Sheet controls
+            sheet.SheetView.FreezeRows(headerRow);
+            if (columns.Count > 0)
+            {
+                sheet.Range(headerRow, 1, headerRow, columns.Count).SetAutoFilter();
+            }
+
+            // SECTION: Data rows
             var rowIndex = headerRow + 1;
+
+            var dateFormatted = new bool[columns.Count];
+            var numberFormatted = new bool[columns.Count];
+
             foreach (var row in rows)
             {
                 for (var i = 0; i < columns.Count; i++)
                 {
                     var key = columns[i].Key;
                     row.TryGetValue(key, out var value);
-                    sheet.Cell(rowIndex, i + 1).Value = value?.ToString() ?? "";
+
+                    var cell = sheet.Cell(rowIndex, i + 1);
+
+                    if (value is null)
+                    {
+                        cell.Value = string.Empty;
+                        continue;
+                    }
+
+                    switch (value)
+                    {
+                        case DateTime dt:
+                            cell.Value = dt;
+                            if (!dateFormatted[i])
+                            {
+                                sheet.Column(i + 1).Style.NumberFormat.Format = "yyyy-mm-dd";
+                                dateFormatted[i] = true;
+                            }
+                            break;
+
+                        case DateTimeOffset dto:
+                            cell.Value = dto.UtcDateTime;
+                            if (!dateFormatted[i])
+                            {
+                                sheet.Column(i + 1).Style.NumberFormat.Format = "yyyy-mm-dd";
+                                dateFormatted[i] = true;
+                            }
+                            break;
+
+                        case int or long or short or byte or decimal or double or float:
+                            cell.Value = value;
+                            if (!numberFormatted[i])
+                            {
+                                sheet.Column(i + 1).Style.NumberFormat.Format = "0";
+                                numberFormatted[i] = true;
+                            }
+                            break;
+
+                        case bool b:
+                            cell.Value = b;
+                            break;
+
+                        default:
+                            cell.Value = value.ToString() ?? string.Empty;
+                            break;
+                    }
                 }
 
                 rowIndex++;
             }
 
-            sheet.Columns().AdjustToContents();
+            // SECTION: Column sizing
+            var lastRowToMeasure = Math.Min(rowIndex, headerRow + 200);
+            if (columns.Count > 0)
+            {
+                sheet.Columns(1, columns.Count).AdjustToContents(1, lastRowToMeasure);
+            }
 
             using var ms = new MemoryStream();
             workbook.SaveAs(ms);
