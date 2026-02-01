@@ -349,6 +349,26 @@
   font-size: 0.85rem;
 }
 
+/* One-line mode: shallow but wide tiles */
+.ppulse__treemap-tile--one-line {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ppulse__treemap-tile--one-line > span {
+  display: block;
+  max-width: calc(100% - 40px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ppulse__treemap-tile--one-line > strong {
+  font-size: 0.85rem;
+}
+
 .ppulse__treemap-tile--tiny {
   padding: 5px;
 }
@@ -519,7 +539,7 @@
 }
 
 .ppulse__card--completed .ppulse__treemap-tile {
-  padding: 6px;
+  padding: 5px;
   border-radius: 9px;
   font-size: 0.7rem;
 }

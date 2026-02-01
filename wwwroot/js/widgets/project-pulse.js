@@ -243,14 +243,19 @@
       });
     }
 
-    var isMicro = (tileHeight < 22) || (tileWidth < 55);
-    var isTiny = (tileHeight < 32) || (tileWidth < 90);
+    // SECTION: Treemap tile modes (height-first with width override)
+    var isMicro = tileHeight < 22;
+    var isOneLine = !isMicro && tileHeight < 34 && tileWidth >= 140;
+    var isTiny = !isMicro && !isOneLine && tileHeight < 34;
 
     if (isMicro) {
       tile.classList.add('ppulse__treemap-tile--micro');
+    } else if (isOneLine) {
+      tile.classList.add('ppulse__treemap-tile--one-line');
     } else if (isTiny) {
       tile.classList.add('ppulse__treemap-tile--tiny');
     }
+    // END SECTION
 
     var label = document.createElement('span');
     label.textContent = item.label;
