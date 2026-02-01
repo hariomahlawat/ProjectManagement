@@ -39,8 +39,8 @@
 
     var buckets = safeParseObject(container, 'data-buckets-json', {});
     var filters = Array.prototype.slice.call(container.querySelectorAll('[data-bucket-key]'));
-    var segments = Array.prototype.slice.call(container.querySelectorAll('[data-bucket]'));
-    if (!filters.length || !segments.length) {
+    var segmentEls = Array.prototype.slice.call(container.querySelectorAll('[data-ppulse-bucket-seg]'));
+    if (!filters.length || !segmentEls.length) {
       return;
     }
 
@@ -58,38 +58,63 @@
       return null;
     }
 
+    var segments = segmentEls.reduce(function (acc, el) {
+      var key = el.getAttribute('data-ppulse-bucket-seg');
+      if (!key) {
+        return acc;
+      }
+      acc[key] = {
+        el: el,
+        valueEl: el.querySelector('[data-ppulse-bucket-seg-value]'),
+        percentEl: el.querySelector('[data-ppulse-bucket-seg-percent]')
+      };
+      return acc;
+    }, {});
+
     function updateSegments(bucket) {
       if (!bucket) {
         return;
       }
 
-      var total = readNumber(bucket.total || bucket.Total);
       var values = {
         apvl: readNumber(bucket.apvl || bucket.Apvl),
         aon: readNumber(bucket.aon || bucket.Aon),
         tender: readNumber(bucket.tender || bucket.Tender),
-        devp: readNumber(bucket.devp || bucket.Devp),
-        other: readNumber(bucket.other || bucket.Other)
+        devp: readNumber(bucket.devp || bucket.Devp)
       };
-      var visibleTotal = values.apvl + values.aon + values.tender + values.devp;
-      var percentTotal = visibleTotal > 0 ? visibleTotal : total;
+      var other = readNumber(bucket.other || bucket.Other);
+      var total = readNumber(bucket.total || bucket.Total);
+      var visibleTotal = Math.max(0, total - other);
 
-      segments.forEach(function (segment) {
-        var key = segment.getAttribute('data-bucket');
+      Object.keys(segments).forEach(function (key) {
+        var meta = segments[key];
+        if (!meta) {
+          return;
+        }
+
         var value = values[key] || 0;
-        var percent = percentTotal > 0 ? (value / percentTotal) * 100 : 0;
-        var label = segment.querySelector('[data-bucket-value]');
-        if (label) {
-          label.textContent = value.toString();
+
+        if (value <= 0 || visibleTotal <= 0) {
+          meta.el.style.display = 'none';
+          meta.el.style.flexGrow = '0';
+          meta.el.style.flexBasis = '0px';
+          return;
         }
 
-        segment.style.width = percent.toFixed(2) + '%';
-
-        if (percentTotal > 0 && value === 0) {
-          segment.classList.add('is-hidden');
-        } else {
-          segment.classList.remove('is-hidden');
+        meta.el.style.display = '';
+        if (meta.valueEl) {
+          meta.valueEl.textContent = value.toString();
         }
+
+        var pct = Math.round((value / visibleTotal) * 100);
+        if (meta.percentEl) {
+          meta.percentEl.textContent = pct + '%';
+        }
+
+        meta.el.style.width = '';
+        meta.el.style.flexGrow = String(value);
+        meta.el.style.flexShrink = '1';
+        meta.el.style.flexBasis = '0px';
       });
     }
 
