@@ -6,6 +6,10 @@ namespace ProjectManagement.Utilities.Reporting
     // SECTION: Excel report builder
     public sealed class ProliferationReportExcelWorkbookBuilder : IProliferationReportExcelWorkbookBuilder
     {
+        // SECTION: Excel date boundaries
+        private static readonly DateTime ExcelMinDate = DateTime.FromOADate(0);
+        private static readonly DateTime ExcelMaxDate = DateTime.FromOADate(2958465);
+
         public byte[] Build(
             ProliferationReportKind report,
             IReadOnlyList<(string Key, string Label)> columns,
@@ -72,21 +76,11 @@ namespace ProjectManagement.Utilities.Reporting
                     switch (value)
                     {
                         case DateTime dt:
-                            cell.Value = dt;
-                            if (!dateFormatted[i])
-                            {
-                                sheet.Column(i + 1).Style.NumberFormat.Format = "yyyy-mm-dd";
-                                dateFormatted[i] = true;
-                            }
+                            SetDateCellValue(sheet, cell, i, dt, dateFormatted);
                             break;
 
                         case DateTimeOffset dto:
-                            cell.Value = dto.UtcDateTime;
-                            if (!dateFormatted[i])
-                            {
-                                sheet.Column(i + 1).Style.NumberFormat.Format = "yyyy-mm-dd";
-                                dateFormatted[i] = true;
-                            }
+                            SetDateCellValue(sheet, cell, i, dto.UtcDateTime, dateFormatted);
                             break;
 
                         case int intValue:
@@ -175,6 +169,35 @@ namespace ProjectManagement.Utilities.Reporting
             using var ms = new MemoryStream();
             workbook.SaveAs(ms);
             return ms.ToArray();
+        }
+
+        // SECTION: Date handling
+        private static void SetDateCellValue(
+            IXLWorksheet sheet,
+            IXLCell cell,
+            int columnIndex,
+            DateTime value,
+            bool[] dateFormatted)
+        {
+            if (IsExcelDate(value))
+            {
+                cell.Value = value;
+                if (!dateFormatted[columnIndex])
+                {
+                    sheet.Column(columnIndex + 1).Style.NumberFormat.Format = "yyyy-mm-dd";
+                    dateFormatted[columnIndex] = true;
+                }
+
+                return;
+            }
+
+            cell.Value = value.ToString("yyyy-MM-dd");
+        }
+
+        // SECTION: Date validation
+        private static bool IsExcelDate(DateTime value)
+        {
+            return value >= ExcelMinDate && value <= ExcelMaxDate;
         }
     }
 }
