@@ -1,0 +1,222 @@
+/* SECTION: Page shell */
+.cs-page {
+    padding: 16px 18px 24px;
+}
+
+/* SECTION: Header */
+.cs-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 14px;
+}
+
+.cs-title {
+    margin: 0;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: #0b1220;
+    font-size: 28px;
+    line-height: 1.15;
+}
+
+.cs-subtitle {
+    color: #6b7280;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* SECTION: Cards */
+.cs-card {
+    border-radius: 16px;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+    margin-bottom: 14px;
+}
+
+.cs-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.cs-card-body {
+    padding: 14px 16px;
+}
+
+.cs-card-body--flush {
+    padding: 0;
+}
+
+/* SECTION: Filter actions */
+.cs-filter-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.cs-btn {
+    border-radius: 10px;
+    font-weight: 700;
+}
+
+/* SECTION: Filters grid */
+.cs-filter-form {
+    margin: 0;
+}
+
+.cs-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px 14px;
+}
+
+.cs-field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: #6b7280;
+    margin-bottom: 6px;
+}
+
+.cs-field--wide {
+    grid-column: span 2;
+}
+
+/* SECTION: Inputs */
+.cs-filters .form-control,
+.cs-filters .form-select {
+    border-radius: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.cs-filters .form-control:focus,
+.cs-filters .form-select:focus {
+    box-shadow: 0 0 0 3px rgba(45, 108, 223, 0.15);
+    border-color: rgba(45, 108, 223, 0.35);
+}
+
+/* SECTION: Table wrapper */
+.cs-table-wrap {
+    overflow: auto;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* SECTION: Table tweaks */
+.cs-table {
+    width: 100%;
+    min-width: 1100px;
+}
+
+.cs-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: rgba(248, 250, 252, 0.95);
+    backdrop-filter: blur(6px);
+}
+
+.cs-table tbody tr:hover {
+    background: rgba(45, 108, 223, 0.04);
+}
+
+.cs-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.cs-muted {
+    color: #6b7280;
+}
+
+.cs-remarks {
+    max-width: 320px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* SECTION: Links */
+.cs-link {
+    font-weight: 700;
+    color: #1d4ed8;
+    text-decoration: none;
+}
+
+.cs-link:hover {
+    text-decoration: underline;
+}
+
+/* SECTION: Pills */
+.cs-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(255, 255, 255, 0.9);
+    color: #111827;
+    white-space: nowrap;
+}
+
+.cs-pill--yes {
+    border-color: rgba(16, 185, 129, 0.25);
+    background: rgba(16, 185, 129, 0.1);
+    color: #065f46;
+}
+
+.cs-pill--no {
+    border-color: rgba(239, 68, 68, 0.25);
+    background: rgba(239, 68, 68, 0.1);
+    color: #7f1d1d;
+}
+
+/* SECTION: Actions column */
+.cs-actions-col {
+    width: 90px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.cs-btn-sm {
+    border-radius: 10px;
+    font-weight: 800;
+}
+
+/* SECTION: Empty state */
+.cs-empty {
+    padding: 16px;
+    color: #6b7280;
+    font-weight: 700;
+}
+
+/* SECTION: Responsive */
+@media (max-width: 1200px) {
+    .cs-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cs-field--wide {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 640px) {
+    .cs-page {
+        padding: 12px 12px 18px;
+    }
+
+    .cs-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .cs-field--wide {
+        grid-column: span 1;
+    }
+}
