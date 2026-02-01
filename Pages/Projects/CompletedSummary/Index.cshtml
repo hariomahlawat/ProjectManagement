@@ -3,115 +3,137 @@
 @using ProjectManagement.Models
 @{
     ViewData["Title"] = "Completed projects - cost and proliferation";
+    ViewData["UseFullWidth"] = true;
 }
 
-<div class="container-fluid px-0">
-    <h1 class="mb-3">Completed projects - cost and proliferation</h1>
+@section Styles {
+    <link rel="stylesheet" href="~/css/components/pm-table.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/projects-completed-summary.css" asp-append-version="true" />
+}
 
-    <div class="card mb-4">
-        <div class="card-body">
-            @* SECTION: Filters *@
-            <form method="get" class="row g-3 align-items-end" novalidate>
-                <div class="col-12 col-md-3">
-                    <label asp-for="TechnicalCategoryId" class="form-label">Technical category</label>
-                    <select asp-for="TechnicalCategoryId"
-                            asp-items="Model.TechnicalCategoryOptions"
-                            class="form-select form-select-sm">
-                    </select>
-                </div>
-                <div class="col-12 col-md-3">
-                    <label asp-for="TechStatus" class="form-label">Technology status</label>
-                    <select asp-for="TechStatus"
-                            asp-items="Model.TechStatusOptions"
-                            class="form-select form-select-sm">
-                    </select>
-                </div>
-                <div class="col-12 col-md-3">
-                    <label asp-for="AvailableForProliferation" class="form-label">Available for proliferation</label>
-                    <select asp-for="AvailableForProliferation"
-                            asp-items="Model.AvailabilityOptions"
-                            class="form-select form-select-sm">
-                    </select>
-                </div>
-                <div class="col-12 col-md-3">
-                    <label asp-for="TotCompleted" class="form-label">ToT status</label>
-                    <select asp-for="TotCompleted"
-                            asp-items="Model.TotStatusOptions"
-                            class="form-select form-select-sm">
-                    </select>
-                </div>
-                <div class="col-12 col-md-2">
-                    <label asp-for="CompletedYear" class="form-label">Completion year</label>
-                    <input asp-for="CompletedYear"
-                           class="form-control form-control-sm"
-                           inputmode="numeric" />
-                </div>
-                <div class="col-12 col-md-3">
-                    <label asp-for="Search" class="form-label">Search by project name</label>
-                    <input asp-for="Search"
-                           class="form-control form-control-sm" />
-                </div>
-                <div class="col-12 col-md-3 d-flex gap-2 justify-content-md-end">
-                    <button type="submit" class="btn btn-sm btn-primary">Filter</button>
-                    <a asp-page="./Index"
-                       asp-page-handler="Export"
-                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
-                       asp-route-TechStatus="@Model.TechStatus"
-                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
-                       asp-route-TotCompleted="@Model.TotCompleted"
-                       asp-route-CompletedYear="@Model.CompletedYear"
-                       asp-route-Search="@Model.Search"
-                       class="btn btn-sm btn-outline-secondary">
-                        Export
-                    </a>
+<div class="pm-page cs-page">
+    @* SECTION: Page header *@
+    <div class="cs-header">
+        <h1 class="cs-title">Completed projects</h1>
+        <div class="cs-subtitle">Cost and proliferation</div>
+    </div>
+
+    @* SECTION: Filters *@
+    <div class="pm-card cs-card cs-filters">
+        <div class="pm-card-header cs-card-header">
+            <div>
+                <div class="pm-card-title">Filters</div>
+                <div class="pm-card-subtitle">Refine the list using category, status, year, and search.</div>
+            </div>
+            <div class="cs-filter-actions">
+                <button type="submit" form="csFiltersForm" class="btn btn-primary cs-btn">Filter</button>
+                <a asp-page="./Index"
+                   asp-page-handler="Export"
+                   asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
+                   asp-route-TechStatus="@Model.TechStatus"
+                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
+                   asp-route-TotCompleted="@Model.TotCompleted"
+                   asp-route-CompletedYear="@Model.CompletedYear"
+                   asp-route-Search="@Model.Search"
+                   class="btn btn-outline-secondary cs-btn">
+                    Export
+                </a>
+            </div>
+        </div>
+
+        <div class="pm-card-body cs-card-body">
+            <form method="get" id="csFiltersForm" class="cs-filter-form" novalidate>
+                <div class="cs-grid">
+                    <div class="cs-field">
+                        <label asp-for="TechnicalCategoryId">Technical category</label>
+                        <select asp-for="TechnicalCategoryId"
+                                asp-items="Model.TechnicalCategoryOptions"
+                                class="form-select">
+                        </select>
+                    </div>
+                    <div class="cs-field">
+                        <label asp-for="TechStatus">Technology status</label>
+                        <select asp-for="TechStatus"
+                                asp-items="Model.TechStatusOptions"
+                                class="form-select">
+                        </select>
+                    </div>
+                    <div class="cs-field">
+                        <label asp-for="AvailableForProliferation">Available for proliferation</label>
+                        <select asp-for="AvailableForProliferation"
+                                asp-items="Model.AvailabilityOptions"
+                                class="form-select">
+                        </select>
+                    </div>
+                    <div class="cs-field">
+                        <label asp-for="TotCompleted">ToT status</label>
+                        <select asp-for="TotCompleted"
+                                asp-items="Model.TotStatusOptions"
+                                class="form-select">
+                        </select>
+                    </div>
+                    <div class="cs-field">
+                        <label asp-for="CompletedYear">Completion year</label>
+                        <input asp-for="CompletedYear"
+                               class="form-control"
+                               inputmode="numeric" />
+                    </div>
+                    <div class="cs-field cs-field--wide">
+                        <label asp-for="Search">Search by project name</label>
+                        <input asp-for="Search"
+                               class="form-control" />
+                    </div>
                 </div>
             </form>
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                @* SECTION: Results table *@
-                <table class="table table-sm table-striped align-middle mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th scope="col">Project</th>
-                            <th scope="col">R&amp;D / L1 cost (lakh)</th>
-                            <th scope="col">Approx production cost (lakh)</th>
-                            <th scope="col">Latest LPP</th>
-                            <th scope="col">Tech status</th>
-                            <th scope="col">Available</th>
-                            <th scope="col">ToT status</th>
-                            <th scope="col">Remarks</th>
-                            @if (Model.CanEdit)
-                            {
-                                <th scope="col" class="text-end">Actions</th>
-                            }
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (Model.Items.Count == 0)
-                        {
+    @* SECTION: Results *@
+    <div class="pm-card cs-card cs-results">
+        <div class="pm-card-header cs-card-header">
+            <div>
+                <div class="pm-card-title">Results</div>
+                <div class="pm-card-subtitle">Completed projects matching the applied filters.</div>
+            </div>
+        </div>
+
+        <div class="pm-card-body cs-card-body cs-card-body--flush">
+            @if (Model.Items.Count == 0)
+            {
+                <div class="cs-empty">No completed projects matched the selected filters.</div>
+            }
+            else
+            {
+                <div class="cs-table-wrap">
+                    <table class="pm-table cs-table">
+                        <thead>
                             <tr>
-                                <td colspan="@(Model.CanEdit ? 9 : 8)" class="text-center text-muted py-4">
-                                    No completed projects matched the selected filters.
-                                </td>
+                                <th scope="col">Project</th>
+                                <th scope="col" class="cs-num">R&amp;D / L1 cost (lakh)</th>
+                                <th scope="col" class="cs-num">Approx production cost (lakh)</th>
+                                <th scope="col">Latest LPP</th>
+                                <th scope="col">Tech status</th>
+                                <th scope="col">Available</th>
+                                <th scope="col">ToT status</th>
+                                <th scope="col">Remarks</th>
+                                @if (Model.CanEdit)
+                                {
+                                    <th scope="col" class="cs-actions-col">Actions</th>
+                                }
                             </tr>
-                        }
-                        else
-                        {
-                            foreach (var item in Model.Items)
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.Items)
                             {
                                 <tr>
                                     <td>
-                                        <a asp-page="/Projects/Overview" asp-route-id="@item.ProjectId">
+                                        <a asp-page="/Projects/Overview" asp-route-id="@item.ProjectId" class="cs-link">
                                             @item.Name
                                         </a>
                                     </td>
-                                    <td>@(item.RdCostLakhs?.ToString("0.##"))</td>
-                                    <td>@(item.ApproxProductionCost?.ToString("0.##"))</td>
-                                    <td class="text-muted">
+                                    <td class="cs-num">@(item.RdCostLakhs?.ToString("0.##"))</td>
+                                    <td class="cs-num">@(item.ApproxProductionCost?.ToString("0.##"))</td>
+                                    <td class="cs-muted">
                                         @if (item.LatestLpp is { } latest)
                                         {
                                             var label = latest.Amount.ToString("0.##") + " lakh";
@@ -130,40 +152,40 @@
                                     <td>
                                         @if (item.AvailableForProliferation == true)
                                         {
-                                            <span class="text-success">Yes</span>
+                                            <span class="cs-pill cs-pill--yes">Yes</span>
                                         }
                                         else if (item.AvailableForProliferation == false)
                                         {
-                                            <span class="text-danger">No</span>
+                                            <span class="cs-pill cs-pill--no">No</span>
                                         }
                                     </td>
                                     <td>
                                         @if (item.TotStatus == ProjectTotStatus.Completed)
                                         {
-                                            <span class="text-success">Completed</span>
+                                            <span class="cs-pill cs-pill--yes">Completed</span>
                                         }
                                         else if (item.TotStatus.HasValue)
                                         {
-                                            <span class="text-danger">Not completed</span>
+                                            <span class="cs-pill cs-pill--no">Not completed</span>
                                         }
                                     </td>
-                                    <td>@item.Remarks</td>
+                                    <td class="cs-remarks">@item.Remarks</td>
                                     @if (Model.CanEdit)
                                     {
-                                        <td class="text-end">
+                                        <td class="cs-actions-col">
                                             <a asp-page="./Edit"
                                                asp-route-id="@item.ProjectId"
-                                               class="btn btn-sm btn-outline-primary">
+                                               class="btn btn-outline-primary btn-sm cs-btn-sm">
                                                 Edit
                                             </a>
                                         </td>
                                     }
                                 </tr>
                             }
-                        }
-                    </tbody>
-                </table>
-            </div>
+                        </tbody>
+                    </table>
+                </div>
+            }
         </div>
     </div>
 </div>
