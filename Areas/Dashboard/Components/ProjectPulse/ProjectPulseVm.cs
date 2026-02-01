@@ -12,15 +12,18 @@ public sealed class ProjectPulseVm
 
     // SECTION: Counts
     public required int CompletedCount { get; init; }
+    public required int CompletedUniqueCount { get; init; }
+    public required int CompletedRebuildCount { get; init; }
     public required int OngoingCount { get; init; }
     public required int TotalProjects { get; init; }
     // END SECTION
 
     // SECTION: Chart series
-    public required IReadOnlyList<BarPoint> CompletedByYear { get; init; }
     public required IReadOnlyList<CategorySlice> OngoingByProjectCategory { get; init; }
     public required IReadOnlyList<CategorySlice> AllByTechnicalCategoryTop { get; init; }
     public required int RemainingTechCategories { get; init; }
+    public required IReadOnlyList<TreemapNode> UniqueCompletedByTechnicalCategory { get; init; }
+    public required IReadOnlyList<TreemapNode> UniqueCompletedByProjectType { get; init; }
     // END SECTION
 
     // SECTION: Links
@@ -35,7 +38,6 @@ public sealed class ProjectPulseVm
 public sealed record CategorySlice(string Label, int Count);
 // END SECTION
 
-// SECTION: Bar point contract
-public sealed record BarPoint(string Label, int Count);
+// SECTION: Treemap node contract
+public sealed record TreemapNode(string Label, int Count, string? Url);
 // END SECTION
-

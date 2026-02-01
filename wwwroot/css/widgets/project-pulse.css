@@ -170,10 +170,21 @@
   gap: 0.35rem;
 }
 
+.ppulse__card-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .ppulse__card-head small {
   color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
   font-weight: 600;
   font-size: 0.78rem;
+}
+
+.ppulse__subtle {
+  font-size: 0.75rem;
+  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
 }
 
 .ppulse__chart {
@@ -196,6 +207,11 @@
   background: transparent;
 }
 
+.ppulse__inline-link {
+  text-decoration: none;
+  color: inherit;
+}
+
 .ppulse__foot {
   margin-top: auto;
   color: var(--pm-primary, var(--pm-primary));
@@ -209,5 +225,94 @@
   font-size: 0.8rem;
   color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
   margin-top: 4px;
+}
+/* END SECTION */
+
+/* SECTION: Completed KPIs */
+.ppulse__kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--pp-gap-sm);
+  margin: var(--pp-gap-xs) 0 var(--pp-gap-sm);
+}
+
+.ppulse__kpi {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--pp-border) 55%, white);
+  background: color-mix(in oklab, var(--pm-card) 82%, white);
+}
+
+.ppulse__kpi-label {
+  font-size: 0.75rem;
+  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
+  margin-bottom: 4px;
+}
+
+.ppulse__kpi-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--pm-text);
+}
+/* END SECTION */
+
+/* SECTION: Treemap */
+.ppulse__treemap-block {
+  margin-bottom: var(--pp-gap-sm);
+}
+
+.ppulse__treemap-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
+  margin-bottom: 6px;
+}
+
+.ppulse__treemap {
+  position: relative;
+  height: 148px;
+  padding: 6px;
+  gap: 6px;
+}
+
+.ppulse__treemap-tile {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--pp-border) 45%, white);
+  background: color-mix(in oklab, var(--pm-primary, var(--pm-primary)) 12%, white);
+  color: var(--pm-text);
+  font-size: 0.72rem;
+  line-height: 1.2;
+  overflow: hidden;
+  text-align: left;
+}
+
+.ppulse__treemap-tile strong {
+  font-size: 0.85rem;
+}
+
+.ppulse__treemap-tile--link {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.ppulse__treemap-tile--link:hover,
+.ppulse__treemap-tile--link:focus-visible {
+  border-color: color-mix(in oklab, var(--pm-primary, var(--pm-primary)) 35%, white);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
+  transform: translateY(-1px);
+}
+
+.ppulse__treemap-empty {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in oklab, var(--pp-border) 55%, white);
+  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
+  font-size: 0.78rem;
 }
 /* END SECTION */
