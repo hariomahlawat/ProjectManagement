@@ -70,13 +70,41 @@
     return String(dir || "").toLowerCase() === "asc" ? "asc" : "desc";
   }
 
+  // SECTION: Fetch helpers
+  async function readErrorMessage(response) {
+    const contentType = response.headers.get("content-type") || "";
+    const text = await response.text().catch(() => "");
+    if (contentType.includes("application/json") && text) {
+      try {
+        const json = JSON.parse(text);
+        if (json?.message) return json.message;
+      } catch {
+        return text;
+      }
+    }
+    return text;
+  }
+
   async function fetchJson(url) {
     const res = await fetch(url, { headers: { "Accept": "application/json" } });
+    const contentType = res.headers.get("content-type") || "";
+    const isJson = contentType.includes("application/json");
+
     if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(text || `Request failed: ${res.status}`);
+      const message = await readErrorMessage(res);
+      throw new Error(message || `Request failed: ${res.status}`);
     }
-    return await res.json();
+
+    if (!isJson) {
+      await res.text().catch(() => "");
+      throw new Error("Unexpected response received from the server. Please refresh the page and try again.");
+    }
+
+    try {
+      return await res.json();
+    } catch {
+      throw new Error("Unable to read the server response. Please try again.");
+    }
   }
 
   // SECTION: State
