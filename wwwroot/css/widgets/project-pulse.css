@@ -361,3 +361,107 @@
   font-size: 0.78rem;
 }
 /* END SECTION */
+
+/* SECTION: Completed compact layout */
+.ppulse__completed-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--pp-gap-sm);
+}
+
+.ppulse__completed-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ppulse__info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
+  border: 1px solid color-mix(in oklab, var(--pp-border) 55%, white);
+  background: color-mix(in oklab, var(--pm-card) 86%, white);
+}
+
+.ppulse__completed-tabs .ppulse__tablist {
+  margin: 0;
+}
+
+.ppulse__completed-main {
+  display: grid;
+  grid-template-columns: 20% minmax(0, 1fr);
+  gap: var(--pp-gap-sm);
+  margin-top: var(--pp-gap-xs);
+  align-items: stretch;
+}
+
+.ppulse__completed-kpis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pp-gap-xs);
+}
+
+.ppulse__kpi-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--pp-border) 55%, white);
+  background: color-mix(in oklab, var(--pm-card) 82%, white);
+}
+
+.ppulse__kpi-row-label {
+  font-size: 0.75rem;
+  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
+  font-weight: 600;
+}
+
+.ppulse__kpi-row-value {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--pm-text);
+}
+
+.ppulse__completed-panels {
+  min-width: 0;
+}
+
+.ppulse__tabpanel--compact {
+  margin-top: 0;
+}
+
+/* Crucial: reduce treemap height drastically */
+.ppulse__card--completed .ppulse__treemap {
+  height: 110px;
+  margin: 0;
+}
+
+/* Reduce wasted vertical space in completed card */
+.ppulse__card--completed .ppulse__chart {
+  margin: 0;
+}
+
+.ppulse__empty--compact {
+  padding: 10px;
+  font-size: 0.78rem;
+}
+
+/* Mobile: stack KPI above chart */
+@media (max-width: 767px) {
+  .ppulse__completed-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ppulse__completed-main {
+    grid-template-columns: 1fr;
+  }
+}
+/* END SECTION */
