@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ProjectManagement.Services.Analytics;
 
 namespace ProjectManagement.Areas.Dashboard.Components.ProjectPulse;
 
@@ -20,6 +21,10 @@ public sealed class ProjectPulseVm
 
     // SECTION: Chart series
     public required IReadOnlyList<CategorySlice> OngoingByProjectCategory { get; init; }
+    public required StageDistributionResult OngoingStageDistributionTotal { get; init; }
+    public required IReadOnlyList<OngoingStageDistributionCategoryVm> OngoingStageDistributionByCategory { get; init; }
+    public required IReadOnlyDictionary<string, OngoingBucketSetVm> OngoingBucketsByKey { get; init; }
+    public required IReadOnlyList<OngoingBucketFilterVm> OngoingBucketFilters { get; init; }
     public required IReadOnlyList<CategorySlice> AllByTechnicalCategoryTop { get; init; }
     public required int RemainingTechCategories { get; init; }
     public required IReadOnlyList<TreemapNode> UniqueCompletedByTechnicalCategory { get; init; }
@@ -36,6 +41,27 @@ public sealed class ProjectPulseVm
 
 // SECTION: Category slice contract
 public sealed record CategorySlice(string Label, int Count);
+// END SECTION
+
+// SECTION: Ongoing stage distribution contract
+public sealed record OngoingStageDistributionCategoryVm(
+    int ParentCategoryId,
+    string Label,
+    StageDistributionResult StageDistribution);
+// END SECTION
+
+// SECTION: Ongoing bucket filter contract
+public sealed record OngoingBucketFilterVm(string Key, string Label);
+// END SECTION
+
+// SECTION: Ongoing bucket set contract
+public sealed record OngoingBucketSetVm(
+    int Total,
+    int Apvl,
+    int AoN,
+    int Tender,
+    int Devp,
+    int Other);
 // END SECTION
 
 // SECTION: Treemap node contract

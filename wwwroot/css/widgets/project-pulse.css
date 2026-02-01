@@ -222,6 +222,145 @@
 }
 /* END SECTION */
 
+/* SECTION: Ongoing layout */
+.ppulse__ongoing-grid {
+  display: grid;
+  grid-template-columns: 0.32fr 0.68fr;
+  gap: var(--pp-gap-sm);
+  align-items: stretch;
+}
+
+.ppulse__ongoing-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.ppulse__chart--compact {
+  height: 150px;
+}
+
+.ppulse__chart--stacked {
+  height: 170px;
+}
+
+.ppulse__ongoing-buckets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pp-gap-xs);
+  margin-top: var(--pp-gap-xs);
+}
+
+.ppulse__bucket-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pp-gap-xs);
+  flex-wrap: wrap;
+}
+
+.ppulse__bucket-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
+}
+
+.ppulse__bucket-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ppulse__bucket-filter {
+  appearance: none;
+  border: 1px solid color-mix(in oklab, var(--pp-border) 50%, white);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: color-mix(in oklab, var(--pm-card) 85%, white);
+  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
+  cursor: pointer;
+}
+
+.ppulse__bucket-filter.is-active {
+  background: color-mix(in oklab, var(--pm-primary, var(--pm-primary)) 12%, white);
+  color: var(--pm-primary, var(--pm-primary));
+  border-color: color-mix(in oklab, var(--pm-primary, var(--pm-primary)) 35%, white);
+}
+
+.ppulse__bucket-filter:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--pm-primary, var(--pm-primary)) 55%, white);
+  outline-offset: 2px;
+}
+
+.ppulse__bucket-bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--pp-border) 45%, white);
+  background: color-mix(in oklab, var(--pm-card) 88%, white);
+  min-height: 36px;
+  overflow: hidden;
+}
+
+.ppulse__bucket-seg {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 0.7rem;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ppulse__bucket-seg strong {
+  font-weight: 600;
+}
+
+.ppulse__bucket-seg.is-hidden {
+  display: none;
+}
+
+.ppulse__bucket-seg--apvl {
+  background: color-mix(in oklab, #1d4ed8 12%, white);
+  color: #1e3a8a;
+}
+
+.ppulse__bucket-seg--aon {
+  background: color-mix(in oklab, #9333ea 12%, white);
+  color: #6b21a8;
+}
+
+.ppulse__bucket-seg--tender {
+  background: color-mix(in oklab, #0f766e 12%, white);
+  color: #115e59;
+}
+
+.ppulse__bucket-seg--devp {
+  background: color-mix(in oklab, #16a34a 12%, white);
+  color: #166534;
+}
+
+.ppulse__bucket-seg--other {
+  background: color-mix(in oklab, #64748b 12%, white);
+  color: #475569;
+}
+
+@media (max-width: 900px) {
+  .ppulse__ongoing-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* END SECTION */
+
 /* SECTION: Completed KPIs */
 .ppulse__kpis {
   display: grid;

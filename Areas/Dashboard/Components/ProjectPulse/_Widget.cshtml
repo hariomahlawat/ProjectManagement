@@ -25,6 +25,8 @@
     {
         return nodes.Select(node => new CategorySlice(node.Label, node.Count)).ToList();
     }
+
+    string SerializeObject<T>(T source) => JsonSerializer.Serialize(source, jsonOptions);
 }
 @* END SECTION *@
 
@@ -63,21 +65,146 @@
   @* SECTION: Content cards *@
   <div class="ppulse__grid">
     <article class="ppulse__card pulse-item-card">
-      <a class="ppulse__link" href="@Model.OngoingUrl" title="View ongoing projects">
+      <div class="ppulse__link">
+        @* SECTION: Ongoing header *@
         <header class="ppulse__card-head">
           <h3>Ongoing <small>@Model.OngoingCount</small></h3>
         </header>
-        <div
-          class="ppulse__chart pulse-chart-container"
-          data-chart="donut"
-          data-series='@Html.Raw(Serialize(Model.OngoingByProjectCategory))'
-          role="img"
-          aria-label='@DescribeCategories("Ongoing projects by category", Model.OngoingByProjectCategory)'
-        >
-          <canvas aria-hidden="true"></canvas>
-        </div>
-        <footer class="ppulse__foot">View ongoing →</footer>
-      </a>
+        @* END SECTION *@
+
+        @* SECTION: Ongoing content *@
+        @if (Model.OngoingCount == 0)
+        {
+          <div class="ppulse__empty">No ongoing projects</div>
+        }
+        else
+        {
+          @{
+              var stageLabels = Model.OngoingStageDistributionTotal.Items
+                  .Select(item => item.StageCode)
+                  .ToList();
+              var stackedSeries = Model.OngoingStageDistributionByCategory
+                  .Select(category =>
+                  {
+                      var stageMap = category.StageDistribution.Items
+                          .GroupBy(item => item.StageCode, StringComparer.OrdinalIgnoreCase)
+                          .ToDictionary(group => group.Key, group => group.Sum(item => item.Count), StringComparer.OrdinalIgnoreCase);
+                      var aligned = stageLabels
+                          .Select(label => stageMap.TryGetValue(label, out var value) ? value : 0)
+                          .ToList();
+                      return new
+                      {
+                          label = category.Label,
+                          data = aligned
+                      };
+                  })
+                  .ToList();
+              var stackedPayload = new
+              {
+                  labels = stageLabels,
+                  series = stackedSeries
+              };
+              var stackedPayloadJson = SerializeObject(stackedPayload);
+              var ongoingBucketsJson = SerializeObject(Model.OngoingBucketsByKey);
+          }
+
+          <div class="ppulse__ongoing-grid">
+            <div class="ppulse__ongoing-panel">
+              @if (Model.OngoingByProjectCategory.Count == 0)
+              {
+                <div class="ppulse__empty">No category data available</div>
+              }
+              else
+              {
+                <div
+                  class="ppulse__chart ppulse__chart--compact"
+                  data-chart="donut"
+                  data-series='@Html.Raw(Serialize(Model.OngoingByProjectCategory))'
+                  role="img"
+                  aria-label='@DescribeCategories("Ongoing projects by category", Model.OngoingByProjectCategory)'
+                >
+                  <canvas aria-hidden="true"></canvas>
+                </div>
+              }
+            </div>
+
+            <div class="ppulse__ongoing-panel">
+              @if (stageLabels.Count == 0 || stackedSeries.Count == 0)
+              {
+                <div class="ppulse__empty">No stage data available</div>
+              }
+              else
+              {
+                <div
+                  class="ppulse__chart ppulse__chart--stacked"
+                  data-chart="stacked-bar"
+                  data-chart-json='@Html.Raw(stackedPayloadJson)'
+                  role="img"
+                  aria-label="Ongoing projects by stage with category breakdown"
+                >
+                  <canvas aria-hidden="true"></canvas>
+                </div>
+              }
+            </div>
+          </div>
+
+          <div
+            class="ppulse__ongoing-buckets"
+            data-ppulse-ongoing-buckets
+            data-default-key="total"
+            data-buckets-json='@Html.Raw(ongoingBucketsJson)'
+          >
+            <div class="ppulse__bucket-head">
+              <span class="ppulse__bucket-title">Buckets</span>
+              <div class="ppulse__bucket-filters" role="tablist" aria-label="Ongoing bucket filters">
+                @foreach (var filter in Model.OngoingBucketFilters)
+                {
+                  var isActive = filter.Key == "total";
+                  <button
+                    type="button"
+                    class="ppulse__bucket-filter@(isActive ? " is-active" : string.Empty)"
+                    data-bucket-key="@filter.Key"
+                    role="tab"
+                    aria-selected="@(isActive ? "true" : "false")"
+                  >
+                    @filter.Label
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="ppulse__bucket-bar" role="list">
+              <div class="ppulse__bucket-seg ppulse__bucket-seg--apvl" data-bucket="apvl" role="listitem">
+                <span>Apvl</span>
+                <strong data-bucket-value>0</strong>
+              </div>
+              <div class="ppulse__bucket-seg ppulse__bucket-seg--aon" data-bucket="aon" role="listitem">
+                <span>AoN</span>
+                <strong data-bucket-value>0</strong>
+              </div>
+              <div class="ppulse__bucket-seg ppulse__bucket-seg--tender" data-bucket="tender" role="listitem">
+                <span>Tender</span>
+                <strong data-bucket-value>0</strong>
+              </div>
+              <div class="ppulse__bucket-seg ppulse__bucket-seg--devp" data-bucket="devp" role="listitem">
+                <span>Devp</span>
+                <strong data-bucket-value>0</strong>
+              </div>
+              <div class="ppulse__bucket-seg ppulse__bucket-seg--other" data-bucket="other" role="listitem">
+                <span>Other</span>
+                <strong data-bucket-value>0</strong>
+              </div>
+            </div>
+          </div>
+        }
+        @* END SECTION *@
+
+        @* SECTION: Ongoing footer *@
+        <footer class="ppulse__foot">
+          <a class="ppulse__inline-link" href="@Model.OngoingUrl">View ongoing →</a>
+        </footer>
+        @* END SECTION *@
+      </div>
     </article>
 
     <article class="ppulse__card pulse-item-card ppulse__card--completed">
