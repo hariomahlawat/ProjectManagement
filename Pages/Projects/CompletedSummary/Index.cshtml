@@ -105,12 +105,27 @@
             else
             {
                 <div class="cs-table-wrap">
-                    <table class="pm-table cs-table">
+                    <table class="pm-table pm-table-sm cs-table">
+                        @* SECTION: Column sizing *@
+                        <colgroup>
+                            <col class="cs-col-project" />
+                            <col class="cs-col-rd" />
+                            <col class="cs-col-prod" />
+                            <col class="cs-col-lpp" />
+                            <col class="cs-col-tech" />
+                            <col class="cs-col-available" />
+                            <col class="cs-col-tot" />
+                            <col class="cs-col-remarks" />
+                            @if (Model.CanEdit)
+                            {
+                                <col class="cs-col-actions" />
+                            }
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th scope="col">Project</th>
-                                <th scope="col" class="cs-num">R&amp;D / L1 cost (lakh)</th>
-                                <th scope="col" class="cs-num">Approx production cost (lakh)</th>
+                                <th scope="col" class="cs-num text-end">R&amp;D / L1 cost (lakh)</th>
+                                <th scope="col" class="cs-num text-end">Approx production cost (lakh)</th>
                                 <th scope="col">Latest LPP</th>
                                 <th scope="col">Tech status</th>
                                 <th scope="col">Available</th>
@@ -127,13 +142,16 @@
                             {
                                 <tr>
                                     <td>
-                                        <a asp-page="/Projects/Overview" asp-route-id="@item.ProjectId" class="cs-link">
+                                        <a asp-page="/Projects/Overview"
+                                           asp-route-id="@item.ProjectId"
+                                           class="cs-link pm-cell-clamp-2"
+                                           title="@item.Name">
                                             @item.Name
                                         </a>
                                     </td>
-                                    <td class="cs-num">@(item.RdCostLakhs?.ToString("0.##"))</td>
-                                    <td class="cs-num">@(item.ApproxProductionCost?.ToString("0.##"))</td>
-                                    <td class="cs-muted">
+                                    <td class="cs-num text-end">@(item.RdCostLakhs?.ToString("0.##"))</td>
+                                    <td class="cs-num text-end">@(item.ApproxProductionCost?.ToString("0.##"))</td>
+                                    <td class="cs-muted cs-td-lpp">
                                         @if (item.LatestLpp is { } latest)
                                         {
                                             var label = latest.Amount.ToString("0.##") + " lakh";
@@ -159,7 +177,7 @@
                                             <span class="cs-pill cs-pill--no">No</span>
                                         }
                                     </td>
-                                    <td>
+                                    <td class="cs-td-tot">
                                         @if (item.TotStatus == ProjectTotStatus.Completed)
                                         {
                                             <span class="cs-pill cs-pill--yes">Completed</span>
@@ -169,7 +187,7 @@
                                             <span class="cs-pill cs-pill--no">Not completed</span>
                                         }
                                     </td>
-                                    <td class="cs-remarks">@item.Remarks</td>
+                                    <td class="cs-remarks cs-td-remarks">@item.Remarks</td>
                                     @if (Model.CanEdit)
                                     {
                                         <td class="cs-actions-col">

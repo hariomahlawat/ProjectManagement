@@ -117,6 +117,8 @@
     z-index: 2;
     background: rgba(248, 250, 252, 0.95);
     backdrop-filter: blur(6px);
+    letter-spacing: 0.06em;
+    font-weight: 650;
 }
 
 .cs-table tbody tr:hover {
@@ -129,6 +131,10 @@
     white-space: nowrap;
 }
 
+.cs-table .text-end {
+    font-variant-numeric: tabular-nums;
+}
+
 .cs-muted {
     color: #6b7280;
 }
@@ -138,6 +144,64 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* SECTION: Table sizing */
+.cs-table td:first-child {
+    max-width: 26rem;
+}
+
+.cs-col-project {
+    width: 28%;
+}
+
+.cs-col-rd {
+    width: 10%;
+}
+
+.cs-col-prod {
+    width: 12%;
+}
+
+.cs-col-lpp {
+    width: 12%;
+}
+
+.cs-col-tech {
+    width: 10%;
+}
+
+.cs-col-available {
+    width: 8%;
+}
+
+.cs-col-tot {
+    width: 10%;
+}
+
+.cs-col-remarks {
+    width: 10%;
+}
+
+.cs-col-actions {
+    width: 6%;
+}
+
+.cs-table td:nth-child(4) {
+    max-width: 14rem;
+}
+
+/* SECTION: Cell clamp */
+.cs-link.pm-cell-clamp-2 {
+    white-space: normal;
+}
+
+/* SECTION: Empty cell placeholders */
+.cs-td-lpp:empty::before,
+.cs-td-tot:empty::before,
+.cs-td-remarks:empty::before {
+    content: "—";
+    color: rgba(15, 23, 42, 0.45);
 }
 
 /* SECTION: Links */
