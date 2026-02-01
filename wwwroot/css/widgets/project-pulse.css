@@ -337,8 +337,41 @@
   text-align: left;
 }
 
+.ppulse__treemap-tile > span {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .ppulse__treemap-tile strong {
   font-size: 0.85rem;
+}
+
+.ppulse__treemap-tile--tiny {
+  padding: 5px;
+}
+
+.ppulse__treemap-tile--tiny > span {
+  display: none;
+}
+
+.ppulse__treemap-tile--tiny > strong {
+  font-size: 0.8rem;
+}
+
+.ppulse__treemap-tile--micro {
+  padding: 4px;
+  justify-content: center;
+}
+
+.ppulse__treemap-tile--micro > span {
+  display: none;
+}
+
+.ppulse__treemap-tile--micro > strong {
+  font-size: 0.75rem;
 }
 
 .ppulse__treemap-tile--link {
@@ -363,11 +396,19 @@
 /* END SECTION */
 
 /* SECTION: Completed compact layout */
+.ppulse__card--completed .ppulse__link {
+  padding: 0.65rem 0.75rem 0.55rem;
+}
+
 .ppulse__completed-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--pp-gap-sm);
+}
+
+.ppulse__card--completed .ppulse__completed-head {
+  gap: 10px;
 }
 
 .ppulse__completed-title {
@@ -388,8 +429,22 @@
   background: color-mix(in oklab, var(--pm-card) 86%, white);
 }
 
+.ppulse__card--completed .ppulse__info {
+  width: 22px;
+  height: 22px;
+}
+
 .ppulse__completed-tabs .ppulse__tablist {
   margin: 0;
+}
+
+.ppulse__card--completed .ppulse__tablist {
+  padding: 4px;
+}
+
+.ppulse__card--completed .ppulse__tab {
+  padding: 5px 9px;
+  font-size: 0.72rem;
 }
 
 .ppulse__completed-main {
@@ -398,6 +453,11 @@
   gap: var(--pp-gap-sm);
   margin-top: var(--pp-gap-xs);
   align-items: stretch;
+}
+
+.ppulse__card--completed .ppulse__completed-main {
+  gap: 10px;
+  margin-top: 6px;
 }
 
 .ppulse__completed-kpis {
@@ -417,16 +477,29 @@
   background: color-mix(in oklab, var(--pm-card) 82%, white);
 }
 
+.ppulse__card--completed .ppulse__kpi-row {
+  padding: 6px 8px;
+  border-radius: 9px;
+}
+
 .ppulse__kpi-row-label {
   font-size: 0.75rem;
   color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
   font-weight: 600;
 }
 
+.ppulse__card--completed .ppulse__kpi-row-label {
+  font-size: 0.72rem;
+}
+
 .ppulse__kpi-row-value {
   font-size: 1rem;
   font-weight: 800;
   color: var(--pm-text);
+}
+
+.ppulse__card--completed .ppulse__kpi-row-value {
+  font-size: 0.95rem;
 }
 
 .ppulse__completed-panels {
@@ -441,6 +514,14 @@
 .ppulse__card--completed .ppulse__treemap {
   height: 110px;
   margin: 0;
+  padding: 4px;
+  gap: 4px;
+}
+
+.ppulse__card--completed .ppulse__treemap-tile {
+  padding: 6px;
+  border-radius: 9px;
+  font-size: 0.7rem;
 }
 
 /* Reduce wasted vertical space in completed card */
@@ -451,6 +532,12 @@
 .ppulse__empty--compact {
   padding: 10px;
   font-size: 0.78rem;
+}
+
+.ppulse__card--completed .ppulse__foot {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 /* Mobile: stack KPI above chart */
