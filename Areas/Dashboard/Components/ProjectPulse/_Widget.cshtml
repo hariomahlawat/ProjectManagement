@@ -76,11 +76,49 @@
 
   @* SECTION: Content cards *@
   <div class="ppulse__grid">
-    <article class="ppulse__card pulse-item-card">
+    @* SECTION: Ongoing defaults *@
+    @{
+        var defaultOngoingKey = Model.OngoingBucketFilters.FirstOrDefault()?.Key ?? "total";
+        var ongoingBucketsJson = SerializeObject(Model.OngoingBucketsByKey);
+    }
+    @* END SECTION *@
+
+    <article
+      class="ppulse__card pulse-item-card"
+      data-ppulse-ongoing-buckets
+      data-default-key="@defaultOngoingKey"
+      data-buckets-json='@Html.Raw(ongoingBucketsJson)'
+    >
       <div class="ppulse__link">
         @* SECTION: Ongoing header *@
-        <header class="ppulse__card-head">
+        <header class="ppulse__card-head ppulse__ongoing-head">
           <h3>Ongoing <small>@Model.OngoingCount</small></h3>
+          @* SECTION: Ongoing category filters *@
+          <div class="ppulse__ongoing-head-filters">
+            @if (Model.OngoingBucketFilters.Count == 0)
+            {
+              <span class="ppulse__subtle">No category data available</span>
+            }
+            else
+            {
+              <div class="ppulse__bucket-filters" role="tablist" aria-label="Category distribution">
+                @foreach (var filter in Model.OngoingBucketFilters)
+                {
+                  var isActive = filter.Key == defaultOngoingKey;
+                  <button
+                    type="button"
+                    class="ppulse__bucket-filter@(isActive ? " is-active" : string.Empty)"
+                    data-bucket-key="@filter.Key"
+                    role="tab"
+                    aria-selected="@(isActive ? "true" : "false")"
+                  >
+                    @filter.Label
+                  </button>
+                }
+              </div>
+            }
+          </div>
+          @* END SECTION *@
         </header>
         @* END SECTION *@
 
@@ -91,7 +129,6 @@
         }
         else
         {
-          var ongoingBucketsJson = SerializeObject(Model.OngoingBucketsByKey);
           var stageOrder = new List<string>();
           var stageOrderSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -128,41 +165,7 @@
           var stageOrderJson = SerializeObject(stageOrder);
           var stageDistributionJson = SerializeObject(stageDistributionByKey);
 
-          <div
-            class="ppulse__ongoing-buckets"
-            data-ppulse-ongoing-buckets
-            data-default-key="total"
-            data-buckets-json='@Html.Raw(ongoingBucketsJson)'
-          >
-            @* SECTION: Category distribution *@
-            <div class="ppulse__ongoing-summary">
-              <div class="ppulse__summary-block">
-                <p class="ppulse__summary-title">Category distribution</p>
-                @if (Model.OngoingBucketFilters.Count == 0)
-                {
-                  <div class="ppulse__empty ppulse__empty--compact">No category data available</div>
-                }
-                else
-                {
-                  <div class="ppulse__bucket-filters ppulse__bucket-filters--compact" role="tablist" aria-label="Ongoing category filters">
-                    @foreach (var filter in Model.OngoingBucketFilters)
-                    {
-                      var isActive = filter.Key == "total";
-                      <button
-                        type="button"
-                        class="ppulse__bucket-filter@(isActive ? " is-active" : string.Empty)"
-                        data-bucket-key="@filter.Key"
-                        role="tab"
-                        aria-selected="@(isActive ? "true" : "false")"
-                      >
-                        @filter.Label
-                      </button>
-                    }
-                  </div>
-                }
-              </div>
-            </div>
-            @* END SECTION *@
+          <div class="ppulse__ongoing-buckets">
 
             @* SECTION: Bucket bar *@
             <div class="ppulse__bucket-head">
