@@ -97,6 +97,7 @@
     state.projectLabel = "";
     el.project.value = "";
     el.unit.value = "";
+    invalidateResults();
 
     el.hint.textContent = kind === "YearlyReconciliation"
       ? "This report compares yearly totals and granular sums and shows the effective total based on preference mode."
@@ -133,6 +134,8 @@
   }
 
   el.unit.addEventListener("input", () => {
+    state.page = 1;
+    invalidateResults();
     if (unitSuggestTimer) window.clearTimeout(unitSuggestTimer);
     unitSuggestTimer = window.setTimeout(() => refreshUnitSuggestions().catch(() => {}), 250);
   });
@@ -146,7 +149,15 @@
       el.projectSuggest.innerHTML = "";
       return;
     }
-    const url = `${api.projects}?q=${encodeURIComponent(q)}`;
+    const pc = el.projectCategory.value.trim();
+    const tc = el.technicalCategory.value.trim();
+
+    const qs = new URLSearchParams();
+    qs.set("q", q);
+    if (pc) qs.set("projectCategoryId", pc);
+    if (tc) qs.set("technicalCategoryId", tc);
+
+    const url = `${api.projects}?${qs.toString()}`;
     const list = await fetchJson(url);
 
     el.projectSuggest.innerHTML = (list || []).map(p => {
@@ -158,7 +169,9 @@
   }
 
   el.project.addEventListener("input", () => {
+    state.page = 1;
     state.projectId = null;
+    invalidateResults();
     if (projTimer) window.clearTimeout(projTimer);
     projTimer = window.setTimeout(() => refreshProjectSuggestions().catch(() => {}), 250);
   });
@@ -249,6 +262,16 @@
     el.export.disabled = total === 0;
   }
 
+  // SECTION: Table invalidation
+  function invalidateResults() {
+    state.total = 0;
+    state.columns = [];
+    state.rows = [];
+    state.lastQuery = null;
+    renderTable([], []);
+    updatePager();
+  }
+
   // SECTION: Report execution
   async function runReport() {
     const kind = el.kind.value;
@@ -260,6 +283,15 @@
     if (reportNeedsUnit(kind) && !el.unit.value.trim()) {
       el.hint.textContent = "Enter a unit name to run this report.";
       return;
+    }
+
+    if (reportUsesDate(kind)) {
+      const from = el.from.value;
+      const to = el.to.value;
+      if (from && to && from > to) {
+        el.hint.textContent = "From date must be on or before To date.";
+        return;
+      }
     }
 
     const qs = buildQuery();
@@ -307,10 +339,41 @@
   el.kind.addEventListener("change", applyKindUI);
   el.pageSize.addEventListener("change", () => {
     state.page = 1;
-    if (state.lastQuery) {
-      runReport().catch(() => {});
-    }
+    invalidateResults();
   });
+
+  // SECTION: Filter change tracking
+  function onFilterChanged() {
+    state.page = 1;
+    invalidateResults();
+    state.projectId = null;
+    state.projectLabel = "";
+    el.project.value = "";
+    el.projectSuggest.classList.add("d-none");
+  }
+
+  el.source.addEventListener("change", () => {
+    state.page = 1;
+    invalidateResults();
+  });
+
+  el.status.addEventListener("change", () => {
+    state.page = 1;
+    invalidateResults();
+  });
+
+  el.from.addEventListener("change", () => {
+    state.page = 1;
+    invalidateResults();
+  });
+
+  el.to.addEventListener("change", () => {
+    state.page = 1;
+    invalidateResults();
+  });
+
+  el.projectCategory.addEventListener("change", onFilterChanged);
+  el.technicalCategory.addEventListener("change", onFilterChanged);
 
   // SECTION: Init
   applyKindUI();
