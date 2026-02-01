@@ -28,6 +28,9 @@
   }
 
   // SECTION: State
+  const root = document.querySelector('[data-page="proliferation-reports"]');
+  const canManageRecords = root?.dataset?.canManageRecords === "true";
+
   const state = {
     page: 1,
     total: 0,
@@ -65,8 +68,16 @@
   };
 
   // SECTION: UI behavior
-  function reportNeedsProject(kind) {
+  function reportShowsProjectFilter(kind) {
     return kind === "ProjectToUnits";
+  }
+
+  function reportRequiresProject(kind) {
+    return false;
+  }
+
+  function reportSupportsManageActions(kind) {
+    return kind === "ProjectToUnits" || kind === "UnitToProjects" || kind === "GranularLedger";
   }
 
   function reportNeedsUnit(kind) {
@@ -80,7 +91,7 @@
   function applyKindUI() {
     const kind = el.kind.value;
 
-    el.projectWrap.classList.toggle("d-none", !reportNeedsProject(kind));
+    el.projectWrap.classList.toggle("d-none", !reportShowsProjectFilter(kind));
     el.unitWrap.classList.toggle("d-none", !reportNeedsUnit(kind));
 
     const usesDate = reportUsesDate(kind);
@@ -99,9 +110,17 @@
     el.unit.value = "";
     invalidateResults();
 
-    el.hint.textContent = kind === "YearlyReconciliation"
-      ? "This report compares yearly totals and granular sums and shows the effective total based on preference mode."
-      : "Dates and unit names are derived from granular entries only.";
+    if (kind === "YearlyReconciliation") {
+      el.hint.textContent = "This report compares yearly totals and granular sums and shows the effective total based on preference mode.";
+      return;
+    }
+
+    if (kind === "ProjectToUnits") {
+      el.hint.textContent = "Select a project to narrow this report (optional). Dates and unit names are derived from granular entries only.";
+      return;
+    }
+
+    el.hint.textContent = "Dates and unit names are derived from granular entries only.";
   }
 
   // SECTION: Lookups
@@ -213,7 +232,7 @@
     const technicalCategoryId = el.technicalCategory.value.trim();
     if (technicalCategoryId) query.set("technicalCategoryId", technicalCategoryId);
 
-    if (reportNeedsProject(kind) && state.projectId) {
+    if (state.projectId) {
       query.set("projectId", String(state.projectId));
     }
 
@@ -233,17 +252,35 @@
   }
 
   // SECTION: Table rendering
+  function buildManageUrl(row) {
+    const params = new URLSearchParams();
+    if (row && row.projectId) params.set("projectId", String(row.projectId));
+    if (row && row.source !== undefined && row.source !== null) params.set("source", String(row.source));
+    if (row && row.year) params.set("year", String(row.year));
+    params.set("kind", "Granular");
+    return `/ProjectOfficeReports/Proliferation/Manage?${params.toString()}`;
+  }
+
   function renderTable(columns, rows) {
     el.head.innerHTML = (columns || []).map(c => `<th scope="col">${esc(c.label)}</th>`).join("");
+    el.body.innerHTML = "";
 
-    el.body.innerHTML = (rows || []).map(r => {
-      const tds = (columns || []).map(c => {
-        const key = c.key;
-        const val = (r && Object.prototype.hasOwnProperty.call(r, key)) ? r[key] : "";
-        return `<td>${esc(val ?? "")}</td>`;
-      }).join("");
-      return `<tr>${tds}</tr>`;
-    }).join("");
+    (rows || []).forEach(r => {
+      const tr = document.createElement("tr");
+      (columns || []).forEach(c => {
+        const td = document.createElement("td");
+        if (c.key === "__actions") {
+          const url = buildManageUrl(r);
+          td.innerHTML = `<a href="${url}" class="btn btn-link btn-sm p-0">Manage</a>`;
+        } else {
+          const key = c.key;
+          const val = (r && Object.prototype.hasOwnProperty.call(r, key)) ? r[key] : "";
+          td.textContent = String(val ?? "");
+        }
+        tr.appendChild(td);
+      });
+      el.body.appendChild(tr);
+    });
   }
 
   // SECTION: Pager
@@ -276,7 +313,7 @@
   async function runReport() {
     const kind = el.kind.value;
 
-    if (reportNeedsProject(kind) && !state.projectId) {
+    if (reportRequiresProject(kind) && !state.projectId) {
       el.hint.textContent = "Select a project to run this report.";
       return;
     }
@@ -300,7 +337,12 @@
     const url = `${api.run}?${qs}`;
     const result = await fetchJson(url);
 
-    state.columns = result.columns || [];
+    const baseColumns = result.columns || [];
+    const columns = reportSupportsManageActions(kind) && canManageRecords
+      ? [...baseColumns, { key: "__actions", label: "Actions" }]
+      : baseColumns;
+
+    state.columns = columns;
     state.rows = result.rows || [];
     state.total = result.total || 0;
 
