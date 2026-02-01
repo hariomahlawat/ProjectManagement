@@ -128,67 +128,45 @@
           var stageOrderJson = SerializeObject(stageOrder);
           var stageDistributionJson = SerializeObject(stageDistributionByKey);
 
-          <div class="ppulse__ongoing-summary">
-            <div class="ppulse__summary-block">
-              <p class="ppulse__summary-title">Category distribution</p>
-              @if (Model.OngoingByProjectCategory.Count == 0)
-              {
-                <div class="ppulse__empty ppulse__empty--compact">No category data available</div>
-              }
-              else
-              {
-                <div class="ppulse__chip-row" role="list">
-                  @foreach (var slice in Model.OngoingByProjectCategory)
-                  {
-                    <div class="ppulse__chip" role="listitem">
-                      <span>@slice.Label</span>
-                      <strong>@slice.Count</strong>
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-
-            <div class="ppulse__summary-block">
-              <p class="ppulse__summary-title">Stage distribution</p>
-              <div
-                class="ppulse__stage-pills"
-                data-ppulse-stage-pills
-                data-default-key="total"
-                data-stage-order='@Html.Raw(stageOrderJson)'
-                data-stage-json='@Html.Raw(stageDistributionJson)'
-              >
-                <div class="ppulse__stage-pill-row" role="list" data-stage-row></div>
-                <div class="ppulse__empty ppulse__empty--compact ppulse__stage-empty" data-stage-empty hidden>
-                  No stage data available
-                </div>
-              </div>
-            </div>
-          </div>
-
           <div
             class="ppulse__ongoing-buckets"
             data-ppulse-ongoing-buckets
             data-default-key="total"
             data-buckets-json='@Html.Raw(ongoingBucketsJson)'
           >
-            <div class="ppulse__bucket-head">
-              <span class="ppulse__bucket-title">Buckets</span>
-              <div class="ppulse__bucket-filters" role="tablist" aria-label="Ongoing bucket filters">
-                @foreach (var filter in Model.OngoingBucketFilters)
+            @* SECTION: Category distribution *@
+            <div class="ppulse__ongoing-summary">
+              <div class="ppulse__summary-block">
+                <p class="ppulse__summary-title">Category distribution</p>
+                @if (Model.OngoingBucketFilters.Count == 0)
                 {
-                  var isActive = filter.Key == "total";
-                  <button
-                    type="button"
-                    class="ppulse__bucket-filter@(isActive ? " is-active" : string.Empty)"
-                    data-bucket-key="@filter.Key"
-                    role="tab"
-                    aria-selected="@(isActive ? "true" : "false")"
-                  >
-                    @filter.Label
-                  </button>
+                  <div class="ppulse__empty ppulse__empty--compact">No category data available</div>
+                }
+                else
+                {
+                  <div class="ppulse__bucket-filters ppulse__bucket-filters--compact" role="tablist" aria-label="Ongoing category filters">
+                    @foreach (var filter in Model.OngoingBucketFilters)
+                    {
+                      var isActive = filter.Key == "total";
+                      <button
+                        type="button"
+                        class="ppulse__bucket-filter@(isActive ? " is-active" : string.Empty)"
+                        data-bucket-key="@filter.Key"
+                        role="tab"
+                        aria-selected="@(isActive ? "true" : "false")"
+                      >
+                        @filter.Label
+                      </button>
+                    }
+                  </div>
                 }
               </div>
+            </div>
+            @* END SECTION *@
+
+            @* SECTION: Bucket bar *@
+            <div class="ppulse__bucket-head">
+              <span class="ppulse__bucket-title">Buckets</span>
             </div>
 
             <div class="ppulse__bucket-bar" role="list">
@@ -209,6 +187,25 @@
                 <strong data-bucket-value>0</strong>
               </div>
             </div>
+            @* END SECTION *@
+
+            @* SECTION: Stage distribution *@
+            <div class="ppulse__summary-block ppulse__summary-block--stage">
+              <p class="ppulse__summary-title">Stage distribution</p>
+              <div
+                class="ppulse__stage-pills ppulse__stage-pills--below"
+                data-ppulse-stage-pills
+                data-default-key="total"
+                data-stage-order='@Html.Raw(stageOrderJson)'
+                data-stage-json='@Html.Raw(stageDistributionJson)'
+              >
+                <div class="ppulse__stage-pill-row" role="list" data-stage-row></div>
+                <div class="ppulse__empty ppulse__empty--compact ppulse__stage-empty" data-stage-empty hidden>
+                  No stage data available
+                </div>
+              </div>
+            </div>
+            @* END SECTION *@
           </div>
         }
         @* END SECTION *@

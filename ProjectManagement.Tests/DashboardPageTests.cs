@@ -388,7 +388,6 @@ namespace ProjectManagement.Tests
                     CompletedRebuildCount = 0,
                     OngoingCount = 0,
                     TotalProjects = 0,
-                    OngoingByProjectCategory = Array.Empty<CategorySlice>(),
                     OngoingStageDistributionTotal = new StageDistributionResult(
                         Array.Empty<StageDistributionItem>(),
                         ProjectLifecycleFilter.Active),

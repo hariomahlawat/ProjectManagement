@@ -20,7 +20,6 @@ public sealed class ProjectPulseVm
     // END SECTION
 
     // SECTION: Chart series
-    public required IReadOnlyList<CategorySlice> OngoingByProjectCategory { get; init; }
     public required StageDistributionResult OngoingStageDistributionTotal { get; init; }
     public required IReadOnlyList<OngoingStageDistributionCategoryVm> OngoingStageDistributionByCategory { get; init; }
     public required IReadOnlyDictionary<string, OngoingBucketSetVm> OngoingBucketsByKey { get; init; }
