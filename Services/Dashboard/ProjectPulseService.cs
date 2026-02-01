@@ -69,7 +69,6 @@ public sealed class ProjectPulseService : IProjectPulseService
             .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Active && !p.IsArchived)
             .CountAsync(cancellationToken);
 
-        var ongoingByCategory = await BuildOngoingByCategoryAsync(cancellationToken);
         var parentCategoryCounts = await BuildParentCategoryCountsAsync(cancellationToken);
         var ongoingStageTotal = await _analytics.GetStageDistributionAsync(
             ProjectLifecycleFilter.Active,
@@ -95,7 +94,6 @@ public sealed class ProjectPulseService : IProjectPulseService
             CompletedRebuildCount = completedRebuild,
             OngoingCount = ongoing,
             TotalProjects = total,
-            OngoingByProjectCategory = ongoingByCategory,
             OngoingStageDistributionTotal = ongoingStageTotal,
             OngoingStageDistributionByCategory = ongoingStageByCategory,
             OngoingBucketsByKey = ongoingBucketsByKey,
@@ -130,69 +128,6 @@ public sealed class ProjectPulseService : IProjectPulseService
         var remaining = ordered.Skip(5).Sum(x => x.Count);
 
         return (top, remaining);
-    }
-
-    private async Task<IReadOnlyList<CategorySlice>> BuildOngoingByCategoryAsync(CancellationToken cancellationToken)
-    {
-        // Identify the parent category for each active project
-        var categorizedProjects = await _db.Projects
-            .AsNoTracking()
-            .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active)
-            .Select(p => new
-            {
-                ParentCategoryId = p.CategoryId.HasValue
-                    ? (p.Category!.ParentId ?? p.CategoryId)
-                    : (int?)null
-            })
-            .ToListAsync(cancellationToken);
-
-        // Group by parent category id and count projects
-        var groupedByParent = categorizedProjects
-            .GroupBy(x => x.ParentCategoryId)
-            .Select(g => new
-            {
-                ParentCategoryId = g.Key,
-                Count = g.Count()
-            })
-            .ToList();
-
-        // Load category names for all parent ids
-        var categoryIds = groupedByParent
-            .Where(x => x.ParentCategoryId.HasValue)
-            .Select(x => x.ParentCategoryId!.Value)
-            .Distinct()
-            .ToList();
-
-        var categoryNames = await _db.ProjectCategories
-            .AsNoTracking()
-            .Where(c => categoryIds.Contains(c.Id))
-            .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
-
-        // Convert grouped data into CategorySlice entries
-        var ongoingSeries = groupedByParent
-            .Select(g =>
-            {
-                var label = "Unknown";
-
-                if (g.ParentCategoryId.HasValue)
-                {
-                    if (categoryNames.TryGetValue(g.ParentCategoryId.Value, out var resolvedLabel))
-                    {
-                        label = resolvedLabel;
-                    }
-                }
-                else
-                {
-                    label = "Uncategorized";
-                }
-
-                return new CategorySlice(label, g.Count);
-            })
-            .OrderByDescending(x => x.Count)
-            .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        return ongoingSeries;
     }
 
     private async Task<IReadOnlyList<ParentCategoryCount>> BuildParentCategoryCountsAsync(CancellationToken cancellationToken)
