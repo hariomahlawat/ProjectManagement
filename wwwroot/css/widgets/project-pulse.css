@@ -103,15 +103,9 @@
 /* SECTION: Grid */
 .ppulse__grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: var(--pp-gap-sm);
   margin-top: var(--pp-gap-sm);
-}
-
-@media (max-width: 1099px) {
-  .ppulse__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 767px) {
@@ -253,6 +247,57 @@
   font-size: 1.15rem;
   font-weight: 700;
   color: var(--pm-text);
+}
+/* END SECTION */
+
+/* SECTION: Tabs */
+.ppulse__tabs {
+  margin-top: var(--pp-gap-xs);
+}
+
+.ppulse__tablist {
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--pp-border);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--pm-card) 84%, white);
+}
+
+.ppulse__tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
+}
+
+.ppulse__tab[aria-selected='true'] {
+  background: var(--pm-card);
+  color: var(--pm-text);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
+}
+
+.ppulse__tab:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--pm-primary, var(--pm-primary)) 50%, white);
+  outline-offset: 2px;
+}
+
+.ppulse__tabpanel {
+  margin-top: var(--pp-gap-xs);
+}
+
+.ppulse__empty {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in oklab, var(--pp-border) 55%, white);
+  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
+  font-size: 0.78rem;
+  background: color-mix(in oklab, var(--pm-card) 86%, white);
 }
 /* END SECTION */
 
