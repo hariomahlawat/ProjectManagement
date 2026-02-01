@@ -254,6 +254,98 @@
   }
   // END SECTION
 
+  // SECTION: Tabs
+  function initTabs(root, hydrateChart) {
+    var containers = root.querySelectorAll('[data-ppulse-tabs]');
+    if (!containers || containers.length === 0) {
+      return;
+    }
+
+    function isTreemap(host) {
+      return host && host.getAttribute('data-chart') === 'treemap';
+    }
+
+    function hydratePanel(panel) {
+      if (!panel) {
+        return;
+      }
+      var charts = Array.prototype.slice.call(panel.querySelectorAll('.ppulse__chart'));
+      charts.forEach(function (chart) {
+        if (isTreemap(chart)) {
+          hydrateChart(chart);
+        }
+      });
+    }
+
+    containers.forEach(function (container) {
+      var tabs = Array.prototype.slice.call(container.querySelectorAll('[role="tab"]'));
+      var panels = Array.prototype.slice.call(container.querySelectorAll('[role="tabpanel"]'));
+      if (!tabs.length || !panels.length) {
+        return;
+      }
+
+      function setActiveTab(nextTab) {
+        tabs.forEach(function (tab) {
+          var selected = tab === nextTab;
+          tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+          tab.tabIndex = selected ? 0 : -1;
+        });
+
+        var nextKey = nextTab.getAttribute('data-tab');
+        panels.forEach(function (panel) {
+          var show = panel.getAttribute('data-panel') === nextKey;
+          if (show) {
+            panel.removeAttribute('hidden');
+          } else {
+            panel.setAttribute('hidden', '');
+          }
+        });
+
+        var activePanel = panels.find(function (panel) {
+          return panel.getAttribute('data-panel') === nextKey;
+        });
+        hydratePanel(activePanel);
+      }
+
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          setActiveTab(tab);
+          tab.focus();
+        });
+
+        tab.addEventListener('keydown', function (event) {
+          var idx = tabs.indexOf(tab);
+          if (idx < 0) {
+            return;
+          }
+
+          if (event.key === 'ArrowRight' || event.key === 'Right') {
+            event.preventDefault();
+            var nextTab = tabs[(idx + 1) % tabs.length];
+            nextTab.focus();
+          }
+
+          if (event.key === 'ArrowLeft' || event.key === 'Left') {
+            event.preventDefault();
+            var prevTab = tabs[(idx - 1 + tabs.length) % tabs.length];
+            prevTab.focus();
+          }
+
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setActiveTab(tab);
+          }
+        });
+      });
+
+      var initial = tabs.find(function (tab) {
+        return tab.getAttribute('aria-selected') === 'true';
+      }) || tabs[0];
+      setActiveTab(initial);
+    });
+  }
+  // END SECTION
+
   // SECTION: Initializer
   function init(root) {
     if (!root) {
@@ -265,6 +357,15 @@
 
     function hydrateChart(host) {
       var kind = host.getAttribute('data-chart');
+      if (host.getAttribute('data-hydrated') === 'true') {
+        return;
+      }
+      if (kind === 'treemap') {
+        var panel = host.closest('[role="tabpanel"]');
+        if (panel && panel.hasAttribute('hidden')) {
+          return;
+        }
+      }
       var series = safeParse(host, 'data-series');
       if (!series.length) {
         return;
@@ -300,6 +401,8 @@
       hosts.forEach(hydrateChart);
       hosts = [];
     }
+
+    initTabs(root, hydrateChart);
 
     if ('IntersectionObserver' in window) {
       var observer = new IntersectionObserver(function (entries) {

@@ -1,4 +1,5 @@
 @model ProjectManagement.Areas.Dashboard.Components.ProjectPulse.ProjectPulseVm
+@using System
 @using System.Collections.Generic
 @using System.Linq
 @using System.Text.Json
@@ -61,6 +62,24 @@
 
   @* SECTION: Content cards *@
   <div class="ppulse__grid">
+    <article class="ppulse__card pulse-item-card">
+      <a class="ppulse__link" href="@Model.OngoingUrl" title="View ongoing projects">
+        <header class="ppulse__card-head">
+          <h3>Ongoing <small>@Model.OngoingCount</small></h3>
+        </header>
+        <div
+          class="ppulse__chart pulse-chart-container"
+          data-chart="donut"
+          data-series='@Html.Raw(Serialize(Model.OngoingByProjectCategory))'
+          role="img"
+          aria-label='@DescribeCategories("Ongoing projects by category", Model.OngoingByProjectCategory)'
+        >
+          <canvas aria-hidden="true"></canvas>
+        </div>
+        <footer class="ppulse__foot">View ongoing →</footer>
+      </a>
+    </article>
+
     <article class="ppulse__card pulse-item-card ppulse__card--completed">
       <div class="ppulse__link">
         @* SECTION: Completed header *@
@@ -85,45 +104,101 @@
         </div>
         @* END SECTION *@
 
-        @* SECTION: Completed treemap - technical *@
-        <div class="ppulse__treemap-block">
-          <div class="ppulse__treemap-title">Unique by technical category</div>
-          @if (Model.UniqueCompletedByTechnicalCategory.Count > 0)
-          {
-            <div
-              class="ppulse__chart ppulse__treemap"
-              data-chart="treemap"
-              data-series='@Html.Raw(Serialize(Model.UniqueCompletedByTechnicalCategory))'
-              role="img"
-              aria-label='@DescribeCategories("Unique completed by technical category", AsSlices(Model.UniqueCompletedByTechnicalCategory))'
-            >
-            </div>
-          }
-          else
-          {
-            <div class="ppulse__treemap-empty">No data available</div>
-          }
-        </div>
-        @* END SECTION *@
+        @* SECTION: Completed tabs *@
+        @{
+            var techSeriesJson = Html.Raw(Serialize(Model.UniqueCompletedByTechnicalCategory));
+            var typeSeriesJson = Html.Raw(Serialize(Model.UniqueCompletedByProjectType));
+            var techCount = Model.UniqueCompletedByTechnicalCategory.Count;
+            var typeCount = Model.UniqueCompletedByProjectType.Count;
+            var tabSuffix = Guid.NewGuid().ToString("N");
+            var techTabId = $"ppulse-completed-tab-tech-{tabSuffix}";
+            var typeTabId = $"ppulse-completed-tab-type-{tabSuffix}";
+            var techPanelId = $"ppulse-completed-panel-tech-{tabSuffix}";
+            var typePanelId = $"ppulse-completed-panel-type-{tabSuffix}";
+        }
 
-        @* SECTION: Completed treemap - project type *@
-        <div class="ppulse__treemap-block">
-          <div class="ppulse__treemap-title">Unique by project type</div>
-          @if (Model.UniqueCompletedByProjectType.Count > 0)
-          {
-            <div
-              class="ppulse__chart ppulse__treemap"
-              data-chart="treemap"
-              data-series='@Html.Raw(Serialize(Model.UniqueCompletedByProjectType))'
-              role="img"
-              aria-label='@DescribeCategories("Unique completed by project type", AsSlices(Model.UniqueCompletedByProjectType))'
+        <div class="ppulse__tabs" data-ppulse-tabs="completed">
+          @* SECTION: Tab list *@
+          <div class="ppulse__tablist" role="tablist" aria-label="Completed treemap views">
+            <button
+              type="button"
+              class="ppulse__tab"
+              role="tab"
+              id="@techTabId"
+              aria-controls="@techPanelId"
+              aria-selected="true"
+              tabindex="0"
+              data-tab="tech"
             >
-            </div>
-          }
-          else
-          {
-            <div class="ppulse__treemap-empty">No data available</div>
-          }
+              Technical category
+            </button>
+            <button
+              type="button"
+              class="ppulse__tab"
+              role="tab"
+              id="@typeTabId"
+              aria-controls="@typePanelId"
+              aria-selected="false"
+              tabindex="-1"
+              data-tab="type"
+            >
+              Project type
+            </button>
+          </div>
+          @* END SECTION *@
+
+          @* SECTION: Tab panels *@
+          <div
+            class="ppulse__tabpanel"
+            role="tabpanel"
+            id="@techPanelId"
+            aria-labelledby="@techTabId"
+            data-panel="tech"
+          >
+            <div class="ppulse__treemap-title">Unique by technical category</div>
+            @if (techCount == 0)
+            {
+              <div class="ppulse__empty">No data available</div>
+            }
+            else
+            {
+              <div
+                class="ppulse__chart ppulse__treemap"
+                data-chart="treemap"
+                data-series='@techSeriesJson'
+                role="img"
+                aria-label='@DescribeCategories("Unique completed by technical category", AsSlices(Model.UniqueCompletedByTechnicalCategory))'
+              >
+              </div>
+            }
+          </div>
+
+          <div
+            class="ppulse__tabpanel"
+            role="tabpanel"
+            id="@typePanelId"
+            aria-labelledby="@typeTabId"
+            data-panel="type"
+            hidden
+          >
+            <div class="ppulse__treemap-title">Unique by project type</div>
+            @if (typeCount == 0)
+            {
+              <div class="ppulse__empty">No data available</div>
+            }
+            else
+            {
+              <div
+                class="ppulse__chart ppulse__treemap"
+                data-chart="treemap"
+                data-series='@typeSeriesJson'
+                role="img"
+                aria-label='@DescribeCategories("Unique completed by project type", AsSlices(Model.UniqueCompletedByProjectType))'
+              >
+              </div>
+            }
+          </div>
+          @* END SECTION *@
         </div>
         @* END SECTION *@
 
@@ -133,48 +208,6 @@
         </footer>
         @* END SECTION *@
       </div>
-    </article>
-
-    <article class="ppulse__card pulse-item-card">
-      <a class="ppulse__link" href="@Model.OngoingUrl" title="View ongoing projects">
-        <header class="ppulse__card-head">
-          <h3>Ongoing <small>@Model.OngoingCount</small></h3>
-        </header>
-        <div
-          class="ppulse__chart pulse-chart-container"
-          data-chart="donut"
-          data-series='@Html.Raw(Serialize(Model.OngoingByProjectCategory))'
-          role="img"
-          aria-label='@DescribeCategories("Ongoing projects by category", Model.OngoingByProjectCategory)'
-        >
-          <canvas aria-hidden="true"></canvas>
-        </div>
-        <footer class="ppulse__foot">View ongoing →</footer>
-      </a>
-    </article>
-
-    <article class="ppulse__card pulse-item-card">
-      <a class="ppulse__link" href="@Model.RepositoryUrl" title="Explore project repository">
-        <header class="ppulse__card-head">
-          <h3>All projects <small>@Model.TotalProjects</small></h3>
-        </header>
-        <div
-          class="ppulse__chart pulse-chart-container"
-          data-chart="bar"
-          data-x-label="Technical category"
-          data-y-label="Projects"
-          data-series='@Html.Raw(Serialize(Model.AllByTechnicalCategoryTop))'
-          role="img"
-          aria-label='@DescribeCategories("Top technical categories", Model.AllByTechnicalCategoryTop)'
-        >
-          <canvas aria-hidden="true"></canvas>
-        </div>
-        @if (Model.RemainingTechCategories > 0)
-        {
-          <div class="ppulse__hint">+@Model.RemainingTechCategories more categories</div>
-        }
-        <footer class="ppulse__foot">Explore repository →</footer>
-      </a>
     </article>
   </div>
   @* END SECTION *@
