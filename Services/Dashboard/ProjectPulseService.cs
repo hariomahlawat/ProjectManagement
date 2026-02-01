@@ -27,6 +27,7 @@ public sealed class ProjectPulseService : IProjectPulseService
     private const string OngoingPage = "/Projects/Ongoing/Index";
     private const string RepositoryPage = "/Projects/Index";
     private const string AnalyticsPage = "/Analytics/Index";
+    private const string ProliferationEligibleQuery = "?AvailableForProliferation=true";
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(60);
 
     private readonly ApplicationDbContext _db;
@@ -105,6 +106,7 @@ public sealed class ProjectPulseService : IProjectPulseService
             UniqueCompletedByProjectType = uniqueCompletedByType,
             CompletedUrl = CompletedPage,
             OngoingUrl = OngoingPage,
+            ProliferationEligibleUrl = CompletedPage + ProliferationEligibleQuery,
             RepositoryUrl = RepositoryPage
         };
     }

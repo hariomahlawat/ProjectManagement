@@ -86,13 +86,31 @@
   font-weight: 700;
 }
 
-.ppulse__pill[role='button'] {
-  cursor: default;
-}
-
 .ppulse__pill:focus-visible {
   outline: 2px solid color-mix(in oklab, var(--pm-primary, var(--pm-primary)) 50%, white);
   outline-offset: 2px;
+}
+
+.ppulse__pill--link {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ppulse__pill--link:hover {
+  border-color: color-mix(in oklab, var(--pm-primary, var(--pm-primary)) 40%, var(--pp-border));
+}
+
+.ppulse__title-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.ppulse__title-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .ppulse__analytics {
@@ -128,9 +146,11 @@
 /* SECTION: Card */
 .ppulse__card {
   background: transparent;
-  border-radius: 14px;
-  border: 1px solid var(--pm-border);
+  border: 0;
   box-shadow: none;
+  border-radius: 18px;
+  padding: 0;
+  min-width: 320px;
 }
 
 .ppulse__link {
@@ -140,9 +160,10 @@
   padding: 0.9rem 1rem 0.75rem;
   text-decoration: none;
   color: inherit;
-  border-radius: 12px;
-  border: 1px solid transparent;
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  border-radius: 14px;
+  border: 1px solid var(--pp-border);
+  box-shadow: var(--pm-shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .ppulse__link:focus-visible {
@@ -153,6 +174,7 @@
 .ppulse__link:hover {
   border-color: color-mix(in oklab, var(--pm-primary, var(--pm-primary)) 24%, var(--pp-border));
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+  background: color-mix(in oklab, var(--pp-border) 6%, white);
 }
 
 .ppulse__card-head h3 {

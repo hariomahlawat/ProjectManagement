@@ -36,15 +36,13 @@
       <h2 class="ppulse__h">Project pulse</h2>
     </div>
     <div class="ppulse__actions" role="group" aria-label="Project pulse actions">
-      <span
-        class="ppulse__pill"
-        role="button"
-        tabindex="0"
-        title="Projects eligible for proliferation"
-        aria-label="Projects available for proliferation"
+      <a
+        class="ppulse__pill ppulse__pill--link"
+        href="@Model.ProliferationEligibleUrl"
+        title="View projects available for proliferation"
       >
         Available for proliferation <strong>@Model.ProliferationEligible</strong>
-      </span>
+      </a>
       <a
         class="btn btn-primary btn-sm ppulse__analytics"
         href="@Model.AnalyticsUrl"
@@ -75,7 +73,16 @@
       <div class="ppulse__link">
         @* SECTION: Ongoing header *@
         <header class="ppulse__card-head ppulse__ongoing-head">
-          <h3>Ongoing <small>@Model.OngoingCount</small></h3>
+          <h3 class="ppulse__card-title">
+            <a
+              class="ppulse__title-link"
+              href="@Model.OngoingUrl"
+              title="Open ongoing projects"
+            >
+              <span>Ongoing</span>
+              <small>@Model.OngoingCount</small>
+            </a>
+          </h3>
           @* SECTION: Ongoing category filters *@
           <div class="ppulse__ongoing-head-filters">
             @if (Model.OngoingBucketFilters.Count == 0)
