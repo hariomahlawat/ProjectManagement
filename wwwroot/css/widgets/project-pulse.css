@@ -223,11 +223,24 @@
 /* END SECTION */
 
 /* SECTION: Ongoing layout */
-.ppulse__ongoing-summary {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 4px;
-  margin: 2px 0 6px;
+.ppulse__ongoing-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pp-gap-xs);
+  flex-wrap: wrap;
+}
+
+.ppulse__ongoing-head-filters {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.ppulse__ongoing-head .ppulse__bucket-filters {
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .ppulse__summary-block {
@@ -347,6 +360,7 @@
 }
 
 .ppulse__bucket-seg {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
