@@ -33,6 +33,7 @@ public sealed class ProjectPulseVm
     // SECTION: Links
     public required string CompletedUrl { get; init; }
     public required string OngoingUrl { get; init; }
+    public string ProliferationEligibleUrl { get; set; } = string.Empty;
     public required string RepositoryUrl { get; init; }
     // END SECTION
 }
