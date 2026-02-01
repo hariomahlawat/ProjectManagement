@@ -97,13 +97,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 FromDateUtc = q.FromDateUtc,
                 ToDateUtc = q.ToDateUtc,
                 ApprovalStatus = q.ApprovalStatus,
+                SortBy = q.SortBy,
+                SortDir = q.SortDir,
                 Page = 1,
                 PageSize = maxExportRows
             }, ct, maxExportRows);
 
             var columns = pageDto.Columns.Select(c => (c.Key, c.Label)).ToList();
             var rows = pageDto.Rows.Select(RowToDictionary).ToList();
-            var filters = await BuildFilterDictionaryAsync(q, ct);
+            var isTruncated = pageDto.Total > maxExportRows;
+            var filters = await BuildFilterDictionaryAsync(q, isTruncated, maxExportRows, ct);
 
             var title = $"Proliferation Report: {q.Report}";
             var bytes = _excel.Build(q.Report, columns, rows, title, filters);
@@ -147,7 +150,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         }
 
         // SECTION: Export filter labels
-        private async Task<IDictionary<string, string>> BuildFilterDictionaryAsync(ProliferationReportQueryDto q, CancellationToken ct)
+        private async Task<IDictionary<string, string>> BuildFilterDictionaryAsync(
+            ProliferationReportQueryDto q,
+            bool isTruncated,
+            int maxExportRows,
+            CancellationToken ct)
         {
             string projectLabel = string.Empty;
             if (q.ProjectId.HasValue)
@@ -186,7 +193,12 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                     .FirstOrDefaultAsync(ct) ?? string.Empty;
             }
 
-            return new Dictionary<string, string>
+            var sortBy = NormalizeSortBy(q.SortBy);
+            var sortLabel = sortBy == null
+                ? string.Empty
+                : $"{sortBy} ({(IsDesc(q.SortDir) ? "desc" : "asc")})";
+
+            var filters = new Dictionary<string, string>
             {
                 ["Report"] = q.Report.ToString(),
                 ["Source"] = q.Source?.ToDisplayName() ?? "All",
@@ -196,8 +208,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 ["From"] = q.FromDateUtc?.ToString("yyyy-MM-dd") ?? string.Empty,
                 ["To"] = q.ToDateUtc?.ToString("yyyy-MM-dd") ?? string.Empty,
                 ["Project category"] = projectCategoryName,
-                ["Technical category"] = technicalCategoryName
+                ["Technical category"] = technicalCategoryName,
+                ["Sort"] = sortLabel
             };
+
+            if (isTruncated)
+            {
+                filters["Export note"] = $"Export note: truncated to {maxExportRows} rows";
+            }
+
+            return filters;
         }
 
         private static string NormalizeStatus(string? status)
@@ -207,6 +227,17 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             if (s.Equals(nameof(ApprovalStatus.Pending), StringComparison.OrdinalIgnoreCase)) return nameof(ApprovalStatus.Pending);
             if (s.Equals(nameof(ApprovalStatus.Rejected), StringComparison.OrdinalIgnoreCase)) return nameof(ApprovalStatus.Rejected);
             return nameof(ApprovalStatus.Approved);
+        }
+
+        private static bool IsDesc(string? sortDir)
+        {
+            return string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string? NormalizeSortBy(string? sortBy)
+        {
+            var s = sortBy?.Trim();
+            return string.IsNullOrWhiteSpace(s) ? null : s;
         }
 
         private IQueryable<Project> EligibleProjectsQuery(int? projectCategoryId, int? technicalCategoryId)
@@ -283,9 +314,33 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             var total = await baseQuery.CountAsync(ct);
 
-            var rows = await baseQuery
-                .OrderByDescending(x => x.g.ProliferationDate)
-                .ThenBy(x => x.g.UnitName)
+            var sortBy = NormalizeSortBy(q.SortBy);
+            var desc = IsDesc(q.SortDir);
+
+            var ordered = sortBy switch
+            {
+                "proliferationDate" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.ProliferationDate).ThenBy(x => x.g.UnitName)
+                    : baseQuery.OrderBy(x => x.g.ProliferationDate).ThenBy(x => x.g.UnitName),
+                "quantity" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.Quantity).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.g.Quantity).ThenBy(x => x.g.ProliferationDate),
+                "unitName" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.UnitName).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.g.UnitName).ThenBy(x => x.g.ProliferationDate),
+                "projectName" => desc
+                    ? baseQuery.OrderByDescending(x => x.p.Name).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.p.Name).ThenBy(x => x.g.ProliferationDate),
+                "sourceLabel" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.Source).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.g.Source).ThenBy(x => x.g.ProliferationDate),
+                "year" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.ProliferationDate.Year).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.g.ProliferationDate.Year).ThenBy(x => x.g.ProliferationDate),
+                _ => baseQuery.OrderByDescending(x => x.g.ProliferationDate).ThenBy(x => x.g.UnitName)
+            };
+
+            var rows = await ordered
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Select(x => new ProliferationReportRowDto
@@ -338,9 +393,33 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             var total = await baseQuery.CountAsync(ct);
 
-            var rows = await baseQuery
-                .OrderByDescending(x => x.g.ProliferationDate)
-                .ThenBy(x => x.p.Name)
+            var sortBy = NormalizeSortBy(q.SortBy);
+            var desc = IsDesc(q.SortDir);
+
+            var ordered = sortBy switch
+            {
+                "proliferationDate" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.ProliferationDate).ThenBy(x => x.p.Name)
+                    : baseQuery.OrderBy(x => x.g.ProliferationDate).ThenBy(x => x.p.Name),
+                "quantity" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.Quantity).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.g.Quantity).ThenBy(x => x.g.ProliferationDate),
+                "unitName" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.UnitName).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.g.UnitName).ThenBy(x => x.g.ProliferationDate),
+                "projectName" => desc
+                    ? baseQuery.OrderByDescending(x => x.p.Name).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.p.Name).ThenBy(x => x.g.ProliferationDate),
+                "sourceLabel" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.Source).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.g.Source).ThenBy(x => x.g.ProliferationDate),
+                "year" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.ProliferationDate.Year).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.g.ProliferationDate.Year).ThenBy(x => x.g.ProliferationDate),
+                _ => baseQuery.OrderByDescending(x => x.g.ProliferationDate).ThenBy(x => x.p.Name)
+            };
+
+            var rows = await ordered
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Select(x => new ProliferationReportRowDto
@@ -402,9 +481,33 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             var total = await grouped.CountAsync(ct);
 
-            var rows = await grouped
-                .OrderBy(x => x.Name)
-                .ThenBy(x => x.Source)
+            var sortBy = NormalizeSortBy(q.SortBy);
+            var desc = IsDesc(q.SortDir);
+
+            var ordered = sortBy switch
+            {
+                "projectName" => desc
+                    ? grouped.OrderByDescending(x => x.Name).ThenByDescending(x => x.Source)
+                    : grouped.OrderBy(x => x.Name).ThenBy(x => x.Source),
+                "sourceLabel" => desc
+                    ? grouped.OrderByDescending(x => x.Source).ThenByDescending(x => x.Name)
+                    : grouped.OrderBy(x => x.Source).ThenBy(x => x.Name),
+                "totalQuantity" => desc
+                    ? grouped.OrderByDescending(x => x.TotalQty).ThenByDescending(x => x.Name)
+                    : grouped.OrderBy(x => x.TotalQty).ThenBy(x => x.Name),
+                "uniqueUnits" => desc
+                    ? grouped.OrderByDescending(x => x.UniqueUnits).ThenByDescending(x => x.Name)
+                    : grouped.OrderBy(x => x.UniqueUnits).ThenBy(x => x.Name),
+                "firstDate" => desc
+                    ? grouped.OrderByDescending(x => x.FirstDate).ThenByDescending(x => x.Name)
+                    : grouped.OrderBy(x => x.FirstDate).ThenBy(x => x.Name),
+                "lastDate" => desc
+                    ? grouped.OrderByDescending(x => x.LastDate).ThenByDescending(x => x.Name)
+                    : grouped.OrderBy(x => x.LastDate).ThenBy(x => x.Name),
+                _ => grouped.OrderBy(x => x.Name).ThenBy(x => x.Source)
+            };
+
+            var rows = await ordered
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Select(x => new ProliferationReportRowDto
@@ -450,9 +553,33 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             var total = await baseQuery.CountAsync(ct);
 
-            var rows = await baseQuery
-                .OrderByDescending(x => x.g.ProliferationDate)
-                .ThenBy(x => x.p.Name)
+            var sortBy = NormalizeSortBy(q.SortBy);
+            var desc = IsDesc(q.SortDir);
+
+            var ordered = sortBy switch
+            {
+                "proliferationDate" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.ProliferationDate).ThenBy(x => x.p.Name)
+                    : baseQuery.OrderBy(x => x.g.ProliferationDate).ThenBy(x => x.p.Name),
+                "quantity" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.Quantity).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.g.Quantity).ThenBy(x => x.g.ProliferationDate),
+                "unitName" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.UnitName).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.g.UnitName).ThenBy(x => x.g.ProliferationDate),
+                "projectName" => desc
+                    ? baseQuery.OrderByDescending(x => x.p.Name).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.p.Name).ThenBy(x => x.g.ProliferationDate),
+                "sourceLabel" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.Source).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.g.Source).ThenBy(x => x.g.ProliferationDate),
+                "year" => desc
+                    ? baseQuery.OrderByDescending(x => x.g.ProliferationDate.Year).ThenByDescending(x => x.g.ProliferationDate)
+                    : baseQuery.OrderBy(x => x.g.ProliferationDate.Year).ThenBy(x => x.g.ProliferationDate),
+                _ => baseQuery.OrderByDescending(x => x.g.ProliferationDate).ThenBy(x => x.p.Name)
+            };
+
+            var rows = await ordered
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Select(x => new ProliferationReportRowDto
@@ -596,9 +723,33 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             var total = await withProjects.CountAsync(ct);
 
-            var pageRows = await withProjects
-                .OrderByDescending(x => x.Year)
-                .ThenBy(x => x.Name)
+            var sortBy = NormalizeSortBy(q.SortBy);
+            var desc = IsDesc(q.SortDir);
+
+            var ordered = sortBy switch
+            {
+                "projectName" => desc
+                    ? withProjects.OrderByDescending(x => x.Name).ThenByDescending(x => x.Year)
+                    : withProjects.OrderBy(x => x.Name).ThenBy(x => x.Year),
+                "sourceLabel" => desc
+                    ? withProjects.OrderByDescending(x => x.Source).ThenByDescending(x => x.Year)
+                    : withProjects.OrderBy(x => x.Source).ThenBy(x => x.Year),
+                "year" => desc
+                    ? withProjects.OrderByDescending(x => x.Year).ThenByDescending(x => x.Name)
+                    : withProjects.OrderBy(x => x.Year).ThenBy(x => x.Name),
+                "yearlyApprovedTotal" => desc
+                    ? withProjects.OrderByDescending(x => x.YearlyTotal).ThenByDescending(x => x.Name)
+                    : withProjects.OrderBy(x => x.YearlyTotal).ThenBy(x => x.Name),
+                "granularApprovedTotal" => desc
+                    ? withProjects.OrderByDescending(x => x.GranularTotal).ThenByDescending(x => x.Name)
+                    : withProjects.OrderBy(x => x.GranularTotal).ThenBy(x => x.Name),
+                "preferenceMode" => desc
+                    ? withProjects.OrderByDescending(x => x.Mode).ThenByDescending(x => x.Name)
+                    : withProjects.OrderBy(x => x.Mode).ThenBy(x => x.Name),
+                _ => withProjects.OrderByDescending(x => x.Year).ThenBy(x => x.Name)
+            };
+
+            var pageRows = await ordered
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync(ct);
