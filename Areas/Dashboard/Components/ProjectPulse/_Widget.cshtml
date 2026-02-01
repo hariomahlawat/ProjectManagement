@@ -82,34 +82,13 @@
 
     <article class="ppulse__card pulse-item-card ppulse__card--completed">
       <div class="ppulse__link">
-        @* SECTION: Completed header *@
-        <header class="ppulse__card-head">
-          <div class="ppulse__card-title">
-            <h3>Completed <small>@Model.CompletedCount</small></h3>
-            <span class="ppulse__subtle">Excludes archived and deleted</span>
-          </div>
-        </header>
-        @* END SECTION *@
-
-        @* SECTION: Completed KPIs *@
-        <div class="ppulse__kpis" role="group" aria-label="Completed projects breakdown">
-          <div class="ppulse__kpi">
-            <div class="ppulse__kpi-label">Unique</div>
-            <div class="ppulse__kpi-value">@Model.CompletedUniqueCount</div>
-          </div>
-          <div class="ppulse__kpi">
-            <div class="ppulse__kpi-label">Rebuild</div>
-            <div class="ppulse__kpi-value">@Model.CompletedRebuildCount</div>
-          </div>
-        </div>
-        @* END SECTION *@
-
-        @* SECTION: Completed tabs *@
         @{
             var techSeriesJson = Html.Raw(Serialize(Model.UniqueCompletedByTechnicalCategory));
             var typeSeriesJson = Html.Raw(Serialize(Model.UniqueCompletedByProjectType));
+
             var techCount = Model.UniqueCompletedByTechnicalCategory.Count;
             var typeCount = Model.UniqueCompletedByProjectType.Count;
+
             var tabSuffix = Guid.NewGuid().ToString("N");
             var techTabId = $"ppulse-completed-tab-tech-{tabSuffix}";
             var typeTabId = $"ppulse-completed-tab-type-{tabSuffix}";
@@ -117,96 +96,126 @@
             var typePanelId = $"ppulse-completed-panel-type-{tabSuffix}";
         }
 
-        <div class="ppulse__tabs" data-ppulse-tabs="completed">
-          @* SECTION: Tab list *@
-          <div class="ppulse__tablist" role="tablist" aria-label="Completed treemap views">
-            <button
-              type="button"
-              class="ppulse__tab"
-              role="tab"
-              id="@techTabId"
-              aria-controls="@techPanelId"
-              aria-selected="true"
-              tabindex="0"
-              data-tab="tech"
-            >
-              Technical category
-            </button>
-            <button
-              type="button"
-              class="ppulse__tab"
-              role="tab"
-              id="@typeTabId"
-              aria-controls="@typePanelId"
-              aria-selected="false"
-              tabindex="-1"
-              data-tab="type"
-            >
-              Project type
-            </button>
+        <div class="ppulse__completed" data-ppulse-tabs="completed">
+          @* SECTION: Completed header with tabs *@
+          <header class="ppulse__card-head ppulse__completed-head">
+            <div class="ppulse__completed-title">
+              <h3>Completed <small>@Model.CompletedCount</small></h3>
+
+              <span
+                class="ppulse__info"
+                title="Excludes archived and deleted"
+                aria-label="Excludes archived and deleted"
+              >
+                <i class="bi bi-info-circle" aria-hidden="true"></i>
+              </span>
+            </div>
+
+            <div class="ppulse__completed-tabs">
+              <div class="ppulse__tablist" role="tablist" aria-label="Completed treemap views">
+                <button
+                  type="button"
+                  class="ppulse__tab"
+                  role="tab"
+                  id="@techTabId"
+                  aria-controls="@techPanelId"
+                  aria-selected="true"
+                  tabindex="0"
+                  data-tab="tech"
+                >
+                  Technical category
+                </button>
+
+                <button
+                  type="button"
+                  class="ppulse__tab"
+                  role="tab"
+                  id="@typeTabId"
+                  aria-controls="@typePanelId"
+                  aria-selected="false"
+                  tabindex="-1"
+                  data-tab="type"
+                >
+                  Project type
+                </button>
+              </div>
+            </div>
+          </header>
+          @* END SECTION *@
+
+          @* SECTION: Compact 2-column body (KPI left 20%, Treemap right) *@
+          <div class="ppulse__completed-main">
+            <div class="ppulse__completed-kpis" role="group" aria-label="Completed projects breakdown">
+              <div class="ppulse__kpi-row">
+                <span class="ppulse__kpi-row-label">Unique</span>
+                <strong class="ppulse__kpi-row-value">@Model.CompletedUniqueCount</strong>
+              </div>
+
+              <div class="ppulse__kpi-row">
+                <span class="ppulse__kpi-row-label">Rebuild</span>
+                <strong class="ppulse__kpi-row-value">@Model.CompletedRebuildCount</strong>
+              </div>
+            </div>
+
+            <div class="ppulse__completed-panels">
+              <div
+                class="ppulse__tabpanel ppulse__tabpanel--compact"
+                role="tabpanel"
+                id="@techPanelId"
+                aria-labelledby="@techTabId"
+                data-panel="tech"
+              >
+                @if (techCount == 0)
+                {
+                  <div class="ppulse__empty ppulse__empty--compact">No data available</div>
+                }
+                else
+                {
+                  <div
+                    class="ppulse__chart ppulse__treemap"
+                    data-chart="treemap"
+                    data-series='@techSeriesJson'
+                    role="img"
+                    aria-label='@DescribeCategories("Unique completed by technical category", AsSlices(Model.UniqueCompletedByTechnicalCategory))'
+                  >
+                  </div>
+                }
+              </div>
+
+              <div
+                class="ppulse__tabpanel ppulse__tabpanel--compact"
+                role="tabpanel"
+                id="@typePanelId"
+                aria-labelledby="@typeTabId"
+                data-panel="type"
+                hidden
+              >
+                @if (typeCount == 0)
+                {
+                  <div class="ppulse__empty ppulse__empty--compact">No data available</div>
+                }
+                else
+                {
+                  <div
+                    class="ppulse__chart ppulse__treemap"
+                    data-chart="treemap"
+                    data-series='@typeSeriesJson'
+                    role="img"
+                    aria-label='@DescribeCategories("Unique completed by project type", AsSlices(Model.UniqueCompletedByProjectType))'
+                  >
+                  </div>
+                }
+              </div>
+            </div>
           </div>
           @* END SECTION *@
 
-          @* SECTION: Tab panels *@
-          <div
-            class="ppulse__tabpanel"
-            role="tabpanel"
-            id="@techPanelId"
-            aria-labelledby="@techTabId"
-            data-panel="tech"
-          >
-            <div class="ppulse__treemap-title">Unique by technical category</div>
-            @if (techCount == 0)
-            {
-              <div class="ppulse__empty">No data available</div>
-            }
-            else
-            {
-              <div
-                class="ppulse__chart ppulse__treemap"
-                data-chart="treemap"
-                data-series='@techSeriesJson'
-                role="img"
-                aria-label='@DescribeCategories("Unique completed by technical category", AsSlices(Model.UniqueCompletedByTechnicalCategory))'
-              >
-              </div>
-            }
-          </div>
-
-          <div
-            class="ppulse__tabpanel"
-            role="tabpanel"
-            id="@typePanelId"
-            aria-labelledby="@typeTabId"
-            data-panel="type"
-            hidden
-          >
-            <div class="ppulse__treemap-title">Unique by project type</div>
-            @if (typeCount == 0)
-            {
-              <div class="ppulse__empty">No data available</div>
-            }
-            else
-            {
-              <div
-                class="ppulse__chart ppulse__treemap"
-                data-chart="treemap"
-                data-series='@typeSeriesJson'
-                role="img"
-                aria-label='@DescribeCategories("Unique completed by project type", AsSlices(Model.UniqueCompletedByProjectType))'
-              >
-              </div>
-            }
-          </div>
+          @* SECTION: Footer *@
+          <footer class="ppulse__foot">
+            <a class="ppulse__inline-link" href="@Model.CompletedUrl">View completed →</a>
+          </footer>
           @* END SECTION *@
         </div>
-        @* END SECTION *@
-
-        @* SECTION: Completed footer *@
-        <footer class="ppulse__foot">
-          <a class="ppulse__inline-link" href="@Model.CompletedUrl">View completed →</a>
-        </footer>
-        @* END SECTION *@
       </div>
     </article>
   </div>
