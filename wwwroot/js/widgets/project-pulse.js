@@ -7,11 +7,6 @@
   }
 
   // SECTION: Utilities
-  var ChartCtor = window.Chart;
-  var hasChart = typeof ChartCtor !== 'undefined';
-  var palette = ['#475569', '#94a3b8', '#cbd5f5', '#d4d4d8', '#e2e8f0', '#c4b5fd'];
-  var accent = '#2d6cdf';
-
   function safeParse(el, attr) {
     try {
       return JSON.parse(el.getAttribute(attr) || '[]');
@@ -35,192 +30,8 @@
   }
   // END SECTION
 
-  // SECTION: Chart builders
-  function buildDonut(ctx, series) {
-    var labels = series.map(function (s) { return s && (s.label || s.Label) ? (s.label || s.Label) : ''; });
-    var data = series.map(function (s) {
-      var value = s && (typeof s.count !== 'undefined' ? s.count : (typeof s.Count !== 'undefined' ? s.Count : 0));
-      return Number(value) || 0;
-    });
-    return new ChartCtor(ctx, {
-      type: 'doughnut',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: data,
-          backgroundColor: labels.map(function (_, idx) { return palette[idx % palette.length]; }),
-          hoverBackgroundColor: labels.map(function () { return accent; }),
-          cutout: '60%'
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        plugins: { legend: { display: false }, tooltip: { enabled: true } }
-      }
-    });
-  }
-
-  function buildLine(ctx, series) {
-    var labels = series.map(function (s) { return s && (s.stage || s.Stage) ? (s.stage || s.Stage) : ''; });
-    var data = series.map(function (s) {
-      var value = s && (typeof s.count !== 'undefined' ? s.count : (typeof s.Count !== 'undefined' ? s.Count : 0));
-      return Number(value) || 0;
-    });
-    return new ChartCtor(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: data,
-          tension: 0.35,
-          pointRadius: 2,
-          pointBackgroundColor: accent,
-          pointHoverRadius: 4,
-          fill: false,
-          borderColor: palette[0]
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: {
-            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' },
-            ticks: {
-              color: '#6b7280',
-              font: { size: 10 }
-            },
-            title: { display: true, text: 'Stages' }
-          },
-          y: {
-            beginAtZero: true,
-            ticks: {
-              precision: 0,
-              color: '#9ca3af',
-              font: { size: 10 }
-            },
-            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' }
-          }
-        }
-      }
-    });
-  }
-
-  function buildStackedBar(ctx, payload) {
-    if (!payload || !payload.labels || !payload.series) {
-      return null;
-    }
-
-    var labels = payload.labels.map(function (label) { return String(label || ''); });
-    var datasets = payload.series.map(function (series, idx) {
-      var data = Array.isArray(series.data) ? series.data : [];
-      return {
-        label: series.label || '',
-        data: data.map(function (value) { return Number(value) || 0; }),
-        backgroundColor: palette[idx % palette.length],
-        borderRadius: 4,
-        maxBarThickness: 24
-      };
-    });
-
-    if (!labels.length || !datasets.length) {
-      return null;
-    }
-
-    return new ChartCtor(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: datasets
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        plugins: { legend: { display: true }, tooltip: { enabled: true } },
-        scales: {
-          x: {
-            stacked: true,
-            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' },
-            ticks: {
-              display: true,
-              color: '#6b7280',
-              font: { size: 10 }
-            }
-          },
-          y: {
-            stacked: true,
-            beginAtZero: true,
-            ticks: {
-              precision: 0,
-              color: '#9ca3af',
-              font: { size: 10 }
-            },
-            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' }
-          }
-        }
-      }
-    });
-  }
-
-  function buildBar(ctx, series, axisLabels) {
-    axisLabels = axisLabels || {};
-    var xLabel = axisLabels.x || axisLabels.X || '';
-    var yLabel = axisLabels.y || axisLabels.Y || '';
-    var labels = series.map(function (s) { return s && (s.label || s.Label) ? (s.label || s.Label) : ''; });
-    var data = series.map(function (s) {
-      var value = s && (typeof s.count !== 'undefined' ? s.count : (typeof s.Count !== 'undefined' ? s.Count : 0));
-      return Number(value) || 0;
-    });
-    return new ChartCtor(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: data,
-          borderRadius: 6,
-          maxBarThickness: 22,
-          backgroundColor: palette[1],
-          hoverBackgroundColor: accent
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: {
-            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' },
-            ticks: {
-              display: true,
-              color: '#6b7280',
-              font: { size: 10 }
-            },
-            title: { display: Boolean(xLabel), text: xLabel }
-          },
-          y: {
-            beginAtZero: true,
-            ticks: {
-              precision: 0,
-              color: '#9ca3af',
-              font: { size: 10 }
-            },
-            grid: { display: true, color: 'rgba(148, 163, 184, 0.18)' },
-            title: { display: Boolean(yLabel), text: yLabel }
-          }
-        }
-      }
-    });
-  }
-  // END SECTION
-
   // SECTION: Ongoing bucket filters
-  function initOngoingBuckets(root) {
+  function initOngoingBuckets(root, onKeyChange) {
     var container = root.querySelector('[data-ppulse-ongoing-buckets]');
     if (!container) {
       return;
@@ -255,16 +66,18 @@
       var total = readNumber(bucket.total || bucket.Total);
       var values = {
         apvl: readNumber(bucket.apvl || bucket.Apvl),
-        aon: readNumber(bucket.aon || bucket.AoN || bucket.Aon),
+        aon: readNumber(bucket.aon || bucket.Aon),
         tender: readNumber(bucket.tender || bucket.Tender),
         devp: readNumber(bucket.devp || bucket.Devp),
         other: readNumber(bucket.other || bucket.Other)
       };
+      var visibleTotal = values.apvl + values.aon + values.tender + values.devp;
+      var percentTotal = visibleTotal > 0 ? visibleTotal : total;
 
       segments.forEach(function (segment) {
         var key = segment.getAttribute('data-bucket');
         var value = values[key] || 0;
-        var percent = total > 0 ? (value / total) * 100 : 0;
+        var percent = percentTotal > 0 ? (value / percentTotal) * 100 : 0;
         var label = segment.querySelector('[data-bucket-value]');
         if (label) {
           label.textContent = value.toString();
@@ -272,7 +85,7 @@
 
         segment.style.width = percent.toFixed(2) + '%';
 
-        if (total > 0 && value === 0) {
+        if (percentTotal > 0 && value === 0) {
           segment.classList.add('is-hidden');
         } else {
           segment.classList.remove('is-hidden');
@@ -295,6 +108,10 @@
         return;
       }
       updateSegments(bucket);
+
+      if (typeof onKeyChange === 'function') {
+        onKeyChange(key);
+      }
     }
 
     filters.forEach(function (filter) {
@@ -310,6 +127,107 @@
 
     setActiveFilter(initialFilter);
     applyKey(initialFilter.getAttribute('data-bucket-key'));
+  }
+  // END SECTION
+
+  // SECTION: Ongoing stage pills
+  function initStagePills(root) {
+    var container = root.querySelector('[data-ppulse-stage-pills]');
+    if (!container) {
+      return null;
+    }
+
+    var stageData = safeParseObject(container, 'data-stage-json', {});
+    var stageOrder = safeParseObject(container, 'data-stage-order', []);
+    var row = container.querySelector('[data-stage-row]');
+    var emptyState = container.querySelector('[data-stage-empty]');
+
+    if (!row) {
+      return null;
+    }
+
+    function normalizeStageMap(key, fallback) {
+      if (key && Object.prototype.hasOwnProperty.call(stageData, key)) {
+        return stageData[key];
+      }
+      if (fallback && Object.prototype.hasOwnProperty.call(stageData, fallback)) {
+        return stageData[fallback];
+      }
+      return null;
+    }
+
+    function buildOrder(stageMap) {
+      var order = Array.isArray(stageOrder) ? stageOrder.slice() : [];
+      var seen = {};
+
+      order.forEach(function (code) {
+        if (code) {
+          seen[String(code)] = true;
+        }
+      });
+
+      if (stageMap) {
+        Object.keys(stageMap).forEach(function (code) {
+          if (!seen[code]) {
+            order.push(code);
+          }
+        });
+      }
+
+      return order;
+    }
+
+    function setEmptyState(show) {
+      if (emptyState) {
+        emptyState.hidden = !show;
+      }
+      row.hidden = Boolean(show);
+    }
+
+    function renderPills(stageMap) {
+      row.innerHTML = '';
+
+      if (!stageMap) {
+        setEmptyState(true);
+        return;
+      }
+
+      var ordered = buildOrder(stageMap);
+      var rendered = 0;
+
+      ordered.forEach(function (code) {
+        if (!Object.prototype.hasOwnProperty.call(stageMap, code)) {
+          return;
+        }
+
+        var count = Number(stageMap[code]) || 0;
+        if (count <= 0) {
+          return;
+        }
+
+        var pill = document.createElement('div');
+        pill.className = 'ppulse__stage-pill';
+        pill.setAttribute('role', 'listitem');
+
+        var label = document.createElement('span');
+        label.textContent = code;
+        var value = document.createElement('strong');
+        value.textContent = count.toString();
+
+        pill.appendChild(label);
+        pill.appendChild(value);
+        row.appendChild(pill);
+        rendered += 1;
+      });
+
+      setEmptyState(rendered === 0);
+    }
+
+    return function update(key) {
+      var fallbackKey = container.getAttribute('data-default-key') || 'total';
+      var stageMap = normalizeStageMap(key, fallbackKey);
+      renderPills(stageMap);
+    };
   }
   // END SECTION
 
@@ -531,33 +449,14 @@
       return;
     }
 
-    var charts = [];
-    var hosts = Array.prototype.slice.call(root.querySelectorAll('.ppulse__chart'));
+    var hosts = Array.prototype.slice.call(root.querySelectorAll('.ppulse__chart[data-chart="treemap"]'));
 
     function hydrateChart(host) {
-      var kind = host.getAttribute('data-chart');
       if (host.getAttribute('data-hydrated') === 'true') {
         return;
       }
-      if (kind === 'treemap') {
-        var panel = host.closest('[role="tabpanel"]');
-        if (panel && panel.hasAttribute('hidden')) {
-          return;
-        }
-      }
-      if (kind === 'stacked-bar') {
-        if (!hasChart) {
-          return;
-        }
-        var stackedCanvas = host.querySelector('canvas');
-        if (!stackedCanvas) {
-          return;
-        }
-        var stackedPayload = safeParseObject(host, 'data-chart-json', null);
-        var stackedChart = buildStackedBar(stackedCanvas.getContext('2d'), stackedPayload);
-        if (stackedChart) {
-          charts.push(stackedChart);
-        }
+      var panel = host.closest('[role="tabpanel"]');
+      if (panel && panel.hasAttribute('hidden')) {
         return;
       }
 
@@ -565,31 +464,8 @@
       if (!series.length) {
         return;
       }
-      if (kind === 'treemap') {
-        buildTreemap(host, series);
-        return;
-      }
-      if (!hasChart) {
-        return;
-      }
-      var canvas = host.querySelector('canvas');
-      if (!canvas) {
-        return;
-      }
-      var chart;
-      if (kind === 'donut') {
-        chart = buildDonut(canvas.getContext('2d'), series);
-      } else if (kind === 'line') {
-        chart = buildLine(canvas.getContext('2d'), series);
-      } else if (kind === 'bar') {
-        chart = buildBar(canvas.getContext('2d'), series, {
-          x: host.getAttribute('data-x-label') || '',
-          y: host.getAttribute('data-y-label') || ''
-        });
-      }
-      if (chart) {
-        charts.push(chart);
-      }
+
+      buildTreemap(host, series);
     }
 
     function hydrateAll() {
@@ -597,8 +473,10 @@
       hosts = [];
     }
 
+    var updateStagePills = initStagePills(root);
+
     initTabs(root, hydrateChart);
-    initOngoingBuckets(root);
+    initOngoingBuckets(root, updateStagePills);
 
     if ('IntersectionObserver' in window) {
       var observer = new IntersectionObserver(function (entries) {

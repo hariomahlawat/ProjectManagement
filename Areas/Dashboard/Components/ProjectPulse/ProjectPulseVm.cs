@@ -58,7 +58,7 @@ public sealed record OngoingBucketFilterVm(string Key, string Label);
 public sealed record OngoingBucketSetVm(
     int Total,
     int Apvl,
-    int AoN,
+    int Aon,
     int Tender,
     int Devp,
     int Other);

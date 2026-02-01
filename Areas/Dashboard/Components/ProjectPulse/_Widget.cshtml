@@ -4,6 +4,7 @@
 @using System.Linq
 @using System.Text.Json
 @using ProjectManagement.Areas.Dashboard.Components.ProjectPulse
+@using ProjectManagement.Services.Analytics
 
 @* SECTION: Serialization helpers *@
 @{
@@ -24,6 +25,17 @@
     IReadOnlyList<CategorySlice> AsSlices(IEnumerable<TreemapNode> nodes)
     {
         return nodes.Select(node => new CategorySlice(node.Label, node.Count)).ToList();
+    }
+
+    Dictionary<string, int> BuildStageMap(StageDistributionResult distribution)
+    {
+        return distribution.Items
+            .GroupBy(item => item.StageCode ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .Where(group => !string.IsNullOrWhiteSpace(group.Key))
+            .ToDictionary(
+                group => group.Key,
+                group => group.Sum(item => item.Count),
+                StringComparer.OrdinalIgnoreCase);
     }
 
     string SerializeObject<T>(T source) => JsonSerializer.Serialize(source, jsonOptions);
@@ -79,70 +91,78 @@
         }
         else
         {
-          var stageLabels = Model.OngoingStageDistributionTotal.Items
-              .Select(item => item.StageCode)
-              .ToList();
-          var stackedSeries = Model.OngoingStageDistributionByCategory
-              .Select(category =>
-              {
-                  var stageMap = category.StageDistribution.Items
-                      .GroupBy(item => item.StageCode, StringComparer.OrdinalIgnoreCase)
-                      .ToDictionary(group => group.Key, group => group.Sum(item => item.Count), StringComparer.OrdinalIgnoreCase);
-                  var aligned = stageLabels
-                      .Select(label => stageMap.TryGetValue(label, out var value) ? value : 0)
-                      .ToList();
-                  return new
-                  {
-                      label = category.Label,
-                      data = aligned
-                  };
-              })
-              .ToList();
-          var stackedPayload = new
-          {
-              labels = stageLabels,
-              series = stackedSeries
-          };
-          var stackedPayloadJson = SerializeObject(stackedPayload);
           var ongoingBucketsJson = SerializeObject(Model.OngoingBucketsByKey);
+          var stageOrder = new List<string>();
+          var stageOrderSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-          <div class="ppulse__ongoing-grid">
-            <div class="ppulse__ongoing-panel">
+          void AppendStageOrder(StageDistributionResult distribution)
+          {
+              foreach (var item in distribution.Items)
+              {
+                  var code = item.StageCode ?? string.Empty;
+                  if (string.IsNullOrWhiteSpace(code))
+                  {
+                      continue;
+                  }
+
+                  if (stageOrderSet.Add(code))
+                  {
+                      stageOrder.Add(code);
+                  }
+              }
+          }
+
+          AppendStageOrder(Model.OngoingStageDistributionTotal);
+
+          var stageDistributionByKey = new Dictionary<string, IReadOnlyDictionary<string, int>>(StringComparer.OrdinalIgnoreCase)
+          {
+              ["total"] = BuildStageMap(Model.OngoingStageDistributionTotal)
+          };
+
+          foreach (var category in Model.OngoingStageDistributionByCategory)
+          {
+              AppendStageOrder(category.StageDistribution);
+              stageDistributionByKey[$"cat-{category.ParentCategoryId}"] = BuildStageMap(category.StageDistribution);
+          }
+
+          var stageOrderJson = SerializeObject(stageOrder);
+          var stageDistributionJson = SerializeObject(stageDistributionByKey);
+
+          <div class="ppulse__ongoing-summary">
+            <div class="ppulse__summary-block">
+              <p class="ppulse__summary-title">Category distribution</p>
               @if (Model.OngoingByProjectCategory.Count == 0)
               {
-                <div class="ppulse__empty">No category data available</div>
+                <div class="ppulse__empty ppulse__empty--compact">No category data available</div>
               }
               else
               {
-                <div
-                  class="ppulse__chart ppulse__chart--compact"
-                  data-chart="donut"
-                  data-series='@Html.Raw(Serialize(Model.OngoingByProjectCategory))'
-                  role="img"
-                  aria-label='@DescribeCategories("Ongoing projects by category", Model.OngoingByProjectCategory)'
-                >
-                  <canvas aria-hidden="true"></canvas>
+                <div class="ppulse__chip-row" role="list">
+                  @foreach (var slice in Model.OngoingByProjectCategory)
+                  {
+                    <div class="ppulse__chip" role="listitem">
+                      <span>@slice.Label</span>
+                      <strong>@slice.Count</strong>
+                    </div>
+                  }
                 </div>
               }
             </div>
 
-            <div class="ppulse__ongoing-panel">
-              @if (stageLabels.Count == 0 || stackedSeries.Count == 0)
-              {
-                <div class="ppulse__empty">No stage data available</div>
-              }
-              else
-              {
-                <div
-                  class="ppulse__chart ppulse__chart--stacked"
-                  data-chart="stacked-bar"
-                  data-chart-json='@Html.Raw(stackedPayloadJson)'
-                  role="img"
-                  aria-label="Ongoing projects by stage with category breakdown"
-                >
-                  <canvas aria-hidden="true"></canvas>
+            <div class="ppulse__summary-block">
+              <p class="ppulse__summary-title">Stage distribution</p>
+              <div
+                class="ppulse__stage-pills"
+                data-ppulse-stage-pills
+                data-default-key="total"
+                data-stage-order='@Html.Raw(stageOrderJson)'
+                data-stage-json='@Html.Raw(stageDistributionJson)'
+              >
+                <div class="ppulse__stage-pill-row" role="list" data-stage-row></div>
+                <div class="ppulse__empty ppulse__empty--compact ppulse__stage-empty" data-stage-empty hidden>
+                  No stage data available
                 </div>
-              }
+              </div>
             </div>
           </div>
 
@@ -186,10 +206,6 @@
               </div>
               <div class="ppulse__bucket-seg ppulse__bucket-seg--devp" data-bucket="devp" role="listitem">
                 <span>Devp</span>
-                <strong data-bucket-value>0</strong>
-              </div>
-              <div class="ppulse__bucket-seg ppulse__bucket-seg--other" data-bucket="other" role="listitem">
-                <span>Other</span>
                 <strong data-bucket-value>0</strong>
               </div>
             </div>
