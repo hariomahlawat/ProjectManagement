@@ -128,7 +128,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             return new Dictionary<string, object?>
             {
                 ["projectName"] = r.ProjectName,
-                ["projectCode"] = r.ProjectCode,
                 ["sourceLabel"] = r.SourceLabel,
                 ["unitName"] = r.UnitName,
                 ["proliferationDate"] = r.ProliferationDateUtc?.Date,
@@ -276,11 +275,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             int pageSize,
             CancellationToken ct)
         {
-            if (!q.ProjectId.HasValue)
-            {
-                return Empty(q.Report, ProjectToUnitsColumns(), page, pageSize);
-            }
-
             var projects = EligibleProjectsQuery(q.ProjectCategoryId, q.TechnicalCategoryId);
 
             var baseQuery = from g in GranularBase(q, fromDate, toDate, statusFilter)
@@ -672,7 +666,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         private static IReadOnlyList<ProliferationReportColumnDto> ProjectToUnitsColumns() => new[]
         {
             Col("projectName", "Project"),
-            Col("projectCode", "Code"),
             Col("sourceLabel", "Source"),
             Col("unitName", "Unit"),
             Col("proliferationDate", "Proliferation date"),
@@ -686,7 +679,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         {
             Col("unitName", "Unit"),
             Col("projectName", "Project"),
-            Col("projectCode", "Code"),
             Col("sourceLabel", "Source"),
             Col("proliferationDate", "Proliferation date"),
             Col("year", "Year"),
@@ -698,7 +690,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         private static IReadOnlyList<ProliferationReportColumnDto> ProjectCoverageColumns() => new[]
         {
             Col("projectName", "Project"),
-            Col("projectCode", "Code"),
             Col("sourceLabel", "Source"),
             Col("totalQuantity", "Total quantity"),
             Col("uniqueUnits", "Unique units"),
@@ -709,7 +700,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         private static IReadOnlyList<ProliferationReportColumnDto> GranularLedgerColumns() => new[]
         {
             Col("projectName", "Project"),
-            Col("projectCode", "Code"),
             Col("sourceLabel", "Source"),
             Col("proliferationDate", "Proliferation date"),
             Col("unitName", "Unit"),
@@ -721,7 +711,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         private static IReadOnlyList<ProliferationReportColumnDto> YearlyReconciliationColumns() => new[]
         {
             Col("projectName", "Project"),
-            Col("projectCode", "Code"),
             Col("sourceLabel", "Source"),
             Col("year", "Year"),
             Col("yearlyApprovedTotal", "Yearly approved total"),

@@ -114,13 +114,12 @@ namespace ProjectManagement.Tests
             var dataRow = headerRow + 1;
 
             Assert.Equal("Simulator Expansion", sheet.Cell(dataRow, 1).GetString());
-            Assert.Equal("SIM-042", sheet.Cell(dataRow, 2).GetString());
-            Assert.Equal("SDD", sheet.Cell(dataRow, 3).GetString());
+            Assert.Equal("SDD", sheet.Cell(dataRow, 2).GetString());
 
-            Assert.Equal(new DateTime(2024, 3, 15), sheet.Cell(dataRow, 4).GetDateTime().Date);
-            Assert.Equal("Alpha", sheet.Cell(dataRow, 5).GetString());
-            Assert.Equal(70, sheet.Cell(dataRow, 6).GetValue<int>());
-            Assert.Equal("Approved", sheet.Cell(dataRow, 8).GetString());
+            Assert.Equal(new DateTime(2024, 3, 15), sheet.Cell(dataRow, 3).GetDateTime().Date);
+            Assert.Equal("Alpha", sheet.Cell(dataRow, 4).GetString());
+            Assert.Equal(70, sheet.Cell(dataRow, 5).GetValue<int>());
+            Assert.Equal("Approved", sheet.Cell(dataRow, 7).GetString());
         }
 
         // SECTION: Helpers
@@ -136,11 +135,11 @@ namespace ProjectManagement.Tests
             return string.Empty;
         }
 
-        private static int FindHeaderRow(IXLWorksheet sheet, string col1, string col4)
+        private static int FindHeaderRow(IXLWorksheet sheet, string col1, string col3)
         {
             for (var r = 1; r <= 80; r++)
             {
-                if (sheet.Cell(r, 1).GetString() == col1 && sheet.Cell(r, 4).GetString() == col4)
+                if (sheet.Cell(r, 1).GetString() == col1 && sheet.Cell(r, 3).GetString() == col3)
                 {
                     return r;
                 }
