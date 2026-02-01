@@ -79,34 +79,32 @@
         }
         else
         {
-          @{
-              var stageLabels = Model.OngoingStageDistributionTotal.Items
-                  .Select(item => item.StageCode)
-                  .ToList();
-              var stackedSeries = Model.OngoingStageDistributionByCategory
-                  .Select(category =>
-                  {
-                      var stageMap = category.StageDistribution.Items
-                          .GroupBy(item => item.StageCode, StringComparer.OrdinalIgnoreCase)
-                          .ToDictionary(group => group.Key, group => group.Sum(item => item.Count), StringComparer.OrdinalIgnoreCase);
-                      var aligned = stageLabels
-                          .Select(label => stageMap.TryGetValue(label, out var value) ? value : 0)
-                          .ToList();
-                      return new
-                      {
-                          label = category.Label,
-                          data = aligned
-                      };
-                  })
-                  .ToList();
-              var stackedPayload = new
+          var stageLabels = Model.OngoingStageDistributionTotal.Items
+              .Select(item => item.StageCode)
+              .ToList();
+          var stackedSeries = Model.OngoingStageDistributionByCategory
+              .Select(category =>
               {
-                  labels = stageLabels,
-                  series = stackedSeries
-              };
-              var stackedPayloadJson = SerializeObject(stackedPayload);
-              var ongoingBucketsJson = SerializeObject(Model.OngoingBucketsByKey);
-          }
+                  var stageMap = category.StageDistribution.Items
+                      .GroupBy(item => item.StageCode, StringComparer.OrdinalIgnoreCase)
+                      .ToDictionary(group => group.Key, group => group.Sum(item => item.Count), StringComparer.OrdinalIgnoreCase);
+                  var aligned = stageLabels
+                      .Select(label => stageMap.TryGetValue(label, out var value) ? value : 0)
+                      .ToList();
+                  return new
+                  {
+                      label = category.Label,
+                      data = aligned
+                  };
+              })
+              .ToList();
+          var stackedPayload = new
+          {
+              labels = stageLabels,
+              series = stackedSeries
+          };
+          var stackedPayloadJson = SerializeObject(stackedPayload);
+          var ongoingBucketsJson = SerializeObject(Model.OngoingBucketsByKey);
 
           <div class="ppulse__ongoing-grid">
             <div class="ppulse__ongoing-panel">
