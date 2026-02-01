@@ -398,7 +398,7 @@ namespace ProjectManagement.Tests
                     },
                     OngoingBucketFilters = new[]
                     {
-                        new OngoingBucketFilterVm("total", "Total")
+                        new OngoingBucketFilterVm("total", "All Projects", 0)
                     },
                     AllByTechnicalCategoryTop = Array.Empty<CategorySlice>(),
                     RemainingTechCategories = 0,

@@ -84,7 +84,7 @@
     @* END SECTION *@
 
     <article
-      class="ppulse__card pulse-item-card"
+      class="ppulse__card pulse-item-card ppulse__ongoing"
       data-ppulse-ongoing-buckets
       data-default-key="@defaultOngoingKey"
       data-buckets-json='@Html.Raw(ongoingBucketsJson)'
@@ -112,7 +112,8 @@
                     role="tab"
                     aria-selected="@(isActive ? "true" : "false")"
                   >
-                    @filter.Label
+                    <span class="ppulse__bucket-filter-label">@filter.Label</span>
+                    <span class="ppulse__bucket-filter-count">@filter.Count</span>
                   </button>
                 }
               </div>
@@ -173,21 +174,33 @@
             </div>
 
             <div class="ppulse__bucket-bar" role="list">
-              <div class="ppulse__bucket-seg ppulse__bucket-seg--apvl" data-bucket="apvl" role="listitem">
-                <span>Apvl</span>
-                <strong data-bucket-value>0</strong>
+              <div class="ppulse__bucket-seg ppulse__bucket-seg--apvl" data-ppulse-bucket-seg="apvl" role="listitem">
+                <span class="ppulse__bucket-seg-label">Apvl</span>
+                <span class="ppulse__bucket-seg-metrics">
+                  <strong class="ppulse__bucket-seg-value" data-ppulse-bucket-seg-value>0</strong>
+                  <span class="ppulse__bucket-seg-percent" data-ppulse-bucket-seg-percent>0%</span>
+                </span>
               </div>
-              <div class="ppulse__bucket-seg ppulse__bucket-seg--aon" data-bucket="aon" role="listitem">
-                <span>AoN</span>
-                <strong data-bucket-value>0</strong>
+              <div class="ppulse__bucket-seg ppulse__bucket-seg--aon" data-ppulse-bucket-seg="aon" role="listitem">
+                <span class="ppulse__bucket-seg-label">AoN</span>
+                <span class="ppulse__bucket-seg-metrics">
+                  <strong class="ppulse__bucket-seg-value" data-ppulse-bucket-seg-value>0</strong>
+                  <span class="ppulse__bucket-seg-percent" data-ppulse-bucket-seg-percent>0%</span>
+                </span>
               </div>
-              <div class="ppulse__bucket-seg ppulse__bucket-seg--tender" data-bucket="tender" role="listitem">
-                <span>Tender</span>
-                <strong data-bucket-value>0</strong>
+              <div class="ppulse__bucket-seg ppulse__bucket-seg--tender" data-ppulse-bucket-seg="tender" role="listitem">
+                <span class="ppulse__bucket-seg-label">Tender</span>
+                <span class="ppulse__bucket-seg-metrics">
+                  <strong class="ppulse__bucket-seg-value" data-ppulse-bucket-seg-value>0</strong>
+                  <span class="ppulse__bucket-seg-percent" data-ppulse-bucket-seg-percent>0%</span>
+                </span>
               </div>
-              <div class="ppulse__bucket-seg ppulse__bucket-seg--devp" data-bucket="devp" role="listitem">
-                <span>Devp</span>
-                <strong data-bucket-value>0</strong>
+              <div class="ppulse__bucket-seg ppulse__bucket-seg--devp" data-ppulse-bucket-seg="devp" role="listitem">
+                <span class="ppulse__bucket-seg-label">Devp</span>
+                <span class="ppulse__bucket-seg-metrics">
+                  <strong class="ppulse__bucket-seg-value" data-ppulse-bucket-seg-value>0</strong>
+                  <span class="ppulse__bucket-seg-percent" data-ppulse-bucket-seg-percent>0%</span>
+                </span>
               </div>
             </div>
             @* END SECTION *@
@@ -202,7 +215,7 @@
                 data-stage-order='@Html.Raw(stageOrderJson)'
                 data-stage-json='@Html.Raw(stageDistributionJson)'
               >
-                <div class="ppulse__stage-pill-row" role="list" data-stage-row></div>
+                <div class="ppulse__stage-pill-row ppulse__stage-pill-list" role="list" data-stage-row></div>
                 <div class="ppulse__empty ppulse__empty--compact ppulse__stage-empty" data-stage-empty hidden>
                   No stage data available
                 </div>

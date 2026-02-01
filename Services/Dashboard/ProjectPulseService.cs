@@ -79,7 +79,8 @@ public sealed class ProjectPulseService : IProjectPulseService
             parentCategoryCounts,
             cancellationToken);
         var ongoingBucketsByKey = BuildOngoingBucketsByKey(ongoingStageTotal, ongoingStageByCategory);
-        var ongoingBucketFilters = BuildOngoingBucketFilters(parentCategoryCounts);
+        var ongoingTotalCount = ongoing;
+        var ongoingBucketFilters = BuildOngoingBucketFilters(parentCategoryCounts, ongoingTotalCount);
         var (technicalTop, remainingTechnical) = await BuildTechnicalCategorySeriesAsync(cancellationToken);
         var uniqueCompletedByTech = await BuildUniqueCompletedByTechnicalCategoryTreemapAsync(cancellationToken);
         var uniqueCompletedByType = await BuildUniqueCompletedByProjectTypeTreemapAsync(cancellationToken);
@@ -224,16 +225,17 @@ public sealed class ProjectPulseService : IProjectPulseService
     }
 
     private static IReadOnlyList<OngoingBucketFilterVm> BuildOngoingBucketFilters(
-        IReadOnlyList<ParentCategoryCount> parentCategoryCounts)
+        IReadOnlyList<ParentCategoryCount> parentCategoryCounts,
+        int ongoingTotalCount)
     {
         // SECTION: Bucket filter list
         var filters = new List<OngoingBucketFilterVm>
         {
-            new("total", "Total")
+            new("total", "All Projects", ongoingTotalCount)
         };
 
         filters.AddRange(parentCategoryCounts.Select(category =>
-            new OngoingBucketFilterVm($"cat-{category.ParentCategoryId}", category.Label)));
+            new OngoingBucketFilterVm($"cat-{category.ParentCategoryId}", category.Label, category.Count)));
 
         return filters;
         // END SECTION

@@ -50,7 +50,7 @@ public sealed record OngoingStageDistributionCategoryVm(
 // END SECTION
 
 // SECTION: Ongoing bucket filter contract
-public sealed record OngoingBucketFilterVm(string Key, string Label);
+public sealed record OngoingBucketFilterVm(string Key, string Label, int Count);
 // END SECTION
 
 // SECTION: Ongoing bucket set contract
