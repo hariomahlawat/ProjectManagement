@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -56,16 +55,19 @@ public sealed class ProjectPulseService : IProjectPulseService
             .Where(p => !p.IsDeleted);
 
         var total = await baseQuery.CountAsync(cancellationToken);
-        var completed = await baseQuery
-            .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed)
-            .CountAsync(cancellationToken);
+        var completedBase = baseQuery
+            .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed && !p.IsArchived);
+        var completed = await completedBase.CountAsync(cancellationToken);
+        var completedUnique = await completedBase.Where(p => !p.IsBuild).CountAsync(cancellationToken);
+        var completedRebuild = await completedBase.Where(p => p.IsBuild).CountAsync(cancellationToken);
         var ongoing = await baseQuery
             .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Active && !p.IsArchived)
             .CountAsync(cancellationToken);
 
-        var completedByYear = await BuildCompletedByYearAsync(cancellationToken);
         var ongoingByCategory = await BuildOngoingByCategoryAsync(cancellationToken);
         var (technicalTop, remainingTechnical) = await BuildTechnicalCategorySeriesAsync(cancellationToken);
+        var uniqueCompletedByTech = await BuildUniqueCompletedByTechnicalCategoryTreemapAsync(cancellationToken);
+        var uniqueCompletedByType = await BuildUniqueCompletedByProjectTypeTreemapAsync(cancellationToken);
         var availableForProliferation = await CountProliferationEligibleAsync(cancellationToken);
 
         return new ProjectPulseVm
@@ -73,12 +75,15 @@ public sealed class ProjectPulseService : IProjectPulseService
             ProliferationEligible = availableForProliferation,
             AnalyticsUrl = AnalyticsPage,
             CompletedCount = completed,
+            CompletedUniqueCount = completedUnique,
+            CompletedRebuildCount = completedRebuild,
             OngoingCount = ongoing,
             TotalProjects = total,
-            CompletedByYear = completedByYear,
             OngoingByProjectCategory = ongoingByCategory,
             AllByTechnicalCategoryTop = technicalTop,
             RemainingTechCategories = remainingTechnical,
+            UniqueCompletedByTechnicalCategory = uniqueCompletedByTech,
+            UniqueCompletedByProjectType = uniqueCompletedByType,
             CompletedUrl = CompletedPage,
             OngoingUrl = OngoingPage,
             RepositoryUrl = RepositoryPage
@@ -87,47 +92,6 @@ public sealed class ProjectPulseService : IProjectPulseService
     // END SECTION
 
     // SECTION: Series builders
-    private async Task<IReadOnlyList<BarPoint>> BuildCompletedByYearAsync(CancellationToken cancellationToken)
-    {
-        var completedSeries = await _db.Projects
-            .AsNoTracking()
-            .Where(p => !p.IsDeleted
-                && !p.IsArchived
-                && p.LifecycleStatus == ProjectLifecycleStatus.Completed)
-            .Select(p => new
-            {
-                Year = p.CompletedOn.HasValue
-                    ? (int?)p.CompletedOn.Value.Year
-                    : p.CompletedYear
-            })
-            .Where(p => p.Year.HasValue)
-            .GroupBy(p => p.Year!.Value)
-            .Select(g => new { Year = g.Key, Count = g.Count() })
-            .OrderByDescending(x => x.Year)
-            .Take(5)
-            .ToListAsync(cancellationToken);
-
-        if (completedSeries.Count == 0)
-        {
-            var fallbackCount = await _db.Projects
-                .AsNoTracking()
-                .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed)
-                .CountAsync(cancellationToken);
-
-            if (fallbackCount > 0)
-            {
-                return new[] { new BarPoint("Unknown", fallbackCount) };
-            }
-
-            return Array.Empty<BarPoint>();
-        }
-
-        return completedSeries
-            .OrderBy(x => x.Year)
-            .Select(x => new BarPoint(x.Year.ToString(CultureInfo.InvariantCulture), x.Count))
-            .ToList();
-    }
-
     private async Task<(IReadOnlyList<CategorySlice> TopSeries, int RemainingCount)> BuildTechnicalCategorySeriesAsync(CancellationToken cancellationToken)
     {
         var technicalSeries = await _db.Projects
@@ -210,6 +174,152 @@ public sealed class ProjectPulseService : IProjectPulseService
 
         return ongoingSeries;
     }
+
+    private async Task<IReadOnlyList<TreemapNode>> BuildUniqueCompletedByTechnicalCategoryTreemapAsync(
+        CancellationToken cancellationToken)
+    {
+        var grouped = await _db.Projects
+            .AsNoTracking()
+            .Where(p => !p.IsDeleted
+                && !p.IsArchived
+                && p.LifecycleStatus == ProjectLifecycleStatus.Completed
+                && !p.IsBuild)
+            .GroupBy(p => p.TechnicalCategoryId)
+            .Select(g => new { TechnicalCategoryId = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        if (grouped.Count == 0)
+        {
+            return Array.Empty<TreemapNode>();
+        }
+
+        var unclassifiedCount = grouped
+            .Where(x => x.TechnicalCategoryId == null)
+            .Select(x => x.Count)
+            .FirstOrDefault();
+
+        var classified = grouped
+            .Where(x => x.TechnicalCategoryId != null)
+            .Select(x => new TreemapCount(x.TechnicalCategoryId!.Value, x.Count))
+            .ToList();
+
+        var names = await BuildTechnicalCategoryNameMapAsync(classified, cancellationToken);
+        var ordered = classified
+            .Select(x => new TreemapBucket(
+                x.Id,
+                names.TryGetValue(x.Id, out var name) ? name : "Unknown",
+                x.Count))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return BuildTreemapSeries(ordered, unclassifiedCount);
+    }
+
+    private async Task<IReadOnlyList<TreemapNode>> BuildUniqueCompletedByProjectTypeTreemapAsync(
+        CancellationToken cancellationToken)
+    {
+        var grouped = await _db.Projects
+            .AsNoTracking()
+            .Where(p => !p.IsDeleted
+                && !p.IsArchived
+                && p.LifecycleStatus == ProjectLifecycleStatus.Completed
+                && !p.IsBuild)
+            .GroupBy(p => p.ProjectTypeId)
+            .Select(g => new { ProjectTypeId = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        if (grouped.Count == 0)
+        {
+            return Array.Empty<TreemapNode>();
+        }
+
+        var unclassifiedCount = grouped
+            .Where(x => x.ProjectTypeId == null)
+            .Select(x => x.Count)
+            .FirstOrDefault();
+
+        var classified = grouped
+            .Where(x => x.ProjectTypeId != null)
+            .Select(x => new TreemapCount(x.ProjectTypeId!.Value, x.Count))
+            .ToList();
+
+        var names = await BuildProjectTypeNameMapAsync(classified, cancellationToken);
+        var ordered = classified
+            .Select(x => new TreemapBucket(
+                x.Id,
+                names.TryGetValue(x.Id, out var name) ? name : "Unknown",
+                x.Count))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return BuildTreemapSeries(ordered, unclassifiedCount);
+    }
+    // END SECTION
+
+    // SECTION: Treemap helpers
+    private async Task<IReadOnlyDictionary<int, string>> BuildTechnicalCategoryNameMapAsync(
+        IReadOnlyCollection<TreemapCount> classified,
+        CancellationToken cancellationToken)
+    {
+        var ids = classified.Select(x => x.Id).Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return new Dictionary<int, string>();
+        }
+
+        return await _db.TechnicalCategories
+            .AsNoTracking()
+            .Where(c => ids.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
+    }
+
+    private async Task<IReadOnlyDictionary<int, string>> BuildProjectTypeNameMapAsync(
+        IReadOnlyCollection<TreemapCount> classified,
+        CancellationToken cancellationToken)
+    {
+        var ids = classified.Select(x => x.Id).Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return new Dictionary<int, string>();
+        }
+
+        return await _db.ProjectTypes
+            .AsNoTracking()
+            .Where(c => ids.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
+    }
+
+    private static IReadOnlyList<TreemapNode> BuildTreemapSeries(
+        IReadOnlyList<TreemapBucket> ordered,
+        int unclassifiedCount)
+    {
+        var top = ordered.Take(5).ToList();
+        var rest = ordered.Skip(5).ToList();
+        var othersCount = rest.Sum(x => x.Count);
+        var nodes = new List<TreemapNode>();
+
+        foreach (var node in top)
+        {
+            nodes.Add(new TreemapNode(node.Label, node.Count, null));
+        }
+
+        if (unclassifiedCount > 0)
+        {
+            nodes.Add(new TreemapNode("Unclassified", unclassifiedCount, null));
+        }
+
+        if (othersCount > 0)
+        {
+            nodes.Add(new TreemapNode("Others", othersCount, null));
+        }
+
+        return nodes;
+    }
+
+    private sealed record TreemapCount(int Id, int Count);
+    private sealed record TreemapBucket(int Id, string Label, int Count);
     // END SECTION
 
     // SECTION: Proliferation counts

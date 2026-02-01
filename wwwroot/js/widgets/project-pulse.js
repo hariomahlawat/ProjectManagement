@@ -2,12 +2,13 @@
 (function () {
   'use strict';
 
-  if (typeof window === 'undefined' || typeof window.Chart === 'undefined') {
+  if (typeof window === 'undefined') {
     return;
   }
 
   // SECTION: Utilities
   var ChartCtor = window.Chart;
+  var hasChart = typeof ChartCtor !== 'undefined';
   var palette = ['#475569', '#94a3b8', '#cbd5f5', '#d4d4d8', '#e2e8f0', '#c4b5fd'];
   var accent = '#2d6cdf';
 
@@ -148,6 +149,111 @@
   }
   // END SECTION
 
+  // SECTION: Treemap builder
+  function buildTreemap(host, series) {
+    if (!host || !series.length) {
+      return;
+    }
+
+    var parsed = series
+      .map(function (item) {
+        var label = item && (item.label || item.Label) ? (item.label || item.Label) : '';
+        var count = item && (typeof item.count !== 'undefined' ? item.count : item.Count);
+        var url = item && (item.url || item.Url) ? (item.url || item.Url) : null;
+        return {
+          label: String(label),
+          count: Number(count) || 0,
+          url: url ? String(url) : null
+        };
+      })
+      .filter(function (item) { return item.count > 0; });
+
+    if (!parsed.length) {
+      return;
+    }
+
+    var total = parsed.reduce(function (sum, item) { return sum + item.count; }, 0);
+    if (!total) {
+      return;
+    }
+
+    host.innerHTML = '';
+    host.setAttribute('data-hydrated', 'true');
+
+    var styles = window.getComputedStyle(host);
+    var paddingX = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+    var paddingY = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom);
+    var width = (host.clientWidth || host.offsetWidth) - paddingX;
+    var height = (host.clientHeight || host.offsetHeight) - paddingY;
+    if (!width || !height) {
+      return;
+    }
+
+    var horizontal = true;
+    var offsetX = parseFloat(styles.paddingLeft);
+    var offsetY = parseFloat(styles.paddingTop);
+    var remainingWidth = width;
+    var remainingHeight = height;
+
+    parsed.forEach(function (item, idx) {
+      var isLast = idx === parsed.length - 1;
+      var area = Math.max(1, Math.round((item.count / total) * width * height));
+      var tileWidth;
+      var tileHeight;
+
+      if (horizontal) {
+        tileWidth = remainingWidth;
+        tileHeight = isLast ? remainingHeight : Math.max(1, Math.round(area / remainingWidth));
+      } else {
+        tileHeight = remainingHeight;
+        tileWidth = isLast ? remainingWidth : Math.max(1, Math.round(area / remainingHeight));
+      }
+
+      tileWidth = Math.min(tileWidth, remainingWidth);
+      tileHeight = Math.min(tileHeight, remainingHeight);
+
+      var tile = createTreemapTile(item);
+      tile.style.left = offsetX + 'px';
+      tile.style.top = offsetY + 'px';
+      tile.style.width = tileWidth + 'px';
+      tile.style.height = tileHeight + 'px';
+      host.appendChild(tile);
+
+      if (horizontal) {
+        offsetY += tileHeight;
+        remainingHeight -= tileHeight;
+      } else {
+        offsetX += tileWidth;
+        remainingWidth -= tileWidth;
+      }
+
+      horizontal = !horizontal;
+    });
+  }
+
+  function createTreemapTile(item) {
+    var tile = document.createElement(item.url ? 'button' : 'div');
+    tile.className = 'ppulse__treemap-tile' + (item.url ? ' ppulse__treemap-tile--link' : '');
+    if (item.url) {
+      tile.type = 'button';
+      tile.setAttribute('data-url', item.url);
+      tile.addEventListener('click', function () {
+        window.location.href = item.url;
+      });
+    }
+
+    var label = document.createElement('span');
+    label.textContent = item.label;
+    var count = document.createElement('strong');
+    count.textContent = item.count.toString();
+
+    tile.appendChild(label);
+    tile.appendChild(count);
+
+    return tile;
+  }
+  // END SECTION
+
   // SECTION: Initializer
   function init(root) {
     if (!root) {
@@ -158,13 +264,20 @@
     var hosts = Array.prototype.slice.call(root.querySelectorAll('.ppulse__chart'));
 
     function hydrateChart(host) {
-      var canvas = host.querySelector('canvas');
-      if (!canvas) {
-        return;
-      }
       var kind = host.getAttribute('data-chart');
       var series = safeParse(host, 'data-series');
       if (!series.length) {
+        return;
+      }
+      if (kind === 'treemap') {
+        buildTreemap(host, series);
+        return;
+      }
+      if (!hasChart) {
+        return;
+      }
+      var canvas = host.querySelector('canvas');
+      if (!canvas) {
         return;
       }
       var chart;

@@ -20,17 +20,10 @@
         return $"{heading}: {details}";
     }
 
-    string DescribeYearlyCounts(string heading, IReadOnlyList<BarPoint> points)
+    IReadOnlyList<CategorySlice> AsSlices(IEnumerable<TreemapNode> nodes)
     {
-        if (points.Count == 0)
-        {
-            return $"{heading} data is not available";
-        }
-
-        var details = string.Join(", ", points.Select(point => $"{point.Label} {point.Count}"));
-        return $"{heading}: {details}";
+        return nodes.Select(node => new CategorySlice(node.Label, node.Count)).ToList();
     }
-
 }
 @* END SECTION *@
 
@@ -68,24 +61,78 @@
 
   @* SECTION: Content cards *@
   <div class="ppulse__grid">
-    <article class="ppulse__card pulse-item-card">
-      <a class="ppulse__link" href="@Model.CompletedUrl" title="View completed projects">
+    <article class="ppulse__card pulse-item-card ppulse__card--completed">
+      <div class="ppulse__link">
+        @* SECTION: Completed header *@
         <header class="ppulse__card-head">
-          <h3>Completed <small>@Model.CompletedCount</small></h3>
+          <div class="ppulse__card-title">
+            <h3>Completed <small>@Model.CompletedCount</small></h3>
+            <span class="ppulse__subtle">Excludes archived and deleted</span>
+          </div>
         </header>
-        <div
-          class="ppulse__chart pulse-chart-container"
-          data-chart="bar"
-          data-x-label="Year"
-          data-y-label="Projects completed"
-          data-series='@Html.Raw(Serialize(Model.CompletedByYear))'
-          role="img"
-          aria-label='@DescribeYearlyCounts("Completed projects by year", Model.CompletedByYear)'
-        >
-          <canvas aria-hidden="true"></canvas>
+        @* END SECTION *@
+
+        @* SECTION: Completed KPIs *@
+        <div class="ppulse__kpis" role="group" aria-label="Completed projects breakdown">
+          <div class="ppulse__kpi">
+            <div class="ppulse__kpi-label">Unique</div>
+            <div class="ppulse__kpi-value">@Model.CompletedUniqueCount</div>
+          </div>
+          <div class="ppulse__kpi">
+            <div class="ppulse__kpi-label">Rebuild</div>
+            <div class="ppulse__kpi-value">@Model.CompletedRebuildCount</div>
+          </div>
         </div>
-        <footer class="ppulse__foot">View completed →</footer>
-      </a>
+        @* END SECTION *@
+
+        @* SECTION: Completed treemap - technical *@
+        <div class="ppulse__treemap-block">
+          <div class="ppulse__treemap-title">Unique by technical category</div>
+          @if (Model.UniqueCompletedByTechnicalCategory.Count > 0)
+          {
+            <div
+              class="ppulse__chart ppulse__treemap"
+              data-chart="treemap"
+              data-series='@Html.Raw(Serialize(Model.UniqueCompletedByTechnicalCategory))'
+              role="img"
+              aria-label='@DescribeCategories("Unique completed by technical category", AsSlices(Model.UniqueCompletedByTechnicalCategory))'
+            >
+            </div>
+          }
+          else
+          {
+            <div class="ppulse__treemap-empty">No data available</div>
+          }
+        </div>
+        @* END SECTION *@
+
+        @* SECTION: Completed treemap - project type *@
+        <div class="ppulse__treemap-block">
+          <div class="ppulse__treemap-title">Unique by project type</div>
+          @if (Model.UniqueCompletedByProjectType.Count > 0)
+          {
+            <div
+              class="ppulse__chart ppulse__treemap"
+              data-chart="treemap"
+              data-series='@Html.Raw(Serialize(Model.UniqueCompletedByProjectType))'
+              role="img"
+              aria-label='@DescribeCategories("Unique completed by project type", AsSlices(Model.UniqueCompletedByProjectType))'
+            >
+            </div>
+          }
+          else
+          {
+            <div class="ppulse__treemap-empty">No data available</div>
+          }
+        </div>
+        @* END SECTION *@
+
+        @* SECTION: Completed footer *@
+        <footer class="ppulse__foot">
+          <a class="ppulse__inline-link" href="@Model.CompletedUrl">View completed →</a>
+        </footer>
+        @* END SECTION *@
+      </div>
     </article>
 
     <article class="ppulse__card pulse-item-card">
