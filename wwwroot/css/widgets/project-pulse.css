@@ -223,31 +223,87 @@
 /* END SECTION */
 
 /* SECTION: Ongoing layout */
-.ppulse__ongoing-grid {
+.ppulse__ongoing-summary {
   display: grid;
-  grid-template-columns: 0.32fr 0.68fr;
-  gap: var(--pp-gap-sm);
-  align-items: stretch;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--pp-gap-xs);
+  margin: var(--pp-gap-xs) 0;
 }
 
-.ppulse__ongoing-panel {
+.ppulse__summary-block {
   display: flex;
   flex-direction: column;
+  gap: 6px;
 }
 
-.ppulse__chart--compact {
-  height: 150px;
+.ppulse__summary-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--pm-text-secondary, var(--pm-accent-slate-mid));
+  margin: 0;
 }
 
-.ppulse__chart--stacked {
-  height: 170px;
+.ppulse__chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ppulse__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--pp-border) 55%, white);
+  background: color-mix(in oklab, var(--pm-card) 86%, white);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--pm-text);
+}
+
+.ppulse__chip strong {
+  font-weight: 700;
+  color: var(--pm-text);
+}
+
+.ppulse__stage-pills {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ppulse__stage-pill-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scroll-snap-type: x proximity;
+}
+
+.ppulse__stage-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--pp-border) 55%, white);
+  background: color-mix(in oklab, var(--pm-card) 82%, white);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  scroll-snap-align: start;
+}
+
+.ppulse__stage-pill strong {
+  font-weight: 700;
 }
 
 .ppulse__ongoing-buckets {
   display: flex;
   flex-direction: column;
   gap: var(--pp-gap-xs);
-  margin-top: var(--pp-gap-xs);
+  margin-top: 4px;
 }
 
 .ppulse__bucket-head {
@@ -349,13 +405,8 @@
   color: #166534;
 }
 
-.ppulse__bucket-seg--other {
-  background: color-mix(in oklab, #64748b 12%, white);
-  color: #475569;
-}
-
 @media (max-width: 900px) {
-  .ppulse__ongoing-grid {
+  .ppulse__ongoing-summary {
     grid-template-columns: 1fr;
   }
 }
