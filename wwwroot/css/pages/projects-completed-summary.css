@@ -180,7 +180,7 @@
 
 /* SECTION: Deterministic column sizing */
 .cs-col-project {
-    width: 32%;
+    width: 28%;
 }
 
 .cs-col-rd {
@@ -208,7 +208,7 @@
 }
 
 .cs-col-remarks {
-    width: 5%;
+    width: 7%;
 }
 
 .cs-col-actions {
