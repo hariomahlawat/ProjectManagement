@@ -22,6 +22,9 @@
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
         var isOngoingProjectsPage = string.Equals(currentPage, "/Projects/Ongoing/Index", StringComparison.OrdinalIgnoreCase);
         var isDocumentRepositoryPage = string.Equals(currentArea, "DocumentRepository", StringComparison.OrdinalIgnoreCase);
+        var isFfcPage = string.Equals(currentArea, "ProjectOfficeReports", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(currentPage)
+            && currentPage.StartsWith("/FFC", StringComparison.OrdinalIgnoreCase);
         var useFullWidth = (ViewData["UseFullWidth"] as bool?) == true;
         var mainContainerClass = useFullWidth
             ? "container-fluid analytics-shell px-3 px-lg-4 px-xxl-5"
@@ -56,6 +59,12 @@
                     <a asp-page="/Projects/Ongoing/Index"
                        class="pm-top-tabs__item @(isOngoingProjectsPage ? "is-active" : string.Empty)">
                         Projects
+                    </a>
+                    @* SECTION: FFC main menu *@
+                    <a asp-area="ProjectOfficeReports"
+                       asp-page="/FFC/MapTableDetailed"
+                       class="pm-top-tabs__item @(isFfcPage ? "is-active" : string.Empty)">
+                        FFC
                     </a>
                     <a asp-area="DocumentRepository"
                        asp-page="/Documents/Index"
