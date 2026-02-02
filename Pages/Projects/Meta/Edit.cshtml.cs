@@ -166,7 +166,7 @@ public class EditModel : PageModel
 
             if (Input.ApproxProductionCost is < 0)
             {
-                ModelState.AddModelError("Input.ApproxProductionCost", "Approx production cost cannot be negative.");
+                ModelState.AddModelError("Input.ApproxProductionCost", "Approx Prod cost cannot be negative.");
             }
         }
 

@@ -55,7 +55,7 @@ public sealed class CompletedProjectsSummaryExcelBuilder : ICompletedProjectsSum
             "S.No.",
             "Project",
             "R&D / L1 cost (lakh)",
-            "Approx production cost (lakh)",
+            "Approx Prod cost (lakh)",
             "Latest LPP (lakh)",
             "Latest LPP date",
             "Tech status",
