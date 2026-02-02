@@ -117,6 +117,16 @@
     width: 100%;
 }
 
+/* SECTION: Table sizing normalization */
+.cs-table th,
+.cs-table td {
+    box-sizing: border-box;
+}
+
+.cs-table thead th {
+    white-space: normal;
+}
+
 .cs-table thead th {
     position: sticky;
     top: 0;
