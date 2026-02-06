@@ -2828,13 +2828,16 @@ namespace ProjectManagement.Data
 
             builder.Entity<IndustryPartnerContact>(entity =>
             {
-                entity.ToTable("IndustryPartnerContacts");
+                entity.ToTable("IndustryPartnerContacts", table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_IndustryPartnerContacts_PhoneOrEmail",
+                        "(nullif(trim(coalesce(\"Phone\", '')), '') is not null) OR (nullif(trim(coalesce(\"Email\", '')), '') is not null)");
+                });
                 ConfigureRowVersion(entity);
                 entity.Property(x => x.Name).HasMaxLength(200);
                 entity.Property(x => x.Phone).HasMaxLength(64);
                 entity.Property(x => x.Email).HasMaxLength(256);
-                entity.HasCheckConstraint("CK_IndustryPartnerContacts_PhoneOrEmail",
-                    "(nullif(trim(coalesce(\"Phone\", '')), '') is not null) OR (nullif(trim(coalesce(\"Email\", '')), '') is not null)");
                 entity.HasOne(x => x.IndustryPartner)
                     .WithMany(x => x.Contacts)
                     .HasForeignKey(x => x.IndustryPartnerId)
