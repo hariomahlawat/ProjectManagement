@@ -56,7 +56,7 @@ namespace ProjectManagement.Models
 
         // SECTION: Workflow Versioning
         [Required]
-        [MaxLength(32)]
+        [MaxLength(64)]
         public string WorkflowVersion { get; set; } = PlanConstants.DefaultStageTemplateVersion;
 
         public int? CategoryId { get; set; }
