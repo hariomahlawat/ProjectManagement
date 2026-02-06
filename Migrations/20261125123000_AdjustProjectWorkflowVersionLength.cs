@@ -13,22 +13,24 @@ namespace ProjectManagement.Migrations
         // SECTION: Apply schema changes
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterColumn<string>(
-                name: "WorkflowVersion",
-                table: "Projects",
-                type: "character varying(64)",
-                maxLength: 64,
-                nullable: false,
-                defaultValue: "SDD-1.0",
-                oldClrType: typeof(string),
-                oldType: "character varying(32)",
-                oldMaxLength: 32,
-                oldDefaultValue: "SDD-1.0");
-        }
+            // SECTION: Data remediation policy for workflow version shrink
+            // Policy: this migration does not mutate unknown legacy values. It fails fast with
+            // a clear exception when invalid data exists so operators can remediate deterministically.
+            migrationBuilder.Sql(
+                @"DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM ""Projects""
+        WHERE ""WorkflowVersion"" IS NULL
+           OR length(""WorkflowVersion"") > 32
+    ) THEN
+        RAISE EXCEPTION
+            'Cannot shrink Projects.WorkflowVersion to varchar(32): found NULL or values longer than 32 characters. Remediate data before applying migration.';
+    END IF;
+END $$;");
 
-        // SECTION: Revert schema changes
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
+            // SECTION: Enforce final schema after data is validated
             migrationBuilder.AlterColumn<string>(
                 name: "WorkflowVersion",
                 table: "Projects",
@@ -39,6 +41,23 @@ namespace ProjectManagement.Migrations
                 oldClrType: typeof(string),
                 oldType: "character varying(64)",
                 oldMaxLength: 64,
+                oldDefaultValue: "SDD-1.0");
+        }
+
+        // SECTION: Revert schema changes
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // SECTION: Roll back schema change to previous length/constraint contract
+            migrationBuilder.AlterColumn<string>(
+                name: "WorkflowVersion",
+                table: "Projects",
+                type: "character varying(64)",
+                maxLength: 64,
+                nullable: false,
+                defaultValue: "SDD-1.0",
+                oldClrType: typeof(string),
+                oldType: "character varying(32)",
+                oldMaxLength: 32,
                 oldDefaultValue: "SDD-1.0");
         }
     }
