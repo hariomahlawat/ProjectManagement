@@ -1,11 +1,15 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using ProjectManagement.Data;
 
 #nullable disable
 
 namespace ProjectManagement.Migrations
 {
+    [DbContext(typeof(ApplicationDbContext))]
+    [Migration("20261125120000_AddIndustryPartners")]
     public partial class AddIndustryPartners : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
