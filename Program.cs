@@ -349,7 +349,7 @@ builder.Services.AddScoped<IActivityService, ActivityService>();
 // SECTION: Industry partners services
 builder.Services.AddScoped<IIndustryPartnerService, IndustryPartnerService>();
 builder.Services.AddScoped<IIndustryPartnerAttachmentManager, IndustryPartnerAttachmentManager>();
-builder.Services.AddSingleton<IIndustryPartnerAttachmentStorage, FileSystemIndustryPartnerAttachmentStorage>();
+builder.Services.AddScoped<IIndustryPartnerAttachmentStorage, FileSystemIndustryPartnerAttachmentStorage>();
 builder.Services.AddSingleton<IndustryPartnerAttachmentValidator>();
 builder.Services.AddScoped<IActivityDeleteRequestService, ActivityDeleteRequestService>();
 builder.Services.AddScoped<IActivityNotificationService, ActivityNotificationService>();
