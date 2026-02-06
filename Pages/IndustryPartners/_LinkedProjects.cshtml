@@ -1,0 +1,34 @@
+@model ProjectManagement.Pages.IndustryPartners.IndexModel
+@{ var p = Model.SelectedPartner!; }
+<div class="card">
+    <div class="card-body">
+        <h3 class="h6">Linked projects</h3>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            @foreach (var link in p.LinkedProjects)
+            {
+                <span class="badge text-bg-light">
+                    @link.ProjectName
+                    @if (Model.CanManage)
+                    {
+                        <form method="post" asp-page-handler="UnlinkProject" class="d-inline">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="partnerId" value="@p.Id" />
+                            <input type="hidden" name="projectId" value="@link.ProjectId" />
+                            <button type="submit" class="btn btn-link btn-sm p-0 ms-1 text-danger text-decoration-none">×</button>
+                        </form>
+                    }
+                </span>
+            }
+        </div>
+
+        @if (Model.CanManage)
+        {
+            <form method="post" asp-page-handler="LinkProject" class="row g-2">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="partnerId" value="@p.Id" />
+                <div class="col-sm-8"><input class="form-control form-control-sm" name="projectId" placeholder="Project ID" type="number" min="1" required /></div>
+                <div class="col-sm-4"><button class="btn btn-sm btn-outline-primary w-100">Link project</button></div>
+            </form>
+        }
+    </div>
+</div>

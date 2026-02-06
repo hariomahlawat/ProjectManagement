@@ -24,6 +24,7 @@ using ProjectManagement.Helpers;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Data.Projects;
 using ProjectManagement.Models.Projects;
+using ProjectManagement.Models.IndustryPartners;
 
 namespace ProjectManagement.Data
 {
@@ -121,6 +122,10 @@ namespace ProjectManagement.Data
         public DbSet<Activity> Activities => Set<Activity>();
         public DbSet<ActivityAttachment> ActivityAttachments => Set<ActivityAttachment>();
         public DbSet<ActivityDeleteRequest> ActivityDeleteRequests => Set<ActivityDeleteRequest>();
+        public DbSet<IndustryPartner> IndustryPartners => Set<IndustryPartner>();
+        public DbSet<IndustryPartnerContact> IndustryPartnerContacts => Set<IndustryPartnerContact>();
+        public DbSet<IndustryPartnerAttachment> IndustryPartnerAttachments => Set<IndustryPartnerAttachment>();
+        public DbSet<IndustryPartnerProject> IndustryPartnerProjects => Set<IndustryPartnerProject>();
         public DbSet<Document> Documents => Set<Document>();
         public DbSet<DocRepoExternalLink> DocRepoExternalLinks => Set<DocRepoExternalLink>();
         public DbSet<Tag> Tags => Set<Tag>();
@@ -2794,6 +2799,77 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.UploadedByUserId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+
+            // SECTION: Industry partners model configuration
+            builder.Entity<IndustryPartner>(entity =>
+            {
+                entity.ToTable("IndustryPartners");
+                ConfigureRowVersion(entity);
+                entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.Location).HasMaxLength(2000);
+                entity.Property(x => x.NormalizedLocation).HasMaxLength(2000);
+                entity.Property(x => x.Remarks).HasMaxLength(4000);
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.UpdatedByUserId).HasMaxLength(450);
+
+                var nullLocationUnique = entity.HasIndex(x => x.NormalizedName)
+                    .HasDatabaseName("UX_IndustryPartners_NormalizedName_LocationNull")
+                    .IsUnique();
+                nullLocationUnique.HasFilter("\"NormalizedLocation\" IS NULL");
+
+                var withLocationUnique = entity.HasIndex(x => new { x.NormalizedName, x.NormalizedLocation })
+                    .HasDatabaseName("UX_IndustryPartners_NormalizedName_NormalizedLocation")
+                    .IsUnique();
+                withLocationUnique.HasFilter("\"NormalizedLocation\" IS NOT NULL");
+            });
+
+            builder.Entity<IndustryPartnerContact>(entity =>
+            {
+                entity.ToTable("IndustryPartnerContacts");
+                ConfigureRowVersion(entity);
+                entity.Property(x => x.Name).HasMaxLength(200);
+                entity.Property(x => x.Phone).HasMaxLength(64);
+                entity.Property(x => x.Email).HasMaxLength(256);
+                entity.HasCheckConstraint("CK_IndustryPartnerContacts_PhoneOrEmail",
+                    "(nullif(trim(coalesce(\"Phone\", '')), '') is not null) OR (nullif(trim(coalesce(\"Email\", '')), '') is not null)");
+                entity.HasOne(x => x.IndustryPartner)
+                    .WithMany(x => x.Contacts)
+                    .HasForeignKey(x => x.IndustryPartnerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<IndustryPartnerAttachment>(entity =>
+            {
+                entity.ToTable("IndustryPartnerAttachments");
+                ConfigureRowVersion(entity);
+                entity.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+                entity.Property(x => x.StorageKey).HasMaxLength(260).IsRequired();
+                entity.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.Sha256).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.UploadedByUserId).HasMaxLength(450).IsRequired();
+                entity.HasOne(x => x.IndustryPartner)
+                    .WithMany(x => x.Attachments)
+                    .HasForeignKey(x => x.IndustryPartnerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<IndustryPartnerProject>(entity =>
+            {
+                entity.ToTable("IndustryPartnerProjects");
+                ConfigureRowVersion(entity);
+                entity.HasKey(x => new { x.IndustryPartnerId, x.ProjectId });
+                entity.Property(x => x.LinkedByUserId).HasMaxLength(450).IsRequired();
+                entity.HasOne(x => x.IndustryPartner)
+                    .WithMany(x => x.PartnerProjects)
+                    .HasForeignKey(x => x.IndustryPartnerId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<ActivityDeleteRequest>(entity =>

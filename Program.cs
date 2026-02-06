@@ -52,6 +52,7 @@ using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Documents;
 using ProjectManagement.Services.Ffc;
+using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Notifications;
 using ProjectManagement.Services.Search;
@@ -190,6 +191,13 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(Policies.Ipr.ViewAllowedRoles));
     options.AddPolicy(Policies.Ipr.Edit, policy =>
         policy.RequireRole(Policies.Ipr.EditAllowedRoles));
+    // SECTION: Industry partner authorization policies
+    options.AddPolicy(Policies.IndustryPartners.View, policy =>
+        policy.RequireRole(Policies.IndustryPartners.ViewAllowedRoles));
+    options.AddPolicy(Policies.IndustryPartners.Manage, policy =>
+        policy.RequireRole(Policies.IndustryPartners.ManageAllowedRoles));
+    options.AddPolicy(Policies.IndustryPartners.Delete, policy =>
+        policy.RequireRole(Policies.IndustryPartners.DeleteAllowedRoles));
     options.AddPolicy("DocRepo.View", policy =>
     policy.RequireAuthenticatedUser());
 
@@ -338,6 +346,11 @@ builder.Services.AddScoped<IActivityAttachmentValidator, ActivityAttachmentValid
 builder.Services.AddScoped<IActivityAttachmentStorage, FileSystemActivityAttachmentStorage>();
 builder.Services.AddScoped<IActivityAttachmentManager, ActivityAttachmentManager>();
 builder.Services.AddScoped<IActivityService, ActivityService>();
+// SECTION: Industry partners services
+builder.Services.AddScoped<IIndustryPartnerService, IndustryPartnerService>();
+builder.Services.AddScoped<IIndustryPartnerAttachmentManager, IndustryPartnerAttachmentManager>();
+builder.Services.AddSingleton<IIndustryPartnerAttachmentStorage, FileSystemIndustryPartnerAttachmentStorage>();
+builder.Services.AddSingleton<IndustryPartnerAttachmentValidator>();
 builder.Services.AddScoped<IActivityDeleteRequestService, ActivityDeleteRequestService>();
 builder.Services.AddScoped<IActivityNotificationService, ActivityNotificationService>();
 builder.Services.AddScoped<IActivityTypeService, ActivityTypeService>();

@@ -1,0 +1,42 @@
+@model ProjectManagement.Pages.IndustryPartners.IndexModel
+@{ var p = Model.SelectedPartner!; }
+<div class="card">
+    <div class="card-body">
+        <h3 class="h6">Contacts</h3>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var c in p.Contacts)
+                {
+                    <tr>
+                        <td>@c.Name</td><td>@c.Phone</td><td>@c.Email</td>
+                        <td class="text-end">
+                            @if (Model.CanManage)
+                            {
+                                <form method="post" asp-page-handler="DeleteContact" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="partnerId" value="@p.Id" />
+                                    <input type="hidden" name="contactId" value="@c.Id" />
+                                    <button class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        @if (Model.CanManage)
+        {
+            <form method="post" asp-page-handler="AddContact" class="row g-2">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="partnerId" value="@p.Id" />
+                <div class="col-md-4"><input class="form-control form-control-sm" name="name" placeholder="Name" /></div>
+                <div class="col-md-3"><input class="form-control form-control-sm" name="phone" placeholder="Phone" /></div>
+                <div class="col-md-4"><input class="form-control form-control-sm" name="email" placeholder="Email" /></div>
+                <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Add</button></div>
+            </form>
+        }
+    </div>
+</div>
