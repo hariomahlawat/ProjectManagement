@@ -167,6 +167,13 @@ public sealed class FfcAttachmentStorageTests : IDisposable
     {
         public int CallCount { get; private set; }
 
+        // Section: Relative path validation
+        public void ValidateRelativePath(string relativePath)
+        {
+            // Test double intentionally no-op.
+        }
+
+        // Section: File content validation
         public Task<bool> IsSafeAsync(string filePath, string contentType, System.Threading.CancellationToken cancellationToken = default)
         {
             CallCount++;
