@@ -97,7 +97,7 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
             var photoService = new VisitPhotoService(db, clock, audit, photoOptions, uploadRoot, NullLogger<VisitPhotoService>.Instance);
 
             var userManager = CreateUserManager(db);
-            var page = new EditModel(null!, null!, photoService, userManager);
+            var page = new EditModel(null!, null!, photoService, userManager, Options.Create(new VisitPhotoOptions()));
 
             ConfigurePageContext(page, CreatePrincipal("creator", "Admin"));
 
@@ -203,7 +203,7 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
             var audit = new RecordingAudit();
             var photoService = new VisitPhotoService(db, clock, audit, photoOptions, uploadRoot, NullLogger<VisitPhotoService>.Instance);
             var userManager = CreateUserManager(db);
-            var page = new EditModel(null!, null!, photoService, userManager);
+            var page = new EditModel(null!, null!, photoService, userManager, Options.Create(new VisitPhotoOptions()));
 
             ConfigurePageContext(page, CreatePrincipal("creator", "Admin"));
 
@@ -301,7 +301,7 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
             var audit = new RecordingAudit();
             var photoService = new VisitPhotoService(db, clock, audit, photoOptions, uploadRoot, NullLogger<VisitPhotoService>.Instance);
             var userManager = CreateUserManager(db);
-            var page = new EditModel(null!, null!, photoService, userManager);
+            var page = new EditModel(null!, null!, photoService, userManager, Options.Create(new VisitPhotoOptions()));
 
             ConfigurePageContext(page, CreatePrincipal("creator", "Admin"));
 

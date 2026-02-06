@@ -90,7 +90,7 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
             var photoService = new SocialMediaEventPhotoService(db, clock, photoOptions, uploadRoot, NullLogger<SocialMediaEventPhotoService>.Instance);
             var eventService = new SocialMediaEventService(db, clock, photoService);
             var userManager = CreateUserManager(db);
-            var page = new EditModel(eventService, platformService, photoService, userManager);
+            var page = new EditModel(eventService, platformService, photoService, userManager, Options.Create(new SocialMediaPhotoOptions()));
 
             ConfigurePageContext(page, CreatePrincipal("creator", "Admin"));
 
@@ -192,7 +192,7 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
             var photoService = new SocialMediaEventPhotoService(db, clock, photoOptions, uploadRoot, NullLogger<SocialMediaEventPhotoService>.Instance);
             var eventService = new SocialMediaEventService(db, clock, photoService);
             var userManager = CreateUserManager(db);
-            var page = new EditModel(eventService, platformService, photoService, userManager);
+            var page = new EditModel(eventService, platformService, photoService, userManager, Options.Create(new SocialMediaPhotoOptions()));
 
             ConfigurePageContext(page, CreatePrincipal("creator", "Admin"));
 
@@ -287,7 +287,7 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
             var photoService = new SocialMediaEventPhotoService(db, clock, photoOptions, uploadRoot, NullLogger<SocialMediaEventPhotoService>.Instance);
             var eventService = new SocialMediaEventService(db, clock, photoService);
             var userManager = CreateUserManager(db);
-            var page = new EditModel(eventService, platformService, photoService, userManager);
+            var page = new EditModel(eventService, platformService, photoService, userManager, Options.Create(new SocialMediaPhotoOptions()));
 
             ConfigurePageContext(page, CreatePrincipal("creator", "Admin"));
 

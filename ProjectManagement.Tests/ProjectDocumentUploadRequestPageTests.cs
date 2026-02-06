@@ -18,6 +18,7 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Pages.Projects.Documents;
 using ProjectManagement.Services;
@@ -65,7 +66,7 @@ public sealed class ProjectDocumentUploadRequestPageTests
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, 1, leadPoUserId: "po-1");
-        await SeedStageAsync(db, 1, 10, StageCodes.Planning, sortOrder: 1);
+        await SeedStageAsync(db, 1, 10, StageCodes.FS, sortOrder: 1);
 
         var userContext = new FakeUserContext("po-1", "Project Officer");
         var documentService = new StubDocumentService();
@@ -97,7 +98,7 @@ public sealed class ProjectDocumentUploadRequestPageTests
         await using var db = CreateContext();
         await SeedProjectAsync(db, 1, leadPoUserId: "po-1");
         await SeedProjectAsync(db, 2, leadPoUserId: "po-2");
-        await SeedStageAsync(db, 2, 20, StageCodes.Execution, sortOrder: 1);
+        await SeedStageAsync(db, 2, 20, StageCodes.DEVP, sortOrder: 1);
 
         var userContext = new FakeUserContext("po-1", "Project Officer");
         var documentService = new StubDocumentService();
@@ -160,7 +161,7 @@ public sealed class ProjectDocumentUploadRequestPageTests
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, 1, leadPoUserId: "po-1");
-        await SeedStageAsync(db, 1, 10, StageCodes.Execution, sortOrder: 1);
+        await SeedStageAsync(db, 1, 10, StageCodes.DEVP, sortOrder: 1);
 
         var userContext = new FakeUserContext("po-1", "Project Officer");
         var documentService = new StubDocumentService();
