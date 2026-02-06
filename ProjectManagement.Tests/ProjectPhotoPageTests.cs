@@ -297,7 +297,7 @@ public sealed class ProjectPhotoPageTests
         var page = CreateUploadPage(db, userContext);
         ConfigurePageContext(page, userContext.User);
 
-        var result = await page.OnGetAsync(21, CancellationToken.None);
+        var result = await page.OnGetAsync(21, false, CancellationToken.None);
 
         Assert.IsType<ForbidResult>(result);
     }
