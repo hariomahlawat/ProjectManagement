@@ -2514,18 +2514,23 @@ namespace ProjectManagement.Data
                 ConfigureRowVersion(entity);
                 entity.ToTable("TrainingCounters");
                 entity.HasKey(x => x.TrainingId);
-                entity.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+
+                // SECTION: Training counters updated-at default aligned with model snapshot
+                var updatedAt = entity.Property(x => x.UpdatedAtUtc)
+                    .ValueGeneratedOnAdd();
+
                 if (Database.IsNpgsql())
                 {
-                    entity.Property(x => x.UpdatedAtUtc).HasColumnType("timestamp with time zone");
+                    updatedAt.HasColumnType("timestamp with time zone");
+                    updatedAt.HasDefaultValueSql("timezone('utc', now())");
                 }
                 else if (Database.IsSqlServer())
                 {
-                    entity.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                    updatedAt.HasDefaultValueSql("GETUTCDATE()");
                 }
                 else
                 {
-                    entity.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                    updatedAt.HasDefaultValueSql("CURRENT_TIMESTAMP");
                 }
 
                 entity.Property(x => x.Source)
