@@ -1,13 +1,9 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using ProjectManagement.Data;
 
 #nullable disable
 
 namespace ProjectManagement.Migrations
 {
-    [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20261125123000_AdjustProjectWorkflowVersionLength")]
     public partial class AdjustProjectWorkflowVersionLength : Migration
     {
         // SECTION: Apply schema changes
