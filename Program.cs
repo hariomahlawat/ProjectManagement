@@ -192,8 +192,9 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(Policies.Ipr.Edit, policy =>
         policy.RequireRole(Policies.Ipr.EditAllowedRoles));
     // SECTION: Industry partner authorization policies
+    // NOTE: The Industry Partners page is available to every authenticated user.
     options.AddPolicy(Policies.IndustryPartners.View, policy =>
-        policy.RequireRole(Policies.IndustryPartners.ViewAllowedRoles));
+        policy.RequireAuthenticatedUser());
     options.AddPolicy(Policies.IndustryPartners.Manage, policy =>
         policy.RequireRole(Policies.IndustryPartners.ManageAllowedRoles));
     options.AddPolicy(Policies.IndustryPartners.Delete, policy =>
