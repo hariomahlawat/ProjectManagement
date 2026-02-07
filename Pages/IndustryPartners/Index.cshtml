@@ -8,14 +8,14 @@
     <link rel="stylesheet" href="~/css/pages/industry-partners.css" asp-append-version="true" />
 }
 
-<div class="container-fluid py-3 industry-partners-page" data-industry-partners-root>
-    <div class="d-flex justify-content-between align-items-center mb-3 industry-page-header">
+<div class="container-fluid py-3 ip-page" data-industry-partners-root>
+    <div class="d-flex justify-content-between align-items-center ip-page-header">
         <h1 class="h4 mb-0">Industry partners</h1>
         @if (Model.CanManage)
         {
             <form method="post" asp-page-handler="CreatePartner" class="d-flex gap-2">
                 @Html.AntiForgeryToken()
-                <input name="name" class="form-control form-control-sm" placeholder="New partner name" required />
+                <input name="name" class="form-control form-control-sm ip-input" placeholder="New partner name" required />
                 <button type="submit" class="btn btn-sm btn-primary">Create</button>
             </form>
         }
@@ -32,22 +32,30 @@
 
     <div id="industryPartnerToken" class="d-none">@Html.AntiForgeryToken()</div>
 
-    <div class="row g-3">
-        <div class="col-lg-4">
-            <div class="card industry-list-panel">
-                <div class="card-body">
-                    <form method="get" class="mb-3">
-                        <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Search partner name or location" />
+    <div class="ip-grid">
+        <div>
+            <div class="ip-panel ip-sticky">
+                <div class="ip-panel-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h2 class="h6 mb-0">Partners</h2>
+                        <span class="ip-count-badge" title="Visible vs total partners">
+                            <span>@Model.SearchResult.Items.Count</span>/<span>@Model.SearchResult.Total</span>
+                        </span>
+                    </div>
+                    <form method="get" class="ip-list-search">
+                        <input class="form-control form-control-sm ip-input" name="q" value="@Model.Q" placeholder="Search partner name or location" />
                     </form>
-                    <div class="list-group industry-list-group">
+                    <div class="ip-list">
                         @foreach (var item in Model.SearchResult.Items)
                         {
-                            <a asp-page="./Index" asp-route-id="@item.Id" asp-route-q="@Model.Q" class="list-group-item list-group-item-action industry-list-item @(Model.Id == item.Id ? "active" : string.Empty)">
-                                <div class="fw-semibold">@item.Name</div>
-                                @if (!string.IsNullOrWhiteSpace(item.Location))
-                                {
-                                    <div class="small text-muted">@item.Location</div>
-                                }
+                            var isActive = Model.Id == item.Id;
+                            <a asp-page="./Index"
+                               asp-route-id="@item.Id"
+                               asp-route-q="@Model.Q"
+                               class="ip-list-item @(isActive ? "is-active" : string.Empty)"
+                               aria-current="@(isActive ? "true" : "false")">
+                                <div class="ip-list-item-title">@item.Name</div>
+                                <div class="ip-list-item-sub">@(string.IsNullOrWhiteSpace(item.Location) ? "Location not set" : item.Location)</div>
                             </a>
                         }
                     </div>
@@ -55,17 +63,17 @@
             </div>
         </div>
 
-        <div class="col-lg-8">
+        <div class="min-w-0">
             @if (Model.SelectedPartner is null)
             {
-                <div class="card"><div class="card-body text-muted">Select a partner to begin.</div></div>
+                <div class="ip-panel"><div class="ip-panel-body text-muted">Select a partner to begin.</div></div>
             }
             else
             {
                 <partial name="_PartnerPanel" model="Model" />
-                <div class="mt-3"><partial name="_Contacts" model="Model" /></div>
-                <div class="mt-3"><partial name="_Attachments" model="Model" /></div>
-                <div class="mt-3"><partial name="_LinkedProjects" model="Model" /></div>
+                <partial name="_Contacts" model="Model" />
+                <partial name="_Attachments" model="Model" />
+                <partial name="_LinkedProjects" model="Model" />
             }
         </div>
     </div>

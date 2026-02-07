@@ -1,45 +1,58 @@
 @model ProjectManagement.Pages.IndustryPartners.IndexModel
 @{ var p = Model.SelectedPartner!; }
-<div class="card industry-section-card">
-    <div class="card-body">
-        <div class="industry-section-heading-row mb-2">
-            <h3 class="h6 mb-0">Attachments</h3>
-            <small class="text-muted">Supporting documents and media files.</small>
-        </div>
-
+<div class="ip-section">
+    <div class="ip-section-header">
+        <h3 class="ip-section-title">Attachments</h3>
+        <small class="ip-section-note">Supporting documents and media files.</small>
+    </div>
+    <div class="ip-section-body">
         @if (Model.CanManage)
         {
-            <form method="post" asp-page-handler="UploadAttachment" enctype="multipart/form-data" class="mb-3">
+            <form method="post" asp-page-handler="UploadAttachment" enctype="multipart/form-data" class="mb-3" data-attachment-upload-form>
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="partnerId" value="@p.Id" />
-                <div class="d-flex flex-wrap align-items-center gap-2 industry-upload-row">
-                    <input type="file" name="file" class="form-control form-control-sm" required />
-                    <button class="btn btn-sm btn-primary">Upload</button>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <input type="file" name="file" class="form-control form-control-sm ip-input" required data-attachment-file />
+                    <span class="ip-upload-file-name" data-attachment-file-name>No file selected</span>
+                    <button class="btn btn-sm btn-primary" type="submit" data-attachment-upload-submit disabled>Upload</button>
                 </div>
             </form>
         }
 
-        <ul class="list-group list-group-flush">
+        @if (!p.Attachments.Any())
+        {
+            <div class="ip-empty-text">No attachments uploaded yet.</div>
+        }
+        else
+        {
             @foreach (var a in p.Attachments)
             {
-                <li class="list-group-item px-0">
-                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
-                        <div>
-                            <a asp-page="./Index" asp-page-handler="DownloadAttachment" asp-route-partnerId="@p.Id" asp-route-attachmentId="@a.Id" class="fw-semibold text-decoration-none">@a.OriginalFileName</a>
-                            <span class="text-muted small ms-2">@($"{a.SizeBytes / 1024.0:F1} KB")</span>
-                        </div>
+                var ext = System.IO.Path.GetExtension(a.OriginalFileName)?.Trim('.').ToUpperInvariant();
+                if (string.IsNullOrWhiteSpace(ext))
+                {
+                    ext = "FILE";
+                }
+
+                <div class="ip-attachment-item">
+                    <div>
+                        <span class="ip-file-icon">@ext</span>
+                        <a asp-page="./Index" asp-page-handler="DownloadAttachment" asp-route-partnerId="@p.Id" asp-route-attachmentId="@a.Id" class="fw-semibold text-decoration-none ip-file-name">@a.OriginalFileName</a>
+                        <div class="ip-attachment-meta">@($"{a.SizeBytes / 1024.0:F1} KB") • Uploaded @a.UploadedUtc.LocalDateTime.ToString("dd MMM yyyy")</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <a asp-page="./Index" asp-page-handler="DownloadAttachment" asp-route-partnerId="@p.Id" asp-route-attachmentId="@a.Id" class="btn btn-sm btn-outline-secondary">Download</a>
                         @if (Model.CanManage)
                         {
                             <form method="post" asp-page-handler="DeleteAttachment" class="d-inline">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="partnerId" value="@p.Id" />
                                 <input type="hidden" name="attachmentId" value="@a.Id" />
-                                <button class="btn btn-sm btn-outline-danger">Delete</button>
+                                <button class="btn btn-sm ip-btn-outline-danger" type="submit">Delete</button>
                             </form>
                         }
                     </div>
-                </li>
+                </div>
             }
-        </ul>
+        }
     </div>
 </div>

@@ -1,6 +1,8 @@
 (function () {
   const root = document.querySelector('[data-industry-partners-root]');
-  if (!root) return;
+  if (!root) {
+    return;
+  }
 
   // SECTION: Shared helpers
   function debounce(fn, wait) {
@@ -12,209 +14,482 @@
     };
   }
 
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   // SECTION: Inline field autosave
-  const token = document.querySelector('#industryPartnerToken input[name="__RequestVerificationToken"]')?.value;
-  const statusEl = root.querySelector('[data-save-status]');
-  const fields = root.querySelectorAll('[data-inline-field]');
+  function initInlineAutosave() {
+    const token = document.querySelector('#industryPartnerToken input[name="__RequestVerificationToken"]')?.value;
+    const statusEl = root.querySelector('[data-save-status]');
+    const fields = root.querySelectorAll('[data-inline-field]');
 
-  function setStatus(message, isError) {
-    if (!statusEl) return;
-    statusEl.textContent = message;
-    statusEl.classList.toggle('text-danger', !!isError);
-    statusEl.classList.toggle('text-success', !isError);
-  }
-
-  const saveField = debounce(async (fieldEl) => {
-    const partnerId = fieldEl.getAttribute('data-partner-id');
-    const field = fieldEl.getAttribute('data-inline-field');
-    const value = fieldEl.value;
-
-    const body = new URLSearchParams();
-    body.set('id', partnerId);
-    body.set('field', field);
-    body.set('value', value);
-
-    try {
-      const response = await fetch('?handler=UpdateField', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          'RequestVerificationToken': token || ''
-        },
-        body: body.toString()
-      });
-
-      if (!response.ok) {
-        const payload = await response.json();
-        setStatus(Object.values(payload.errors || {}).flat().join(' '), true);
-        return;
-      }
-
-      setStatus('Saved', false);
-      setTimeout(() => setStatus('', false), 1500);
-    } catch (err) {
-      setStatus('Save failed. Please retry.', true);
-    }
-  }, 400);
-
-  fields.forEach((field) => {
-    field.addEventListener('input', function () {
-      setStatus('Saving...', false);
-      saveField(field);
-    });
-  });
-
-  // SECTION: Linked project typeahead
-  const linkForm = root.querySelector('[data-link-project-form]');
-  if (!linkForm) return;
-
-  const searchInput = linkForm.querySelector('[data-project-search]');
-  const projectIdInput = linkForm.querySelector('[data-project-id]');
-  const resultsContainer = linkForm.querySelector('[data-project-results]');
-  const errorMessage = linkForm.querySelector('[data-project-error]');
-  const submitButton = linkForm.querySelector('[data-link-project-submit]');
-  let lastSelectedLabel = '';
-  let activeSearchController = null;
-  let latestSearchRequestId = 0;
-
-  function setSubmitEnabled() {
-    if (!submitButton || !projectIdInput) return;
-    submitButton.disabled = !projectIdInput.value;
-  }
-
-  function clearSelection() {
-    if (!projectIdInput) return;
-    projectIdInput.value = '';
-    lastSelectedLabel = '';
-    setSubmitEnabled();
-  }
-
-  function hideResults() {
-    if (!resultsContainer) return;
-    resultsContainer.classList.add('d-none');
-    resultsContainer.innerHTML = '';
-  }
-
-  function showError(show) {
-    if (!errorMessage) return;
-    errorMessage.classList.toggle('d-none', !show);
-  }
-
-  function selectProject(item) {
-    if (!searchInput || !projectIdInput) return;
-    searchInput.value = item.name;
-    projectIdInput.value = String(item.id);
-    lastSelectedLabel = item.name;
-    hideResults();
-    showError(false);
-    setSubmitEnabled();
-  }
-
-  function renderResults(items) {
-    if (!resultsContainer) return;
-    resultsContainer.innerHTML = '';
-
-    if (!items || !items.length) {
-      hideResults();
+    if (!fields.length) {
       return;
     }
 
-    items.forEach((item) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'list-group-item list-group-item-action';
-      button.textContent = item.name;
-      button.addEventListener('click', () => selectProject(item));
-      resultsContainer.appendChild(button);
-    });
-
-    resultsContainer.classList.remove('d-none');
-  }
-
-  const searchProjects = debounce(async () => {
-    if (!searchInput) return;
-    const query = searchInput.value.trim();
-
-    if (query.length < 2) {
-      // SECTION: Cancel pending typeahead request when query becomes too short
-      if (activeSearchController) {
-        activeSearchController.abort();
-        activeSearchController = null;
-      }
-      hideResults();
-      return;
-    }
-
-    // SECTION: Guard against out-of-order typeahead responses
-    latestSearchRequestId += 1;
-    const requestId = latestSearchRequestId;
-
-    if (activeSearchController) {
-      activeSearchController.abort();
-    }
-    activeSearchController = new AbortController();
-
-    try {
-      const response = await fetch(`/api/industry-partners/projects?q=${encodeURIComponent(query)}&take=20`, {
-        headers: { 'Accept': 'application/json' },
-        signal: activeSearchController.signal
-      });
-
-      if (requestId !== latestSearchRequestId || searchInput.value.trim() !== query) {
+    function setStatus(message, isError) {
+      if (!statusEl) {
         return;
       }
 
-      if (!response.ok) {
+      statusEl.textContent = message;
+      statusEl.classList.toggle('text-danger', !!isError);
+      statusEl.classList.toggle('text-success', !isError);
+    }
+
+    const saveField = debounce(async (fieldEl) => {
+      const partnerId = fieldEl.getAttribute('data-partner-id');
+      const field = fieldEl.getAttribute('data-inline-field');
+      const value = fieldEl.value;
+
+      const body = new URLSearchParams();
+      body.set('id', partnerId);
+      body.set('field', field);
+      body.set('value', value);
+
+      try {
+        const response = await fetch('?handler=UpdateField', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            RequestVerificationToken: token || ''
+          },
+          body: body.toString()
+        });
+
+        if (!response.ok) {
+          const payload = await response.json();
+          setStatus(Object.values(payload.errors || {}).flat().join(' '), true);
+          return;
+        }
+
+        setStatus('Saved', false);
+        setTimeout(() => setStatus('', false), 1400);
+      } catch (err) {
+        setStatus('Save failed. Please retry.', true);
+      }
+    }, 400);
+
+    fields.forEach((field) => {
+      field.addEventListener('input', function () {
+        setStatus('Saving...', false);
+        saveField(field);
+      });
+    });
+  }
+
+  // SECTION: Linked project typeahead and validation
+  function initProjectTypeahead() {
+    const linkForm = root.querySelector('[data-link-project-form]');
+    if (!linkForm) {
+      return;
+    }
+
+    const searchInput = linkForm.querySelector('[data-project-search]');
+    const projectIdInput = linkForm.querySelector('[data-project-id]');
+    const resultsContainer = linkForm.querySelector('[data-project-results]');
+    const errorMessage = linkForm.querySelector('[data-project-error]');
+    const submitButton = linkForm.querySelector('[data-link-project-submit]');
+    const existingLinksRoot = root.querySelector('[data-existing-links]');
+
+    let lastSelectedLabel = '';
+    let activeSearchController = null;
+    let latestSearchRequestId = 0;
+    let latestItems = [];
+    let activeIndex = -1;
+
+    function setSubmitEnabled() {
+      if (!submitButton || !projectIdInput) {
+        return;
+      }
+      submitButton.disabled = !projectIdInput.value;
+    }
+
+    function clearSelection() {
+      if (!projectIdInput) {
+        return;
+      }
+      projectIdInput.value = '';
+      lastSelectedLabel = '';
+      setSubmitEnabled();
+    }
+
+    function showError(message) {
+      if (!errorMessage) {
+        return;
+      }
+
+      if (!message) {
+        errorMessage.classList.add('d-none');
+        errorMessage.textContent = '';
+        return;
+      }
+
+      errorMessage.textContent = message;
+      errorMessage.classList.remove('d-none');
+    }
+
+    function hideResults() {
+      if (!resultsContainer) {
+        return;
+      }
+      resultsContainer.classList.add('d-none');
+      resultsContainer.innerHTML = '';
+      activeIndex = -1;
+      latestItems = [];
+      searchInput?.setAttribute('aria-expanded', 'false');
+    }
+
+    function highlightLabel(text, query) {
+      if (!query) {
+        return escapeHtml(text);
+      }
+
+      const lowerLabel = text.toLowerCase();
+      const lowerQuery = query.toLowerCase();
+      const matchIndex = lowerLabel.indexOf(lowerQuery);
+      if (matchIndex < 0) {
+        return escapeHtml(text);
+      }
+
+      const before = text.slice(0, matchIndex);
+      const match = text.slice(matchIndex, matchIndex + query.length);
+      const after = text.slice(matchIndex + query.length);
+      return `${escapeHtml(before)}<strong>${escapeHtml(match)}</strong>${escapeHtml(after)}`;
+    }
+
+    function setActiveItem(index) {
+      const buttons = Array.from(resultsContainer?.querySelectorAll('.ip-typeahead-item[data-item-index]') || []);
+      buttons.forEach((buttonEl) => {
+        const isActive = Number(buttonEl.getAttribute('data-item-index')) === index;
+        buttonEl.classList.toggle('is-active', isActive);
+      });
+      activeIndex = index;
+    }
+
+    function renderResults(items, query) {
+      if (!resultsContainer) {
+        return;
+      }
+
+      latestItems = items;
+      activeIndex = -1;
+      resultsContainer.innerHTML = '';
+
+      if (!items.length) {
+        const emptyState = document.createElement('div');
+        emptyState.className = 'ip-typeahead-item';
+        emptyState.textContent = 'No matching projects found';
+        emptyState.setAttribute('aria-disabled', 'true');
+        resultsContainer.appendChild(emptyState);
+        resultsContainer.classList.remove('d-none');
+        searchInput?.setAttribute('aria-expanded', 'true');
+        return;
+      }
+
+      items.forEach((item, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'ip-typeahead-item';
+        button.setAttribute('role', 'option');
+        button.setAttribute('data-item-index', String(index));
+        button.innerHTML = highlightLabel(item.name, query);
+        button.addEventListener('click', () => selectProject(item));
+        button.addEventListener('mouseenter', () => setActiveItem(index));
+        resultsContainer.appendChild(button);
+      });
+
+      resultsContainer.classList.remove('d-none');
+      searchInput?.setAttribute('aria-expanded', 'true');
+    }
+
+    function renderLoading() {
+      if (!resultsContainer) {
+        return;
+      }
+      resultsContainer.innerHTML = '<div class="ip-typeahead-item" aria-disabled="true">Searching...</div>';
+      resultsContainer.classList.remove('d-none');
+      searchInput?.setAttribute('aria-expanded', 'true');
+    }
+
+    function selectProject(item) {
+      if (!searchInput || !projectIdInput) {
+        return;
+      }
+
+      searchInput.value = item.name;
+      projectIdInput.value = String(item.id);
+      lastSelectedLabel = item.name;
+      hideResults();
+      showError('');
+      setSubmitEnabled();
+    }
+
+    function isDuplicateProject(projectId) {
+      if (!existingLinksRoot) {
+        return false;
+      }
+
+      return !!existingLinksRoot.querySelector(`[data-project-id="${projectId}"]`);
+    }
+
+    const searchProjects = debounce(async () => {
+      if (!searchInput) {
+        return;
+      }
+
+      const query = searchInput.value.trim();
+      if (query.length < 2) {
+        if (activeSearchController) {
+          activeSearchController.abort();
+          activeSearchController = null;
+        }
         hideResults();
         return;
       }
 
-      const payload = await response.json();
-      renderResults(payload.items || []);
-    } catch (err) {
-      if (err && err.name === 'AbortError') {
-        return;
-      }
-      hideResults();
-    } finally {
-      if (requestId === latestSearchRequestId) {
-        activeSearchController = null;
-      }
-    }
-  }, 250);
+      latestSearchRequestId += 1;
+      const requestId = latestSearchRequestId;
 
-  if (searchInput) {
-    searchInput.addEventListener('input', () => {
+      if (activeSearchController) {
+        activeSearchController.abort();
+      }
+
+      activeSearchController = new AbortController();
+      renderLoading();
+
+      try {
+        const response = await fetch(`/api/industry-partners/projects?q=${encodeURIComponent(query)}&take=20`, {
+          headers: { Accept: 'application/json' },
+          signal: activeSearchController.signal
+        });
+
+        if (requestId !== latestSearchRequestId || searchInput.value.trim() !== query) {
+          return;
+        }
+
+        if (!response.ok) {
+          hideResults();
+          showError('Unable to fetch projects right now.');
+          return;
+        }
+
+        const payload = await response.json();
+        renderResults(payload.items || [], query);
+      } catch (err) {
+        if (err && err.name === 'AbortError') {
+          return;
+        }
+
+        hideResults();
+        showError('Unable to fetch projects right now.');
+      } finally {
+        if (requestId === latestSearchRequestId) {
+          activeSearchController = null;
+        }
+      }
+    }, 250);
+
+    searchInput?.addEventListener('input', () => {
       if (searchInput.value.trim() !== lastSelectedLabel) {
         clearSelection();
       }
-      showError(false);
+
+      showError('');
       searchProjects();
     });
 
-    searchInput.addEventListener('keydown', (event) => {
+    searchInput?.addEventListener('keydown', (event) => {
+      const resultsVisible = resultsContainer && !resultsContainer.classList.contains('d-none');
+
+      if (event.key === 'ArrowDown' && resultsVisible && latestItems.length) {
+        event.preventDefault();
+        const nextIndex = activeIndex < latestItems.length - 1 ? activeIndex + 1 : 0;
+        setActiveItem(nextIndex);
+        return;
+      }
+
+      if (event.key === 'ArrowUp' && resultsVisible && latestItems.length) {
+        event.preventDefault();
+        const nextIndex = activeIndex > 0 ? activeIndex - 1 : latestItems.length - 1;
+        setActiveItem(nextIndex);
+        return;
+      }
+
+      if (event.key === 'Enter' && resultsVisible && activeIndex >= 0 && latestItems[activeIndex]) {
+        event.preventDefault();
+        selectProject(latestItems[activeIndex]);
+        return;
+      }
+
       if (event.key === 'Escape') {
         hideResults();
       }
     });
+
+    linkForm.addEventListener('submit', (event) => {
+      const selectedProjectId = projectIdInput?.value;
+
+      if (!selectedProjectId) {
+        event.preventDefault();
+        showError('Select a project from the list.');
+        setSubmitEnabled();
+        return;
+      }
+
+      if (isDuplicateProject(selectedProjectId)) {
+        event.preventDefault();
+        showError('This project is already linked to the selected partner.');
+        return;
+      }
+
+      showError('');
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!linkForm.contains(event.target)) {
+        hideResults();
+      }
+    });
+
+    setSubmitEnabled();
   }
 
-  linkForm.addEventListener('submit', (event) => {
-    if (!projectIdInput || !projectIdInput.value) {
-      event.preventDefault();
-      showError(true);
-      setSubmitEnabled();
+  // SECTION: Contact forms validation
+  function initContactValidation() {
+    const addContactForm = root.querySelector('[data-add-contact-form]');
+    if (!addContactForm) {
       return;
     }
 
-    showError(false);
-  });
+    const phoneInput = addContactForm.querySelector('[data-contact-phone]');
+    const emailInput = addContactForm.querySelector('[data-contact-email]');
+    const errorEl = addContactForm.querySelector('[data-contact-error]');
 
-  document.addEventListener('click', (event) => {
-    if (!linkForm.contains(event.target)) {
-      hideResults();
+    function toggleError(show) {
+      if (!errorEl) {
+        return;
+      }
+
+      errorEl.classList.toggle('d-none', !show);
+      phoneInput?.classList.toggle('is-invalid', show && !phoneInput.value.trim());
+      emailInput?.classList.toggle('is-invalid', show && !emailInput.value.trim());
     }
-  });
 
-  setSubmitEnabled();
+    function sanitizePhone() {
+      if (!phoneInput) {
+        return;
+      }
+
+      const digitsOnly = (phoneInput.value || '').replace(/[^\d+]/g, '');
+      phoneInput.value = digitsOnly;
+    }
+
+    phoneInput?.addEventListener('input', () => {
+      if (phoneInput.value.trim() || emailInput?.value.trim()) {
+        toggleError(false);
+      }
+    });
+
+    emailInput?.addEventListener('input', () => {
+      if (phoneInput?.value.trim() || emailInput.value.trim()) {
+        toggleError(false);
+      }
+    });
+
+    addContactForm.addEventListener('submit', (event) => {
+      sanitizePhone();
+
+      const hasPhone = !!phoneInput?.value.trim();
+      const hasEmail = !!emailInput?.value.trim();
+
+      if (!hasPhone && !hasEmail) {
+        event.preventDefault();
+        toggleError(true);
+        return;
+      }
+
+      toggleError(false);
+    });
+  }
+
+  // SECTION: Delete confirmations
+  function initDeleteConfirmations() {
+    const deleteTrigger = root.querySelector('[data-delete-partner-trigger]');
+    const deleteMessage = root.querySelector('[data-delete-partner-message]');
+    const deleteSubmit = root.querySelector('[data-delete-partner-submit]');
+
+    if (deleteTrigger && deleteMessage && deleteSubmit) {
+      deleteTrigger.addEventListener('click', () => {
+        const linkedCount = Number(deleteTrigger.getAttribute('data-linked-project-count') || '0');
+        const partnerName = deleteTrigger.getAttribute('data-partner-name') || 'this partner';
+
+        if (linkedCount > 0) {
+          deleteMessage.textContent = `${partnerName} cannot be deleted while linked projects exist. Unlink ${linkedCount} project(s) before deleting.`;
+          deleteSubmit.disabled = true;
+          return;
+        }
+
+        deleteMessage.textContent = 'This will remove the partner and all contacts and attachments. This action cannot be undone.';
+        deleteSubmit.disabled = false;
+      });
+    }
+
+    const contactDeleteForms = root.querySelectorAll('[data-contact-delete-form]');
+    contactDeleteForms.forEach((form) => {
+      const button = form.querySelector('button[data-confirm]');
+      if (!button || button.getAttribute('data-confirm') !== 'true') {
+        return;
+      }
+
+      form.addEventListener('submit', (event) => {
+        const confirmed = window.confirm('Delete this contact? This action cannot be undone.');
+        if (!confirmed) {
+          event.preventDefault();
+        }
+      });
+    });
+  }
+
+  // SECTION: Attachment upload state handling
+  function initAttachmentUpload() {
+    const uploadForm = root.querySelector('[data-attachment-upload-form]');
+    if (!uploadForm) {
+      return;
+    }
+
+    const fileInput = uploadForm.querySelector('[data-attachment-file]');
+    const fileName = uploadForm.querySelector('[data-attachment-file-name]');
+    const submitButton = uploadForm.querySelector('[data-attachment-upload-submit]');
+
+    function syncUploadState() {
+      const hasFile = !!fileInput?.files?.length;
+      submitButton.disabled = !hasFile;
+      fileName.textContent = hasFile ? fileInput.files[0].name : 'No file selected';
+    }
+
+    fileInput?.addEventListener('change', syncUploadState);
+
+    uploadForm.addEventListener('submit', () => {
+      submitButton.disabled = true;
+      submitButton.textContent = 'Uploading...';
+      if (fileInput) {
+        fileInput.disabled = true;
+      }
+    });
+
+    syncUploadState();
+  }
+
+  initInlineAutosave();
+  initProjectTypeahead();
+  initContactValidation();
+  initDeleteConfirmations();
+  initAttachmentUpload();
 })();

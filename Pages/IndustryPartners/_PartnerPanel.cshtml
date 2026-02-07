@@ -1,41 +1,75 @@
 @model ProjectManagement.Pages.IndustryPartners.IndexModel
 @{ var p = Model.SelectedPartner!; }
-<div class="card industry-section-card industry-workspace-card">
-    <div class="card-body">
+<div class="ip-panel">
+    <div class="ip-panel-body">
         <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
             <div>
                 <h2 class="h5 mb-1">@p.Name</h2>
-                <div class="text-muted small" data-save-status aria-live="polite">Saved</div>
+                <div class="small ip-status-text">@(string.IsNullOrWhiteSpace(p.Location) ? "Location not set" : p.Location)</div>
             </div>
-            @if (Model.CanDelete)
-            {
-                <form method="post" asp-page-handler="DeletePartner">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="partnerId" value="@p.Id" />
-                    <button type="submit" class="btn btn-outline-danger btn-sm">Delete partner</button>
-                </form>
-            }
+            <div class="d-flex flex-column align-items-end gap-2">
+                <div class="ip-status-text" data-save-status aria-live="polite">Saved</div>
+                @if (Model.CanDelete)
+                {
+                    <button type="button"
+                            class="btn btn-sm ip-btn-outline-danger"
+                            data-bs-toggle="modal"
+                            data-bs-target="#deletePartnerModal"
+                            data-delete-partner-trigger
+                            data-linked-project-count="@p.LinkedProjects.Count"
+                            data-partner-name="@p.Name">
+                        Delete partner
+                    </button>
+                }
+            </div>
         </div>
 
-        <div class="industry-section-heading-row">
-            <label class="form-label mb-1">Name</label>
-        </div>
-        <div class="mb-3">
-            <input class="form-control form-control-sm" value="@p.Name" data-inline-field="name" data-partner-id="@p.Id" @(Model.CanManage ? "" : "disabled") />
-        </div>
+        <div class="ip-section mt-0">
+            <div class="ip-section-header">
+                <h3 class="ip-section-title">Partner details</h3>
+                <span class="ip-section-note">Inline edits are saved automatically.</span>
+            </div>
+            <div class="ip-section-body">
+                <div class="ip-field mb-3">
+                    <label class="form-label">Name</label>
+                    <input class="form-control form-control-sm ip-input" value="@p.Name" data-inline-field="name" data-partner-id="@p.Id" @(Model.CanManage ? "" : "disabled") />
+                </div>
 
-        <div class="industry-section-heading-row">
-            <label class="form-label mb-1">Location</label>
-        </div>
-        <div class="mb-3">
-            <textarea class="form-control form-control-sm" rows="3" data-inline-field="location" data-partner-id="@p.Id" @(Model.CanManage ? "" : "disabled")>@p.Location</textarea>
-        </div>
+                <div class="ip-field mb-3">
+                    <label class="form-label">Location</label>
+                    <textarea class="form-control form-control-sm ip-textarea" rows="3" data-inline-field="location" data-partner-id="@p.Id" @(Model.CanManage ? "" : "disabled")>@p.Location</textarea>
+                </div>
 
-        <div class="industry-section-heading-row">
-            <label class="form-label mb-1">Remarks</label>
-        </div>
-        <div>
-            <textarea class="form-control form-control-sm" rows="4" data-inline-field="remarks" data-partner-id="@p.Id" @(Model.CanManage ? "" : "disabled")>@p.Remarks</textarea>
+                <div class="ip-field">
+                    <label class="form-label">Remarks</label>
+                    <textarea class="form-control form-control-sm ip-textarea" rows="4" data-inline-field="remarks" data-partner-id="@p.Id" @(Model.CanManage ? "" : "disabled")>@p.Remarks</textarea>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+@if (Model.CanDelete)
+{
+    <div class="modal fade" id="deletePartnerModal" tabindex="-1" aria-labelledby="deletePartnerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title fs-6" id="deletePartnerModalLabel">Delete partner</h3>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0" data-delete-partner-message></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form method="post" asp-page-handler="DeletePartner" data-delete-partner-form>
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="partnerId" value="@p.Id" />
+                        <button type="submit" class="btn btn-sm btn-danger" data-delete-partner-submit>Delete partner</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}

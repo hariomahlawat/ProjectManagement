@@ -1,31 +1,37 @@
 @model ProjectManagement.Pages.IndustryPartners.IndexModel
 @{ var p = Model.SelectedPartner!; }
-<div class="card industry-section-card">
-    <div class="card-body">
-        <div class="industry-section-heading-row mb-2">
-            <h3 class="h6 mb-0">Contacts</h3>
-            <small class="text-muted">People and communication details.</small>
-        </div>
-
+<div class="ip-section">
+    <div class="ip-section-header">
+        <h3 class="ip-section-title">Contacts</h3>
+        <small class="ip-section-note">People and communication details.</small>
+    </div>
+    <div class="ip-section-body">
         <div class="table-responsive">
-            <table class="table table-sm align-middle industry-compact-table">
+            <table class="table table-sm align-middle ip-table">
                 <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th></th></tr></thead>
                 <tbody>
                 @foreach (var c in p.Contacts)
                 {
+                    var hasSignificantInfo = !string.IsNullOrWhiteSpace(c.Email) || (!string.IsNullOrWhiteSpace(c.Phone) && c.Phone!.Trim().Length > 5);
                     <tr>
                         <td>@c.Name</td><td>@c.Phone</td><td>@c.Email</td>
                         <td class="text-end">
                             @if (Model.CanManage)
                             {
-                                <form method="post" asp-page-handler="DeleteContact" class="d-inline">
+                                <form method="post" asp-page-handler="DeleteContact" class="d-inline" data-contact-delete-form>
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="partnerId" value="@p.Id" />
                                     <input type="hidden" name="contactId" value="@c.Id" />
-                                    <button class="btn btn-sm btn-outline-danger">Delete</button>
+                                    <button class="ip-btn-compact-danger" type="submit" data-confirm="@(hasSignificantInfo ? "true" : "false")">Delete</button>
                                 </form>
                             }
                         </td>
+                    </tr>
+                }
+                @if (!p.Contacts.Any())
+                {
+                    <tr>
+                        <td colspan="4" class="ip-empty-text">No contacts added yet.</td>
                     </tr>
                 }
                 </tbody>
@@ -33,13 +39,16 @@
         </div>
         @if (Model.CanManage)
         {
-            <form method="post" asp-page-handler="AddContact" class="row g-2">
+            <form method="post" asp-page-handler="AddContact" class="row g-2" data-add-contact-form>
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="partnerId" value="@p.Id" />
-                <div class="col-md-4"><input class="form-control form-control-sm" name="name" placeholder="Name" /></div>
-                <div class="col-md-3"><input class="form-control form-control-sm" name="phone" placeholder="Phone" /></div>
-                <div class="col-md-4"><input class="form-control form-control-sm" name="email" placeholder="Email" /></div>
-                <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Add</button></div>
+                <div class="col-md-4"><input class="form-control form-control-sm ip-input" name="name" placeholder="Name" data-contact-name /></div>
+                <div class="col-md-3"><input class="form-control form-control-sm ip-input" name="phone" placeholder="Phone" data-contact-phone /></div>
+                <div class="col-md-4"><input class="form-control form-control-sm ip-input" name="email" placeholder="Email" data-contact-email /></div>
+                <div class="col-md-1"><button class="btn btn-sm btn-primary w-100" type="submit">Add</button></div>
+                <div class="col-12">
+                    <div class="form-text text-danger d-none" data-contact-error>Provide at least a phone number or an email address.</div>
+                </div>
             </form>
         }
     </div>
