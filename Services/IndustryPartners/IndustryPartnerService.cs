@@ -16,16 +16,42 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
 
     public async Task<IndustryPartnerSearchResult> SearchAsync(string? query, int page, int pageSize, CancellationToken cancellationToken = default)
     {
+        // SECTION: Search input normalization
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var normalized = Normalize(query);
+        var normalizedQuery = Normalize(query);
+        var rawQuery = query?.Trim();
+        var loweredRawQuery = rawQuery?.ToLower();
 
+        // SECTION: Base search query
         var partners = _db.IndustryPartners.AsNoTracking().AsQueryable();
-        if (!string.IsNullOrWhiteSpace(normalized))
+
+        // SECTION: Comprehensive partner search filters
+        if (!string.IsNullOrWhiteSpace(normalizedQuery) || !string.IsNullOrWhiteSpace(loweredRawQuery))
         {
-            partners = partners.Where(x => x.NormalizedName.Contains(normalized) || (x.NormalizedLocation ?? string.Empty).Contains(normalized));
+            partners = partners.Where(x =>
+                (!string.IsNullOrWhiteSpace(normalizedQuery) &&
+                    (
+                        x.NormalizedName.Contains(normalizedQuery!) ||
+                        (x.NormalizedLocation ?? string.Empty).Contains(normalizedQuery!)
+                    )) ||
+                (!string.IsNullOrWhiteSpace(loweredRawQuery) &&
+                    (
+                        (x.Name ?? string.Empty).ToLower().Contains(loweredRawQuery!) ||
+                        (x.Location ?? string.Empty).ToLower().Contains(loweredRawQuery!) ||
+                        (x.Remarks ?? string.Empty).ToLower().Contains(loweredRawQuery!) ||
+                        x.Contacts.Any(c =>
+                            (c.Name ?? string.Empty).ToLower().Contains(loweredRawQuery!) ||
+                            (c.Email ?? string.Empty).ToLower().Contains(loweredRawQuery!) ||
+                            (c.Phone ?? string.Empty).ToLower().Contains(loweredRawQuery!)) ||
+                        x.PartnerProjects.Any(p =>
+                            (p.Project.Name ?? string.Empty).ToLower().Contains(loweredRawQuery!)) ||
+                        x.Attachments.Any(a =>
+                            (a.OriginalFileName ?? string.Empty).ToLower().Contains(loweredRawQuery!))
+                    )));
         }
 
+        // SECTION: Result shaping
         var total = await partners.CountAsync(cancellationToken);
         var items = await partners
             .OrderBy(x => x.Name)
