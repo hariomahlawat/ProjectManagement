@@ -479,9 +479,6 @@
     uploadForm.addEventListener('submit', () => {
       submitButton.disabled = true;
       submitButton.textContent = 'Uploading...';
-      if (fileInput) {
-        fileInput.disabled = true;
-      }
     });
 
     syncUploadState();
