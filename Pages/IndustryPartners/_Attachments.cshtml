@@ -1,16 +1,20 @@
 @model ProjectManagement.Pages.IndustryPartners.IndexModel
 @{ var p = Model.SelectedPartner!; }
-<div class="card">
+<div class="card industry-section-card">
     <div class="card-body">
-        <h3 class="h6">Attachments</h3>
+        <div class="industry-section-heading-row mb-2">
+            <h3 class="h6 mb-0">Attachments</h3>
+            <small class="text-muted">Supporting documents and media files.</small>
+        </div>
+
         @if (Model.CanManage)
         {
             <form method="post" asp-page-handler="UploadAttachment" enctype="multipart/form-data" class="mb-3">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="partnerId" value="@p.Id" />
-                <div class="input-group input-group-sm">
-                    <input type="file" name="file" class="form-control" required />
-                    <button class="btn btn-primary">Upload</button>
+                <div class="d-flex flex-wrap align-items-center gap-2 industry-upload-row">
+                    <input type="file" name="file" class="form-control form-control-sm" required />
+                    <button class="btn btn-sm btn-primary">Upload</button>
                 </div>
             </form>
         }
@@ -18,17 +22,22 @@
         <ul class="list-group list-group-flush">
             @foreach (var a in p.Attachments)
             {
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <a asp-page="./Index" asp-page-handler="DownloadAttachment" asp-route-partnerId="@p.Id" asp-route-attachmentId="@a.Id">@a.OriginalFileName</a>
-                    @if (Model.CanManage)
-                    {
-                        <form method="post" asp-page-handler="DeleteAttachment" class="d-inline">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="partnerId" value="@p.Id" />
-                            <input type="hidden" name="attachmentId" value="@a.Id" />
-                            <button class="btn btn-sm btn-outline-danger">Delete</button>
-                        </form>
-                    }
+                <li class="list-group-item px-0">
+                    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                        <div>
+                            <a asp-page="./Index" asp-page-handler="DownloadAttachment" asp-route-partnerId="@p.Id" asp-route-attachmentId="@a.Id" class="fw-semibold text-decoration-none">@a.OriginalFileName</a>
+                            <span class="text-muted small ms-2">@($"{a.SizeBytes / 1024.0:F1} KB")</span>
+                        </div>
+                        @if (Model.CanManage)
+                        {
+                            <form method="post" asp-page-handler="DeleteAttachment" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="partnerId" value="@p.Id" />
+                                <input type="hidden" name="attachmentId" value="@a.Id" />
+                                <button class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        }
+                    </div>
                 </li>
             }
         </ul>
