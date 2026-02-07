@@ -1,27 +1,30 @@
 @model ProjectManagement.Pages.IndustryPartners.IndexModel
 @{ var p = Model.SelectedPartner!; }
-<div class="card industry-section-card">
-    <div class="card-body">
-        <div class="industry-section-heading-row mb-2">
-            <h3 class="h6 mb-0">Linked projects</h3>
-            <small class="text-muted">Connect project records to this partner.</small>
-        </div>
-
-        <div class="d-flex flex-wrap gap-2 mb-3">
+<div class="ip-section" data-linked-project-section>
+    <div class="ip-section-header">
+        <h3 class="ip-section-title">Linked projects</h3>
+        <small class="ip-section-note">Connect project records to this partner.</small>
+    </div>
+    <div class="ip-section-body">
+        <div class="d-flex flex-wrap gap-2 mb-3" data-existing-links>
             @foreach (var link in p.LinkedProjects)
             {
-                <span class="badge text-bg-light industry-link-badge">
-                    @link.ProjectName
+                <span class="ip-chip" data-project-id="@link.ProjectId">
+                    <span class="ip-chip-text">@link.ProjectName</span>
                     @if (Model.CanManage)
                     {
                         <form method="post" asp-page-handler="UnlinkProject" class="d-inline">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="partnerId" value="@p.Id" />
                             <input type="hidden" name="projectId" value="@link.ProjectId" />
-                            <button type="submit" class="btn btn-link btn-sm p-0 ms-1 text-danger text-decoration-none">×</button>
+                            <button type="submit" class="ip-chip-action" aria-label="Unlink @link.ProjectName">×</button>
                         </form>
                     }
                 </span>
+            }
+            @if (!p.LinkedProjects.Any())
+            {
+                <div class="ip-empty-text">No linked projects yet.</div>
             }
         </div>
 
@@ -30,23 +33,26 @@
             <form method="post" asp-page-handler="LinkProject" class="row g-2" data-link-project-form>
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="partnerId" value="@p.Id" />
-                <div class="col-sm-8 position-relative">
-                    <input class="form-control form-control-sm"
+                <div class="col-sm-8 ip-typeahead">
+                    <input class="form-control form-control-sm ip-input"
                            name="projectSearch"
                            placeholder="Search project by name or file number"
                            autocomplete="off"
-                           data-project-search />
+                           data-project-search
+                           aria-expanded="false"
+                           aria-autocomplete="list" />
 
                     <input type="hidden" name="projectId" data-project-id required />
 
-                    <div class="list-group position-absolute w-100 shadow-sm d-none industry-project-results"
-                         data-project-results></div>
+                    <div class="ip-typeahead-results d-none" data-project-results role="listbox"></div>
 
                     <div class="form-text text-danger d-none" data-project-error>
                         Select a project from the list.
                     </div>
                 </div>
-                <div class="col-sm-4"><button class="btn btn-sm btn-outline-primary w-100" type="submit" data-link-project-submit disabled>Link project</button></div>
+                <div class="col-sm-4">
+                    <button class="btn btn-sm btn-outline-primary w-100" type="submit" data-link-project-submit disabled>Link project</button>
+                </div>
             </form>
         }
     </div>
