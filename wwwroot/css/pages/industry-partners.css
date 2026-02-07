@@ -1,0 +1,93 @@
+/* SECTION: Page-level layout and surfaces */
+.industry-partners-page {
+  --industry-border: #dde3ee;
+  --industry-surface: #fbfcff;
+  --industry-surface-strong: #f3f6fb;
+  --industry-accent: #204b95;
+}
+
+.industry-partners-page .card {
+  border-color: var(--industry-border);
+  box-shadow: 0 8px 24px rgba(15, 26, 56, 0.04);
+}
+
+.industry-page-header {
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--industry-border);
+}
+
+/* SECTION: Left panel and list interaction */
+.industry-list-panel {
+  position: sticky;
+  top: 1rem;
+  background: var(--industry-surface);
+}
+
+.industry-list-group {
+  border: 1px solid var(--industry-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.industry-list-item {
+  border: 0;
+  border-bottom: 1px solid #edf1f7;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.industry-list-item:last-child {
+  border-bottom: 0;
+}
+
+.industry-list-item:hover {
+  background: #f6f9ff;
+}
+
+.industry-list-item.active {
+  background: var(--industry-surface-strong);
+  color: inherit;
+  border-left: 3px solid var(--industry-accent);
+  padding-left: calc(1rem - 3px);
+}
+
+.industry-list-item.active .text-muted {
+  color: #5e6d86 !important;
+}
+
+/* SECTION: Right workspace sections */
+.industry-section-card .card-body {
+  background: var(--industry-surface);
+}
+
+.industry-section-heading-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.industry-compact-table > :not(caption) > * > * {
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+
+.industry-upload-row input[type="file"] {
+  max-width: 360px;
+}
+
+.industry-link-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--industry-border);
+}
+
+.industry-partners-page .form-control-sm,
+.industry-partners-page .btn-sm {
+  border-radius: 0.35rem;
+}
+
+
+.industry-project-results {
+  z-index: 1000;
+}

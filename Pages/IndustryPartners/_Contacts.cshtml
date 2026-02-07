@@ -1,10 +1,14 @@
 @model ProjectManagement.Pages.IndustryPartners.IndexModel
 @{ var p = Model.SelectedPartner!; }
-<div class="card">
+<div class="card industry-section-card">
     <div class="card-body">
-        <h3 class="h6">Contacts</h3>
+        <div class="industry-section-heading-row mb-2">
+            <h3 class="h6 mb-0">Contacts</h3>
+            <small class="text-muted">People and communication details.</small>
+        </div>
+
         <div class="table-responsive">
-            <table class="table table-sm align-middle">
+            <table class="table table-sm align-middle industry-compact-table">
                 <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th></th></tr></thead>
                 <tbody>
                 @foreach (var c in p.Contacts)

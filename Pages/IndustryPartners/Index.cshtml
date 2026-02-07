@@ -4,8 +4,12 @@
     ViewData["Title"] = "Industry partners";
 }
 
-<div class="container-fluid py-3" data-industry-partners-root>
-    <div class="d-flex justify-content-between align-items-center mb-3">
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/industry-partners.css" asp-append-version="true" />
+}
+
+<div class="container-fluid py-3 industry-partners-page" data-industry-partners-root>
+    <div class="d-flex justify-content-between align-items-center mb-3 industry-page-header">
         <h1 class="h4 mb-0">Industry partners</h1>
         @if (Model.CanManage)
         {
@@ -30,17 +34,20 @@
 
     <div class="row g-3">
         <div class="col-lg-4">
-            <div class="card">
+            <div class="card industry-list-panel">
                 <div class="card-body">
                     <form method="get" class="mb-3">
-                        <input class="form-control" name="q" value="@Model.Q" placeholder="Search partner name or location" />
+                        <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Search partner name or location" />
                     </form>
-                    <div class="list-group">
+                    <div class="list-group industry-list-group">
                         @foreach (var item in Model.SearchResult.Items)
                         {
-                            <a asp-page="./Index" asp-route-id="@item.Id" asp-route-q="@Model.Q" class="list-group-item list-group-item-action @(Model.Id == item.Id ? "active" : string.Empty)">
+                            <a asp-page="./Index" asp-route-id="@item.Id" asp-route-q="@Model.Q" class="list-group-item list-group-item-action industry-list-item @(Model.Id == item.Id ? "active" : string.Empty)">
                                 <div class="fw-semibold">@item.Name</div>
-                                <div class="small text-muted">@item.Location</div>
+                                @if (!string.IsNullOrWhiteSpace(item.Location))
+                                {
+                                    <div class="small text-muted">@item.Location</div>
+                                }
                             </a>
                         }
                     </div>
