@@ -74,6 +74,8 @@
   const errorMessage = linkForm.querySelector('[data-project-error]');
   const submitButton = linkForm.querySelector('[data-link-project-submit]');
   let lastSelectedLabel = '';
+  let activeSearchController = null;
+  let latestSearchRequestId = 0;
 
   function setSubmitEnabled() {
     if (!submitButton || !projectIdInput) return;
@@ -134,14 +136,33 @@
     const query = searchInput.value.trim();
 
     if (query.length < 2) {
+      // SECTION: Cancel pending typeahead request when query becomes too short
+      if (activeSearchController) {
+        activeSearchController.abort();
+        activeSearchController = null;
+      }
       hideResults();
       return;
     }
 
+    // SECTION: Guard against out-of-order typeahead responses
+    latestSearchRequestId += 1;
+    const requestId = latestSearchRequestId;
+
+    if (activeSearchController) {
+      activeSearchController.abort();
+    }
+    activeSearchController = new AbortController();
+
     try {
       const response = await fetch(`/api/industry-partners/projects?q=${encodeURIComponent(query)}&take=20`, {
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json' },
+        signal: activeSearchController.signal
       });
+
+      if (requestId !== latestSearchRequestId || searchInput.value.trim() !== query) {
+        return;
+      }
 
       if (!response.ok) {
         hideResults();
@@ -151,7 +172,14 @@
       const payload = await response.json();
       renderResults(payload.items || []);
     } catch (err) {
+      if (err && err.name === 'AbortError') {
+        return;
+      }
       hideResults();
+    } finally {
+      if (requestId === latestSearchRequestId) {
+        activeSearchController = null;
+      }
     }
   }, 250);
 
