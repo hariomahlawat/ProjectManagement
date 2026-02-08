@@ -5,7 +5,9 @@
     var project = Model.Project;
     var canManageTot = Model.CanManageTot;
     var hasPending = Model.TotSummary.HasPendingRequest;
-    var canOpenTracker = project is not null && Model.TotSummary.HasTotRecord;
+    // Keep tracker access available from header actions whenever managers can access the ToT card,
+    // including pending-request states that may not yet have a persisted ToT record.
+    var canOpenTracker = project is not null;
 }
 
 @if (project is not null && canManageTot)
