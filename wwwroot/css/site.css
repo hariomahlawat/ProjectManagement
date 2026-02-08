@@ -346,6 +346,78 @@ main[role="main"] {
 }
 
 
+
+/* -- SECTION: Right-column summary cards -- */
+.pm-right-summary-card .pm-right-summary-card__header {
+    align-items: center;
+    min-height: 5rem;
+}
+
+.pm-right-summary-card .pm-right-summary-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+}
+
+.pm-right-summary-card .pm-right-summary-card__footer {
+    background-color: transparent;
+    border-top: 1px solid rgba(15, 23, 42, .08);
+    padding: .75rem 1.5rem 1rem;
+}
+
+.pm-summary-footer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: .5rem;
+}
+
+.pm-summary-empty {
+    color: var(--pm-text-secondary);
+    font-size: var(--pm-font-size-sm);
+}
+
+.pm-summary-row-list {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}
+
+.pm-summary-row-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    border: 1px solid var(--pm-border-subtle);
+    border-radius: .65rem;
+    padding: .5rem .75rem;
+    text-decoration: none;
+    color: var(--pm-text);
+    transition: background-color .2s ease, border-color .2s ease;
+}
+
+.pm-summary-row-link:hover {
+    background-color: rgba(15, 23, 42, .04);
+    border-color: var(--pm-border);
+    text-decoration: none;
+    color: var(--pm-text);
+}
+
+.pm-summary-row-title {
+    font-weight: 500;
+}
+
+.pm-summary-expand summary {
+    cursor: pointer;
+    color: var(--pm-link);
+    font-size: var(--pm-font-size-sm);
+}
+
+.pm-summary-expand summary:hover {
+    color: var(--pm-link-hover);
+}
+
 /* -- SECTION: Project overview card header actions -- */
 .pm-card-header-actions {
     display: inline-flex;

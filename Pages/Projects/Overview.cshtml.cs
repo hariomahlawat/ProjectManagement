@@ -14,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using ProjectManagement.Data;
+using ProjectManagement.Configuration;
 using ProjectManagement.Features.Backfill;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Projects;
@@ -98,6 +99,7 @@ namespace ProjectManagement.Pages.Projects
         public bool ShowJdpPanel { get; private set; }
         public IReadOnlyList<JdpPartnerLinkVm> JdpPartners { get; private set; } = Array.Empty<JdpPartnerLinkVm>();
         public bool CanManageTot { get; private set; }
+        public bool CanManageIndustryPartners { get; private set; }
         public ProjectMediaCollectionViewModel MediaCollections { get; private set; } = ProjectMediaCollectionViewModel.Empty;
         public IReadOnlyCollection<int> AvailableMediaTotIds { get; private set; } = Array.Empty<int>();
         public bool CanUploadDocuments { get; private set; }
@@ -337,6 +339,7 @@ namespace ProjectManagement.Pages.Projects
             };
 
             CanManageTot = isAdmin || isHoD || isThisProjectsPo || isThisProjectsHod;
+            CanManageIndustryPartners = Policies.IndustryPartners.ManageAllowedRoles.Any(User.IsInRole);
 
             var todayLocalDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
 

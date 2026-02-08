@@ -1,0 +1,106 @@
+@using System.Globalization
+@using System.Linq
+@using ProjectManagement.Models
+@using ProjectManagement.Utilities
+@model ProjectManagement.Pages.Projects.OverviewModel
+
+@{
+    // SECTION: ToT body state
+    var tot = Model.TotSummary;
+    var hasTot = tot.HasTotRecord;
+    var pendingRequest = tot.PendingRequest;
+    var hasPending = tot.HasPendingRequest;
+    var summaryText = hasTot
+        ? tot.Summary
+        : "Transfer of Technology tracking has not been configured for this project.";
+
+    var istZone = TimeZoneHelper.GetIst();
+    DateTime? ToIst(DateTime? value) => value.HasValue
+        ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc), istZone)
+        : null;
+
+    string? FormatTimestamp(DateTime? utcValue)
+    {
+        var dt = ToIst(utcValue);
+        return dt.HasValue
+            ? dt.Value.ToString("dd/MM/yyyy 'at' HH:mm 'IST'", CultureInfo.InvariantCulture)
+            : null;
+    }
+
+    string? FormatDate(DateOnly? value)
+    {
+        return value?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+    }
+}
+
+<!-- SECTION: ToT summary -->
+<p class="mb-0 @(hasTot ? string.Empty : "pm-summary-empty")">@summaryText</p>
+
+@if (tot.Facts.Any())
+{
+    <!-- SECTION: ToT compact facts -->
+    <dl class="row small mb-0 mt-2">
+        @foreach (var fact in tot.Facts)
+        {
+            <dt class="col-sm-5">@fact.Label</dt>
+            <dd class="col-sm-7">@fact.Value</dd>
+        }
+    </dl>
+}
+
+@if (hasPending && pendingRequest is { } request)
+{
+    // SECTION: ToT pending request insight
+    var alertVariant = request.State switch
+    {
+        ProjectTotRequestDecisionState.Pending => "info",
+        ProjectTotRequestDecisionState.Approved => "success",
+        ProjectTotRequestDecisionState.Rejected => "warning",
+        _ => "secondary"
+    };
+    var submittedByText = string.IsNullOrWhiteSpace(request.SubmittedBy)
+        ? "Unknown"
+        : request.SubmittedBy;
+    var submittedOnText = FormatTimestamp(request.SubmittedOnUtc);
+    var decidedOnText = FormatTimestamp(request.DecidedOnUtc);
+    var submittedSuffix = string.IsNullOrEmpty(submittedOnText)
+        ? "."
+        : $" on {submittedOnText}.";
+    var decidedSuffix = string.IsNullOrEmpty(decidedOnText)
+        ? null
+        : $" on {decidedOnText}.";
+
+    <div class="alert alert-@alertVariant mb-0 mt-2" role="status">
+        <div class="fw-semibold">@request.StateLabel</div>
+        <ul class="mb-0">
+            <li>Status proposed as <strong>@request.ProposedStatusLabel</strong>@(request.ProposedStartedOn.HasValue ? $" starting {FormatDate(request.ProposedStartedOn)}" : string.Empty)@(request.ProposedCompletedOn.HasValue ? $" completing {FormatDate(request.ProposedCompletedOn)}" : string.Empty).</li>
+            @if (!string.IsNullOrWhiteSpace(request.ProposedMetDetails) || request.ProposedMetCompletedOn.HasValue)
+            {
+                var metDescription = string.IsNullOrWhiteSpace(request.ProposedMetDetails)
+                    ? "MET completion"
+                    : $"MET details: {request.ProposedMetDetails}";
+                var metSuffix = request.ProposedMetCompletedOn.HasValue
+                    ? (string.IsNullOrWhiteSpace(request.ProposedMetDetails)
+                        ? $" on {FormatDate(request.ProposedMetCompletedOn)}"
+                        : $" (completed {FormatDate(request.ProposedMetCompletedOn)})")
+                    : string.Empty;
+                <li>@metDescription@metSuffix.</li>
+            }
+            @if (request.ProposedFirstProductionModelManufactured.HasValue || request.ProposedFirstProductionModelManufacturedOn.HasValue)
+            {
+                var manufacturedLabel = request.ProposedFirstProductionModelManufactured.HasValue
+                    ? (request.ProposedFirstProductionModelManufactured.Value ? "Yes" : "No")
+                    : "Not specified";
+                var manufacturedSuffix = request.ProposedFirstProductionModelManufacturedOn.HasValue
+                    ? $" on {FormatDate(request.ProposedFirstProductionModelManufacturedOn)}"
+                    : string.Empty;
+                <li>First production model manufactured: <strong>@manufacturedLabel</strong>@manufacturedSuffix.</li>
+            }
+            <li>Submitted by @submittedByText@submittedSuffix</li>
+            @if (request.State != ProjectTotRequestDecisionState.Pending && !string.IsNullOrWhiteSpace(request.DecidedBy) && decidedSuffix is not null)
+            {
+                <li>Decided by @request.DecidedBy@decidedSuffix</li>
+            }
+        </ul>
+    </div>
+}

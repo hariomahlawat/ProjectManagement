@@ -1,35 +1,16 @@
-@using System.Globalization
-@using System.Linq
 @using ProjectManagement.Models
-@using ProjectManagement.Utilities
 @model ProjectManagement.Pages.Projects.OverviewModel
 
 @{
+    // SECTION: ToT panel visibility
     var showTransferOfTechnology = Model.LifecycleSummary.Status == ProjectLifecycleStatus.Completed;
-    var istZone = TimeZoneHelper.GetIst();
-    DateTime? ToIst(DateTime? value) => value.HasValue
-        ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc), istZone)
-        : null;
-
-    string? FormatTimestamp(DateTime? utcValue)
-    {
-        var dt = ToIst(utcValue);
-        return dt.HasValue
-            ? dt.Value.ToString("dd/MM/yyyy 'at' HH:mm 'IST'", CultureInfo.InvariantCulture)
-            : null;
-    }
-
-    string? FormatDate(DateOnly? value)
-    {
-        return value?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
-    }
 }
 
 @if (showTransferOfTechnology)
 {
+    // SECTION: ToT status chip mapping
     var tot = Model.TotSummary;
-    var hasTot = tot.HasTotRecord;
-    var badgeVariant = hasTot
+    var badgeVariant = tot.HasTotRecord
         ? tot.Status switch
         {
             ProjectTotStatus.Completed => "success",
@@ -38,123 +19,20 @@
             _ => "secondary"
         }
         : "secondary";
-    var canManageTot = Model.CanManageTot;
-    var pendingRequest = tot.PendingRequest;
-    var hasPending = tot.HasPendingRequest;
 
-    <div class="card pm-card">
-        <div class="card-header pm-card-header">
-            <div class="pm-card-heading">
-                <span class="pm-card-icon" aria-hidden="true">
-                    <i class="bi bi-diagram-3"></i>
-                </span>
-                <div>
-                    <h3 class="pm-card-title h6 mb-0">Transfer of Technology</h3>
-                    <p class="pm-card-subtitle mb-0">Status and milestones.</p>
-                </div>
-            </div>
-            <div class="pm-card-actions pm-card-header-actions">
-                <span class="badge text-bg-@badgeVariant">@tot.StatusLabel</span>
-                @if (canManageTot && Model.Project is { } project)
-                {
-                    if (hasPending)
-                    {
-                        <a class="btn btn-sm btn-outline-secondary disabled"
-                           href="#"
-                           role="button"
-                           aria-disabled="true"
-                           tabindex="-1">
-                            Update
-                        </a>
-                    }
-                    else
-                    {
-                        <a class="btn btn-sm btn-outline-secondary"
-                           asp-page="/Projects/Tot/Edit"
-                           asp-route-id="@project.Id">
-                            Update
-                        </a>
-                    }
+    var cardModel = new RightColumnSummaryCardViewModel
+    {
+        IconClass = "bi bi-diagram-3",
+        Title = "Transfer of Technology",
+        Subtitle = "Status and milestones.",
+        StatusText = tot.StatusLabel,
+        StatusBadgeClass = $"text-bg-{badgeVariant}",
+        BodyPartialName = "_ProjectTotPanelBody",
+        BodyModel = Model,
+        FooterPartialName = "_ProjectTotPanelFooter",
+        FooterModel = Model
+    };
 
-                    <a class="btn btn-sm btn-primary"
-                       asp-area="ProjectOfficeReports"
-                       asp-page="/Tot/Index"
-                       asp-route-selectedProjectId="@project.Id">
-                        Open tracker
-                    </a>
-                }
-            </div>
-        </div>
-        <div class="card-body pm-card-body d-flex flex-column gap-2">
-            <p class="mb-0">@tot.Summary</p>
-            @if (tot.Facts.Any())
-            {
-                <dl class="row small mb-0">
-                    @foreach (var fact in tot.Facts)
-                    {
-                        <dt class="col-sm-5">@fact.Label</dt>
-                        <dd class="col-sm-7">@fact.Value</dd>
-                    }
-                </dl>
-            }
-            @if (hasPending && pendingRequest is { } request)
-            {
-                var alertVariant = request.State switch
-                {
-                    ProjectTotRequestDecisionState.Pending => "info",
-                    ProjectTotRequestDecisionState.Approved => "success",
-                    ProjectTotRequestDecisionState.Rejected => "warning",
-                    _ => "secondary"
-                };
-                var submittedByText = string.IsNullOrWhiteSpace(request.SubmittedBy)
-                    ? "Unknown"
-                    : request.SubmittedBy;
-                var submittedOnText = FormatTimestamp(request.SubmittedOnUtc);
-                var decidedOnText = FormatTimestamp(request.DecidedOnUtc);
-                var submittedSuffix = string.IsNullOrEmpty(submittedOnText)
-                    ? "."
-                    : $" on {submittedOnText}.";
-                var decidedSuffix = string.IsNullOrEmpty(decidedOnText)
-                    ? null
-                    : $" on {decidedOnText}.";
-                <div class="alert alert-@alertVariant mb-0" role="status">
-                    <div class="fw-semibold">@request.StateLabel</div>
-                    <ul class="mb-0">
-                        <li>Status proposed as <strong>@request.ProposedStatusLabel</strong>@(request.ProposedStartedOn.HasValue ? $" starting {FormatDate(request.ProposedStartedOn)}" : string.Empty)@(request.ProposedCompletedOn.HasValue ? $" completing {FormatDate(request.ProposedCompletedOn)}" : string.Empty).</li>
-                        @if (!string.IsNullOrWhiteSpace(request.ProposedMetDetails) || request.ProposedMetCompletedOn.HasValue)
-                        {
-                            var metDescription = string.IsNullOrWhiteSpace(request.ProposedMetDetails)
-                                ? "MET completion"
-                                : $"MET details: {request.ProposedMetDetails}";
-                            var metSuffix = request.ProposedMetCompletedOn.HasValue
-                                ? (string.IsNullOrWhiteSpace(request.ProposedMetDetails)
-                                    ? $" on {FormatDate(request.ProposedMetCompletedOn)}"
-                                    : $" (completed {FormatDate(request.ProposedMetCompletedOn)})")
-                                : string.Empty;
-                            <li>@metDescription@metSuffix.</li>
-                        }
-                        @if (request.ProposedFirstProductionModelManufactured.HasValue || request.ProposedFirstProductionModelManufacturedOn.HasValue)
-                        {
-                            var manufacturedLabel = request.ProposedFirstProductionModelManufactured.HasValue
-                                ? (request.ProposedFirstProductionModelManufactured.Value ? "Yes" : "No")
-                                : "Not specified";
-                            var manufacturedSuffix = request.ProposedFirstProductionModelManufacturedOn.HasValue
-                                ? $" on {FormatDate(request.ProposedFirstProductionModelManufacturedOn)}"
-                                : string.Empty;
-                            <li>First production model manufactured: <strong>@manufacturedLabel</strong>@manufacturedSuffix.</li>
-                        }
-                        <li>Submitted by @submittedByText@submittedSuffix</li>
-                        @if (request.State != ProjectTotRequestDecisionState.Pending && !string.IsNullOrWhiteSpace(request.DecidedBy) && decidedSuffix is not null)
-                        {
-                            <li>Decided by @request.DecidedBy@decidedSuffix</li>
-                        }
-                    </ul>
-                </div>
-            }
-            @if (!hasTot)
-            {
-                <p class="text-muted small mb-0">Set up ToT tracking to capture milestones.</p>
-            }
-        </div>
-    </div>
+    <!-- SECTION: ToT summary card -->
+    <partial name="_RightColumnSummaryCard" model="cardModel" />
 }

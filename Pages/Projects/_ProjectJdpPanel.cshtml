@@ -8,53 +8,21 @@
 @{
     // SECTION: Joint Development Partner panel state
     var partnerCount = Model.JdpPartners.Count;
+    var isLinked = partnerCount > 0;
+
+    var cardModel = new RightColumnSummaryCardViewModel
+    {
+        IconClass = "bi bi-building",
+        Title = "Joint Development Partner",
+        Subtitle = "Industry partner associated with this project.",
+        StatusText = isLinked ? "Linked" : "Not linked",
+        StatusBadgeClass = isLinked ? "text-bg-primary" : "text-bg-secondary",
+        BodyPartialName = "_ProjectJdpPanelBody",
+        BodyModel = Model,
+        FooterPartialName = "_ProjectJdpPanelFooter",
+        FooterModel = Model
+    };
 }
 
 <!-- SECTION: Joint Development Partner panel -->
-<div class="card pm-card">
-    <div class="card-header pm-card-header">
-        <div class="pm-card-heading">
-            <span class="pm-card-icon" aria-hidden="true">
-                <i class="bi bi-building"></i>
-            </span>
-            <div>
-                <h3 class="pm-card-title h6 mb-0">Joint Development Partner</h3>
-                <p class="pm-card-subtitle mb-0">Industry partner associated with this project.</p>
-            </div>
-        </div>
-        <div class="pm-card-actions pm-card-header-actions">
-            @if (partnerCount == 0)
-            {
-                <span class="badge text-bg-secondary">Not linked</span>
-            }
-            else if (partnerCount == 1)
-            {
-                <span class="badge text-bg-primary">1 partner</span>
-            }
-            else
-            {
-                <span class="badge text-bg-primary">@partnerCount partners</span>
-            }
-        </div>
-    </div>
-    <div class="card-body pm-card-body">
-        @if (partnerCount == 0)
-        {
-            <p class="text-muted small mb-0">No industry partner is linked yet.</p>
-        }
-        else
-        {
-            @* SECTION: Linked partner chips *@
-            <div class="pm-chip-row">
-                @foreach (var partner in Model.JdpPartners)
-                {
-                    <a class="pm-chip-link"
-                       href="/IndustryPartners?id=@partner.Id"
-                       title="Open industry partner details">
-                        @partner.Name
-                    </a>
-                }
-            </div>
-        }
-    </div>
-</div>
+<partial name="_RightColumnSummaryCard" model="cardModel" />
