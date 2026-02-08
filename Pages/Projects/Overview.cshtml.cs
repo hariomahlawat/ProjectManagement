@@ -25,6 +25,7 @@ using ProjectManagement.Models.IndustryPartners;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Utilities;
@@ -497,20 +498,7 @@ namespace ProjectManagement.Pages.Projects
         // SECTION: Project Overview - Joint Development Partner panel visibility rules
         private static bool ShouldShowJdpPanel(Project project, IList<ProjectStage> stages)
         {
-            if (project.LifecycleStatus == ProjectLifecycleStatus.Completed)
-            {
-                return true;
-            }
-
-            var devpOrder = ProcurementWorkflow.OrderOf(project.WorkflowVersion, StageCodes.DEVP);
-            var reachedMaxOrder = stages
-                .Where(s => s.Status != StageStatus.NotStarted)
-                .Select(s => ProcurementWorkflow.OrderOf(project.WorkflowVersion, s.StageCode))
-                .Where(order => order != int.MaxValue)
-                .DefaultIfEmpty(0)
-                .Max();
-
-            return reachedMaxOrder >= devpOrder;
+            return IndustryPartnerProjectEligibility.IsEligibleForJdpLink(project, stages);
         }
 
 
