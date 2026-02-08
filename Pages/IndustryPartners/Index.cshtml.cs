@@ -152,8 +152,17 @@ public sealed class IndexModel : PageModel
     public async Task<IActionResult> OnPostLinkProjectAsync([FromForm] int partnerId, [FromForm] int projectId, CancellationToken cancellationToken)
     {
         await EnsureManageAsync();
-        await _service.LinkProjectAsync(partnerId, projectId, User, cancellationToken);
-        return RedirectToPage(new { id = partnerId, q = Q });
+
+        try
+        {
+            await _service.LinkProjectAsync(partnerId, projectId, User, cancellationToken);
+            return RedirectToPage(new { id = partnerId, q = Q });
+        }
+        catch (IndustryPartnerValidationException ex)
+        {
+            TempData["Error"] = string.Join(" ", ex.Errors.SelectMany(x => x.Value));
+            return RedirectToPage(new { id = partnerId, q = Q });
+        }
     }
 
     public async Task<IActionResult> OnPostUnlinkProjectAsync([FromForm] int partnerId, [FromForm] int projectId, CancellationToken cancellationToken)

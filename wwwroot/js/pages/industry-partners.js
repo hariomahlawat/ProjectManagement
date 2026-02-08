@@ -185,7 +185,7 @@
       if (!items.length) {
         const emptyState = document.createElement('div');
         emptyState.className = 'ip-typeahead-item';
-        emptyState.textContent = 'No matching projects found';
+        emptyState.textContent = 'No eligible projects found (only Development stage or Completed projects can be linked)';
         emptyState.setAttribute('aria-disabled', 'true');
         resultsContainer.appendChild(emptyState);
         resultsContainer.classList.remove('d-none');

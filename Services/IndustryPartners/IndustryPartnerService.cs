@@ -173,8 +173,26 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
 
     public async Task LinkProjectAsync(int partnerId, int projectId, ClaimsPrincipal user, CancellationToken cancellationToken = default)
     {
+        // SECTION: Eligibility validation for JDP linking
+        var project = await _db.Projects
+            .AsNoTracking()
+            .Include(item => item.ProjectStages)
+            .FirstOrDefaultAsync(item => item.Id == projectId && !item.IsDeleted && !item.IsArchived, cancellationToken);
+
+        if (project is null)
+        {
+            throw Error("project", "Selected project was not found.");
+        }
+
+        var isEligible = IndustryPartnerProjectEligibility.IsEligibleForJdpLink(project, project.ProjectStages);
+        if (!isEligible)
+        {
+            throw Error("project", "Project is not eligible to be linked. Only Development stage or Completed projects can be linked.");
+        }
+
         var exists = await _db.IndustryPartnerProjects.AnyAsync(x => x.IndustryPartnerId == partnerId && x.ProjectId == projectId, cancellationToken);
         if (exists) return;
+
         _db.IndustryPartnerProjects.Add(new IndustryPartnerProject
         {
             IndustryPartnerId = partnerId,
@@ -182,6 +200,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             LinkedByUserId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "system",
             LinkedUtc = DateTimeOffset.UtcNow
         });
+
         await _db.SaveChangesAsync(cancellationToken);
     }
 

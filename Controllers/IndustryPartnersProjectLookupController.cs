@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Services.IndustryPartners;
 
 namespace ProjectManagement.Controllers;
 
@@ -24,6 +25,7 @@ public sealed class IndustryPartnersProjectLookupController : ControllerBase
         // SECTION: Input normalization
         var trimmedQuery = q?.Trim();
         var normalizedTake = Math.Clamp(take, 1, 50);
+        var candidateTake = Math.Clamp(normalizedTake * 5, normalizedTake, 250);
 
         // SECTION: Base project filters
         var projectsQuery = _dbContext.Projects
@@ -40,9 +42,15 @@ public sealed class IndustryPartnersProjectLookupController : ControllerBase
         }
 
         // SECTION: Lightweight response projection
-        var items = await projectsQuery
+        var candidateProjects = await projectsQuery
+            .Include(project => project.ProjectStages)
             .OrderBy(project => project.Name)
             .ThenBy(project => project.Id)
+            .Take(candidateTake)
+            .ToListAsync(cancellationToken);
+
+        var items = candidateProjects
+            .Where(project => IndustryPartnerProjectEligibility.IsEligibleForJdpLink(project, project.ProjectStages))
             .Take(normalizedTake)
             .Select(project => new
             {
@@ -51,7 +59,7 @@ public sealed class IndustryPartnersProjectLookupController : ControllerBase
                     ? $"{project.Name} (ID: {project.Id})"
                     : $"{project.Name} | {project.CaseFileNumber}"
             })
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         return Ok(new { items });
     }
