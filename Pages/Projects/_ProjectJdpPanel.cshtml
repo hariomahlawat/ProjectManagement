@@ -22,7 +22,7 @@
                 <p class="pm-card-subtitle mb-0">Industry partner associated with this project.</p>
             </div>
         </div>
-        <div class="pm-card-actions d-flex align-items-center gap-2">
+        <div class="pm-card-actions pm-card-header-actions">
             @if (partnerCount == 0)
             {
                 <span class="badge text-bg-secondary">Not linked</span>
@@ -44,10 +44,11 @@
         }
         else
         {
-            <div class="d-flex flex-wrap gap-2">
+            @* SECTION: Linked partner chips *@
+            <div class="pm-chip-row">
                 @foreach (var partner in Model.JdpPartners)
                 {
-                    <a class="badge rounded-pill text-bg-light text-decoration-none border"
+                    <a class="pm-chip-link"
                        href="/IndustryPartners?id=@partner.Id"
                        title="Open industry partner details">
                         @partner.Name
