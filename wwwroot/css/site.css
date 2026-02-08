@@ -408,6 +408,39 @@ main[role="main"] {
     font-weight: 500;
 }
 
+
+.pm-summary-row-link--stacked {
+    align-items: flex-start;
+}
+
+.pm-summary-row-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .1rem;
+}
+
+.pm-summary-row-meta {
+    color: var(--pm-text-secondary);
+    font-size: var(--pm-font-size-xs);
+}
+
+.pm-lifecycle-summary-card .pm-right-summary-card__body {
+    gap: .85rem;
+}
+
+.pm-lifecycle-summary-main {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}
+
+.pm-lifecycle-summary-facts dt,
+.pm-lifecycle-summary-facts dd {
+    margin-bottom: .35rem;
+}
+
+
 .pm-summary-expand summary {
     cursor: pointer;
     color: var(--pm-link);
@@ -416,6 +449,32 @@ main[role="main"] {
 
 .pm-summary-expand summary:hover {
     color: var(--pm-link-hover);
+}
+
+
+/* -- SECTION: Shared kebab action button -- */
+.pm-kebab {
+    width: 2.25rem;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: .5rem;
+    border: 1px solid transparent;
+    background-color: transparent;
+    color: inherit;
+}
+
+.pm-kebab:hover,
+.pm-kebab:focus {
+    background-color: var(--bs-gray-100);
+    border-color: var(--bs-gray-300);
+}
+
+.pm-kebab:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, .25);
 }
 
 /* -- SECTION: Project overview card header actions -- */

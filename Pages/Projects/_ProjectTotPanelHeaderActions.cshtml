@@ -1,0 +1,51 @@
+@model ProjectManagement.Pages.Projects.OverviewModel
+
+@{
+    // SECTION: ToT header actions state
+    var project = Model.Project;
+    var canManageTot = Model.CanManageTot;
+    var hasPending = Model.TotSummary.HasPendingRequest;
+    var canOpenTracker = project is not null && Model.TotSummary.HasTotRecord;
+}
+
+@if (project is not null && canManageTot)
+{
+    <!-- SECTION: ToT kebab action menu -->
+    <div class="dropdown">
+        <button class="btn btn-sm pm-kebab"
+                type="button"
+                id="tot-actions-menu"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                aria-label="Transfer of Technology actions">
+            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="tot-actions-menu">
+            <li>
+                @if (hasPending)
+                {
+                    <span class="dropdown-item disabled" aria-disabled="true">Update ToT status</span>
+                }
+                else
+                {
+                    <a class="dropdown-item"
+                       asp-page="/Projects/Tot/Edit"
+                       asp-route-id="@project.Id">
+                        Update ToT status
+                    </a>
+                }
+            </li>
+            @if (canOpenTracker)
+            {
+                <li>
+                    <a class="dropdown-item"
+                       asp-area="ProjectOfficeReports"
+                       asp-page="/Tot/Index"
+                       asp-route-selectedProjectId="@project.Id">
+                        Open tracker
+                    </a>
+                </li>
+            }
+        </ul>
+    </div>
+}

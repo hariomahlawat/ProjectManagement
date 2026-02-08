@@ -15,6 +15,10 @@ public sealed class RightColumnSummaryCardViewModel
 
     public string StatusBadgeClass { get; init; } = "text-bg-secondary";
 
+    public string? HeaderActionsPartialName { get; init; }
+
+    public object? HeaderActionsModel { get; init; }
+
     public string BodyPartialName { get; init; } = string.Empty;
 
     public object? BodyModel { get; init; }
