@@ -1,0 +1,27 @@
+@model ProjectManagement.Pages.Projects.OverviewModel
+
+@{
+    // SECTION: JDP footer actions state
+    var hasPartners = Model.JdpPartners.Count > 0;
+}
+
+@if (Model.CanManageIndustryPartners)
+{
+    <!-- SECTION: JDP footer actions -->
+    <div class="pm-summary-footer-actions">
+        @if (hasPartners)
+        {
+            <a class="btn btn-sm btn-outline-secondary"
+               asp-page="/IndustryPartners/Index">
+                Manage links
+            </a>
+        }
+        else
+        {
+            <a class="btn btn-sm btn-primary"
+               asp-page="/IndustryPartners/Index">
+                Link partner
+            </a>
+        }
+    </div>
+}

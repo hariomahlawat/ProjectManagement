@@ -1,0 +1,30 @@
+@model ProjectManagement.Pages.Projects.RightColumnSummaryCardViewModel
+
+<!-- SECTION: Shared right-column summary card -->
+<div class="card pm-card pm-right-summary-card @Model.CardClass">
+    <div class="card-header pm-card-header pm-right-summary-card__header">
+        <div class="pm-card-heading">
+            <span class="pm-card-icon" aria-hidden="true">
+                <i class="@Model.IconClass"></i>
+            </span>
+            <div>
+                <h3 class="pm-card-title h6 mb-0">@Model.Title</h3>
+                <p class="pm-card-subtitle mb-0">@Model.Subtitle</p>
+            </div>
+        </div>
+        <div class="pm-card-actions pm-card-header-actions">
+            <span class="badge @Model.StatusBadgeClass">@Model.StatusText</span>
+        </div>
+    </div>
+
+    <div class="card-body pm-card-body pm-right-summary-card__body">
+        <partial name="@Model.BodyPartialName" model="@Model.BodyModel" />
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.FooterPartialName))
+    {
+        <div class="card-footer pm-card-footer pm-right-summary-card__footer">
+            <partial name="@Model.FooterPartialName" model="@Model.FooterModel" />
+        </div>
+    }
+</div>

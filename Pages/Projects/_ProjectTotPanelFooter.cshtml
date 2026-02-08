@@ -1,0 +1,40 @@
+@model ProjectManagement.Pages.Projects.OverviewModel
+
+@{
+    // SECTION: ToT footer actions state
+    var canManageTot = Model.CanManageTot;
+    var hasPending = Model.TotSummary.HasPendingRequest;
+    var project = Model.Project;
+}
+
+@if (project is not null && canManageTot)
+{
+    <!-- SECTION: ToT footer actions -->
+    <div class="pm-summary-footer-actions">
+        @if (hasPending)
+        {
+            <a class="btn btn-sm btn-outline-secondary disabled"
+               href="#"
+               role="button"
+               aria-disabled="true"
+               tabindex="-1">
+                Update
+            </a>
+        }
+        else
+        {
+            <a class="btn btn-sm btn-outline-secondary"
+               asp-page="/Projects/Tot/Edit"
+               asp-route-id="@project.Id">
+                Update
+            </a>
+        }
+
+        <a class="btn btn-sm btn-primary"
+           asp-area="ProjectOfficeReports"
+           asp-page="/Tot/Index"
+           asp-route-selectedProjectId="@project.Id">
+            Open tracker
+        </a>
+    </div>
+}
