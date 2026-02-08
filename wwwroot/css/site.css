@@ -345,6 +345,41 @@ main[role="main"] {
     gap: .5rem;
 }
 
+
+/* -- SECTION: Project overview card header actions -- */
+.pm-card-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+/* -- SECTION: Project overview chip links -- */
+.pm-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.pm-chip-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border: 1px solid var(--pm-chip-border);
+    border-radius: 999px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    line-height: 1;
+    background: var(--pm-chip-bg);
+    color: var(--pm-chip-text);
+}
+
+.pm-chip-link:hover {
+    background: color-mix(in srgb, var(--pm-chip-bg) 94%, var(--pm-text) 6%);
+    text-decoration: none;
+    color: var(--pm-text);
+}
+
 .pm-card-menu {
     margin-left: auto;
     display: flex;

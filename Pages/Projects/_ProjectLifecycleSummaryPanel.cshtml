@@ -24,7 +24,7 @@
                 <p class="pm-card-subtitle mb-0">Project status after completion.</p>
             </div>
         </div>
-        <div class="d-flex align-items-center gap-2">
+        <div class="pm-card-actions pm-card-header-actions">
             @if (!string.IsNullOrWhiteSpace(lifecycle.BadgeText))
             {
                 <span class="badge text-bg-secondary">@lifecycle.BadgeText</span>
@@ -32,11 +32,19 @@
         </div>
     </div>
     <div class="card-body pm-card-body d-flex flex-column gap-3">
-        <div>
-            <span class="badge text-bg-@lifecycleVariant">@lifecycle.StatusLabel</span>
+        @* SECTION: Lifecycle primary state *@
+        <div class="d-flex flex-column gap-2">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <span class="badge text-bg-@lifecycleVariant">@lifecycle.StatusLabel</span>
+                @if (lifecycle.Facts.Any(f => f.Label == "Completed in"))
+                {
+                    var completedYearFact = lifecycle.Facts.First(f => f.Label == "Completed in");
+                    <span class="text-muted small">Year: @completedYearFact.Value</span>
+                }
+            </div>
             @if (!string.IsNullOrWhiteSpace(lifecycle.PrimaryDetail))
             {
-                <p class="mt-2 mb-0">@lifecycle.PrimaryDetail</p>
+                <p class="mb-0">@lifecycle.PrimaryDetail</p>
             }
             @if (!string.IsNullOrWhiteSpace(lifecycle.SecondaryDetail))
             {
@@ -46,7 +54,7 @@
         @if (lifecycle.Facts.Any())
         {
             <dl class="row small mb-0">
-                @foreach (var fact in lifecycle.Facts)
+                @foreach (var fact in lifecycle.Facts.Where(f => f.Label != "Completed in"))
                 {
                     <dt class="col-sm-4">@fact.Label</dt>
                     <dd class="col-sm-8">@fact.Value</dd>
