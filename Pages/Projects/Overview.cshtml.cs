@@ -172,7 +172,7 @@ namespace ProjectManagement.Pages.Projects
         }
 
         // SECTION: Project Overview - Joint Development Partner panel view model
-        public sealed record JdpPartnerLinkVm(int Id, string Name);
+        public sealed record JdpPartnerLinkVm(int Id, string Name, string? Location);
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
@@ -303,7 +303,8 @@ namespace ProjectManagement.Pages.Projects
                     .OrderBy(x => x.IndustryPartner.Name)
                     .Select(x => new JdpPartnerLinkVm(
                         x.IndustryPartnerId,
-                        x.IndustryPartner.Name
+                        x.IndustryPartner.Name,
+                        x.IndustryPartner.Location
                     ))
                     .ToListAsync(ct);
             }

@@ -14,6 +14,10 @@
         </div>
         <div class="pm-card-actions pm-card-header-actions">
             <span class="badge @Model.StatusBadgeClass">@Model.StatusText</span>
+            @if (!string.IsNullOrWhiteSpace(Model.HeaderActionsPartialName))
+            {
+                <partial name="@Model.HeaderActionsPartialName" model="@Model.HeaderActionsModel" />
+            }
         </div>
     </div>
 

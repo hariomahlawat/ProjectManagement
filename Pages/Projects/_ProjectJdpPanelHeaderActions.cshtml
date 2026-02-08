@@ -1,0 +1,23 @@
+@model ProjectManagement.Pages.Projects.OverviewModel
+
+@if (Model.CanManageIndustryPartners)
+{
+    <!-- SECTION: JDP kebab action menu -->
+    <div class="dropdown">
+        <button class="btn btn-sm pm-kebab"
+                type="button"
+                id="jdp-actions-menu"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                aria-label="Joint Development Partner actions">
+            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="jdp-actions-menu">
+            <li>
+                <a class="dropdown-item" asp-page="/IndustryPartners/Index">
+                    Manage partner links
+                </a>
+            </li>
+        </ul>
+    </div>
+}

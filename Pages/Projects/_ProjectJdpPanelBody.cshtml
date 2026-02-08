@@ -4,7 +4,7 @@
 @{
     // SECTION: JDP partner list presentation
     var partnerCount = Model.JdpPartners.Count;
-    var visiblePartnerCount = Math.Min(3, partnerCount);
+    var visiblePartnerCount = Math.Min(2, partnerCount);
     var overflowCount = partnerCount - visiblePartnerCount;
 }
 
@@ -15,14 +15,20 @@
 }
 else
 {
-    <!-- SECTION: JDP linked rows -->
+    <!-- SECTION: JDP linked mini rows -->
     <div class="pm-summary-row-list">
         @foreach (var partner in Model.JdpPartners.Take(visiblePartnerCount))
         {
-            <a class="pm-summary-row-link"
+            <a class="pm-summary-row-link pm-summary-row-link--stacked"
                href="/IndustryPartners?id=@partner.Id"
                title="Open industry partner details">
-                <span class="pm-summary-row-title">@partner.Name</span>
+                <span class="pm-summary-row-main">
+                    <span class="pm-summary-row-title">@partner.Name</span>
+                    @if (!string.IsNullOrWhiteSpace(partner.Location))
+                    {
+                        <span class="pm-summary-row-meta">@partner.Location</span>
+                    }
+                </span>
                 <i class="bi bi-chevron-right" aria-hidden="true"></i>
             </a>
         }
@@ -36,10 +42,16 @@ else
             <div class="pm-summary-row-list mt-2">
                 @foreach (var partner in Model.JdpPartners.Skip(visiblePartnerCount))
                 {
-                    <a class="pm-summary-row-link"
+                    <a class="pm-summary-row-link pm-summary-row-link--stacked"
                        href="/IndustryPartners?id=@partner.Id"
                        title="Open industry partner details">
-                        <span class="pm-summary-row-title">@partner.Name</span>
+                        <span class="pm-summary-row-main">
+                            <span class="pm-summary-row-title">@partner.Name</span>
+                            @if (!string.IsNullOrWhiteSpace(partner.Location))
+                            {
+                                <span class="pm-summary-row-meta">@partner.Location</span>
+                            }
+                        </span>
                         <i class="bi bi-chevron-right" aria-hidden="true"></i>
                     </a>
                 }
