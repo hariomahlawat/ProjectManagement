@@ -20,6 +20,7 @@ using ProjectManagement.Models.Projects;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Models.IndustryPartners;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
@@ -94,6 +95,8 @@ namespace ProjectManagement.Pages.Projects
         public ProjectRemarkSummaryViewModel RemarkSummary { get; private set; } = ProjectRemarkSummaryViewModel.Empty;
         public ProjectTotSummaryViewModel TotSummary { get; private set; } = ProjectTotSummaryViewModel.Empty;
         public ProjectCostSummaryViewModel CostSummary { get; private set; } = ProjectCostSummaryViewModel.Empty;
+        public bool ShowJdpPanel { get; private set; }
+        public IReadOnlyList<JdpPartnerLinkVm> JdpPartners { get; private set; } = Array.Empty<JdpPartnerLinkVm>();
         public bool CanManageTot { get; private set; }
         public ProjectMediaCollectionViewModel MediaCollections { get; private set; } = ProjectMediaCollectionViewModel.Empty;
         public IReadOnlyCollection<int> AvailableMediaTotIds { get; private set; } = Array.Empty<int>();
@@ -165,6 +168,9 @@ namespace ProjectManagement.Pages.Projects
 
             public string? Reason { get; set; }
         }
+
+        // SECTION: Project Overview - Joint Development Partner panel view model
+        public sealed record JdpPartnerLinkVm(int Id, string Name);
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
@@ -283,6 +289,25 @@ namespace ProjectManagement.Pages.Projects
                     .OrderBy(s => ProcurementWorkflow.OrderOf(workflowVersion, s.StageCode))
                     .ThenBy(s => s.StageCode, StringComparer.OrdinalIgnoreCase)
                     .ToList();
+            }
+
+            // SECTION: Project Overview - Joint Development Partner panel data
+            ShowJdpPanel = ShouldShowJdpPanel(project, Stages);
+            if (ShowJdpPanel)
+            {
+                JdpPartners = await _db.IndustryPartnerProjects
+                    .AsNoTracking()
+                    .Where(x => x.ProjectId == project.Id)
+                    .OrderBy(x => x.IndustryPartner.Name)
+                    .Select(x => new JdpPartnerLinkVm(
+                        x.IndustryPartnerId,
+                        x.IndustryPartner.Name
+                    ))
+                    .ToListAsync(ct);
+            }
+            else
+            {
+                JdpPartners = Array.Empty<JdpPartnerLinkVm>();
             }
 
             var stageLookup = projectStages
@@ -463,6 +488,25 @@ namespace ProjectManagement.Pages.Projects
                 totFilterLabel));
 
             return Page();
+        }
+
+        // SECTION: Project Overview - Joint Development Partner panel visibility rules
+        private static bool ShouldShowJdpPanel(Project project, IList<ProjectStage> stages)
+        {
+            if (project.LifecycleStatus == ProjectLifecycleStatus.Completed)
+            {
+                return true;
+            }
+
+            var devpOrder = ProcurementWorkflow.OrderOf(project.WorkflowVersion, StageCodes.DEVP);
+            var reachedMaxOrder = stages
+                .Where(s => s.Status != StageStatus.NotStarted)
+                .Select(s => ProcurementWorkflow.OrderOf(project.WorkflowVersion, s.StageCode))
+                .Where(order => order != int.MaxValue)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            return reachedMaxOrder >= devpOrder;
         }
 
 
