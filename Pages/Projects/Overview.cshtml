@@ -304,6 +304,7 @@
         </div>
         <div class="col-lg-4 d-flex flex-column gap-3">
             <partial name="_ProjectTotPanel" model="Model" />
+            <partial name="_ProjectJdpPanel" model="Model" />
             @if (Model.IsDocumentApprover && Model.DocumentPendingRequests.Any())
             {
                 <div class="card pm-card">
