@@ -1,6 +1,14 @@
+@using System.Linq
 @model ProjectManagement.Pages.Projects.OverviewModel
 
-@if (Model.CanManageIndustryPartners)
+@{
+    // SECTION: JDP header action state
+    var canManageIndustryPartners = Model.CanManageIndustryPartners;
+    var primaryPartner = Model.JdpPartners.FirstOrDefault();
+    var hasActions = canManageIndustryPartners || primaryPartner is not null;
+}
+
+@if (hasActions)
 {
     <!-- SECTION: JDP kebab action menu -->
     <div class="dropdown">
@@ -13,11 +21,22 @@
             <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
         </button>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="jdp-actions-menu">
-            <li>
-                <a class="dropdown-item" asp-page="/IndustryPartners/Index">
-                    Manage partner links
-                </a>
-            </li>
+            @if (canManageIndustryPartners)
+            {
+                <li>
+                    <a class="dropdown-item" asp-page="/IndustryPartners/Index">
+                        Manage links
+                    </a>
+                </li>
+            }
+            @if (primaryPartner is not null)
+            {
+                <li>
+                    <a class="dropdown-item" href="/IndustryPartners?id=@primaryPartner.Id">
+                        Open partner
+                    </a>
+                </li>
+            }
         </ul>
     </div>
 }

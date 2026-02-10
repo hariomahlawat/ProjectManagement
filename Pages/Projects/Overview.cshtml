@@ -226,14 +226,14 @@
         </div>
     }
 
-    @if (Model.LifecycleSummary.Status != ProjectLifecycleStatus.Active || Model.LifecycleSummary.IsLegacy)
-    {
-        <!-- SECTION: Lifecycle summary card -->
-        <partial name="_ProjectLifecycleSummaryPanel" model="Model" />
-    }
-
     <div class="row g-3 mb-4">
         <div class="col-lg-8 d-flex flex-column gap-3">
+            @if (Model.LifecycleSummary.Status != ProjectLifecycleStatus.Active || Model.LifecycleSummary.IsLegacy)
+            {
+                <!-- SECTION: Lifecycle summary banner -->
+                <partial name="_ProjectLifecycleSummaryPanel" model="Model" />
+            }
+
             <partial name="_ProjectOverviewCard" model="Model" />
             <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
             <div class="card pm-card">

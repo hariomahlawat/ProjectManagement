@@ -425,19 +425,46 @@ main[role="main"] {
     font-size: var(--pm-font-size-xs);
 }
 
-.pm-lifecycle-summary-card .pm-right-summary-card__body {
-    gap: .85rem;
+/* -- SECTION: Lifecycle banner styles -- */
+.pm-lifecycle-banner {
+    border-left: 3px solid transparent;
 }
 
-.pm-lifecycle-summary-main {
-    display: flex;
-    flex-direction: column;
+.pm-lifecycle-banner .pm-lifecycle-banner__header {
+    min-height: 48px;
+    padding-top: .6rem;
+    padding-bottom: .6rem;
+}
+
+.pm-lifecycle-banner .pm-card-heading {
     gap: .5rem;
 }
 
-.pm-lifecycle-summary-facts dt,
-.pm-lifecycle-summary-facts dd {
-    margin-bottom: .35rem;
+.pm-lifecycle-banner .pm-card-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .5rem;
+}
+
+.pm-lifecycle-banner .pm-lifecycle-banner__year {
+    font-weight: 500;
+}
+
+.pm-lifecycle-banner--completed {
+    background-color: #f3faf4;
+    border-left-color: #2f9e44;
+}
+
+.pm-lifecycle-banner--ongoing {
+    background-color: #f3f8ff;
+    border-left-color: #3b82f6;
+}
+
+.pm-lifecycle-banner--cancelled {
+    background-color: #fff6f5;
+    border-left-color: #dc3545;
 }
 
 

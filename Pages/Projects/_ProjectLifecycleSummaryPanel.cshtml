@@ -7,60 +7,42 @@
     var lifecycle = Model.LifecycleSummary;
     var lifecycleVariant = lifecycle.Status switch
     {
-        ProjectLifecycleStatus.Completed => "success",
-        ProjectLifecycleStatus.Cancelled => "danger",
-        _ => "secondary"
+        ProjectLifecycleStatus.Completed => "completed",
+        ProjectLifecycleStatus.Cancelled => "cancelled",
+        _ => "ongoing"
     };
+
+    var lifecycleStatusBadgeClass = lifecycle.Status switch
+    {
+        ProjectLifecycleStatus.Completed => "text-bg-success",
+        ProjectLifecycleStatus.Cancelled => "text-bg-danger",
+        _ => "text-bg-primary"
+    };
+
+    var completedYear = lifecycle.Facts.FirstOrDefault(f => f.Label == "Completed in")?.Value;
 }
 
-<!-- SECTION: Lifecycle summary panel -->
-<div class="card pm-card pm-right-summary-card pm-lifecycle-summary-card">
-    <div class="card-header pm-card-header pm-right-summary-card__header">
+<!-- SECTION: Lifecycle status banner -->
+<div class="card pm-card pm-lifecycle-summary-card pm-lifecycle-banner pm-lifecycle-banner--@lifecycleVariant">
+    <div class="card-header pm-card-header pm-lifecycle-banner__header">
         <div class="pm-card-heading">
             <span class="pm-card-icon" aria-hidden="true">
                 <i class="bi bi-flag"></i>
             </span>
             <div>
-                <h2 class="pm-card-title h5 mb-0">Lifecycle summary</h2>
-                <p class="pm-card-subtitle mb-0">Project status after completion.</p>
+                <h2 class="pm-card-title h6 mb-0">Lifecycle</h2>
             </div>
         </div>
         <div class="pm-card-actions pm-card-header-actions">
+            <span class="badge @lifecycleStatusBadgeClass">@lifecycle.StatusLabel</span>
+            @if (!string.IsNullOrWhiteSpace(completedYear))
+            {
+                <span class="text-muted small pm-lifecycle-banner__year">@completedYear</span>
+            }
             @if (!string.IsNullOrWhiteSpace(lifecycle.BadgeText))
             {
                 <span class="badge text-bg-secondary">@lifecycle.BadgeText</span>
             }
         </div>
-    </div>
-    <div class="card-body pm-card-body pm-right-summary-card__body d-flex flex-column gap-3">
-        @* SECTION: Lifecycle primary state *@
-        <div class="pm-lifecycle-summary-main">
-            <div class="d-flex flex-wrap align-items-center gap-2">
-                <span class="badge text-bg-@lifecycleVariant">@lifecycle.StatusLabel</span>
-                @if (lifecycle.Facts.Any(f => f.Label == "Completed in"))
-                {
-                    var completedYearFact = lifecycle.Facts.First(f => f.Label == "Completed in");
-                    <span class="text-muted small">Year: @completedYearFact.Value</span>
-                }
-            </div>
-            @if (!string.IsNullOrWhiteSpace(lifecycle.PrimaryDetail))
-            {
-                <p class="mb-0">@lifecycle.PrimaryDetail</p>
-            }
-            @if (!string.IsNullOrWhiteSpace(lifecycle.SecondaryDetail))
-            {
-                <p class="text-muted mb-0">@lifecycle.SecondaryDetail</p>
-            }
-        </div>
-        @if (lifecycle.Facts.Any())
-        {
-            <dl class="row small mb-0 pm-lifecycle-summary-facts">
-                @foreach (var fact in lifecycle.Facts.Where(f => f.Label != "Completed in"))
-                {
-                    <dt class="col-sm-4">@fact.Label</dt>
-                    <dd class="col-sm-8">@fact.Value</dd>
-                }
-            </dl>
-        }
     </div>
 </div>

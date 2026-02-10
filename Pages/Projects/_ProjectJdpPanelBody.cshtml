@@ -1,11 +1,8 @@
-@using System.Linq
 @model ProjectManagement.Pages.Projects.OverviewModel
 
 @{
     // SECTION: JDP partner list presentation
     var partnerCount = Model.JdpPartners.Count;
-    var visiblePartnerCount = Math.Min(2, partnerCount);
-    var overflowCount = partnerCount - visiblePartnerCount;
 }
 
 @if (partnerCount == 0)
@@ -15,9 +12,9 @@
 }
 else
 {
-    <!-- SECTION: JDP linked mini rows -->
+    <!-- SECTION: JDP linked partner rows -->
     <div class="pm-summary-row-list">
-        @foreach (var partner in Model.JdpPartners.Take(visiblePartnerCount))
+        @foreach (var partner in Model.JdpPartners)
         {
             <a class="pm-summary-row-link pm-summary-row-link--stacked"
                href="/IndustryPartners?id=@partner.Id"
@@ -33,29 +30,4 @@ else
             </a>
         }
     </div>
-
-    @if (overflowCount > 0)
-    {
-        <!-- SECTION: JDP inline expand for additional partners -->
-        <details class="pm-summary-expand mt-2">
-            <summary>+@overflowCount more</summary>
-            <div class="pm-summary-row-list mt-2">
-                @foreach (var partner in Model.JdpPartners.Skip(visiblePartnerCount))
-                {
-                    <a class="pm-summary-row-link pm-summary-row-link--stacked"
-                       href="/IndustryPartners?id=@partner.Id"
-                       title="Open industry partner details">
-                        <span class="pm-summary-row-main">
-                            <span class="pm-summary-row-title">@partner.Name</span>
-                            @if (!string.IsNullOrWhiteSpace(partner.Location))
-                            {
-                                <span class="pm-summary-row-meta">@partner.Location</span>
-                            }
-                        </span>
-                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                    </a>
-                }
-            </div>
-        </details>
-    }
 }
