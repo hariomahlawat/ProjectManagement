@@ -102,6 +102,7 @@
     let activeSearchController = null;
     let latestSearchRequestId = 0;
     let latestItems = [];
+    let latestSuggestionIds = new Set();
     let activeIndex = -1;
 
     function setSubmitEnabled() {
@@ -179,6 +180,7 @@
       }
 
       latestItems = items;
+      latestSuggestionIds = new Set(items.map((item) => String(item.id)));
       activeIndex = -1;
       resultsContainer.innerHTML = '';
 
@@ -216,6 +218,43 @@
       resultsContainer.innerHTML = '<div class="ip-typeahead-item" aria-disabled="true">Searching...</div>';
       resultsContainer.classList.remove('d-none');
       searchInput?.setAttribute('aria-expanded', 'true');
+    }
+
+
+    // SECTION: Toast feedback
+    function showToast(message, variant) {
+      if (typeof bootstrap === 'undefined' || !bootstrap.Toast) {
+        showError(message);
+        return;
+      }
+
+      let toastHost = document.getElementById('industryPartnersToastHost');
+      if (!toastHost) {
+        toastHost = document.createElement('div');
+        toastHost.id = 'industryPartnersToastHost';
+        toastHost.className = 'toast-container position-fixed top-0 end-0 p-3';
+        document.body.appendChild(toastHost);
+      }
+
+      const toastWrapper = document.createElement('div');
+      toastWrapper.className = `toast align-items-center text-bg-${variant || 'warning'} border-0`;
+      toastWrapper.setAttribute('role', 'status');
+      toastWrapper.setAttribute('aria-live', 'polite');
+      toastWrapper.setAttribute('aria-atomic', 'true');
+
+      toastWrapper.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">${escapeHtml(message)}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>`;
+
+      toastHost.appendChild(toastWrapper);
+      const toastInstance = bootstrap.Toast.getOrCreateInstance(toastWrapper, { autohide: true, delay: 5000 });
+      toastWrapper.addEventListener('hidden.bs.toast', () => {
+        toastInstance.dispose();
+        toastWrapper.remove();
+      }, { once: true });
+      toastInstance.show();
     }
 
     function selectProject(item) {
@@ -346,6 +385,15 @@
       if (isDuplicateProject(selectedProjectId)) {
         event.preventDefault();
         showError('This project is already linked to the selected partner.');
+        return;
+      }
+
+      if (!latestSuggestionIds.has(String(selectedProjectId))) {
+        event.preventDefault();
+        const eligibilityMessage = 'Only projects in Development stage or Completed can be linked.';
+        showError(eligibilityMessage);
+        showToast(eligibilityMessage, 'warning');
+        clearSelection();
         return;
       }
 
