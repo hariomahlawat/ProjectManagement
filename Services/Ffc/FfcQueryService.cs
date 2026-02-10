@@ -153,6 +153,16 @@ public sealed class FfcQueryService : IFfcQueryService
                 .ToList();
 
             var projectRows = new List<FfcDetailedRowVm>(orderedProjects.Count);
+            var remarkProjectIds = orderedProjects
+                .Where(project => project.LinkedProjectId.HasValue)
+                .Select(project => project.LinkedProjectId!.Value)
+                .Distinct()
+                .ToArray();
+            var latestExternalRemarksByProjectId = await FetchLatestRemarksByProjectAsync(
+                remarkProjectIds,
+                RemarkType.External,
+                cancellationToken);
+
             for (var index = 0; index < orderedProjects.Count; index++)
             {
                 var project = orderedProjects[index];
@@ -160,13 +170,9 @@ public sealed class FfcQueryService : IFfcQueryService
                 var bucketLabel = FfcProjectBucketHelper.GetBucketLabel(bucket);
                 var effectiveName = ResolveProjectName(project, projectNameMap);
                 var costInCr = ResolveProjectCost(project.LinkedProjectId, projectCostMap);
-                var remarkProjectId = project.LinkedProjectId;
-                var progressText = remarkProjectId.HasValue
-                    ? await FetchLatestRemarkAsync(remarkProjectId.Value, RemarkType.External, cancellationToken)
-                    : null;
-                var latestExternalRemarkId = remarkProjectId.HasValue
-                    ? await FetchLatestRemarkIdAsync(remarkProjectId.Value, RemarkType.External, cancellationToken)
-                    : null;
+                var latestExternalRemark = ResolveLatestRemark(project.LinkedProjectId, latestExternalRemarksByProjectId);
+                var progressText = latestExternalRemark?.Body;
+                var latestExternalRemarkId = latestExternalRemark?.Id;
 
                 projectRows.Add(new FfcDetailedRowVm(
                     FfcProjectId: project.Id,
@@ -275,6 +281,20 @@ public sealed class FfcQueryService : IFfcQueryService
         return value.Trim();
     }
 
+    private static LatestProjectRemark? ResolveLatestRemark(
+        int? linkedProjectId,
+        IReadOnlyDictionary<int, LatestProjectRemark> latestRemarksByProjectId)
+    {
+        if (linkedProjectId is not int projectId)
+        {
+            return null;
+        }
+
+        return latestRemarksByProjectId.TryGetValue(projectId, out var latestRemark)
+            ? latestRemark
+            : null;
+    }
+
 
     private static string FormatRemark(string? remark)
     {
@@ -310,68 +330,46 @@ public sealed class FfcQueryService : IFfcQueryService
         string? CountryName);
 
     // SECTION: External remarks
-    private async Task<string?> FetchLatestRemarkAsync(
-        int projectId,
+    private async Task<IReadOnlyDictionary<int, LatestProjectRemark>> FetchLatestRemarksByProjectAsync(
+        IReadOnlyCollection<int> projectIds,
         RemarkType remarkType,
         CancellationToken cancellationToken)
     {
-        var latest = await _db.Remarks
+        if (projectIds.Count == 0)
+        {
+            return new Dictionary<int, LatestProjectRemark>();
+        }
+
+        var candidates = await _db.Remarks
             .AsNoTracking()
-            .Where(remark => remark.ProjectId == projectId
+            .Where(remark => projectIds.Contains(remark.ProjectId)
                 && !remark.IsDeleted
                 && remark.Type == remarkType
                 && remark.Body != null)
             .Select(remark => new
             {
+                remark.ProjectId,
                 remark.Body,
                 SortTimestamp = remark.LastEditedAtUtc ?? remark.CreatedAtUtc,
                 remark.Id
             })
-            .OrderByDescending(remark => remark.SortTimestamp)
+            .OrderBy(remark => remark.ProjectId)
+            .ThenByDescending(remark => remark.SortTimestamp)
             .ThenByDescending(remark => remark.Id)
             .ToListAsync(cancellationToken);
 
-        foreach (var item in latest)
+        var latestByProjectId = new Dictionary<int, LatestProjectRemark>();
+        foreach (var item in candidates)
         {
             var normalized = NormalizeRemarkBody(item.Body);
             if (!string.IsNullOrWhiteSpace(normalized))
             {
-                return normalized;
+                latestByProjectId.TryAdd(item.ProjectId, new LatestProjectRemark(item.Id, normalized));
             }
         }
 
-        return null;
+        return latestByProjectId;
     }
 
-    private async Task<int?> FetchLatestRemarkIdAsync(
-        int projectId,
-        RemarkType remarkType,
-        CancellationToken cancellationToken)
-    {
-        var latest = await _db.Remarks
-            .AsNoTracking()
-            .Where(remark => remark.ProjectId == projectId
-                && !remark.IsDeleted
-                && remark.Type == remarkType
-                && remark.Body != null)
-            .Select(remark => new
-            {
-                remark.Id,
-                remark.Body,
-                SortTimestamp = remark.LastEditedAtUtc ?? remark.CreatedAtUtc
-            })
-            .OrderByDescending(remark => remark.SortTimestamp)
-            .ThenByDescending(remark => remark.Id)
-            .ToListAsync(cancellationToken);
-
-        foreach (var item in latest)
-        {
-            if (!string.IsNullOrWhiteSpace(NormalizeRemarkBody(item.Body)))
-            {
-                return item.Id;
-            }
-        }
-
-        return null;
-    }
+    private sealed record LatestProjectRemark(int Id, string Body);
 }
