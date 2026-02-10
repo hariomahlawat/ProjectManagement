@@ -42,16 +42,50 @@ public sealed class IndustryPartnersProjectLookupController : ControllerBase
         }
 
         // SECTION: Lightweight response projection
-        var candidateProjects = await projectsQuery
-            .Include(project => project.ProjectStages)
-            .OrderBy(project => project.Name)
-            .ThenBy(project => project.Id)
-            .Take(candidateTake)
-            .ToListAsync(cancellationToken);
+        // NOTE: Eligibility currently depends on `ProcurementWorkflow.OrderOf(...)`, which is not SQL-translatable.
+        // To preserve expected `take` semantics, we page through sorted candidates until we collect enough
+        // eligible projects (or exhaust all matches), instead of truncating before eligibility checks.
+        var eligibleProjects = new List<Project>(normalizedTake);
+        var offset = 0;
 
-        var items = candidateProjects
-            .Where(project => IndustryPartnerProjectEligibility.IsEligibleForJdpLink(project, project.ProjectStages))
-            .Take(normalizedTake)
+        while (eligibleProjects.Count < normalizedTake)
+        {
+            var candidateProjects = await projectsQuery
+                .Include(project => project.ProjectStages)
+                .OrderBy(project => project.Name)
+                .ThenBy(project => project.Id)
+                .Skip(offset)
+                .Take(candidateTake)
+                .ToListAsync(cancellationToken);
+
+            if (candidateProjects.Count == 0)
+            {
+                break;
+            }
+
+            foreach (var project in candidateProjects)
+            {
+                if (!IndustryPartnerProjectEligibility.IsEligibleForJdpLink(project, project.ProjectStages))
+                {
+                    continue;
+                }
+
+                eligibleProjects.Add(project);
+                if (eligibleProjects.Count == normalizedTake)
+                {
+                    break;
+                }
+            }
+
+            if (candidateProjects.Count < candidateTake)
+            {
+                break;
+            }
+
+            offset += candidateProjects.Count;
+        }
+
+        var items = eligibleProjects
             .Select(project => new
             {
                 id = project.Id,
