@@ -63,7 +63,9 @@ function initGallery(gallery) {
   const webpDownloadEl = modalEl.querySelector('[data-gallery-download-webp]');
   const jpgDownloadEl = modalEl.querySelector('[data-gallery-download-jpg]');
   const pngDownloadEl = modalEl.querySelector('[data-gallery-download-png]');
+  const pngDownloadItem = pngDownloadEl ? pngDownloadEl.closest('li') : null;
   const projectId = Number.parseInt(modalEl.getAttribute('data-gallery-project-id') ?? '', 10);
+  let pngProbeToken = 0;
 
   let currentIndex = 0;
 
@@ -94,6 +96,51 @@ function initGallery(gallery) {
   };
 
 
+  // SECTION: PNG download availability gating
+  const setPngVisibility = (isVisible) => {
+    if (!pngDownloadItem) {
+      return;
+    }
+    pngDownloadItem.hidden = !isVisible;
+  };
+
+  const probePngAvailability = async (pngUrl) => {
+    if (!pngDownloadEl || !pngDownloadItem || !pngUrl) {
+      return;
+    }
+
+    const token = ++pngProbeToken;
+
+    // Hide until confirmed available
+    setPngVisibility(false);
+
+    try {
+      let response = await fetch(pngUrl, { method: 'HEAD', cache: 'no-store' });
+
+      // If HEAD is not allowed, fallback to a minimal ranged GET
+      if (response.status === 405 || response.status === 501) {
+        response = await fetch(pngUrl, {
+          method: 'GET',
+          cache: 'no-store',
+          headers: { 'Range': 'bytes=0-0' }
+        });
+      }
+
+      // Ignore stale results if user navigated to a different photo quickly
+      if (token !== pngProbeToken) {
+        return;
+      }
+
+      setPngVisibility(response.ok || response.status === 206);
+    } catch (e) {
+      if (token !== pngProbeToken) {
+        return;
+      }
+      setPngVisibility(false);
+    }
+  };
+
+  // SECTION: Keep explicit format download links in sync with selection
   const updateDownloadLinks = (photoId) => {
     if (Number.isNaN(projectId) || !photoId) {
       return;
@@ -101,7 +148,6 @@ function initGallery(gallery) {
 
     const baseUrl = `/Projects/${projectId}/Photos/${photoId}/Download/xl`;
 
-    // SECTION: Keep explicit format download links in sync with selection
     if (webpDownloadEl) {
       webpDownloadEl.setAttribute('href', `${baseUrl}?format=webp`);
     }
@@ -111,7 +157,11 @@ function initGallery(gallery) {
     }
 
     if (pngDownloadEl) {
-      pngDownloadEl.setAttribute('href', `${baseUrl}?format=png`);
+      const pngUrl = `${baseUrl}?format=png`;
+      pngDownloadEl.setAttribute('href', pngUrl);
+
+      // Hide PNG unless server confirms it exists
+      probePngAvailability(pngUrl);
     }
   };
 
