@@ -50,28 +50,32 @@
                         <label asp-for="TechnicalCategoryId">Technical category</label>
                         <select asp-for="TechnicalCategoryId"
                                 asp-items="Model.TechnicalCategoryOptions"
-                                class="form-select">
+                                class="form-select"
+                                data-auto-submit="change">
                         </select>
                     </div>
                     <div class="cs-field">
                         <label asp-for="TechStatus">Technology status</label>
                         <select asp-for="TechStatus"
                                 asp-items="Model.TechStatusOptions"
-                                class="form-select">
+                                class="form-select"
+                                data-auto-submit="change">
                         </select>
                     </div>
                     <div class="cs-field">
                         <label asp-for="AvailableForProliferation">Available for proliferation</label>
                         <select asp-for="AvailableForProliferation"
                                 asp-items="Model.AvailabilityOptions"
-                                class="form-select">
+                                class="form-select"
+                                data-auto-submit="change">
                         </select>
                     </div>
                     <div class="cs-field">
                         <label asp-for="TotCompleted">ToT status</label>
                         <select asp-for="TotCompleted"
                                 asp-items="Model.TotStatusOptions"
-                                class="form-select">
+                                class="form-select"
+                                data-auto-submit="change">
                         </select>
                     </div>
                     <div class="cs-field">
@@ -307,3 +311,7 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script src="~/js/pages/projects-completed-summary.js" asp-append-version="true"></script>
+}
