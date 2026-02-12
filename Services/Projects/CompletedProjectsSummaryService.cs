@@ -232,7 +232,7 @@ public sealed class CompletedProjectsSummaryService
         IEnumerable<T> source,
         Func<T, TKey?> keySelector,
         bool desc)
-        where TKey : struct, IComparable<TKey>
+        where TKey : struct, IComparable
     {
         return desc
             ? source.OrderBy(x => keySelector(x).HasValue ? 1 : 0)
