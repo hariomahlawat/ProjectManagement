@@ -55,6 +55,13 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string? Search { get; set; }
 
+    // SECTION: Sorting inputs
+    [BindProperty(SupportsGet = true)]
+    public string? Sort { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? Dir { get; set; }
+
     // SECTION: Filter option lists
     public IReadOnlyList<SelectListItem> TechnicalCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> TechStatusOptions { get; private set; } = Array.Empty<SelectListItem>();
@@ -76,6 +83,7 @@ public sealed class IndexModel : PageModel
     {
         await LoadTechnicalCategoriesAsync(cancellationToken);
         NormaliseFilters();
+        NormaliseSorting();
 
         TechStatusOptions = BuildTechStatusOptions(TechStatus);
         TotStatusOptions = BuildTotStatusOptions(TotCompleted);
@@ -87,6 +95,8 @@ public sealed class IndexModel : PageModel
             TotCompleted,
             CompletedYear,
             Search,
+            Sort!,
+            Dir!,
             cancellationToken);
 
         CanEdit = User.IsInRole("Admin")
@@ -97,6 +107,7 @@ public sealed class IndexModel : PageModel
     public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
     {
         NormaliseFilters();
+        NormaliseSorting();
 
         var items = await _summaryService.GetAsync(
             TechnicalCategoryId,
@@ -105,6 +116,8 @@ public sealed class IndexModel : PageModel
             TotCompleted,
             CompletedYear,
             Search,
+            Sort!,
+            Dir!,
             cancellationToken);
 
         var generatedAtUtc = _clock.UtcNow;
@@ -142,6 +155,41 @@ public sealed class IndexModel : PageModel
         }
 
         Search = string.IsNullOrWhiteSpace(Search) ? null : Search.Trim();
+    }
+
+    private void NormaliseSorting()
+    {
+        // SECTION: Normalize sorting query params
+        var sort = (Sort ?? string.Empty).Trim().ToLowerInvariant();
+        var dir = (Dir ?? string.Empty).Trim().ToLowerInvariant();
+
+        Sort = sort is "name" or "rd" or "prod" or "lpp" or "tech" or "avail" or "tot" or "year"
+            ? sort
+            : "name";
+
+        Dir = dir is "asc" or "desc"
+            ? dir
+            : "asc";
+    }
+
+    public string NextSortDirection(string sortKey)
+    {
+        // SECTION: Toggle direction for active sort column
+        return string.Equals(Sort, sortKey, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Dir, "asc", StringComparison.OrdinalIgnoreCase)
+            ? "desc"
+            : "asc";
+    }
+
+    public string GetSortIndicator(string sortKey)
+    {
+        // SECTION: Indicator for active sort column
+        if (!string.Equals(Sort, sortKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        return string.Equals(Dir, "desc", StringComparison.OrdinalIgnoreCase) ? "▼" : "▲";
     }
 
     private async Task LoadTechnicalCategoriesAsync(CancellationToken cancellationToken)
