@@ -183,9 +183,9 @@
 
 .cs-remarks {
     max-width: 320px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 /* SECTION: Deterministic column sizing */
@@ -277,6 +277,12 @@
     border-color: rgba(239, 68, 68, 0.25);
     background: rgba(239, 68, 68, 0.1);
     color: #7f1d1d;
+}
+
+.cs-pill--muted {
+    border-color: rgba(100, 116, 139, 0.25);
+    background: rgba(148, 163, 184, 0.12);
+    color: #475569;
 }
 
 /* SECTION: Actions column */
