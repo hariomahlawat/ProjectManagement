@@ -65,31 +65,71 @@ public sealed class CompletedProjectsSummaryService
         var totStatusLookup = await _db.ProjectTots
             .AsNoTracking()
             .Where(t => projectIds.Contains(t.ProjectId))
-            .Select(t => new { t.ProjectId, t.Status })
+            .Select(t => new { t.ProjectId, t.Id, t.Status })
             .ToListAsync(cancellationToken);
+
+        // SECTION: Deterministic related-entity dictionaries
+        var costByProjectId = costFacts
+            .GroupBy(x => x.ProjectId)
+            .ToDictionary(
+                g => g.Key,
+                g => g
+                    .OrderByDescending(x => x.UpdatedAtUtc)
+                    .First());
+
+        var techByProjectId = techStatuses
+            .GroupBy(x => x.ProjectId)
+            .ToDictionary(
+                g => g.Key,
+                g => g
+                    .OrderByDescending(x => x.MarkedAtUtc)
+                    .First());
+
+        var latestLppByProjectId = lppRecords
+            .GroupBy(l => l.ProjectId)
+            .ToDictionary(
+                g => g.Key,
+                g => g
+                    .OrderByDescending(x => x.LppDate)
+                    .ThenByDescending(x => x.CreatedAtUtc)
+                    .First());
 
         var totStatusByProjectId = totStatusLookup
             .GroupBy(t => t.ProjectId)
-            .ToDictionary(group => group.Key, group => group.First().Status);
+            .ToDictionary(
+                g => g.Key,
+                g => g
+                    .OrderByDescending(x => x.Id)
+                    .First().Status);
 
         // SECTION: DTO mapping
         var result = new List<CompletedProjectSummaryDto>(projects.Count);
 
         foreach (var p in projects)
         {
-            var cost = costFacts.FirstOrDefault(x => x.ProjectId == p.Id);
-            var tech = techStatuses.FirstOrDefault(x => x.ProjectId == p.Id);
+            costByProjectId.TryGetValue(p.Id, out var cost);
+            techByProjectId.TryGetValue(p.Id, out var tech);
+            latestLppByProjectId.TryGetValue(p.Id, out var latestLpp);
+
             ProjectTotStatus? totStatus = null;
             if (totStatusByProjectId.TryGetValue(p.Id, out var foundStatus))
             {
                 totStatus = foundStatus;
             }
 
-            var latestLpp = lppRecords
-                .Where(l => l.ProjectId == p.Id)
-                .OrderByDescending(l => l.LppDate)
-                .ThenByDescending(l => l.CreatedAtUtc)
-                .FirstOrDefault();
+            // SECTION: Remarks projection
+            string? remarks = null;
+            var hasTechRemarks = !string.IsNullOrWhiteSpace(tech?.Remarks);
+            var hasCostRemarks = !string.IsNullOrWhiteSpace(cost?.Remarks);
+
+            if (hasTechRemarks && hasCostRemarks)
+            {
+                remarks = $"Tech: {tech!.Remarks}\nProd: {cost!.Remarks}";
+            }
+            else
+            {
+                remarks = hasTechRemarks ? tech!.Remarks : cost?.Remarks;
+            }
 
             var dto = new CompletedProjectSummaryDto
             {
@@ -99,7 +139,7 @@ public sealed class CompletedProjectsSummaryService
                 ApproxProductionCost = cost?.ApproxProductionCost,
                 TechStatus = tech?.TechStatus,
                 AvailableForProliferation = tech?.AvailableForProliferation,
-                Remarks = tech?.Remarks ?? cost?.Remarks,
+                Remarks = remarks,
                 CompletedYear = p.CompletedYear,
                 TotStatus = totStatus,
                 LatestLpp = latestLpp != null
@@ -131,9 +171,16 @@ public sealed class CompletedProjectsSummaryService
 
         if (totCompleted.HasValue)
         {
-            filtered = filtered.Where(r => totCompleted.Value
-                ? r.TotStatus == ProjectTotStatus.Completed
-                : r.TotStatus != ProjectTotStatus.Completed);
+            if (totCompleted.Value)
+            {
+                filtered = filtered.Where(r => r.TotStatus == ProjectTotStatus.Completed);
+            }
+            else
+            {
+                filtered = filtered.Where(r =>
+                    r.TotStatus.HasValue
+                    && r.TotStatus != ProjectTotStatus.Completed);
+            }
         }
 
         if (completedYear.HasValue)

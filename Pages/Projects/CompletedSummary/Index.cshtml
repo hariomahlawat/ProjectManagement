@@ -182,6 +182,10 @@
                                         {
                                             <span class="cs-pill cs-pill--no">No</span>
                                         }
+                                        else
+                                        {
+                                            <span class="cs-pill cs-pill--muted">Not recorded</span>
+                                        }
                                     </td>
                                     <td class="cs-td-tot">
                                         @if (item.TotStatus == ProjectTotStatus.Completed)
@@ -191,6 +195,10 @@
                                         else if (item.TotStatus.HasValue)
                                         {
                                             <span class="cs-pill cs-pill--no">Not completed</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="cs-pill cs-pill--muted">Not recorded</span>
                                         }
                                     </td>
                                     <td class="cs-remarks cs-td-remarks">@item.Remarks</td>
