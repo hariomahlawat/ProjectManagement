@@ -311,6 +311,48 @@ namespace ProjectManagement.Services.Projects
             return null;
         }
 
+        public async Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId,
+                                                                                    int photoId,
+                                                                                    string sizeKey,
+                                                                                    string requestedFormat,
+                                                                                    CancellationToken cancellationToken)
+        {
+            // SECTION: Validate requested derivative options
+            if (!_options.Derivatives.ContainsKey(sizeKey))
+            {
+                return null;
+            }
+
+            if (string.IsNullOrWhiteSpace(requestedFormat))
+            {
+                return null;
+            }
+
+            var normalizedFormat = requestedFormat.Trim().ToLowerInvariant();
+
+            // SECTION: Resolve photo and enforce project ownership
+            var photo = await _db.ProjectPhotos
+                .AsNoTracking()
+                .SingleOrDefaultAsync(p => p.Id == photoId && p.ProjectId == projectId, cancellationToken);
+
+            if (photo == null)
+            {
+                return null;
+            }
+
+            // SECTION: Resolve exact file candidates by requested format
+            foreach (var (path, contentType) in EnumerateDerivativeCandidatesByFormat(photo, sizeKey, normalizedFormat))
+            {
+                if (File.Exists(path))
+                {
+                    var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    return (stream, contentType);
+                }
+            }
+
+            return null;
+        }
+
         public string GetDerivativePath(ProjectPhoto photo, string sizeKey, bool preferWebp)
         {
             if (photo == null)
@@ -375,6 +417,36 @@ namespace ProjectManagement.Services.Projects
                 {
                     yield return (path, contentType);
                 }
+            }
+        }
+
+        private IEnumerable<(string Path, string ContentType)> EnumerateDerivativeCandidatesByFormat(ProjectPhoto photo,
+                                                                                                              string sizeKey,
+                                                                                                              string requestedFormat)
+        {
+            // SECTION: Build deterministic derivative path
+            var directory = BuildProjectDirectory(photo.ProjectId);
+            var basePath = Path.Combine(directory, $"{photo.StorageKey}-{sizeKey}");
+
+            // SECTION: Yield explicit candidates only for the requested format
+            switch (requestedFormat)
+            {
+                case "webp":
+                    yield return ($"{basePath}.webp", "image/webp");
+                    yield break;
+                case "png":
+                    yield return ($"{basePath}.png", "image/png");
+                    yield break;
+                case "jpg":
+                    yield return ($"{basePath}.jpg", "image/jpeg");
+                    yield return ($"{basePath}.jpeg", "image/jpeg");
+                    yield break;
+                case "jpeg":
+                    yield return ($"{basePath}.jpeg", "image/jpeg");
+                    yield return ($"{basePath}.jpg", "image/jpeg");
+                    yield break;
+                default:
+                    yield break;
             }
         }
 
