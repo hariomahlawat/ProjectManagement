@@ -35,6 +35,8 @@
                    asp-route-TotCompleted="@Model.TotCompleted"
                    asp-route-CompletedYear="@Model.CompletedYear"
                    asp-route-Search="@Model.Search"
+                   asp-route-Sort="@Model.Sort"
+                   asp-route-Dir="@Model.Dir"
                    class="btn btn-outline-secondary cs-btn">
                     Export
                 </a>
@@ -84,6 +86,10 @@
                                class="form-control" />
                     </div>
                 </div>
+
+                @* SECTION: Persist sorting while applying filters *@
+                <input type="hidden" asp-for="Sort" />
+                <input type="hidden" asp-for="Dir" />
             </form>
         </div>
     </div>
@@ -123,19 +129,99 @@
                         </colgroup>
                         <thead>
                             <tr>
-                                <th scope="col">Project</th>
-                                <th scope="col" class="cs-num text-end">
-                                    R&amp;D / L1 cost
-                                    <span class="cs-th-sub">(lakh)</span>
+                                <th scope="col">
+                                    <a asp-page="./Index"
+                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
+                                       asp-route-TechStatus="@Model.TechStatus"
+                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
+                                       asp-route-TotCompleted="@Model.TotCompleted"
+                                       asp-route-CompletedYear="@Model.CompletedYear"
+                                       asp-route-Search="@Model.Search"
+                                       asp-route-Sort="name"
+                                       asp-route-Dir="@(Model.NextSortDirection("name"))">
+                                        Project @Model.GetSortIndicator("name")
+                                    </a>
                                 </th>
                                 <th scope="col" class="cs-num text-end">
-                                    Approx Prod cost
-                                    <span class="cs-th-sub">(lakh)</span>
+                                    <a asp-page="./Index"
+                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
+                                       asp-route-TechStatus="@Model.TechStatus"
+                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
+                                       asp-route-TotCompleted="@Model.TotCompleted"
+                                       asp-route-CompletedYear="@Model.CompletedYear"
+                                       asp-route-Search="@Model.Search"
+                                       asp-route-Sort="rd"
+                                       asp-route-Dir="@(Model.NextSortDirection("rd"))">
+                                        R&amp;D / L1 cost @Model.GetSortIndicator("rd")
+                                        <span class="cs-th-sub">(lakh)</span>
+                                    </a>
                                 </th>
-                                <th scope="col">Latest LPP</th>
-                                <th scope="col">Tech status</th>
-                                <th scope="col">Available</th>
-                                <th scope="col">ToT status</th>
+                                <th scope="col" class="cs-num text-end">
+                                    <a asp-page="./Index"
+                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
+                                       asp-route-TechStatus="@Model.TechStatus"
+                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
+                                       asp-route-TotCompleted="@Model.TotCompleted"
+                                       asp-route-CompletedYear="@Model.CompletedYear"
+                                       asp-route-Search="@Model.Search"
+                                       asp-route-Sort="prod"
+                                       asp-route-Dir="@(Model.NextSortDirection("prod"))">
+                                        Approx Prod cost @Model.GetSortIndicator("prod")
+                                        <span class="cs-th-sub">(lakh)</span>
+                                    </a>
+                                </th>
+                                <th scope="col">
+                                    <a asp-page="./Index"
+                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
+                                       asp-route-TechStatus="@Model.TechStatus"
+                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
+                                       asp-route-TotCompleted="@Model.TotCompleted"
+                                       asp-route-CompletedYear="@Model.CompletedYear"
+                                       asp-route-Search="@Model.Search"
+                                       asp-route-Sort="lpp"
+                                       asp-route-Dir="@(Model.NextSortDirection("lpp"))">
+                                        Latest LPP @Model.GetSortIndicator("lpp")
+                                    </a>
+                                </th>
+                                <th scope="col">
+                                    <a asp-page="./Index"
+                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
+                                       asp-route-TechStatus="@Model.TechStatus"
+                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
+                                       asp-route-TotCompleted="@Model.TotCompleted"
+                                       asp-route-CompletedYear="@Model.CompletedYear"
+                                       asp-route-Search="@Model.Search"
+                                       asp-route-Sort="tech"
+                                       asp-route-Dir="@(Model.NextSortDirection("tech"))">
+                                        Tech status @Model.GetSortIndicator("tech")
+                                    </a>
+                                </th>
+                                <th scope="col">
+                                    <a asp-page="./Index"
+                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
+                                       asp-route-TechStatus="@Model.TechStatus"
+                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
+                                       asp-route-TotCompleted="@Model.TotCompleted"
+                                       asp-route-CompletedYear="@Model.CompletedYear"
+                                       asp-route-Search="@Model.Search"
+                                       asp-route-Sort="avail"
+                                       asp-route-Dir="@(Model.NextSortDirection("avail"))">
+                                        Available @Model.GetSortIndicator("avail")
+                                    </a>
+                                </th>
+                                <th scope="col">
+                                    <a asp-page="./Index"
+                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
+                                       asp-route-TechStatus="@Model.TechStatus"
+                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
+                                       asp-route-TotCompleted="@Model.TotCompleted"
+                                       asp-route-CompletedYear="@Model.CompletedYear"
+                                       asp-route-Search="@Model.Search"
+                                       asp-route-Sort="tot"
+                                       asp-route-Dir="@(Model.NextSortDirection("tot"))">
+                                        ToT status @Model.GetSortIndicator("tot")
+                                    </a>
+                                </th>
                                 <th scope="col">Remarks</th>
                                 @if (Model.CanEdit)
                                 {

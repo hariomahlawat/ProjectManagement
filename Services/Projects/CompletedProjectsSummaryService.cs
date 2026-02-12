@@ -26,6 +26,8 @@ public sealed class CompletedProjectsSummaryService
         bool? totCompleted,
         int? completedYear,
         string? search,
+        string sortKey,
+        string sortDir,
         CancellationToken cancellationToken = default)
     {
         // SECTION: Base project selection
@@ -142,6 +144,7 @@ public sealed class CompletedProjectsSummaryService
                 Remarks = remarks,
                 CompletedYear = p.CompletedYear,
                 TotStatus = totStatus,
+                LatestLppDate = latestLpp?.LppDate,
                 LatestLpp = latestLpp != null
                     ? new LatestLppViewModel
                     {
@@ -194,9 +197,60 @@ public sealed class CompletedProjectsSummaryService
                 r.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
         }
 
-        return filtered
-            .OrderBy(r => r.Name)
-            .ToList();
+        return ApplySorting(filtered, sortKey, sortDir).ToList();
+    }
+
+    // SECTION: Deterministic sort application
+    private static IOrderedEnumerable<CompletedProjectSummaryDto> ApplySorting(
+        IEnumerable<CompletedProjectSummaryDto> source,
+        string sortKey,
+        string sortDir)
+    {
+        var desc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
+
+        return sortKey switch
+        {
+            "name" => desc
+                ? source.OrderByDescending(x => x.Name).ThenBy(x => x.ProjectId)
+                : source.OrderBy(x => x.Name).ThenBy(x => x.ProjectId),
+
+            "rd" => ApplyNullableSort(source, x => x.RdCostLakhs, desc).ThenBy(x => x.Name),
+            "prod" => ApplyNullableSort(source, x => x.ApproxProductionCost, desc).ThenBy(x => x.Name),
+            "year" => ApplyNullableSort(source, x => x.CompletedYear, desc).ThenBy(x => x.Name),
+            "avail" => ApplyNullableSort(source, x => x.AvailableForProliferation, desc).ThenBy(x => x.Name),
+            "tot" => ApplyNullableSort(source, x => x.TotStatus, desc).ThenBy(x => x.Name),
+            "lpp" => ApplyNullableSort(source, x => x.LatestLppDate, desc).ThenBy(x => x.Name),
+
+            "tech" => ApplyNullableStringSort(source, x => x.TechStatus, desc).ThenBy(x => x.Name),
+
+            _ => source.OrderBy(x => x.Name).ThenBy(x => x.ProjectId)
+        };
+    }
+
+    // SECTION: Nullable sort helpers
+    private static IOrderedEnumerable<T> ApplyNullableSort<T, TKey>(
+        IEnumerable<T> source,
+        Func<T, TKey?> keySelector,
+        bool desc)
+        where TKey : struct, IComparable<TKey>
+    {
+        return desc
+            ? source.OrderBy(x => keySelector(x).HasValue ? 1 : 0)
+                .ThenByDescending(x => keySelector(x))
+            : source.OrderBy(x => keySelector(x).HasValue ? 0 : 1)
+                .ThenBy(x => keySelector(x));
+    }
+
+    private static IOrderedEnumerable<T> ApplyNullableStringSort<T>(
+        IEnumerable<T> source,
+        Func<T, string?> keySelector,
+        bool desc)
+    {
+        return desc
+            ? source.OrderBy(x => string.IsNullOrWhiteSpace(keySelector(x)) ? 0 : 1)
+                .ThenByDescending(x => keySelector(x), StringComparer.OrdinalIgnoreCase)
+            : source.OrderBy(x => string.IsNullOrWhiteSpace(keySelector(x)) ? 1 : 0)
+                .ThenBy(x => keySelector(x), StringComparer.OrdinalIgnoreCase);
     }
 }
 
@@ -211,6 +265,7 @@ public sealed class CompletedProjectSummaryDto
     public string? Remarks { get; set; }
     public int? CompletedYear { get; set; }
     public ProjectTotStatus? TotStatus { get; set; }
+    public DateOnly? LatestLppDate { get; set; }
     public LatestLppViewModel? LatestLpp { get; set; }
 }
 
