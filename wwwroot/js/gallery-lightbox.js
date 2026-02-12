@@ -60,6 +60,10 @@ function initGallery(gallery) {
   const prevBtn = modalEl.querySelector('[data-gallery-prev]');
   const nextBtn = modalEl.querySelector('[data-gallery-next]');
   const fallbackEl = modalEl.querySelector('.project-gallery-modal__fallback');
+  const webpDownloadEl = modalEl.querySelector('[data-gallery-download-webp]');
+  const jpgDownloadEl = modalEl.querySelector('[data-gallery-download-jpg]');
+  const pngDownloadEl = modalEl.querySelector('[data-gallery-download-png]');
+  const projectId = Number.parseInt(modalEl.getAttribute('data-gallery-project-id') ?? '', 10);
 
   let currentIndex = 0;
 
@@ -86,6 +90,28 @@ function initGallery(gallery) {
     }
     if (nextBtn) {
       nextBtn.disabled = currentIndex >= photos.length - 1;
+    }
+  };
+
+
+  const updateDownloadLinks = (photoId) => {
+    if (Number.isNaN(projectId) || !photoId) {
+      return;
+    }
+
+    const baseUrl = `/Projects/${projectId}/Photos/${photoId}/Download/xl`;
+
+    // SECTION: Keep explicit format download links in sync with selection
+    if (webpDownloadEl) {
+      webpDownloadEl.setAttribute('href', `${baseUrl}?format=webp`);
+    }
+
+    if (jpgDownloadEl) {
+      jpgDownloadEl.setAttribute('href', `${baseUrl}?format=jpg`);
+    }
+
+    if (pngDownloadEl) {
+      pngDownloadEl.setAttribute('href', `${baseUrl}?format=png`);
     }
   };
 
@@ -123,6 +149,8 @@ function initGallery(gallery) {
     if (counterEl) {
       counterEl.textContent = `${currentIndex + 1} of ${photos.length}`;
     }
+
+    updateDownloadLinks(photo.id);
 
     updateThumbState();
     updateNavState();

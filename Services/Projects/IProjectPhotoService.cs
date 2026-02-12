@@ -62,6 +62,12 @@ namespace ProjectManagement.Services.Projects
                                                                       bool preferWebp,
                                                                       CancellationToken cancellationToken);
 
+        Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId,
+                                                                      int photoId,
+                                                                      string sizeKey,
+                                                                      string requestedFormat,
+                                                                      CancellationToken cancellationToken);
+
         string GetDerivativePath(ProjectPhoto photo, string sizeKey, bool preferWebp);
     }
 

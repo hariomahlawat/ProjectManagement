@@ -61,12 +61,24 @@
     var payloadBase64 = System.Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
 }
 
-<div class="modal fade project-gallery-modal" id="@modalId" tabindex="-1" aria-labelledby="@labelId" aria-describedby="@captionId" aria-hidden="true" data-gallery-modal>
+<div class="modal fade project-gallery-modal" id="@modalId" tabindex="-1" aria-labelledby="@labelId" aria-describedby="@captionId" aria-hidden="true" data-gallery-modal data-gallery-project-id="@Model.ProjectId">
     <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title fs-5" id="@labelId">Photo gallery</h2>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close gallery"></button>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Download
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="#" data-gallery-download-webp>Download WebP</a></li>
+                            <li><a class="dropdown-item" href="#" data-gallery-download-jpg>Download JPG</a></li>
+                            <li><a class="dropdown-item" href="#" data-gallery-download-png>Download PNG</a></li>
+                        </ul>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close gallery"></button>
+                </div>
             </div>
             <div class="modal-body">
                 <div class="project-gallery-modal__content" data-gallery-lightbox>
