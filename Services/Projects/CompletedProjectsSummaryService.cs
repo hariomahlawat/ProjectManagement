@@ -26,25 +26,39 @@ public sealed class CompletedProjectsSummaryService
         bool? totCompleted,
         int? completedYear,
         string? search,
+        string? build,
         string sortKey,
         string sortDir,
         CancellationToken cancellationToken = default)
     {
         // SECTION: Base project selection
-        var projects = await _db.Projects
+        var query = _db.Projects
             .AsNoTracking()
             .Where(p =>
                 p.LifecycleStatus == ProjectLifecycleStatus.Completed
                 && !p.IsDeleted
                 && !p.IsArchived)
-            .ToListAsync(cancellationToken);
+            .AsQueryable();
 
         if (technicalCategoryId.HasValue)
         {
-            projects = projects
-                .Where(p => p.TechnicalCategoryId == technicalCategoryId.Value)
-                .ToList();
+            query = query.Where(p => p.TechnicalCategoryId == technicalCategoryId.Value);
         }
+
+        // SECTION: Build type filter
+        if (!string.IsNullOrWhiteSpace(build))
+        {
+            if (string.Equals(build, "Rebuild", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(p => p.IsBuild);
+            }
+            else if (string.Equals(build, "New", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(p => !p.IsBuild);
+            }
+        }
+
+        var projects = await query.ToListAsync(cancellationToken);
 
         var projectIds = projects.Select(p => p.Id).ToList();
 

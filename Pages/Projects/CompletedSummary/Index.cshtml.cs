@@ -55,6 +55,9 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string? Search { get; set; }
 
+    [BindProperty(SupportsGet = true)]
+    public string? Build { get; set; }
+
     // SECTION: Sorting inputs
     [BindProperty(SupportsGet = true)]
     public string? Sort { get; set; }
@@ -79,6 +82,13 @@ public sealed class IndexModel : PageModel
     // expose to the view
     public bool CanEdit { get; private set; }
 
+    // SECTION: Build switch filter options
+    private enum BuildFilter
+    {
+        New,
+        Rebuild
+    }
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         await LoadTechnicalCategoriesAsync(cancellationToken);
@@ -95,6 +105,7 @@ public sealed class IndexModel : PageModel
             TotCompleted,
             CompletedYear,
             Search,
+            Build,
             Sort!,
             Dir!,
             cancellationToken);
@@ -116,6 +127,7 @@ public sealed class IndexModel : PageModel
             TotCompleted,
             CompletedYear,
             Search,
+            Build,
             Sort!,
             Dir!,
             cancellationToken);
@@ -147,6 +159,10 @@ public sealed class IndexModel : PageModel
             TechStatus = null;
         }
 
+        // SECTION: Normalize build filter query value
+        var buildFilter = ParseBuildFilter(Build);
+        Build = buildFilter?.ToString();
+
         var totCompletedRaw = Request.Query[nameof(TotCompleted)].ToString();
         if (!string.IsNullOrWhiteSpace(totCompletedRaw)
             && !bool.TryParse(totCompletedRaw, out _))
@@ -155,6 +171,26 @@ public sealed class IndexModel : PageModel
         }
 
         Search = string.IsNullOrWhiteSpace(Search) ? null : Search.Trim();
+    }
+
+    private static BuildFilter? ParseBuildFilter(string? buildValue)
+    {
+        if (string.IsNullOrWhiteSpace(buildValue))
+        {
+            return null;
+        }
+
+        if (string.Equals(buildValue, "Rebuild", StringComparison.OrdinalIgnoreCase))
+        {
+            return BuildFilter.Rebuild;
+        }
+
+        if (string.Equals(buildValue, "New", StringComparison.OrdinalIgnoreCase))
+        {
+            return BuildFilter.New;
+        }
+
+        return null;
     }
 
     private void NormaliseSorting()

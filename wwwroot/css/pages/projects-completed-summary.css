@@ -328,3 +328,9 @@
         grid-column: span 1;
     }
 }
+
+
+/* SECTION: Build switch */
+.cs-switch .btn {
+    min-width: 72px;
+}
