@@ -79,6 +79,10 @@ public sealed class IndexModel : PageModel
 
     public IReadOnlyList<CompletedProjectSummaryDto> Items { get; private set; } = Array.Empty<CompletedProjectSummaryDto>();
 
+    // SECTION: Filter state metadata
+    public int ActiveFilterCount { get; private set; }
+    public bool HasActiveFilters => ActiveFilterCount > 0;
+
     // expose to the view
     public bool CanEdit { get; private set; }
 
@@ -93,6 +97,7 @@ public sealed class IndexModel : PageModel
     {
         await LoadTechnicalCategoriesAsync(cancellationToken);
         NormaliseFilters();
+        UpdateActiveFilterCount();
         NormaliseSorting();
 
         TechStatusOptions = BuildTechStatusOptions(TechStatus);
@@ -171,6 +176,20 @@ public sealed class IndexModel : PageModel
         }
 
         Search = string.IsNullOrWhiteSpace(Search) ? null : Search.Trim();
+    }
+
+    private void UpdateActiveFilterCount()
+    {
+        // SECTION: Count active user-applied filters
+        ActiveFilterCount = 0;
+
+        if (TechnicalCategoryId.HasValue) ActiveFilterCount++;
+        if (!string.IsNullOrWhiteSpace(TechStatus)) ActiveFilterCount++;
+        if (!string.IsNullOrWhiteSpace(Build)) ActiveFilterCount++;
+        if (AvailableForProliferation.HasValue) ActiveFilterCount++;
+        if (TotCompleted.HasValue) ActiveFilterCount++;
+        if (CompletedYear.HasValue) ActiveFilterCount++;
+        if (!string.IsNullOrWhiteSpace(Search)) ActiveFilterCount++;
     }
 
     private static BuildFilter? ParseBuildFilter(string? buildValue)
