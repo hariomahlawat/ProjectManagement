@@ -22,31 +22,73 @@
     <div class="pm-card cs-card cs-filters">
         <div class="pm-card-header cs-card-header">
             <div>
-                <div class="pm-card-title">Filters</div>
+                <div class="pm-card-title">
+                    Filters
+                    @if (Model.HasActiveFilters)
+                    {
+                        <span class="cs-filter-count">@Model.ActiveFilterCount</span>
+                    }
+                </div>
                 <div class="pm-card-subtitle">Refine the list using category, status, year, and search.</div>
-            </div>
-            <div class="cs-filter-actions">
-                <button type="submit" form="csFiltersForm" class="btn btn-primary cs-btn">Filter</button>
-                <a asp-page="./Index"
-                   asp-page-handler="Export"
-                   asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
-                   asp-route-TechStatus="@Model.TechStatus"
-                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
-                   asp-route-TotCompleted="@Model.TotCompleted"
-                   asp-route-CompletedYear="@Model.CompletedYear"
-                   asp-route-Search="@Model.Search"
-                   asp-route-Build="@Model.Build"
-                   asp-route-Sort="@Model.Sort"
-                   asp-route-Dir="@Model.Dir"
-                   class="btn btn-outline-secondary cs-btn">
-                    Export
-                </a>
             </div>
         </div>
 
         <div class="pm-card-body cs-card-body">
+            @* SECTION: Filter toolbar *@
+            <div class="cs-filter-toolbar">
+                <div class="cs-filter-summary">
+                    @if (Model.HasActiveFilters)
+                    {
+                        <span class="cs-muted">Active filters: <strong>@Model.ActiveFilterCount</strong></span>
+                    }
+                    else
+                    {
+                        <span class="cs-muted">No filters applied.</span>
+                    }
+                </div>
+
+                <div class="cs-filter-actions">
+                    <button type="submit" form="csFiltersForm" class="btn btn-primary cs-btn">Filter</button>
+                    @if (Model.HasActiveFilters)
+                    {
+                        <a asp-page="./Index"
+                           asp-route-TechnicalCategoryId=""
+                           asp-route-TechStatus=""
+                           asp-route-Build=""
+                           asp-route-AvailableForProliferation=""
+                           asp-route-TotCompleted=""
+                           asp-route-CompletedYear=""
+                           asp-route-Search=""
+                           asp-route-Sort="@Model.Sort"
+                           asp-route-Dir="@Model.Dir"
+                           class="btn btn-outline-secondary cs-btn cs-btn-clear">
+                            Clear
+                        </a>
+                    }
+                    <a asp-page="./Index"
+                       asp-page-handler="Export"
+                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
+                       asp-route-TechStatus="@Model.TechStatus"
+                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
+                       asp-route-TotCompleted="@Model.TotCompleted"
+                       asp-route-CompletedYear="@Model.CompletedYear"
+                       asp-route-Search="@Model.Search"
+                       asp-route-Build="@Model.Build"
+                       asp-route-Sort="@Model.Sort"
+                       asp-route-Dir="@Model.Dir"
+                       class="btn btn-outline-secondary cs-btn">
+                        Export
+                    </a>
+                </div>
+            </div>
+
             <form method="get" id="csFiltersForm" class="cs-filter-form" novalidate>
                 <div class="cs-grid">
+                    <div class="cs-field cs-field--full">
+                        <label asp-for="Search">Search by project name</label>
+                        <input asp-for="Search"
+                               class="form-control" />
+                    </div>
                     <div class="cs-field">
                         <label asp-for="TechnicalCategoryId">Technical category</label>
                         <select asp-for="TechnicalCategoryId"
@@ -116,11 +158,6 @@
                                class="form-control"
                                inputmode="numeric" />
                     </div>
-                    <div class="cs-field cs-field--wide">
-                        <label asp-for="Search">Search by project name</label>
-                        <input asp-for="Search"
-                               class="form-control" />
-                    </div>
                 </div>
 
                 @* SECTION: Persist sorting while applying filters *@
@@ -134,7 +171,7 @@
     <div class="pm-card cs-card cs-results">
         <div class="pm-card-header cs-card-header">
             <div>
-                <div class="pm-card-title">Results</div>
+                <div class="pm-card-title">Results <span class="cs-results-count">(@Model.Items.Count)</span></div>
                 <div class="pm-card-subtitle">Completed projects matching the applied filters.</div>
             </div>
         </div>
@@ -151,6 +188,7 @@
                         @* SECTION: Column sizing *@
                         <colgroup>
                             <col class="cs-col-project" />
+                            <col class="cs-col-year" />
                             <col class="cs-col-rd" />
                             <col class="cs-col-prod" />
                             <col class="cs-col-lpp" />
@@ -188,6 +226,20 @@
                                        asp-route-CompletedYear="@Model.CompletedYear"
                                        asp-route-Search="@Model.Search"
                                        asp-route-Build="@Model.Build"
+                                       asp-route-Sort="year"
+                                       asp-route-Dir="@(Model.NextSortDirection("year"))">
+                                        Completion year @Model.GetSortIndicator("year")
+                                    </a>
+                                </th>
+                                <th scope="col" class="cs-num text-end">
+                                    <a asp-page="./Index"
+                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
+                                       asp-route-TechStatus="@Model.TechStatus"
+                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
+                                       asp-route-TotCompleted="@Model.TotCompleted"
+                                       asp-route-CompletedYear="@Model.CompletedYear"
+                                       asp-route-Search="@Model.Search"
+                                       asp-route-Build="@Model.Build"
                                        asp-route-Sort="rd"
                                        asp-route-Dir="@(Model.NextSortDirection("rd"))">
                                         R&amp;D / L1 cost @Model.GetSortIndicator("rd")
@@ -209,7 +261,7 @@
                                         <span class="cs-th-sub">(lakh)</span>
                                     </a>
                                 </th>
-                                <th scope="col">
+                                <th scope="col" class="cs-th-lpp">
                                     <a asp-page="./Index"
                                        asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
                                        asp-route-TechStatus="@Model.TechStatus"
@@ -265,7 +317,7 @@
                                         ToT status @Model.GetSortIndicator("tot")
                                     </a>
                                 </th>
-                                <th scope="col">Remarks</th>
+                                <th scope="col" class="cs-th-remarks">Remarks</th>
                                 @if (Model.CanEdit)
                                 {
                                     <th scope="col" class="cs-actions-col">Actions</th>
@@ -280,10 +332,11 @@
                                         <a asp-page="/Projects/Overview"
                                            asp-route-id="@item.ProjectId"
                                            class="cs-link pm-cell-clamp-2 cs-project-cell"
-                                           title="@item.Name">
+                                           title="@(string.IsNullOrWhiteSpace(item.Remarks) ? item.Name : $"{item.Name} | {item.Remarks}")">
                                             @item.Name
                                         </a>
                                     </td>
+                                    <td class="cs-num">@(item.CompletedYear?.ToString() ?? "—")</td>
                                     <td class="cs-num text-end">@(item.RdCostLakhs?.ToString("0.##"))</td>
                                     <td class="cs-num text-end">@(item.ApproxProductionCost?.ToString("0.##"))</td>
                                     <td class="cs-muted cs-td-lpp">

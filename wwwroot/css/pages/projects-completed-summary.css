@@ -49,6 +49,43 @@
     padding: 0;
 }
 
+/* SECTION: Filter metadata */
+.cs-filter-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 8px;
+    margin-left: 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    background: rgba(45, 108, 223, 0.12);
+    color: #1d4ed8;
+    border: 1px solid rgba(45, 108, 223, 0.18);
+}
+
+.cs-results-count {
+    font-weight: 800;
+    color: #64748b;
+    margin-left: 6px;
+}
+
+/* SECTION: Filter toolbar */
+.cs-filter-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.cs-filter-summary {
+    font-size: 13px;
+}
+
 /* SECTION: Filter actions */
 .cs-filter-actions {
     display: flex;
@@ -60,6 +97,10 @@
 .cs-btn {
     border-radius: 10px;
     font-weight: 700;
+}
+
+.cs-btn-clear {
+    font-weight: 800;
 }
 
 /* SECTION: Filters grid */
@@ -85,6 +126,10 @@
     grid-column: span 2;
 }
 
+.cs-field--full {
+    grid-column: 1 / -1;
+}
+
 /* SECTION: Inputs */
 .cs-filters .form-control,
 .cs-filters .form-select {
@@ -101,7 +146,7 @@
 
 /* SECTION: Table wrapper */
 .cs-table-wrap {
-    overflow-x: auto;
+    overflow-x: hidden;
     border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
@@ -190,7 +235,11 @@
 
 /* SECTION: Deterministic column sizing */
 .cs-col-project {
-    width: 28%;
+    width: 26%;
+}
+
+.cs-col-year {
+    width: 8%;
 }
 
 .cs-col-rd {
@@ -198,7 +247,7 @@
 }
 
 .cs-col-prod {
-    width: 12%;
+    width: 11%;
 }
 
 .cs-col-lpp {
@@ -218,7 +267,7 @@
 }
 
 .cs-col-remarks {
-    width: 7%;
+    width: 8%;
 }
 
 .cs-col-actions {
@@ -310,8 +359,22 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .cs-col-remarks,
+    .cs-td-remarks,
+    .cs-th-remarks {
+        display: none;
+    }
+
     .cs-field--wide {
         grid-column: span 2;
+    }
+}
+
+@media (max-width: 992px) {
+    .cs-col-lpp,
+    .cs-td-lpp,
+    .cs-th-lpp {
+        display: none;
     }
 }
 
