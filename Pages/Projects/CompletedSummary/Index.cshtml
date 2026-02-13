@@ -14,24 +14,11 @@
 <div class="pm-page cs-page">
     @* SECTION: Page header *@
     <div class="cs-header">
-        <h1 class="cs-title">Completed projects</h1>
-        <div class="cs-subtitle">Cost and proliferation</div>
+        <h2 class="cs-title">Completed projects</h2>
     </div>
 
     @* SECTION: Filters *@
     <div class="pm-card cs-card cs-filters">
-        <div class="pm-card-header cs-card-header">
-            <div>
-                <div class="pm-card-title">
-                    Filters
-                    @if (Model.HasActiveFilters)
-                    {
-                        <span class="cs-filter-count">@Model.ActiveFilterCount</span>
-                    }
-                </div>
-                <div class="pm-card-subtitle">Refine the list using category, status, year, and search.</div>
-            </div>
-        </div>
 
         <div class="pm-card-body cs-card-body">
             @* SECTION: Filter toolbar *@
