@@ -6,7 +6,7 @@
   }
 
   /* ---------- SECTION: Auto-submit eligible controls ---------- */
-  const elements = form.querySelectorAll('select[data-auto-submit="change"]');
+  const elements = form.querySelectorAll('[data-auto-submit="change"]');
   if (!elements.length) {
     return;
   }
