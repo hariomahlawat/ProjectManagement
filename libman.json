@@ -71,6 +71,14 @@
         "Sortable.min.js",
         "LICENSE"
       ]
+    },
+    {
+      "library": "@toast-ui/editor@3.2.2",
+      "destination": "wwwroot/lib/toastui-editor",
+      "files": [
+        "toastui-editor.min.js",
+        "toastui-editor.min.css"
+      ]
     }
   ]
 }

@@ -8958,3 +8958,12 @@ body {
         justify-content: flex-start;
     }
 }
+
+/* -- SECTION: Projects meta description WYSIWYG editor -- */
+.pm-desc-editor .toastui-editor-defaultUI {
+    border-radius: 12px;
+}
+
+.pm-desc-editor .toastui-editor-contents {
+    font-size: 0.95rem;
+}
