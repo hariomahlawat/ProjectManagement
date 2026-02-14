@@ -3,6 +3,7 @@
 
     // SECTION: Constants
     const MAX_DESCRIPTION_LENGTH = 1000;
+    const LOG_PREFIX = '[projects-meta-edit]';
 
     // SECTION: Bootstrap editor on page load
     document.addEventListener('DOMContentLoaded', () => {
@@ -52,22 +53,33 @@
             }
         };
 
+        const logFallbackWarning = (reason, error) => {
+            if (error) {
+                console.warn(`${LOG_PREFIX} fallback mode: ${reason}`, error);
+                return;
+            }
+
+            console.warn(`${LOG_PREFIX} fallback mode: ${reason}`);
+        };
+
         // SECTION: Plain text mode event wiring
         descriptionTextarea.addEventListener('input', () => {
             updateCounter(descriptionTextarea.value.length);
             updateLimitMessage(descriptionTextarea.value.length);
         });
 
-        // SECTION: Progressive enhancement guard
-        if (typeof toastui === 'undefined' || !toastui.Editor) {
-            activatePlainTextMode({ showUnavailableWarning: true });
-            return;
-        }
-
+        // SECTION: Progressive enhancement bootstrap
         let previousValidMarkdown = descriptionTextarea.value || editorHost.dataset.initialMarkdown || '';
         let editor;
 
         try {
+            // SECTION: Progressive enhancement guard
+            if (typeof toastui === 'undefined' || !toastui.Editor) {
+                logFallbackWarning('toastui missing');
+                activatePlainTextMode({ showUnavailableWarning: true });
+                return;
+            }
+
             editor = new toastui.Editor({
                 el: editorHost,
                 initialEditType: 'wysiwyg',
@@ -84,42 +96,43 @@
                     ['link']
                 ]
             });
-        } catch (_error) {
+
+            activateRichEditorMode();
+
+            const syncMarkdownToField = () => {
+                const markdown = editor.getMarkdown();
+
+                if (markdown.length > MAX_DESCRIPTION_LENGTH) {
+                    editor.setMarkdown(previousValidMarkdown, false);
+                    if (limitMessageNode) {
+                        limitMessageNode.classList.remove('d-none');
+                    }
+                    updateCounter(previousValidMarkdown.length);
+                    descriptionTextarea.value = previousValidMarkdown;
+                    return;
+                }
+
+                previousValidMarkdown = markdown;
+                descriptionTextarea.value = markdown;
+                descriptionTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+
+                updateCounter(markdown.length);
+            };
+
+            // SECTION: Event wiring
+            editor.on('change', syncMarkdownToField);
+
+            if (form) {
+                form.addEventListener('submit', () => {
+                    descriptionTextarea.value = editor.getMarkdown();
+                });
+            }
+
+            syncMarkdownToField();
+        } catch (error) {
+            logFallbackWarning('init exception', error);
             activatePlainTextMode({ showUnavailableWarning: true });
             return;
         }
-
-        activateRichEditorMode();
-
-        const syncMarkdownToField = () => {
-            const markdown = editor.getMarkdown();
-
-            if (markdown.length > MAX_DESCRIPTION_LENGTH) {
-                editor.setMarkdown(previousValidMarkdown, false);
-                if (limitMessageNode) {
-                    limitMessageNode.classList.remove('d-none');
-                }
-                updateCounter(previousValidMarkdown.length);
-                descriptionTextarea.value = previousValidMarkdown;
-                return;
-            }
-
-            previousValidMarkdown = markdown;
-            descriptionTextarea.value = markdown;
-            descriptionTextarea.dispatchEvent(new Event('input', { bubbles: true }));
-
-            updateCounter(markdown.length);
-        };
-
-        // SECTION: Event wiring
-        editor.on('change', syncMarkdownToField);
-
-        if (form) {
-            form.addEventListener('submit', () => {
-                descriptionTextarea.value = editor.getMarkdown();
-            });
-        }
-
-        syncMarkdownToField();
     });
 })();
