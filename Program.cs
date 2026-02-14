@@ -607,6 +607,9 @@ builder.Services.AddRazorPages(options =>
     .AddMvcOptions(o => o.Filters.Add<EnforcePasswordChangeFilter>());
 
 var connectSrcDirective = BuildConnectSrcDirective(builder.Configuration);
+var imgSrcDirective = BuildImgSrcDirective(builder.Configuration);
+var styleSrcDirective = BuildStyleSrcDirective(builder.Configuration);
+var fontSrcDirective = BuildFontSrcDirective(builder.Configuration);
 
 var developmentLoopbackOrigins = builder.Environment.IsDevelopment()
     ? ResolveDevelopmentLoopbackOrigins(builder.Configuration)
@@ -724,21 +727,21 @@ app.Use(async (ctx, next) =>
         // so other pages remain locked down in production.
         var isCalendarRoute = ctx.Request.Path.StartsWithSegments("/Calendar", StringComparison.OrdinalIgnoreCase);
         var styleUnsafeInline = app.Environment.IsDevelopment() || isCalendarRoute ? " 'unsafe-inline'" : string.Empty;
-        var styleSrcDirective = $"style-src 'self'{styleUnsafeInline}{devSourcesSuffix}; ";
+        var styleSrcDirectiveWithRuntime = $"style-src {styleSrcDirective}{styleUnsafeInline}{devSourcesSuffix}; ";
         var styleSrcAttrDirective = "style-src-attr 'unsafe-inline'; ";
-        var styleSrcElemDirective = $"style-src-elem 'self'{styleUnsafeInline}{devSourcesSuffix}; ";
+        var styleSrcElemDirective = $"style-src-elem {styleSrcDirective}{styleUnsafeInline}{devSourcesSuffix}; ";
 
         h["Content-Security-Policy"] =
             "default-src 'self'; " +
             "base-uri 'self'; " +
             "frame-ancestors 'none'; " +
             $"frame-src 'self' data: blob:{devSourcesSuffix}; " +
-            $"img-src 'self' data: blob:{devSourcesSuffix}; " +
+            $"img-src {imgSrcDirective}{devSourcesSuffix}; " +
             $"script-src 'self'{devSourcesSuffix}; " +
-            styleSrcDirective +
+            styleSrcDirectiveWithRuntime +
             styleSrcAttrDirective +
             styleSrcElemDirective +
-            $"font-src 'self' data:{devSourcesSuffix}; " +
+            $"font-src {fontSrcDirective}{devSourcesSuffix}; " +
             "object-src 'none'; " +
             $"connect-src {connectSrcDirective};";
     }
@@ -2732,19 +2735,63 @@ static string[] ResolveDevelopmentLoopbackOrigins(IConfiguration configuration)
 
 static string BuildConnectSrcDirective(IConfiguration configuration)
 {
-    var sources = configuration
-        .GetSection("SecurityHeaders:ContentSecurityPolicy:ConnectSources")
-        .Get<string[]>() ?? Array.Empty<string>();
+    return BuildDirectiveWithExtras(
+        configuration,
+        "Security:Csp:ConnectSrcExtra",
+        "SecurityHeaders:ContentSecurityPolicy:ConnectSources",
+        "'self'");
+}
 
-    var normalizedSources = sources
+static string BuildImgSrcDirective(IConfiguration configuration)
+{
+    return BuildDirectiveWithExtras(
+        configuration,
+        "Security:Csp:ImgSrcExtra",
+        null,
+        "'self' data: blob:");
+}
+
+static string BuildStyleSrcDirective(IConfiguration configuration)
+{
+    return BuildDirectiveWithExtras(
+        configuration,
+        "Security:Csp:StyleSrcExtra",
+        null,
+        "'self'");
+}
+
+static string BuildFontSrcDirective(IConfiguration configuration)
+{
+    return BuildDirectiveWithExtras(
+        configuration,
+        "Security:Csp:FontSrcExtra",
+        null,
+        "'self' data:");
+}
+
+static string BuildDirectiveWithExtras(
+    IConfiguration configuration,
+    string primarySection,
+    string? legacySection,
+    params string[] baselineSources)
+{
+    // SECTION: Merge baseline sources with configured extras.
+    var mergedSources = new List<string>(baselineSources);
+
+    mergedSources.AddRange(configuration.GetSection(primarySection).Get<string[]>() ?? Array.Empty<string>());
+
+    if (!string.IsNullOrWhiteSpace(legacySection))
+    {
+        mergedSources.AddRange(configuration.GetSection(legacySection).Get<string[]>() ?? Array.Empty<string>());
+    }
+
+    var normalizedSources = mergedSources
         .Select(source => source?.Trim())
         .Where(source => !string.IsNullOrWhiteSpace(source))
         .Distinct(StringComparer.Ordinal)
         .ToArray();
 
-    return normalizedSources.Length == 0
-        ? "'self'"
-        : $"'self' {string.Join(" ", normalizedSources)}";
+    return string.Join(" ", normalizedSources);
 }
 
 static async Task<IResult> HandleNotificationOperationResultAsync(
