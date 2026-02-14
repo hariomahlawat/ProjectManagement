@@ -28,6 +28,7 @@ using ProjectManagement.Services;
 using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Services.Text;
 using ProjectManagement.Utilities;
 using ProjectManagement.ViewModels;
 
@@ -46,10 +47,11 @@ namespace ProjectManagement.Pages.Projects
         private readonly ProjectRemarksPanelService _remarksPanelService;
         private readonly ProjectLifecycleService _lifecycleService;
         private readonly ProjectMediaAggregator _mediaAggregator;
+        private readonly IMarkdownRenderer _markdownRenderer;
 
         public PlanCompareService PlanCompare { get; }
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, ProjectMediaAggregator mediaAggregator)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, ProjectMediaAggregator mediaAggregator, IMarkdownRenderer markdownRenderer)
         {
             _db = db;
             _procureRead = procureRead;
@@ -62,6 +64,7 @@ namespace ProjectManagement.Pages.Projects
             _remarksPanelService = remarksPanelService;
             _lifecycleService = lifecycleService;
             _mediaAggregator = mediaAggregator;
+            _markdownRenderer = markdownRenderer;
         }
 
         public Project Project { get; private set; } = default!;
@@ -88,6 +91,7 @@ namespace ProjectManagement.Pages.Projects
         public ProjectVideo? FeaturedVideo { get; private set; }
         public int? FeaturedVideoVersion { get; private set; }
         public string? FeaturedVideoUrl { get; private set; }
+        public string? DescriptionHtml { get; private set; }
 
         public ProjectRolesViewModel Roles { get; private set; } = ProjectRolesViewModel.Empty;
         public ProjectLifecycleSummaryViewModel LifecycleSummary { get; private set; } = ProjectLifecycleSummaryViewModel.Empty;
@@ -200,6 +204,7 @@ namespace ProjectManagement.Pages.Projects
             var (totSnapshot, totRequestSnapshot) = await LoadTotDataAsync(project.Id, ct);
 
             Project = project;
+            DescriptionHtml = _markdownRenderer.ToSafeHtml(project.Description);
 
             Photos = project.Photos
                 .OrderBy(p => p.Ordinal)
