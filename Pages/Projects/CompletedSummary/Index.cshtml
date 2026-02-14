@@ -215,7 +215,8 @@
                                        asp-route-Build="@Model.Build"
                                        asp-route-Sort="year"
                                        asp-route-Dir="@(Model.NextSortDirection("year"))">
-                                        Completion year @Model.GetSortIndicator("year")
+                                        Completion<br />
+                                        year @Model.GetSortIndicator("year")
                                     </a>
                                 </th>
                                 <th scope="col" class="cs-num text-end">
@@ -373,11 +374,13 @@
                                     <td class="cs-remarks cs-td-remarks">@item.Remarks</td>
                                     @if (Model.CanEdit)
                                     {
-                                        <td class="cs-actions-col">
+                                        <td class="cs-actions">
                                             <a asp-page="./Edit"
                                                asp-route-id="@item.ProjectId"
-                                               class="btn btn-outline-primary btn-sm cs-btn-sm">
-                                                Edit
+                                               class="btn btn-outline-primary btn-sm cs-icon-btn"
+                                               title="Edit"
+                                               aria-label="Edit">
+                                                <span class="cs-icon" aria-hidden="true">✎</span>
                                             </a>
                                         </td>
                                     }

@@ -169,10 +169,6 @@
 }
 
 .cs-table thead th {
-    white-space: normal;
-}
-
-.cs-table thead th {
     position: sticky;
     top: 0;
     z-index: 2;
@@ -181,7 +177,19 @@
     letter-spacing: 0.06em;
     font-weight: 650;
     white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
     line-height: 1.15;
+    vertical-align: bottom;
+}
+
+/* SECTION: Header link wrapping */
+.cs-table thead th a {
+    display: inline-block;
+    white-space: normal;
+    line-height: 1.15;
+    word-break: normal;
+    overflow-wrap: break-word;
 }
 
 .cs-th-sub {
@@ -335,15 +343,24 @@
 }
 
 /* SECTION: Actions column */
+.cs-actions,
 .cs-actions-col {
-    width: 90px;
     text-align: right;
     white-space: nowrap;
 }
 
-.cs-btn-sm {
-    border-radius: 10px;
-    font-weight: 800;
+.cs-icon-btn {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cs-icon {
+    font-size: 14px;
+    line-height: 1;
 }
 
 /* SECTION: Empty state */
