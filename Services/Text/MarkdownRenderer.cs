@@ -13,8 +13,6 @@ public sealed class MarkdownRenderer : IMarkdownRenderer
         .UseSoftlineBreakAsHardlineBreak()
         .Build();
 
-    private static readonly HtmlSanitizer Sanitizer = CreateSanitizer();
-
     public string ToSafeHtml(string? markdown)
     {
         var trimmed = markdown?.Trim();
@@ -24,7 +22,9 @@ public sealed class MarkdownRenderer : IMarkdownRenderer
         }
 
         var unsafeHtml = Markdig.Markdown.ToHtml(trimmed, Pipeline);
-        var safeHtml = Sanitizer.Sanitize(unsafeHtml).Trim();
+        // SECTION: Per-call sanitizer instance (thread-safe by construction)
+        var sanitizer = CreateSanitizer();
+        var safeHtml = sanitizer.Sanitize(unsafeHtml).Trim();
         return safeHtml;
     }
 
