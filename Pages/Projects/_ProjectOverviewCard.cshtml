@@ -191,7 +191,16 @@
             </div>
             <div class="col-12">
                 <h3 class="h6 mb-2">Project description</h3>
-                <div class="project-overview__description">@(!string.IsNullOrWhiteSpace(project?.Description) ? project.Description : "—")</div>
+                <div class="project-overview__description pm-markdown">
+                    @if (!string.IsNullOrWhiteSpace(Model.DescriptionHtml))
+                    {
+                        @Html.Raw(Model.DescriptionHtml)
+                    }
+                    else
+                    {
+                        <span class="text-muted">—</span>
+                    }
+                </div>
             </div>
         </div>
 

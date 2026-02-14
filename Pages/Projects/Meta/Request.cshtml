@@ -17,7 +17,7 @@
     </div>
     <div class="mb-3">
         <label asp-for="Input.Description" class="form-label"></label>
-        <textarea asp-for="Input.Description" rows="4" class="form-control"></textarea>
+        <textarea asp-for="Input.Description" rows="4" class="form-control" maxlength="1000"></textarea>
         <span asp-validation-for="Input.Description" class="text-danger"></span>
     </div>
     <div class="mb-3">

@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Text;
 using ProjectManagement.Models.Projects;
 
 namespace ProjectManagement.Pages.Projects.Meta;
@@ -23,12 +24,14 @@ public class EditModel : PageModel
     private readonly ApplicationDbContext _db;
     private readonly IUserContext _userContext;
     private readonly IAuditService _audit;
+    private readonly IMarkdownRenderer _markdownRenderer;
 
-    public EditModel(ApplicationDbContext db, IUserContext userContext, IAuditService audit)
+    public EditModel(ApplicationDbContext db, IUserContext userContext, IAuditService audit, IMarkdownRenderer markdownRenderer)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+        _markdownRenderer = markdownRenderer ?? throw new ArgumentNullException(nameof(markdownRenderer));
     }
 
     [BindProperty]
@@ -78,6 +81,14 @@ public class EditModel : PageModel
         };
 
         return Page();
+    }
+
+
+    // SECTION: Description markdown preview
+    public IActionResult OnPostPreview([FromForm] string? description)
+    {
+        var html = _markdownRenderer.ToSafeHtml(description);
+        return new JsonResult(new { html });
     }
 
     public async Task<IActionResult> OnPostAsync(int id, CancellationToken cancellationToken)

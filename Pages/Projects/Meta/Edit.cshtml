@@ -15,11 +15,50 @@
         <input asp-for="Input.Name" class="form-control" />
         <span asp-validation-for="Input.Name" class="text-danger"></span>
     </div>
-    <div class="mb-3">
+    @* SECTION: Markdown description editor with preview *@
+    <div class="mb-3" data-description-preview-root data-preview-url='@Url.Page("/Projects/Meta/Edit", new { id = Model.Input.ProjectId, handler = "Preview" })'>
         <label asp-for="Input.Description" class="form-label"></label>
-        <textarea asp-for="Input.Description" class="form-control" rows="4" maxlength="1000"></textarea>
-        <div class="form-text" data-char-count-for="Input_Description">0/1000</div>
-        <span asp-validation-for="Input.Description" class="text-danger"></span>
+        <ul class="nav nav-tabs" id="descriptionEditorTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="description-write-tab" data-bs-toggle="tab" data-bs-target="#description-write" type="button" role="tab" aria-controls="description-write" aria-selected="true">
+                    Write
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="description-preview-tab" data-bs-toggle="tab" data-bs-target="#description-preview" type="button" role="tab" aria-controls="description-preview" aria-selected="false" data-description-preview-trigger>
+                    Preview
+                </button>
+            </li>
+        </ul>
+        <div class="tab-content border border-top-0 rounded-bottom p-3" id="descriptionEditorTabContent">
+            <div class="tab-pane fade show active" id="description-write" role="tabpanel" aria-labelledby="description-write-tab" tabindex="0">
+                <textarea asp-for="Input.Description" class="form-control" rows="7" maxlength="1000" data-description-markdown-input></textarea>
+                <div class="form-text" data-char-count-for="Input_Description">0/1000</div>
+                <span asp-validation-for="Input.Description" class="text-danger"></span>
+            </div>
+            <div class="tab-pane fade" id="description-preview" role="tabpanel" aria-labelledby="description-preview-tab" tabindex="0">
+                <div class="small text-muted mb-2">Rendered preview (safe markdown)</div>
+                <div class="project-overview__description pm-markdown border rounded p-3 bg-light" data-description-preview-content>Loading preview…</div>
+                <div class="text-danger small mt-2 d-none" data-description-preview-error></div>
+            </div>
+        </div>
+
+        @* SECTION: Formatting quick help *@
+        <details class="mt-2">
+            <summary class="small">Formatting help</summary>
+            <ul class="small mb-0 mt-2">
+                <li><code>**bold**</code></li>
+                <li><code>_italic_</code></li>
+                <li><code># Heading</code></li>
+                <li><code>- bullet</code></li>
+                <li><code>1. numbered</code></li>
+                <li><code>[text](https://...)</code></li>
+            </ul>
+        </details>
+
+        <div class="d-none" data-description-preview-token>
+            @Html.AntiForgeryToken()
+        </div>
     </div>
     <div class="mb-3">
         <label asp-for="Input.CategoryId" class="form-label">Category</label>
@@ -79,4 +118,5 @@
     <partial name="_ValidationScriptsPartial" />
     <script src="~/js/widgets/async-select.js" asp-append-version="true" defer></script>
     <script src="~/js/widgets/char-count.js" asp-append-version="true" defer></script>
+    <script src="~/js/pages/projects-meta-edit-description-preview.js" asp-append-version="true" defer></script>
 }
