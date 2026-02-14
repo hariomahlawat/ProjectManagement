@@ -723,10 +723,13 @@ app.Use(async (ctx, next) =>
             ? " " + string.Join(' ', developmentLoopbackOrigins)
             : string.Empty;
         // ----- Content Security Policy -----
-        // Calendar relies on FullCalendar's inline style injection; scope the allowance to the calendar routes
-        // so other pages remain locked down in production.
+        // Calendar and Toast UI rely on runtime <style> injection; scope the allowance to only the
+        // routes that need it so other pages remain locked down in production.
         var isCalendarRoute = ctx.Request.Path.StartsWithSegments("/Calendar", StringComparison.OrdinalIgnoreCase);
-        var styleUnsafeInline = app.Environment.IsDevelopment() || isCalendarRoute ? " 'unsafe-inline'" : string.Empty;
+        var isProjectMetaEditRoute = ctx.Request.Path.StartsWithSegments("/Projects/Meta/Edit", StringComparison.OrdinalIgnoreCase);
+        var styleUnsafeInline = app.Environment.IsDevelopment() || isCalendarRoute || isProjectMetaEditRoute
+            ? " 'unsafe-inline'"
+            : string.Empty;
         var styleSrcDirectiveWithRuntime = $"style-src {styleSrcDirective}{styleUnsafeInline}{devSourcesSuffix}; ";
         var styleSrcAttrDirective = "style-src-attr 'unsafe-inline'; ";
         var styleSrcElemDirective = $"style-src-elem {styleSrcDirective}{styleUnsafeInline}{devSourcesSuffix}; ";

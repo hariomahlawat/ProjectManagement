@@ -74,13 +74,14 @@
 
         try {
             // SECTION: Progressive enhancement guard
-            if (typeof toastui === 'undefined' || !toastui.Editor) {
+            const toastUiRuntime = window.toastui;
+            if (!toastUiRuntime || !toastUiRuntime.Editor) {
                 logFallbackWarning('toastui missing');
                 activatePlainTextMode({ showUnavailableWarning: true });
                 return;
             }
 
-            editor = new toastui.Editor({
+            editor = new toastUiRuntime.Editor({
                 el: editorHost,
                 initialEditType: 'wysiwyg',
                 previewStyle: 'tab',
