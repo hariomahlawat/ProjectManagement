@@ -23,6 +23,16 @@
       previewError.textContent = '';
     }
 
+    if (!tokenInput?.value) {
+      previewContainer.innerHTML = '<span class="text-muted">Preview unavailable.</span>';
+      if (previewError) {
+        previewError.textContent = 'Preview unavailable (missing antiforgery token). Reload page.';
+        previewError.classList.remove('d-none');
+      }
+
+      return;
+    }
+
     previewContainer.textContent = 'Loading preview...';
 
     const body = new URLSearchParams();

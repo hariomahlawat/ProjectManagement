@@ -39,10 +39,11 @@ public sealed class MarkdownRenderer : IMarkdownRenderer
         sanitizer.AllowedSchemes.Clear();
         sanitizer.AllowedSchemes.Add("http");
         sanitizer.AllowedSchemes.Add("https");
+        sanitizer.AllowedSchemes.Add("mailto");
 
         sanitizer.AllowedTags.UnionWith(new[]
         {
-            "p", "br", "strong", "em", "ul", "ol", "li", "h1", "h2", "h3", "h4", "a", "code", "pre", "blockquote"
+            "p", "br", "hr", "strong", "em", "ul", "ol", "li", "h1", "h2", "h3", "h4", "a", "code", "pre", "blockquote"
         });
 
         sanitizer.AllowedAttributes.UnionWith(new[]
@@ -59,10 +60,7 @@ public sealed class MarkdownRenderer : IMarkdownRenderer
             }
 
             var href = element.GetAttribute("href");
-            if (string.IsNullOrWhiteSpace(href) ||
-                !Uri.TryCreate(href, UriKind.Absolute, out var uri) ||
-                !uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase) &&
-                !uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
+            if (!IsAllowedHref(href))
             {
                 element.RemoveAttribute("href");
             }
@@ -73,5 +71,27 @@ public sealed class MarkdownRenderer : IMarkdownRenderer
 
         return sanitizer;
     }
-}
 
+    // SECTION: Link validation rules
+    private static bool IsAllowedHref(string? href)
+    {
+        if (string.IsNullOrWhiteSpace(href))
+        {
+            return false;
+        }
+
+        if (!Uri.TryCreate(href, UriKind.RelativeOrAbsolute, out var uri))
+        {
+            return false;
+        }
+
+        if (!uri.IsAbsoluteUri)
+        {
+            return true;
+        }
+
+        return uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)
+               || uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase)
+               || uri.Scheme.Equals("mailto", StringComparison.OrdinalIgnoreCase);
+    }
+}

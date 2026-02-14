@@ -421,7 +421,7 @@ builder.Services.AddScoped<ProliferationTrackerReadService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<ProjectRemarksPanelService>();
 builder.Services.AddScoped<ProjectMediaAggregator>();
-builder.Services.AddSingleton<IMarkdownRenderer, MarkdownRenderer>();
+builder.Services.AddTransient<IMarkdownRenderer, MarkdownRenderer>();
 builder.Services.AddScoped<ProjectModerationService>();
 builder.Services.AddScoped<IRemarkService, RemarkService>();
 builder.Services.AddScoped<INotificationPreferenceService, NotificationPreferenceService>();
