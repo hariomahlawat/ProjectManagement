@@ -35,6 +35,7 @@ using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Services.Text;
 using ProjectManagement.Tests.Fakes;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
@@ -405,6 +406,7 @@ public sealed class ProjectPhotoPageTests
 
     private static ProjectsOverviewModel CreateOverviewPage(ApplicationDbContext db, IClock clock)
     {
+        // SECTION: Build overview dependencies
         var procure = new ProjectProcurementReadService(db);
         var workflowMetadata = new WorkflowStageMetadataProvider();
         var timeline = new ProjectTimelineReadService(db, clock, workflowMetadata);
@@ -414,7 +416,8 @@ public sealed class ProjectPhotoPageTests
         var remarksPanel = new ProjectRemarksPanelService(userManager, clock, workflowMetadata);
         var lifecycle = new ProjectLifecycleService(db, new NoOpAuditService(), clock);
         var mediaAggregator = new ProjectMediaAggregator();
-        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, mediaAggregator);
+        var markdownRenderer = new MarkdownRenderer();
+        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, mediaAggregator, markdownRenderer);
     }
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)
@@ -588,6 +591,13 @@ public sealed class ProjectPhotoPageTests
                                                                              CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
+        public Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId,
+                                                                             int photoId,
+                                                                             string sizeKey,
+                                                                             string requestedFormat,
+                                                                             CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
         public string GetDerivativePath(ProjectPhoto photo, string sizeKey, bool preferWebp)
             => throw new NotImplementedException();
     }
@@ -636,6 +646,16 @@ public sealed class ProjectPhotoPageTests
             OpenDerivativeCalled = true;
             PreferWebpRequested = preferWebp;
             return Task.FromResult(DerivativeToReturn);
+        }
+
+        public Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId,
+                                                                             int photoId,
+                                                                             string sizeKey,
+                                                                             string requestedFormat,
+                                                                             CancellationToken cancellationToken)
+        {
+            var preferWebp = string.Equals(requestedFormat, "webp", StringComparison.OrdinalIgnoreCase);
+            return OpenDerivativeAsync(projectId, photoId, sizeKey, preferWebp, cancellationToken);
         }
 
         public string GetDerivativePath(ProjectPhoto photo, string sizeKey, bool preferWebp)
