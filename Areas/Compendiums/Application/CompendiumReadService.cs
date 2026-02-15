@@ -12,22 +12,31 @@ namespace ProjectManagement.Areas.Compendiums.Application;
 // SECTION: Compendium read service implementation
 public sealed class CompendiumReadService : ICompendiumReadService
 {
+    // SECTION: Build stamp for runtime verification across environments
+    public const string BuildStamp = "CompendiumsQuery_2026-02-15_zip27";
+
     private readonly ApplicationDbContext _db;
     private readonly IProjectPhotoService _projectPhotoService;
     private readonly IProliferationMetricsService _metricsService;
+    private readonly ILogger<CompendiumReadService> _logger;
 
     public CompendiumReadService(
         ApplicationDbContext db,
         IProjectPhotoService projectPhotoService,
-        IProliferationMetricsService metricsService)
+        IProliferationMetricsService metricsService,
+        ILogger<CompendiumReadService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _projectPhotoService = projectPhotoService ?? throw new ArgumentNullException(nameof(projectPhotoService));
         _metricsService = metricsService ?? throw new ArgumentNullException(nameof(metricsService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<IReadOnlyList<CompendiumProjectCardDto>> GetEligibleProjectsAsync(CancellationToken cancellationToken)
     {
+        // SECTION: Runtime stamp to verify deployed query implementation
+        _logger.LogWarning("CompendiumReadService.BuildStamp={BuildStamp}", BuildStamp);
+
         // SECTION: Eligible project list query with required ordering
         return await BuildEligibleProjectCardQuery()
             .Select(x => new CompendiumProjectCardDto
@@ -269,12 +278,12 @@ public sealed class CompendiumReadService : ICompendiumReadService
     {
         if (completedYear.HasValue)
         {
-            return completedYear.Value.ToString(CultureInfo.InvariantCulture);
+            return completedYear.GetValueOrDefault().ToString(CultureInfo.InvariantCulture);
         }
 
         if (completedOn.HasValue)
         {
-            return completedOn.Value.Year.ToString(CultureInfo.InvariantCulture);
+            return completedOn.GetValueOrDefault().Year.ToString(CultureInfo.InvariantCulture);
         }
 
         return "Not recorded";
@@ -362,13 +371,15 @@ public sealed class CompendiumReadService : ICompendiumReadService
         {
             var sddTotal = await _metricsService.GetAllTimeTotalAsync(project.Id, ProliferationSource.Sdd, cancellationToken);
             var abwTotal = await _metricsService.GetAllTimeTotalAsync(project.Id, ProliferationSource.Abw515, cancellationToken);
+            var totStatus = project.TotStatus;
+            var totCompletedOn = project.TotCompletedOn;
 
             result[project.Id] = new HistoricalExtrasDto
             {
                 RdCostLakhs = project.CostLakhs,
-                TotStatusText = project.TotStatus.HasValue ? FormatEnum(project.TotStatus.Value) : "Not recorded",
-                TotCompletedOnText = project.TotStatus == ProjectTotStatus.Completed && project.TotCompletedOn.HasValue
-                    ? project.TotCompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
+                TotStatusText = totStatus.HasValue ? FormatEnum(totStatus.GetValueOrDefault()) : "Not recorded",
+                TotCompletedOnText = totStatus == ProjectTotStatus.Completed && totCompletedOn.HasValue
+                    ? totCompletedOn.GetValueOrDefault().ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
                     : "Not recorded",
                 ProliferationSddAllTime = sddTotal,
                 ProliferationAbw515AllTime = abwTotal,
