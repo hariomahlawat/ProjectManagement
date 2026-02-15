@@ -103,37 +103,73 @@ public sealed class CompendiumReadService : ICompendiumReadService
     // SECTION: Base eligibility + ordering for eligible project cards
     private IQueryable<CompendiumProjectCardProjection> BuildEligibleProjectCardQuery()
     {
-        return from project in _db.Projects.AsNoTracking()
-               join techStatus in _db.ProjectTechStatuses.AsNoTracking()
-                   on project.Id equals techStatus.ProjectId
-               join costFact in _db.ProjectProductionCostFacts.AsNoTracking()
-                   on project.Id equals costFact.ProjectId into costJoin
-               from costFact in costJoin.DefaultIfEmpty()
-               let isDeleted = EF.Property<bool?>(project, nameof(Project.IsDeleted))
-               let isArchived = EF.Property<bool?>(project, nameof(Project.IsArchived))
-               let lifecycleStatus = EF.Property<ProjectLifecycleStatus?>(project, nameof(Project.LifecycleStatus))
-               let availableForProliferation = EF.Property<bool?>(techStatus, nameof(ProjectTechStatus.AvailableForProliferation))
-               where isDeleted != true
-                     && isArchived != true
-                     && lifecycleStatus == ProjectLifecycleStatus.Completed
-                     && availableForProliferation == true
-               let completedOn = EF.Property<DateOnly?>(project, nameof(Project.CompletedOn))
-               let completedOnYear = completedOn.HasValue ? completedOn.Value.Year : (int?)null
-               let completedYear = EF.Property<int?>(project, nameof(Project.CompletedYear))
-               let completionSortYear = completedYear ?? completedOnYear ?? 0
-               orderby project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : string.Empty,
-                   completionSortYear descending,
-                   project.Name
-               select new CompendiumProjectCardProjection(
-                   project.Id,
-                   project.Name,
-                   completedYear,
-                   project.CompletedOn,
-                   project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : null,
-                   project.ArmService,
-                   costFact != null ? costFact.ApproxProductionCost : null,
-                   project.CoverPhotoId,
-                   EF.Property<int?>(project, nameof(Project.CoverPhotoVersion)));
+        // SECTION: Scalar projection for projects to avoid entity materialization on legacy nullable columns
+        var projectsQ =
+            from project in _db.Projects.AsNoTracking()
+            let isDeleted = EF.Property<bool?>(project, nameof(Project.IsDeleted)) ?? false
+            let isArchived = EF.Property<bool?>(project, nameof(Project.IsArchived)) ?? false
+            let lifecycleStatus = EF.Property<ProjectLifecycleStatus?>(project, nameof(Project.LifecycleStatus)) ?? ProjectLifecycleStatus.Planned
+            let completedOn = EF.Property<DateOnly?>(project, nameof(Project.CompletedOn))
+            let completedYear = EF.Property<int?>(project, nameof(Project.CompletedYear))
+            let coverPhotoVersion = EF.Property<int?>(project, nameof(Project.CoverPhotoVersion))
+            select new
+            {
+                project.Id,
+                project.Name,
+                project.CoverPhotoId,
+                CoverPhotoVersion = coverPhotoVersion,
+                CompletedOn = completedOn,
+                CompletedYear = completedYear,
+                project.ArmService,
+                SponsoringLineDirectorateName = project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : null,
+                IsDeleted = isDeleted,
+                IsArchived = isArchived,
+                LifecycleStatus = lifecycleStatus
+            };
+
+        // SECTION: Scalar projection for tech statuses
+        var techStatusesQ =
+            from techStatus in _db.ProjectTechStatuses.AsNoTracking()
+            select new
+            {
+                techStatus.ProjectId,
+                AvailableForProliferation = EF.Property<bool?>(techStatus, nameof(ProjectTechStatus.AvailableForProliferation))
+            };
+
+        // SECTION: Scalar projection for optional production costs
+        var productionCostsQ =
+            from costFact in _db.ProjectProductionCostFacts.AsNoTracking()
+            select new
+            {
+                costFact.ProjectId,
+                costFact.ApproxProductionCost
+            };
+
+        var query =
+            from project in projectsQ
+            join techStatus in techStatusesQ on project.Id equals techStatus.ProjectId
+            join costFact in productionCostsQ on project.Id equals costFact.ProjectId into costJoin
+            from costFact in costJoin.DefaultIfEmpty()
+            let completionSortYear = project.CompletedYear ?? (project.CompletedOn != null ? project.CompletedOn.Value.Year : 0)
+            where project.IsDeleted == false
+                  && project.IsArchived == false
+                  && project.LifecycleStatus == ProjectLifecycleStatus.Completed
+                  && (techStatus.AvailableForProliferation ?? false) == true
+            orderby project.SponsoringLineDirectorateName ?? string.Empty,
+                completionSortYear descending,
+                project.Name
+            select new CompendiumProjectCardProjection(
+                project.Id,
+                project.Name,
+                project.CompletedYear ?? (project.CompletedOn != null ? project.CompletedOn.Value.Year : (int?)null),
+                project.CompletedOn,
+                project.SponsoringLineDirectorateName,
+                project.ArmService,
+                costFact != null ? costFact.ApproxProductionCost : null,
+                project.CoverPhotoId,
+                project.CoverPhotoVersion);
+
+        return query;
     }
 
     // SECTION: Base eligibility + ordering projection for detail and historical extras paths
@@ -141,41 +177,92 @@ public sealed class CompendiumReadService : ICompendiumReadService
     // read it with EF.Property<T?> in this projection to avoid nullable materialization crashes.
     private IQueryable<CompendiumProjection> BuildEligibleProjectDetailQuery()
     {
-        return from project in _db.Projects.AsNoTracking()
-               join techStatus in _db.ProjectTechStatuses.AsNoTracking()
-                   on project.Id equals techStatus.ProjectId
-               join costFact in _db.ProjectProductionCostFacts.AsNoTracking()
-                   on project.Id equals costFact.ProjectId into costJoin
-               from costFact in costJoin.DefaultIfEmpty()
-               join tot in _db.ProjectTots.AsNoTracking()
-                   on project.Id equals tot.ProjectId into totJoin
-               from tot in totJoin.DefaultIfEmpty()
-               where !project.IsDeleted
-                     && !project.IsArchived
-                     && project.LifecycleStatus == ProjectLifecycleStatus.Completed
-                     && techStatus.AvailableForProliferation
-               let completedOn = EF.Property<DateOnly?>(project, nameof(Project.CompletedOn))
-               let completedOnYear = completedOn.HasValue ? completedOn.Value.Year : (int?)null
-               let completionSortYear = project.CompletedYear ?? completedOnYear ?? 0
-               orderby project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : string.Empty,
-                   completionSortYear descending,
-                   project.Name
-               select new CompendiumProjection(
-                   project.Id,
-                   project.Name,
-                   project.Description,
-                   project.CompletedYear,
-                   project.CompletedOn,
-                   project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : null,
-                   project.ArmService,
-                   costFact != null ? costFact.ApproxProductionCost : null,
-                   project.CoverPhotoId,
-                   EF.Property<int?>(project, nameof(Project.CoverPhotoVersion)),
-                   project.CostLakhs,
-                   tot != null
-                       ? EF.Property<ProjectTotStatus?>(tot, nameof(ProjectTot.Status))
-                       : null,
-                   tot != null ? tot.CompletedOn : null);
+        // SECTION: Scalar projection for projects to avoid entity materialization on legacy nullable columns
+        var projectsQ =
+            from project in _db.Projects.AsNoTracking()
+            let isDeleted = EF.Property<bool?>(project, nameof(Project.IsDeleted)) ?? false
+            let isArchived = EF.Property<bool?>(project, nameof(Project.IsArchived)) ?? false
+            let lifecycleStatus = EF.Property<ProjectLifecycleStatus?>(project, nameof(Project.LifecycleStatus)) ?? ProjectLifecycleStatus.Planned
+            let completedOn = EF.Property<DateOnly?>(project, nameof(Project.CompletedOn))
+            let completedYear = EF.Property<int?>(project, nameof(Project.CompletedYear))
+            let coverPhotoVersion = EF.Property<int?>(project, nameof(Project.CoverPhotoVersion))
+            let costLakhs = EF.Property<decimal?>(project, nameof(Project.CostLakhs))
+            select new
+            {
+                project.Id,
+                project.Name,
+                project.Description,
+                CompletedYear = completedYear,
+                CompletedOn = completedOn,
+                SponsoringLineDirectorateName = project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : null,
+                project.ArmService,
+                project.CoverPhotoId,
+                CoverPhotoVersion = coverPhotoVersion,
+                CostLakhs = costLakhs,
+                IsDeleted = isDeleted,
+                IsArchived = isArchived,
+                LifecycleStatus = lifecycleStatus
+            };
+
+        // SECTION: Scalar projection for tech statuses
+        var techStatusesQ =
+            from techStatus in _db.ProjectTechStatuses.AsNoTracking()
+            select new
+            {
+                techStatus.ProjectId,
+                AvailableForProliferation = EF.Property<bool?>(techStatus, nameof(ProjectTechStatus.AvailableForProliferation))
+            };
+
+        // SECTION: Scalar projection for optional production costs
+        var productionCostsQ =
+            from costFact in _db.ProjectProductionCostFacts.AsNoTracking()
+            select new
+            {
+                costFact.ProjectId,
+                costFact.ApproxProductionCost
+            };
+
+        // SECTION: Scalar projection for optional ToT details
+        var totsQ =
+            from tot in _db.ProjectTots.AsNoTracking()
+            select new
+            {
+                tot.ProjectId,
+                Status = EF.Property<ProjectTotStatus?>(tot, nameof(ProjectTot.Status)),
+                CompletedOn = EF.Property<DateOnly?>(tot, nameof(ProjectTot.CompletedOn))
+            };
+
+        var query =
+            from project in projectsQ
+            join techStatus in techStatusesQ on project.Id equals techStatus.ProjectId
+            join costFact in productionCostsQ on project.Id equals costFact.ProjectId into costJoin
+            from costFact in costJoin.DefaultIfEmpty()
+            join tot in totsQ on project.Id equals tot.ProjectId into totJoin
+            from tot in totJoin.DefaultIfEmpty()
+            let completionSortYear = project.CompletedYear ?? (project.CompletedOn != null ? project.CompletedOn.Value.Year : 0)
+            where project.IsDeleted == false
+                  && project.IsArchived == false
+                  && project.LifecycleStatus == ProjectLifecycleStatus.Completed
+                  && (techStatus.AvailableForProliferation ?? false) == true
+            orderby project.SponsoringLineDirectorateName ?? string.Empty,
+                completionSortYear descending,
+                project.Name
+            select new CompendiumProjection(
+                project.Id,
+                project.Name,
+                project.Description,
+                project.CompletedYear ?? (project.CompletedOn != null ? project.CompletedOn.Value.Year : (int?)null),
+                project.CompletedOn,
+                project.SponsoringLineDirectorateName,
+                project.ArmService,
+                costFact != null ? costFact.ApproxProductionCost : null,
+                project.CoverPhotoId,
+                project.CoverPhotoVersion,
+                project.CostLakhs,
+                tot != null ? tot.Status : null,
+                tot != null ? tot.CompletedOn : null);
+
+        return query;
     }
 
     private static string ResolveCompletionYearText(int? completedYear, DateOnly? completedOn)
