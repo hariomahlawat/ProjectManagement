@@ -45,11 +45,21 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             return types;
         }
 
-        public async Task<IReadOnlyList<ProjectOption>> GetProjectOptionsAsync(CancellationToken cancellationToken)
+        public async Task<IReadOnlyList<ProjectOption>> GetProjectOptionsAsync(
+            IEnumerable<int>? includeProjectIds,
+            CancellationToken cancellationToken)
         {
+            // ------------------------------------------------------------
+            // SECTION: Include selected legacy Build projects for edit labels
+            // ------------------------------------------------------------
+            var includeProjectIdSet = includeProjectIds?
+                .Distinct()
+                .ToHashSet() ?? new HashSet<int>();
+
             var projects = await _db.Projects
                 .AsNoTracking()
                 .Where(x => !x.IsDeleted && !x.IsArchived)
+                .Where(x => !x.IsBuild || includeProjectIdSet.Contains(x.Id))
                 .OrderBy(x => x.Name)
                 .Select(x => new ProjectOption(x.Id, x.Name))
                 .ToListAsync(cancellationToken);
