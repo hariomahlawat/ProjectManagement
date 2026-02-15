@@ -259,7 +259,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         string? ArmService,
         decimal? ApproxProductionCost,
         int? CoverPhotoId,
-        int CoverPhotoVersion,
+        int? CoverPhotoVersion,
         decimal? CostLakhs,
         ProjectTotStatus? TotStatus,
         DateOnly? TotCompletedOn);
