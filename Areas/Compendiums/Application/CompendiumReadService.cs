@@ -101,6 +101,8 @@ public sealed class CompendiumReadService : ICompendiumReadService
     }
 
     // SECTION: Base eligibility + ordering projection
+    // Guardrail: if a model property is non-nullable but legacy database rows can store NULL,
+    // read it with EF.Property<T?> in this projection to avoid nullable materialization crashes.
     private IQueryable<CompendiumProjection> BuildEligibleProjectQuery()
     {
         return from project in _db.Projects.AsNoTracking()
