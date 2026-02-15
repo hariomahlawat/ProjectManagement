@@ -129,7 +129,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                    project.ArmService,
                    costFact != null ? costFact.ApproxProductionCost : null,
                    project.CoverPhotoId,
-                   project.CoverPhotoVersion,
+                   EF.Property<int?>(project, nameof(Project.CoverPhotoVersion)),
                    project.CostLakhs,
                    tot != null ? (ProjectTotStatus?)tot.Status : null,
                    tot != null ? tot.CompletedOn : null);
