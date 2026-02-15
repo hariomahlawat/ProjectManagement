@@ -2,8 +2,10 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using ProjectManagement.Areas.Compendiums.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
@@ -300,6 +302,176 @@ public sealed class CompendiumReadServiceTests
         Assert.Equal("Not recorded", project.CompletionYearText);
     }
 
+    [Fact]
+    public async Task GetEligibleProjectsAsync_ToleratesLegacyNullsAndPreservesEligibilityFiltering()
+    {
+        // SECTION: Arrange sqlite schema and legacy-style nullable compendium columns
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+
+        await using (var schemaContext = CreateSqliteContext(connection))
+        {
+            await CreateLegacyCompatibleCompendiumSchemaAsync(schemaContext);
+
+            await schemaContext.Database.ExecuteSqlRawAsync(
+                """
+                INSERT INTO Projects (
+                    Id, Name, Description, CompletedYear, CompletedOn, SponsoringLineDirectorateId,
+                    ArmService, CoverPhotoId, CoverPhotoVersion, CostLakhs, IsDeleted, IsArchived, LifecycleStatus)
+                VALUES
+                    (401, 'Eligible Legacy Null Flags', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 100, NULL, NULL, 2),
+                    (402, 'Skip Deleted', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 100, 1, 0, 2),
+                    (403, 'Skip Null Lifecycle', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 100, 0, 0, NULL);
+                """);
+
+            await schemaContext.Database.ExecuteSqlRawAsync(
+                """
+                INSERT INTO ProjectTechStatuses (
+                    ProjectId, TechStatus, AvailableForProliferation, NotAvailableReason, Remarks, MarkedAtUtc, MarkedByUserId)
+                VALUES
+                    (401, 'Current', 1, NULL, NULL, '2026-01-01T00:00:00Z', 'seed-user'),
+                    (402, 'Current', 1, NULL, NULL, '2026-01-01T00:00:00Z', 'seed-user'),
+                    (403, 'Current', NULL, NULL, NULL, '2026-01-01T00:00:00Z', 'seed-user');
+                """);
+        }
+
+        await using var assertionContext = CreateSqliteContext(connection);
+        var service = new CompendiumReadService(
+            assertionContext,
+            new NoOpProjectPhotoService(),
+            new ZeroProliferationMetricsService());
+
+        // SECTION: Act + assert no nullable materialization failures
+        var projects = await service.GetEligibleProjectsAsync(CancellationToken.None);
+
+        // SECTION: Assert expected filtering and display normalization
+        var project = Assert.Single(projects);
+        Assert.Equal(401, project.ProjectId);
+        Assert.Equal("Not recorded", project.ArmService);
+    }
+
+    [Fact]
+    public async Task CompendiumPages_LoadSuccessfullyWithLegacyNullDataset()
+    {
+        // SECTION: Arrange shared service with legacy-like null values
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+
+        await using (var schemaContext = CreateSqliteContext(connection))
+        {
+            await CreateLegacyCompatibleCompendiumSchemaAsync(schemaContext);
+
+            await schemaContext.Database.ExecuteSqlRawAsync(
+                """
+                INSERT INTO Projects (
+                    Id, Name, Description, CompletedYear, CompletedOn, SponsoringLineDirectorateId,
+                    ArmService, CoverPhotoId, CoverPhotoVersion, CostLakhs, IsDeleted, IsArchived, LifecycleStatus)
+                VALUES
+                    (501, 'Eligible Page Row', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 110, NULL, NULL, 2),
+                    (502, 'Archived Page Row', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 120, 0, 1, 2);
+                """);
+
+            await schemaContext.Database.ExecuteSqlRawAsync(
+                """
+                INSERT INTO ProjectTechStatuses (
+                    ProjectId, TechStatus, AvailableForProliferation, NotAvailableReason, Remarks, MarkedAtUtc, MarkedByUserId)
+                VALUES
+                    (501, 'Current', 1, NULL, NULL, '2026-01-01T00:00:00Z', 'seed-user'),
+                    (502, 'Current', 1, NULL, NULL, '2026-01-01T00:00:00Z', 'seed-user');
+                """);
+
+            await schemaContext.Database.ExecuteSqlRawAsync(
+                """
+                INSERT INTO ProjectTots (Id, ProjectId, Status, CompletedOn)
+                VALUES (51, 501, NULL, NULL);
+                """);
+        }
+
+        await using var assertionContext = CreateSqliteContext(connection);
+        var service = new CompendiumReadService(
+            assertionContext,
+            new NoOpProjectPhotoService(),
+            new ZeroProliferationMetricsService());
+
+        var proliferationPage = new ProjectManagement.Areas.Compendiums.Pages.Proliferation.IndexModel(
+            service,
+            new NoOpProliferationCompendiumPdfBuilder(),
+            new TestWebHostEnvironment());
+
+        var historicalPage = new ProjectManagement.Areas.Compendiums.Pages.Historical.IndexModel(
+            service,
+            new NoOpHistoricalCompendiumPdfBuilder(),
+            new TestWebHostEnvironment());
+
+        // SECTION: Act
+        await proliferationPage.OnGetAsync(CancellationToken.None);
+        await historicalPage.OnGetAsync(CancellationToken.None);
+
+        // SECTION: Assert
+        var proliferationProject = Assert.Single(proliferationPage.Projects);
+        Assert.Equal(501, proliferationProject.ProjectId);
+        var historicalProject = Assert.Single(historicalPage.Projects);
+        Assert.Equal(501, historicalProject.ProjectId);
+        Assert.True(historicalPage.TotalsByProject.ContainsKey(501));
+    }
+
+    // SECTION: Shared schema helper for legacy-null compendium coverage
+    private static async Task CreateLegacyCompatibleCompendiumSchemaAsync(ApplicationDbContext context)
+    {
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE Projects (
+                Id INTEGER NOT NULL CONSTRAINT PK_Projects PRIMARY KEY,
+                Name TEXT NOT NULL,
+                Description TEXT NULL,
+                CompletedYear INTEGER NULL,
+                CompletedOn TEXT NULL,
+                SponsoringLineDirectorateId INTEGER NULL,
+                ArmService TEXT NULL,
+                CoverPhotoId INTEGER NULL,
+                CoverPhotoVersion INTEGER NULL,
+                CostLakhs TEXT NULL,
+                IsDeleted INTEGER NULL,
+                IsArchived INTEGER NULL,
+                LifecycleStatus INTEGER NULL
+            );
+            """);
+
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE ProjectTechStatuses (
+                ProjectId INTEGER NOT NULL CONSTRAINT PK_ProjectTechStatuses PRIMARY KEY,
+                TechStatus TEXT NOT NULL,
+                AvailableForProliferation INTEGER NULL,
+                NotAvailableReason TEXT NULL,
+                Remarks TEXT NULL,
+                MarkedAtUtc TEXT NOT NULL,
+                MarkedByUserId TEXT NOT NULL
+            );
+            """);
+
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE ProjectProductionCostFacts (
+                ProjectId INTEGER NOT NULL CONSTRAINT PK_ProjectProductionCostFacts PRIMARY KEY,
+                ApproxProductionCost TEXT NULL,
+                Remarks TEXT NULL,
+                UpdatedAtUtc TEXT NOT NULL,
+                UpdatedByUserId TEXT NOT NULL
+            );
+            """);
+
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE ProjectTots (
+                Id INTEGER NOT NULL CONSTRAINT PK_ProjectTots PRIMARY KEY,
+                ProjectId INTEGER NOT NULL,
+                Status INTEGER NULL,
+                CompletedOn TEXT NULL
+            );
+            """);
+    }
+
     // SECTION: Shared sqlite context helper
     private static ApplicationDbContext CreateSqliteContext(SqliteConnection connection)
     {
@@ -331,5 +503,27 @@ public sealed class CompendiumReadServiceTests
     private sealed class ZeroProliferationMetricsService : IProliferationMetricsService
     {
         public Task<int> GetAllTimeTotalAsync(int projectId, ProliferationSource source, CancellationToken cancellationToken) => Task.FromResult(0);
+    }
+
+    // SECTION: Minimal PDF builder test doubles for page model construction
+    private sealed class NoOpProliferationCompendiumPdfBuilder : Utilities.Reporting.IProliferationCompendiumPdfBuilder
+    {
+        public byte[] Build(Utilities.Reporting.ProliferationCompendiumPdfContext context) => Array.Empty<byte>();
+    }
+
+    private sealed class NoOpHistoricalCompendiumPdfBuilder : Utilities.Reporting.IHistoricalCompendiumPdfBuilder
+    {
+        public byte[] Build(Utilities.Reporting.HistoricalCompendiumPdfContext context) => Array.Empty<byte>();
+    }
+
+    // SECTION: Minimal hosting environment for page model constructor requirements
+    private sealed class TestWebHostEnvironment : IWebHostEnvironment
+    {
+        public string ApplicationName { get; set; } = "ProjectManagement.Tests";
+        public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
+        public string WebRootPath { get; set; } = AppContext.BaseDirectory;
+        public string EnvironmentName { get; set; } = "Development";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 }

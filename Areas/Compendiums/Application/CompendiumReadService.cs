@@ -109,20 +109,25 @@ public sealed class CompendiumReadService : ICompendiumReadService
                join costFact in _db.ProjectProductionCostFacts.AsNoTracking()
                    on project.Id equals costFact.ProjectId into costJoin
                from costFact in costJoin.DefaultIfEmpty()
-               where !project.IsDeleted
-                     && !project.IsArchived
-                     && project.LifecycleStatus == ProjectLifecycleStatus.Completed
-                     && techStatus.AvailableForProliferation
+               let isDeleted = EF.Property<bool?>(project, nameof(Project.IsDeleted))
+               let isArchived = EF.Property<bool?>(project, nameof(Project.IsArchived))
+               let lifecycleStatus = EF.Property<ProjectLifecycleStatus?>(project, nameof(Project.LifecycleStatus))
+               let availableForProliferation = EF.Property<bool?>(techStatus, nameof(ProjectTechStatus.AvailableForProliferation))
+               where isDeleted != true
+                     && isArchived != true
+                     && lifecycleStatus == ProjectLifecycleStatus.Completed
+                     && availableForProliferation == true
                let completedOn = EF.Property<DateOnly?>(project, nameof(Project.CompletedOn))
                let completedOnYear = completedOn.HasValue ? completedOn.Value.Year : (int?)null
-               let completionSortYear = project.CompletedYear ?? completedOnYear ?? 0
+               let completedYear = EF.Property<int?>(project, nameof(Project.CompletedYear))
+               let completionSortYear = completedYear ?? completedOnYear ?? 0
                orderby project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : string.Empty,
                    completionSortYear descending,
                    project.Name
                select new CompendiumProjectCardProjection(
                    project.Id,
                    project.Name,
-                   project.CompletedYear,
+                   completedYear,
                    project.CompletedOn,
                    project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : null,
                    project.ArmService,
