@@ -1,0 +1,42 @@
+@page "/Compendiums/Historical"
+@model ProjectManagement.Areas.Compendiums.Pages.Historical.IndexModel
+@{
+    ViewData["Title"] = "Historical Repository Compendium";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="mb-1">Historical Repository Compendium</h2>
+            <p class="text-muted mb-0">Projects available for proliferation (Completed)</p>
+        </div>
+        <a asp-page="/Historical/ExportPdf" asp-area="Compendiums" class="btn btn-primary">Export PDF</a>
+    </div>
+
+    <div class="row g-3">
+        @foreach (var project in Model.Projects)
+        {
+            <div class="col-md-6 col-xl-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        @if (project.HasCoverPhoto && project.CoverPhotoId.HasValue)
+                        {
+                            <img src="@Url.Page("/Projects/Photos/View", new { id = project.ProjectId, photoId = project.CoverPhotoId.Value, size = "sm", v = project.CoverPhotoVersion })" class="img-fluid rounded border mb-3" style="height: 170px; width: 100%; object-fit: cover;" alt="@project.Name cover photo" />
+                        }
+                        else
+                        {
+                            <div class="border rounded d-flex align-items-center justify-content-center text-muted mb-3" style="height: 170px;">No image available</div>
+                        }
+
+                        <h5 class="card-title">@project.Name</h5>
+                        <p class="mb-1"><strong>Sponsoring dte:</strong> @project.SponsoringLineDirectorateName</p>
+                        <p class="mb-1"><strong>Completion year:</strong> @project.CompletionYearText</p>
+                        <p class="mb-1"><strong>ToT status:</strong> Internal</p>
+                        <p class="mb-2"><strong>Total proliferation:</strong> @(Model.TotalsByProject.TryGetValue(project.ProjectId, out var total) ? total : 0)</p>
+                        <a asp-page="/Historical/Project" asp-area="Compendiums" asp-route-id="@project.ProjectId" class="btn btn-outline-primary btn-sm">View</a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>

@@ -28,6 +28,7 @@ using ProjectManagement.Application.Security;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
+using ProjectManagement.Areas.Compendiums.Application;
 using ProjectManagement.Configuration;
 using ProjectManagement.Contracts;
 using ProjectManagement.Contracts.Activities;
@@ -418,6 +419,8 @@ builder.Services.AddScoped<ProjectLifecycleService>();
 builder.Services.AddScoped<ProjectTotService>();
 builder.Services.AddScoped<ProjectTotTrackerReadService>();
 builder.Services.AddScoped<ProliferationTrackerReadService>();
+builder.Services.AddScoped<ICompendiumReadService, CompendiumReadService>();
+builder.Services.AddScoped<IProliferationMetricsService, ProliferationMetricsService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<ProjectRemarksPanelService>();
 builder.Services.AddScoped<ProjectMediaAggregator>();
@@ -461,6 +464,8 @@ builder.Services.AddSingleton<IVisitExcelWorkbookBuilder, VisitExcelWorkbookBuil
 builder.Services.AddSingleton<IVisitPdfReportBuilder, VisitPdfReportBuilder>();
 builder.Services.AddSingleton<ISocialMediaExcelWorkbookBuilder, SocialMediaExcelWorkbookBuilder>();
 builder.Services.AddSingleton<ISocialMediaPdfReportBuilder, SocialMediaPdfReportBuilder>();
+builder.Services.AddSingleton<IProliferationCompendiumPdfBuilder, ProliferationCompendiumPdfBuilder>();
+builder.Services.AddSingleton<IHistoricalCompendiumPdfBuilder, HistoricalCompendiumPdfBuilder>();
 builder.Services.AddSingleton<IProliferationExcelWorkbookBuilder, ProliferationExcelWorkbookBuilder>();
 // SECTION: Proliferation reports Excel builder
 builder.Services.AddSingleton<IProliferationReportExcelWorkbookBuilder, ProliferationReportExcelWorkbookBuilder>();
