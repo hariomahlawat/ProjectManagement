@@ -61,7 +61,7 @@ public sealed class ManageModelTests
         var optionsSnapshot = new StubOptionsSnapshot<TrainingTrackerOptions>(new TrainingTrackerOptions { Enabled = true });
         var userContext = new StubUserContext("creator");
 
-        var page = new ManageModel(optionsSnapshot, readService, writeService, userContext)
+        var page = new ManageModel(optionsSnapshot, db, readService, writeService, userContext)
         {
             Input = new ManageModel.InputModel
             {
@@ -118,7 +118,7 @@ public sealed class ManageModelTests
         var optionsSnapshot = new StubOptionsSnapshot<TrainingTrackerOptions>(new TrainingTrackerOptions { Enabled = true });
         var userContext = new StubUserContext("creator");
 
-        var page = new ManageModel(optionsSnapshot, readService, writeService, userContext)
+        var page = new ManageModel(optionsSnapshot, db, readService, writeService, userContext)
         {
             Input = new ManageModel.InputModel
             {
@@ -175,7 +175,7 @@ public sealed class ManageModelTests
         var optionsSnapshot = new StubOptionsSnapshot<TrainingTrackerOptions>(new TrainingTrackerOptions { Enabled = true });
         var userContext = new StubUserContext("creator");
 
-        var page = new ManageModel(optionsSnapshot, readService, writeService, userContext)
+        var page = new ManageModel(optionsSnapshot, db, readService, writeService, userContext)
         {
             Input = new ManageModel.InputModel
             {
@@ -232,7 +232,7 @@ public sealed class ManageModelTests
         var optionsSnapshot = new StubOptionsSnapshot<TrainingTrackerOptions>(new TrainingTrackerOptions { Enabled = true });
         var userContext = new StubUserContext("creator");
 
-        var page = new ManageModel(optionsSnapshot, readService, writeService, userContext)
+        var page = new ManageModel(optionsSnapshot, db, readService, writeService, userContext)
         {
             Input = new ManageModel.InputModel
             {
@@ -295,7 +295,7 @@ public sealed class ManageModelTests
             new { armyNumber = "A002", rank = "Subedar", name = "Bravo", unitName = "Signals", category = 1 },
             new { armyNumber = "A003", rank = "Sep", name = "Charlie", unitName = "Signals", category = 2 });
 
-        var page = new ManageModel(optionsSnapshot, readService, writeService, userContext)
+        var page = new ManageModel(optionsSnapshot, db, readService, writeService, userContext)
         {
             Input = new ManageModel.InputModel
             {
