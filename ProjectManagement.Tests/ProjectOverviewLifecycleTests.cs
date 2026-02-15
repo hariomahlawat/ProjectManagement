@@ -25,6 +25,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Services.Text;
 using ProjectManagement.ViewModels;
 using Xunit;
 using ProjectsOverviewModel = ProjectManagement.Pages.Projects.OverviewModel;
@@ -358,7 +359,7 @@ public sealed class ProjectOverviewLifecycleTests
         var remarksPanel = new ProjectRemarksPanelService(userManager, clock, workflowMetadata);
         var lifecycle = new ProjectLifecycleService(db, new NoOpAuditService(), clock);
         var mediaAggregator = new ProjectMediaAggregator();
-        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, mediaAggregator);
+        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, mediaAggregator, new MarkdownRenderer());
     }
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)

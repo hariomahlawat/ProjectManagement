@@ -13,6 +13,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Pages.Projects.Meta;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Text;
 using ProjectManagement.Services.Projects;
 using Xunit;
 
@@ -315,7 +316,7 @@ public sealed class ProjectMetaEditPageTests
 
     private static EditModel CreatePage(ApplicationDbContext db, IUserContext userContext)
     {
-        var page = new EditModel(db, userContext, new FakeAudit())
+        var page = new EditModel(db, userContext, new FakeAudit(), new MarkdownRenderer())
         {
             PageContext = new PageContext
             {
