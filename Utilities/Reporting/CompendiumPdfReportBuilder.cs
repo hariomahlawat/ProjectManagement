@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using QuestPDF.Drawing;
 using QuestPDF.Fluent;
+using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using ProjectManagement.Utilities;
 
@@ -243,11 +243,13 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     row.ConstantItem(210).Height(160).PaddingLeft(14).Element(img =>
                     {
+                        // SECTION: Project cover image
                         img.Border(1)
                             .BorderColor("#CBD5F5")
                             .Background("#F8FAFC")
                             .Padding(6)
-                            .Image(project.CoverPhoto, ImageScaling.FitArea);
+                            .Image(project.CoverPhoto)
+                            .FitArea();
                     });
                 }
             });
