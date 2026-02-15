@@ -38,6 +38,7 @@ using ProjectManagement.Features.Analytics;
 using ProjectManagement.Features.Remarks;
 using ProjectManagement.Features.Users;
 using ProjectManagement.Helpers;
+using ProjectManagement.Services.Compendiums;
 using ProjectManagement.Hosted;
 using ProjectManagement.Hubs;
 using ProjectManagement.Services.Approvals;
@@ -365,6 +366,8 @@ builder.Services.Configure<FfcAttachmentOptions>(
     builder.Configuration.GetSection("FfcAttachments"));
 builder.Services.Configure<FileDownloadOptions>(
     builder.Configuration.GetSection("FileDownload"));
+builder.Services.Configure<CompendiumPdfOptions>(
+    builder.Configuration.GetSection("CompendiumPdf"));
 builder.Services.AddSingleton<IprAttachmentStorage>();
 builder.Services.AddScoped<IFileSecurityValidator, FileSecurityValidator>();
 builder.Services.AddScoped<IFfcAttachmentStorage, FfcAttachmentStorage>();
@@ -388,6 +391,11 @@ builder.Services.AddScoped<PlanApprovalService>();
 builder.Services.AddScoped<INavigationProvider, RoleBasedNavigationProvider>();
 builder.Services.AddScoped<ProliferationOverviewService>();
 builder.Services.AddScoped<IProliferationSummaryReadService, ProliferationSummaryReadService>();
+
+// SECTION: Proliferation Compendium (Projects module)
+builder.Services.AddScoped<ICompendiumReadService, CompendiumReadService>();
+builder.Services.AddScoped<ICompendiumExportService, CompendiumExportService>();
+builder.Services.AddScoped<ICompendiumPdfReportBuilder, CompendiumPdfReportBuilder>();
 builder.Services.AddScoped<ProliferationSubmissionService>();
 builder.Services.AddScoped<ProliferationManageService>();
 // SECTION: Proliferation reports services

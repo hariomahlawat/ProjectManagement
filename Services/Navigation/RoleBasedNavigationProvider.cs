@@ -69,6 +69,12 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Page = "/Activities/Index",
                 Icon = "bi-stars"
             },
+            new()
+            {
+                Text = "Proliferation compendium",
+                Page = "/Projects/Compendium/Index",
+                Icon = "bi-file-earmark-pdf"
+            },
             // Progress review entry (drawer only).
             new()
             {

@@ -1,0 +1,37 @@
+@page
+@model ProjectManagement.Pages.Projects.Compendium.IndexModel
+
+@{
+    ViewData["Title"] = "Proliferation Compendium";
+}
+
+<div class="container-fluid px-0">
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-1">Proliferation Compendium</h1>
+            <div class="text-muted">Generate a print-ready PDF of completed projects available for proliferation.</div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                <div>
+                    <div class="fw-semibold">Proliferation Compendium PDF</div>
+                    <div class="text-muted small">Includes cover page, category index, and per-project detail pages.</div>
+                </div>
+
+                <form method="post" asp-page-handler="Generate">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>
+                        Generate PDF
+                    </button>
+                </form>
+            </div>
+
+            <div class="mt-3 text-muted small">
+                Eligibility: Completed, not archived, not deleted, and available for proliferation.
+            </div>
+        </div>
+    </div>
+</div>
