@@ -23,18 +23,12 @@ public sealed class HistoricalCompendiumPdfBuilder : IHistoricalCompendiumPdfBui
 
     public byte[] Build(HistoricalCompendiumPdfContext context)
     {
-        // SECTION: Two-pass rendering for accurate index page numbers
-        var projectStartPages = new Dictionary<int, int>();
-        CreateDocument(context, projectStartPages, capturePageNumbers: true).GeneratePdf();
-
-        return CreateDocument(context, projectStartPages, capturePageNumbers: false).GeneratePdf();
+        // SECTION: Single-pass rendering for deterministic offline generation
+        return CreateDocument(context).GeneratePdf();
     }
 
-    // SECTION: Shared document composition for pass-1 and pass-2
-    private static Document CreateDocument(
-        HistoricalCompendiumPdfContext context,
-        Dictionary<int, int> projectStartPages,
-        bool capturePageNumbers)
+    // SECTION: Shared document composition
+    private static Document CreateDocument(HistoricalCompendiumPdfContext context)
     {
         return Document.Create(container =>
         {
@@ -87,10 +81,7 @@ public sealed class HistoricalCompendiumPdfBuilder : IHistoricalCompendiumPdfBui
                         table.Cell().Text(project.SponsoringLineDirectorateName);
                         table.Cell().Text(project.CompletionYearText);
 
-                        var pageText = projectStartPages.TryGetValue(project.ProjectId, out var startPage)
-                            ? startPage.ToString(CultureInfo.InvariantCulture)
-                            : "-";
-                        table.Cell().AlignRight().Text(pageText);
+                        table.Cell().AlignRight().Text("-");
                     }
                 });
                 page.Footer().Element(c => PrismPdfChrome.ComposeFooter(c, context.FooterLogoBytes, context.GeneratedOn));
@@ -105,14 +96,6 @@ public sealed class HistoricalCompendiumPdfBuilder : IHistoricalCompendiumPdfBui
                     page.Margin(35);
                     page.Content().Column(column =>
                     {
-                        column.Item().CaptureContentPosition(position =>
-                        {
-                            if (capturePageNumbers && !projectStartPages.ContainsKey(project.ProjectId))
-                            {
-                                projectStartPages[project.ProjectId] = position.PageNumber;
-                            }
-                        });
-
                         column.Item().Element(c => ComposeProject(c, project));
                     });
                     page.Footer().Element(c => PrismPdfChrome.ComposeFooter(c, context.FooterLogoBytes, context.GeneratedOn));
