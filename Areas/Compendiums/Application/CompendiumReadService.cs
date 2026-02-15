@@ -113,8 +113,11 @@ public sealed class CompendiumReadService : ICompendiumReadService
                      && !project.IsArchived
                      && project.LifecycleStatus == ProjectLifecycleStatus.Completed
                      && techStatus.AvailableForProliferation
+               let completedOn = EF.Property<DateOnly?>(project, nameof(Project.CompletedOn))
+               let completedOnYear = completedOn == null ? (int?)null : completedOn.GetValueOrDefault().Year
+               let completionSortYear = project.CompletedYear ?? completedOnYear ?? 0
                orderby project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : string.Empty,
-                   project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : 0) descending,
+                   completionSortYear descending,
                    project.Name
                select new CompendiumProjectCardProjection(
                    project.Id,
@@ -146,8 +149,11 @@ public sealed class CompendiumReadService : ICompendiumReadService
                      && !project.IsArchived
                      && project.LifecycleStatus == ProjectLifecycleStatus.Completed
                      && techStatus.AvailableForProliferation
+               let completedOn = EF.Property<DateOnly?>(project, nameof(Project.CompletedOn))
+               let completedOnYear = completedOn == null ? (int?)null : completedOn.GetValueOrDefault().Year
+               let completionSortYear = project.CompletedYear ?? completedOnYear ?? 0
                orderby project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : string.Empty,
-                   project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : 0) descending,
+                   completionSortYear descending,
                    project.Name
                select new CompendiumProjection(
                    project.Id,
