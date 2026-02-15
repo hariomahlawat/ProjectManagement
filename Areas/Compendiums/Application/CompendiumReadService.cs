@@ -164,7 +164,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             from costFact in costJoin.DefaultIfEmpty()
             where project.IsDeleted == false
                   && project.IsArchived == false
-                  && project.LifecycleStatus == ProjectLifecycleStatusTokens.Completed
+                  && project.LifecycleStatus == ProjectLifecycleStatus.Completed
                   && (techStatus.AvailableForProliferation ?? false) == true
             orderby project.SponsoringLineDirectorateName ?? string.Empty,
                 project.CompletedYear descending,
@@ -258,7 +258,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             from tot in totJoin.DefaultIfEmpty()
             where project.IsDeleted == false
                   && project.IsArchived == false
-                  && project.LifecycleStatus == ProjectLifecycleStatusTokens.Completed
+                  && project.LifecycleStatus == ProjectLifecycleStatus.Completed
                   && (techStatus.AvailableForProliferation ?? false) == true
             orderby project.SponsoringLineDirectorateName ?? string.Empty,
                 project.CompletedYear descending,
