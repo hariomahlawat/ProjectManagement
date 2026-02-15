@@ -40,9 +40,9 @@ public sealed class CompendiumReadService : ICompendiumReadService
             {
                 p.Id,
                 p.Name,
+                p.Description,
                 p.TechnicalCategoryId,
                 TechnicalCategoryName = p.TechnicalCategory != null ? p.TechnicalCategory.Name : null,
-                SponsoringLineDirectorateName = p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : null,
                 p.ArmService,
                 p.CompletedYear,
                 p.CompletedOn,
@@ -144,13 +144,13 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 ? "Not recorded"
                 : p.TechnicalCategoryName!.Trim();
 
-            var ldDisplay = string.IsNullOrWhiteSpace(p.SponsoringLineDirectorateName)
-                ? "Not recorded"
-                : p.SponsoringLineDirectorateName!.Trim();
-
             var armDisplay = string.IsNullOrWhiteSpace(p.ArmService)
                 ? "Not recorded"
                 : p.ArmService.Trim();
+
+            var descriptionMd = string.IsNullOrWhiteSpace(p.Description)
+                ? "Not recorded"
+                : p.Description.Trim();
 
             var coverPhotoId = p.CoverPhotoId;
             if (!coverPhotoId.HasValue && coverPhotoFallbackByProjectId.TryGetValue(p.Id, out var fallbackId))
@@ -164,10 +164,10 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 TechnicalCategoryName: categoryName,
                 CompletionYearValue: completionYear,
                 CompletionYearDisplay: completionYearDisplay,
-                SponsoringLineDirectorateDisplay: ldDisplay,
                 ArmServiceDisplay: armDisplay,
                 ProliferationCostLakhs: cost?.ApproxProductionCost,
-                CoverPhotoId: coverPhotoId));
+                CoverPhotoId: coverPhotoId,
+                DescriptionMarkdown: descriptionMd));
         }
 
         // SECTION: Grouping and ordering per URD.

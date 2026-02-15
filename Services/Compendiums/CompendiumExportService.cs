@@ -52,11 +52,11 @@ public sealed class CompendiumExportService : ICompendiumExportService
                     ProjectName: p.ProjectName,
                     CategoryName: group.TechnicalCategoryName,
                     CompletionYearDisplay: p.CompletionYearDisplay,
-                    SponsoringLineDirectorateDisplay: p.SponsoringLineDirectorateDisplay,
                     ArmServiceDisplay: p.ArmServiceDisplay,
                     ProliferationCostDisplay: p.ProliferationCostLakhs.HasValue
                         ? p.ProliferationCostLakhs.Value.ToString("0.##", CultureInfo.InvariantCulture)
                         : "Not recorded",
+                    DescriptionMarkdown: p.DescriptionMarkdown,
                     CoverPhoto: photoBytes));
             }
 
