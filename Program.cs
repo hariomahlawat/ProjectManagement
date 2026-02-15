@@ -1850,7 +1850,7 @@ lookupApi.MapGet("/projects", async (
 
     var projects = db.Projects
         .AsNoTracking()
-        .Where(p => !p.IsDeleted && !p.IsArchived);
+        .Where(p => !p.IsDeleted && !p.IsArchived && !p.IsBuild);
 
     if (!string.IsNullOrEmpty(term))
     {

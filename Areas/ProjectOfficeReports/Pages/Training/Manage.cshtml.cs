@@ -10,10 +10,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Configuration;
+using ProjectManagement.Data;
 using ProjectManagement.Services;
 using ProjectManagement.Infrastructure.Ui;
 
@@ -24,6 +26,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Training;
 public class ManageModel : PageModel
 {
     private readonly IOptionsSnapshot<TrainingTrackerOptions> _options;
+    private readonly ApplicationDbContext _db;
     private readonly TrainingTrackerReadService _readService;
     private readonly TrainingWriteService _writeService;
     private readonly IUserContext _userContext;
@@ -38,11 +41,13 @@ public class ManageModel : PageModel
 
     public ManageModel(
         IOptionsSnapshot<TrainingTrackerOptions> options,
+        ApplicationDbContext db,
         TrainingTrackerReadService readService,
         TrainingWriteService writeService,
         IUserContext userContext)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _db = db ?? throw new ArgumentNullException(nameof(db));
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
         _writeService = writeService ?? throw new ArgumentNullException(nameof(writeService));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
@@ -66,11 +71,10 @@ public class ManageModel : PageModel
         IsFeatureEnabled = _options.Value.Enabled;
         TrainingId = id;
 
-        await LoadOptionsAsync(cancellationToken);
-
         if (!IsFeatureEnabled)
         {
             PendingDeleteRequest = null;
+            await LoadOptionsAsync(cancellationToken);
             return Page();
         }
 
@@ -78,6 +82,7 @@ public class ManageModel : PageModel
         {
             Input = InputModel.CreateDefault();
             PendingDeleteRequest = null;
+            await LoadOptionsAsync(cancellationToken);
             return Page();
         }
 
@@ -90,6 +95,7 @@ public class ManageModel : PageModel
 
         Input = InputModel.FromEditor(existing);
         ApplyPendingDeleteRequest(existing.PendingDeleteRequest);
+        await LoadOptionsAsync(cancellationToken);
         return Page();
     }
 
@@ -112,6 +118,7 @@ public class ManageModel : PageModel
             .ToDictionary(option => option.Id, option => option.RequiresProjectSelection);
 
         ValidateInput(Input, trainingTypeRequirements);
+        await ValidateBuildProjectSelectionAsync(cancellationToken);
 
         List<TrainingRosterRow> rosterRows;
         if (Input.IsLegacyRecord)
@@ -344,9 +351,61 @@ public class ManageModel : PageModel
             .Select(option => new SelectListItem(option.Name, option.Id.ToString()))
             .ToList();
 
-        ProjectOptions = (await _readService.GetProjectOptionsAsync(cancellationToken))
+        ProjectOptions = (await _readService.GetProjectOptionsAsync(Input?.ProjectIds, cancellationToken))
             .Select(option => new SelectListItem(option.Name, option.Id.ToString()))
             .ToList();
+    }
+
+    private async Task ValidateBuildProjectSelectionAsync(CancellationToken cancellationToken)
+    {
+        // ------------------------------------------------------------
+        // SECTION: Enforce linked project policy (new projects only)
+        // ------------------------------------------------------------
+        var submittedProjectIds = (Input?.ProjectIds ?? new List<int>())
+            .Distinct()
+            .ToList();
+
+        if (submittedProjectIds.Count == 0)
+        {
+            return;
+        }
+
+        var submittedBuildProjectIds = await _db.Projects
+            .AsNoTracking()
+            .Where(project => submittedProjectIds.Contains(project.Id)
+                && !project.IsDeleted
+                && !project.IsArchived
+                && project.IsBuild)
+            .Select(project => project.Id)
+            .ToListAsync(cancellationToken);
+
+        if (submittedBuildProjectIds.Count == 0)
+        {
+            return;
+        }
+
+        if (!Input!.Id.HasValue)
+        {
+            ModelState.AddModelError(nameof(Input.ProjectIds),
+                "Build (repeat or remanufacture) projects cannot be linked. Only new projects are allowed.");
+            return;
+        }
+
+        var existingLinkedProjectIds = await _db.Trainings
+            .AsNoTracking()
+            .Where(training => training.Id == Input.Id.Value)
+            .SelectMany(training => training.ProjectLinks.Select(link => link.ProjectId))
+            .ToListAsync(cancellationToken);
+
+        var newlyAddedBuildProjectIds = submittedBuildProjectIds
+            .Except(existingLinkedProjectIds)
+            .ToList();
+
+        if (newlyAddedBuildProjectIds.Count > 0)
+        {
+            ModelState.AddModelError(nameof(Input.ProjectIds),
+                "Build (repeat or remanufacture) projects cannot be newly added. Existing linked build projects may remain.");
+        }
     }
 
     private async Task RefreshRosterAsync(Guid trainingId, CancellationToken cancellationToken)
