@@ -150,18 +150,18 @@ public sealed class CompendiumReadService : ICompendiumReadService
             join techStatus in techStatusesQ on project.Id equals techStatus.ProjectId
             join costFact in productionCostsQ on project.Id equals costFact.ProjectId into costJoin
             from costFact in costJoin.DefaultIfEmpty()
-            let completionSortYear = project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : 0)
             where project.IsDeleted == false
                   && project.IsArchived == false
                   && project.LifecycleStatus == ProjectLifecycleStatus.Completed
                   && (techStatus.AvailableForProliferation ?? false) == true
             orderby project.SponsoringLineDirectorateName ?? string.Empty,
-                completionSortYear descending,
+                project.CompletedYear descending,
+                project.CompletedOn descending,
                 project.Name
             select new CompendiumProjectCardProjection(
                 project.Id,
                 project.Name,
-                project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : (int?)null),
+                project.CompletedYear,
                 project.CompletedOn,
                 project.SponsoringLineDirectorateName,
                 project.ArmService,
@@ -239,19 +239,19 @@ public sealed class CompendiumReadService : ICompendiumReadService
             from costFact in costJoin.DefaultIfEmpty()
             join tot in totsQ on project.Id equals tot.ProjectId into totJoin
             from tot in totJoin.DefaultIfEmpty()
-            let completionSortYear = project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : 0)
             where project.IsDeleted == false
                   && project.IsArchived == false
                   && project.LifecycleStatus == ProjectLifecycleStatus.Completed
                   && (techStatus.AvailableForProliferation ?? false) == true
             orderby project.SponsoringLineDirectorateName ?? string.Empty,
-                completionSortYear descending,
+                project.CompletedYear descending,
+                project.CompletedOn descending,
                 project.Name
             select new CompendiumProjection(
                 project.Id,
                 project.Name,
                 project.Description,
-                project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : (int?)null),
+                project.CompletedYear,
                 project.CompletedOn,
                 project.SponsoringLineDirectorateName,
                 project.ArmService,
