@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Areas.Compendiums.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
@@ -41,7 +42,7 @@ public sealed class CompendiumReadServiceTests
                     CostLakhs TEXT NULL,
                     IsDeleted INTEGER NOT NULL,
                     IsArchived INTEGER NOT NULL,
-                    LifecycleStatus INTEGER NOT NULL
+                    LifecycleStatus TEXT NOT NULL
                 );
                 """);
 
@@ -84,7 +85,7 @@ public sealed class CompendiumReadServiceTests
                 INSERT INTO Projects (
                     Id, Name, Description, CompletedYear, CompletedOn, SponsoringLineDirectorateId,
                     ArmService, CoverPhotoId, CoverPhotoVersion, CostLakhs, IsDeleted, IsArchived, LifecycleStatus)
-                VALUES (101, 'Project Null Cover Version', NULL, 2025, NULL, NULL, 'Navy', NULL, NULL, 50, 0, 0, 2);
+                VALUES (101, 'Project Null Cover Version', NULL, 2025, NULL, NULL, 'Navy', NULL, NULL, 50, 0, 0, 'Completed');
                 """);
 
             await schemaContext.Database.ExecuteSqlRawAsync(
@@ -99,7 +100,8 @@ public sealed class CompendiumReadServiceTests
         var service = new CompendiumReadService(
             assertionContext,
             new NoOpProjectPhotoService(),
-            new ZeroProliferationMetricsService());
+            new ZeroProliferationMetricsService(),
+            NullLogger<CompendiumReadService>.Instance);
 
         // SECTION: Act
         var projects = await service.GetEligibleProjectsAsync(CancellationToken.None);
@@ -134,7 +136,7 @@ public sealed class CompendiumReadServiceTests
                     CostLakhs TEXT NULL,
                     IsDeleted INTEGER NOT NULL,
                     IsArchived INTEGER NOT NULL,
-                    LifecycleStatus INTEGER NOT NULL
+                    LifecycleStatus TEXT NOT NULL
                 );
                 """);
 
@@ -177,7 +179,7 @@ public sealed class CompendiumReadServiceTests
                 INSERT INTO Projects (
                     Id, Name, Description, CompletedYear, CompletedOn, SponsoringLineDirectorateId,
                     ArmService, CoverPhotoId, CoverPhotoVersion, CostLakhs, IsDeleted, IsArchived, LifecycleStatus)
-                VALUES (201, 'Project Null TOT Status', NULL, 2024, NULL, NULL, 'Army', NULL, NULL, 75, 0, 0, 2);
+                VALUES (201, 'Project Null TOT Status', NULL, 2024, NULL, NULL, 'Army', NULL, NULL, 75, 0, 0, 'Completed');
                 """);
 
             await schemaContext.Database.ExecuteSqlRawAsync(
@@ -198,7 +200,8 @@ public sealed class CompendiumReadServiceTests
         var service = new CompendiumReadService(
             assertionContext,
             new NoOpProjectPhotoService(),
-            new ZeroProliferationMetricsService());
+            new ZeroProliferationMetricsService(),
+            NullLogger<CompendiumReadService>.Instance);
 
         // SECTION: Act
         var projects = await service.GetEligibleProjectsAsync(CancellationToken.None);
@@ -233,7 +236,7 @@ public sealed class CompendiumReadServiceTests
                     CostLakhs TEXT NULL,
                     IsDeleted INTEGER NOT NULL,
                     IsArchived INTEGER NOT NULL,
-                    LifecycleStatus INTEGER NOT NULL
+                    LifecycleStatus TEXT NOT NULL
                 );
                 """);
 
@@ -276,7 +279,7 @@ public sealed class CompendiumReadServiceTests
                 INSERT INTO Projects (
                     Id, Name, Description, CompletedYear, CompletedOn, SponsoringLineDirectorateId,
                     ArmService, CoverPhotoId, CoverPhotoVersion, CostLakhs, IsDeleted, IsArchived, LifecycleStatus)
-                VALUES (301, 'Project Null Completion Fields', NULL, NULL, NULL, NULL, 'Air Force', NULL, NULL, 90, 0, 0, 2);
+                VALUES (301, 'Project Null Completion Fields', NULL, NULL, NULL, NULL, 'Air Force', NULL, NULL, 90, 0, 0, 'Completed');
                 """);
 
             await schemaContext.Database.ExecuteSqlRawAsync(
@@ -291,7 +294,8 @@ public sealed class CompendiumReadServiceTests
         var service = new CompendiumReadService(
             assertionContext,
             new NoOpProjectPhotoService(),
-            new ZeroProliferationMetricsService());
+            new ZeroProliferationMetricsService(),
+            NullLogger<CompendiumReadService>.Instance);
 
         // SECTION: Act
         var projects = await service.GetEligibleProjectsAsync(CancellationToken.None);
@@ -319,9 +323,10 @@ public sealed class CompendiumReadServiceTests
                     Id, Name, Description, CompletedYear, CompletedOn, SponsoringLineDirectorateId,
                     ArmService, CoverPhotoId, CoverPhotoVersion, CostLakhs, IsDeleted, IsArchived, LifecycleStatus)
                 VALUES
-                    (401, 'Eligible Legacy Null Flags', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 100, NULL, NULL, 2),
-                    (402, 'Skip Deleted', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 100, 1, 0, 2),
-                    (403, 'Skip Null Lifecycle', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 100, 0, 0, NULL);
+                    (401, 'Eligible Legacy Null Flags', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 100, NULL, NULL, 'Completed'),
+                    (402, 'Skip Deleted', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 100, 1, 0, 'Completed'),
+                    (403, 'Skip Null Lifecycle', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 100, 0, 0, NULL),
+                    (404, 'Skip Unknown Lifecycle', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 100, 0, 0, 'UnknownFutureValue');
                 """);
 
             await schemaContext.Database.ExecuteSqlRawAsync(
@@ -331,7 +336,8 @@ public sealed class CompendiumReadServiceTests
                 VALUES
                     (401, 'Current', 1, NULL, NULL, '2026-01-01T00:00:00Z', 'seed-user'),
                     (402, 'Current', 1, NULL, NULL, '2026-01-01T00:00:00Z', 'seed-user'),
-                    (403, 'Current', NULL, NULL, NULL, '2026-01-01T00:00:00Z', 'seed-user');
+                    (403, 'Current', NULL, NULL, NULL, '2026-01-01T00:00:00Z', 'seed-user'),
+                    (404, 'Current', 1, NULL, NULL, '2026-01-01T00:00:00Z', 'seed-user');
                 """);
         }
 
@@ -339,7 +345,8 @@ public sealed class CompendiumReadServiceTests
         var service = new CompendiumReadService(
             assertionContext,
             new NoOpProjectPhotoService(),
-            new ZeroProliferationMetricsService());
+            new ZeroProliferationMetricsService(),
+            NullLogger<CompendiumReadService>.Instance);
 
         // SECTION: Act + assert no nullable materialization failures
         var projects = await service.GetEligibleProjectsAsync(CancellationToken.None);
@@ -367,8 +374,8 @@ public sealed class CompendiumReadServiceTests
                     Id, Name, Description, CompletedYear, CompletedOn, SponsoringLineDirectorateId,
                     ArmService, CoverPhotoId, CoverPhotoVersion, CostLakhs, IsDeleted, IsArchived, LifecycleStatus)
                 VALUES
-                    (501, 'Eligible Page Row', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 110, NULL, NULL, 2),
-                    (502, 'Archived Page Row', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 120, 0, 1, 2);
+                    (501, 'Eligible Page Row', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 110, NULL, NULL, 'Completed'),
+                    (502, 'Archived Page Row', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 120, 0, 1, 'Completed');
                 """);
 
             await schemaContext.Database.ExecuteSqlRawAsync(
@@ -391,7 +398,8 @@ public sealed class CompendiumReadServiceTests
         var service = new CompendiumReadService(
             assertionContext,
             new NoOpProjectPhotoService(),
-            new ZeroProliferationMetricsService());
+            new ZeroProliferationMetricsService(),
+            NullLogger<CompendiumReadService>.Instance);
 
         var proliferationPage = new ProjectManagement.Areas.Compendiums.Pages.Proliferation.IndexModel(
             service,
@@ -433,7 +441,7 @@ public sealed class CompendiumReadServiceTests
                 CostLakhs TEXT NULL,
                 IsDeleted INTEGER NULL,
                 IsArchived INTEGER NULL,
-                LifecycleStatus INTEGER NULL
+                LifecycleStatus TEXT NULL
             );
             """);
 

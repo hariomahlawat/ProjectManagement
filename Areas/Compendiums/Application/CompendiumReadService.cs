@@ -117,7 +117,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             from project in _db.Projects.AsNoTracking()
             let isDeleted = EF.Property<bool?>(project, nameof(Project.IsDeleted)) ?? false
             let isArchived = EF.Property<bool?>(project, nameof(Project.IsArchived)) ?? false
-            let lifecycleStatus = EF.Property<ProjectLifecycleStatus?>(project, nameof(Project.LifecycleStatus)) ?? ProjectLifecycleStatus.Active
+            let lifecycleStatus = EF.Property<string?>(project, nameof(Project.LifecycleStatus))
             let completedOn = EF.Property<DateOnly?>(project, nameof(Project.CompletedOn))
             let completedYear = EF.Property<int?>(project, nameof(Project.CompletedYear))
             let coverPhotoVersion = EF.Property<int?>(project, nameof(Project.CoverPhotoVersion))
@@ -165,7 +165,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             from costFact in costJoin.DefaultIfEmpty()
             where project.IsDeleted == false
                   && project.IsArchived == false
-                  && project.LifecycleStatus == ProjectLifecycleStatus.Completed
+                  && project.LifecycleStatus == ProjectLifecycleStatusTokens.Completed
                   && (techStatus.AvailableForProliferation ?? false) == true
             orderby project.SponsoringLineDirectorateName ?? string.Empty,
                 project.CompletedYear descending,
@@ -195,7 +195,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             from project in _db.Projects.AsNoTracking()
             let isDeleted = EF.Property<bool?>(project, nameof(Project.IsDeleted)) ?? false
             let isArchived = EF.Property<bool?>(project, nameof(Project.IsArchived)) ?? false
-            let lifecycleStatus = EF.Property<ProjectLifecycleStatus?>(project, nameof(Project.LifecycleStatus)) ?? ProjectLifecycleStatus.Active
+            let lifecycleStatus = EF.Property<string?>(project, nameof(Project.LifecycleStatus))
             let completedOn = EF.Property<DateOnly?>(project, nameof(Project.CompletedOn))
             let completedYear = EF.Property<int?>(project, nameof(Project.CompletedYear))
             let coverPhotoVersion = EF.Property<int?>(project, nameof(Project.CoverPhotoVersion))
@@ -260,7 +260,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             from tot in totJoin.DefaultIfEmpty()
             where project.IsDeleted == false
                   && project.IsArchived == false
-                  && project.LifecycleStatus == ProjectLifecycleStatus.Completed
+                  && project.LifecycleStatus == ProjectLifecycleStatusTokens.Completed
                   && (techStatus.AvailableForProliferation ?? false) == true
             orderby project.SponsoringLineDirectorateName ?? string.Empty,
                 project.CompletedYear descending,
