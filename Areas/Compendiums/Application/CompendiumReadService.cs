@@ -29,7 +29,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
     public async Task<IReadOnlyList<CompendiumProjectCardDto>> GetEligibleProjectsAsync(CancellationToken cancellationToken)
     {
         // SECTION: Eligible project list query with required ordering
-        return await BuildEligibleProjectQuery()
+        return await BuildEligibleProjectCardQuery()
             .Select(x => new CompendiumProjectCardDto
             {
                 ProjectId = x.Id,
@@ -48,7 +48,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
     public async Task<CompendiumProjectDetailDto?> GetProjectAsync(int projectId, bool includeHistoricalExtras, CancellationToken cancellationToken)
     {
         // SECTION: Eligible project detail query
-        var project = await BuildEligibleProjectQuery()
+        var project = await BuildEligibleProjectDetailQuery()
             .Where(x => x.Id == projectId)
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -71,7 +71,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
     public async Task<IReadOnlyList<CompendiumProjectDetailDto>> GetEligibleProjectDetailsAsync(bool includeHistoricalExtras, CancellationToken cancellationToken)
     {
         // SECTION: Bulk eligible project detail query
-        var projects = await BuildEligibleProjectQuery().ToListAsync(cancellationToken);
+        var projects = await BuildEligibleProjectDetailQuery().ToListAsync(cancellationToken);
         if (projects.Count == 0)
         {
             return Array.Empty<CompendiumProjectDetailDto>();
@@ -100,10 +100,38 @@ public sealed class CompendiumReadService : ICompendiumReadService
         return details;
     }
 
-    // SECTION: Base eligibility + ordering projection
+    // SECTION: Base eligibility + ordering for eligible project cards
+    private IQueryable<CompendiumProjectCardProjection> BuildEligibleProjectCardQuery()
+    {
+        return from project in _db.Projects.AsNoTracking()
+               join techStatus in _db.ProjectTechStatuses.AsNoTracking()
+                   on project.Id equals techStatus.ProjectId
+               join costFact in _db.ProjectProductionCostFacts.AsNoTracking()
+                   on project.Id equals costFact.ProjectId into costJoin
+               from costFact in costJoin.DefaultIfEmpty()
+               where !project.IsDeleted
+                     && !project.IsArchived
+                     && project.LifecycleStatus == ProjectLifecycleStatus.Completed
+                     && techStatus.AvailableForProliferation
+               orderby project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : string.Empty,
+                   project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : 0) descending,
+                   project.Name
+               select new CompendiumProjectCardProjection(
+                   project.Id,
+                   project.Name,
+                   project.CompletedYear,
+                   project.CompletedOn,
+                   project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : null,
+                   project.ArmService,
+                   costFact != null ? costFact.ApproxProductionCost : null,
+                   project.CoverPhotoId,
+                   EF.Property<int?>(project, nameof(Project.CoverPhotoVersion)));
+    }
+
+    // SECTION: Base eligibility + ordering projection for detail and historical extras paths
     // Guardrail: if a model property is non-nullable but legacy database rows can store NULL,
     // read it with EF.Property<T?> in this projection to avoid nullable materialization crashes.
-    private IQueryable<CompendiumProjection> BuildEligibleProjectQuery()
+    private IQueryable<CompendiumProjection> BuildEligibleProjectDetailQuery()
     {
         return from project in _db.Projects.AsNoTracking()
                join techStatus in _db.ProjectTechStatuses.AsNoTracking()
@@ -252,6 +280,17 @@ public sealed class CompendiumReadService : ICompendiumReadService
 
         return result;
     }
+
+    private sealed record CompendiumProjectCardProjection(
+        int Id,
+        string Name,
+        int? CompletedYear,
+        DateOnly? CompletedOn,
+        string? SponsoringLineDirectorateName,
+        string? ArmService,
+        decimal? ApproxProductionCost,
+        int? CoverPhotoId,
+        int? CoverPhotoVersion);
 
     private sealed record CompendiumProjection(
         int Id,
