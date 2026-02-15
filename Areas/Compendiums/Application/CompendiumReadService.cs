@@ -117,6 +117,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             from project in _db.Projects.AsNoTracking()
             let isDeleted = EF.Property<bool?>(project, nameof(Project.IsDeleted)) ?? false
             let isArchived = EF.Property<bool?>(project, nameof(Project.IsArchived)) ?? false
+            let lifecycleStatus = EF.Property<ProjectLifecycleStatus?>(project, nameof(Project.LifecycleStatus))
             let completedOn = EF.Property<DateOnly?>(project, nameof(Project.CompletedOn))
             let completedYear = EF.Property<int?>(project, nameof(Project.CompletedYear))
             let coverPhotoVersion = EF.Property<int?>(project, nameof(Project.CoverPhotoVersion))
@@ -132,7 +133,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 SponsoringLineDirectorateName = project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate!.Name : null,
                 IsDeleted = isDeleted,
                 IsArchived = isArchived,
-                project.LifecycleStatus
+                LifecycleStatus = lifecycleStatus
             };
 
         // SECTION: Scalar projection for tech statuses
@@ -194,6 +195,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             from project in _db.Projects.AsNoTracking()
             let isDeleted = EF.Property<bool?>(project, nameof(Project.IsDeleted)) ?? false
             let isArchived = EF.Property<bool?>(project, nameof(Project.IsArchived)) ?? false
+            let lifecycleStatus = EF.Property<ProjectLifecycleStatus?>(project, nameof(Project.LifecycleStatus))
             let completedOn = EF.Property<DateOnly?>(project, nameof(Project.CompletedOn))
             let completedYear = EF.Property<int?>(project, nameof(Project.CompletedYear))
             let coverPhotoVersion = EF.Property<int?>(project, nameof(Project.CoverPhotoVersion))
@@ -212,7 +214,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 CostLakhs = costLakhs,
                 IsDeleted = isDeleted,
                 IsArchived = isArchived,
-                project.LifecycleStatus
+                LifecycleStatus = lifecycleStatus
             };
 
         // SECTION: Scalar projection for tech statuses
