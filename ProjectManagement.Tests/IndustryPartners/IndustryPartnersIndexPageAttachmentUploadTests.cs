@@ -50,7 +50,7 @@ public sealed class IndustryPartnersIndexPageAttachmentUploadTests
         Assert.Equal("Attachment uploaded.", page.TempData["Message"]);
 
         var uploaded = Assert.Single(attachmentManager.UploadedFiles);
-        Assert.Equal("partner-notes.txt", uploaded.FileName);
+        Assert.Equal("partner-notes.txt", uploaded.File.FileName);
         Assert.Equal(42, uploaded.PartnerId);
     }
 
