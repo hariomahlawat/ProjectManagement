@@ -114,7 +114,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                      && project.LifecycleStatus == ProjectLifecycleStatus.Completed
                      && techStatus.AvailableForProliferation
                let completedOn = EF.Property<DateOnly?>(project, nameof(Project.CompletedOn))
-               let completedOnYear = completedOn == null ? (int?)null : completedOn.GetValueOrDefault().Year
+               let completedOnYear = completedOn.HasValue ? completedOn.Value.Year : (int?)null
                let completionSortYear = project.CompletedYear ?? completedOnYear ?? 0
                orderby project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : string.Empty,
                    completionSortYear descending,
@@ -150,7 +150,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                      && project.LifecycleStatus == ProjectLifecycleStatus.Completed
                      && techStatus.AvailableForProliferation
                let completedOn = EF.Property<DateOnly?>(project, nameof(Project.CompletedOn))
-               let completedOnYear = completedOn == null ? (int?)null : completedOn.GetValueOrDefault().Year
+               let completedOnYear = completedOn.HasValue ? completedOn.Value.Year : (int?)null
                let completionSortYear = project.CompletedYear ?? completedOnYear ?? 0
                orderby project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : string.Empty,
                    completionSortYear descending,
