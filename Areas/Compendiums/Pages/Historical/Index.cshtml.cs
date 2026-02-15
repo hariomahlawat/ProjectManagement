@@ -28,29 +28,15 @@ public sealed class IndexModel : PageModel
     {
         Projects = await _readService.GetEligibleProjectsAsync(cancellationToken);
 
-        var totals = new Dictionary<int, int>();
-        foreach (var project in Projects)
-        {
-            var detail = await _readService.GetProjectAsync(project.ProjectId, includeHistoricalExtras: true, cancellationToken);
-            totals[project.ProjectId] = detail?.HistoricalExtras?.ProliferationTotalAllTime ?? 0;
-        }
-
-        TotalsByProject = totals;
+        var details = await _readService.GetEligibleProjectDetailsAsync(includeHistoricalExtras: true, cancellationToken);
+        TotalsByProject = details.ToDictionary(
+            detail => detail.ProjectId,
+            detail => detail.HistoricalExtras?.ProliferationTotalAllTime ?? 0);
     }
 
     public async Task<IActionResult> OnGetExportPdfAsync(CancellationToken cancellationToken)
     {
-        var cards = await _readService.GetEligibleProjectsAsync(cancellationToken);
-        var details = new List<CompendiumProjectDetailDto>(cards.Count);
-
-        foreach (var card in cards)
-        {
-            var detail = await _readService.GetProjectAsync(card.ProjectId, includeHistoricalExtras: true, cancellationToken);
-            if (detail is not null)
-            {
-                details.Add(detail);
-            }
-        }
+        var details = await _readService.GetEligibleProjectDetailsAsync(includeHistoricalExtras: true, cancellationToken);
 
         var logoPath = Path.Combine(_environment.WebRootPath, "img", "logos", "sdd.png");
         var logoBytes = System.IO.File.Exists(logoPath) ? await System.IO.File.ReadAllBytesAsync(logoPath, cancellationToken) : null;

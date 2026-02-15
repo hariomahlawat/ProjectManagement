@@ -31,7 +31,7 @@
                         <h5 class="card-title">@project.Name</h5>
                         <p class="mb-1"><strong>Sponsoring dte:</strong> @project.SponsoringLineDirectorateName</p>
                         <p class="mb-1"><strong>Completion year:</strong> @project.CompletionYearText</p>
-                        <p class="mb-2"><strong>Proliferation cost:</strong> @(project.ProliferationCostLakhs?.ToString("0.##") ?? "Not recorded") lakh INR</p>
+                        <p class="mb-2"><strong>Proliferation cost:</strong> @(project.ProliferationCostLakhs.HasValue ? $"{project.ProliferationCostLakhs.Value:0.##} lakh INR" : "Not recorded")</p>
                         <a asp-page="/Proliferation/Project" asp-area="Compendiums" asp-route-id="@project.ProjectId" class="btn btn-outline-primary btn-sm">View</a>
                     </div>
                 </div>

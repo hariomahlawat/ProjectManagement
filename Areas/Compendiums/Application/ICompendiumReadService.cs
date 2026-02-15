@@ -7,4 +7,5 @@ public interface ICompendiumReadService
 {
     Task<IReadOnlyList<CompendiumProjectCardDto>> GetEligibleProjectsAsync(CancellationToken cancellationToken);
     Task<CompendiumProjectDetailDto?> GetProjectAsync(int projectId, bool includeHistoricalExtras, CancellationToken cancellationToken);
+    Task<IReadOnlyList<CompendiumProjectDetailDto>> GetEligibleProjectDetailsAsync(bool includeHistoricalExtras, CancellationToken cancellationToken);
 }

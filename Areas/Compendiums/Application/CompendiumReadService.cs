@@ -57,66 +57,47 @@ public sealed class CompendiumReadService : ICompendiumReadService
             return null;
         }
 
-        byte[]? coverPhotoBytes = null;
-        var coverPhotoAvailable = false;
+        var coverPhotoBytesByProject = await ResolveCoverPhotosAsync(new[] { project }, cancellationToken);
+        var coverPhotoBytes = coverPhotoBytesByProject.TryGetValue(project.Id, out var bytes) ? bytes : null;
+        var coverPhotoAvailable = coverPhotoBytes is { Length: > 0 };
 
-        // SECTION: Resolve cover photo bytes for PDF export
-        if (project.CoverPhotoId.HasValue)
+        var historicalExtrasByProject = includeHistoricalExtras
+            ? await ResolveHistoricalExtrasAsync(new[] { project }, cancellationToken)
+            : new Dictionary<int, HistoricalExtrasDto>();
+
+        return MapToDetail(project, coverPhotoBytes, coverPhotoAvailable, historicalExtrasByProject.TryGetValue(project.Id, out var extras) ? extras : null);
+    }
+
+    public async Task<IReadOnlyList<CompendiumProjectDetailDto>> GetEligibleProjectDetailsAsync(bool includeHistoricalExtras, CancellationToken cancellationToken)
+    {
+        // SECTION: Bulk eligible project detail query
+        var projects = await BuildEligibleProjectQuery().ToListAsync(cancellationToken);
+        if (projects.Count == 0)
         {
-            var derivative = await _projectPhotoService.OpenDerivativeAsync(
-                project.Id,
-                project.CoverPhotoId.Value,
-                "xl",
-                preferWebp: false,
-                cancellationToken);
-
-            if (derivative.HasValue)
-            {
-                await using var stream = derivative.Value.Stream;
-                await using var memory = new MemoryStream();
-                await stream.CopyToAsync(memory, cancellationToken);
-                coverPhotoBytes = memory.ToArray();
-                coverPhotoAvailable = coverPhotoBytes.Length > 0;
-            }
+            return Array.Empty<CompendiumProjectDetailDto>();
         }
 
-        HistoricalExtrasDto? historicalExtras = null;
-        if (includeHistoricalExtras)
+        // SECTION: Resolve external dependencies in controlled loops
+        var coverPhotoBytesByProject = await ResolveCoverPhotosAsync(projects, cancellationToken);
+        var historicalExtrasByProject = includeHistoricalExtras
+            ? await ResolveHistoricalExtrasAsync(projects, cancellationToken)
+            : new Dictionary<int, HistoricalExtrasDto>();
+
+        // SECTION: Map projected rows to detail DTOs
+        var details = new List<CompendiumProjectDetailDto>(projects.Count);
+        foreach (var project in projects)
         {
-            var sddTotal = await _metricsService.GetAllTimeTotalAsync(project.Id, ProliferationSource.Sdd, cancellationToken);
-            var abwTotal = await _metricsService.GetAllTimeTotalAsync(project.Id, ProliferationSource.Abw515, cancellationToken);
+            coverPhotoBytesByProject.TryGetValue(project.Id, out var coverPhotoBytes);
+            historicalExtrasByProject.TryGetValue(project.Id, out var historicalExtras);
 
-            var totStatusText = project.TotStatus.HasValue ? FormatEnum(project.TotStatus.Value) : "Not recorded";
-            var totCompletedOnText = project.TotStatus == ProjectTotStatus.Completed && project.TotCompletedOn.HasValue
-                ? project.TotCompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
-                : "Not recorded";
-
-            historicalExtras = new HistoricalExtrasDto
-            {
-                RdCostLakhs = project.CostLakhs,
-                TotStatusText = totStatusText,
-                TotCompletedOnText = totCompletedOnText,
-                ProliferationSddAllTime = sddTotal,
-                ProliferationAbw515AllTime = abwTotal,
-                ProliferationTotalAllTime = sddTotal + abwTotal
-            };
+            details.Add(MapToDetail(
+                project,
+                coverPhotoBytes,
+                coverPhotoBytes is { Length: > 0 },
+                historicalExtras));
         }
 
-        return new CompendiumProjectDetailDto
-        {
-            ProjectId = project.Id,
-            Name = project.Name,
-            CompletionYearText = ResolveCompletionYearText(project.CompletedYear, project.CompletedOn),
-            SponsoringLineDirectorateName = project.SponsoringLineDirectorateName ?? "Not recorded",
-            ArmService = string.IsNullOrWhiteSpace(project.ArmService) ? "Not recorded" : project.ArmService!,
-            ProliferationCostLakhs = project.ApproxProductionCost,
-            Description = string.IsNullOrWhiteSpace(project.Description) ? "Not recorded" : project.Description!,
-            CoverPhotoId = project.CoverPhotoId,
-            CoverPhotoVersion = project.CoverPhotoVersion,
-            CoverPhotoBytes = coverPhotoBytes,
-            CoverPhotoAvailable = coverPhotoAvailable,
-            HistoricalExtras = historicalExtras
-        };
+        return details;
     }
 
     // SECTION: Base eligibility + ordering projection
@@ -175,6 +156,97 @@ public sealed class CompendiumReadService : ICompendiumReadService
         return string.Concat(raw.Select((character, index) => index > 0 && char.IsUpper(character)
             ? $" {character}"
             : character.ToString()));
+    }
+
+    // SECTION: Shared mapper for single and bulk read paths
+    private static CompendiumProjectDetailDto MapToDetail(
+        CompendiumProjection project,
+        byte[]? coverPhotoBytes,
+        bool coverPhotoAvailable,
+        HistoricalExtrasDto? historicalExtras)
+    {
+        return new CompendiumProjectDetailDto
+        {
+            ProjectId = project.Id,
+            Name = project.Name,
+            CompletionYearText = ResolveCompletionYearText(project.CompletedYear, project.CompletedOn),
+            SponsoringLineDirectorateName = project.SponsoringLineDirectorateName ?? "Not recorded",
+            ArmService = string.IsNullOrWhiteSpace(project.ArmService) ? "Not recorded" : project.ArmService!,
+            ProliferationCostLakhs = project.ApproxProductionCost,
+            Description = string.IsNullOrWhiteSpace(project.Description) ? "Not recorded" : project.Description!,
+            CoverPhotoId = project.CoverPhotoId,
+            CoverPhotoVersion = project.CoverPhotoVersion,
+            CoverPhotoBytes = coverPhotoBytes,
+            CoverPhotoAvailable = coverPhotoAvailable,
+            HistoricalExtras = historicalExtras
+        };
+    }
+
+    // SECTION: Cover photo resolution loop for eligible projects
+    private async Task<Dictionary<int, byte[]>> ResolveCoverPhotosAsync(
+        IReadOnlyCollection<CompendiumProjection> projects,
+        CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<int, byte[]>(projects.Count);
+
+        foreach (var project in projects)
+        {
+            if (!project.CoverPhotoId.HasValue)
+            {
+                continue;
+            }
+
+            var derivative = await _projectPhotoService.OpenDerivativeAsync(
+                project.Id,
+                project.CoverPhotoId.Value,
+                "xl",
+                preferWebp: false,
+                cancellationToken);
+
+            if (!derivative.HasValue)
+            {
+                continue;
+            }
+
+            await using var stream = derivative.Value.Stream;
+            await using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory, cancellationToken);
+
+            if (memory.Length > 0)
+            {
+                result[project.Id] = memory.ToArray();
+            }
+        }
+
+        return result;
+    }
+
+    // SECTION: Historical extras resolution loop for eligible projects
+    private async Task<Dictionary<int, HistoricalExtrasDto>> ResolveHistoricalExtrasAsync(
+        IReadOnlyCollection<CompendiumProjection> projects,
+        CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<int, HistoricalExtrasDto>(projects.Count);
+
+        foreach (var project in projects)
+        {
+            var sddTotal = await _metricsService.GetAllTimeTotalAsync(project.Id, ProliferationSource.Sdd, cancellationToken);
+            var abwTotal = await _metricsService.GetAllTimeTotalAsync(project.Id, ProliferationSource.Abw515, cancellationToken);
+
+            result[project.Id] = new HistoricalExtrasDto
+            {
+                RdCostLakhs = project.CostLakhs,
+                TotStatusText = project.TotStatus.HasValue ? FormatEnum(project.TotStatus.Value) : "Not recorded",
+                TotCompletedOnText = project.TotStatus == ProjectTotStatus.Completed && project.TotCompletedOn.HasValue
+                    ? project.TotCompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
+                    : "Not recorded",
+                ProliferationSddAllTime = sddTotal,
+                ProliferationAbw515AllTime = abwTotal,
+                ProliferationTotalAllTime = sddTotal + abwTotal
+            };
+        }
+
+        return result;
     }
 
     private sealed record CompendiumProjection(
