@@ -99,6 +99,7 @@
     --pm-chip-bg: var(--pm-surface-contrast);
     --pm-chip-text: var(--pm-text-secondary);
     --pm-chip-border: rgba(148, 163, 184, 0.6);
+    --pm-chip-hover-bg: #e2e8f0;
     --pm-divider: rgba(148, 163, 184, 0.4);
     /* -- SECTION: Accents & category colors -- */
     --pm-accent-blue: #3b82f6;
@@ -533,7 +534,7 @@ main[role="main"] {
 }
 
 .pm-chip-link:hover {
-    background: color-mix(in srgb, var(--pm-chip-bg) 94%, var(--pm-text) 6%);
+    background: var(--pm-chip-hover-bg);
     text-decoration: none;
     color: var(--pm-text);
 }
