@@ -150,7 +150,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             join techStatus in techStatusesQ on project.Id equals techStatus.ProjectId
             join costFact in productionCostsQ on project.Id equals costFact.ProjectId into costJoin
             from costFact in costJoin.DefaultIfEmpty()
-            let completionSortYear = project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.GetValueOrDefault().Year : 0)
+            let completionSortYear = project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : 0)
             where project.IsDeleted == false
                   && project.IsArchived == false
                   && project.LifecycleStatus == ProjectLifecycleStatus.Completed
@@ -161,7 +161,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             select new CompendiumProjectCardProjection(
                 project.Id,
                 project.Name,
-                project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.GetValueOrDefault().Year : (int?)null),
+                project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : (int?)null),
                 project.CompletedOn,
                 project.SponsoringLineDirectorateName,
                 project.ArmService,
@@ -239,7 +239,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
             from costFact in costJoin.DefaultIfEmpty()
             join tot in totsQ on project.Id equals tot.ProjectId into totJoin
             from tot in totJoin.DefaultIfEmpty()
-            let completionSortYear = project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.GetValueOrDefault().Year : 0)
+            let completionSortYear = project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : 0)
             where project.IsDeleted == false
                   && project.IsArchived == false
                   && project.LifecycleStatus == ProjectLifecycleStatus.Completed
@@ -251,7 +251,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
                 project.Id,
                 project.Name,
                 project.Description,
-                project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.GetValueOrDefault().Year : (int?)null),
+                project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : (int?)null),
                 project.CompletedOn,
                 project.SponsoringLineDirectorateName,
                 project.ArmService,
