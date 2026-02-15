@@ -34,17 +34,25 @@ internal static class MarkdownPdfRenderer
                 switch (block)
                 {
                     case HeadingBlock heading:
-                        col.Item().Text(text => RenderInlines(text, heading.Inline))
-                            .FontSize(HeadingSize(heading.Level))
-                            .SemiBold()
-                            .FontColor("#0F172A");
+                        col.Item().Text(text =>
+                        {
+                            text.DefaultTextStyle(TextStyle.Default
+                                .FontSize(HeadingSize(heading.Level))
+                                .SemiBold()
+                                .FontColor("#0F172A"));
+                            RenderInlines(text, heading.Inline);
+                        });
                         break;
 
                     case ParagraphBlock paragraph:
-                        col.Item().Text(text => RenderInlines(text, paragraph.Inline))
-                            .FontSize(10)
-                            .FontColor("#0F172A")
-                            .LineHeight(1.25f);
+                        col.Item().Text(text =>
+                        {
+                            text.DefaultTextStyle(TextStyle.Default
+                                .FontSize(10)
+                                .FontColor("#0F172A")
+                                .LineHeight(1.25f));
+                            RenderInlines(text, paragraph.Inline);
+                        });
                         break;
 
                     case ListBlock list:
@@ -84,7 +92,7 @@ internal static class MarkdownPdfRenderer
 
     private static void RenderList(ColumnDescriptor col, ListBlock list, int depth)
     {
-        var index = list.OrderedStart;
+        var index = int.TryParse(list.OrderedStart?.ToString(), out var parsedIndex) ? parsedIndex : 1;
 
         foreach (var item in list)
         {
@@ -108,10 +116,14 @@ internal static class MarkdownPdfRenderer
                         switch (block)
                         {
                             case ParagraphBlock paragraph:
-                                itemCol.Item().Text(text => RenderInlines(text, paragraph.Inline))
-                                    .FontSize(10)
-                                    .FontColor("#0F172A")
-                                    .LineHeight(1.25f);
+                                itemCol.Item().Text(text =>
+                                {
+                                    text.DefaultTextStyle(TextStyle.Default
+                                        .FontSize(10)
+                                        .FontColor("#0F172A")
+                                        .LineHeight(1.25f));
+                                    RenderInlines(text, paragraph.Inline);
+                                });
                                 break;
 
                             case ListBlock nested:
