@@ -33,6 +33,10 @@ internal static class MarkdownPdfRenderer
             {
                 switch (block)
                 {
+                    case QuoteBlock quote:
+                        RenderQuoteBlock(col, quote);
+                        break;
+
                     case HeadingBlock heading:
                         col.Item().Text(text =>
                         {
@@ -148,6 +152,63 @@ internal static class MarkdownPdfRenderer
                 });
             });
         }
+    }
+
+    private static void RenderQuoteBlock(ColumnDescriptor col, QuoteBlock quote)
+    {
+        // SECTION: Block quote rendering with support for nested markdown blocks.
+        col.Item().Element(box =>
+        {
+            box.BorderLeft(3)
+                .BorderColor("#CBD5E1")
+                .Background("#F8FAFC")
+                .PaddingLeft(10)
+                .PaddingVertical(8)
+                .PaddingRight(10)
+                .Column(quoteColumn =>
+                {
+                    quoteColumn.Spacing(6);
+
+                    foreach (var block in quote)
+                    {
+                        switch (block)
+                        {
+                            case ParagraphBlock paragraph:
+                                quoteColumn.Item().Text(text =>
+                                {
+                                    text.DefaultTextStyle(TextStyle.Default
+                                        .FontSize(10)
+                                        .FontColor("#0F172A")
+                                        .LineHeight(1.25f));
+                                    RenderInlines(text, paragraph.Inline);
+                                });
+                                break;
+
+                            case ListBlock list:
+                                RenderList(quoteColumn, list, 0);
+                                break;
+
+                            case QuoteBlock nestedQuote:
+                                RenderQuoteBlock(quoteColumn, nestedQuote);
+                                break;
+
+                            case FencedCodeBlock fenced:
+                                RenderCodeBlock(quoteColumn, fenced);
+                                break;
+
+                            case CodeBlock code:
+                                RenderCodeBlock(quoteColumn, code);
+                                break;
+
+                            default:
+                                quoteColumn.Item().Text(block.ToString() ?? string.Empty)
+                                    .FontSize(10)
+                                    .FontColor("#0F172A");
+                                break;
+                        }
+                    }
+                });
+        });
     }
 
     private static void RenderCodeBlock(ColumnDescriptor col, CodeBlock code)

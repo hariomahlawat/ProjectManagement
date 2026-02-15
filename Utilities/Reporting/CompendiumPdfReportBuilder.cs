@@ -227,14 +227,32 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 .SemiBold()
                 .FontColor("#0F172A");
 
-            // SECTION: Metadata (compact; description is the primary section below)
-            col.Item().Column(meta =>
+            // SECTION: Header two-column layout (left metadata, right cover photo).
+            col.Item().Row(row =>
             {
-                meta.Spacing(6);
-                meta.Item().Element(c => ComposeKeyValue(c, "Technical category", project.CategoryName));
-                meta.Item().Element(c => ComposeKeyValue(c, "Year of completion", project.CompletionYearDisplay));
-                meta.Item().Element(c => ComposeKeyValue(c, "Arm/Service", project.ArmServiceDisplay));
-                meta.Item().Element(c => ComposeKeyValue(c, "Proliferation cost (lakhs)", project.ProliferationCostDisplay));
+                row.RelativeItem().Column(meta =>
+                {
+                    meta.Spacing(6);
+                    meta.Item().Element(c => ComposeKeyValue(c, "Technical category", project.CategoryName));
+                    meta.Item().Element(c => ComposeKeyValue(c, "Year of completion", project.CompletionYearDisplay));
+                    meta.Item().Element(c => ComposeKeyValue(c, "Arm/Service", project.ArmServiceDisplay));
+                    meta.Item().Element(c => ComposeKeyValue(c, "Proliferation cost (lakhs)", project.ProliferationCostDisplay));
+                });
+
+                if (project.CoverPhoto is not null && project.CoverPhoto.Length > 0)
+                {
+                    row.ConstantItem(230).Height(170).PaddingLeft(14).Element(img =>
+                    {
+                        img.Border(1)
+                            .BorderColor("#E2E8F0")
+                            .Background("#F8FAFC")
+                            .Padding(8)
+                            .AlignCenter()
+                            .AlignMiddle()
+                            .Image(project.CoverPhoto)
+                            .FitArea();
+                    });
+                }
             });
 
             // SECTION: Description (full width with markdown formatting)
@@ -255,23 +273,6 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                         desc.Item().Element(md => MarkdownPdfRenderer.Render(md, project.DescriptionMarkdown));
                     });
             });
-
-            // SECTION: Cover photo (optional and rendered below description)
-            if (project.CoverPhoto is not null && project.CoverPhoto.Length > 0)
-            {
-                col.Item().PaddingTop(8).Element(img =>
-                {
-                    img.Border(1)
-                        .BorderColor("#E2E8F0")
-                        .Background("#F8FAFC")
-                        .Padding(8)
-                        .Height(220)
-                        .AlignCenter()
-                        .AlignMiddle()
-                        .Image(project.CoverPhoto)
-                        .FitArea();
-                });
-            }
 
             col.Item().PaddingTop(4).Element(e => e.Height(1).Background("#E2E8F0"));
 
