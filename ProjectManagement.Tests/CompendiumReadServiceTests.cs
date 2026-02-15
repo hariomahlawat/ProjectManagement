@@ -109,9 +109,9 @@ public sealed class CompendiumReadServiceTests
     }
 
     [Fact]
-    public async Task GetEligibleProjectsAsync_AllowsLegacyNullTotStatusFromDatabase()
+    public async Task GetEligibleProjectsAsync_LoadsIndexListWhenLegacyProjectTotStatusIsNull()
     {
-        // SECTION: Arrange sqlite schema with nullable TOT status column and legacy null value
+        // SECTION: Arrange sqlite schema with legacy null TOT status value in ProjectTots
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
 
@@ -204,6 +204,7 @@ public sealed class CompendiumReadServiceTests
         // SECTION: Assert
         var project = Assert.Single(projects);
         Assert.Equal(201, project.ProjectId);
+        Assert.Equal("Project Null TOT Status", project.Name);
     }
 
     // SECTION: Shared sqlite context helper
