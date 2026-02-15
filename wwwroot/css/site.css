@@ -533,7 +533,7 @@ main[role="main"] {
 }
 
 .pm-chip-link:hover {
-    background: color-mix(in srgb, var(--pm-chip-bg) 94%, var(--pm-text) 6%);
+    background: var(--pm-chip-border);
     text-decoration: none;
     color: var(--pm-text);
 }

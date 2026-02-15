@@ -14,6 +14,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Pages.Projects.Meta;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Text;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -315,7 +316,7 @@ public sealed class ProjectMetaEditPageTests
 
     private static EditModel CreatePage(ApplicationDbContext db, IUserContext userContext)
     {
-        var page = new EditModel(db, userContext, new FakeAudit())
+        var page = new EditModel(db, userContext, new FakeAudit(), new PassThroughMarkdownRenderer())
         {
             PageContext = new PageContext
             {
@@ -353,6 +354,11 @@ public sealed class ProjectMetaEditPageTests
         {
             _data = new Dictionary<string, object?>(values);
         }
+    }
+
+    private sealed class PassThroughMarkdownRenderer : IMarkdownRenderer
+    {
+        public string ToSafeHtml(string? markdown) => markdown ?? string.Empty;
     }
 
     private sealed class FakeUserContext : IUserContext
