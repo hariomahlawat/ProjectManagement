@@ -131,7 +131,9 @@ public sealed class CompendiumReadService : ICompendiumReadService
                    project.CoverPhotoId,
                    EF.Property<int?>(project, nameof(Project.CoverPhotoVersion)),
                    project.CostLakhs,
-                   tot != null ? (ProjectTotStatus?)tot.Status : null,
+                   tot != null
+                       ? EF.Property<ProjectTotStatus?>(tot, nameof(ProjectTot.Status))
+                       : null,
                    tot != null ? tot.CompletedOn : null);
     }
 
