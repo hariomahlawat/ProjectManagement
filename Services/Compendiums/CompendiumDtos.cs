@@ -9,10 +9,10 @@ public sealed record CompendiumProjectDto(
     string TechnicalCategoryName,
     int? CompletionYearValue,
     string CompletionYearDisplay,
-    string SponsoringLineDirectorateDisplay,
     string ArmServiceDisplay,
     decimal? ProliferationCostLakhs,
-    int? CoverPhotoId);
+    int? CoverPhotoId,
+    string DescriptionMarkdown);
 
 public sealed record CompendiumCategoryGroupDto(
     string TechnicalCategoryName,

@@ -28,9 +28,9 @@ public sealed record CompendiumPdfProjectSection(
     string ProjectName,
     string CategoryName,
     string CompletionYearDisplay,
-    string SponsoringLineDirectorateDisplay,
     string ArmServiceDisplay,
     string ProliferationCostDisplay,
+    string DescriptionMarkdown,
     byte[]? CoverPhoto);
 
 public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
@@ -227,32 +227,51 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 .SemiBold()
                 .FontColor("#0F172A");
 
-            col.Item().Row(row =>
+            // SECTION: Metadata (compact; description is the primary section below)
+            col.Item().Column(meta =>
             {
-                row.RelativeItem().Column(left =>
-                {
-                    left.Spacing(8);
-                    left.Item().Element(c => ComposeKeyValue(c, "Technical category", project.CategoryName));
-                    left.Item().Element(c => ComposeKeyValue(c, "Year of completion", project.CompletionYearDisplay));
-                    left.Item().Element(c => ComposeKeyValue(c, "Sponsoring line directorate", project.SponsoringLineDirectorateDisplay));
-                    left.Item().Element(c => ComposeKeyValue(c, "Arm/Service", project.ArmServiceDisplay));
-                    left.Item().Element(c => ComposeKeyValue(c, "Proliferation cost (lakhs)", project.ProliferationCostDisplay));
-                });
-
-                if (project.CoverPhoto is not null && project.CoverPhoto.Length > 0)
-                {
-                    row.ConstantItem(210).Height(160).PaddingLeft(14).Element(img =>
-                    {
-                        // SECTION: Project cover image
-                        img.Border(1)
-                            .BorderColor("#CBD5F5")
-                            .Background("#F8FAFC")
-                            .Padding(6)
-                            .Image(project.CoverPhoto)
-                            .FitArea();
-                    });
-                }
+                meta.Spacing(6);
+                meta.Item().Element(c => ComposeKeyValue(c, "Technical category", project.CategoryName));
+                meta.Item().Element(c => ComposeKeyValue(c, "Year of completion", project.CompletionYearDisplay));
+                meta.Item().Element(c => ComposeKeyValue(c, "Arm/Service", project.ArmServiceDisplay));
+                meta.Item().Element(c => ComposeKeyValue(c, "Proliferation cost (lakhs)", project.ProliferationCostDisplay));
             });
+
+            // SECTION: Description (full width with markdown formatting)
+            col.Item().PaddingTop(6).Element(box =>
+            {
+                box.Border(1)
+                    .BorderColor("#E2E8F0")
+                    .Background("#FFFFFF")
+                    .Padding(12)
+                    .Column(desc =>
+                    {
+                        desc.Spacing(8);
+                        desc.Item().Text("Project description")
+                            .FontSize(12)
+                            .SemiBold()
+                            .FontColor("#334155");
+
+                        desc.Item().Element(md => MarkdownPdfRenderer.Render(md, project.DescriptionMarkdown));
+                    });
+            });
+
+            // SECTION: Cover photo (optional and rendered below description)
+            if (project.CoverPhoto is not null && project.CoverPhoto.Length > 0)
+            {
+                col.Item().PaddingTop(8).Element(img =>
+                {
+                    img.Border(1)
+                        .BorderColor("#E2E8F0")
+                        .Background("#F8FAFC")
+                        .Padding(8)
+                        .Height(220)
+                        .AlignCenter()
+                        .AlignMiddle()
+                        .Image(project.CoverPhoto)
+                        .FitArea();
+                });
+            }
 
             col.Item().PaddingTop(4).Element(e => e.Height(1).Background("#E2E8F0"));
 
