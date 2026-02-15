@@ -14,7 +14,7 @@
             <div class="col-md-4 small">
                 <div><strong>Completion year:</strong> @Model.Project.CompletionYearText</div>
                 <div><strong>Arms / Services:</strong> @Model.Project.ArmService</div>
-                <div><strong>Proliferation cost:</strong> @(Model.Project.ProliferationCostLakhs?.ToString("0.##") ?? "Not recorded") lakh INR</div>
+                <div><strong>Proliferation cost:</strong> @(Model.Project.ProliferationCostLakhs.HasValue ? $"{Model.Project.ProliferationCostLakhs.Value:0.##} lakh INR" : "Not recorded")</div>
             </div>
         </div>
     </div>
@@ -34,7 +34,7 @@
     <div class="card bg-light mb-3">
         <div class="card-body">
             <h6>Historical record</h6>
-            <div><strong>R&amp;D cost (lakh INR):</strong> @(Model.Project.HistoricalExtras?.RdCostLakhs?.ToString("0.##") ?? "Not recorded")</div>
+            <div><strong>R&amp;D cost:</strong> @(Model.Project.HistoricalExtras?.RdCostLakhs.HasValue == true ? $"{Model.Project.HistoricalExtras.RdCostLakhs.Value:0.##} lakh INR" : "Not recorded")</div>
             <div><strong>ToT status:</strong> @Model.Project.HistoricalExtras?.TotStatusText</div>
             <div><strong>Completed on:</strong> @Model.Project.HistoricalExtras?.TotCompletedOnText</div>
             <div><strong>Proliferation counts (all time):</strong></div>
@@ -48,7 +48,7 @@
 
     <div class="card mb-3">
         <div class="card-body">
-            <div class="mb-2"><strong>Proliferation cost (lakh INR):</strong> @(Model.Project.ProliferationCostLakhs?.ToString("0.##") ?? "Not recorded")</div>
+            <div class="mb-2"><strong>Proliferation cost:</strong> @(Model.Project.ProliferationCostLakhs.HasValue ? $"{Model.Project.ProliferationCostLakhs.Value:0.##} lakh INR" : "Not recorded")</div>
             <div class="fst-italic text-secondary">Note: Software will be provided free of cost by SDD.</div>
         </div>
     </div>

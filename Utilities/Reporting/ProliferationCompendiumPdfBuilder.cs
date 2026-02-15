@@ -23,9 +23,20 @@ public sealed class ProliferationCompendiumPdfBuilder : IProliferationCompendium
 
     public byte[] Build(ProliferationCompendiumPdfContext context)
     {
-        var indexEntries = BuildIndexEntries(context.Projects);
+        // SECTION: Two-pass rendering for accurate index page numbers
+        var projectStartPages = new Dictionary<int, int>();
+        CreateDocument(context, projectStartPages, capturePageNumbers: true).GeneratePdf();
 
-        var document = Document.Create(container =>
+        return CreateDocument(context, projectStartPages, capturePageNumbers: false).GeneratePdf();
+    }
+
+    // SECTION: Shared document composition for pass-1 and pass-2
+    private static Document CreateDocument(
+        ProliferationCompendiumPdfContext context,
+        Dictionary<int, int> projectStartPages,
+        bool capturePageNumbers)
+    {
+        return Document.Create(container =>
         {
             // SECTION: Cover page
             container.Page(page =>
@@ -68,13 +79,18 @@ public sealed class ProliferationCompendiumPdfBuilder : IProliferationCompendium
                         h.Cell().AlignRight().Text("Page").SemiBold();
                     });
 
-                    foreach (var entry in indexEntries)
+                    for (var index = 0; index < context.Projects.Count; index++)
                     {
-                        table.Cell().Text(entry.Serial.ToString(CultureInfo.InvariantCulture));
-                        table.Cell().Text(entry.Project.Name);
-                        table.Cell().Text(entry.Project.SponsoringLineDirectorateName);
-                        table.Cell().Text(entry.Project.CompletionYearText);
-                        table.Cell().AlignRight().Text(entry.StartPage.ToString(CultureInfo.InvariantCulture));
+                        var project = context.Projects[index];
+                        table.Cell().Text((index + 1).ToString(CultureInfo.InvariantCulture));
+                        table.Cell().Text(project.Name);
+                        table.Cell().Text(project.SponsoringLineDirectorateName);
+                        table.Cell().Text(project.CompletionYearText);
+
+                        var pageText = projectStartPages.TryGetValue(project.ProjectId, out var startPage)
+                            ? startPage.ToString(CultureInfo.InvariantCulture)
+                            : "-";
+                        table.Cell().AlignRight().Text(pageText);
                     }
                 });
                 page.Footer().Element(c => PrismPdfChrome.ComposeFooter(c, context.FooterLogoBytes, context.GeneratedOn));
@@ -87,7 +103,18 @@ public sealed class ProliferationCompendiumPdfBuilder : IProliferationCompendium
                 {
                     page.Size(PageSizes.A4);
                     page.Margin(35);
-                    page.Content().Element(c => ComposeProject(c, project));
+                    page.Content().Column(column =>
+                    {
+                        column.Item().CaptureContentPosition(position =>
+                        {
+                            if (capturePageNumbers && !projectStartPages.ContainsKey(project.ProjectId))
+                            {
+                                projectStartPages[project.ProjectId] = position.PageNumber;
+                            }
+                        });
+
+                        column.Item().Element(c => ComposeProject(c, project));
+                    });
                     page.Footer().Element(c => PrismPdfChrome.ComposeFooter(c, context.FooterLogoBytes, context.GeneratedOn));
                 });
             }
@@ -107,8 +134,6 @@ public sealed class ProliferationCompendiumPdfBuilder : IProliferationCompendium
                 page.Footer().Element(c => PrismPdfChrome.ComposeFooter(c, context.FooterLogoBytes, context.GeneratedOn));
             });
         });
-
-        return document.GeneratePdf();
     }
 
     private static void ComposeProject(IContainer container, CompendiumProjectDetailDto project)
@@ -127,7 +152,7 @@ public sealed class ProliferationCompendiumPdfBuilder : IProliferationCompendium
                 {
                     right.Item().Text($"Completion year: {project.CompletionYearText}").FontSize(10);
                     right.Item().Text($"Arms / Services: {project.ArmService}").FontSize(10);
-                    right.Item().Text($"Proliferation cost: {(project.ProliferationCostLakhs.HasValue ? project.ProliferationCostLakhs.Value.ToString("0.##", CultureInfo.InvariantCulture) + " lakh INR" : "Not recorded")}").FontSize(10);
+                    right.Item().Text($"Proliferation cost: {FormatCost(project.ProliferationCostLakhs)}").FontSize(10);
                 });
             });
 
@@ -147,33 +172,15 @@ public sealed class ProliferationCompendiumPdfBuilder : IProliferationCompendium
 
             column.Item().Border(1).BorderColor("#E2E8F0").Padding(10).Column(cost =>
             {
-                cost.Item().Text($"Proliferation cost (lakh INR): {(project.ProliferationCostLakhs.HasValue ? project.ProliferationCostLakhs.Value.ToString("0.##", CultureInfo.InvariantCulture) : "Not recorded")}");
+                cost.Item().Text($"Proliferation cost: {FormatCost(project.ProliferationCostLakhs)}");
                 cost.Item().PaddingTop(6).Text("Note: Software will be provided free of cost by SDD.").Italic().FontColor("#334155");
             });
         });
     }
 
-    // SECTION: Two-pass style index computation
-    private static List<IndexEntry> BuildIndexEntries(IReadOnlyList<CompendiumProjectDetailDto> projects)
-    {
-        var entries = new List<IndexEntry>(projects.Count);
-        var page = 3;
-
-        for (var i = 0; i < projects.Count; i++)
-        {
-            var project = projects[i];
-            entries.Add(new IndexEntry(i + 1, project, page));
-            page += EstimateSectionPageCount(project);
-        }
-
-        return entries;
-    }
-
-    private static int EstimateSectionPageCount(CompendiumProjectDetailDto project)
-    {
-        var descriptionLength = string.IsNullOrWhiteSpace(project.Description) ? 0 : project.Description.Length;
-        return Math.Max(1, 1 + (descriptionLength / 2800));
-    }
-
-    private sealed record IndexEntry(int Serial, CompendiumProjectDetailDto Project, int StartPage);
+    // SECTION: Cost formatter to avoid invalid unit suffixes on null values
+    private static string FormatCost(decimal? value)
+        => value.HasValue
+            ? $"{value.Value.ToString("0.##", CultureInfo.InvariantCulture)} lakh INR"
+            : "Not recorded";
 }

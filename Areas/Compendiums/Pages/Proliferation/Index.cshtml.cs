@@ -30,17 +30,7 @@ public sealed class IndexModel : PageModel
 
     public async Task<IActionResult> OnGetExportPdfAsync(CancellationToken cancellationToken)
     {
-        var cards = await _readService.GetEligibleProjectsAsync(cancellationToken);
-        var details = new List<CompendiumProjectDetailDto>(cards.Count);
-
-        foreach (var card in cards)
-        {
-            var detail = await _readService.GetProjectAsync(card.ProjectId, includeHistoricalExtras: false, cancellationToken);
-            if (detail is not null)
-            {
-                details.Add(detail);
-            }
-        }
+        var details = await _readService.GetEligibleProjectDetailsAsync(includeHistoricalExtras: false, cancellationToken);
 
         var logoPath = Path.Combine(_environment.WebRootPath, "img", "logos", "sdd.png");
         var logoBytes = System.IO.File.Exists(logoPath) ? await System.IO.File.ReadAllBytesAsync(logoPath, cancellationToken) : null;

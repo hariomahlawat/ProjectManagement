@@ -32,6 +32,7 @@
                         <p class="mb-1"><strong>Sponsoring dte:</strong> @project.SponsoringLineDirectorateName</p>
                         <p class="mb-1"><strong>Completion year:</strong> @project.CompletionYearText</p>
                         <p class="mb-1"><strong>ToT status:</strong> Internal</p>
+                        <p class="mb-1"><strong>Proliferation cost:</strong> @(project.ProliferationCostLakhs.HasValue ? $"{project.ProliferationCostLakhs.Value:0.##} lakh INR" : "Not recorded")</p>
                         <p class="mb-2"><strong>Total proliferation:</strong> @(Model.TotalsByProject.TryGetValue(project.ProjectId, out var total) ? total : 0)</p>
                         <a asp-page="/Historical/Project" asp-area="Compendiums" asp-route-id="@project.ProjectId" class="btn btn-outline-primary btn-sm">View</a>
                     </div>
