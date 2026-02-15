@@ -277,9 +277,14 @@ public sealed class ProliferationManageService
 
     private async Task<IReadOnlyList<ProliferationCompletedProjectOption>> GetCompletedProjectsAsync(CancellationToken ct)
     {
+        // SECTION: Completed non-build projects for Proliferation manager dropdown
         var projects = await _db.Projects
             .AsNoTracking()
-            .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed)
+            .Where(p =>
+                !p.IsDeleted &&
+                !p.IsArchived &&
+                p.LifecycleStatus == ProjectLifecycleStatus.Completed &&
+                !p.IsBuild)
             .OrderBy(p => p.Name)
             .ToListAsync(ct);
 
