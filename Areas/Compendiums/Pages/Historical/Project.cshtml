@@ -1,0 +1,57 @@
+@page "/Compendiums/Historical/Project/{id:int}"
+@model ProjectManagement.Areas.Compendiums.Pages.Historical.ProjectModel
+@{
+    ViewData["Title"] = Model.Project.Name;
+}
+
+<div class="container py-4">
+    <div class="border rounded p-3 mb-3">
+        <div class="row">
+            <div class="col-md-8">
+                <h2 class="mb-1">@Model.Project.Name</h2>
+                <p class="text-muted mb-0">Sponsoring Dte: @Model.Project.SponsoringLineDirectorateName</p>
+            </div>
+            <div class="col-md-4 small">
+                <div><strong>Completion year:</strong> @Model.Project.CompletionYearText</div>
+                <div><strong>Arms / Services:</strong> @Model.Project.ArmService</div>
+                <div><strong>Proliferation cost:</strong> @(Model.Project.ProliferationCostLakhs?.ToString("0.##") ?? "Not recorded") lakh INR</div>
+            </div>
+        </div>
+    </div>
+
+    @if (Model.Project.CoverPhotoAvailable && Model.Project.CoverPhotoId.HasValue)
+    {
+        <img src="@Url.Page("/Projects/Photos/View", new { id = Model.Project.ProjectId, photoId = Model.Project.CoverPhotoId.Value, size = "xl", v = Model.Project.CoverPhotoVersion })" class="img-fluid rounded border mb-2" style="width:100%; max-height: 420px; object-fit: cover;" alt="@Model.Project.Name cover photo" />
+    }
+    else
+    {
+        <div class="border rounded d-flex justify-content-center align-items-center text-muted mb-2" style="height: 280px;">No image available</div>
+    }
+
+    <h5 class="mt-3">Project description</h5>
+    <p>@Model.Project.Description</p>
+
+    <div class="card bg-light mb-3">
+        <div class="card-body">
+            <h6>Historical record</h6>
+            <div><strong>R&amp;D cost (lakh INR):</strong> @(Model.Project.HistoricalExtras?.RdCostLakhs?.ToString("0.##") ?? "Not recorded")</div>
+            <div><strong>ToT status:</strong> @Model.Project.HistoricalExtras?.TotStatusText</div>
+            <div><strong>Completed on:</strong> @Model.Project.HistoricalExtras?.TotCompletedOnText</div>
+            <div><strong>Proliferation counts (all time):</strong></div>
+            <ul class="mb-0">
+                <li>Total: @Model.Project.HistoricalExtras?.ProliferationTotalAllTime</li>
+                <li>SDD: @Model.Project.HistoricalExtras?.ProliferationSddAllTime</li>
+                <li>515 ABW: @Model.Project.HistoricalExtras?.ProliferationAbw515AllTime</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="mb-2"><strong>Proliferation cost (lakh INR):</strong> @(Model.Project.ProliferationCostLakhs?.ToString("0.##") ?? "Not recorded")</div>
+            <div class="fst-italic text-secondary">Note: Software will be provided free of cost by SDD.</div>
+        </div>
+    </div>
+
+    <a asp-page="/Historical/Index" asp-area="Compendiums" class="btn btn-outline-secondary">Back to compendium</a>
+</div>
