@@ -139,18 +139,22 @@ public sealed class CompendiumReadService : ICompendiumReadService
         // SECTION: Scalar projection for tech statuses
         var techStatusesQ =
             from techStatus in _db.ProjectTechStatuses.AsNoTracking()
+            let projectId = EF.Property<int?>(techStatus, nameof(ProjectTechStatus.ProjectId))
+            where projectId.HasValue
             select new
             {
-                techStatus.ProjectId,
+                ProjectId = projectId.Value,
                 AvailableForProliferation = EF.Property<bool?>(techStatus, nameof(ProjectTechStatus.AvailableForProliferation))
             };
 
         // SECTION: Scalar projection for optional production costs
         var productionCostsQ =
             from costFact in _db.ProjectProductionCostFacts.AsNoTracking()
+            let projectId = EF.Property<int?>(costFact, nameof(ProjectProductionCostFact.ProjectId))
+            where projectId.HasValue
             select new
             {
-                costFact.ProjectId,
+                ProjectId = projectId.Value,
                 costFact.ApproxProductionCost
             };
 
@@ -216,27 +220,33 @@ public sealed class CompendiumReadService : ICompendiumReadService
         // SECTION: Scalar projection for tech statuses
         var techStatusesQ =
             from techStatus in _db.ProjectTechStatuses.AsNoTracking()
+            let projectId = EF.Property<int?>(techStatus, nameof(ProjectTechStatus.ProjectId))
+            where projectId.HasValue
             select new
             {
-                techStatus.ProjectId,
+                ProjectId = projectId.Value,
                 AvailableForProliferation = EF.Property<bool?>(techStatus, nameof(ProjectTechStatus.AvailableForProliferation))
             };
 
         // SECTION: Scalar projection for optional production costs
         var productionCostsQ =
             from costFact in _db.ProjectProductionCostFacts.AsNoTracking()
+            let projectId = EF.Property<int?>(costFact, nameof(ProjectProductionCostFact.ProjectId))
+            where projectId.HasValue
             select new
             {
-                costFact.ProjectId,
+                ProjectId = projectId.Value,
                 costFact.ApproxProductionCost
             };
 
         // SECTION: Scalar projection for optional ToT details
         var totsQ =
             from tot in _db.ProjectTots.AsNoTracking()
+            let projectId = EF.Property<int?>(tot, nameof(ProjectTot.ProjectId))
+            where projectId.HasValue
             select new
             {
-                tot.ProjectId,
+                ProjectId = projectId.Value,
                 Status = EF.Property<ProjectTotStatus?>(tot, nameof(ProjectTot.Status)),
                 CompletedOn = EF.Property<DateOnly?>(tot, nameof(ProjectTot.CompletedOn))
             };
