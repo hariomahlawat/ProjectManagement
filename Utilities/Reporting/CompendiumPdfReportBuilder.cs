@@ -176,9 +176,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                             ComposeProjectFooter(
                                 f,
                                 footerLogoBytes,
-                                generatedAtText,
-                                pageNumberProvider: () => page.GetCurrentPageNumber(),
-                                totalPagesProvider: () => page.GetTotalPages());
+                                generatedAtText);
                         });
                     });
                 }
@@ -211,9 +209,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
     private static void ComposeProjectFooter(
         IContainer container,
         byte[]? logoBytes,
-        string generatedAtText,
-        Func<int> pageNumberProvider,
-        Func<int> totalPagesProvider)
+        string generatedAtText)
     {
         container
             .Background("#F8FAFC")
@@ -226,7 +222,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     if (logoBytes is not null && logoBytes.Length > 0)
                     {
-                        left.ConstantItem(22).Height(22).AlignMiddle().Image(logoBytes, ImageScaling.FitArea);
+                        left.ConstantItem(22).Height(22).AlignMiddle().Element(logo => logo.Image(logoBytes).FitArea());
                         left.ConstantItem(8);
                     }
 
@@ -242,9 +238,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 {
                     t.DefaultTextStyle(s => s.FontSize(9).FontColor("#64748B"));
                     t.Span($"Generated on {generatedAtText} · through PRISM ERP · Page ");
-                    t.Span(pageNumberProvider().ToString(CultureInfo.InvariantCulture)).SemiBold();
+                    t.CurrentPageNumber().SemiBold();
                     t.Span(" / ");
-                    t.Span(totalPagesProvider().ToString(CultureInfo.InvariantCulture)).SemiBold();
+                    t.TotalPages().SemiBold();
                 });
             });
     }
