@@ -186,6 +186,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         return document.GeneratePdf();
     }
 
+    // SECTION: Stable named destinations used for in-document navigation.
+    private static string ProjectAnchorId(int projectId) => $"proj-{projectId.ToString(CultureInfo.InvariantCulture)}";
+
     private static byte[]? TryLoadFooterLogoBytes(IWebHostEnvironment env, string relativeUnderWwwroot)
     {
         try
@@ -272,7 +275,10 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
                 foreach (var p in category.Projects)
                 {
-                    table.Cell().Element(CellBody).Text(p.ProjectName);
+                    table.Cell().Element(CellBody).Text(t =>
+                    {
+                        t.InternalLink(ProjectAnchorId(p.ProjectId)).Span(p.ProjectName);
+                    });
                     table.Cell().Element(CellBody).AlignRight().Text(p.CompletionYearDisplay);
                 }
             });
@@ -285,7 +291,8 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         {
             col.Spacing(14);
 
-            col.Item().AlignCenter().Text(project.ProjectName)
+            col.Item().Section(ProjectAnchorId(project.ProjectId))
+                .AlignCenter().Text(project.ProjectName)
                 .FontSize(20)
                 .SemiBold()
                 .FontColor("#0F172A");
@@ -352,11 +359,10 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
     private static IContainer CellHeader(IContainer container)
         => container.DefaultTextStyle(x => x.SemiBold().FontColor("#334155").FontSize(10))
-            .Background("#F1F5F9")
             .PaddingVertical(6)
             .PaddingHorizontal(8)
-            .Border(1)
-            .BorderColor("#E2E8F0");
+            .BorderBottom(1)
+            .BorderColor("#CBD5E1");
 
     private static IContainer CellBody(IContainer container)
         => container.DefaultTextStyle(x => x.FontSize(10).FontColor("#0F172A"))
