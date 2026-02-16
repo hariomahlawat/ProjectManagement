@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
+using Microsoft.AspNetCore.Hosting;
+using QuestPDF.Drawing;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -40,6 +43,13 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         QuestPDF.Settings.License = LicenseType.Community;
     }
 
+    private readonly IWebHostEnvironment _env;
+
+    public CompendiumPdfReportBuilder(IWebHostEnvironment env)
+    {
+        _env = env ?? throw new ArgumentNullException(nameof(env));
+    }
+
     public byte[] Build(CompendiumPdfReportContext context)
     {
         if (context is null)
@@ -51,6 +61,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         var generatedAtText = generatedAtIst.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture);
         var unitText = string.IsNullOrWhiteSpace(context.UnitDisplayName) ? string.Empty : context.UnitDisplayName.Trim();
         var titleText = string.IsNullOrWhiteSpace(context.Title) ? "Proliferation Compendium" : context.Title.Trim();
+
+        // SECTION: Resolve footer logo bytes using the same asset path as Project Pulse.
+        var footerLogoBytes = TryLoadFooterLogoBytes(_env, "img/logos/sdd.png");
 
         var document = Document.Create(container =>
         {
@@ -167,19 +180,66 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
                         page.Content().PaddingTop(14).Element(c => ComposeProjectDetail(c, projCopy));
 
-                        page.Footer().AlignCenter().Text(text =>
-                        {
-                            text.DefaultTextStyle(style => style.FontSize(9).FontColor("#94A3B8"));
-                            text.CurrentPageNumber();
-                            text.Span(" / ");
-                            text.TotalPages();
-                        });
+                        page.Footer().Element(f => ComposeProjectFooter(f, footerLogoBytes, generatedAtText));
                     });
                 }
             }
         });
 
         return document.GeneratePdf();
+    }
+
+    private static byte[]? TryLoadFooterLogoBytes(IWebHostEnvironment env, string relativeUnderWwwroot)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(relativeUnderWwwroot))
+            {
+                return null;
+            }
+
+            var relativePath = relativeUnderWwwroot.Trim().Replace('\\', '/');
+            var fullPath = Path.Combine(env.WebRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            return File.Exists(fullPath) ? File.ReadAllBytes(fullPath) : null;
+        }
+        catch
+        {
+            // SECTION: Never block PDF generation when asset lookup fails.
+            return null;
+        }
+    }
+
+    private static void ComposeProjectFooter(IContainer container, byte[]? logoBytes, string generatedAtText)
+    {
+        container
+            .Background("#F8FAFC")
+            .PaddingVertical(8)
+            .PaddingHorizontal(18)
+            .Row(row =>
+            {
+                // SECTION: Left footer content (logo and organization label).
+                row.RelativeItem().Row(left =>
+                {
+                    if (logoBytes is not null && logoBytes.Length > 0)
+                    {
+                        left.ConstantItem(22).Height(22).AlignMiddle().Image(logoBytes, ImageScaling.FitArea);
+                        left.ConstantItem(8);
+                    }
+
+                    left.RelativeItem().AlignMiddle().Text(t =>
+                    {
+                        t.DefaultTextStyle(s => s.FontSize(9).FontColor("#475569").SemiBold());
+                        t.Span("Simulator Development Division");
+                    });
+                });
+
+                // SECTION: Right footer content (generation stamp).
+                row.RelativeItem().AlignRight().AlignMiddle().Text(t =>
+                {
+                    t.DefaultTextStyle(s => s.FontSize(9).FontColor("#64748B"));
+                    t.Span($"Generated on {generatedAtText} · through PRISM ERP");
+                });
+            });
     }
 
     private static void ComposeIndexCategory(IContainer container, CompendiumPdfCategorySection category)
@@ -275,13 +335,6 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             });
 
             col.Item().PaddingTop(4).Element(e => e.Height(1).Background("#E2E8F0"));
-
-            col.Item().Text(text =>
-            {
-                text.DefaultTextStyle(style => style.FontSize(9).FontColor("#64748B"));
-                text.Span("Project ID: ");
-                text.Span(project.ProjectId.ToString(CultureInfo.InvariantCulture)).SemiBold();
-            });
         });
     }
 
