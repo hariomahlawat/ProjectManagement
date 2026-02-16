@@ -62,6 +62,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         var unitText = string.IsNullOrWhiteSpace(context.UnitDisplayName) ? string.Empty : context.UnitDisplayName.Trim();
         var titleText = string.IsNullOrWhiteSpace(context.Title) ? "Proliferation Compendium" : context.Title.Trim();
 
+        // SECTION: Cover accent color (thin gold line for premium look).
+        const string CoverAccentGold = "#D4AF37";
+
         // SECTION: Resolve footer logo bytes using the same asset path as Project Pulse.
         var footerLogoBytes = TryLoadFooterLogoBytes(_env, "img/logos/sdd.png");
         // SECTION: Cover page logos (institutional): crest (top nav) + SDD mark (same as Project Pulse).
@@ -90,6 +93,15 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                         band.Width(895)
                             .Height(120)
                             .Background("#111C33");
+                    });
+
+                    // SECTION: Thin gold accent line (diagonal) to make the cover feel premium.
+                    // It is drawn as a slim band aligned with the decorative diagonal strip.
+                    layers.Layer().AlignLeft().AlignTop().TranslateX(-120).TranslateY(150).Rotate(-10).Element(accent =>
+                    {
+                        accent.Width(895)
+                            .Height(6)
+                            .Background(CoverAccentGold);
                     });
 
                     // SECTION: Watermark intentionally omitted to avoid unsupported opacity APIs in this QuestPDF version.
@@ -130,6 +142,14 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                             .FontSize(40)
                             .SemiBold()
                             .FontColor("#FFFFFF");
+
+                        // SECTION: Short thin gold underline under the title (subtle, designer feel).
+                        col.Item().PaddingTop(10).AlignLeft().Element(e =>
+                        {
+                            e.Width(140)
+                             .Height(2)
+                             .Background(CoverAccentGold);
+                        });
 
                         col.Item().Text($"Generated on {generatedAtText}")
                             .FontSize(12)
