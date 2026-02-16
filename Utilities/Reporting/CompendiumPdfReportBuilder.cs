@@ -145,12 +145,12 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     }
                 });
 
-                page.Footer().AlignCenter().Text(text =>
+                // SECTION: Index footer (full-bleed, no page numbers).
+                page.Footer().Element(f =>
                 {
-                    text.DefaultTextStyle(style => style.FontSize(9).FontColor("#94A3B8"));
-                    text.CurrentPageNumber();
-                    text.Span(" / ");
-                    text.TotalPages();
+                    ComposeIndexFooter(
+                        f.PaddingLeft(-35).PaddingRight(-35),
+                        footerLogoBytes);
                 });
             });
 
@@ -245,6 +245,41 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     t.CurrentPageNumber().SemiBold();
                     t.Span(" / ");
                     t.TotalPages().SemiBold();
+                });
+            });
+    }
+
+    private static void ComposeIndexFooter(
+        IContainer container,
+        byte[]? logoBytes)
+    {
+        container
+            .Background("#F8FAFC")
+            .PaddingVertical(8)
+            .PaddingHorizontal(35)
+            .Row(row =>
+            {
+                // SECTION: Left footer content (logo and organization label).
+                row.RelativeItem().Row(left =>
+                {
+                    if (logoBytes is not null && logoBytes.Length > 0)
+                    {
+                        left.ConstantItem(22).Height(22).AlignMiddle().Element(logo => logo.Image(logoBytes).FitArea());
+                        left.ConstantItem(8);
+                    }
+
+                    left.RelativeItem().AlignMiddle().Text(t =>
+                    {
+                        t.DefaultTextStyle(s => s.FontSize(9).FontColor("#475569").SemiBold());
+                        t.Span("Simulator Development Division");
+                    });
+                });
+
+                // SECTION: Right footer content (product label only).
+                row.RelativeItem().AlignRight().AlignMiddle().Text(t =>
+                {
+                    t.DefaultTextStyle(s => s.FontSize(9).FontColor("#64748B"));
+                    t.Span("PRISM ERP");
                 });
             });
     }
