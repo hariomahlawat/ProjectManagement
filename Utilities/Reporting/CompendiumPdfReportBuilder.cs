@@ -279,7 +279,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 foreach (var p in category.Projects)
                 {
                     table.Cell().Element(CellBody)
-                        .InternalLink(ProjectAnchorId(p.ProjectId))
+                        .SectionLink(ProjectAnchorId(p.ProjectId))
                         .Text(p.ProjectName);
                     table.Cell().Element(CellBody).AlignRight().Text(p.CompletionYearDisplay);
                 }
