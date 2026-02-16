@@ -64,6 +64,9 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
         // SECTION: Resolve footer logo bytes using the same asset path as Project Pulse.
         var footerLogoBytes = TryLoadFooterLogoBytes(_env, "img/logos/sdd.png");
+        // SECTION: Cover page logos (institutional): crest (top nav) + SDD mark (same as Project Pulse).
+        var coverCrestBytes = TryLoadFooterLogoBytes(_env, "img/logos/artrac.png");
+        var coverSddBytes = TryLoadFooterLogoBytes(_env, "img/logos/sdd.png");
 
         var document = Document.Create(container =>
         {
@@ -71,38 +74,86 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             container.Page(page =>
             {
                 page.Size(PageSizes.A4);
-                page.Margin(50);
+                // SECTION: Use margin=0 so the background can be full-bleed.
+                page.Margin(0);
                 page.PageColor("#FFFFFF");
 
-                page.Content().AlignCenter().Column(col =>
+                page.Content().Layers(layers =>
                 {
-                    col.Spacing(18);
-
-                    col.Item().PaddingTop(120).AlignCenter().Text(titleText)
-                        .FontSize(34)
-                        .SemiBold()
-                        .FontColor("#0F172A");
-
-                    if (!string.IsNullOrWhiteSpace(unitText))
+                    // SECTION: Full-bleed institutional cover background.
+                    layers.Layer().Element(bg =>
                     {
-                        col.Item().AlignCenter().Text(unitText)
-                            .FontSize(14)
-                            .FontColor("#334155");
-                    }
+                        bg.Background("#0B1220");
 
-                    col.Item().AlignCenter().Text($"Generated on {generatedAtText}")
-                        .FontSize(12)
-                        .FontColor("#64748B");
+                        // SECTION: Subtle diagonal band.
+                        bg.AlignTopLeft().TranslateX(-120).TranslateY(160).Rotate(-10).Element(band =>
+                        {
+                            band.Width(page.Size().Width + 300)
+                                .Height(120)
+                                .Background("#111C33")
+                                .Opacity(0.9f);
+                        });
 
-                    col.Item().PaddingTop(40).AlignCenter().Element(e =>
-                    {
-                        e.Height(2).Background("#E2E8F0");
+                        // SECTION: Watermark (very subtle): use SDD mark.
+                        if (coverSddBytes is not null && coverSddBytes.Length > 0)
+                        {
+                            bg.AlignCenter().Opacity(0.08f).Element(wm =>
+                            {
+                                wm.Width(420).Height(420).AlignCenter().AlignMiddle()
+                                  .Image(coverSddBytes).FitArea();
+                            });
+                        }
                     });
 
-                    col.Item().PaddingTop(16).AlignCenter().Text("Official Use")
-                        .FontSize(10)
-                        .LetterSpacing(1)
-                        .FontColor("#94A3B8");
+                    // SECTION: Cover foreground content.
+                    layers.PrimaryLayer().PaddingHorizontal(70).PaddingVertical(70).Column(col =>
+                    {
+                        col.Spacing(16);
+
+                        // SECTION: Top institutional lockup.
+                        col.Item().Row(r =>
+                        {
+                            // SECTION: Crest (top nav image).
+                            if (coverCrestBytes is not null && coverCrestBytes.Length > 0)
+                            {
+                                r.ConstantItem(48).Height(48).AlignMiddle()
+                                 .Image(coverCrestBytes).FitArea();
+                                r.ConstantItem(12);
+                            }
+
+                            r.RelativeItem().AlignMiddle().Text(t =>
+                            {
+                                t.DefaultTextStyle(s => s.FontSize(12).FontColor("#CBD5E1").SemiBold());
+                                t.Span(string.IsNullOrWhiteSpace(unitText) ? "PRISM ERP" : unitText);
+                            });
+
+                            // SECTION: Secondary SDD mark (right aligned).
+                            if (coverSddBytes is not null && coverSddBytes.Length > 0)
+                            {
+                                r.ConstantItem(12);
+                                r.ConstantItem(34).Height(34).AlignMiddle().AlignRight()
+                                 .Image(coverSddBytes).FitArea();
+                            }
+                        });
+
+                        // SECTION: Cover title block.
+                        col.Item().PaddingTop(90).Text(titleText)
+                            .FontSize(40)
+                            .SemiBold()
+                            .FontColor("#FFFFFF");
+
+                        col.Item().Text($"Generated on {generatedAtText}")
+                            .FontSize(12)
+                            .FontColor("#94A3B8");
+
+                        col.Item().PaddingTop(18).Element(e => e.Height(2).Background("#1F2A44"));
+
+                        // SECTION: Bottom classification tag.
+                        col.Item().PaddingTop(240).Text("OFFICIAL USE")
+                            .FontSize(10)
+                            .LetterSpacing(2)
+                            .FontColor("#94A3B8");
+                    });
                 });
             });
 
