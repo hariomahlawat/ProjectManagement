@@ -167,20 +167,19 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                         page.PageColor("#FFFFFF");
                         page.DefaultTextStyle(x => x.FontSize(11).FontColor("#1F2933"));
 
-                        page.Header().Column(header =>
-                        {
-                            header.Item().Text(titleText)
-                                .FontSize(14)
-                                .SemiBold()
-                                .FontColor("#0F172A");
-                            header.Item().Text(projCopy.CategoryName)
-                                .FontSize(10)
-                                .FontColor("#64748B");
-                        });
+                        // SECTION: No header on detail pages (URD refinement).
 
                         page.Content().PaddingTop(14).Element(c => ComposeProjectDetail(c, projCopy));
 
-                        page.Footer().Element(f => ComposeProjectFooter(f, footerLogoBytes, generatedAtText));
+                        page.Footer().Element(f =>
+                        {
+                            ComposeProjectFooter(
+                                f,
+                                footerLogoBytes,
+                                generatedAtText,
+                                pageNumberProvider: () => page.GetCurrentPageNumber(),
+                                totalPagesProvider: () => page.GetTotalPages());
+                        });
                     });
                 }
             }
@@ -209,7 +208,12 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         }
     }
 
-    private static void ComposeProjectFooter(IContainer container, byte[]? logoBytes, string generatedAtText)
+    private static void ComposeProjectFooter(
+        IContainer container,
+        byte[]? logoBytes,
+        string generatedAtText,
+        Func<int> pageNumberProvider,
+        Func<int> totalPagesProvider)
     {
         container
             .Background("#F8FAFC")
@@ -233,11 +237,14 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     });
                 });
 
-                // SECTION: Right footer content (generation stamp).
+                // SECTION: Right footer content (generation stamp and page number).
                 row.RelativeItem().AlignRight().AlignMiddle().Text(t =>
                 {
                     t.DefaultTextStyle(s => s.FontSize(9).FontColor("#64748B"));
-                    t.Span($"Generated on {generatedAtText} · through PRISM ERP");
+                    t.Span($"Generated on {generatedAtText} · through PRISM ERP · Page ");
+                    t.Span(pageNumberProvider().ToString(CultureInfo.InvariantCulture)).SemiBold();
+                    t.Span(" / ");
+                    t.Span(totalPagesProvider().ToString(CultureInfo.InvariantCulture)).SemiBold();
                 });
             });
     }
@@ -282,7 +289,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         {
             col.Spacing(14);
 
-            col.Item().Text(project.ProjectName)
+            col.Item().AlignCenter().Text(project.ProjectName)
                 .FontSize(20)
                 .SemiBold()
                 .FontColor("#0F172A");
