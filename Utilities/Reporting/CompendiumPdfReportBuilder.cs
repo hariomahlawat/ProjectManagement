@@ -81,21 +81,18 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                 page.Content().Layers(layers =>
                 {
                     // SECTION: Full-bleed institutional cover background.
-                    layers.Layer().Element(bg =>
+                    layers.Layer().Background("#0B1220");
+
+                    // SECTION: Decorative diagonal band isolated in its own layer to avoid reusing a single-child container.
+                    layers.Layer().AlignLeft().AlignTop().TranslateX(-120).TranslateY(160).Rotate(-10).Element(band =>
                     {
-                        bg.Background("#0B1220");
-
-                        // SECTION: Subtle diagonal band.
-                        bg.AlignLeft().AlignTop().TranslateX(-120).TranslateY(160).Rotate(-10).Element(band =>
-                        {
-                            // SECTION: A4 portrait width is ~595pt; fixed width keeps this compatible with older QuestPDF APIs.
-                            band.Width(895)
-                                .Height(120)
-                                .Background("#111C33");
-                        });
-
-                        // SECTION: Watermark intentionally omitted to avoid unsupported opacity APIs in this QuestPDF version.
+                        // SECTION: A4 portrait width is ~595pt; fixed width keeps this compatible with older QuestPDF APIs.
+                        band.Width(895)
+                            .Height(120)
+                            .Background("#111C33");
                     });
+
+                    // SECTION: Watermark intentionally omitted to avoid unsupported opacity APIs in this QuestPDF version.
 
                     // SECTION: Cover foreground content.
                     layers.PrimaryLayer().PaddingHorizontal(70).PaddingVertical(70).Column(col =>
