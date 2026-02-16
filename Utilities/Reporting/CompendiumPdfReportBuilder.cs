@@ -86,23 +86,15 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                         bg.Background("#0B1220");
 
                         // SECTION: Subtle diagonal band.
-                        bg.AlignTopLeft().TranslateX(-120).TranslateY(160).Rotate(-10).Element(band =>
+                        bg.AlignLeft().AlignTop().TranslateX(-120).TranslateY(160).Rotate(-10).Element(band =>
                         {
-                            band.Width(page.Size().Width + 300)
+                            // SECTION: A4 portrait width is ~595pt; fixed width keeps this compatible with older QuestPDF APIs.
+                            band.Width(895)
                                 .Height(120)
-                                .Background("#111C33")
-                                .Opacity(0.9f);
+                                .Background("#111C33");
                         });
 
-                        // SECTION: Watermark (very subtle): use SDD mark.
-                        if (coverSddBytes is not null && coverSddBytes.Length > 0)
-                        {
-                            bg.AlignCenter().Opacity(0.08f).Element(wm =>
-                            {
-                                wm.Width(420).Height(420).AlignCenter().AlignMiddle()
-                                  .Image(coverSddBytes).FitArea();
-                            });
-                        }
+                        // SECTION: Watermark intentionally omitted to avoid unsupported opacity APIs in this QuestPDF version.
                     });
 
                     // SECTION: Cover foreground content.
