@@ -332,7 +332,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
     {
         container.Column(col =>
         {
-            col.Spacing(14);
+            col.Spacing(12);
 
             col.Item().Section(ProjectAnchorId(project.ProjectId))
                 .AlignCenter().Text(project.ProjectName)
@@ -369,25 +369,23 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             });
 
             // SECTION: Description (full width with markdown formatting)
-            col.Item().PaddingTop(6).Element(box =>
+            col.Item().PaddingTop(4).Element(box =>
             {
                 box.Border(1)
                     .BorderColor("#E2E8F0")
                     .Background("#FFFFFF")
-                    .Padding(12)
+                    .Padding(10)
                     .Column(desc =>
                     {
-                        desc.Spacing(8);
+                        desc.Spacing(6);
                         desc.Item().Text("Project description")
-                            .FontSize(12)
+                            .FontSize(11)
                             .SemiBold()
                             .FontColor("#334155");
 
                         desc.Item().Element(md => MarkdownPdfRenderer.Render(md, project.DescriptionMarkdown));
                     });
             });
-
-            col.Item().PaddingTop(4).Element(e => e.Height(1).Background("#E2E8F0"));
         });
     }
 
@@ -395,8 +393,8 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
     {
         container.Row(row =>
         {
-            row.ConstantItem(170).Text(key).FontSize(10).FontColor("#475569");
-            row.RelativeItem().Text(value).FontSize(10).FontColor("#0F172A");
+            row.ConstantItem(160).Text(key).FontSize(10).FontColor("#64748B");
+            row.RelativeItem().Text(value).FontSize(10).FontColor("#0F172A").SemiBold();
         });
     }
 
