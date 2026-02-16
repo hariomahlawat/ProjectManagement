@@ -2,11 +2,11 @@ using System.Collections.Generic;
 
 namespace ProjectManagement.Configuration;
 
-// SECTION: Configuration options for the Proliferation Compendium PDF.
+// SECTION: Configuration options for the Simulators Compendium PDF.
 public sealed class CompendiumPdfOptions
 {
     // SECTION: Cover page title text.
-    public string Title { get; set; } = "Proliferation Compendium";
+    public string Title { get; set; } = "Simulators Compendium";
 
     // SECTION: Organisation/unit text displayed on the cover page.
     public string UnitDisplayName { get; set; } = "";

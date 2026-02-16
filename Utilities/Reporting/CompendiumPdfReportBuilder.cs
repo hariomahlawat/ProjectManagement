@@ -60,7 +60,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         var generatedAtIst = TimeZoneInfo.ConvertTime(context.GeneratedAtUtc, TimeZoneHelper.GetIst());
         var generatedAtText = generatedAtIst.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture);
         var unitText = string.IsNullOrWhiteSpace(context.UnitDisplayName) ? string.Empty : context.UnitDisplayName.Trim();
-        var titleText = string.IsNullOrWhiteSpace(context.Title) ? "Proliferation Compendium" : context.Title.Trim();
+        var titleText = string.IsNullOrWhiteSpace(context.Title) ? "Simulators Compendium" : context.Title.Trim();
 
         // SECTION: Cover accent color (thin gold line for premium look).
         const string CoverAccentGold = "#D4AF37";
@@ -158,7 +158,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                         col.Item().PaddingTop(18).Element(e => e.Height(2).Background("#1F2A44"));
 
                         // SECTION: Bottom classification tag.
-                        col.Item().PaddingTop(240).Text("OFFICIAL USE")
+                        col.Item().PaddingTop(240).Text("Simulator Development Division")
                             .FontSize(10)
                             .LetterSpacing(2)
                             .FontColor("#94A3B8");

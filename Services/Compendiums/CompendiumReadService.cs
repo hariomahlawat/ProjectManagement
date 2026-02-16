@@ -13,7 +13,7 @@ using ProjectManagement.Models.Projects;
 
 namespace ProjectManagement.Services.Compendiums;
 
-// SECTION: Read service for Proliferation Compendium export.
+// SECTION: Read service for Simulators Compendium export.
 public sealed class CompendiumReadService : ICompendiumReadService
 {
     public const string BuildStamp = "CompendiumPdf_2026-02-15_zip";
@@ -53,7 +53,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         if (baseProjects.Count == 0)
         {
             return new CompendiumPdfDataDto(
-                Title: string.IsNullOrWhiteSpace(_options.Title) ? "Proliferation Compendium" : _options.Title,
+                Title: string.IsNullOrWhiteSpace(_options.Title) ? "Simulators Compendium" : _options.Title,
                 UnitDisplayName: _options.UnitDisplayName ?? string.Empty,
                 GeneratedAtUtc: DateTimeOffset.UtcNow,
                 Groups: Array.Empty<CompendiumCategoryGroupDto>());
@@ -82,7 +82,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         if (eligibleProjectIds.Count == 0)
         {
             return new CompendiumPdfDataDto(
-                Title: string.IsNullOrWhiteSpace(_options.Title) ? "Proliferation Compendium" : _options.Title,
+                Title: string.IsNullOrWhiteSpace(_options.Title) ? "Simulators Compendium" : _options.Title,
                 UnitDisplayName: _options.UnitDisplayName ?? string.Empty,
                 GeneratedAtUtc: DateTimeOffset.UtcNow,
                 Groups: Array.Empty<CompendiumCategoryGroupDto>());
@@ -174,7 +174,7 @@ public sealed class CompendiumReadService : ICompendiumReadService
         var groups = GroupAndSort(projects, _options);
 
         return new CompendiumPdfDataDto(
-            Title: string.IsNullOrWhiteSpace(_options.Title) ? "Proliferation Compendium" : _options.Title,
+            Title: string.IsNullOrWhiteSpace(_options.Title) ? "Simulators Compendium" : _options.Title,
             UnitDisplayName: _options.UnitDisplayName ?? string.Empty,
             GeneratedAtUtc: DateTimeOffset.UtcNow,
             Groups: groups);
