@@ -110,7 +110,11 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
             container.Page(page =>
             {
                 page.Size(PageSizes.A4);
-                page.Margin(35);
+                // SECTION: Keep content grid margins while allowing footer to reach the true page bottom.
+                page.MarginTop(35);
+                page.MarginLeft(35);
+                page.MarginRight(35);
+                page.MarginBottom(0);
                 page.PageColor("#FFFFFF");
                 page.DefaultTextStyle(x => x.FontSize(11).FontColor("#1F2933"));
 
@@ -163,7 +167,11 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     container.Page(page =>
                     {
                         page.Size(PageSizes.A4);
-                        page.Margin(35);
+                        // SECTION: Keep content grid margins while allowing footer to reach the true page bottom.
+                        page.MarginTop(35);
+                        page.MarginLeft(35);
+                        page.MarginRight(35);
+                        page.MarginBottom(0);
                         page.PageColor("#FFFFFF");
                         page.DefaultTextStyle(x => x.FontSize(11).FontColor("#1F2933"));
 
