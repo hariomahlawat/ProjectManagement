@@ -12,7 +12,7 @@ using ProjectManagement.Utilities.Reporting;
 
 namespace ProjectManagement.Services.Compendiums;
 
-// SECTION: PDF export orchestration for the Proliferation Compendium.
+// SECTION: PDF export orchestration for the Simulators Compendium.
 public sealed class CompendiumExportService : ICompendiumExportService
 {
     private readonly ICompendiumReadService _readService;

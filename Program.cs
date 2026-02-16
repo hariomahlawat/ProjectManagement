@@ -392,7 +392,7 @@ builder.Services.AddScoped<INavigationProvider, RoleBasedNavigationProvider>();
 builder.Services.AddScoped<ProliferationOverviewService>();
 builder.Services.AddScoped<IProliferationSummaryReadService, ProliferationSummaryReadService>();
 
-// SECTION: Proliferation Compendium (Projects module)
+// SECTION: Simulators Compendium (Projects module)
 builder.Services.AddScoped<ICompendiumReadService, CompendiumReadService>();
 builder.Services.AddScoped<ICompendiumExportService, CompendiumExportService>();
 builder.Services.AddScoped<ICompendiumPdfReportBuilder, CompendiumPdfReportBuilder>();
