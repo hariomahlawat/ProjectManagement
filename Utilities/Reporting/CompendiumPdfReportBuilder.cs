@@ -178,8 +178,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                                 f
                                     .PaddingLeft(-35)
                                     .PaddingRight(-35),
-                                footerLogoBytes,
-                                generatedAtText);
+                                footerLogoBytes);
                         });
                     });
                 }
@@ -214,8 +213,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
     private static void ComposeProjectFooter(
         IContainer container,
-        byte[]? logoBytes,
-        string generatedAtText)
+        byte[]? logoBytes)
     {
         container
             .Background("#F8FAFC")
@@ -239,11 +237,11 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
                     });
                 });
 
-                // SECTION: Right footer content (generation stamp and page number).
+                // SECTION: Right footer content (product label and page number).
                 row.RelativeItem().AlignRight().AlignMiddle().Text(t =>
                 {
                     t.DefaultTextStyle(s => s.FontSize(9).FontColor("#64748B"));
-                    t.Span($"Generated on {generatedAtText} · through PRISM ERP · Page ");
+                    t.Span("PRISM ERP · Page ");
                     t.CurrentPageNumber().SemiBold();
                     t.Span(" / ");
                     t.TotalPages().SemiBold();
