@@ -173,8 +173,11 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
                         page.Footer().Element(f =>
                         {
+                            // SECTION: Full-bleed footer by negating detail page horizontal margin.
                             ComposeProjectFooter(
-                                f,
+                                f
+                                    .PaddingLeft(-35)
+                                    .PaddingRight(-35),
                                 footerLogoBytes,
                                 generatedAtText);
                         });
@@ -217,7 +220,7 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
         container
             .Background("#F8FAFC")
             .PaddingVertical(8)
-            .PaddingHorizontal(18)
+            .PaddingHorizontal(35)
             .Row(row =>
             {
                 // SECTION: Left footer content (logo and organization label).
