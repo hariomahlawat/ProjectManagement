@@ -157,11 +157,32 @@ public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 
                         col.Item().PaddingTop(18).Element(e => e.Height(2).Background("#1F2A44"));
 
-                        // SECTION: Bottom classification tag.
-                        col.Item().PaddingTop(240).Text("Simulator Development Division")
-                            .FontSize(10)
-                            .LetterSpacing(2)
-                            .FontColor("#94A3B8");
+                        // SECTION: Bottom SDD monogram (readable as SDD vertically).
+                        col.Item().PaddingTop(230).AlignLeft().Column(sdd =>
+                        {
+                            sdd.Spacing(2);
+
+                            sdd.Item().Text(t =>
+                            {
+                                t.DefaultTextStyle(s => s.FontSize(11).FontColor("#94A3B8").LetterSpacing(2));
+                                t.Span("S").FontColor(CoverAccentGold).SemiBold();
+                                t.Span("imulator");
+                            });
+
+                            sdd.Item().Text(t =>
+                            {
+                                t.DefaultTextStyle(s => s.FontSize(11).FontColor("#94A3B8").LetterSpacing(2));
+                                t.Span("D").FontColor(CoverAccentGold).SemiBold();
+                                t.Span("evelopment");
+                            });
+
+                            sdd.Item().Text(t =>
+                            {
+                                t.DefaultTextStyle(s => s.FontSize(11).FontColor("#94A3B8").LetterSpacing(2));
+                                t.Span("D").FontColor(CoverAccentGold).SemiBold();
+                                t.Span("ivision");
+                            });
+                        });
                     });
                 });
             });
