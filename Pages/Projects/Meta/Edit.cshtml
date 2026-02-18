@@ -2,6 +2,7 @@
 @model ProjectManagement.Pages.Projects.Meta.EditModel
 @{
     ViewData["Title"] = "Edit Project Details";
+    const int descriptionMaxLength = ProjectManagement.Models.ProjectFieldLimits.DescriptionMaxLength;
 }
 
 <h1 class="mb-4">Edit Project Details</h1>
@@ -19,9 +20,9 @@
     <div class="mb-3 pm-desc-editor">
         <label asp-for="Input.Description" class="form-label"></label>
         <div id="pmDescEditor" class="d-none" data-pm-desc-editor data-initial-markdown="@Model.Input.Description"></div>
-        <textarea asp-for="Input.Description" class="form-control" maxlength="1000" data-pm-desc-hidden></textarea>
-        <div class="form-text" data-char-count-for="Input_Description">0/1000</div>
-        <div class="form-text text-danger d-none" data-pm-desc-limit-message>Character limit reached (1000).</div>
+        <textarea asp-for="Input.Description" class="form-control" maxlength="@descriptionMaxLength" data-maxlength="@descriptionMaxLength" data-pm-desc-hidden></textarea>
+        <div class="form-text" data-char-count-for="Input_Description">0/@descriptionMaxLength</div>
+        <div class="form-text text-danger d-none" data-pm-desc-limit-message>Character limit reached (@descriptionMaxLength).</div>
         <div class="form-text text-warning d-none" data-pm-desc-unavailable-message>Rich editor unavailable; using plain text mode.</div>
         <div class="form-text text-muted">
             Use the toolbar for formatting. Links are allowed (http/https/mailto). Raw HTML is not allowed.

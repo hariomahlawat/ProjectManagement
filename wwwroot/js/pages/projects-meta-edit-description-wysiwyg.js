@@ -2,8 +2,24 @@
     'use strict';
 
     // SECTION: Constants
-    const MAX_DESCRIPTION_LENGTH = 1000;
+    const DEFAULT_MAX_DESCRIPTION_LENGTH = 5000;
     const LOG_PREFIX = '[projects-meta-edit]';
+
+    // SECTION: Max length resolution
+    const resolveDescriptionMaxLength = (descriptionTextarea) => {
+        const parsedMaxLength = Number.parseInt(descriptionTextarea.dataset.maxlength ?? '', 10);
+
+        if (Number.isInteger(parsedMaxLength) && parsedMaxLength > 0) {
+            return parsedMaxLength;
+        }
+
+        const attributeMaxLength = Number.parseInt(descriptionTextarea.getAttribute('maxlength') ?? '', 10);
+        if (Number.isInteger(attributeMaxLength) && attributeMaxLength > 0) {
+            return attributeMaxLength;
+        }
+
+        return DEFAULT_MAX_DESCRIPTION_LENGTH;
+    };
 
     // SECTION: Bootstrap editor on page load
     document.addEventListener('DOMContentLoaded', () => {
@@ -14,6 +30,7 @@
             return;
         }
 
+        const maxDescriptionLength = resolveDescriptionMaxLength(descriptionTextarea);
         const countNode = document.querySelector(`[data-char-count-for="${descriptionTextarea.id}"]`);
         const limitMessageNode = document.querySelector('[data-pm-desc-limit-message]');
         const unavailableMessageNode = document.querySelector('[data-pm-desc-unavailable-message]');
@@ -22,13 +39,13 @@
         // SECTION: Shared helpers
         const updateCounter = (length) => {
             if (countNode) {
-                countNode.textContent = `${length}/${MAX_DESCRIPTION_LENGTH}`;
+                countNode.textContent = `${length}/${maxDescriptionLength}`;
             }
         };
 
         const updateLimitMessage = (length) => {
             if (limitMessageNode) {
-                limitMessageNode.classList.toggle('d-none', length < MAX_DESCRIPTION_LENGTH);
+                limitMessageNode.classList.toggle('d-none', length < maxDescriptionLength);
             }
         };
 
@@ -103,7 +120,7 @@
             const syncMarkdownToField = () => {
                 const markdown = editor.getMarkdown();
 
-                if (markdown.length > MAX_DESCRIPTION_LENGTH) {
+                if (markdown.length > maxDescriptionLength) {
                     editor.setMarkdown(previousValidMarkdown, false);
                     if (limitMessageNode) {
                         limitMessageNode.classList.remove('d-none');
