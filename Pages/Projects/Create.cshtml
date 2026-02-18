@@ -3,6 +3,7 @@
 @model ProjectManagement.Pages.Projects.CreateModel
 @{
     ViewData["Title"] = "Create Project";
+    const int descriptionMaxLength = ProjectManagement.Models.ProjectFieldLimits.DescriptionMaxLength;
 }
 
 <div class="container-xxl">
@@ -34,8 +35,8 @@
                     </div>
                     <div class="col-md-6">
                         <label asp-for="Input.Description" class="form-label"></label>
-                        <textarea asp-for="Input.Description" class="form-control" rows="3" maxlength="1000"></textarea>
-                        <div class="form-text" data-char-count-for="Input_Description">0/1000</div>
+                        <textarea asp-for="Input.Description" class="form-control" rows="3" maxlength="@descriptionMaxLength"></textarea>
+                        <div class="form-text" data-char-count-for="Input_Description">0/@descriptionMaxLength</div>
                         <span asp-validation-for="Input.Description" class="text-danger"></span>
                     </div>
                 </div>

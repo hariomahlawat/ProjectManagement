@@ -2,6 +2,7 @@
 @model ProjectManagement.Pages.Projects.Meta.RequestModel
 @{
     ViewData["Title"] = "Request Project Change";
+    const int descriptionMaxLength = ProjectManagement.Models.ProjectFieldLimits.DescriptionMaxLength;
 }
 
 <h1 class="mb-4">Request change for @Model.ProjectName</h1>
@@ -17,7 +18,7 @@
     </div>
     <div class="mb-3">
         <label asp-for="Input.Description" class="form-label"></label>
-        <textarea asp-for="Input.Description" rows="4" class="form-control" maxlength="1000"></textarea>
+        <textarea asp-for="Input.Description" rows="4" class="form-control" maxlength="@descriptionMaxLength"></textarea>
         <span asp-validation-for="Input.Description" class="text-danger"></span>
     </div>
     <div class="mb-3">
