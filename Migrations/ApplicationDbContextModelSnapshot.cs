@@ -3674,8 +3674,8 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("character varying(450)");
 
                     b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
 
                     b.Property<int?>("FeaturedVideoId")
                         .HasColumnType("integer");
@@ -4494,8 +4494,8 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("OriginalDescription")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
 
                     b.Property<string>("OriginalName")
                         .IsRequired()
