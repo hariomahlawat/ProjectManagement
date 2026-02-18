@@ -57,7 +57,7 @@ namespace ProjectManagement.Pages.Projects
             [MaxLength(64)]
             public string? CaseFileNumber { get; set; }
 
-            [MaxLength(1000)]
+            [MaxLength(ProjectFieldLimits.DescriptionMaxLength)]
             public string? Description { get; set; }
 
             public int? CategoryId { get; set; }

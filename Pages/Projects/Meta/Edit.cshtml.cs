@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Text;
@@ -393,7 +394,7 @@ public class EditModel : PageModel
         [StringLength(100)]
         public string Name { get; set; } = string.Empty;
 
-        [StringLength(1000)]
+        [StringLength(ProjectFieldLimits.DescriptionMaxLength)]
         public string? Description { get; set; }
 
         [StringLength(64)]
