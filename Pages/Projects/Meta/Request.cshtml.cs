@@ -405,7 +405,7 @@ public sealed class RequestModel : PageModel
         [StringLength(100)]
         public string Name { get; set; } = string.Empty;
 
-        [StringLength(1000)]
+        [StringLength(ProjectFieldLimits.DescriptionMaxLength)]
         public string? Description { get; set; }
 
         [StringLength(64)]

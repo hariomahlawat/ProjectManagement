@@ -16,7 +16,7 @@ namespace ProjectManagement.Models
         [MaxLength(100)]
         public string Name { get; set; } = string.Empty;
 
-        [MaxLength(1000)]
+        [MaxLength(ProjectFieldLimits.DescriptionMaxLength)]
         public string? Description { get; set; }
 
         [MaxLength(200)]
