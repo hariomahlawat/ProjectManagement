@@ -5,6 +5,9 @@
     const DEFAULT_MAX_DESCRIPTION_LENGTH = 5000;
     const LOG_PREFIX = '[projects-meta-edit]';
 
+    // SECTION: Line ending normalization
+    const normalizeMarkdownLineEndings = (markdown) => (markdown ?? '').replace(/\r?\n/g, '\r\n');
+
     // SECTION: Max length resolution
     const resolveDescriptionMaxLength = (descriptionField) => {
         const parsedMaxLength = Number.parseInt(descriptionField.dataset.maxlength ?? '', 10);
@@ -130,7 +133,8 @@
         fallbackTextarea.addEventListener('input', syncHiddenFromFallbackPlainText);
 
         // SECTION: Progressive enhancement bootstrap
-        let previousValidMarkdown = descriptionHiddenField.value || editorHost.dataset.initialMarkdown || '';
+        let previousValidMarkdown = normalizeMarkdownLineEndings(descriptionHiddenField.value || editorHost.dataset.initialMarkdown || '');
+        descriptionHiddenField.value = previousValidMarkdown;
         let editor;
 
         try {
@@ -161,32 +165,52 @@
 
             activateRichEditorMode();
 
-            const syncMarkdownToField = () => {
-                const markdown = editor.getMarkdown();
+            const applyMarkdownWithLimitGuard = (markdown, { revertEditorOnOverflow = true, focusEditorOnOverflow = false } = {}) => {
+                const normalizedMarkdown = normalizeMarkdownLineEndings(markdown);
 
-                if (markdown.length > maxDescriptionLength) {
-                    editor.setMarkdown(previousValidMarkdown, false);
+                if (normalizedMarkdown.length > maxDescriptionLength) {
+                    if (revertEditorOnOverflow) {
+                        editor.setMarkdown(previousValidMarkdown, false);
+                    }
                     if (limitMessageNode) {
                         limitMessageNode.classList.remove('d-none');
                     }
+
+                    if (focusEditorOnOverflow && typeof editor.focus === 'function') {
+                        editor.focus();
+                    }
+
                     updateCounter(previousValidMarkdown.length);
                     descriptionHiddenField.value = previousValidMarkdown;
-                    return;
+                    return false;
                 }
 
-                previousValidMarkdown = markdown;
-                descriptionHiddenField.value = markdown;
+                previousValidMarkdown = normalizedMarkdown;
+                descriptionHiddenField.value = normalizedMarkdown;
                 descriptionHiddenField.dispatchEvent(new Event('input', { bubbles: true }));
 
-                updateCounter(markdown.length);
+                updateCounter(normalizedMarkdown.length);
+                updateLimitMessage(normalizedMarkdown.length);
+                return true;
+            };
+
+            const syncMarkdownToField = () => {
+                applyMarkdownWithLimitGuard(editor.getMarkdown());
             };
 
             // SECTION: Event wiring
             editor.on('change', syncMarkdownToField);
 
             if (form) {
-                form.addEventListener('submit', () => {
-                    descriptionHiddenField.value = editor.getMarkdown();
+                form.addEventListener('submit', (event) => {
+                    const isValid = applyMarkdownWithLimitGuard(editor.getMarkdown(), {
+                        revertEditorOnOverflow: false,
+                        focusEditorOnOverflow: true
+                    });
+
+                    if (!isValid) {
+                        event.preventDefault();
+                    }
                 });
             }
 
