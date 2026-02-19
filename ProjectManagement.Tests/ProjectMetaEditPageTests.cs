@@ -385,6 +385,69 @@ public sealed class ProjectMetaEditPageTests
         Assert.Equal("Before", project.Description);
     }
 
+    [Fact]
+    public async Task OnPostAsync_FallbackPlainTextSubmission_DoesNotPersistNestedQuotePrefixes()
+    {
+        await using var db = CreateContext();
+        await db.Projects.AddAsync(new Project
+        {
+            Id = 42,
+            Name = "Original",
+            Description = ">> Existing quote",
+            CreatedByUserId = "creator",
+            HodUserId = "hod-42"
+        });
+        await db.SaveChangesAsync();
+
+        var project = await db.Projects.SingleAsync(p => p.Id == 42);
+        var page = CreatePage(db, new FakeUserContext("hod-42", isHoD: true));
+        page.Input = new EditModel.MetaEditInput
+        {
+            ProjectId = 42,
+            Name = "Original",
+            Description = "Updated fallback paragraph\n\nSecond line",
+            RowVersion = Convert.ToBase64String(project.RowVersion)
+        };
+
+        var result = await page.OnPostAsync(42, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        project = await db.Projects.SingleAsync(p => p.Id == 42);
+        Assert.Equal("Updated fallback paragraph\n\nSecond line", project.Description);
+        Assert.DoesNotContain(">>", project.Description, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OnPostAsync_FallbackPlainTextSubmission_PreservesIntentionalQuotePrefixes()
+    {
+        await using var db = CreateContext();
+        await db.Projects.AddAsync(new Project
+        {
+            Id = 43,
+            Name = "Original",
+            Description = "Before",
+            CreatedByUserId = "creator",
+            HodUserId = "hod-43"
+        });
+        await db.SaveChangesAsync();
+
+        var project = await db.Projects.SingleAsync(p => p.Id == 43);
+        var page = CreatePage(db, new FakeUserContext("hod-43", isHoD: true));
+        page.Input = new EditModel.MetaEditInput
+        {
+            ProjectId = 43,
+            Name = "Original",
+            Description = ">> Keep this prefix intentionally",
+            RowVersion = Convert.ToBase64String(project.RowVersion)
+        };
+
+        var result = await page.OnPostAsync(43, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        project = await db.Projects.SingleAsync(p => p.Id == 43);
+        Assert.Equal(">> Keep this prefix intentionally", project.Description);
+    }
+
     private static EditModel CreatePage(ApplicationDbContext db, IUserContext userContext)
     {
         var page = new EditModel(db, userContext, new FakeAudit(), new PassThroughMarkdownRenderer())

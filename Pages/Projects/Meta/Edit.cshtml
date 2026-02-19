@@ -20,7 +20,8 @@
     <div class="mb-3 pm-desc-editor">
         <label asp-for="Input.Description" class="form-label"></label>
         <div id="pmDescEditor" class="d-none" data-pm-desc-editor data-initial-markdown="@Model.Input.Description"></div>
-        <textarea asp-for="Input.Description" class="form-control" maxlength="@descriptionMaxLength" data-maxlength="@descriptionMaxLength" data-pm-desc-hidden></textarea>
+        <input asp-for="Input.Description" type="hidden" data-maxlength="@descriptionMaxLength" data-pm-desc-hidden />
+        <textarea id="Input_DescriptionPlainText" name="Input.DescriptionPlainText" class="form-control" maxlength="@descriptionMaxLength" data-maxlength="@descriptionMaxLength" data-pm-desc-fallback rows="6">@Model.Input.Description</textarea>
         <div class="form-text" data-char-count-for="Input_Description">0/@descriptionMaxLength</div>
         <div class="form-text text-danger d-none" data-pm-desc-limit-message>Character limit reached (@descriptionMaxLength).</div>
         <div class="form-text text-warning d-none" data-pm-desc-unavailable-message>Rich editor unavailable; using plain text mode.</div>
