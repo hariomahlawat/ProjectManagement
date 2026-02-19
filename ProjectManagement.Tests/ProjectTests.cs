@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,7 @@ using ProjectManagement.Pages.Projects;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using Xunit;
+using System.ComponentModel.DataAnnotations;
 
 namespace ProjectManagement.Tests
 {
@@ -203,6 +205,106 @@ namespace ProjectManagement.Tests
             var error = Assert.Single(entry!.Errors);
             Assert.Equal(ProjectValidationMessages.InactiveTechnicalCategory, error.ErrorMessage);
             Assert.Empty(context.Projects);
+        }
+
+        // SECTION: Description length boundary validation
+        [Fact]
+        public async Task CreateModel_DescriptionLength5000_AcceptsAndPersists()
+        {
+            var (context, userManager) = CreateContextWithIdentity();
+            await userManager.CreateAsync(new ApplicationUser { Id = "creator", UserName = "creator" });
+
+            var clock = new FixedClock(DateTimeOffset.UtcNow);
+            var audit = new NoOpAuditService();
+            var page = new CreateModel(context, userManager, clock, audit)
+            {
+                Input = new CreateModel.InputModel
+                {
+                    Name = "Boundary Project",
+                    Description = new string('D', ProjectFieldLimits.DescriptionMaxLength)
+                },
+                PageContext = BuildPageContext("creator")
+            };
+
+            ApplyDataAnnotationsModelValidation(page.Input, "Input", page.ModelState);
+
+            var result = await page.OnPostAsync();
+
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal("/Projects/Overview", redirect.PageName);
+            var project = await context.Projects.SingleAsync();
+            Assert.Equal(ProjectFieldLimits.DescriptionMaxLength, project.Description!.Length);
+        }
+
+        [Fact]
+        public async Task CreateModel_DescriptionLength5001_AddsModelStateErrorAndDoesNotPersist()
+        {
+            var (context, userManager) = CreateContextWithIdentity();
+            await userManager.CreateAsync(new ApplicationUser { Id = "creator", UserName = "creator" });
+
+            var clock = new FixedClock(DateTimeOffset.UtcNow);
+            var audit = new NoOpAuditService();
+            var page = new CreateModel(context, userManager, clock, audit)
+            {
+                Input = new CreateModel.InputModel
+                {
+                    Name = "Too Long Project",
+                    Description = new string('D', ProjectFieldLimits.DescriptionMaxLength + 1)
+                },
+                PageContext = BuildPageContext("creator")
+            };
+
+            ApplyDataAnnotationsModelValidation(page.Input, "Input", page.ModelState);
+
+            var result = await page.OnPostAsync();
+
+            Assert.IsType<PageResult>(result);
+            Assert.True(page.ModelState.TryGetValue("Input.Description", out var entry));
+            var error = Assert.Single(entry!.Errors);
+            Assert.Contains(ProjectFieldLimits.DescriptionMaxLength.ToString(), error.ErrorMessage, StringComparison.Ordinal);
+            Assert.Empty(context.Projects);
+        }
+
+        [Fact]
+        public async Task ProjectAndMetaRequestDescription_5000Chars_RoundTripsThroughPersistence()
+        {
+            await using var context = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options);
+
+            var description = new string('R', ProjectFieldLimits.DescriptionMaxLength);
+
+            await context.Projects.AddAsync(new Project
+            {
+                Id = 900,
+                Name = "Round Trip",
+                Description = description,
+                CreatedByUserId = "creator"
+            });
+
+            await context.ProjectMetaChangeRequests.AddAsync(new ProjectMetaChangeRequest
+            {
+                Id = 901,
+                ProjectId = 900,
+                RequestedByUserId = "po-user",
+                RequestedAtUtc = DateTime.UtcNow,
+                DecisionStatus = ProjectMetaDecisionStatuses.Pending,
+                Name = "Round Trip",
+                Description = description,
+                OriginalName = "Round Trip",
+                OriginalDescription = description
+            });
+
+            await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
+
+            var persistedProject = await context.Projects.SingleAsync(p => p.Id == 900);
+            var persistedRequest = await context.ProjectMetaChangeRequests.SingleAsync(r => r.Id == 901);
+
+            Assert.Equal(ProjectFieldLimits.DescriptionMaxLength, persistedProject.Description!.Length);
+            Assert.Equal(description, persistedProject.Description);
+            Assert.Equal(ProjectFieldLimits.DescriptionMaxLength, persistedRequest.OriginalDescription!.Length);
+            Assert.Equal(description, persistedRequest.OriginalDescription);
         }
 
         [Fact]
@@ -413,6 +515,24 @@ namespace ProjectManagement.Tests
             };
 
             return new PageContext(new ActionContext(httpContext, new RouteData(), new ActionDescriptor()));
+        }
+
+        private static void ApplyDataAnnotationsModelValidation(object model, string modelPrefix, ModelStateDictionary modelState)
+        {
+            var context = new ValidationContext(model);
+            var results = new List<ValidationResult>();
+
+            Validator.TryValidateObject(model, context, results, validateAllProperties: true);
+
+            foreach (var result in results)
+            {
+                var memberNames = result.MemberNames.Any() ? result.MemberNames : new[] { string.Empty };
+                foreach (var memberName in memberNames)
+                {
+                    var key = string.IsNullOrEmpty(memberName) ? modelPrefix : $"{modelPrefix}.{memberName}";
+                    modelState.AddModelError(key, result.ErrorMessage ?? "Validation failed.");
+                }
+            }
         }
 
         private sealed class FixedClock : IClock
