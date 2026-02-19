@@ -287,10 +287,14 @@ namespace ProjectManagement.Tests
                 Id = 901,
                 ProjectId = 900,
                 RequestedByUserId = "po-user",
-                RequestedAtUtc = DateTime.UtcNow,
+                RequestedOnUtc = DateTimeOffset.UtcNow,
                 DecisionStatus = ProjectMetaDecisionStatuses.Pending,
-                Name = "Round Trip",
-                Description = description,
+                ChangeType = ProjectMetaChangeRequestChangeTypes.Meta,
+                Payload = System.Text.Json.JsonSerializer.Serialize(new ProjectMetaChangeRequestPayload
+                {
+                    Name = "Round Trip",
+                    Description = description
+                }),
                 OriginalName = "Round Trip",
                 OriginalDescription = description
             });
