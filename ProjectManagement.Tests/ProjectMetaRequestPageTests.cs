@@ -5,6 +5,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -18,6 +19,7 @@ using ProjectManagement.Pages.Projects.Meta;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using Xunit;
+using ProjectManagement.Tests.Fakes;
 
 namespace ProjectManagement.Tests;
 
@@ -38,7 +40,7 @@ public sealed class ProjectMetaRequestPageTests
         });
         await db.SaveChangesAsync();
 
-        var clock = new FixedClock(DateTimeOffset.UtcNow);
+        var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
         var service = new ProjectMetaChangeRequestService(db, clock);
         var page = CreatePage(db, service, new FakeUserContext("po-100", isProjectOfficer: true));
         page.Input = new RequestModel.RequestInput
@@ -55,7 +57,9 @@ public sealed class ProjectMetaRequestPageTests
         Assert.Equal("/Projects/Overview", redirect.PageName);
 
         var request = await db.ProjectMetaChangeRequests.SingleAsync();
-        Assert.Equal(ProjectFieldLimits.DescriptionMaxLength, request.Description!.Length);
+        var payload = JsonSerializer.Deserialize<ProjectMetaChangeRequestPayload>(request.Payload);
+        Assert.NotNull(payload);
+        Assert.Equal(ProjectFieldLimits.DescriptionMaxLength, payload!.Description!.Length);
         Assert.Equal(ProjectFieldLimits.DescriptionMaxLength, request.OriginalDescription!.Length);
     }
 
@@ -73,7 +77,7 @@ public sealed class ProjectMetaRequestPageTests
         });
         await db.SaveChangesAsync();
 
-        var clock = new FixedClock(DateTimeOffset.UtcNow);
+        var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
         var service = new ProjectMetaChangeRequestService(db, clock);
         var page = CreatePage(db, service, new FakeUserContext("po-101", isProjectOfficer: true));
         page.Input = new RequestModel.RequestInput
