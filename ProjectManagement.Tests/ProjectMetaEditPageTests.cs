@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Mvc.ViewFeatures.Infrastructure;
@@ -314,6 +316,75 @@ public sealed class ProjectMetaEditPageTests
         Assert.Contains("modified by someone else", error.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
+    // SECTION: Description length boundary validation
+    [Fact]
+    public async Task OnPostAsync_DescriptionLength5000_UpdatesProject()
+    {
+        await using var db = CreateContext();
+        await db.Projects.AddAsync(new Project
+        {
+            Id = 40,
+            Name = "Original",
+            Description = "Before",
+            CreatedByUserId = "creator",
+            HodUserId = "hod-40"
+        });
+        await db.SaveChangesAsync();
+
+        var project = await db.Projects.SingleAsync(p => p.Id == 40);
+        var page = CreatePage(db, new FakeUserContext("hod-40", isHoD: true));
+        page.Input = new EditModel.MetaEditInput
+        {
+            ProjectId = 40,
+            Name = "Original",
+            Description = new string('E', ProjectFieldLimits.DescriptionMaxLength),
+            RowVersion = Convert.ToBase64String(project.RowVersion)
+        };
+
+        ApplyDataAnnotationsModelValidation(page.Input, "Input", page.ModelState);
+        var result = await page.OnPostAsync(40, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        project = await db.Projects.SingleAsync(p => p.Id == 40);
+        Assert.Equal(ProjectFieldLimits.DescriptionMaxLength, project.Description!.Length);
+    }
+
+    [Fact]
+    public async Task OnPostAsync_DescriptionLength5001_ReturnsModelStateError()
+    {
+        await using var db = CreateContext();
+        await db.Projects.AddAsync(new Project
+        {
+            Id = 41,
+            Name = "Original",
+            Description = "Before",
+            CreatedByUserId = "creator",
+            HodUserId = "hod-41"
+        });
+        await db.SaveChangesAsync();
+
+        var project = await db.Projects.SingleAsync(p => p.Id == 41);
+        var page = CreatePage(db, new FakeUserContext("hod-41", isHoD: true));
+        page.Input = new EditModel.MetaEditInput
+        {
+            ProjectId = 41,
+            Name = "Original",
+            Description = new string('E', ProjectFieldLimits.DescriptionMaxLength + 1),
+            RowVersion = Convert.ToBase64String(project.RowVersion)
+        };
+
+        ApplyDataAnnotationsModelValidation(page.Input, "Input", page.ModelState);
+        var result = await page.OnPostAsync(41, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.True(page.ModelState.TryGetValue("Input.Description", out var entry));
+        var error = Assert.Single(entry!.Errors);
+        Assert.Contains(ProjectFieldLimits.DescriptionMaxLength.ToString(), error.ErrorMessage, StringComparison.Ordinal);
+
+        project = await db.Projects.SingleAsync(p => p.Id == 41);
+        Assert.Equal("Before", project.Description);
+    }
+
     private static EditModel CreatePage(ApplicationDbContext db, IUserContext userContext)
     {
         var page = new EditModel(db, userContext, new FakeAudit(), new PassThroughMarkdownRenderer())
@@ -337,6 +408,26 @@ public sealed class ProjectMetaEditPageTests
             .Options;
 
         return new ApplicationDbContext(options);
+    }
+
+    private static void ApplyDataAnnotationsModelValidation(object model, string modelPrefix, ModelStateDictionary modelState)
+    {
+        var validationContext = new ValidationContext(model);
+        var results = new List<ValidationResult>();
+        Validator.TryValidateObject(model, validationContext, results, validateAllProperties: true);
+
+        foreach (var result in results)
+        {
+            var members = result.MemberNames is not null && System.Linq.Enumerable.Any(result.MemberNames)
+                ? result.MemberNames
+                : new[] { string.Empty };
+
+            foreach (var member in members)
+            {
+                var key = string.IsNullOrEmpty(member) ? modelPrefix : $"{modelPrefix}.{member}";
+                modelState.AddModelError(key, result.ErrorMessage ?? "Validation failed.");
+            }
+        }
     }
 
     private sealed class FakeTempDataProvider : ITempDataProvider
