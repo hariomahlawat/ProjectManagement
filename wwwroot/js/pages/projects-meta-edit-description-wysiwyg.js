@@ -6,14 +6,14 @@
     const LOG_PREFIX = '[projects-meta-edit]';
 
     // SECTION: Max length resolution
-    const resolveDescriptionMaxLength = (descriptionTextarea) => {
-        const parsedMaxLength = Number.parseInt(descriptionTextarea.dataset.maxlength ?? '', 10);
+    const resolveDescriptionMaxLength = (descriptionField) => {
+        const parsedMaxLength = Number.parseInt(descriptionField.dataset.maxlength ?? '', 10);
 
         if (Number.isInteger(parsedMaxLength) && parsedMaxLength > 0) {
             return parsedMaxLength;
         }
 
-        const attributeMaxLength = Number.parseInt(descriptionTextarea.getAttribute('maxlength') ?? '', 10);
+        const attributeMaxLength = Number.parseInt(descriptionField.getAttribute('maxlength') ?? '', 10);
         if (Number.isInteger(attributeMaxLength) && attributeMaxLength > 0) {
             return attributeMaxLength;
         }
@@ -21,20 +21,57 @@
         return DEFAULT_MAX_DESCRIPTION_LENGTH;
     };
 
+    // SECTION: Markdown to plain text normalization
+    const normalizeFallbackPlainText = (markdown) => {
+        if (!markdown) {
+            return '';
+        }
+
+        return markdown
+            .replace(/\r\n?/g, '\n')
+            .split('\n')
+            .map((line) => line
+                .replace(/^\s{0,3}#{1,6}\s+/, '')
+                .replace(/^\s{0,3}>{1,}\s?/, '')
+                .replace(/^\s{0,3}(?:[-*+]|\d+[.)])\s+/, ''))
+            .join('\n');
+    };
+
+    // SECTION: Plain text to markdown conversion
+    const convertPlainTextToSafeMarkdown = (plainText) => {
+        const normalizedText = (plainText ?? '').replace(/\r\n?/g, '\n').trim();
+
+        if (!normalizedText) {
+            return '';
+        }
+
+        const paragraphs = normalizedText
+            .split(/\n{2,}/)
+            .map((segment) => segment
+                .split('\n')
+                .map((line) => line.trimEnd())
+                .join('  \n')
+                .trim())
+            .filter((segment) => segment.length > 0);
+
+        return paragraphs.join('\n\n');
+    };
+
     // SECTION: Bootstrap editor on page load
     document.addEventListener('DOMContentLoaded', () => {
         const editorHost = document.querySelector('[data-pm-desc-editor]');
-        const descriptionTextarea = document.querySelector('[data-pm-desc-hidden]');
+        const descriptionHiddenField = document.querySelector('[data-pm-desc-hidden]');
+        const fallbackTextarea = document.querySelector('[data-pm-desc-fallback]');
 
-        if (!editorHost || !descriptionTextarea) {
+        if (!editorHost || !descriptionHiddenField || !fallbackTextarea) {
             return;
         }
 
-        const maxDescriptionLength = resolveDescriptionMaxLength(descriptionTextarea);
-        const countNode = document.querySelector(`[data-char-count-for="${descriptionTextarea.id}"]`);
+        const maxDescriptionLength = resolveDescriptionMaxLength(descriptionHiddenField);
+        const countNode = document.querySelector(`[data-char-count-for="${descriptionHiddenField.id}"]`);
         const limitMessageNode = document.querySelector('[data-pm-desc-limit-message]');
         const unavailableMessageNode = document.querySelector('[data-pm-desc-unavailable-message]');
-        const form = descriptionTextarea.closest('form');
+        const form = descriptionHiddenField.closest('form');
 
         // SECTION: Shared helpers
         const updateCounter = (length) => {
@@ -49,20 +86,30 @@
             }
         };
 
+        const updateFallbackFromHiddenMarkdown = () => {
+            fallbackTextarea.value = normalizeFallbackPlainText(descriptionHiddenField.value);
+        };
+
+        const syncHiddenFromFallbackPlainText = () => {
+            descriptionHiddenField.value = convertPlainTextToSafeMarkdown(fallbackTextarea.value);
+            updateCounter(descriptionHiddenField.value.length);
+            updateLimitMessage(descriptionHiddenField.value.length);
+        };
+
         const activatePlainTextMode = ({ showUnavailableWarning = false } = {}) => {
-            descriptionTextarea.classList.remove('d-none');
+            fallbackTextarea.classList.remove('d-none');
             editorHost.classList.add('d-none');
 
             if (unavailableMessageNode) {
                 unavailableMessageNode.classList.toggle('d-none', !showUnavailableWarning);
             }
 
-            updateCounter(descriptionTextarea.value.length);
-            updateLimitMessage(descriptionTextarea.value.length);
+            updateFallbackFromHiddenMarkdown();
+            syncHiddenFromFallbackPlainText();
         };
 
         const activateRichEditorMode = () => {
-            descriptionTextarea.classList.add('d-none');
+            fallbackTextarea.classList.add('d-none');
             editorHost.classList.remove('d-none');
 
             if (unavailableMessageNode) {
@@ -80,13 +127,10 @@
         };
 
         // SECTION: Plain text mode event wiring
-        descriptionTextarea.addEventListener('input', () => {
-            updateCounter(descriptionTextarea.value.length);
-            updateLimitMessage(descriptionTextarea.value.length);
-        });
+        fallbackTextarea.addEventListener('input', syncHiddenFromFallbackPlainText);
 
         // SECTION: Progressive enhancement bootstrap
-        let previousValidMarkdown = descriptionTextarea.value || editorHost.dataset.initialMarkdown || '';
+        let previousValidMarkdown = descriptionHiddenField.value || editorHost.dataset.initialMarkdown || '';
         let editor;
 
         try {
@@ -126,13 +170,13 @@
                         limitMessageNode.classList.remove('d-none');
                     }
                     updateCounter(previousValidMarkdown.length);
-                    descriptionTextarea.value = previousValidMarkdown;
+                    descriptionHiddenField.value = previousValidMarkdown;
                     return;
                 }
 
                 previousValidMarkdown = markdown;
-                descriptionTextarea.value = markdown;
-                descriptionTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+                descriptionHiddenField.value = markdown;
+                descriptionHiddenField.dispatchEvent(new Event('input', { bubbles: true }));
 
                 updateCounter(markdown.length);
             };
@@ -142,7 +186,7 @@
 
             if (form) {
                 form.addEventListener('submit', () => {
-                    descriptionTextarea.value = editor.getMarkdown();
+                    descriptionHiddenField.value = editor.getMarkdown();
                 });
             }
 
