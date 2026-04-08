@@ -33,6 +33,16 @@ public static class ProjectAccessGuard
             return true;
         }
 
+        if (principal.IsInRole("Comdt"))
+        {
+            return true;
+        }
+
+        if (principal.IsInRole("MCO"))
+        {
+            return true;
+        }
+
         if (principal.IsInRole("HoD") &&
             string.Equals(project.HodUserId, userId, StringComparison.OrdinalIgnoreCase))
         {
