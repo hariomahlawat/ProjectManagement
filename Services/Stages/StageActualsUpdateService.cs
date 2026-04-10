@@ -103,58 +103,38 @@ public sealed class StageActualsUpdateService
             var stage = stageLookup[row.StageCode];
             var start = row.ActualStart;
             var completed = row.CompletedOn;
-            var resolvedStart = start ?? stage.ActualStart;
-            var resolvedCompleted = completed ?? stage.CompletedOn;
+            var proposedStart = start ?? stage.ActualStart;
+            var proposedCompleted = completed ?? stage.CompletedOn;
+            var isChanged = proposedStart != stage.ActualStart || proposedCompleted != stage.CompletedOn;
 
-            if (stage.Status is not StageStatus.InProgress and not StageStatus.Completed)
+            if (!isChanged)
             {
-                if (start.HasValue || completed.HasValue)
-                {
-                    validationErrors.Add($"{row.StageCode}: Actual dates can only be edited when the stage is InProgress or Completed.");
-                }
-
                 continue;
             }
 
-            if (resolvedStart is not null && resolvedStart > today)
+            if (stage.Status is not StageStatus.InProgress and not StageStatus.Completed)
+            {
+                validationErrors.Add($"{row.StageCode}: Actual dates can only be edited when the stage is InProgress or Completed.");
+                continue;
+            }
+
+            if (proposedStart is not null && proposedStart > today)
             {
                 validationErrors.Add($"{row.StageCode}: Start date cannot be in the future.");
             }
 
-            if (resolvedCompleted is not null && resolvedCompleted > today)
+            if (proposedCompleted is not null && proposedCompleted > today)
             {
                 validationErrors.Add($"{row.StageCode}: Completion date cannot be in the future.");
             }
 
-            if (resolvedStart is not null && resolvedCompleted is not null && resolvedStart > resolvedCompleted)
+            if (proposedStart is not null && proposedCompleted is not null && proposedStart > proposedCompleted)
             {
                 validationErrors.Add($"{row.StageCode}: Completion date must be on or after the start date.");
             }
 
-            switch (stage.Status)
-            {
-                case StageStatus.NotStarted when resolvedStart.HasValue || resolvedCompleted.HasValue:
-                    validationErrors.Add($"{row.StageCode}: Cannot add actual dates until the stage has started.");
-                    break;
-                case StageStatus.Skipped when resolvedStart.HasValue || resolvedCompleted.HasValue:
-                    validationErrors.Add($"{row.StageCode}: Skipped stages cannot record actual dates.");
-                    break;
-                case StageStatus.InProgress when resolvedCompleted.HasValue && !resolvedStart.HasValue:
-                case StageStatus.Blocked when resolvedCompleted.HasValue && !resolvedStart.HasValue:
-                    validationErrors.Add($"{row.StageCode}: Start date is required before marking completion.");
-                    break;
-                case StageStatus.Completed when !resolvedStart.HasValue || !resolvedCompleted.HasValue:
-                    validationErrors.Add($"{row.StageCode}: Completed stages require both start and completion dates.");
-                    break;
-            }
-
-            var updatedStart = resolvedStart;
-            var updatedCompleted = resolvedCompleted;
-
-            if (updatedStart == stage.ActualStart && updatedCompleted == stage.CompletedOn)
-            {
-                continue;
-            }
+            var updatedStart = proposedStart;
+            var updatedCompleted = proposedCompleted;
 
             changes.Add(new StageActualChange(stage, updatedStart, updatedCompleted));
         }

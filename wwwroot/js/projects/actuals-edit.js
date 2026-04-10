@@ -50,12 +50,20 @@
   };
 
   const validateRow = (row) => {
+    const code = row.dataset.stageCode ?? '';
+    const original = initialValues.get(code) ?? { start: '', completed: '' };
     const startInput = row.querySelector('[data-field="start"]');
     const completedInput = row.querySelector('[data-field="completed"]');
     const status = (row.dataset.stageStatus ?? '').toLowerCase();
 
     const startValue = startInput instanceof HTMLInputElement ? startInput.value : '';
     const completedValue = completedInput instanceof HTMLInputElement ? completedInput.value : '';
+    const isChanged = startValue !== original.start || completedValue !== original.completed;
+
+    if (!isChanged) {
+      setRowError(row, '');
+      return true;
+    }
 
     const startDate = parseDate(startValue);
     const completedDate = parseDate(completedValue);
@@ -79,27 +87,16 @@
     if (!error) {
       switch (status) {
         case 'notstarted':
-          if (startValue || completedValue) {
-            error = 'This stage has not started yet. Update the status first.';
-          }
+          error = 'This stage has not started yet. Update the status first.';
           break;
         case 'skipped':
-          if (startValue || completedValue) {
-            error = 'Skipped stages cannot record actual dates.';
-          }
+          error = 'Skipped stages cannot record actual dates.';
           break;
         case 'inprogress':
-        case 'blocked':
-          if (completedValue && !startValue) {
-            error = 'Add a start date before recording completion.';
-          }
-          break;
         case 'completed':
-          if (!startValue || !completedValue) {
-            error = 'Completed stages need both start and completion dates.';
-          }
           break;
         default:
+          error = 'Actual dates can only be edited when the stage is InProgress or Completed.';
           break;
       }
     }
