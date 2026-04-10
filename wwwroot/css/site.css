@@ -6934,11 +6934,33 @@ body.has-project-photo-preview-dialog {
         color: #0f172a;
     }
 
-    .pm-top-tabs__item.is-active {
+.pm-top-tabs__item.is-active {
         color: #0f172a;
         border-bottom-color: #3b82f6; /* active underline like GitHub repo tabs */
         background: rgba(255,255,255,0.15);
     }
+
+/* SECTION: AOTS unread badges */
+.pm-aots-unread-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1rem;
+    height: 1rem;
+    padding: 0 .3rem;
+    border-radius: 9999px;
+    font-size: .62rem;
+    line-height: 1;
+    font-weight: 700;
+    background: var(--pm-danger-accent);
+    color: #fff;
+    vertical-align: middle;
+}
+
+.pm-aots-unread-badge--topnav,
+.pm-aots-unread-badge--default {
+    margin-left: .35rem;
+}
 
 .pm-topbar__right {
     display: flex;

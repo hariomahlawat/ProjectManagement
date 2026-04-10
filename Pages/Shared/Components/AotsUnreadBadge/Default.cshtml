@@ -1,0 +1,11 @@
+@model ProjectManagement.ViewModels.Navigation.AotsUnreadBadgeViewModel
+
+@* SECTION: AOTS unread badge *@
+@if (Model.ShowBadge)
+{
+    <span class="pm-aots-unread-badge pm-aots-unread-badge--@Model.Variant"
+          title="Unread AOTS documents"
+          aria-label="@Model.AriaLabel">
+        @Model.DisplayText
+    </span>
+}

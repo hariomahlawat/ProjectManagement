@@ -71,7 +71,8 @@
                     <a asp-area="DocumentRepository"
                        asp-page="/Documents/Index"
                        class="pm-top-tabs__item @(isDocumentRepositoryPage ? "is-active" : string.Empty)">
-                        Documents
+                        <span>Documents</span>
+                        @await Component.InvokeAsync("AotsUnreadBadge", new { variant = "topnav" })
                     </a>
                 </nav>
             </div>

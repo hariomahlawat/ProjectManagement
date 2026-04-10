@@ -85,6 +85,7 @@ else
                        aria-label="AOTS">
                         <i class="bi bi-broadcast"></i>
                         <span class="docrepo-rail__label">AOTS</span>
+                        @await Component.InvokeAsync("AotsUnreadBadge", new { variant = "rail" })
                     </a>
                 </nav>
 

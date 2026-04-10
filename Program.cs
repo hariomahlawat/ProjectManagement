@@ -291,6 +291,7 @@ builder.Services.AddScoped<IDocRepoAuditService, DocRepoAuditService>();
 builder.Services.AddScoped<IFileScanner, NoopFileScanner>();
 builder.Services.AddScoped<IDocumentOcrRunner, OcrmypdfDocumentOcrRunner>();
 builder.Services.AddScoped<IDocumentSearchService, DocumentSearchService>();
+builder.Services.AddScoped<IAotsUnreadService, AotsUnreadService>();
 builder.Services.AddScoped<IDocRepoIngestionService, DocRepoIngestionService>();
 builder.Services.AddScoped<IGlobalDocRepoSearchService, GlobalDocRepoSearchService>();
 builder.Services.AddScoped<IGlobalFfcSearchService, GlobalFfcSearchService>();
