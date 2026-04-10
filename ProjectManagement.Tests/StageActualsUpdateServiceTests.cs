@@ -193,7 +193,7 @@ public sealed class StageActualsUpdateServiceTests
             ProjectId = 1,
             StageCode = StageCodes.AON,
             RequestedByUserId = "user-2",
-            RequestedAt = new DateTimeOffset(2024, 1, 30, 0, 0, 0, TimeSpan.Zero),
+            RequestedOn = new DateTimeOffset(2024, 1, 30, 0, 0, 0, TimeSpan.Zero),
             DecisionStatus = "Pending"
         });
 
