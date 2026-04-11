@@ -202,7 +202,14 @@ public sealed class StageActualsUpdateService
 
             stage.ActualStart = change.NewStart;
             stage.CompletedOn = change.NewCompleted;
-            stage.RequiresBackfill = false;
+
+            // SECTION: Completed stage backfill state
+            if (stage.Status == StageStatus.Completed)
+            {
+                var hasBothActualDates = stage.ActualStart.HasValue && stage.CompletedOn.HasValue;
+                stage.RequiresBackfill = !hasBothActualDates;
+            }
+
             stage.IsAutoCompleted = false;
             stage.AutoCompletedFromCode = null;
 
