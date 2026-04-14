@@ -541,3 +541,130 @@
 .pr-status-pill.is-watch { border-color: #8d8d8d; }
 .pr-status-pill.is-delayed { border-color: #6f6f6f; font-weight: 600; }
 .pr-status-pill.is-long-pending { border-color: #4f4f4f; font-weight: 700; }
+
+/* =========================================================
+   SECTION: Shared review shell for Sections 02-06
+   ========================================================= */
+.pr-section-shell {
+    border: 1px solid var(--pm-surface-silver);
+    border-radius: 12px;
+    background: var(--pm-card);
+    padding: 0.9rem 1rem;
+    display: grid;
+    gap: 0.85rem;
+}
+
+.pr-section-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.55rem;
+}
+
+.pr-section-summary__item {
+    border: 1px solid var(--pm-surface-silver);
+    border-radius: 10px;
+    padding: 0.4rem 0.55rem;
+    display: grid;
+    gap: 0.2rem;
+}
+
+.pr-section-summary__item span { font-size: 0.78rem; color: var(--pr-muted); }
+.pr-section-summary__item strong { font-size: 0.95rem; color: var(--pm-text-contrast); }
+.pr-section-insight { margin: 0; font-size: 0.86rem; color: var(--pm-text); }
+
+.pr-review-subsection {
+    border: 1px solid var(--pm-surface-ice);
+    border-radius: 10px;
+    padding: 0.75rem;
+    display: grid;
+    gap: 0.65rem;
+}
+
+.pr-review-subsection__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+
+.pr-review-subblock { display: grid; gap: 0.45rem; }
+.pr-review-table { margin-bottom: 0; }
+.pr-review-table th { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.02em; }
+
+/* SECTION: Section 02 */
+.pr-visit-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.pr-visit-card {
+    border: 1px solid var(--pm-surface-ice);
+    border-radius: 10px;
+    padding: 0.6rem;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.6rem;
+}
+
+.pr-visit-card__thumb,
+.pr-outreach-row__thumb,
+.pr-activity-card__thumb {
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+.pr-outreach-list { display: grid; gap: 0.55rem; }
+.pr-outreach-row {
+    border: 1px solid var(--pm-surface-ice);
+    border-radius: 10px;
+    padding: 0.55rem;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.6rem;
+    align-items: flex-start;
+}
+
+/* SECTION: Section 04 */
+.pr-training-list { display: grid; gap: 0.45rem; }
+.pr-training-row {
+    border: 1px solid var(--pm-surface-ice);
+    border-radius: 8px;
+    padding: 0.55rem;
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) auto auto;
+    gap: 0.6rem;
+    align-items: center;
+}
+.pr-training-row__persons { font-weight: 600; }
+
+/* SECTION: Section 05A */
+.pr-ops-table th { font-size: 0.76rem; text-transform: uppercase; }
+
+/* SECTION: Section 06 */
+.pr-activity-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.pr-activity-card {
+    border: 1px solid var(--pm-surface-ice);
+    border-radius: 10px;
+    padding: 0.65rem;
+    display: grid;
+    gap: 0.5rem;
+}
+
+.pr-activity-card__thumb {
+    width: 100%;
+    max-height: 160px;
+}
+
+@media (max-width: 991.98px) {
+    .pr-visit-grid,
+    .pr-activity-grid,
+    .pr-training-row {
+        grid-template-columns: 1fr;
+    }
+}

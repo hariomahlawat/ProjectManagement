@@ -141,3 +141,46 @@
         border-color: #000 !important;
     }
 }
+
+@media print {
+    /* SECTION: Redesigned sections 02-06 print handling */
+    .pr-section-shell,
+    .pr-review-subsection,
+    .pr-section-summary__item,
+    .pr-visit-card,
+    .pr-outreach-row,
+    .pr-training-row,
+    .pr-activity-card {
+        background: transparent !important;
+        border: 1px solid var(--pr-border) !important;
+        box-shadow: none !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .pr-visit-grid,
+    .pr-activity-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .pr-section-summary {
+        display: block;
+    }
+
+    .pr-section-summary__item {
+        margin-bottom: 4px;
+    }
+
+    .pr-visit-card__thumb,
+    .pr-outreach-row__thumb,
+    .pr-activity-card__thumb,
+    .pr-media-thumb img {
+        max-width: 56px;
+        max-height: 56px;
+    }
+
+    .pr-review-table,
+    .pr-ops-table {
+        font-size: 11px;
+    }
+}
