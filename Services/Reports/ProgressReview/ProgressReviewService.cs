@@ -108,14 +108,17 @@ public sealed class ProgressReviewService : IProgressReviewService
         // SECTION: ToT
         var totStage = LoadTotStageChanges(stageChangeRows);
         var totRemarks = await LoadTotRemarksAsync(from, to, cancellationToken);
+        var totSummary = BuildTotSummary(totStage, totRemarks);
 
         // SECTION: IPR
         var iprStatus = await LoadIprStatusChangesAsync(from, to, cancellationToken);
         var iprRemarks = await LoadIprRemarksAsync(from, to, cancellationToken);
+        var iprSummary = BuildIprSummary(iprStatus, iprRemarks);
 
         // SECTION: Trainings
         var simulatorTraining = await LoadTrainingBlockAsync(from, to, SimulatorTrainingTypeId, cancellationToken);
         var droneTraining = await LoadTrainingBlockAsync(from, to, DroneTrainingTypeId, cancellationToken);
+        var trainingSummary = BuildTrainingSummary(simulatorTraining, droneTraining);
 
         // SECTION: Proliferation, FFC, Misc
         var proliferation = await LoadProliferationAsync(from, to, cancellationToken);
@@ -147,9 +150,9 @@ public sealed class ProgressReviewService : IProgressReviewService
             Projects: new ProjectSectionVm(projectFrontRunners, projectRemarksOnly, projectNonMovers, projectSummaryRows, projectCategoryGroups, projectReviewBuckets),
             Visits: visits,
             SocialMedia: socialMedia,
-            Tot: new TotSectionVm(totStage, totRemarks),
-            Ipr: new IprSectionVm(iprStatus, iprRemarks),
-            Training: new TrainingSectionVm(simulatorTraining, droneTraining),
+            Tot: new TotSectionVm(totStage, totRemarks, totSummary, BuildTotInterpretiveText(totSummary)),
+            Ipr: new IprSectionVm(iprStatus, iprRemarks, iprSummary, BuildIprInterpretiveText(iprSummary)),
+            Training: new TrainingSectionVm(simulatorTraining, droneTraining, trainingSummary, BuildTrainingInterpretiveText(trainingSummary)),
             Proliferation: proliferation,
             Ffc: ffc,
             FfcDetailedIncompleteGroups: ffcDetailedIncompleteGroups.ToArray(),
@@ -512,7 +515,16 @@ public sealed class ProgressReviewService : IProgressReviewService
                 v.DisplayPhotoId))
             .ToList();
 
-        return new VisitSectionVm(items, items.Count);
+        var summary = new VisitReviewSummaryVm(
+            TotalVisits: items.Count,
+            VisitsWithImages: items.Count(v => v.DisplayPhotoId.HasValue || v.CoverPhotoId.HasValue),
+            DistinctVisitTypes: items
+                .Select(v => v.VisitType)
+                .Where(vt => !string.IsNullOrWhiteSpace(vt))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count());
+
+        return new VisitSectionVm(items, items.Count, summary, BuildVisitsInterpretiveText(summary));
     }
 
     private async Task<SocialMediaSectionVm> LoadSocialMediaAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken)
@@ -549,7 +561,16 @@ public sealed class ProgressReviewService : IProgressReviewService
                 e.DisplayPhotoId))
             .ToList();
 
-        return new SocialMediaSectionVm(posts, posts.Count);
+        var summary = new SocialMediaReviewSummaryVm(
+            TotalPosts: posts.Count,
+            PostsWithImages: posts.Count(p => p.DisplayPhotoId.HasValue || p.CoverPhotoId.HasValue),
+            DistinctPlatforms: posts
+                .Select(p => p.Platform)
+                .Where(platform => !string.IsNullOrWhiteSpace(platform))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count());
+
+        return new SocialMediaSectionVm(posts, posts.Count, summary, BuildSocialMediaInterpretiveText(summary));
     }
 
     // -----------------------------------------------------------------
@@ -813,10 +834,27 @@ public sealed class ProgressReviewService : IProgressReviewService
                               entry.Remarks))
             .ToListAsync(cancellationToken);
 
-        return new ProliferationSectionVm(rows
+        var orderedRows = rows
             .OrderByDescending(row => row.Date)
             .ThenBy(row => row.ProjectName)
-            .ToList());
+            .ToList();
+
+        var summary = new ProliferationReviewSummaryVm(
+            TotalRecords: orderedRows.Count,
+            TotalQuantity: orderedRows.Sum(row => row.Quantity),
+            DistinctProjects: orderedRows.Select(row => row.ProjectId).Distinct().Count(),
+            DistinctDestinations: orderedRows
+                .Select(row => row.UnitOrCountry)
+                .Where(destination => !string.IsNullOrWhiteSpace(destination))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count(),
+            DistinctStatuses: orderedRows
+                .Select(row => row.Status.ToString())
+                .Where(status => !string.IsNullOrWhiteSpace(status))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count());
+
+        return new ProliferationSectionVm(orderedRows, summary, BuildProliferationInterpretiveText(summary));
     }
 
     private async Task<FfcSectionVm> LoadFfcAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken)
@@ -942,7 +980,117 @@ public sealed class ProgressReviewService : IProgressReviewService
                 x.DisplayPhotoId))
             .ToList();
 
-        return new MiscSectionVm(result);
+        var summary = new MiscReviewSummaryVm(
+            TotalActivities: result.Count,
+            ActivitiesWithImages: result.Count(activity => activity.DisplayPhotoId.HasValue || !string.IsNullOrWhiteSpace(activity.PhotoUrl)),
+            ActivitiesWithLocations: result.Count(activity => !string.IsNullOrWhiteSpace(activity.Location)));
+
+        return new MiscSectionVm(result, summary, BuildMiscInterpretiveText(summary));
+    }
+
+
+    // -----------------------------------------------------------------
+    // SECTION: Progress review summary builders (Sections 02-06)
+    // -----------------------------------------------------------------
+    private static TotReviewSummaryVm BuildTotSummary(IReadOnlyList<TotStageChangeVm> stageChanges, IReadOnlyList<TotRemarkVm> remarks)
+    {
+        return new TotReviewSummaryVm(
+            StageChangeCount: stageChanges.Count,
+            RemarkCount: remarks.Count,
+            ProjectsWithStageChanges: stageChanges.Select(entry => entry.ProjectId).Distinct().Count(),
+            ProjectsWithRemarks: remarks.Select(entry => entry.ProjectId).Distinct().Count());
+    }
+
+    private static IprReviewSummaryVm BuildIprSummary(IReadOnlyList<IprStatusChangeVm> statusChanges, IReadOnlyList<IprRemarkVm> remarks)
+    {
+        var filingCount = statusChanges.Count(change => change.Status == IprStatus.Filed);
+        var grantCount = statusChanges.Count(change => change.Status == IprStatus.Granted);
+
+        return new IprReviewSummaryVm(
+            FilingCount: filingCount,
+            GrantCount: grantCount,
+            TotalEvents: statusChanges.Count,
+            RemarkCount: remarks.Count);
+    }
+
+    private static TrainingReviewSummaryVm BuildTrainingSummary(TrainingBlockVm simulator, TrainingBlockVm drone)
+    {
+        return new TrainingReviewSummaryVm(
+            SimulatorSessions: simulator.Rows.Count,
+            SimulatorParticipants: simulator.TotalPersons,
+            DroneSessions: drone.Rows.Count,
+            DroneParticipants: drone.TotalPersons);
+    }
+
+    private static string BuildVisitsInterpretiveText(VisitReviewSummaryVm summary)
+    {
+        if (summary.TotalVisits == 0)
+        {
+            return "No visits were recorded in the selected period.";
+        }
+
+        return $"The selected period recorded {summary.TotalVisits} visits across {summary.DistinctVisitTypes} visit type(s).";
+    }
+
+    private static string BuildSocialMediaInterpretiveText(SocialMediaReviewSummaryVm summary)
+    {
+        if (summary.TotalPosts == 0)
+        {
+            return "No social media outreach items were recorded in the selected period.";
+        }
+
+        return $"The selected period recorded {summary.TotalPosts} outreach items across {summary.DistinctPlatforms} platform(s).";
+    }
+
+    private static string BuildTotInterpretiveText(TotReviewSummaryVm summary)
+    {
+        if (summary.StageChangeCount == 0 && summary.RemarkCount == 0)
+        {
+            return "No ToT activity was recorded in the selected period.";
+        }
+
+        return $"ToT activity in the selected period comprised {summary.StageChangeCount} formal updates and {summary.RemarkCount} remark-based follow-ups.";
+    }
+
+    private static string BuildIprInterpretiveText(IprReviewSummaryVm summary)
+    {
+        if (summary.TotalEvents == 0)
+        {
+            return "No IPR milestones were recorded in the selected period.";
+        }
+
+        return $"IPR activity in the selected period comprised {summary.FilingCount} filing event(s) and {summary.GrantCount} grant event(s).";
+    }
+
+    private static string BuildTrainingInterpretiveText(TrainingReviewSummaryVm summary)
+    {
+        var totalSessions = summary.SimulatorSessions + summary.DroneSessions;
+        if (totalSessions == 0)
+        {
+            return "No training activity was recorded in the selected period.";
+        }
+
+        return $"The selected period recorded {summary.SimulatorSessions} simulator session(s) and {summary.DroneSessions} drone session(s).";
+    }
+
+    private static string BuildProliferationInterpretiveText(ProliferationReviewSummaryVm summary)
+    {
+        if (summary.TotalRecords == 0)
+        {
+            return "No proliferation activity was recorded in the selected period.";
+        }
+
+        return $"Proliferation activity in the selected period comprised {summary.TotalRecords} record(s) across {summary.DistinctProjects} project(s).";
+    }
+
+    private static string BuildMiscInterpretiveText(MiscReviewSummaryVm summary)
+    {
+        if (summary.TotalActivities == 0)
+        {
+            return "No additional notable activities were recorded in the selected period.";
+        }
+
+        return $"The selected period recorded {summary.TotalActivities} additional notable activities.";
     }
 
     // -----------------------------------------------------------------

@@ -158,7 +158,18 @@ public sealed record ProjectRemarkSummaryVm(
     public static ProjectRemarkSummaryVm Empty { get; } = new(null, null, null, 0);
 }
 
-public sealed record VisitSectionVm(IReadOnlyList<VisitSummaryVm> Items, int TotalCount);
+public sealed record VisitSectionVm(
+    IReadOnlyList<VisitSummaryVm> Items,
+    int TotalCount,
+    VisitReviewSummaryVm Summary,
+    string? InterpretiveSummaryText
+);
+
+public sealed record VisitReviewSummaryVm(
+    int TotalVisits,
+    int VisitsWithImages,
+    int DistinctVisitTypes
+);
 
 public sealed record VisitSummaryVm(
     Guid Id,
@@ -171,7 +182,18 @@ public sealed record VisitSummaryVm(
     Guid? DisplayPhotoId
 );
 
-public sealed record SocialMediaSectionVm(IReadOnlyList<SocialMediaPostVm> Items, int TotalCount);
+public sealed record SocialMediaSectionVm(
+    IReadOnlyList<SocialMediaPostVm> Items,
+    int TotalCount,
+    SocialMediaReviewSummaryVm Summary,
+    string? InterpretiveSummaryText
+);
+
+public sealed record SocialMediaReviewSummaryVm(
+    int TotalPosts,
+    int PostsWithImages,
+    int DistinctPlatforms
+);
 
 public sealed record SocialMediaPostVm(
     Guid Id,
@@ -185,7 +207,16 @@ public sealed record SocialMediaPostVm(
 
 public sealed record TotSectionVm(
     IReadOnlyList<TotStageChangeVm> StageChanges,
-    IReadOnlyList<TotRemarkVm> Remarks
+    IReadOnlyList<TotRemarkVm> Remarks,
+    TotReviewSummaryVm Summary,
+    string? InterpretiveSummaryText
+);
+
+public sealed record TotReviewSummaryVm(
+    int StageChangeCount,
+    int RemarkCount,
+    int ProjectsWithStageChanges,
+    int ProjectsWithRemarks
 );
 
 public sealed record TotStageChangeVm(
@@ -207,7 +238,16 @@ public sealed record TotRemarkVm(
 
 public sealed record IprSectionVm(
     IReadOnlyList<IprStatusChangeVm> StatusChanges,
-    IReadOnlyList<IprRemarkVm> Remarks
+    IReadOnlyList<IprRemarkVm> Remarks,
+    IprReviewSummaryVm Summary,
+    string? InterpretiveSummaryText
+);
+
+public sealed record IprReviewSummaryVm(
+    int FilingCount,
+    int GrantCount,
+    int TotalEvents,
+    int RemarkCount
 );
 
 public sealed record IprStatusChangeVm(
@@ -227,7 +267,16 @@ public sealed record IprRemarkVm(
 
 public sealed record TrainingSectionVm(
     TrainingBlockVm Simulator,
-    TrainingBlockVm Drone
+    TrainingBlockVm Drone,
+    TrainingReviewSummaryVm Summary,
+    string? InterpretiveSummaryText
+);
+
+public sealed record TrainingReviewSummaryVm(
+    int SimulatorSessions,
+    int SimulatorParticipants,
+    int DroneSessions,
+    int DroneParticipants
 );
 
 public sealed record TrainingBlockVm(
@@ -243,7 +292,19 @@ public sealed record TrainingRowVm(
     int Persons
 );
 
-public sealed record ProliferationSectionVm(IReadOnlyList<ProliferationRowVm> Rows);
+public sealed record ProliferationSectionVm(
+    IReadOnlyList<ProliferationRowVm> Rows,
+    ProliferationReviewSummaryVm Summary,
+    string? InterpretiveSummaryText
+);
+
+public sealed record ProliferationReviewSummaryVm(
+    int TotalRecords,
+    int TotalQuantity,
+    int DistinctProjects,
+    int DistinctDestinations,
+    int DistinctStatuses
+);
 
 public sealed record ProliferationRowVm(
     Guid EntryId,
@@ -267,7 +328,17 @@ public sealed record FfcProgressVm(
     string? Remarks
 );
 
-public sealed record MiscSectionVm(IReadOnlyList<MiscActivityVm> Rows);
+public sealed record MiscSectionVm(
+    IReadOnlyList<MiscActivityVm> Rows,
+    MiscReviewSummaryVm Summary,
+    string? InterpretiveSummaryText
+);
+
+public sealed record MiscReviewSummaryVm(
+    int TotalActivities,
+    int ActivitiesWithImages,
+    int ActivitiesWithLocations
+);
 
 public sealed record MiscActivityVm(
     int ActivityId,
