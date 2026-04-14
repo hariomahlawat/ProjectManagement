@@ -82,6 +82,15 @@ public sealed class ProgressReviewService : IProgressReviewService
             projectCategoryLookup,
             from,
             to);
+        var projectReviewBuckets = BuildProjectReviewBuckets(
+            projectFrontRunners,
+            projectRemarksOnly,
+            projectNonMovers,
+            presentStageLookup,
+            remarkLookup,
+            projectCategoryLookup,
+            from,
+            to);
         var projectCategoryGroups = projectSummaryRows
             .GroupBy(row => string.IsNullOrWhiteSpace(row.ProjectCategoryName) ? "Uncategorised" : row.ProjectCategoryName)
             .OrderBy(group => group.Key)
@@ -135,7 +144,7 @@ public sealed class ProgressReviewService : IProgressReviewService
 
         return new ProgressReviewVm(
             Range: new RangeVm(from, to),
-            Projects: new ProjectSectionVm(projectFrontRunners, projectRemarksOnly, projectNonMovers, projectSummaryRows, projectCategoryGroups),
+            Projects: new ProjectSectionVm(projectFrontRunners, projectRemarksOnly, projectNonMovers, projectSummaryRows, projectCategoryGroups, projectReviewBuckets),
             Visits: visits,
             SocialMedia: socialMedia,
             Tot: new TotSectionVm(totStage, totRemarks),
@@ -456,7 +465,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                     p.Name,
                     stage.StageCode,
                     StageCodes.DisplayNameOf(stage.StageCode),
-                    days);
+                    days,
+                    lastActivity);
             })
             .OrderByDescending(p => p.DaysSinceActivity)
             .ThenBy(p => p.ProjectName)
@@ -1045,6 +1055,273 @@ public sealed class ProgressReviewService : IProgressReviewService
         return rows.Values
             .OrderBy(r => r.ProjectName)
             .ToList();
+    }
+
+    // -----------------------------------------------------------------
+    // SECTION: Project review buckets (Section 01 executive surface)
+    // -----------------------------------------------------------------
+    private static ProjectReviewBucketsVm BuildProjectReviewBuckets(
+        IReadOnlyList<ProjectStageChangeVm> frontRunners,
+        IReadOnlyList<ProjectRemarkOnlyVm> remarkOnly,
+        IReadOnlyList<ProjectNonMoverVm> nonMovers,
+        IReadOnlyDictionary<int, PresentStageSnapshot> presentStageLookup,
+        IReadOnlyDictionary<int, ProjectRemarkSummaryVm> remarkLookup,
+        IReadOnlyDictionary<int, string?> projectCategoryLookup,
+        DateOnly rangeFrom,
+        DateOnly rangeTo)
+    {
+        var stageHistoryLookup = BuildStageMovementLookup(frontRunners, presentStageLookup, rangeFrom, rangeTo);
+        var reviewRows = new Dictionary<int, ProjectReviewRowVm>();
+        var nonMoverLookup = nonMovers.ToDictionary(n => n.ProjectId);
+
+        // SECTION: Advanced bucket
+        foreach (var pair in stageHistoryLookup.Where(pair => pair.Value.Count > 0))
+        {
+            var projectId = pair.Key;
+            var movements = pair.Value;
+            var projectName = frontRunners
+                .FirstOrDefault(r => r.ProjectId == projectId)?.ProjectName
+                ?? remarkOnly.FirstOrDefault(r => r.ProjectId == projectId)?.ProjectName
+                ?? nonMovers.FirstOrDefault(r => r.ProjectId == projectId)?.ProjectName
+                ?? $"Project {projectId}";
+
+            var presentStage = presentStageLookup.TryGetValue(projectId, out var advancedSnapshot)
+                ? advancedSnapshot
+                : PresentStageSnapshot.Empty;
+            var remarks = remarkLookup.TryGetValue(projectId, out var advancedRemarks)
+                ? advancedRemarks
+                : ProjectRemarkSummaryVm.Empty;
+            var categoryName = projectCategoryLookup.TryGetValue(projectId, out var advancedCategory)
+                ? advancedCategory
+                : null;
+            var lastStageMovementDate = GetLastStageMovementDate(movements);
+
+            reviewRows[projectId] = new ProjectReviewRowVm(
+                projectId,
+                projectName,
+                categoryName,
+                presentStage,
+                BuildMovementPathText(movements),
+                TrimHistory(movements).Display,
+                movements.Count,
+                lastStageMovementDate,
+                remarks,
+                lastStageMovementDate,
+                lastStageMovementDate.HasValue ? Math.Max(0, rangeTo.DayNumber - lastStageMovementDate.Value.DayNumber) : 0,
+                ProjectReviewBucket.Advanced,
+                ProjectAttentionStatus.Normal);
+        }
+
+        // SECTION: Active without advancement bucket
+        foreach (var row in remarkOnly)
+        {
+            if (reviewRows.ContainsKey(row.ProjectId))
+            {
+                continue;
+            }
+
+            var stageMovements = stageHistoryLookup.TryGetValue(row.ProjectId, out var history)
+                ? history
+                : new List<ProjectStageMovementVm>();
+            var presentStage = presentStageLookup.TryGetValue(row.ProjectId, out var activeSnapshot)
+                ? activeSnapshot
+                : PresentStageSnapshot.Empty;
+            var categoryName = projectCategoryLookup.TryGetValue(row.ProjectId, out var activeCategory)
+                ? activeCategory
+                : null;
+            var lastRecordedActivityDate = row.RemarkSummary.LatestRemarkDate
+                ?? (nonMoverLookup.TryGetValue(row.ProjectId, out var nonMover) ? nonMover.LastRecordedActivityDate : null);
+            var daysSinceLastRecordedActivity = lastRecordedActivityDate.HasValue
+                ? Math.Max(0, rangeTo.DayNumber - lastRecordedActivityDate.Value.DayNumber)
+                : 0;
+
+            reviewRows[row.ProjectId] = new ProjectReviewRowVm(
+                row.ProjectId,
+                row.ProjectName,
+                categoryName,
+                presentStage,
+                BuildMovementPathText(stageMovements),
+                TrimHistory(stageMovements).Display,
+                stageMovements.Count,
+                GetLastStageMovementDate(stageMovements),
+                row.RemarkSummary,
+                lastRecordedActivityDate,
+                daysSinceLastRecordedActivity,
+                ProjectReviewBucket.ActiveWithoutAdvancement,
+                DetermineAttentionStatus(daysSinceLastRecordedActivity));
+        }
+
+        // SECTION: Attention bucket
+        foreach (var row in nonMovers)
+        {
+            if (reviewRows.ContainsKey(row.ProjectId))
+            {
+                continue;
+            }
+
+            var stageMovements = stageHistoryLookup.TryGetValue(row.ProjectId, out var history)
+                ? history
+                : new List<ProjectStageMovementVm>();
+            var remarks = remarkLookup.TryGetValue(row.ProjectId, out var remarkSummary)
+                ? remarkSummary
+                : ProjectRemarkSummaryVm.Empty;
+            var presentStage = presentStageLookup.TryGetValue(row.ProjectId, out var attentionSnapshot)
+                ? attentionSnapshot
+                : PresentStageSnapshot.Empty;
+            var categoryName = projectCategoryLookup.TryGetValue(row.ProjectId, out var attentionCategory)
+                ? attentionCategory
+                : null;
+
+            reviewRows[row.ProjectId] = new ProjectReviewRowVm(
+                row.ProjectId,
+                row.ProjectName,
+                categoryName,
+                presentStage,
+                BuildMovementPathText(stageMovements),
+                TrimHistory(stageMovements).Display,
+                stageMovements.Count,
+                GetLastStageMovementDate(stageMovements),
+                remarks,
+                row.LastRecordedActivityDate,
+                row.DaysSinceActivity,
+                ProjectReviewBucket.Attention,
+                DetermineAttentionStatus(row.DaysSinceActivity));
+        }
+
+        var advancedRows = reviewRows.Values
+            .Where(r => r.ReviewBucket == ProjectReviewBucket.Advanced)
+            .OrderByDescending(r => r.MovementCountInRange)
+            .ThenByDescending(r => r.LastStageMovementDate)
+            .ThenBy(r => r.ProjectName)
+            .ToList();
+        var activeWithoutAdvancementRows = reviewRows.Values
+            .Where(r => r.ReviewBucket == ProjectReviewBucket.ActiveWithoutAdvancement)
+            .OrderByDescending(r => r.LastRecordedActivityDate)
+            .ThenBy(r => r.ProjectName)
+            .ToList();
+        var attentionRows = reviewRows.Values
+            .Where(r => r.ReviewBucket == ProjectReviewBucket.Attention)
+            .OrderByDescending(r => r.DaysSinceLastRecordedActivity)
+            .ThenBy(r => r.ProjectName)
+            .ToList();
+
+        var noMovementCount = activeWithoutAdvancementRows.Count + attentionRows.Count;
+        var summary = new ProjectReviewSummaryVm(
+            ProjectsInScope: reviewRows.Count,
+            AdvancedCount: advancedRows.Count,
+            ActiveWithoutAdvancementCount: activeWithoutAdvancementRows.Count,
+            NoMovementCount: noMovementCount,
+            AttentionCount: attentionRows.Count,
+            InterpretiveSummaryText: BuildInterpretiveSummaryText(
+                advancedRows.Count,
+                activeWithoutAdvancementRows.Count,
+                noMovementCount,
+                advancedRows,
+                attentionRows));
+
+        return new ProjectReviewBucketsVm(
+            Summary: summary,
+            Highlights: BuildHighlights(advancedRows),
+            Advanced: advancedRows,
+            ActiveWithoutAdvancement: activeWithoutAdvancementRows,
+            Attention: attentionRows);
+    }
+
+    private static string BuildMovementPathText(IReadOnlyList<ProjectStageMovementVm> movements)
+    {
+        if (movements.Count == 0)
+        {
+            return "No formal stage movement recorded.";
+        }
+
+        return string.Join(" \u2192 ", movements
+            .Take(3)
+            .Select(movement => $"{movement.StageName} {(movement.IsOngoing ? "started" : "completed")}"));
+    }
+
+    private static DateOnly? GetLastStageMovementDate(IReadOnlyList<ProjectStageMovementVm> movements)
+    {
+        var latest = movements
+            .Select(movement => movement.IsOngoing ? movement.StartedOn : movement.CompletedOn)
+            .Where(date => date.HasValue)
+            .OrderByDescending(date => date)
+            .FirstOrDefault();
+
+        return latest;
+    }
+
+    private static ProjectAttentionStatus DetermineAttentionStatus(int daysSinceLastActivity)
+    {
+        return daysSinceLastActivity switch
+        {
+            >= 180 => ProjectAttentionStatus.LongPending,
+            >= 120 => ProjectAttentionStatus.Delayed,
+            >= 60 => ProjectAttentionStatus.Watch,
+            _ => ProjectAttentionStatus.Normal
+        };
+    }
+
+    private static string? BuildInterpretiveSummaryText(
+        int advancedCount,
+        int activeWithoutAdvancementCount,
+        int noMovementCount,
+        IReadOnlyList<ProjectReviewRowVm> advancedRows,
+        IReadOnlyList<ProjectReviewRowVm> attentionRows)
+    {
+        if (advancedCount == 0 && noMovementCount == 0)
+        {
+            return null;
+        }
+
+        if (advancedCount == 0)
+        {
+            return "The selected period recorded no formal stage movement, with attention focused on projects awaiting renewed activity.";
+        }
+
+        if (attentionRows.Any(row => row.AttentionStatus == ProjectAttentionStatus.LongPending))
+        {
+            return "Movement was recorded in the reporting period, but several projects remain long-pending and require management attention.";
+        }
+
+        if (advancedRows.Any(row => row.MovementCountInRange >= 2))
+        {
+            return "Most movement in the selected period came from projects that progressed through multiple stage updates.";
+        }
+
+        if (activeWithoutAdvancementCount > advancedCount)
+        {
+            return "The period showed broader activity through remarks, but formal stage advancement remained limited.";
+        }
+
+        return "The selected period recorded measurable stage advancement with a manageable set of projects requiring closer follow-up.";
+    }
+
+    private static IReadOnlyList<ProjectReviewHighlightVm> BuildHighlights(
+        IReadOnlyList<ProjectReviewRowVm> advancedRows)
+    {
+        return advancedRows
+            .OrderByDescending(row => row.MovementCountInRange)
+            .ThenByDescending(row => row.LastStageMovementDate)
+            .ThenBy(row => row.ProjectName)
+            .Take(5)
+            .Select(row => new ProjectReviewHighlightVm(
+                row.ProjectId,
+                row.ProjectName,
+                row.ProjectCategoryName,
+                BuildHighlightText(row),
+                row.LastStageMovementDate,
+                row.MovementCountInRange))
+            .ToList();
+
+        static string BuildHighlightText(ProjectReviewRowVm row)
+        {
+            if (row.MovementCountInRange >= 2)
+            {
+                return $"{row.ProjectName} registered multi-stage progression during the reporting period.";
+            }
+
+            return $"{row.ProjectName} recorded formal movement in the selected period.";
+        }
     }
 
     private async Task<IReadOnlyDictionary<int, PresentStageSnapshot>> BuildPresentStageLookupAsync(
