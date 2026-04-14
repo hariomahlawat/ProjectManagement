@@ -39,7 +39,8 @@ public sealed record ProjectSectionVm(
     IReadOnlyList<ProjectRemarkOnlyVm> WorkInProgress,
     IReadOnlyList<ProjectNonMoverVm> NonMovers,
     IReadOnlyList<ProjectProgressRowVm> SummaryRows,
-    IReadOnlyList<ProjectCategoryGroupVm> CategoryGroups
+    IReadOnlyList<ProjectCategoryGroupVm> CategoryGroups,
+    ProjectReviewBucketsVm Review
 );
 
 public sealed record ProjectStageChangeVm(
@@ -65,7 +66,8 @@ public sealed record ProjectNonMoverVm(
     string ProjectName,
     string StageCode,
     string StageName,
-    int DaysSinceActivity
+    int DaysSinceActivity,
+    DateOnly? LastRecordedActivityDate
 );
 
 public sealed record ProjectProgressRowVm(
@@ -78,6 +80,63 @@ public sealed record ProjectProgressRowVm(
     ProjectRemarkSummaryVm RemarkSummary
 );
 
+
+public sealed record ProjectReviewSummaryVm(
+    int ProjectsInScope,
+    int AdvancedCount,
+    int ActiveWithoutAdvancementCount,
+    int NoMovementCount,
+    int AttentionCount,
+    string? InterpretiveSummaryText
+);
+
+public sealed record ProjectReviewHighlightVm(
+    int ProjectId,
+    string ProjectName,
+    string? ProjectCategoryName,
+    string HighlightText,
+    DateOnly? LastStageMovementDate,
+    int MovementCountInRange
+);
+
+public enum ProjectReviewBucket
+{
+    Advanced = 1,
+    ActiveWithoutAdvancement = 2,
+    Attention = 3
+}
+
+public enum ProjectAttentionStatus
+{
+    Normal = 0,
+    Watch = 1,
+    Delayed = 2,
+    LongPending = 3
+}
+
+public sealed record ProjectReviewRowVm(
+    int ProjectId,
+    string ProjectName,
+    string? ProjectCategoryName,
+    PresentStageSnapshot PresentStage,
+    string MovementPathText,
+    IReadOnlyList<ProjectStageMovementVm> StageMovements,
+    int MovementCountInRange,
+    DateOnly? LastStageMovementDate,
+    ProjectRemarkSummaryVm RemarkSummary,
+    DateOnly? LastRecordedActivityDate,
+    int DaysSinceLastRecordedActivity,
+    ProjectReviewBucket ReviewBucket,
+    ProjectAttentionStatus AttentionStatus
+);
+
+public sealed record ProjectReviewBucketsVm(
+    ProjectReviewSummaryVm Summary,
+    IReadOnlyList<ProjectReviewHighlightVm> Highlights,
+    IReadOnlyList<ProjectReviewRowVm> Advanced,
+    IReadOnlyList<ProjectReviewRowVm> ActiveWithoutAdvancement,
+    IReadOnlyList<ProjectReviewRowVm> Attention
+);
 public sealed record ProjectCategoryGroupVm(
     string CategoryName,
     IReadOnlyList<ProjectProgressRowVm> Projects

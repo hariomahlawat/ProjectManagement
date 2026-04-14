@@ -173,90 +173,159 @@
                             <h2 class="progress-review__section-title pr-section-title">Ongoing projects progress</h2>
                             <div class="pr-section-divider"></div>
                         </div>
-                        <p class="progress-review__section-meta pr-meta">@vm.Projects.SummaryRows.Count projects in scope</p>
+                        <p class="progress-review__section-meta pr-meta">@vm.Projects.Review.Summary.ProjectsInScope projects in scope</p>
                     </header>
 
-                    @if (!vm.Projects.CategoryGroups.Any())
+                    @if (vm.Projects.Review.Summary.ProjectsInScope == 0)
                     {
                         <p class="text-muted small mb-0">No qualifying projects for the selected range.</p>
                     }
                     else
                     {
-                        <div class="pr-category-stack">
-                            @foreach (var group in vm.Projects.CategoryGroups)
+                        @* SECTION: Executive review band *@
+                        <div class="pr-review-band">
+                            <div class="pr-review-band__head">
+                                <div>
+                                    <div class="pr-review-band__title">Ongoing projects progress</div>
+                                    <div class="pr-review-band__period">
+                                        Review window: @vm.Range.From.ToString("dd MMM yyyy") to @vm.Range.To.ToString("dd MMM yyyy")
+                                    </div>
+                                </div>
+                                <div class="pr-review-band__scope">@vm.Projects.Review.Summary.ProjectsInScope in scope</div>
+                            </div>
+                            <div class="pr-review-metrics">
+                                <div class="pr-review-metric"><span class="pr-review-metric__label">Advanced</span><span class="pr-review-metric__value">@vm.Projects.Review.Summary.AdvancedCount</span></div>
+                                <div class="pr-review-metric"><span class="pr-review-metric__label">Active, no advancement</span><span class="pr-review-metric__value">@vm.Projects.Review.Summary.ActiveWithoutAdvancementCount</span></div>
+                                <div class="pr-review-metric"><span class="pr-review-metric__label">No movement</span><span class="pr-review-metric__value">@vm.Projects.Review.Summary.NoMovementCount</span></div>
+                                <div class="pr-review-metric"><span class="pr-review-metric__label">Attention</span><span class="pr-review-metric__value">@vm.Projects.Review.Summary.AttentionCount</span></div>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(vm.Projects.Review.Summary.InterpretiveSummaryText))
                             {
-                                <section class="pr-category-block" aria-label="@group.CategoryName">
-                                    <div class="pr-category-header">
-                                        <span>@group.CategoryName</span>
-                                        <span class="pr-category-count">@group.Projects.Count projects</span>
-                                    </div>
-                                    <div class="pr-project-list">
-                                        @foreach (var row in group.Projects)
-                                        {
-                                            var stageMovements = row.StageMovements ?? Array.Empty<ProjectStageMovementVm>();
-                                            var projectDetailsUrl = Url.Page("/Projects/Overview", new { id = row.ProjectId });
-                                            var stageName = string.IsNullOrWhiteSpace(row.PresentStage.CurrentStageName) ? "Stage pending" : row.PresentStage.CurrentStageName;
-                                            <article class="pr-project-row">
-                                                <div>
-                                                    <a class="progress-review__link pr-project-name" href="@projectDetailsUrl">@row.ProjectName</a>
-                                                    @if (!string.IsNullOrWhiteSpace(row.ProjectCategoryName))
-                                                    {
-                                                        <div class="pr-meta">@row.ProjectCategoryName</div>
-                                                    }
-                                                </div>
-                                                <div class="pr-stage-line">Present stage — <span class="fw-semibold">@stageName</span></div>
-                                                <div class="pr-meta">@((row.PresentStage.DaysSinceStartOrLastCompletion ?? 0)) days passed</div>
-                                                @if (stageMovements.Any())
-                                                {
-                                                    @foreach (var movement in stageMovements)
-                                                    {
-                                                        var movementDate = GetMovementDate(movement);
-                                                        var actionText = movement.IsOngoing ? "started on" : "completed on";
-                                                        <div class="pr-movement-line">
-                                                            <strong>@movement.StageName</strong> @actionText
-                                                            @if (movementDate.HasValue)
-                                                            {
-                                                                <time datetime="@FormatDateIso(movementDate.Value)">@FormatDay(movementDate.Value)</time>
-                                                            }
-                                                            else
-                                                            {
-                                                                <span>date N/A</span>
-                                                            }
-                                                        </div>
-                                                    }
-                                                    @if (row.StageMovementOverflowCount > 0)
-                                                    {
-                                                        <div class="pr-meta">Showing top @stageMovements.Count of @(stageMovements.Count + row.StageMovementOverflowCount) movements</div>
-                                                    }
-                                                }
-                                                else
-                                                {
-                                                    <div class="pr-meta">No stage movements recorded in this range.</div>
-                                                }
-                                                @if (!string.IsNullOrWhiteSpace(row.RemarkSummary.LatestRemarkSummary))
-                                                {
-                                                    var remarkHtml = RenderRemarkHtml(row.RemarkSummary.LatestRemarkSummary);
-                                                    var tooltip = BuildRemarkTooltip(row.RemarkSummary);
-                                                    <div class="pr-remark-line" title="@tooltip">
-                                                        <span class="pr-meta">@((row.RemarkSummary.LatestRemarkDate.HasValue ? FormatDay(row.RemarkSummary.LatestRemarkDate.Value) : "Date N/A"))</span>
-                                                        <span class="pr-meta">·</span>
-                                                        <span class="pr-body">@Html.Raw(remarkHtml)</span>
-                                                    </div>
-                                                    @if (row.RemarkSummary.MoreRemarkCount > 0)
-                                                    {
-                                                        <div class="pr-meta">Latest external remark shown</div>
-                                                    }
-                                                }
-                                                else
-                                                {
-                                                    <div class="pr-meta fst-italic">No external remarks in range.</div>
-                                                }
-                                            </article>
-                                        }
-                                    </div>
-                                </section>
+                                <p class="pr-review-band__insight">@vm.Projects.Review.Summary.InterpretiveSummaryText</p>
                             }
                         </div>
+
+                        @* SECTION: Highlights this period *@
+                        @if (vm.Projects.Review.Highlights.Any())
+                        {
+                            <section class="pr-highlights" aria-label="Highlights this period">
+                                <h3 class="h6 mb-2">Highlights this period</h3>
+                                <ul class="pr-highlight-list list-unstyled mb-0">
+                                    @foreach (var highlight in vm.Projects.Review.Highlights)
+                                    {
+                                        var projectDetailsUrl = Url.Page("/Projects/Overview", new { id = highlight.ProjectId });
+                                        <li class="pr-highlight-item">
+                                            <a class="progress-review__link" href="@projectDetailsUrl">@highlight.ProjectName</a>
+                                            <span class="pr-body"> — @highlight.HighlightText</span>
+                                        </li>
+                                    }
+                                </ul>
+                            </section>
+                        }
+
+                        @* SECTION: Projects advanced in this period *@
+                        <section class="pr-advanced-list" aria-label="Projects advanced in this period">
+                            <h3 class="h6 mb-2">Projects advanced in this period</h3>
+                            @if (!vm.Projects.Review.Advanced.Any())
+                            {
+                                <p class="pr-meta mb-0">No projects recorded formal stage advancement in this period.</p>
+                            }
+                            else
+                            {
+                                @foreach (var row in vm.Projects.Review.Advanced)
+                                {
+                                    var projectDetailsUrl = Url.Page("/Projects/Overview", new { id = row.ProjectId });
+                                    <article class="pr-advanced-row">
+                                        <div class="pr-advanced-row__head">
+                                            <a class="progress-review__link pr-project-name" href="@projectDetailsUrl">@row.ProjectName</a>
+                                            @if (!string.IsNullOrWhiteSpace(row.ProjectCategoryName))
+                                            {
+                                                <span class="pr-meta">@row.ProjectCategoryName</span>
+                                            }
+                                        </div>
+                                        <div class="pr-advanced-row__path">@row.MovementPathText</div>
+                                        <div class="pr-advanced-row__meta">
+                                            Present stage: @(string.IsNullOrWhiteSpace(row.PresentStage.CurrentStageName) ? "Stage pending" : row.PresentStage.CurrentStageName)
+                                            · Movement events: @row.MovementCountInRange
+                                        </div>
+                                        @if (!string.IsNullOrWhiteSpace(row.RemarkSummary.LatestRemarkSummary))
+                                        {
+                                            <div class="pr-advanced-row__remark">@row.RemarkSummary.LatestRemarkSummary</div>
+                                        }
+                                    </article>
+                                }
+                            }
+                        </section>
+
+                        @* SECTION: Projects active in this period without stage advancement *@
+                        <section class="pr-activity-table" aria-label="Projects active in this period without stage advancement">
+                            <h3 class="h6 mb-2">Projects active in this period without stage advancement</h3>
+                            @if (!vm.Projects.Review.ActiveWithoutAdvancement.Any())
+                            {
+                                <p class="pr-meta mb-0">No projects were active-by-remark without stage movement.</p>
+                            }
+                            else
+                            {
+                                <div class="table-responsive">
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead>
+                                            <tr><th>Project</th><th>Present stage</th><th>Latest external remark</th><th>Last activity</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var row in vm.Projects.Review.ActiveWithoutAdvancement)
+                                            {
+                                                var projectDetailsUrl = Url.Page("/Projects/Overview", new { id = row.ProjectId });
+                                                <tr>
+                                                    <td><a class="progress-review__link" href="@projectDetailsUrl">@row.ProjectName</a></td>
+                                                    <td>@(string.IsNullOrWhiteSpace(row.PresentStage.CurrentStageName) ? "Stage pending" : row.PresentStage.CurrentStageName)</td>
+                                                    <td>@(string.IsNullOrWhiteSpace(row.RemarkSummary.LatestRemarkSummary) ? "—" : row.RemarkSummary.LatestRemarkSummary)</td>
+                                                    <td>@(row.LastRecordedActivityDate.HasValue ? FormatDay(row.LastRecordedActivityDate.Value) : "Date N/A")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </section>
+
+                        @* SECTION: Projects requiring attention *@
+                        <section class="pr-attention-table" aria-label="Projects requiring attention">
+                            <h3 class="h6 mb-2">Projects requiring attention</h3>
+                            @if (!vm.Projects.Review.Attention.Any())
+                            {
+                                <p class="pr-meta mb-0">No projects currently in the attention bucket.</p>
+                            }
+                            else
+                            {
+                                <div class="table-responsive">
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead>
+                                            <tr><th>Project</th><th>Present stage</th><th>Last recorded activity</th><th>Days since activity</th><th>Status</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var row in vm.Projects.Review.Attention)
+                                            {
+                                                var projectDetailsUrl = Url.Page("/Projects/Overview", new { id = row.ProjectId });
+                                                var statusClass = row.AttentionStatus switch
+                                                {
+                                                    ProjectAttentionStatus.Watch => "is-watch",
+                                                    ProjectAttentionStatus.Delayed => "is-delayed",
+                                                    ProjectAttentionStatus.LongPending => "is-long-pending",
+                                                    _ => string.Empty
+                                                };
+                                                <tr>
+                                                    <td><a class="progress-review__link" href="@projectDetailsUrl">@row.ProjectName</a></td>
+                                                    <td>@(string.IsNullOrWhiteSpace(row.PresentStage.CurrentStageName) ? "Stage pending" : row.PresentStage.CurrentStageName)</td>
+                                                    <td>@(row.LastRecordedActivityDate.HasValue ? FormatDay(row.LastRecordedActivityDate.Value) : "Date N/A")</td>
+                                                    <td>@row.DaysSinceLastRecordedActivity</td>
+                                                    <td><span class="pr-status-pill @statusClass">@row.AttentionStatus</span></td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </section>
                     }
                 </section>
 

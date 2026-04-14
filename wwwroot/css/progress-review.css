@@ -449,3 +449,95 @@
         height: 56px;
     }
 }
+
+/* =========================================================
+   SECTION: Section 01 executive review redesign
+   ========================================================= */
+
+.pr-review-band {
+    border: 1px solid var(--pm-surface-silver);
+    border-radius: 12px;
+    padding: 0.9rem 1rem;
+    background: var(--pm-surface-mist);
+    margin-bottom: 0.9rem;
+}
+
+.pr-review-band__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.pr-review-band__title { font-weight: 600; color: var(--pm-text-contrast); }
+.pr-review-band__period,
+.pr-review-band__scope { font-size: 0.82rem; color: var(--pr-muted); }
+
+.pr-review-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.55rem;
+    margin-top: 0.8rem;
+}
+
+.pr-review-metric {
+    background: var(--pm-card);
+    border: 1px solid var(--pm-surface-silver);
+    border-radius: 10px;
+    padding: 0.45rem 0.55rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.pr-review-metric__label { font-size: 0.8rem; color: var(--pr-muted); }
+.pr-review-metric__value { font-weight: 600; color: var(--pm-text-contrast); }
+.pr-review-band__insight { margin: 0.75rem 0 0; font-size: 0.88rem; }
+
+.pr-highlights,
+.pr-advanced-list,
+.pr-activity-table,
+.pr-attention-table {
+    border: 1px solid var(--pm-surface-silver);
+    border-radius: 12px;
+    background: var(--pm-card);
+    padding: 0.85rem 1rem;
+    margin-top: 0.8rem;
+}
+
+.pr-highlight-list { display: grid; gap: 0.45rem; }
+.pr-highlight-item { font-size: 0.88rem; }
+
+.pr-advanced-list { display: grid; gap: 0.55rem; }
+.pr-advanced-row {
+    border: 1px solid var(--pm-surface-ice);
+    border-radius: 10px;
+    padding: 0.55rem 0.65rem;
+}
+
+.pr-advanced-row__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+}
+
+.pr-advanced-row__path { font-size: 0.9rem; margin-top: 0.25rem; }
+.pr-advanced-row__meta { font-size: 0.8rem; color: var(--pr-muted); margin-top: 0.25rem; }
+.pr-advanced-row__remark { font-size: 0.82rem; margin-top: 0.3rem; color: var(--pm-text); }
+
+.pr-activity-table .table,
+.pr-attention-table .table { margin-bottom: 0; }
+
+.pr-status-pill {
+    border: 1px solid var(--pm-border-outline);
+    border-radius: 999px;
+    padding: 0.1rem 0.5rem;
+    font-size: 0.75rem;
+    color: var(--pm-text-contrast);
+    background: var(--pm-card);
+}
+
+.pr-status-pill.is-watch { border-color: #8d8d8d; }
+.pr-status-pill.is-delayed { border-color: #6f6f6f; font-weight: 600; }
+.pr-status-pill.is-long-pending { border-color: #4f4f4f; font-weight: 700; }
