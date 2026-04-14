@@ -1234,9 +1234,24 @@ public sealed class ProgressReviewService : IProgressReviewService
             return "No formal stage movement recorded.";
         }
 
-        return string.Join(" \u2192 ", movements
+        var orderedForPath = movements
             .Take(3)
-            .Select(movement => $"{movement.StageName} {(movement.IsOngoing ? "started" : "completed")}"));
+            .OrderBy(GetMovementEventDate)
+            .ThenBy(movement => movement.StageName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return string.Join(" \u2192 ", orderedForPath.Select(FormatMovementLabel));
+    }
+
+    private static DateOnly? GetMovementEventDate(ProjectStageMovementVm movement)
+    {
+        return movement.CompletedOn ?? movement.StartedOn;
+    }
+
+    private static string FormatMovementLabel(ProjectStageMovementVm movement)
+    {
+        var suffix = movement.IsOngoing ? "started" : "completed";
+        return $"{movement.StageName} {suffix}";
     }
 
     private static DateOnly? GetLastStageMovementDate(IReadOnlyList<ProjectStageMovementVm> movements)
