@@ -247,6 +247,10 @@ namespace ProjectManagement.Pages.Analytics
             var byStageByParentCategory = await BuildOngoingStageDistributionByParentCategoryAsync(
                 ActiveOngoingStageParentCategoryIds,
                 cancellationToken);
+            var stageBoard = await BuildOngoingStageBoardAsync(
+                ActiveOngoingStageParentCategoryIds,
+                OngoingStageParentCategoryOptions,
+                cancellationToken);
             var stageDurations = await BuildOngoingStageDurationsAsync(cancellationToken);
 
             return new OngoingAnalyticsVm
@@ -255,6 +259,7 @@ namespace ProjectManagement.Pages.Analytics
                 ByCategory = byCategory,
                 ByStage = byStage,
                 ByStageByParentCategory = byStageByParentCategory,
+                StageBoard = stageBoard,
                 AvgStageDurations = stageDurations
             };
             // END SECTION
@@ -808,6 +813,93 @@ namespace ProjectManagement.Pages.Analytics
                 CancellationToken cancellationToken)
         {
             // SECTION: Ongoing stage distribution by parent category
+            var stageRows = await BuildOngoingStageRowsAsync(selectedParentCategoryIds, cancellationToken);
+            if (stageRows.Count == 0)
+            {
+                return Array.Empty<OngoingStageByParentCategoryPoint>();
+            }
+
+            var orderedStageCodes = BuildOrderedStageCodes(stageRows.Select(row => row.StageCode));
+
+            return stageRows
+                .GroupBy(row => new { row.StageCode, row.StageName, row.ParentCategoryName })
+                .Select(group => new OngoingStageByParentCategoryPoint(
+                    StageCode: group.Key.StageCode,
+                    StageName: group.Key.StageName,
+                    CategoryName: group.Key.ParentCategoryName,
+                    Count: group.Count()))
+                .OrderBy(point => orderedStageCodes.IndexOf(point.StageCode))
+                .ThenBy(point => point.CategoryName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            // END SECTION
+        }
+
+        private async Task<IReadOnlyList<OngoingStageBoardItemVm>> BuildOngoingStageBoardAsync(
+            IReadOnlyCollection<int>? selectedParentCategoryIds,
+            IReadOnlyList<AnalyticsFilterOption> orderedParentCategories,
+            CancellationToken cancellationToken)
+        {
+            // SECTION: Ongoing stage drill-down board
+            var stageRows = await BuildOngoingStageRowsAsync(selectedParentCategoryIds, cancellationToken);
+            if (stageRows.Count == 0)
+            {
+                return Array.Empty<OngoingStageBoardItemVm>();
+            }
+
+            var orderedStageCodes = BuildOrderedStageCodes(stageRows.Select(row => row.StageCode));
+            var parentCategoryOrder = orderedParentCategories
+                .Select((option, index) => new { option.Id, Order = index })
+                .ToDictionary(x => x.Id, x => x.Order);
+
+            return stageRows
+                .GroupBy(row => new { row.StageCode, row.StageName })
+                .OrderBy(group => orderedStageCodes.IndexOf(group.Key.StageCode))
+                .Select(stageGroup =>
+                {
+                    var categories = stageGroup
+                        .GroupBy(row => new { row.ParentCategoryId, row.ParentCategoryName })
+                        .OrderBy(group =>
+                        {
+                            if (group.Key.ParentCategoryId.HasValue &&
+                                parentCategoryOrder.TryGetValue(group.Key.ParentCategoryId.Value, out var order))
+                            {
+                                return order;
+                            }
+
+                            return int.MaxValue;
+                        })
+                        .ThenBy(group => group.Key.ParentCategoryName, StringComparer.OrdinalIgnoreCase)
+                        .Select(categoryGroup =>
+                        {
+                            var projects = categoryGroup
+                                .OrderBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
+                                .ThenBy(row => row.ProjectId)
+                                .Select(row => new OngoingStageBoardProjectVm(row.ProjectId, row.ProjectName))
+                                .ToList();
+
+                            return new OngoingStageBoardCategoryVm(
+                                ParentCategoryId: categoryGroup.Key.ParentCategoryId,
+                                ParentCategoryName: categoryGroup.Key.ParentCategoryName,
+                                CategoryCount: projects.Count,
+                                Projects: projects);
+                        })
+                        .ToList();
+
+                    return new OngoingStageBoardItemVm(
+                        StageCode: stageGroup.Key.StageCode,
+                        StageName: stageGroup.Key.StageName,
+                        StageCount: stageGroup.Count(),
+                        Categories: categories);
+                })
+                .ToList();
+            // END SECTION
+        }
+
+        private async Task<IReadOnlyList<OngoingStageRow>> BuildOngoingStageRowsAsync(
+            IReadOnlyCollection<int>? selectedParentCategoryIds,
+            CancellationToken cancellationToken)
+        {
+            // SECTION: Ongoing stage row projection
             var selectedIds = selectedParentCategoryIds?
                 .Where(id => id > 0)
                 .Distinct()
@@ -828,6 +920,8 @@ namespace ProjectManagement.Pages.Analytics
                 .Include(p => p.ProjectStages)
                 .Select(p => new
                 {
+                    p.Id,
+                    p.Name,
                     p.LifecycleStatus,
                     ParentCategoryId = p.CategoryId.HasValue
                         ? (p.Category!.ParentId ?? p.CategoryId)
@@ -844,61 +938,51 @@ namespace ProjectManagement.Pages.Analytics
                 })
                 .ToListAsync(cancellationToken);
 
-            var counts = new Dictionary<(string StageCode, int? CategoryId), int>();
-
-            foreach (var project in stageSnapshots)
+            if (stageSnapshots.Count == 0)
             {
-                var stage = DetermineCurrentStage(new ProjectStageSnapshot(project.LifecycleStatus, project.Stages));
-                var stageCode = string.IsNullOrWhiteSpace(stage?.StageCode)
-                    ? UnassignedStageCode
-                    : stage!.StageCode.Trim();
-                var key = (StageCode: stageCode, CategoryId: project.ParentCategoryId);
-                counts.TryGetValue(key, out var existing);
-                counts[key] = existing + 1;
+                return Array.Empty<OngoingStageRow>();
             }
 
-            if (counts.Count == 0)
-            {
-                return Array.Empty<OngoingStageByParentCategoryPoint>();
-            }
-
-            var stageCodesPresent = counts.Keys
-                .Select(k => k.StageCode)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            var orderedStageCodes = StageCodes.All
-                .Where(code => stageCodesPresent.Contains(code, StringComparer.OrdinalIgnoreCase))
-                .Concat(stageCodesPresent.Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase)))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            var categoryAggregations = counts.Keys
-                .Select(k => new CategoryAggregation { Id = k.CategoryId, Count = 0 })
+            var categoryAggregations = stageSnapshots
+                .Select(snapshot => new CategoryAggregation { Id = snapshot.ParentCategoryId, Count = 0 })
                 .DistinctBy(x => x.Id)
                 .ToList();
 
             var parentCategoryNames = await LoadCategoryNamesAsync(categoryAggregations, cancellationToken);
 
-            var points = new List<OngoingStageByParentCategoryPoint>();
-            foreach (var stageCode in orderedStageCodes)
-            {
-                foreach (var kvp in counts.Where(k =>
-                    string.Equals(k.Key.StageCode, stageCode, StringComparison.OrdinalIgnoreCase)))
+            return stageSnapshots
+                .Select(snapshot =>
                 {
-                    points.Add(new OngoingStageByParentCategoryPoint(
+                    var stage = DetermineCurrentStage(new ProjectStageSnapshot(snapshot.LifecycleStatus, snapshot.Stages));
+                    var stageCode = string.IsNullOrWhiteSpace(stage?.StageCode)
+                        ? UnassignedStageCode
+                        : stage!.StageCode.Trim();
+
+                    return new OngoingStageRow(
+                        ProjectId: snapshot.Id,
+                        ProjectName: snapshot.Name ?? "Untitled project",
                         StageCode: stageCode,
                         StageName: string.Equals(stageCode, UnassignedStageCode, StringComparison.OrdinalIgnoreCase)
                             ? UnassignedStageName
                             : StageCodes.DisplayNameOf(stageCode),
-                        CategoryName: ResolveName(kvp.Key.CategoryId, parentCategoryNames),
-                        Count: kvp.Value));
-                }
-            }
+                        ParentCategoryId: snapshot.ParentCategoryId,
+                        ParentCategoryName: ResolveName(snapshot.ParentCategoryId, parentCategoryNames));
+                })
+                .ToList();
+            // END SECTION
+        }
 
-            return points
-                .OrderBy(point => orderedStageCodes.IndexOf(point.StageCode))
-                .ThenBy(point => point.CategoryName, StringComparer.OrdinalIgnoreCase)
+        private static IReadOnlyList<string> BuildOrderedStageCodes(IEnumerable<string> stageCodes)
+        {
+            // SECTION: Stage ordering helper
+            var stageCodesPresent = stageCodes
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return StageCodes.All
+                .Where(code => stageCodesPresent.Contains(code, StringComparer.OrdinalIgnoreCase))
+                .Concat(stageCodesPresent.Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase)))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             // END SECTION
         }
@@ -1074,6 +1158,14 @@ namespace ProjectManagement.Pages.Analytics
             public int? Id { get; init; }
             public int Count { get; init; }
         }
+
+        private sealed record OngoingStageRow(
+            int ProjectId,
+            string ProjectName,
+            string StageCode,
+            string StageName,
+            int? ParentCategoryId,
+            string ParentCategoryName);
         // END SECTION
 
         public sealed record CategoryOption(int Id, string Name);

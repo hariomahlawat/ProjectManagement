@@ -13,8 +13,12 @@
     var stageSeries = ongoingAnalytics.ByStageByParentCategory.Count > 0
         ? ongoingAnalytics.ByStageByParentCategory.Cast<object>().ToList()
         : ongoingAnalytics.ByStage.Cast<object>().ToList();
+    var stageBoard = ongoingAnalytics.StageBoard ?? Array.Empty<ProjectManagement.Models.Analytics.OngoingStageBoardItemVm>();
     var selectedStageParentCategoryIds = Model.ActiveOngoingStageParentCategoryIds;
     var stageParentCategoryOptions = Model.OngoingStageParentCategoryOptions.ToList();
+    var categoryColorClassById = stageParentCategoryOptions
+        .Select((option, index) => new { option.Id, ColorIndex = index % 10 })
+        .ToDictionary(item => item.Id, item => $"analytics-stage-board__category-dot--{item.ColorIndex}");
     var selectedCount = selectedStageParentCategoryIds.Count;
     var hasExplicitSelection = selectedCount > 0;
     var selectAllByDefault = !hasExplicitSelection;
@@ -154,6 +158,51 @@
                                 data-empty-message="No ongoing projects found for the selected parent categories."
                                 data-series='@Html.Raw(JsonSerializer.Serialize(stageSeries, jsonOptions))'></canvas>
                     </div>
+
+                    <!-- SECTION: Ongoing stage textual drill-down board -->
+                    @if (stageBoard.Count == 0)
+                    {
+                        <p class="analytics-card__empty-text analytics-stage-board__empty">
+                            No ongoing projects found for the selected parent categories.
+                        </p>
+                    }
+                    else
+                    {
+                        <section class="analytics-stage-board" aria-label="Ongoing projects stage drill-down">
+                            @foreach (var stageItem in stageBoard)
+                            {
+                                <article class="analytics-stage-board__stage-column"
+                                         aria-label="@($"{stageItem.StageName} stage with {stageItem.StageCount} projects")">
+                                    <h3 class="analytics-stage-board__stage-title">@stageItem.StageName (@stageItem.StageCount)</h3>
+
+                                    @foreach (var category in stageItem.Categories)
+                                    {
+                                        var categoryColorClass = category.ParentCategoryId.HasValue
+                                            && categoryColorClassById.TryGetValue(category.ParentCategoryId.Value, out var resolvedColorClass)
+                                            ? resolvedColorClass
+                                            : "analytics-stage-board__category-dot--neutral";
+
+                                        <section class="analytics-stage-board__category-group"
+                                                 aria-label="@($"{category.ParentCategoryName} with {category.CategoryCount} projects")">
+                                            <h4 class="analytics-stage-board__category-title">
+                                                <span class="analytics-stage-board__category-dot @categoryColorClass" aria-hidden="true"></span>
+                                                @category.ParentCategoryName (@category.CategoryCount)
+                                            </h4>
+                                            <ul class="analytics-stage-board__project-list">
+                                                @foreach (var project in category.Projects)
+                                                {
+                                                    <li class="analytics-stage-board__project-item" title="@project.ProjectName">
+                                                        @project.ProjectName
+                                                    </li>
+                                                }
+                                            </ul>
+                                        </section>
+                                    }
+                                </article>
+                            }
+                        </section>
+                    }
+                    <!-- END SECTION -->
                 </div>
             </article>
 
