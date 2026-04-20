@@ -447,6 +447,14 @@
   padding: 1rem 1.25rem 1.5rem;
 }
 
+/* SECTION: Ongoing stage chart desktop height tuning */
+@media (min-width: 992px) {
+  .analytics-card__chart--ongoing-stage {
+    min-height: 210px;
+  }
+}
+/* END SECTION */
+
 /* SECTION: Stage delay hotspots card */
 .analytics-card--insights-hotspots .analytics-card__chart {
   min-height: 320px;
