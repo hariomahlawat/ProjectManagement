@@ -533,14 +533,14 @@ internal static class RemarkApi
     {
         foreach (var candidate in new[]
                  {
-                     RemarkActorRole.ProjectOfficer,
-                     RemarkActorRole.HeadOfDepartment,
                      RemarkActorRole.Commandant,
-                     RemarkActorRole.Administrator,
+                     RemarkActorRole.HeadOfDepartment,
+                     RemarkActorRole.Mco,
+                     RemarkActorRole.ProjectOfficer,
+                     RemarkActorRole.Ta,
                      RemarkActorRole.ProjectOffice,
                      RemarkActorRole.MainOffice,
-                     RemarkActorRole.Mco,
-                     RemarkActorRole.Ta
+                     RemarkActorRole.Administrator
                  })
         {
             if (roles.Contains(candidate))
