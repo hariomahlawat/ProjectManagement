@@ -5,9 +5,6 @@ public sealed class OngoingAnalyticsVm
 {
     public int TotalOngoingProjects { get; init; }
 
-    public IReadOnlyList<AnalyticsCategoryCountPoint> ByCategory { get; init; } =
-        Array.Empty<AnalyticsCategoryCountPoint>();
-
     public IReadOnlyList<AnalyticsStageCountPoint> ByStage { get; init; } =
         Array.Empty<AnalyticsStageCountPoint>();
 

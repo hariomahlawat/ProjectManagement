@@ -360,17 +360,11 @@ function renderEmptyState(canvas) {
 // END SECTION
 
 // SECTION: Category color mapping
-function buildCategoryColorMapping({ donutPoints, stackedPoints }) {
+function buildCategoryColorMapping(stackedPoints) {
   const totals = new Map();
-  const hasDonutPoints = Array.isArray(donutPoints) && donutPoints.length;
   const hasStackedPoints = Array.isArray(stackedPoints) && stackedPoints.length;
 
-  if (hasDonutPoints) {
-    donutPoints.forEach((point) => {
-      const key = point?.name ?? 'Unassigned';
-      totals.set(key, ensureNumber(point?.count));
-    });
-  } else if (hasStackedPoints) {
+  if (hasStackedPoints) {
     stackedPoints.forEach((point) => {
       const key = point?.categoryName ?? 'Unassigned';
       totals.set(key, (totals.get(key) ?? 0) + ensureNumber(point?.count));
@@ -878,37 +872,11 @@ function initOngoingStageFilterPopover() {
 function initOngoingAnalytics() {
   initOngoingStageFilterPopover();
 
-  const categoryCanvas = document.getElementById('ongoing-by-category-chart');
   const stageCanvas = document.getElementById('ongoing-by-stage-chart');
   const durationCanvas = document.getElementById('ongoing-stage-duration-chart');
 
-  const categorySeries = categoryCanvas ? parseSeries(categoryCanvas) : [];
   const stageSeries = stageCanvas ? parseSeries(stageCanvas) : [];
-  const { categoryColorMap, rankedCategories } = buildCategoryColorMapping({
-    donutPoints: categorySeries,
-    stackedPoints: stageSeries
-  });
-
-  if (categoryCanvas) {
-    if (categorySeries.length) {
-      const categoryLookup = new Map(
-        categorySeries.map((point) => [point.name ?? 'Unassigned', ensureNumber(point.count)])
-      );
-      const orderedLabels = rankedCategories.length
-        ? rankedCategories.filter((label) => categoryLookup.has(label))
-        : categorySeries.map((point) => point.name ?? 'Unassigned');
-      const orderedValues = orderedLabels.map((label) => categoryLookup.get(label) ?? 0);
-      const orderedColors = orderedLabels.map(
-        (label, index) => categoryColorMap.get(label) ?? getAccentColor(index)
-      );
-
-      createDoughnutChart(categoryCanvas, {
-        labels: orderedLabels,
-        values: orderedValues,
-        colors: orderedColors
-      });
-    }
-  }
+  const { categoryColorMap, rankedCategories } = buildCategoryColorMapping(stageSeries);
 
   if (stageCanvas) {
     if (stageSeries.length) {

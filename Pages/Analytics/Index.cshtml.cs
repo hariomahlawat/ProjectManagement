@@ -241,8 +241,6 @@ namespace ProjectManagement.Pages.Analytics
                 .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active);
 
             var total = await ongoingQuery.CountAsync(cancellationToken);
-
-            var byCategory = await BuildParentCategoryCountsAsync(ongoingQuery, cancellationToken);
             var byStage = await BuildOngoingStageDistributionAsync(cancellationToken);
             var byStageByParentCategory = await BuildOngoingStageDistributionByParentCategoryAsync(
                 ActiveOngoingStageParentCategoryIds,
@@ -256,7 +254,6 @@ namespace ProjectManagement.Pages.Analytics
             return new OngoingAnalyticsVm
             {
                 TotalOngoingProjects = total,
-                ByCategory = byCategory,
                 ByStage = byStage,
                 ByStageByParentCategory = byStageByParentCategory,
                 StageBoard = stageBoard,
