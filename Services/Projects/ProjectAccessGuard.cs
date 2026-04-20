@@ -6,6 +6,23 @@ namespace ProjectManagement.Services.Projects;
 
 public static class ProjectAccessGuard
 {
+    // SECTION: Project information visibility
+    public static bool CanViewProjectInformation(Project project, ClaimsPrincipal principal)
+    {
+        if (project is null)
+        {
+            throw new ArgumentNullException(nameof(project));
+        }
+
+        if (principal is null)
+        {
+            throw new ArgumentNullException(nameof(principal));
+        }
+
+        return principal.Identity?.IsAuthenticated == true;
+    }
+
+    // SECTION: Restricted project asset visibility and management roles
     public static bool CanViewProject(Project project, ClaimsPrincipal principal, string? userId)
     {
         if (project is null)
