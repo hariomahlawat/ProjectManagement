@@ -1,9 +1,6 @@
 @page
 @using System
-@using System.Collections.Generic
-@using System.Net
 @using System.Globalization
-@using System.Text.RegularExpressions
 @using ProjectManagement.Models.Remarks
 @using ProjectManagement.Services.Reports.ProgressReview
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.ProgressReview.IndexModel
@@ -11,26 +8,6 @@
     ViewData["Title"] = "Progress Review";
     ViewData["UseFullWidth"] = true;
     var vm = Model.Report;
-
-    string RenderRemarkHtml(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return string.Empty;
-        }
-
-        var encoded = WebUtility.HtmlEncode(text)
-            .Replace("\r\n", "<br>")
-            .Replace("\n", "<br>");
-        // Match any encoded <span class="remark-mention" ...>...</span> regardless of extra attributes.
-        const string mentionPattern =
-            "&lt;span\\s+class=&quot;remark-mention&quot;.*?&gt;(.*?)&lt;/span&gt;";
-        return Regex.Replace(
-            encoded,
-            mentionPattern,
-            match => $"<span class=\"badge remark-pill\">{match.Groups[1].Value}</span>",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
-    }
 
     string FormatDateIso(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
@@ -45,51 +22,6 @@
             ? d.ToString("dd MMM")
             : d.ToString("dd MMM yyyy");
     }
-
-
-
-    string? FormatRemarkRole(RemarkActorRole? role) => role switch
-    {
-        RemarkActorRole.ProjectOfficer => "PO",
-        RemarkActorRole.HeadOfDepartment => "HoD",
-        RemarkActorRole.Commandant => "Comdt",
-        RemarkActorRole.Administrator => "Admin",
-        RemarkActorRole.Mco => "MCO",
-        RemarkActorRole.ProjectOffice => "Project Office",
-        RemarkActorRole.MainOffice => "Main Office",
-        RemarkActorRole.Ta => "TA",
-        _ => null
-    };
-
-    string? BuildRemarkTooltip(ProjectRemarkSummaryVm summary)
-    {
-        if (!summary.LatestRemarkDate.HasValue && string.IsNullOrWhiteSpace(summary.LatestRemarkSummary))
-        {
-            return null;
-        }
-
-        var parts = new List<string>();
-        if (summary.LatestRemarkDate.HasValue)
-        {
-            parts.Add(summary.LatestRemarkDate.Value.ToString("dd MMM yyyy"));
-        }
-
-        var roleLabel = FormatRemarkRole(summary.LatestRemarkAuthorRole);
-        if (!string.IsNullOrWhiteSpace(roleLabel))
-        {
-            parts.Add(roleLabel!);
-        }
-
-        if (!string.IsNullOrWhiteSpace(summary.LatestRemarkSummary))
-        {
-            parts.Add(summary.LatestRemarkSummary!);
-        }
-
-        return parts.Count == 0 ? null : WebUtility.HtmlEncode(string.Join(" — ", parts));
-    }
-
-    DateOnly? GetMovementDate(ProjectStageMovementVm movement) => movement.IsOngoing ? movement.StartedOn : movement.CompletedOn;
-
     string? BuildVisitPhotoUrl(Guid visitId, Guid? photoId)
     {
         if (!photoId.HasValue)

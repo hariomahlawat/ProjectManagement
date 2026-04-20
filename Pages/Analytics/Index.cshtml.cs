@@ -820,6 +820,7 @@ namespace ProjectManagement.Pages.Analytics
             }
 
             var orderedStageCodes = BuildOrderedStageCodes(stageRows.Select(row => row.StageCode));
+            var stageOrderLookup = BuildStageOrderLookup(orderedStageCodes);
 
             return stageRows
                 .GroupBy(row => new { row.StageCode, row.StageName, row.ParentCategoryName })
@@ -828,7 +829,7 @@ namespace ProjectManagement.Pages.Analytics
                     StageName: group.Key.StageName,
                     CategoryName: group.Key.ParentCategoryName,
                     Count: group.Count()))
-                .OrderBy(point => orderedStageCodes.IndexOf(point.StageCode))
+                .OrderBy(point => ResolveStageOrder(point.StageCode, stageOrderLookup))
                 .ThenBy(point => point.CategoryName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             // END SECTION
@@ -847,13 +848,14 @@ namespace ProjectManagement.Pages.Analytics
             }
 
             var orderedStageCodes = BuildOrderedStageCodes(stageRows.Select(row => row.StageCode));
+            var stageOrderLookup = BuildStageOrderLookup(orderedStageCodes);
             var parentCategoryOrder = orderedParentCategories
                 .Select((option, index) => new { option.Id, Order = index })
                 .ToDictionary(x => x.Id, x => x.Order);
 
             return stageRows
                 .GroupBy(row => new { row.StageCode, row.StageName })
-                .OrderBy(group => orderedStageCodes.IndexOf(group.Key.StageCode))
+                .OrderBy(group => ResolveStageOrder(group.Key.StageCode, stageOrderLookup))
                 .Select(stageGroup =>
                 {
                     var categories = stageGroup
@@ -861,9 +863,9 @@ namespace ProjectManagement.Pages.Analytics
                         .OrderBy(group =>
                         {
                             if (group.Key.ParentCategoryId.HasValue &&
-                                parentCategoryOrder.TryGetValue(group.Key.ParentCategoryId.Value, out var order))
+                                parentCategoryOrder.TryGetValue(group.Key.ParentCategoryId.Value, out var categoryOrder))
                             {
-                                return order;
+                                return categoryOrder;
                             }
 
                             return int.MaxValue;
@@ -892,6 +894,31 @@ namespace ProjectManagement.Pages.Analytics
                         Categories: categories);
                 })
                 .ToList();
+            // END SECTION
+        }
+
+        private static IReadOnlyDictionary<string, int> BuildStageOrderLookup(IReadOnlyList<string> orderedStageCodes)
+        {
+            // SECTION: Stage ordering lookup helper
+            var stageOrderLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            for (var index = 0; index < orderedStageCodes.Count; index++)
+            {
+                stageOrderLookup[orderedStageCodes[index]] = index;
+            }
+
+            return stageOrderLookup;
+            // END SECTION
+        }
+
+        private static int ResolveStageOrder(
+            string stageCode,
+            IReadOnlyDictionary<string, int> stageOrderLookup)
+        {
+            // SECTION: Stage ordering resolver
+            return stageOrderLookup.TryGetValue(stageCode, out var orderIndex)
+                ? orderIndex
+                : int.MaxValue;
             // END SECTION
         }
 
