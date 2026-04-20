@@ -39,19 +39,14 @@ public class ViewModel : PageModel
             return NotFound();
         }
 
-        var userId = _userContext.UserId;
-        if (string.IsNullOrEmpty(userId))
-        {
-            return Challenge();
-        }
-
         var project = await _db.Projects.SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (project is null)
         {
             return NotFound();
         }
 
-        if (!ProjectAccessGuard.CanViewProject(project, _userContext.User, userId))
+        // SECTION: Photo visibility follows project information visibility
+        if (!ProjectAccessGuard.CanViewProjectInformation(project, _userContext.User))
         {
             return Forbid();
         }
