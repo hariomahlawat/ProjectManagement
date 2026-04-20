@@ -10,11 +10,13 @@
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    var stageSeries = ongoingAnalytics.ByStageByParentCategory.Count > 0
-        ? ongoingAnalytics.ByStageByParentCategory.Cast<object>().ToList()
-        : ongoingAnalytics.ByStage.Cast<object>().ToList();
     var selectedStageParentCategoryIds = Model.ActiveOngoingStageParentCategoryIds;
     var selectedCount = selectedStageParentCategoryIds.Count;
+    var stageSeries = ongoingAnalytics.ByStageByParentCategory.Count > 0
+        ? ongoingAnalytics.ByStageByParentCategory.Cast<object>().ToList()
+        : selectedCount == 0
+            ? ongoingAnalytics.ByStage.Cast<object>().ToList()
+            : Enumerable.Empty<object>().ToList();
     var categorySummaryText = selectedCount == 0
         ? "All parent categories"
         : selectedCount == 1
