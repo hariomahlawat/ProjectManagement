@@ -530,19 +530,17 @@
 .analytics-stage-board__category-dot--neutral { background: #9ca3af; }
 
 .analytics-stage-board__project-list {
-  margin: 0.35rem 0 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.18rem;
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+  list-style: decimal;
 }
 
 .analytics-stage-board__project-item {
   font-size: 0.8rem;
   color: var(--pm-text, #111827);
-  line-height: 1.35;
+  line-height: 1.4;
   overflow-wrap: anywhere;
+  margin: 0.12rem 0;
 }
 /* END SECTION */
 

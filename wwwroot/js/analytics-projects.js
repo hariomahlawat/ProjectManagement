@@ -409,6 +409,28 @@ function buildCategoryColorMapping(stackedPoints) {
     rankedCategories
   };
 }
+
+// SECTION: Ongoing stage board color sync
+function applyStageBoardCategoryColors(categoryColorMap = new Map()) {
+  const categoryDots = document.querySelectorAll('.analytics-stage-board__category-dot[data-category-name]');
+  if (!categoryDots.length) {
+    return;
+  }
+
+  const palette = getPalette();
+  const neutralColor = palette.neutral ?? '#9ca3af';
+
+  categoryDots.forEach((dot) => {
+    if (!(dot instanceof HTMLElement)) {
+      return;
+    }
+
+    const categoryName = (dot.dataset.categoryName ?? '').trim();
+    const color = categoryColorMap.get(categoryName) ?? neutralColor;
+    dot.style.backgroundColor = color;
+  });
+}
+// END SECTION
 // END SECTION
 
 // SECTION: Stage axis helpers
@@ -877,6 +899,7 @@ function initOngoingAnalytics() {
 
   const stageSeries = stageCanvas ? parseSeries(stageCanvas) : [];
   const { categoryColorMap, rankedCategories } = buildCategoryColorMapping(stageSeries);
+  applyStageBoardCategoryColors(categoryColorMap);
 
   if (stageCanvas) {
     if (stageSeries.length) {
