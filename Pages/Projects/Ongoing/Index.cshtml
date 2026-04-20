@@ -201,7 +201,7 @@
         <input type="hidden" asp-for="View" />
 
         <!-- SECTION: Filters row -->
-        <div class="cmdbar__filters">
+        <div class="cmdbar__filters cmdbar__filters-row">
             <div class="cmdbar__field cmdbar__field--category">
                 <label asp-for="ProjectCategoryId" class="cmdbar__label">Project category</label>
                 <select asp-for="ProjectCategoryId"
@@ -227,7 +227,7 @@
         </div>
 
         <!-- SECTION: Actions row -->
-        <div class="cmdbar__actions">
+        <div class="cmdbar__actions cmdbar__actions-row">
             <div class="segmented" role="tablist" aria-label="View">
                 <a asp-page="./Index"
                    asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
