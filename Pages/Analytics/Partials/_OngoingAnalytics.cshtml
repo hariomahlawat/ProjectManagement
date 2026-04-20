@@ -14,11 +14,18 @@
         ? ongoingAnalytics.ByStageByParentCategory.Cast<object>().ToList()
         : ongoingAnalytics.ByStage.Cast<object>().ToList();
     var selectedStageParentCategoryIds = Model.ActiveOngoingStageParentCategoryIds;
+    var stageParentCategoryOptions = Model.OngoingStageParentCategoryOptions.ToList();
     var selectedCount = selectedStageParentCategoryIds.Count;
-    var categorySummaryText = selectedCount == 0
-        ? "All parent categories"
-        : selectedCount == 1
-            ? "1 selected"
+    var hasExplicitSelection = selectedCount > 0;
+    var selectAllByDefault = !hasExplicitSelection;
+    var selectedNames = stageParentCategoryOptions
+        .Where(option => selectedStageParentCategoryIds.Contains(option.Id))
+        .Select(option => option.Name)
+        .ToList();
+    var categorySummaryValue = !hasExplicitSelection || selectedCount >= stageParentCategoryOptions.Count
+        ? "All"
+        : selectedCount == 1 && selectedNames.Count == 1
+            ? selectedNames[0]
             : $"{selectedCount} selected";
     // END SECTION
 }
@@ -70,33 +77,62 @@
                               aria-label="Filter ongoing projects by parent category">
                             <input type="hidden" name="tab" value="ongoing" />
 
-                            <label for="ongoing-stage-parent-category-filter" class="analytics-stage-filter-label">
-                                Parent categories
-                            </label>
-                            <select id="ongoing-stage-parent-category-filter"
-                                    name="ongoingStageParentCategoryIds"
-                                    class="form-select form-select-sm analytics-stage-filter-select"
-                                    multiple
-                                    size="4"
-                                    aria-describedby="ongoing-stage-parent-category-selection-summary">
-                                @foreach (var option in Model.OngoingStageParentCategoryOptions)
-                                {
-                                    <option value="@option.Id"
-                                            selected="@(selectedStageParentCategoryIds.Contains(option.Id) ? "selected" : null)">
-                                        @option.Name
-                                    </option>
-                                }
-                            </select>
-                            <span id="ongoing-stage-parent-category-selection-summary"
-                                  class="analytics-stage-filter-summary">
-                                @categorySummaryText
-                            </span>
+                            <button type="button"
+                                    class="analytics-stage-filter-trigger"
+                                    data-stage-filter-trigger
+                                    aria-haspopup="dialog"
+                                    aria-expanded="false"
+                                    aria-controls="ongoing-stage-parent-category-popover">
+                                <span class="analytics-stage-filter-trigger__label">Parent categories:</span>
+                                <span class="analytics-stage-filter-trigger__value"
+                                      data-stage-filter-summary>@categorySummaryValue</span>
+                                <i class="bi bi-chevron-down analytics-stage-filter-trigger__icon" aria-hidden="true"></i>
+                            </button>
 
-                            <div class="analytics-stage-filter-actions">
-                                <button type="submit" class="btn btn-sm btn-primary">Apply</button>
-                                <a asp-page="/Analytics/Index"
-                                   asp-route-tab="ongoing"
-                                   class="btn btn-sm btn-outline-secondary">Clear</a>
+                            <div id="ongoing-stage-parent-category-popover"
+                                 class="analytics-stage-filter-popover"
+                                 data-stage-filter-popover
+                                 role="dialog"
+                                 aria-label="Parent categories filter"
+                                 hidden>
+                                <p class="analytics-stage-filter-popover__title">Parent categories</p>
+
+                                <div class="analytics-stage-filter-options">
+                                    @foreach (var option in stageParentCategoryOptions)
+                                    {
+                                        var isChecked = selectAllByDefault || selectedStageParentCategoryIds.Contains(option.Id);
+                                        var optionId = $"ongoing-stage-parent-category-option-{option.Id}";
+
+                                        <label for="@optionId" class="analytics-stage-filter-option">
+                                            <input id="@optionId"
+                                                   type="checkbox"
+                                                   name="ongoingStageParentCategoryIds"
+                                                   value="@option.Id"
+                                                   class="form-check-input analytics-stage-filter-option__checkbox"
+                                                   checked="@isChecked"
+                                                   data-stage-filter-option />
+                                            <span class="analytics-stage-filter-option__label">@option.Name</span>
+                                        </label>
+                                    }
+                                </div>
+
+                                <div class="analytics-stage-filter-actions">
+                                    <div class="analytics-stage-filter-actions__left">
+                                        <button type="button"
+                                                class="btn btn-sm btn-link"
+                                                data-stage-filter-select-all>
+                                            Select all
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-sm btn-link"
+                                                data-stage-filter-clear>
+                                            Clear
+                                        </button>
+                                    </div>
+                                    <button type="submit" class="btn btn-sm btn-primary" data-stage-filter-apply>
+                                        Apply
+                                    </button>
+                                </div>
                             </div>
                         </form>
                         <!-- END SECTION -->
