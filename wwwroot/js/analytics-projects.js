@@ -758,8 +758,126 @@ function initCompletedAnalytics() {
 }
 // END SECTION
 
+// SECTION: Ongoing stage parent-category filter popover
+function initOngoingStageFilterPopover() {
+  const filterForm = document.querySelector('.analytics-stage-filter-form');
+  if (!filterForm) {
+    return;
+  }
+
+  const trigger = filterForm.querySelector('[data-stage-filter-trigger]');
+  const popover = filterForm.querySelector('[data-stage-filter-popover]');
+  const summary = filterForm.querySelector('[data-stage-filter-summary]');
+  const selectAllButton = filterForm.querySelector('[data-stage-filter-select-all]');
+  const clearButton = filterForm.querySelector('[data-stage-filter-clear]');
+  const applyButton = filterForm.querySelector('[data-stage-filter-apply]');
+  const options = Array.from(filterForm.querySelectorAll('[data-stage-filter-option]'));
+  const optionLabels = new Map(
+    options.map((option) => {
+      const label = filterForm.querySelector(`label[for="${option.id}"] .analytics-stage-filter-option__label`);
+      return [option, label ? label.textContent?.trim() ?? '' : ''];
+    })
+  );
+
+  if (!trigger || !popover || !summary || !options.length) {
+    return;
+  }
+
+  function setPopoverState(isOpen) {
+    trigger.dataset.stageFilterOpen = isOpen ? 'true' : 'false';
+    trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    popover.hidden = !isOpen;
+  }
+
+  function setAllOptionsChecked(checked) {
+    options.forEach((option) => {
+      option.checked = checked;
+    });
+  }
+
+  function selectedOptions() {
+    return options.filter((option) => option.checked);
+  }
+
+  function updateSummaryText() {
+    const selected = selectedOptions();
+    const selectedCount = selected.length;
+    const totalCount = options.length;
+    let text = 'All';
+
+    if (selectedCount === 1) {
+      text = optionLabels.get(selected[0]) || '1 selected';
+    } else if (selectedCount > 1 && selectedCount < totalCount) {
+      text = `${selectedCount} selected`;
+    }
+
+    summary.textContent = text;
+  }
+
+  function ensureAtLeastOneOrAllSelected() {
+    if (!selectedOptions().length) {
+      setAllOptionsChecked(true);
+    }
+  }
+
+  trigger.addEventListener('click', () => {
+    const nextState = popover.hidden;
+    setPopoverState(nextState);
+  });
+
+  selectAllButton?.addEventListener('click', () => {
+    setAllOptionsChecked(true);
+    updateSummaryText();
+  });
+
+  clearButton?.addEventListener('click', () => {
+    setAllOptionsChecked(true);
+    updateSummaryText();
+  });
+
+  options.forEach((option) => {
+    option.addEventListener('change', () => {
+      updateSummaryText();
+    });
+  });
+
+  applyButton?.addEventListener('click', () => {
+    ensureAtLeastOneOrAllSelected();
+  });
+
+  filterForm.addEventListener('submit', () => {
+    ensureAtLeastOneOrAllSelected();
+    setPopoverState(false);
+    updateSummaryText();
+  });
+
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    if (!filterForm.contains(target)) {
+      setPopoverState(false);
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      setPopoverState(false);
+      trigger.focus();
+    }
+  });
+
+  setPopoverState(false);
+  updateSummaryText();
+}
+// END SECTION
+
 // SECTION: Ongoing analytics initialiser
 function initOngoingAnalytics() {
+  initOngoingStageFilterPopover();
+
   const categoryCanvas = document.getElementById('ongoing-by-category-chart');
   const stageCanvas = document.getElementById('ongoing-by-stage-chart');
   const durationCanvas = document.getElementById('ongoing-stage-duration-chart');
