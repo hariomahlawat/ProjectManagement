@@ -19,6 +19,7 @@
         && Model.ProjectCategoryId == Model.ChipOtherRdCategoryId;
     // SECTION: Filter state
     var hasFilters = Model.ProjectCategoryId.HasValue
+        || !string.IsNullOrWhiteSpace(Model.PresentStageCode)
         || !string.IsNullOrWhiteSpace(Model.ProjectOfficerId)
         || !string.IsNullOrWhiteSpace(Model.Search);
 
@@ -207,6 +208,12 @@
                         asp-items="Model.ProjectCategoryOptions"
                         class="form-select form-select-sm"></select>
             </div>
+            <div class="cmdbar__field cmdbar__field--stage">
+                <label asp-for="PresentStageCode" class="cmdbar__label">Present stage</label>
+                <select asp-for="PresentStageCode"
+                        asp-items="Model.PresentStageOptions"
+                        class="form-select form-select-sm"></select>
+            </div>
             <div class="cmdbar__field cmdbar__field--officer">
                 <label asp-for="ProjectOfficerId" class="cmdbar__label">Project officer</label>
                 <select asp-for="ProjectOfficerId"
@@ -224,6 +231,7 @@
             <div class="segmented" role="tablist" aria-label="View">
                 <a asp-page="./Index"
                    asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
+                   asp-route-PresentStageCode="@Model.PresentStageCode"
                    asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
                    asp-route-Search="@Model.Search"
                    asp-route-View="timeline"
@@ -235,6 +243,7 @@
                 </a>
                 <a asp-page="./Index"
                    asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
+                   asp-route-PresentStageCode="@Model.PresentStageCode"
                    asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
                    asp-route-Search="@Model.Search"
                    asp-route-View="table"
@@ -250,6 +259,7 @@
                 <!-- SECTION: Clear filters -->
                 <a asp-page="./Index"
                    asp-route-ProjectCategoryId=""
+                   asp-route-PresentStageCode=""
                    asp-route-ProjectOfficerId=""
                    asp-route-Search=""
                    class="cmdbar__link-button">
@@ -263,6 +273,7 @@
             <a asp-page="./Index"
                asp-page-handler="Export"
                asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
+               asp-route-PresentStageCode="@Model.PresentStageCode"
                asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
                asp-route-Search="@Model.Search"
                asp-route-View="@Model.View"

@@ -23,6 +23,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         private readonly IOngoingProjectsExcelBuilder _excelBuilder;
         private readonly IClock _clock;
         private readonly ApplicationDbContext _db;
+        private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
 
         // SECTION: Category cache for header counts
         private IReadOnlyList<ProjectCategory> _categories = Array.Empty<ProjectCategory>();
@@ -31,12 +32,14 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             OngoingProjectsReadService ongoingService,
             IOngoingProjectsExcelBuilder excelBuilder,
             IClock clock,
-            ApplicationDbContext db)
+            ApplicationDbContext db,
+            IWorkflowStageMetadataProvider workflowStageMetadataProvider)
         {
             _ongoingService = ongoingService ?? throw new ArgumentNullException(nameof(ongoingService));
             _excelBuilder = excelBuilder ?? throw new ArgumentNullException(nameof(excelBuilder));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _db = db ?? throw new ArgumentNullException(nameof(db));
+            _workflowStageMetadataProvider = workflowStageMetadataProvider ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
         }
 
         [BindProperty(SupportsGet = true)]
@@ -49,6 +52,10 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         [BindProperty(SupportsGet = true)]
         public string? Search { get; set; }
 
+        // SECTION: Present stage selector
+        [BindProperty(SupportsGet = true)]
+        public string? PresentStageCode { get; set; }
+
         // SECTION: View selector (timeline/table)
         [BindProperty(SupportsGet = true)]
         public string? View { get; set; }
@@ -57,6 +64,9 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             = Array.Empty<SelectListItem>();
 
         public IReadOnlyList<SelectListItem> ProjectOfficerOptions { get; private set; }
+            = Array.Empty<SelectListItem>();
+
+        public IReadOnlyList<SelectListItem> PresentStageOptions { get; private set; }
             = Array.Empty<SelectListItem>();
 
         // SECTION: Header counts summary
@@ -97,6 +107,9 @@ namespace ProjectManagement.Pages.Projects.Ongoing
 
             var officerId = Normalize(ProjectOfficerId);
             var search = Normalize(Search);
+            PresentStageCode = NormalizeStageCode(PresentStageCode);
+            LoadPresentStageOptions();
+            PresentStageCode = ValidateStageCode(PresentStageCode);
 
             ProjectOfficerOptions = await _ongoingService.GetProjectOfficerOptionsAsync(
                 officerId,
@@ -106,6 +119,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
                 ProjectCategoryId,
                 officerId,
                 search,
+                PresentStageCode,
                 cancellationToken);
 
             // SECTION: Inline external remark editing access + IST date
@@ -119,11 +133,15 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         {
             var officerId = Normalize(ProjectOfficerId);
             var search = Normalize(Search);
+            PresentStageCode = NormalizeStageCode(PresentStageCode);
+            LoadPresentStageOptions();
+            PresentStageCode = ValidateStageCode(PresentStageCode);
 
             var items = await _ongoingService.GetAsync(
                 ProjectCategoryId,
                 officerId,
                 search,
+                PresentStageCode,
                 cancellationToken);
 
             var now = _clock.UtcNow;
@@ -308,6 +326,47 @@ namespace ProjectManagement.Pages.Projects.Ongoing
 
         private static string? Normalize(string? value)
             => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+        // SECTION: Present stage normalization
+        private static string? NormalizeStageCode(string? value)
+            => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
+
+        // SECTION: Present stage options
+        private void LoadPresentStageOptions()
+        {
+            var stages = _workflowStageMetadataProvider.GetStages(null);
+
+            var list = new List<SelectListItem>
+            {
+                new("All stages", string.Empty, string.IsNullOrWhiteSpace(PresentStageCode))
+            };
+
+            foreach (var stage in stages)
+            {
+                list.Add(new SelectListItem(
+                    stage.Name,
+                    stage.Code,
+                    string.Equals(stage.Code, PresentStageCode, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            PresentStageOptions = list;
+        }
+
+        // SECTION: Present stage validation
+        private string? ValidateStageCode(string? stageCode)
+        {
+            if (string.IsNullOrWhiteSpace(stageCode))
+            {
+                return null;
+            }
+
+            var allowed = PresentStageOptions
+                .Where(item => !string.IsNullOrWhiteSpace(item.Value))
+                .Select(item => item.Value!)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            return allowed.Contains(stageCode) ? stageCode : null;
+        }
 
         // SECTION: View normalization
         private static string NormalizeView(string? value)
