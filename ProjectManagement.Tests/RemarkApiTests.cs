@@ -72,6 +72,20 @@ public class RemarkApiTests
         }
     }
 
+    public static IEnumerable<object[]> DefaultRolePriorityCases
+    {
+        get
+        {
+            yield return new object[] { new[] { RemarkActorRole.Commandant, RemarkActorRole.HeadOfDepartment, RemarkActorRole.ProjectOfficer }, RemarkActorRole.Commandant };
+            yield return new object[] { new[] { RemarkActorRole.HeadOfDepartment, RemarkActorRole.ProjectOfficer }, RemarkActorRole.HeadOfDepartment };
+            yield return new object[] { new[] { RemarkActorRole.Mco, RemarkActorRole.ProjectOfficer }, RemarkActorRole.Mco };
+            yield return new object[] { new[] { RemarkActorRole.Ta, RemarkActorRole.ProjectOffice }, RemarkActorRole.Ta };
+            yield return new object[] { new[] { RemarkActorRole.MainOffice, RemarkActorRole.ProjectOffice }, RemarkActorRole.ProjectOffice };
+            yield return new object[] { new[] { RemarkActorRole.Administrator }, RemarkActorRole.Administrator };
+            yield return new object[] { new[] { RemarkActorRole.Administrator, RemarkActorRole.ProjectOfficer }, RemarkActorRole.ProjectOfficer };
+        }
+    }
+
     [Fact]
     public async Task CreateAndListRemarksAsync_Succeeds()
     {
@@ -212,6 +226,34 @@ public class RemarkApiTests
         Assert.Equal(RemarkActorRole.HeadOfDepartment, list.Items[0].AuthorRole);
         Assert.Equal("hod-fallback", list.Items[0].AuthorUserId);
         Assert.Equal(RemarkScope.General, list.Items[0].Scope);
+    }
+
+    [Theory]
+    [MemberData(nameof(DefaultRolePriorityCases))]
+    public async Task CreateRemarkAsync_WithoutActorRole_UsesExpectedDefaultPriority(RemarkActorRole[] availableRoles, RemarkActorRole expectedRole)
+    {
+        using var factory = new RemarkApiFactory();
+        var projectId = 9700 + (int)expectedRole + availableRoles.Length;
+        var userId = $"priority-{projectId}";
+        var roleNames = availableRoles.Select(role => role.ToString()).ToArray();
+        var client = await CreateClientForUserAsync(factory, userId, $"Priority {projectId}", roleNames);
+        var leadPoUserId = availableRoles.Contains(RemarkActorRole.ProjectOfficer) ? userId : "po-owner";
+        var hodUserId = availableRoles.Contains(RemarkActorRole.HeadOfDepartment) ? userId : null;
+        await SeedProjectAsync(factory, projectId, leadPoUserId, hodUserId);
+
+        var createResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
+        {
+            type = RemarkType.Internal,
+            scope = RemarkScope.General,
+            body = $"Priority check for {string.Join(", ", roleNames)}",
+            eventDate = DateOnly.FromDateTime(DateTime.UtcNow.Date),
+            stageRef = StageCodes.FS
+        });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<RemarkResponseDto>(SerializerOptions);
+        Assert.NotNull(created);
+        Assert.Equal(expectedRole, created!.AuthorRole);
     }
 
     [Fact]
