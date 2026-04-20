@@ -35,6 +35,7 @@ namespace ProjectManagement.Services.Projects
             int? projectCategoryId,
             string? leadPoUserId,
             string? search,
+            string? presentStageCode,
             CancellationToken cancellationToken)
         {
             // base query – active projects only
@@ -415,6 +416,16 @@ namespace ProjectManagement.Services.Projects
                     CoverPhotoId = proj.CoverPhotoId,
                     CoverPhotoVersion = resolvedCoverPhotoVersion
                 });
+            }
+
+            if (!string.IsNullOrWhiteSpace(presentStageCode))
+            {
+                result = result
+                    .Where(row => string.Equals(
+                        row.CurrentStageCode,
+                        presentStageCode,
+                        StringComparison.OrdinalIgnoreCase))
+                    .ToList();
             }
 
             return result;
