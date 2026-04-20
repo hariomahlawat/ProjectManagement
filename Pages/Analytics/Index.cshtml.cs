@@ -61,8 +61,14 @@ namespace ProjectManagement.Pages.Analytics
         [BindProperty(SupportsGet = true, Name = "hotspotCategoryId")]
         public int? StageHotspotCategoryId { get; set; }
 
+        [BindProperty(SupportsGet = true, Name = "ongoingStageParentCategoryIds")]
+        public List<int> OngoingStageParentCategoryIds { get; set; } = new();
+
         public IReadOnlyList<CategoryOption> Categories { get; private set; } = Array.Empty<CategoryOption>();
         public IReadOnlyList<TechnicalCategoryOption> TechnicalCategories { get; private set; } = Array.Empty<TechnicalCategoryOption>();
+        public IReadOnlyList<AnalyticsFilterOption> OngoingStageParentCategoryOptions { get; private set; } =
+            Array.Empty<AnalyticsFilterOption>();
+        public IReadOnlyList<int> ActiveOngoingStageParentCategoryIds { get; private set; } = Array.Empty<int>();
 
         public int CompletedCount { get; private set; }
         public int OngoingCount { get; private set; }
@@ -156,6 +162,20 @@ namespace ProjectManagement.Pages.Analytics
                 .Select(c => new TechnicalCategoryOption(c.Id, c.Name))
                 .ToListAsync(cancellationToken);
 
+            OngoingStageParentCategoryOptions = await _db.ProjectCategories
+                .AsNoTracking()
+                .Where(c => c.IsActive && c.ParentId == null)
+                .OrderBy(c => c.SortOrder)
+                .ThenBy(c => c.Name)
+                .Select(c => new AnalyticsFilterOption(c.Id, c.Name))
+                .ToListAsync(cancellationToken);
+
+            ActiveOngoingStageParentCategoryIds = OngoingStageParentCategoryIds
+                .Where(id => id > 0)
+                .Distinct()
+                .Where(id => OngoingStageParentCategoryOptions.Any(option => option.Id == id))
+                .ToList();
+
             if (ActiveTab != AnalyticsTab.Completed)
             {
                 CompletedCount = await _db.Projects
@@ -224,7 +244,9 @@ namespace ProjectManagement.Pages.Analytics
 
             var byCategory = await BuildParentCategoryCountsAsync(ongoingQuery, cancellationToken);
             var byStage = await BuildOngoingStageDistributionAsync(cancellationToken);
-            var byStageByParentCategory = await BuildOngoingStageDistributionByParentCategoryAsync(cancellationToken);
+            var byStageByParentCategory = await BuildOngoingStageDistributionByParentCategoryAsync(
+                ActiveOngoingStageParentCategoryIds,
+                cancellationToken);
             var stageDurations = await BuildOngoingStageDurationsAsync(cancellationToken);
 
             return new OngoingAnalyticsVm
@@ -781,12 +803,28 @@ namespace ProjectManagement.Pages.Analytics
         }
 
         private async Task<IReadOnlyList<OngoingStageByParentCategoryPoint>>
-            BuildOngoingStageDistributionByParentCategoryAsync(CancellationToken cancellationToken)
+            BuildOngoingStageDistributionByParentCategoryAsync(
+                IReadOnlyCollection<int>? selectedParentCategoryIds,
+                CancellationToken cancellationToken)
         {
             // SECTION: Ongoing stage distribution by parent category
-            var stageSnapshots = await _db.Projects
+            var selectedIds = selectedParentCategoryIds?
+                .Where(id => id > 0)
+                .Distinct()
+                .ToList();
+
+            var projectsQuery = _db.Projects
                 .AsNoTracking()
-                .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active)
+                .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active);
+
+            if (selectedIds is { Count: > 0 })
+            {
+                projectsQuery = projectsQuery
+                    .Where(p => p.CategoryId.HasValue
+                        && selectedIds.Contains(p.Category!.ParentId ?? p.CategoryId.Value));
+            }
+
+            var stageSnapshots = await projectsQuery
                 .Include(p => p.ProjectStages)
                 .Select(p => new
                 {
@@ -1040,5 +1078,6 @@ namespace ProjectManagement.Pages.Analytics
 
         public sealed record CategoryOption(int Id, string Name);
         public sealed record TechnicalCategoryOption(int Id, string Name);
+        public sealed record AnalyticsFilterOption(int Id, string Name);
     }
 }

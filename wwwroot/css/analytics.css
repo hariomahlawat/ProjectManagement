@@ -275,6 +275,35 @@
 }
 /* END SECTION */
 
+/* SECTION: Ongoing stage filter controls */
+.analytics-stage-filter-form {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 220px;
+}
+
+.analytics-stage-filter-label {
+  margin: 0;
+  font-size: var(--pm-font-size-xs);
+  color: var(--pm-text-secondary);
+}
+
+.analytics-stage-filter-select {
+  min-height: 7.75rem;
+}
+
+.analytics-stage-filter-summary {
+  font-size: var(--pm-font-size-xs);
+  color: var(--pm-text-secondary);
+}
+
+.analytics-stage-filter-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+/* END SECTION */
+
 .analytics-card__title {
   margin: 0;
   font-size: 1rem;

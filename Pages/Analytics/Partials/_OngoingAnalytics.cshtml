@@ -1,17 +1,25 @@
-@model ProjectManagement.Models.Analytics.OngoingAnalyticsVm
+@model ProjectManagement.Pages.Analytics.IndexModel
 @using System.Linq
 @using System.Text.Json
 
 @{
     // SECTION: Ongoing analytics serialization
+    var ongoingAnalytics = Model.Ongoing!;
     var jsonOptions = new JsonSerializerOptions
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    var stageSeries = Model.ByStageByParentCategory.Count > 0
-        ? Model.ByStageByParentCategory.Cast<object>().ToList()
-        : Model.ByStage.Cast<object>().ToList();
+    var stageSeries = ongoingAnalytics.ByStageByParentCategory.Count > 0
+        ? ongoingAnalytics.ByStageByParentCategory.Cast<object>().ToList()
+        : ongoingAnalytics.ByStage.Cast<object>().ToList();
+    var selectedStageParentCategoryIds = Model.ActiveOngoingStageParentCategoryIds;
+    var selectedCount = selectedStageParentCategoryIds.Count;
+    var categorySummaryText = selectedCount == 0
+        ? "All parent categories"
+        : selectedCount == 1
+            ? "1 selected"
+            : $"{selectedCount} selected";
     // END SECTION
 }
 
@@ -41,7 +49,7 @@
                         <canvas id="ongoing-by-category-chart"
                                 aria-label="Ongoing projects by category"
                                 role="img"
-                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.ByCategory, jsonOptions))'></canvas>
+                                data-series='@Html.Raw(JsonSerializer.Serialize(ongoingAnalytics.ByCategory, jsonOptions))'></canvas>
                     </div>
                 </div>
             </article>
@@ -54,19 +62,60 @@
                         <p class="analytics-card__meta">How many ongoing projects are currently in each stage.</p>
                     </div>
 
-                    <button type="button"
-                            class="analytics-chart-download-btn"
-                            data-chart-download-target="ongoing-by-stage-chart"
-                            aria-label="Download chart as PNG"
-                            title="Download chart as PNG">
-                        <i class="bi bi-download" aria-hidden="true"></i>
-                    </button>
+                    <div class="analytics-card__header-actions">
+                        <!-- SECTION: Ongoing stage parent category filter -->
+                        <form method="get"
+                              asp-page="/Analytics/Index"
+                              class="analytics-stage-filter-form"
+                              aria-label="Filter ongoing projects by parent category">
+                            <input type="hidden" name="tab" value="ongoing" />
+
+                            <label for="ongoing-stage-parent-category-filter" class="analytics-stage-filter-label">
+                                Parent categories
+                            </label>
+                            <select id="ongoing-stage-parent-category-filter"
+                                    name="ongoingStageParentCategoryIds"
+                                    class="form-select form-select-sm analytics-stage-filter-select"
+                                    multiple
+                                    size="4"
+                                    aria-describedby="ongoing-stage-parent-category-selection-summary">
+                                @foreach (var option in Model.OngoingStageParentCategoryOptions)
+                                {
+                                    <option value="@option.Id"
+                                            selected="@(selectedStageParentCategoryIds.Contains(option.Id) ? "selected" : null)">
+                                        @option.Name
+                                    </option>
+                                }
+                            </select>
+                            <span id="ongoing-stage-parent-category-selection-summary"
+                                  class="analytics-stage-filter-summary">
+                                @categorySummaryText
+                            </span>
+
+                            <div class="analytics-stage-filter-actions">
+                                <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+                                <a asp-page="/Analytics/Index"
+                                   asp-route-tab="ongoing"
+                                   class="btn btn-sm btn-outline-secondary">Clear</a>
+                            </div>
+                        </form>
+                        <!-- END SECTION -->
+
+                        <button type="button"
+                                class="analytics-chart-download-btn"
+                                data-chart-download-target="ongoing-by-stage-chart"
+                                aria-label="Download chart as PNG"
+                                title="Download chart as PNG">
+                            <i class="bi bi-download" aria-hidden="true"></i>
+                        </button>
+                    </div>
                 </header>
                 <div class="analytics-card__body">
                     <div class="analytics-card__chart">
                         <canvas id="ongoing-by-stage-chart"
                                 aria-label="Ongoing projects by current stage"
                                 role="img"
+                                data-empty-message="No ongoing projects found for the selected parent categories."
                                 data-series='@Html.Raw(JsonSerializer.Serialize(stageSeries, jsonOptions))'></canvas>
                     </div>
                 </div>
@@ -95,7 +144,7 @@
                         <canvas id="ongoing-stage-duration-chart"
                                 aria-label="Average time spent in each stage"
                                 role="img"
-                                data-series='@Html.Raw(JsonSerializer.Serialize(Model.AvgStageDurations, jsonOptions))'></canvas>
+                                data-series='@Html.Raw(JsonSerializer.Serialize(ongoingAnalytics.AvgStageDurations, jsonOptions))'></canvas>
                     </div>
                 </div>
             </article>
