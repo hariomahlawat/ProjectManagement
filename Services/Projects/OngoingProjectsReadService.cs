@@ -422,7 +422,7 @@ namespace ProjectManagement.Services.Projects
             {
                 result = result
                     .Where(row => string.Equals(
-                        row.CurrentStageCode,
+                        row.PresentStage.CurrentStageCode,
                         presentStageCode,
                         StringComparison.OrdinalIgnoreCase))
                     .ToList();
