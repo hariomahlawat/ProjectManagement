@@ -175,7 +175,7 @@
 
 /* SECTION: Ongoing analytics ratio */
 .analytics-grid--ongoing {
-  grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 /* END SECTION */
 
@@ -462,7 +462,7 @@
 .analytics-stage-board {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(220px, 260px);
+  grid-auto-columns: minmax(260px, 320px);
   gap: 0.85rem;
   width: 100%;
   overflow-x: auto;
