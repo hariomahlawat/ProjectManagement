@@ -122,6 +122,7 @@ public sealed record ProjectReviewRowVm(
     PresentStageSnapshot PresentStage,
     string MovementPathText,
     IReadOnlyList<ProjectStageMovementVm> StageMovements,
+    IReadOnlyList<ProjectStageMovementVm> FullStageMovements,
     int MovementCountInRange,
     DateOnly? LastStageMovementDate,
     ProjectRemarkSummaryVm RemarkSummary,
