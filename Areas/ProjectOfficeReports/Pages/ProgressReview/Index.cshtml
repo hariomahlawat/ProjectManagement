@@ -57,6 +57,25 @@
             "/Activities/ViewPhoto",
             new { area = "ProjectOfficeReports", id = activityId, photoId = photoId.Value, size = "thumb" });
     }
+
+    string MovementStageTone(string stageCode) => (stageCode ?? string.Empty).Trim().ToUpperInvariant() switch
+    {
+        "FS" => "is-fs",
+        "SOW" => "is-sow",
+        "IPA" => "is-ipa",
+        "AON" => "is-aon",
+        "BID" => "is-bid",
+        "BM" => "is-bm",
+        "TEC" => "is-tec",
+        "COB" => "is-cob",
+        "PNC" => "is-pnc",
+        "EAS" => "is-eas",
+        "SO" => "is-so",
+        "DEVP" => "is-devp",
+        "ATP" => "is-atp",
+        "PAYMENT" => "is-payment",
+        _ => "is-default"
+    };
 }
 
 @section Styles {
@@ -155,37 +174,86 @@
                             </section>
                         }
 
-                        @* SECTION: Projects advanced in this period *@
-                        <section class="pr-advanced-list" aria-label="Projects advanced in this period">
-                            <h3 class="h6 mb-2">Projects advanced in this period</h3>
-                            @if (!vm.Projects.Review.Advanced.Any())
+                        @* SECTION: Project movement in this period *@
+                        <section class="pr-movement-board" aria-label="Project movement in this period">
+                            <div class="pr-movement-board__header">
+                                <div>
+                                    <h3 class="h6 mb-1">Project movement in this period</h3>
+                                    <p class="pr-meta mb-0">
+                                        Projects that moved from one stage to another between
+                                        @vm.Range.From.ToString("dd MMM yyyy") and @vm.Range.To.ToString("dd MMM yyyy").
+                                    </p>
+                                </div>
+                                <div class="pr-movement-board__count">@vm.Projects.MovementBoard.TotalMovedProjects moved projects</div>
+                            </div>
+
+                            @if (!vm.Projects.MovementBoard.Rows.Any())
                             {
                                 <p class="pr-meta mb-0">No projects recorded formal stage advancement in this period.</p>
                             }
                             else
                             {
-                                @foreach (var row in vm.Projects.Review.Advanced)
-                                {
-                                    var projectDetailsUrl = Url.Page("/Projects/Overview", new { id = row.ProjectId });
-                                    <article class="pr-advanced-row">
-                                        <div class="pr-advanced-row__head">
-                                            <a class="progress-review__link pr-project-name" href="@projectDetailsUrl">@row.ProjectName</a>
-                                            @if (!string.IsNullOrWhiteSpace(row.ProjectCategoryName))
-                                            {
-                                                <span class="pr-meta">@row.ProjectCategoryName</span>
-                                            }
-                                        </div>
-                                        <div class="pr-advanced-row__path">@row.MovementPathText</div>
-                                        <div class="pr-advanced-row__meta">
-                                            Present stage: @(string.IsNullOrWhiteSpace(row.PresentStage.CurrentStageName) ? "Stage pending" : row.PresentStage.CurrentStageName)
-                                            · Movement events: @row.MovementCountInRange
-                                        </div>
-                                        @if (!string.IsNullOrWhiteSpace(row.RemarkSummary.LatestRemarkSummary))
-                                        {
-                                            <div class="pr-advanced-row__remark">@row.RemarkSummary.LatestRemarkSummary</div>
-                                        }
-                                    </article>
-                                }
+                                <div class="pr-movement-table">
+                                    <div class="pr-movement-table__head">
+                                        <div>Project</div>
+                                        <div>Category</div>
+                                        <div>Stage movement during period</div>
+                                        <div>Moves</div>
+                                        <div>First movement</div>
+                                        <div>Current stage</div>
+                                    </div>
+
+                                    @foreach (var row in vm.Projects.MovementBoard.Rows)
+                                    {
+                                        var projectDetailsUrl = Url.Page("/Projects/Overview", new { id = row.ProjectId });
+                                        <article class="pr-movement-table__row">
+                                            <div class="pr-movement-table__project">
+                                                <a class="progress-review__link pr-project-name" href="@projectDetailsUrl">@row.ProjectName</a>
+                                            </div>
+
+                                            <div class="pr-movement-table__category">
+                                                @(string.IsNullOrWhiteSpace(row.ProjectCategoryName) ? "—" : row.ProjectCategoryName)
+                                            </div>
+
+                                            <div class="pr-movement-table__path">
+                                                <div class="pr-stage-flow">
+                                                    @for (var i = 0; i < row.Steps.Count; i++)
+                                                    {
+                                                        var step = row.Steps[i];
+                                                        <div class="pr-stage-flow__step">
+                                                            <span class="pr-stage-chip @MovementStageTone(step.StageCode) @(step.IsTerminal ? "is-terminal" : "")">
+                                                                @step.StageCode
+                                                            </span>
+                                                            <span class="pr-stage-flow__date">
+                                                                @(step.EventDate.HasValue ? FormatDay(step.EventDate.Value) : "—")
+                                                            </span>
+                                                        </div>
+
+                                                        @if (i < row.Steps.Count - 1)
+                                                        {
+                                                            <span class="pr-stage-flow__arrow" aria-hidden="true">→</span>
+                                                        }
+                                                    }
+                                                </div>
+                                            </div>
+
+                                            <div class="pr-movement-table__moves">@row.MovementCount</div>
+                                            <div class="pr-movement-table__first">
+                                                @(row.FirstMovementDate.HasValue ? row.FirstMovementDate.Value.ToString("dd MMM yyyy") : "—")
+                                            </div>
+                                            <div class="pr-movement-table__current">
+                                                @if (string.IsNullOrWhiteSpace(row.CurrentStageName))
+                                                {
+                                                    <span class="pr-stage-badge">Stage pending</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="pr-stage-badge">@row.CurrentStageName</span>
+                                                }
+                                            </div>
+                                        </article>
+                                    }
+                                </div>
                             }
                         </section>
 

@@ -495,7 +495,6 @@
 .pr-review-band__insight { margin: 0.75rem 0 0; font-size: 0.88rem; }
 
 .pr-highlights,
-.pr-advanced-list,
 .pr-activity-table,
 .pr-attention-table {
     border: 1px solid var(--pm-surface-silver);
@@ -508,23 +507,178 @@
 .pr-highlight-list { display: grid; gap: 0.45rem; }
 .pr-highlight-item { font-size: 0.88rem; }
 
-.pr-advanced-list { display: grid; gap: 0.55rem; }
-.pr-advanced-row {
-    border: 1px solid var(--pm-surface-ice);
-    border-radius: 10px;
-    padding: 0.55rem 0.65rem;
+/* =========================================================
+   SECTION: Project movement board
+   ========================================================= */
+
+.pr-movement-board {
+    background: var(--pm-card);
+    border: 1px solid var(--pr-border);
+    border-radius: 0.95rem;
+    padding: 1rem 1.1rem 1.15rem;
+    margin-top: 0.8rem;
 }
 
-.pr-advanced-row__head {
+.pr-movement-board__header {
     display: flex;
+    align-items: flex-start;
     justify-content: space-between;
-    align-items: baseline;
-    gap: 0.75rem;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
 }
 
-.pr-advanced-row__path { font-size: 0.9rem; margin-top: 0.25rem; }
-.pr-advanced-row__meta { font-size: 0.8rem; color: var(--pr-muted); margin-top: 0.25rem; }
-.pr-advanced-row__remark { font-size: 0.82rem; margin-top: 0.3rem; color: var(--pm-text); }
+.pr-movement-board__count {
+    font-size: 0.84rem;
+    color: var(--pr-muted);
+    white-space: nowrap;
+}
+
+.pr-movement-table {
+    border: 1px solid var(--pm-surface-ice);
+    border-radius: 0.85rem;
+    overflow: hidden;
+    background: #fff;
+}
+
+.pr-movement-table__head,
+.pr-movement-table__row {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.4fr) minmax(120px, 0.7fr) minmax(440px, 2.8fr) 72px 120px 160px;
+    align-items: start;
+    gap: 0.85rem;
+}
+
+.pr-movement-table__head {
+    background: var(--pm-surface-mist);
+    border-bottom: 1px solid var(--pm-surface-ice);
+    padding: 0.85rem 1rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--pm-text-gray-soft);
+}
+
+.pr-movement-table__row {
+    padding: 0.95rem 1rem;
+    border-top: 1px solid var(--pm-surface-ice);
+}
+
+.pr-movement-table__row:first-of-type {
+    border-top: none;
+}
+
+.pr-movement-table__project,
+.pr-movement-table__category,
+.pr-movement-table__moves,
+.pr-movement-table__first,
+.pr-movement-table__current {
+    padding-top: 0.15rem;
+}
+
+.pr-movement-table__category,
+.pr-movement-table__moves,
+.pr-movement-table__first {
+    font-size: 0.86rem;
+    color: var(--pm-text-secondary);
+}
+
+.pr-stage-flow {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.pr-stage-flow__step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.28rem;
+    min-width: 58px;
+}
+
+.pr-stage-flow__arrow {
+    color: #6c757d;
+    font-size: 1.05rem;
+    line-height: 1;
+    padding-top: 0.4rem;
+}
+
+.pr-stage-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 54px;
+    padding: 0.28rem 0.7rem;
+    border-radius: 0.7rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    background: var(--pm-surface-mist);
+    color: var(--pm-text-contrast);
+}
+
+.pr-stage-chip.is-terminal {
+    box-shadow: 0 0 0 1px rgba(31, 41, 55, 0.06), 0 4px 10px rgba(15, 30, 65, 0.06);
+}
+
+.pr-stage-chip.is-fs,
+.pr-stage-chip.is-sow,
+.pr-stage-chip.is-ipa,
+.pr-stage-chip.is-aon {
+    background: #e8f5e9;
+    color: #2f6b39;
+}
+
+.pr-stage-chip.is-bid,
+.pr-stage-chip.is-bm,
+.pr-stage-chip.is-tec,
+.pr-stage-chip.is-cob,
+.pr-stage-chip.is-pnc,
+.pr-stage-chip.is-eas,
+.pr-stage-chip.is-so {
+    background: #e8f0fe;
+    color: #2754c5;
+}
+
+.pr-stage-chip.is-devp,
+.pr-stage-chip.is-atp,
+.pr-stage-chip.is-payment {
+    background: #efe7fb;
+    color: #6b46c1;
+}
+
+.pr-stage-chip.is-default {
+    background: var(--pm-surface-mist);
+    color: var(--pm-text-contrast);
+}
+
+.pr-stage-flow__date {
+    font-size: 0.72rem;
+    color: var(--pr-muted);
+    line-height: 1.1;
+}
+
+.pr-stage-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.32rem 0.65rem;
+    border-radius: 0.7rem;
+    background: var(--pm-surface-mist);
+    color: var(--pm-primary);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+@media (max-width: 1199.98px) {
+    .pr-movement-table {
+        overflow-x: auto;
+    }
+
+    .pr-movement-table__head,
+    .pr-movement-table__row {
+        min-width: 1100px;
+    }
+}
 
 .pr-activity-table .table,
 .pr-attention-table .table { margin-bottom: 0; }

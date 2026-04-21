@@ -91,6 +91,7 @@ public sealed class ProgressReviewService : IProgressReviewService
             projectCategoryLookup,
             from,
             to);
+        var projectMovementBoard = BuildProjectMovementBoard(projectReviewBuckets.Advanced);
         var projectCategoryGroups = projectSummaryRows
             .GroupBy(row => string.IsNullOrWhiteSpace(row.ProjectCategoryName) ? "Uncategorised" : row.ProjectCategoryName)
             .OrderBy(group => group.Key)
@@ -144,7 +145,14 @@ public sealed class ProgressReviewService : IProgressReviewService
 
         return new ProgressReviewVm(
             Range: new RangeVm(from, to),
-            Projects: new ProjectSectionVm(projectFrontRunners, projectRemarksOnly, projectNonMovers, projectSummaryRows, projectCategoryGroups, projectReviewBuckets),
+            Projects: new ProjectSectionVm(
+                projectFrontRunners,
+                projectRemarksOnly,
+                projectNonMovers,
+                projectSummaryRows,
+                projectCategoryGroups,
+                projectReviewBuckets,
+                projectMovementBoard),
             Visits: visits,
             SocialMedia: socialMedia,
             Tot: new TotSectionVm(totStage, totRemarks),
@@ -1339,6 +1347,51 @@ public sealed class ProgressReviewService : IProgressReviewService
         }
     }
 
+    // -----------------------------------------------------------------
+    // SECTION: Project movement board helpers
+    // -----------------------------------------------------------------
+    private static ProjectMovementBoardVm BuildProjectMovementBoard(
+        IReadOnlyList<ProjectReviewRowVm> advancedRows)
+    {
+        var rows = advancedRows
+            .Select(row =>
+            {
+                var orderedSteps = row.StageMovements
+                    .OrderBy(m => GetMovementEventDate(m))
+                    .ThenBy(m => m.StageName, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var movementSteps = orderedSteps
+                    .Select((movement, index) => new ProjectMovementStepVm(
+                        movement.StageCode,
+                        movement.StageName,
+                        GetMovementEventDate(movement),
+                        index == orderedSteps.Count - 1))
+                    .ToList();
+
+                var firstMovementDate = movementSteps
+                    .Select(step => step.EventDate)
+                    .Where(date => date.HasValue)
+                    .OrderBy(date => date)
+                    .FirstOrDefault();
+
+                return new ProjectMovementRowVm(
+                    row.ProjectId,
+                    row.ProjectName,
+                    row.ProjectCategoryName,
+                    movementSteps,
+                    row.MovementCountInRange,
+                    firstMovementDate,
+                    row.PresentStage.CurrentStageName);
+            })
+            .OrderByDescending(r => r.MovementCount)
+            .ThenByDescending(r => r.FirstMovementDate)
+            .ThenBy(r => r.ProjectName)
+            .ToList();
+
+        return new ProjectMovementBoardVm(rows, rows.Count);
+    }
+
     private async Task<IReadOnlyDictionary<int, PresentStageSnapshot>> BuildPresentStageLookupAsync(
         IReadOnlyCollection<int> projectIds,
         CancellationToken cancellationToken)
@@ -1422,6 +1475,7 @@ public sealed class ProgressReviewService : IProgressReviewService
             if (change.ToCompletedOn.HasValue && change.ToCompletedOn.Value >= rangeFrom && change.ToCompletedOn.Value <= rangeTo)
             {
                 AppendMovement(change.ProjectId, new ProjectStageMovementVm(
+                    change.StageCode,
                     change.StageName,
                     false,
                     null,
@@ -1443,6 +1497,7 @@ public sealed class ProgressReviewService : IProgressReviewService
             }
 
             AppendMovement(projectId, new ProjectStageMovementVm(
+                snapshot.CurrentStageCode ?? string.Empty,
                 snapshot.CurrentStageName ?? "Stage update",
                 true,
                 snapshot.CurrentStageStartDate,
