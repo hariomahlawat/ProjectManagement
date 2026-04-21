@@ -169,6 +169,7 @@ public sealed record ProjectCategoryGroupVm(
 public sealed record ProjectStageMovementVm(
     string StageCode,
     string StageName,
+    string? WorkflowVersion,
     bool IsOngoing,
     DateOnly? StartedOn,
     DateOnly? CompletedOn

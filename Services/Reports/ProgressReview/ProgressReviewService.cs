@@ -71,12 +71,14 @@ public sealed class ProgressReviewService : IProgressReviewService
         }
 
         var presentStageLookup = await BuildPresentStageLookupAsync(summaryProjectIds, cancellationToken);
+        var workflowVersionLookup = await BuildWorkflowVersionLookupAsync(summaryProjectIds, cancellationToken);
         var remarkLookup = await BuildRemarkSummaryLookupAsync(summaryProjectIds, from, to, cancellationToken);
         var projectCategoryLookup = await BuildProjectCategoryLookupAsync(summaryProjectIds, cancellationToken);
         var projectSummaryRows = BuildProjectSummaryRows(
             projectFrontRunners,
             projectRemarksOnly,
             projectNonMovers,
+            workflowVersionLookup,
             presentStageLookup,
             remarkLookup,
             projectCategoryLookup,
@@ -86,6 +88,7 @@ public sealed class ProgressReviewService : IProgressReviewService
             projectFrontRunners,
             projectRemarksOnly,
             projectNonMovers,
+            workflowVersionLookup,
             presentStageLookup,
             remarkLookup,
             projectCategoryLookup,
@@ -960,6 +963,7 @@ public sealed class ProgressReviewService : IProgressReviewService
         IReadOnlyList<ProjectStageChangeVm> frontRunners,
         IReadOnlyList<ProjectRemarkOnlyVm> remarkOnly,
         IReadOnlyList<ProjectNonMoverVm> nonMovers,
+        IReadOnlyDictionary<int, string?> workflowVersionLookup,
         IReadOnlyDictionary<int, PresentStageSnapshot> presentStageLookup,
         IReadOnlyDictionary<int, ProjectRemarkSummaryVm> remarkLookup,
         IReadOnlyDictionary<int, string?> projectCategoryLookup,
@@ -967,7 +971,7 @@ public sealed class ProgressReviewService : IProgressReviewService
         DateOnly rangeTo)
     {
         var rows = new Dictionary<int, ProjectProgressRowVm>();
-        var stageHistoryLookup = BuildStageMovementLookup(frontRunners, presentStageLookup, rangeFrom, rangeTo);
+        var stageHistoryLookup = BuildStageMovementLookup(frontRunners, presentStageLookup, workflowVersionLookup, rangeFrom, rangeTo);
 
         foreach (var projectStages in frontRunners.GroupBy(stageChange => stageChange.ProjectId))
         {
@@ -1072,13 +1076,14 @@ public sealed class ProgressReviewService : IProgressReviewService
         IReadOnlyList<ProjectStageChangeVm> frontRunners,
         IReadOnlyList<ProjectRemarkOnlyVm> remarkOnly,
         IReadOnlyList<ProjectNonMoverVm> nonMovers,
+        IReadOnlyDictionary<int, string?> workflowVersionLookup,
         IReadOnlyDictionary<int, PresentStageSnapshot> presentStageLookup,
         IReadOnlyDictionary<int, ProjectRemarkSummaryVm> remarkLookup,
         IReadOnlyDictionary<int, string?> projectCategoryLookup,
         DateOnly rangeFrom,
         DateOnly rangeTo)
     {
-        var stageHistoryLookup = BuildStageMovementLookup(frontRunners, presentStageLookup, rangeFrom, rangeTo);
+        var stageHistoryLookup = BuildStageMovementLookup(frontRunners, presentStageLookup, workflowVersionLookup, rangeFrom, rangeTo);
         var reviewRows = new Dictionary<int, ProjectReviewRowVm>();
         var nonMoverLookup = nonMovers.ToDictionary(n => n.ProjectId);
 
@@ -1109,7 +1114,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 projectName,
                 categoryName,
                 presentStage,
-                BuildMovementPathText(movements),
+                BuildMovementPathText(movements, workflowVersionLookup.TryGetValue(projectId, out var workflowVersion) ? workflowVersion : null),
                 TrimHistory(movements).Display,
                 movements,
                 movements.Count,
@@ -1149,7 +1154,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 row.ProjectName,
                 categoryName,
                 presentStage,
-                BuildMovementPathText(stageMovements),
+                BuildMovementPathText(stageMovements, workflowVersionLookup.TryGetValue(row.ProjectId, out var workflowVersion) ? workflowVersion : null),
                 TrimHistory(stageMovements).Display,
                 stageMovements,
                 stageMovements.Count,
@@ -1187,7 +1192,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 row.ProjectName,
                 categoryName,
                 presentStage,
-                BuildMovementPathText(stageMovements),
+                BuildMovementPathText(stageMovements, workflowVersionLookup.TryGetValue(row.ProjectId, out var workflowVersion) ? workflowVersion : null),
                 TrimHistory(stageMovements).Display,
                 stageMovements,
                 stageMovements.Count,
@@ -1238,7 +1243,7 @@ public sealed class ProgressReviewService : IProgressReviewService
             Attention: attentionRows);
     }
 
-    private static string BuildMovementPathText(IReadOnlyList<ProjectStageMovementVm> movements)
+    private static string BuildMovementPathText(IReadOnlyList<ProjectStageMovementVm> movements, string? workflowVersion)
     {
         if (movements.Count == 0)
         {
@@ -1248,7 +1253,7 @@ public sealed class ProgressReviewService : IProgressReviewService
         var trimmedHistory = TrimHistory(movements);
         var orderedForPath = trimmedHistory.Display
             .OrderBy(GetMovementEventDate)
-            .ThenBy(movement => GetStageSortOrder(movement.StageCode))
+            .ThenBy(movement => GetStageSortOrder(movement.StageCode, workflowVersion))
             .ThenBy(movement => movement.StageName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -1263,34 +1268,18 @@ public sealed class ProgressReviewService : IProgressReviewService
     // -----------------------------------------------------------------
     // SECTION: Stage movement normalization helpers
     // -----------------------------------------------------------------
-    private static int GetStageSortOrder(string? stageCode)
+    private static int GetStageSortOrder(string? stageCode, string? workflowVersion)
     {
-        return (stageCode ?? string.Empty).Trim().ToUpperInvariant() switch
-        {
-            "FS" => 10,
-            "SOW" => 20,
-            "IPA" => 30,
-            "AON" => 40,
-            "BID" => 50,
-            "TEC" => 60,
-            "BM" => 70,
-            "COB" => 80,
-            "PNC" => 90,
-            "EAS" => 100,
-            "SO" => 110,
-            "DEVP" => 120,
-            "ATP" => 130,
-            "PAYMENT" => 140,
-            _ => 999
-        };
+        return ProcurementWorkflow.OrderOf(workflowVersion, stageCode);
     }
 
     private static List<ProjectStageMovementVm> NormalizeMovements(
-        IEnumerable<ProjectStageMovementVm> movements)
+        IEnumerable<ProjectStageMovementVm> movements,
+        string? workflowVersion)
     {
         return movements
             .OrderBy(GetMovementEventDate)
-            .ThenBy(m => GetStageSortOrder(m.StageCode))
+            .ThenBy(m => GetStageSortOrder(m.StageCode, workflowVersion))
             .ThenBy(m => m.StageName, StringComparer.OrdinalIgnoreCase)
             .GroupBy(m => new
             {
@@ -1404,7 +1393,7 @@ public sealed class ProgressReviewService : IProgressReviewService
             {
                 var orderedSteps = row.FullStageMovements
                     .OrderBy(m => GetMovementEventDate(m))
-                    .ThenBy(m => GetStageSortOrder(m.StageCode))
+                    .ThenBy(m => GetStageSortOrder(m.StageCode, m.WorkflowVersion))
                     .ThenBy(m => m.StageName, StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
@@ -1512,6 +1501,7 @@ public sealed class ProgressReviewService : IProgressReviewService
     private static Dictionary<int, List<ProjectStageMovementVm>> BuildStageMovementLookup(
         IReadOnlyList<ProjectStageChangeVm> frontRunners,
         IReadOnlyDictionary<int, PresentStageSnapshot> presentStageLookup,
+        IReadOnlyDictionary<int, string?> workflowVersionLookup,
         DateOnly rangeFrom,
         DateOnly rangeTo)
     {
@@ -1521,9 +1511,11 @@ public sealed class ProgressReviewService : IProgressReviewService
         {
             if (change.ToCompletedOn.HasValue && change.ToCompletedOn.Value >= rangeFrom && change.ToCompletedOn.Value <= rangeTo)
             {
+                workflowVersionLookup.TryGetValue(change.ProjectId, out var workflowVersion);
                 AppendMovement(change.ProjectId, new ProjectStageMovementVm(
                     change.StageCode,
                     change.StageName,
+                    workflowVersion,
                     false,
                     null,
                     change.ToCompletedOn));
@@ -1546,6 +1538,7 @@ public sealed class ProgressReviewService : IProgressReviewService
             AppendMovement(projectId, new ProjectStageMovementVm(
                 snapshot.CurrentStageCode ?? string.Empty,
                 snapshot.CurrentStageName ?? "Stage update",
+                workflowVersionLookup.TryGetValue(projectId, out var workflowVersion) ? workflowVersion : null,
                 true,
                 snapshot.CurrentStageStartDate,
                 null));
@@ -1553,7 +1546,9 @@ public sealed class ProgressReviewService : IProgressReviewService
 
         foreach (var projectId in lookup.Keys.ToList())
         {
-            lookup[projectId] = NormalizeMovements(lookup[projectId]);
+            lookup[projectId] = NormalizeMovements(
+                lookup[projectId],
+                workflowVersionLookup.TryGetValue(projectId, out var workflowVersion) ? workflowVersion : null);
         }
 
         return lookup;
@@ -1578,12 +1573,27 @@ public sealed class ProgressReviewService : IProgressReviewService
         }
 
         var display = history
-            .OrderBy(GetMovementEventDate)
-            .ThenBy(movement => GetStageSortOrder(movement.StageCode))
+            .OrderBy(movement => GetMovementEventDate(movement))
+            .ThenBy(movement => GetStageSortOrder(movement.StageCode, movement.WorkflowVersion))
             .ThenBy(movement => movement.StageName, StringComparer.OrdinalIgnoreCase)
             .TakeLast(3)
             .ToList();
         return (display, history.Count - display.Count);
+    }
+
+    private async Task<IReadOnlyDictionary<int, string?>> BuildWorkflowVersionLookupAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Count == 0)
+        {
+            return new Dictionary<int, string?>();
+        }
+
+        return await _db.Projects
+            .AsNoTracking()
+            .Where(project => projectIds.Contains(project.Id))
+            .ToDictionaryAsync(project => project.Id, project => project.WorkflowVersion, cancellationToken);
     }
 
     private string? BuildAttachmentUrl(string? storageKey)
