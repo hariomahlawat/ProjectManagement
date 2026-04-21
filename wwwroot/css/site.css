@@ -4566,9 +4566,11 @@ summary::marker {
 }
 
 .remarks-body {
+    /* --- SECTION: Preserve user-entered remark line breaks --- */
     font-size: var(--pm-font-size-comfortable);
     line-height: 1.45;
     word-break: break-word;
+    white-space: pre-line;
 }
 
 .remarks-body .remark-mention,
@@ -6834,6 +6836,12 @@ body.has-project-photo-preview-dialog {
 
 .ongoing-remarks__body {
     font-size: .78rem;
+    white-space: pre-line;
+}
+
+/* --- SECTION: Preserve line breaks in ongoing table latest remark previews --- */
+.pm-remark-text {
+    white-space: pre-line;
 }
 
 /* mention pill */
