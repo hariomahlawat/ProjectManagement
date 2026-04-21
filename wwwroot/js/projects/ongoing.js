@@ -44,4 +44,27 @@
       submitFilters();
     }
   });
+
+  // SECTION: Per-card remarks expand/collapse
+  const remarkPanels = document.querySelectorAll('[data-remarks-panel]');
+
+  remarkPanels.forEach((panel) => {
+    const toggleButton = panel.querySelector('[data-remarks-toggle]');
+    const expandedList = panel.querySelector('[data-remarks-expanded-list]');
+    const toggleLabel = panel.querySelector('[data-remarks-toggle-label]');
+
+    if (!toggleButton || !expandedList || !toggleLabel) {
+      return;
+    }
+
+    toggleButton.addEventListener('click', () => {
+      const isExpanded = panel.dataset.expanded === '1';
+      const nextExpanded = !isExpanded;
+
+      panel.dataset.expanded = nextExpanded ? '1' : '0';
+      expandedList.hidden = !nextExpanded;
+      toggleButton.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false');
+      toggleLabel.textContent = nextExpanded ? 'Collapse remarks' : 'Expand remarks';
+    });
+  });
 })();

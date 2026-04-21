@@ -383,6 +383,8 @@ namespace ProjectManagement.Services.Projects
                     {
                         Id = latestExternal.Id,
                         Body = latestExternal.Body,
+                        CreatedAtUtc = latestExternal.CreatedAtUtc,
+                        ActorRole = latestExternal.AuthorRole,
                         EventDate = latestExternal.EventDate,
                         Scope = latestExternal.Scope,
                         RowVersion = latestExternal.RowVersion is { Length: > 0 } rowVersion
@@ -565,6 +567,8 @@ namespace ProjectManagement.Services.Projects
     {
         public int Id { get; init; }
         public string Body { get; init; } = "";
+        public DateTime CreatedAtUtc { get; init; }
+        public RemarkActorRole ActorRole { get; init; }
         public DateOnly EventDate { get; init; }
         public RemarkScope Scope { get; init; } = RemarkScope.General;
         public string RowVersion { get; init; } = "";
