@@ -1111,6 +1111,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 presentStage,
                 BuildMovementPathText(movements),
                 TrimHistory(movements).Display,
+                movements,
                 movements.Count,
                 lastStageMovementDate,
                 remarks,
@@ -1150,6 +1151,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 presentStage,
                 BuildMovementPathText(stageMovements),
                 TrimHistory(stageMovements).Display,
+                stageMovements,
                 stageMovements.Count,
                 GetLastStageMovementDate(stageMovements),
                 row.RemarkSummary,
@@ -1187,6 +1189,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 presentStage,
                 BuildMovementPathText(stageMovements),
                 TrimHistory(stageMovements).Display,
+                stageMovements,
                 stageMovements.Count,
                 GetLastStageMovementDate(stageMovements),
                 remarks,
@@ -1242,9 +1245,10 @@ public sealed class ProgressReviewService : IProgressReviewService
             return "No formal stage movement recorded.";
         }
 
-        var orderedForPath = movements
-            .Take(3)
+        var trimmedHistory = TrimHistory(movements);
+        var orderedForPath = trimmedHistory.Display
             .OrderBy(GetMovementEventDate)
+            .ThenBy(movement => GetStageSortOrder(movement.StageCode))
             .ThenBy(movement => movement.StageName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -1254,6 +1258,48 @@ public sealed class ProgressReviewService : IProgressReviewService
     private static DateOnly? GetMovementEventDate(ProjectStageMovementVm movement)
     {
         return movement.CompletedOn ?? movement.StartedOn;
+    }
+
+    // -----------------------------------------------------------------
+    // SECTION: Stage movement normalization helpers
+    // -----------------------------------------------------------------
+    private static int GetStageSortOrder(string? stageCode)
+    {
+        return (stageCode ?? string.Empty).Trim().ToUpperInvariant() switch
+        {
+            "FS" => 10,
+            "SOW" => 20,
+            "IPA" => 30,
+            "AON" => 40,
+            "BID" => 50,
+            "TEC" => 60,
+            "BM" => 70,
+            "COB" => 80,
+            "PNC" => 90,
+            "EAS" => 100,
+            "SO" => 110,
+            "DEVP" => 120,
+            "ATP" => 130,
+            "PAYMENT" => 140,
+            _ => 999
+        };
+    }
+
+    private static List<ProjectStageMovementVm> NormalizeMovements(
+        IEnumerable<ProjectStageMovementVm> movements)
+    {
+        return movements
+            .OrderBy(GetMovementEventDate)
+            .ThenBy(m => GetStageSortOrder(m.StageCode))
+            .ThenBy(m => m.StageName, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(m => new
+            {
+                StageCode = (m.StageCode ?? string.Empty).Trim().ToUpperInvariant(),
+                EventDate = GetMovementEventDate(m),
+                m.IsOngoing
+            })
+            .Select(g => g.First())
+            .ToList();
     }
 
     private static string FormatMovementLabel(ProjectStageMovementVm movement)
@@ -1356,8 +1402,9 @@ public sealed class ProgressReviewService : IProgressReviewService
         var rows = advancedRows
             .Select(row =>
             {
-                var orderedSteps = row.StageMovements
+                var orderedSteps = row.FullStageMovements
                     .OrderBy(m => GetMovementEventDate(m))
+                    .ThenBy(m => GetStageSortOrder(m.StageCode))
                     .ThenBy(m => m.StageName, StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
@@ -1504,14 +1551,9 @@ public sealed class ProgressReviewService : IProgressReviewService
                 null));
         }
 
-        foreach (var entry in lookup.Values)
+        foreach (var projectId in lookup.Keys.ToList())
         {
-            entry.Sort((a, b) =>
-            {
-                var aDate = a.IsOngoing ? a.StartedOn : a.CompletedOn;
-                var bDate = b.IsOngoing ? b.StartedOn : b.CompletedOn;
-                return Nullable.Compare(bDate, aDate);
-            });
+            lookup[projectId] = NormalizeMovements(lookup[projectId]);
         }
 
         return lookup;
@@ -1528,14 +1570,19 @@ public sealed class ProgressReviewService : IProgressReviewService
         }
     }
 
-    private static (List<ProjectStageMovementVm> Display, int Overflow) TrimHistory(List<ProjectStageMovementVm> history)
+    private static (List<ProjectStageMovementVm> Display, int Overflow) TrimHistory(IReadOnlyList<ProjectStageMovementVm> history)
     {
         if (history.Count <= 3)
         {
             return (history.ToList(), 0);
         }
 
-        var display = history.Take(3).ToList();
+        var display = history
+            .OrderBy(GetMovementEventDate)
+            .ThenBy(movement => GetStageSortOrder(movement.StageCode))
+            .ThenBy(movement => movement.StageName, StringComparer.OrdinalIgnoreCase)
+            .TakeLast(3)
+            .ToList();
         return (display, history.Count - display.Count);
     }
 
