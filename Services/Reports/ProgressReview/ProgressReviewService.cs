@@ -1110,6 +1110,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 categoryName,
                 presentStage,
                 BuildMovementPathText(movements),
+                movements,
                 TrimHistory(movements).Display,
                 movements.Count,
                 lastStageMovementDate,
@@ -1149,6 +1150,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 categoryName,
                 presentStage,
                 BuildMovementPathText(stageMovements),
+                stageMovements,
                 TrimHistory(stageMovements).Display,
                 stageMovements.Count,
                 GetLastStageMovementDate(stageMovements),
@@ -1186,6 +1188,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 categoryName,
                 presentStage,
                 BuildMovementPathText(stageMovements),
+                stageMovements,
                 TrimHistory(stageMovements).Display,
                 stageMovements.Count,
                 GetLastStageMovementDate(stageMovements),
@@ -1356,7 +1359,7 @@ public sealed class ProgressReviewService : IProgressReviewService
         var rows = advancedRows
             .Select(row =>
             {
-                var orderedSteps = row.StageMovements
+                var orderedSteps = row.FullStageMovements
                     .OrderBy(m => GetMovementEventDate(m))
                     .ThenBy(m => m.StageName, StringComparer.OrdinalIgnoreCase)
                     .ToList();
