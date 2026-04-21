@@ -52,6 +52,7 @@
     const toggleButton = panel.querySelector('[data-remarks-toggle]');
     const expandedList = panel.querySelector('[data-remarks-expanded-list]');
     const toggleLabel = panel.querySelector('[data-remarks-toggle-label]');
+    const toggleChevron = panel.querySelector('[data-remarks-toggle-chevron]');
 
     if (!toggleButton || !expandedList || !toggleLabel) {
       return;
@@ -65,6 +66,9 @@
       expandedList.hidden = !nextExpanded;
       toggleButton.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false');
       toggleLabel.textContent = nextExpanded ? 'Collapse remarks' : 'Expand remarks';
+      if (toggleChevron) {
+        toggleChevron.textContent = nextExpanded ? '▴' : '▾';
+      }
     });
   });
 })();

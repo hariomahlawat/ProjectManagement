@@ -184,6 +184,29 @@ namespace ProjectManagement.Services.Projects
                 .OrderByDescending(r => r.CreatedAtUtc)
                 .ToListAsync(cancellationToken);
 
+            // SECTION: Resolve remark author display names in one batch
+            var remarkAuthorIds = allRemarks
+                .Select(r => r.AuthorUserId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct()
+                .ToArray();
+
+            var authorDisplayNameById = remarkAuthorIds.Length == 0
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                : await _db.Users
+                    .AsNoTracking()
+                    .Where(u => remarkAuthorIds.Contains(u.Id))
+                    .Select(u => new
+                    {
+                        u.Id,
+                        DisplayName = u.FullName ?? u.UserName ?? u.Email ?? u.Id
+                    })
+                    .ToDictionaryAsync(
+                        x => x.Id,
+                        x => x.DisplayName,
+                        StringComparer.Ordinal,
+                        cancellationToken);
+
             var result = new List<OngoingProjectRowDto>(projects.Count);
 
             foreach (var proj in projects)
@@ -366,7 +389,10 @@ namespace ProjectManagement.Services.Projects
                     {
                         CreatedAtUtc = r.CreatedAtUtc,
                         Text = r.Body,
-                        ActorRole = r.AuthorRole
+                        ActorRole = r.AuthorRole,
+                        AuthorDisplayName = authorDisplayNameById.TryGetValue(r.AuthorUserId, out var name)
+                            ? name
+                            : r.AuthorUserId
                     })
                     .ToArray();
 
@@ -385,6 +411,9 @@ namespace ProjectManagement.Services.Projects
                         Body = latestExternal.Body,
                         CreatedAtUtc = latestExternal.CreatedAtUtc,
                         ActorRole = latestExternal.AuthorRole,
+                        AuthorDisplayName = authorDisplayNameById.TryGetValue(latestExternal.AuthorUserId, out var name)
+                            ? name
+                            : latestExternal.AuthorUserId,
                         EventDate = latestExternal.EventDate,
                         Scope = latestExternal.Scope,
                         RowVersion = latestExternal.RowVersion is { Length: > 0 } rowVersion
@@ -569,6 +598,7 @@ namespace ProjectManagement.Services.Projects
         public string Body { get; init; } = "";
         public DateTime CreatedAtUtc { get; init; }
         public RemarkActorRole ActorRole { get; init; }
+        public string AuthorDisplayName { get; init; } = "";
         public DateOnly EventDate { get; init; }
         public RemarkScope Scope { get; init; } = RemarkScope.General;
         public string RowVersion { get; init; } = "";
@@ -592,5 +622,6 @@ namespace ProjectManagement.Services.Projects
         public DateTime CreatedAtUtc { get; init; }
         public string Text { get; init; } = "";
         public RemarkActorRole ActorRole { get; init; }
+        public string AuthorDisplayName { get; init; } = "";
     }
 }

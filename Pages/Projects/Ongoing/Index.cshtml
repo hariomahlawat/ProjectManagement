@@ -555,7 +555,11 @@ else
 
                             <!-- SECTION: Remarks panel heading and toggle -->
                             <div class="ongoing-remarks__header">
-                                <span class="ongoing-remarks__title">Remarks summary</span>
+                                <div class="ongoing-remarks__title-wrap">
+                                    <span class="ongoing-remarks__title">Remarks summary</span>
+                                    <span class="ongoing-remarks__title-sep">·</span>
+                                    <span class="ongoing-remarks__subtitle">Internal remarks (last 10 days)</span>
+                                </div>
                                 @if (hasExpandableInternalRemarks)
                                 {
                                     <button type="button"
@@ -563,6 +567,7 @@ else
                                             data-remarks-toggle
                                             aria-expanded="false">
                                         <span data-remarks-toggle-label>Expand remarks</span>
+                                        <span class="ongoing-remarks__toggle-chevron" data-remarks-toggle-chevron aria-hidden="true">▾</span>
                                     </button>
                                 }
                             </div>
@@ -571,7 +576,6 @@ else
                             <div class="ongoing-remarks__summary">
                                 <!-- SECTION: Internal remarks (70%) -->
                                 <div class="ongoing-remarks__column ongoing-remarks__column--internal">
-                                    <h3 class="ongoing-remarks__column-title">Recent internal remarks (last 10 days)</h3>
                                     @if (item.RecentInternalRemarks.Count == 0)
                                     {
                                         <p class="small text-muted mb-0">No internal remarks in the last 10 days.</p>
@@ -582,15 +586,13 @@ else
                                             @foreach (var r in internalRemarksCollapsed)
                                             {
                                                 <li class="ongoing-remarks__item">
-                                                    <div class="ongoing-remarks__meta">
-                                                        @r.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")
-                                                        @if (r.ActorRole != RemarkActorRole.Unknown)
-                                                        {
-                                                            @: • @r.ActorRole
-                                                        }
-                                                    </div>
                                                     <div class="ongoing-remarks__body ongoing-remarks__body--collapsed">
                                                         @Html.Raw(RenderRemark(r.Text))
+                                                    </div>
+                                                    <div class="ongoing-remarks__meta">
+                                                        <span class="ongoing-remarks__author">@r.AuthorDisplayName</span>
+                                                        <span class="ongoing-remarks__meta-sep">·</span>
+                                                        <span>@r.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
                                                     </div>
                                                 </li>
                                             }
@@ -602,15 +604,13 @@ else
                                                 @foreach (var r in internalRemarksExpandedOnly)
                                                 {
                                                     <li class="ongoing-remarks__item">
-                                                        <div class="ongoing-remarks__meta">
-                                                            @r.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")
-                                                            @if (r.ActorRole != RemarkActorRole.Unknown)
-                                                            {
-                                                                @: • @r.ActorRole
-                                                            }
-                                                        </div>
                                                         <div class="ongoing-remarks__body">
                                                             @Html.Raw(RenderRemark(r.Text))
+                                                        </div>
+                                                        <div class="ongoing-remarks__meta">
+                                                            <span class="ongoing-remarks__author">@r.AuthorDisplayName</span>
+                                                            <span class="ongoing-remarks__meta-sep">·</span>
+                                                            <span>@r.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
                                                         </div>
                                                     </li>
                                                 }
@@ -629,16 +629,15 @@ else
                                     else
                                     {
                                         <article class="ongoing-remarks__item">
-                                            <div class="ongoing-remarks__meta">
-                                                @latestExternalRemark!.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")
-                                                @if (latestExternalRemark.ActorRole != RemarkActorRole.Unknown)
-                                                {
-                                                    @: • @latestExternalRemark.ActorRole
-                                                }
-                                                <span>• Event: @latestExternalRemark.EventDate.ToString("dd-MMM-yyyy")</span>
-                                            </div>
                                             <div class="ongoing-remarks__body ongoing-remarks__body--collapsed">
                                                 @Html.Raw(RenderRemark(latestExternalRemark.Body))
+                                            </div>
+                                            <div class="ongoing-remarks__meta">
+                                                <span class="ongoing-remarks__author">@latestExternalRemark!.AuthorDisplayName</span>
+                                                <span class="ongoing-remarks__meta-sep">·</span>
+                                                <span>@latestExternalRemark.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
+                                                <span class="ongoing-remarks__meta-sep">·</span>
+                                                <span>Event: @latestExternalRemark.EventDate.ToString("dd-MMM-yyyy")</span>
                                             </div>
                                         </article>
                                     }
