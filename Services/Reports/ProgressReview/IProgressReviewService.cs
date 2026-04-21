@@ -161,6 +161,17 @@ public sealed record ProjectMovementStepVm(
     DateOnly? EventDate,
     bool IsTerminal
 );
+
+public sealed record ProjectResolvedStageVm(
+    int ProjectId,
+    string StageCode,
+    string StageName,
+    int StageOrder,
+    DateOnly? StartedOn,
+    DateOnly? CompletedOn,
+    bool IsCurrent
+);
+
 public sealed record ProjectCategoryGroupVm(
     string CategoryName,
     IReadOnlyList<ProjectProgressRowVm> Projects

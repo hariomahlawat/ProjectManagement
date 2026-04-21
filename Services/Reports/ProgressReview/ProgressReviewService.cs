@@ -94,7 +94,17 @@ public sealed class ProgressReviewService : IProgressReviewService
             projectCategoryLookup,
             from,
             to);
-        var projectMovementBoard = BuildProjectMovementBoard(projectReviewBuckets.Advanced);
+        // SECTION: Movement board (resolved per-stage authoritative path)
+        var movedProjectIds = projectReviewBuckets.Advanced
+            .Select(row => row.ProjectId)
+            .Distinct()
+            .ToList();
+        var resolvedProjectStages = await LoadResolvedProjectStagesAsync(movedProjectIds, cancellationToken);
+        var projectMovementBoard = BuildProjectMovementBoard(
+            projectReviewBuckets.Advanced,
+            resolvedProjectStages,
+            from,
+            to);
         var projectCategoryGroups = projectSummaryRows
             .GroupBy(row => string.IsNullOrWhiteSpace(row.ProjectCategoryName) ? "Uncategorised" : row.ProjectCategoryName)
             .OrderBy(group => group.Key)
@@ -1267,6 +1277,21 @@ public sealed class ProgressReviewService : IProgressReviewService
         return movement.CompletedOn ?? movement.StartedOn;
     }
 
+    private static DateOnly? ResolveMovementBoardDate(ProjectResolvedStageVm stage)
+    {
+        if (stage.CompletedOn.HasValue)
+        {
+            return stage.CompletedOn.Value;
+        }
+
+        if (stage.IsCurrent && stage.StartedOn.HasValue)
+        {
+            return stage.StartedOn.Value;
+        }
+
+        return null;
+    }
+
     // -----------------------------------------------------------------
     // SECTION: Stage movement normalization helpers
     // -----------------------------------------------------------------
@@ -1388,23 +1413,38 @@ public sealed class ProgressReviewService : IProgressReviewService
     // SECTION: Project movement board helpers
     // -----------------------------------------------------------------
     private static ProjectMovementBoardVm BuildProjectMovementBoard(
-        IReadOnlyList<ProjectReviewRowVm> advancedRows)
+        IReadOnlyList<ProjectReviewRowVm> advancedRows,
+        IReadOnlyList<ProjectResolvedStageVm> resolvedStages,
+        DateOnly rangeFrom,
+        DateOnly rangeTo)
     {
+        // SECTION: Authoritative resolved stage map
+        var resolvedByProject = resolvedStages
+            .GroupBy(stage => stage.ProjectId)
+            .ToDictionary(group => group.Key, group => group.OrderBy(stage => stage.StageOrder).ToList());
+
         var rows = advancedRows
             .Select(row =>
             {
-                var orderedSteps = row.FullStageMovements
-                    .OrderBy(m => GetMovementEventDate(m))
-                    .ThenBy(m => GetStageSortOrder(m.StageCode, m.WorkflowVersion))
-                    .ThenBy(m => m.StageName, StringComparer.OrdinalIgnoreCase)
+                if (!resolvedByProject.TryGetValue(row.ProjectId, out var projectStages))
+                {
+                    projectStages = [];
+                }
+
+                // SECTION: Filter to period using resolved stage dates
+                var includedStages = projectStages
+                    .Where(stage =>
+                        (stage.CompletedOn.HasValue && stage.CompletedOn.Value >= rangeFrom && stage.CompletedOn.Value <= rangeTo)
+                        || (stage.IsCurrent && stage.StartedOn.HasValue && stage.StartedOn.Value >= rangeFrom && stage.StartedOn.Value <= rangeTo))
+                    .OrderBy(stage => stage.StageOrder)
                     .ToList();
 
-                var movementSteps = orderedSteps
-                    .Select((movement, index) => new ProjectMovementStepVm(
-                        movement.StageCode,
-                        movement.StageName,
-                        GetMovementEventDate(movement),
-                        index == orderedSteps.Count - 1))
+                var movementSteps = includedStages
+                    .Select((stage, index) => new ProjectMovementStepVm(
+                        stage.StageCode,
+                        stage.StageName,
+                        ResolveMovementBoardDate(stage),
+                        index == includedStages.Count - 1))
                     .ToList();
 
                 var firstMovementDate = movementSteps
@@ -1422,12 +1462,61 @@ public sealed class ProgressReviewService : IProgressReviewService
                     firstMovementDate,
                     row.PresentStage.CurrentStageName);
             })
+            .Where(row => row.Steps.Count > 0)
             .OrderByDescending(r => r.MovementCount)
             .ThenByDescending(r => r.FirstMovementDate)
             .ThenBy(r => r.ProjectName)
             .ToList();
 
         return new ProjectMovementBoardVm(rows, rows.Count);
+    }
+
+    private async Task<IReadOnlyList<ProjectResolvedStageVm>> LoadResolvedProjectStagesAsync(
+        IReadOnlyList<int> projectIds,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Count == 0)
+        {
+            return [];
+        }
+
+        // SECTION: Workflow version lookup for display-name resolution
+        var workflowVersions = await _db.Projects
+            .AsNoTracking()
+            .Where(project => projectIds.Contains(project.Id))
+            .ToDictionaryAsync(project => project.Id, project => project.WorkflowVersion, cancellationToken);
+
+        // SECTION: Resolved stage-state source (not historical stage-change logs)
+        var rows = await _db.ProjectStages
+            .AsNoTracking()
+            .Where(stage => projectIds.Contains(stage.ProjectId))
+            .Select(stage => new
+            {
+                stage.ProjectId,
+                stage.StageCode,
+                stage.SortOrder,
+                stage.ActualStart,
+                stage.CompletedOn,
+                stage.Status
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(stage =>
+            {
+                workflowVersions.TryGetValue(stage.ProjectId, out var workflowVersion);
+                var stageName = _workflowStageMetadataProvider.GetDisplayName(workflowVersion, stage.StageCode);
+
+                return new ProjectResolvedStageVm(
+                    stage.ProjectId,
+                    stage.StageCode,
+                    stageName,
+                    stage.SortOrder,
+                    stage.ActualStart,
+                    stage.CompletedOn,
+                    stage.Status == StageStatus.InProgress);
+            })
+            .ToList();
     }
 
     private async Task<IReadOnlyDictionary<int, PresentStageSnapshot>> BuildPresentStageLookupAsync(
