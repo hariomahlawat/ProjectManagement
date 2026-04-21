@@ -40,7 +40,8 @@ public sealed record ProjectSectionVm(
     IReadOnlyList<ProjectNonMoverVm> NonMovers,
     IReadOnlyList<ProjectProgressRowVm> SummaryRows,
     IReadOnlyList<ProjectCategoryGroupVm> CategoryGroups,
-    ProjectReviewBucketsVm Review
+    ProjectReviewBucketsVm Review,
+    ProjectMovementBoardVm MovementBoard
 );
 
 public sealed record ProjectStageChangeVm(
@@ -137,12 +138,35 @@ public sealed record ProjectReviewBucketsVm(
     IReadOnlyList<ProjectReviewRowVm> ActiveWithoutAdvancement,
     IReadOnlyList<ProjectReviewRowVm> Attention
 );
+
+public sealed record ProjectMovementBoardVm(
+    IReadOnlyList<ProjectMovementRowVm> Rows,
+    int TotalMovedProjects
+);
+
+public sealed record ProjectMovementRowVm(
+    int ProjectId,
+    string ProjectName,
+    string? ProjectCategoryName,
+    IReadOnlyList<ProjectMovementStepVm> Steps,
+    int MovementCount,
+    DateOnly? FirstMovementDate,
+    string? CurrentStageName
+);
+
+public sealed record ProjectMovementStepVm(
+    string StageCode,
+    string StageName,
+    DateOnly? EventDate,
+    bool IsTerminal
+);
 public sealed record ProjectCategoryGroupVm(
     string CategoryName,
     IReadOnlyList<ProjectProgressRowVm> Projects
 );
 
 public sealed record ProjectStageMovementVm(
+    string StageCode,
     string StageName,
     bool IsOngoing,
     DateOnly? StartedOn,
