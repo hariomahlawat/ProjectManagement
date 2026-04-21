@@ -6807,10 +6807,49 @@ body.has-project-photo-preview-dialog {
 
 .ongoing-remarks {
     padding: 0.75rem 1.25rem 1.25rem 1.25rem;
+    background: var(--pm-card);
+}
+
+.ongoing-remarks__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: .55rem;
 }
 
 .ongoing-remarks__title {
     font-size: .65rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: #6c757d;
+}
+
+.ongoing-remarks__toggle {
+    font-size: .72rem;
+    font-weight: 500;
+    color: var(--pm-primary);
+}
+
+.ongoing-remarks__summary {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+    gap: 1rem;
+}
+
+.ongoing-remarks__column {
+    min-width: 0;
+}
+
+.ongoing-remarks__column--external {
+    border-left: 1px solid var(--pm-border-subtle);
+    padding-left: 1rem;
+}
+
+.ongoing-remarks__column-title {
+    margin: 0 0 .45rem 0;
+    font-size: .68rem;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: .03em;
     color: #6c757d;
@@ -6824,8 +6863,12 @@ body.has-project-photo-preview-dialog {
     gap: .5rem;
 }
 
+.ongoing-remarks__list--expanded {
+    margin-top: .5rem;
+}
+
 .ongoing-remarks__item {
-    background: #fff;
+    background: transparent;
 }
 
 .ongoing-remarks__meta {
@@ -6837,6 +6880,28 @@ body.has-project-photo-preview-dialog {
 .ongoing-remarks__body {
     font-size: .78rem;
     white-space: pre-line;
+    line-height: 1.35;
+}
+
+.ongoing-remarks__body--collapsed {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+}
+
+@media (max-width: 991.98px) {
+    .ongoing-remarks__summary {
+        grid-template-columns: 1fr;
+    }
+
+    .ongoing-remarks__column--external {
+        border-left: 0;
+        border-top: 1px solid var(--pm-border-subtle);
+        padding-left: 0;
+        padding-top: .75rem;
+    }
 }
 
 /* --- SECTION: Preserve line breaks in ongoing table latest remark previews --- */
