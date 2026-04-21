@@ -183,6 +183,7 @@ public sealed class ProgressReviewService : IProgressReviewService
         }
 
         var rows = stageChanges
+            .Where(x => x.ChangeDate.HasValue)
             .OrderByDescending(x => x.ChangeDate)
             .ThenBy(x => x.ProjectName)
             .Select(x => new ProjectStageChangeVm(
@@ -192,7 +193,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 StageCodes.DisplayNameOf(x.StageCode),
                 x.FromStatus,
                 x.ToStatus,
-                x.ChangeDate,
+                x.ChangeDate!.Value,
                 x.ToActualStart,
                 x.ToCompletedOn))
             .ToList();
@@ -571,6 +572,7 @@ public sealed class ProgressReviewService : IProgressReviewService
     {
         return stageChanges
             .Where(r => string.Equals(r.StageCode, StageCodes.TOT, StringComparison.OrdinalIgnoreCase))
+            .Where(r => r.ChangeDate.HasValue)
             .OrderByDescending(r => r.ChangeDate)
             .Select(r => new TotStageChangeVm(
                 r.ProjectId,
@@ -579,7 +581,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 StageCodes.DisplayNameOf(r.StageCode),
                 r.FromStatus,
                 r.ToStatus,
-                r.ChangeDate))
+                r.ChangeDate!.Value))
             .ToList();
     }
 
@@ -1679,7 +1681,7 @@ public sealed class ProgressReviewService : IProgressReviewService
         rows.Add(new FfcProgressVm(recordId, country, milestone, date.Value, Truncate(remarks, 220)));
     }
 
-    private static DateOnly ResolveChangeDate(StageChangeProjection row)
+    private static DateOnly? ResolveChangeDate(StageChangeProjection row)
     {
         if (row.ToActualStart.HasValue)
         {
@@ -1701,7 +1703,7 @@ public sealed class ProgressReviewService : IProgressReviewService
             return row.FromCompletedOn.Value;
         }
 
-        return DateOnly.FromDateTime(row.AtUtc.DateTime);
+        return null;
     }
 
     private static DateOnly? ResolveActivityDate(DateTimeOffset? start, DateTimeOffset? end)
@@ -1759,7 +1761,7 @@ public sealed class ProgressReviewService : IProgressReviewService
         string StageCode,
         string? FromStatus,
         string? ToStatus,
-        DateOnly ChangeDate,
+        DateOnly? ChangeDate,
         DateOnly? ToActualStart,
         DateOnly? ToCompletedOn,
         string? Note);
