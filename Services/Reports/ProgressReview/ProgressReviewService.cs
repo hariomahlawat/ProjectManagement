@@ -444,7 +444,7 @@ public sealed class ProgressReviewService : IProgressReviewService
         {
             if (stageActivityLookup.TryGetValue(remark.ProjectId, out var stageDate))
             {
-                if (remark.LastRemark > stageDate)
+                if (!stageDate.HasValue || remark.LastRemark > stageDate.Value)
                 {
                     stageActivityLookup[remark.ProjectId] = remark.LastRemark;
                 }
