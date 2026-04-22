@@ -4,7 +4,7 @@
 
 /* Tokens just for the Progress Review page */
 :root {
-    /* Main report surface (the big white card) */
+    /* Main report surface token for section-level cards */
     --pr-surface: var(--pm-surface-elevated, var(--pm-card));
     /* Muted text for meta and helper labels */
     --pr-muted: var(--pm-text-tertiary);
@@ -74,13 +74,13 @@
     padding-top: 0.22rem;
 }
 
-/* Main report canvas card */
+/* Main report canvas wrapper (no outer sheet surface) */
 .progress-review__canvas {
-    background: var(--pr-surface);
-    border: 1px solid rgba(15, 23, 42, 0.05);
-    border-radius: 0.9rem;
-    padding: 1rem 1.2rem 1.15rem;
-    box-shadow: 0 6px 16px rgba(15, 30, 65, 0.04);
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
 }
 
 .progress-review__section-label {
@@ -478,7 +478,7 @@
     }
 
     .progress-review__canvas {
-        padding: 1.05rem 1rem 1.15rem;
+        padding: 0;
     }
 
     .pr-project-row {
