@@ -27,6 +27,8 @@
 .pr-page {
     width: min(1680px, calc(100vw - 64px));
     margin-inline: auto;
+    box-sizing: border-box;
+    padding-inline: clamp(1rem, 1.5vw, 1.75rem);
 }
 
 /* =========================================================
@@ -475,6 +477,7 @@
 
     .pr-page {
         width: min(100%, calc(100vw - 24px));
+        padding-inline: 0.75rem;
     }
 
     .progress-review__canvas {
