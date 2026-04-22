@@ -225,7 +225,14 @@
                                                                 @step.StageCode
                                                             </span>
                                                             <span class="pr-stage-flow__date">
-                                                                @(step.EventDate.HasValue ? FormatDay(step.EventDate.Value) : "—")
+                                                                @if (step.EventDate.HasValue)
+                                                                {
+                                                                    @FormatDay(step.EventDate.Value)
+                                                                }
+                                                                else
+                                                                {
+                                                                    @:Unresolved
+                                                                }
                                                             </span>
                                                         </div>
 
