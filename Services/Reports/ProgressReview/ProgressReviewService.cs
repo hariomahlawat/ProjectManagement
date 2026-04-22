@@ -1290,6 +1290,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 stage.StageCode,
                 stage.StageName,
                 stage.CompletedOn.Value,
+                "Completed",
                 isTerminal,
                 "ActualCompletion");
         }
@@ -1300,6 +1301,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 stage.StageCode,
                 stage.StageName,
                 stage.StartedOn.Value,
+                "Started",
                 isTerminal,
                 "ActualStart");
         }
@@ -1316,30 +1318,33 @@ public sealed class ProgressReviewService : IProgressReviewService
                 return new ProjectMovementStepVm(
                     stage.StageCode,
                     stage.StageName,
-                    previousCompleted,
+                    null,
+                    null,
                     isTerminal,
                     "InferredFromPreviousCompletion");
             }
 
-            var nextAnchor = nextStage?.StartedOn ?? nextStage?.CompletedOn;
+            var nextAnchor = nextStage?.CompletedOn ?? nextStage?.StartedOn;
             if (nextAnchor.HasValue)
             {
                 return new ProjectMovementStepVm(
                     stage.StageCode,
                     stage.StageName,
-                    nextAnchor.Value,
+                    null,
+                    null,
                     isTerminal,
                     "InferredFromNextAnchor");
             }
         }
 
         // SECTION: Inference for current stage without actual start date
-        if (stage.IsCurrent && previousStage?.CompletedOn is DateOnly currentFallbackDate)
+        if (stage.IsCurrent && previousStage?.CompletedOn is DateOnly)
         {
             return new ProjectMovementStepVm(
                 stage.StageCode,
                 stage.StageName,
-                currentFallbackDate,
+                null,
+                null,
                 isTerminal,
                 "InferredFromPreviousCompletion");
         }
@@ -1348,6 +1353,7 @@ public sealed class ProgressReviewService : IProgressReviewService
         return new ProjectMovementStepVm(
             stage.StageCode,
             stage.StageName,
+            null,
             null,
             isTerminal,
             "Unresolved");
@@ -1520,7 +1526,10 @@ public sealed class ProgressReviewService : IProgressReviewService
                 }
 
                 var firstMovementDate = movementSteps
-                    .Select(step => step.EventDate)
+                    .Where(step =>
+                        string.Equals(step.ResolutionKind, "ActualCompletion", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(step.ResolutionKind, "ActualStart", StringComparison.OrdinalIgnoreCase))
+                    .Select(step => step.DisplayDate)
                     .Where(date => date.HasValue)
                     .OrderBy(date => date)
                     .FirstOrDefault();
