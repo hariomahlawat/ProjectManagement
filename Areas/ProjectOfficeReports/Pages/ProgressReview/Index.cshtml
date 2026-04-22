@@ -85,12 +85,17 @@
 
 <div class="progress-review-shell" data-page-id="progress-review">
     <div class="pr-page">
-        <div class="progress-review__toolbar">
-            <div class="progress-review__title-block">
-                <p class="progress-review__eyebrow text-muted">Project office reports</p>
-                <h1 class="h4 mb-0">Progress Review</h1>
+        @* SECTION: Unified report header *@
+        <div class="pr-report-header">
+            <div class="pr-report-header__title-block">
+                <p class="pr-report-header__eyebrow mb-0">Project office reports</p>
+                <h1 class="pr-report-header__title">Progress Review</h1>
+                @if (vm is not null)
+                {
+                    <p class="pr-report-header__period mb-0">@vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")</p>
+                }
             </div>
-            <div class="progress-review__toolbar-actions">
+            <div class="pr-report-header__actions">
                 <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#progress-review-range">Date range</button>
                 <button class="btn btn-primary btn-sm" type="button" data-action="print">
                     <i class="bi bi-printer me-1"></i>
@@ -108,22 +113,15 @@
         else
         {
             <article class="progress-review__canvas">
-                <header class="progress-review__document-header">
-                    <div>
-                        <p class="text-uppercase text-muted small fw-semibold mb-0">Reporting period</p>
-                        <h2 class="h6 mb-0">@vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")</h2>
-                    </div>
-                </header>
-
                 @* SECTION: Project progress buckets *@
                 <section class="progress-review__section pr-section" id="project-progress">
-                    <header class="progress-review__section-header">
-                        <div>
-                            <span class="progress-review__section-label pr-section-label" aria-hidden="true">Section 01</span>
-                            <h2 class="progress-review__section-title pr-section-title">Ongoing projects progress</h2>
-                            <div class="pr-section-divider"></div>
+                    @* SECTION: Unified section heading *@
+                    <header class="pr-section-header" aria-label="Ongoing projects progress summary">
+                        <div class="pr-section-header__left">
+                            <span class="pr-section-header__eyebrow" aria-hidden="true">Section 01</span>
+                            <h2 class="pr-section-header__title">Ongoing projects progress</h2>
                         </div>
-                        <p class="progress-review__section-meta pr-meta">@vm.Projects.Review.Summary.ProjectsInScope projects in scope</p>
+                        <p class="pr-section-header__meta mb-0">@vm.Projects.Review.Summary.ProjectsInScope projects in scope</p>
                     </header>
 
                     @if (vm.Projects.Review.Summary.ProjectsInScope == 0)
