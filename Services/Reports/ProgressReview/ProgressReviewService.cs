@@ -1525,27 +1525,15 @@ public sealed class ProgressReviewService : IProgressReviewService
                         i == includedStages.Count - 1));
                 }
 
-                var firstMovementDate = movementSteps
-                    .Where(step =>
-                        string.Equals(step.ResolutionKind, "ActualCompletion", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(step.ResolutionKind, "ActualStart", StringComparison.OrdinalIgnoreCase))
-                    .Select(step => step.DisplayDate)
-                    .Where(date => date.HasValue)
-                    .OrderBy(date => date)
-                    .FirstOrDefault();
-
                 return new ProjectMovementRowVm(
                     row.ProjectId,
                     row.ProjectName,
                     row.ProjectCategoryName,
                     movementSteps,
-                    row.MovementCountInRange,
-                    firstMovementDate,
-                    row.PresentStage.CurrentStageName);
+                    row.MovementCountInRange);
             })
             .Where(row => row.Steps.Count > 0)
             .OrderByDescending(r => r.MovementCount)
-            .ThenByDescending(r => r.FirstMovementDate)
             .ThenBy(r => r.ProjectName)
             .ToList();
 

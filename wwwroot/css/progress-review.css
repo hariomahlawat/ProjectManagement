@@ -20,7 +20,7 @@
 
 .progress-review-shell {
     background: var(--pr-background);
-    padding: 1.25rem 0 2.5rem;
+    padding: 1rem 0 2rem;
 }
 
 /* Page-scoped wide container for desktop-heavy report content */
@@ -68,10 +68,10 @@
 /* Main report canvas card */
 .progress-review__canvas {
     background: var(--pr-surface);
-    border: 1px solid rgba(15, 23, 42, 0.06);
+    border: 1px solid rgba(15, 23, 42, 0.05);
     border-radius: 0.9rem;
-    padding: 1.15rem 1.3rem 1.25rem;
-    box-shadow: 0 10px 24px rgba(15, 30, 65, 0.05);
+    padding: 1rem 1.2rem 1.15rem;
+    box-shadow: 0 6px 16px rgba(15, 30, 65, 0.04);
 }
 
 /* Header with reporting period and any meta */
@@ -81,8 +81,8 @@
     justify-content: space-between;
     gap: 0.85rem;
     border-bottom: 1px solid var(--pr-border);
-    padding-bottom: 0.65rem;
-    margin-bottom: 1rem;
+    padding-bottom: 0.55rem;
+    margin-bottom: 0.75rem;
 }
 
     .progress-review__document-header h2 {
@@ -167,7 +167,7 @@
    ========================================================= */
 
 .pr-section {
-    margin-top: 16px;
+    margin-top: 12px;
 }
 
 .pr-section + .pr-section {
@@ -465,66 +465,17 @@
 }
 
 /* =========================================================
-   SECTION: Section 01 executive review redesign
+   SECTION: Section 01 supporting tables
    ========================================================= */
 
-.pr-review-band {
-    border: 1px solid rgba(15, 23, 42, 0.06);
-    border-radius: 10px;
-    padding: 0.75rem 0.9rem;
-    background: #f8fafc;
-    margin-bottom: 0.7rem;
-}
-
-.pr-review-band__head {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 1rem;
-}
-
-.pr-review-band__title { font-weight: 600; color: var(--pm-text-contrast); font-size: 0.92rem; }
-.pr-review-band__period,
-.pr-review-band__scope { font-size: 0.82rem; color: var(--pr-muted); }
-
-.pr-review-metrics {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 0.45rem;
-    margin-top: 0.65rem;
-}
-
-.pr-review-metric {
-    background: rgba(255, 255, 255, 0.72);
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    border-radius: 8px;
-    padding: 0.35rem 0.5rem;
-    display: flex;
-    justify-content: space-between;
-    gap: 0.45rem;
-}
-
-.pr-review-metric__label { font-size: 0.8rem; color: var(--pr-muted); }
-.pr-review-metric__value { font-weight: 600; color: var(--pm-text-contrast); }
-.pr-review-band__insight { margin: 0.6rem 0 0; font-size: 0.86rem; }
-
-.pr-highlights,
 .pr-activity-table,
 .pr-attention-table {
-    border: 1px solid rgba(15, 23, 42, 0.05);
+    border: 1px solid rgba(15, 23, 42, 0.08);
     border-radius: 10px;
     background: #fff;
     padding: 0.75rem 0.9rem;
     margin-top: 0.7rem;
 }
-
-.pr-activity-table,
-.pr-attention-table {
-    border-color: rgba(15, 23, 42, 0.08);
-}
-
-.pr-highlight-list { display: grid; gap: 0.35rem; }
-.pr-highlight-item { font-size: 0.86rem; }
 
 /* =========================================================
    SECTION: Project movement board
@@ -532,11 +483,11 @@
 
 .pr-movement-board {
     background: var(--pm-card);
-    border: 1px solid rgba(15, 23, 42, 0.1);
+    border: 1px solid rgba(15, 23, 42, 0.08);
     border-radius: 0.95rem;
-    padding: 0.9rem 1rem 1rem;
-    margin-top: 0.75rem;
-    box-shadow: 0 10px 26px rgba(15, 30, 65, 0.05);
+    padding: 0.95rem 1.05rem 1.1rem;
+    margin-top: 0.45rem;
+    box-shadow: 0 8px 20px rgba(15, 30, 65, 0.04);
 }
 
 .pr-movement-board__header {
@@ -563,7 +514,7 @@
 .pr-movement-table__head,
 .pr-movement-table__row {
     display: grid;
-    grid-template-columns: minmax(240px, 1.35fr) minmax(130px, 0.7fr) minmax(620px, 3.3fr) 72px 130px 170px;
+    grid-template-columns: minmax(260px, 1.45fr) minmax(150px, 0.8fr) minmax(760px, 4.2fr) 72px;
     align-items: start;
     gap: 0.85rem;
 }
@@ -588,15 +539,12 @@
 
 .pr-movement-table__project,
 .pr-movement-table__category,
-.pr-movement-table__moves,
-.pr-movement-table__first,
-.pr-movement-table__current {
+.pr-movement-table__moves {
     padding-top: 0.15rem;
 }
 
 .pr-movement-table__category,
-.pr-movement-table__moves,
-.pr-movement-table__first {
+.pr-movement-table__moves {
     font-size: 0.86rem;
     color: var(--pm-text-secondary);
 }
@@ -685,17 +633,6 @@
     margin-right: 0.18rem;
 }
 
-.pr-stage-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.32rem 0.65rem;
-    border-radius: 0.7rem;
-    background: var(--pm-surface-mist);
-    color: var(--pm-primary);
-    font-size: 0.78rem;
-    font-weight: 600;
-}
-
 @media (max-width: 1199.98px) {
     .pr-movement-table {
         overflow-x: auto;
@@ -703,7 +640,7 @@
 
     .pr-movement-table__head,
     .pr-movement-table__row {
-        min-width: 1100px;
+        min-width: 980px;
     }
 }
 

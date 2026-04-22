@@ -150,9 +150,7 @@ public sealed record ProjectMovementRowVm(
     string ProjectName,
     string? ProjectCategoryName,
     IReadOnlyList<ProjectMovementStepVm> Steps,
-    int MovementCount,
-    DateOnly? FirstMovementDate,
-    string? CurrentStageName
+    int MovementCount
 );
 
 public sealed record ProjectMovementStepVm(
