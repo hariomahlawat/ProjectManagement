@@ -158,7 +158,8 @@ public sealed record ProjectMovementRowVm(
 public sealed record ProjectMovementStepVm(
     string StageCode,
     string StageName,
-    DateOnly? EventDate,
+    DateOnly? DisplayDate,
+    string? DisplayDateKind,
     bool IsTerminal,
     string ResolutionKind
 );

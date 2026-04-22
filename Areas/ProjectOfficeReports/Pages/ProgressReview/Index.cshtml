@@ -221,17 +221,18 @@
                                                     {
                                                         var step = row.Steps[i];
                                                         <div class="pr-stage-flow__step">
-                                                            <span class="pr-stage-chip @MovementStageTone(step.StageCode) @(step.IsTerminal ? "is-terminal" : "")">
+                                                            <span class="pr-stage-chip @MovementStageTone(step.StageCode) @(step.IsTerminal ? "is-terminal" : "")"
+                                                                  title="@step.ResolutionKind">
                                                                 @step.StageCode
                                                             </span>
                                                             <span class="pr-stage-flow__date">
-                                                                @if (step.EventDate.HasValue)
+                                                                @if (step.DisplayDate.HasValue && !string.IsNullOrWhiteSpace(step.DisplayDateKind))
                                                                 {
-                                                                    @FormatDay(step.EventDate.Value)
+                                                                    <span class="pr-stage-flow__date-kind">@step.DisplayDateKind[0]:</span>@FormatDay(step.DisplayDate.Value)
                                                                 }
                                                                 else
                                                                 {
-                                                                    @:Unresolved
+                                                                    @:&nbsp;
                                                                 }
                                                             </span>
                                                         </div>

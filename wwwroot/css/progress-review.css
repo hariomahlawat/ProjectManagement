@@ -656,6 +656,13 @@
     font-size: 0.72rem;
     color: var(--pr-muted);
     line-height: 1.1;
+    min-height: 1em;
+}
+
+.pr-stage-flow__date-kind {
+    font-weight: 600;
+    color: #5f6b7a;
+    margin-right: 0.18rem;
 }
 
 .pr-stage-badge {
