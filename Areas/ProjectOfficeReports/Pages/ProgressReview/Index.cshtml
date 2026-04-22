@@ -113,7 +113,6 @@
                         <p class="text-uppercase text-muted small fw-semibold mb-0">Reporting period</p>
                         <h2 class="h6 mb-0">@vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")</h2>
                     </div>
-                    
                 </header>
 
                 @* SECTION: Project progress buckets *@
@@ -133,55 +132,13 @@
                     }
                     else
                     {
-                        @* SECTION: Executive review band *@
-                        <div class="pr-review-band">
-                            <div class="pr-review-band__head">
-                                <div>
-                                    <div class="pr-review-band__title">Executive summary</div>
-                                    <div class="pr-review-band__period">
-                                        Review window: @vm.Range.From.ToString("dd MMM yyyy") to @vm.Range.To.ToString("dd MMM yyyy")
-                                    </div>
-                                </div>
-                                <div class="pr-review-band__scope">@vm.Projects.Review.Summary.ProjectsInScope in scope</div>
-                            </div>
-                            <div class="pr-review-metrics">
-                                <div class="pr-review-metric"><span class="pr-review-metric__label">Advanced</span><span class="pr-review-metric__value">@vm.Projects.Review.Summary.AdvancedCount</span></div>
-                                <div class="pr-review-metric"><span class="pr-review-metric__label">Active, no advancement</span><span class="pr-review-metric__value">@vm.Projects.Review.Summary.ActiveWithoutAdvancementCount</span></div>
-                                <div class="pr-review-metric"><span class="pr-review-metric__label">No movement</span><span class="pr-review-metric__value">@vm.Projects.Review.Summary.NoMovementCount</span></div>
-                                <div class="pr-review-metric"><span class="pr-review-metric__label">Attention</span><span class="pr-review-metric__value">@vm.Projects.Review.Summary.AttentionCount</span></div>
-                            </div>
-                            @if (!string.IsNullOrWhiteSpace(vm.Projects.Review.Summary.InterpretiveSummaryText))
-                            {
-                                <p class="pr-review-band__insight">@vm.Projects.Review.Summary.InterpretiveSummaryText</p>
-                            }
-                        </div>
-
-                        @* SECTION: Highlights this period *@
-                        @if (vm.Projects.Review.Highlights.Any())
-                        {
-                            <section class="pr-highlights" aria-label="Highlights this period">
-                                <h3 class="h6 mb-1">Highlights this period</h3>
-                                <ul class="pr-highlight-list list-unstyled mb-0">
-                                    @foreach (var highlight in vm.Projects.Review.Highlights)
-                                    {
-                                        var projectDetailsUrl = Url.Page("/Projects/Overview", new { id = highlight.ProjectId });
-                                        <li class="pr-highlight-item">
-                                            <a class="progress-review__link" href="@projectDetailsUrl">@highlight.ProjectName</a>
-                                            <span class="pr-body"> — @highlight.HighlightText</span>
-                                        </li>
-                                    }
-                                </ul>
-                            </section>
-                        }
-
                         @* SECTION: Project movement in this period *@
                         <section class="pr-movement-board" aria-label="Project movement in this period">
                             <div class="pr-movement-board__header">
                                 <div>
                                     <h3 class="h6 mb-1">Project movement in this period</h3>
                                     <p class="pr-meta mb-0">
-                                        Projects that moved from one stage to another between
-                                        @vm.Range.From.ToString("dd MMM yyyy") and @vm.Range.To.ToString("dd MMM yyyy").
+                                        Projects that advanced through workflow stages in the selected period.
                                     </p>
                                 </div>
                                 <div class="pr-movement-board__count">@vm.Projects.MovementBoard.TotalMovedProjects moved projects</div>
@@ -199,8 +156,6 @@
                                         <div>Category</div>
                                         <div>Stage movement during period</div>
                                         <div>Moves</div>
-                                        <div>First movement</div>
-                                        <div>Current stage</div>
                                     </div>
 
                                     @foreach (var row in vm.Projects.MovementBoard.Rows)
@@ -246,19 +201,6 @@
                                             </div>
 
                                             <div class="pr-movement-table__moves">@row.MovementCount</div>
-                                            <div class="pr-movement-table__first">
-                                                @(row.FirstMovementDate.HasValue ? row.FirstMovementDate.Value.ToString("dd MMM yyyy") : "—")
-                                            </div>
-                                            <div class="pr-movement-table__current">
-                                                @if (string.IsNullOrWhiteSpace(row.CurrentStageName))
-                                                {
-                                                    <span class="pr-stage-badge">Stage pending</span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="pr-stage-badge">@row.CurrentStageName</span>
-                                                }
-                                            </div>
                                         </article>
                                     }
                                 </div>
