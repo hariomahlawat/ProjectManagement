@@ -1277,19 +1277,80 @@ public sealed class ProgressReviewService : IProgressReviewService
         return movement.CompletedOn ?? movement.StartedOn;
     }
 
-    private static DateOnly? ResolveMovementBoardDate(ProjectResolvedStageVm stage)
+    private static ProjectMovementStepVm ResolveMovementBoardStep(
+        ProjectResolvedStageVm stage,
+        ProjectResolvedStageVm? previousStage,
+        ProjectResolvedStageVm? nextStage,
+        bool isTerminal)
     {
+        // SECTION: Actual event dates on resolved stage
         if (stage.CompletedOn.HasValue)
         {
-            return stage.CompletedOn.Value;
+            return new ProjectMovementStepVm(
+                stage.StageCode,
+                stage.StageName,
+                stage.CompletedOn.Value,
+                isTerminal,
+                "ActualCompletion");
         }
 
         if (stage.IsCurrent && stage.StartedOn.HasValue)
         {
-            return stage.StartedOn.Value;
+            return new ProjectMovementStepVm(
+                stage.StageCode,
+                stage.StageName,
+                stage.StartedOn.Value,
+                isTerminal,
+                "ActualStart");
         }
 
-        return null;
+        // SECTION: Inference for skipped/completed-undated stages
+        var status = (stage.Status ?? string.Empty).Trim();
+        var isSkipped = string.Equals(status, nameof(StageStatus.Skipped), StringComparison.OrdinalIgnoreCase);
+        var isCompleted = string.Equals(status, nameof(StageStatus.Completed), StringComparison.OrdinalIgnoreCase);
+
+        if (isSkipped || isCompleted)
+        {
+            if (previousStage?.CompletedOn is DateOnly previousCompleted)
+            {
+                return new ProjectMovementStepVm(
+                    stage.StageCode,
+                    stage.StageName,
+                    previousCompleted,
+                    isTerminal,
+                    "InferredFromPreviousCompletion");
+            }
+
+            var nextAnchor = nextStage?.StartedOn ?? nextStage?.CompletedOn;
+            if (nextAnchor.HasValue)
+            {
+                return new ProjectMovementStepVm(
+                    stage.StageCode,
+                    stage.StageName,
+                    nextAnchor.Value,
+                    isTerminal,
+                    "InferredFromNextAnchor");
+            }
+        }
+
+        // SECTION: Inference for current stage without actual start date
+        if (stage.IsCurrent && previousStage?.CompletedOn is DateOnly currentFallbackDate)
+        {
+            return new ProjectMovementStepVm(
+                stage.StageCode,
+                stage.StageName,
+                currentFallbackDate,
+                isTerminal,
+                "InferredFromPreviousCompletion");
+        }
+
+        // SECTION: Unresolved reporting date
+        return new ProjectMovementStepVm(
+            stage.StageCode,
+            stage.StageName,
+            null,
+            isTerminal,
+            "Unresolved");
     }
 
     // -----------------------------------------------------------------
@@ -1435,17 +1496,28 @@ public sealed class ProgressReviewService : IProgressReviewService
                 var includedStages = projectStages
                     .Where(stage =>
                         (stage.CompletedOn.HasValue && stage.CompletedOn.Value >= rangeFrom && stage.CompletedOn.Value <= rangeTo)
-                        || (stage.IsCurrent && stage.StartedOn.HasValue && stage.StartedOn.Value >= rangeFrom && stage.StartedOn.Value <= rangeTo))
+                        || (stage.IsCurrent && stage.StartedOn.HasValue && stage.StartedOn.Value >= rangeFrom && stage.StartedOn.Value <= rangeTo)
+                        || string.Equals(stage.Status, nameof(StageStatus.Skipped), StringComparison.OrdinalIgnoreCase)
+                        || (string.Equals(stage.Status, nameof(StageStatus.Completed), StringComparison.OrdinalIgnoreCase)
+                            && !stage.CompletedOn.HasValue
+                            && stage.RequiresBackfill))
                     .OrderBy(stage => stage.StageOrder)
                     .ToList();
 
-                var movementSteps = includedStages
-                    .Select((stage, index) => new ProjectMovementStepVm(
-                        stage.StageCode,
-                        stage.StageName,
-                        ResolveMovementBoardDate(stage),
-                        index == includedStages.Count - 1))
-                    .ToList();
+                // SECTION: Resolve authoritative movement path steps with adjacency inference
+                var movementSteps = new List<ProjectMovementStepVm>(includedStages.Count);
+                for (var i = 0; i < includedStages.Count; i++)
+                {
+                    var stage = includedStages[i];
+                    var previousStage = i > 0 ? includedStages[i - 1] : null;
+                    var nextStage = i < includedStages.Count - 1 ? includedStages[i + 1] : null;
+
+                    movementSteps.Add(ResolveMovementBoardStep(
+                        stage,
+                        previousStage,
+                        nextStage,
+                        i == includedStages.Count - 1));
+                }
 
                 var firstMovementDate = movementSteps
                     .Select(step => step.EventDate)
@@ -1497,11 +1569,12 @@ public sealed class ProgressReviewService : IProgressReviewService
                 stage.SortOrder,
                 stage.ActualStart,
                 stage.CompletedOn,
-                stage.Status
+                stage.Status,
+                stage.RequiresBackfill
             })
             .ToListAsync(cancellationToken);
 
-        return rows
+        var resolvedStages = rows
             .Select(stage =>
             {
                 workflowVersions.TryGetValue(stage.ProjectId, out var workflowVersion);
@@ -1514,8 +1587,33 @@ public sealed class ProgressReviewService : IProgressReviewService
                     stage.SortOrder,
                     stage.ActualStart,
                     stage.CompletedOn,
-                    stage.Status == StageStatus.InProgress);
+                    stage.Status.ToString(),
+                    stage.Status == StageStatus.InProgress,
+                    stage.RequiresBackfill);
             })
+            .ToList();
+
+        return NormalizeResolvedStages(resolvedStages);
+    }
+
+    private static IReadOnlyList<ProjectResolvedStageVm> NormalizeResolvedStages(
+        IReadOnlyList<ProjectResolvedStageVm> stages)
+    {
+        // SECTION: One authoritative stage row per project + stage code
+        return stages
+            .GroupBy(stage => new
+            {
+                stage.ProjectId,
+                StageCode = (stage.StageCode ?? string.Empty).Trim().ToUpperInvariant()
+            })
+            .Select(group => group
+                .OrderByDescending(x => x.CompletedOn.HasValue)
+                .ThenByDescending(x => x.StartedOn.HasValue)
+                .ThenByDescending(x => x.IsCurrent)
+                .ThenBy(x => x.StageOrder)
+                .First())
+            .OrderBy(stage => stage.ProjectId)
+            .ThenBy(stage => stage.StageOrder)
             .ToList();
     }
 

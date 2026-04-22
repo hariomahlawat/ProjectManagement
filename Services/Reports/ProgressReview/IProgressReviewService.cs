@@ -159,7 +159,8 @@ public sealed record ProjectMovementStepVm(
     string StageCode,
     string StageName,
     DateOnly? EventDate,
-    bool IsTerminal
+    bool IsTerminal,
+    string ResolutionKind
 );
 
 public sealed record ProjectResolvedStageVm(
@@ -169,7 +170,9 @@ public sealed record ProjectResolvedStageVm(
     int StageOrder,
     DateOnly? StartedOn,
     DateOnly? CompletedOn,
-    bool IsCurrent
+    string? Status,
+    bool IsCurrent,
+    bool RequiresBackfill
 );
 
 public sealed record ProjectCategoryGroupVm(
