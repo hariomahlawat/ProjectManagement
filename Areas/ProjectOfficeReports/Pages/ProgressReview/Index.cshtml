@@ -84,7 +84,7 @@
 }
 
 <div class="progress-review-shell" data-page-id="progress-review">
-    <div class="container-xxl">
+    <div class="pr-page">
         <div class="progress-review__toolbar">
             <div class="progress-review__title-block">
                 <p class="progress-review__eyebrow text-muted">Project office reports</p>
@@ -100,7 +100,7 @@
         </div>
     </div>
 
-    <div class="container-xxl">
+    <div class="pr-page">
         @if (vm is null)
         {
             <div class="alert alert-info">Unable to load progress data for the selected range.</div>
@@ -137,7 +137,7 @@
                         <div class="pr-review-band">
                             <div class="pr-review-band__head">
                                 <div>
-                                    <div class="pr-review-band__title">Ongoing projects progress</div>
+                                    <div class="pr-review-band__title">Executive summary</div>
                                     <div class="pr-review-band__period">
                                         Review window: @vm.Range.From.ToString("dd MMM yyyy") to @vm.Range.To.ToString("dd MMM yyyy")
                                     </div>
@@ -160,7 +160,7 @@
                         @if (vm.Projects.Review.Highlights.Any())
                         {
                             <section class="pr-highlights" aria-label="Highlights this period">
-                                <h3 class="h6 mb-2">Highlights this period</h3>
+                                <h3 class="h6 mb-1">Highlights this period</h3>
                                 <ul class="pr-highlight-list list-unstyled mb-0">
                                     @foreach (var highlight in vm.Projects.Review.Highlights)
                                     {
@@ -267,7 +267,7 @@
 
                         @* SECTION: Projects active in this period without stage advancement *@
                         <section class="pr-activity-table" aria-label="Projects active in this period without stage advancement">
-                            <h3 class="h6 mb-2">Projects active in this period without stage advancement</h3>
+                            <h3 class="h6 mb-1">Projects active in this period without stage advancement</h3>
                             @if (!vm.Projects.Review.ActiveWithoutAdvancement.Any())
                             {
                                 <p class="pr-meta mb-0">No projects were active-by-remark without stage movement.</p>
@@ -298,7 +298,7 @@
 
                         @* SECTION: Projects requiring attention *@
                         <section class="pr-attention-table" aria-label="Projects requiring attention">
-                            <h3 class="h6 mb-2">Projects requiring attention</h3>
+                            <h3 class="h6 mb-1">Projects requiring attention</h3>
                             @if (!vm.Projects.Review.Attention.Any())
                             {
                                 <p class="pr-meta mb-0">No projects currently in the attention bucket.</p>
