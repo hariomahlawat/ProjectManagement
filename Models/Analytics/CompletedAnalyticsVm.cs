@@ -7,8 +7,26 @@ public sealed class CompletedAnalyticsVm
     public required IReadOnlyList<AnalyticsCategoryCountPoint> ByTechnical { get; init; }
     public required IReadOnlyList<CompletedPerYearPoint> PerYear { get; init; }
     public required IReadOnlyList<CompletedPerYearByParentCategoryPoint> PerYearByParentCategory { get; init; }
+    public required IReadOnlyList<CompletedYearBoardItemVm> YearBoard { get; init; }
     public int TotalCompletedProjects { get; init; }
 }
+
+// SECTION: Completed year board DTOs
+public sealed record CompletedYearBoardProjectVm(
+    int ProjectId,
+    string ProjectName,
+    DateOnly? CompletedOn);
+
+public sealed record CompletedYearBoardCategoryVm(
+    string ParentCategoryName,
+    int CategoryCount,
+    IReadOnlyList<CompletedYearBoardProjectVm> Projects);
+
+public sealed record CompletedYearBoardItemVm(
+    int Year,
+    int YearCount,
+    IReadOnlyList<CompletedYearBoardCategoryVm> Categories);
+// END SECTION
 
 // SECTION: Shared analytics DTOs
 public sealed record AnalyticsCategoryCountPoint(string Name, int Count);

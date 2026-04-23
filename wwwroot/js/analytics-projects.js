@@ -412,7 +412,12 @@ function buildCategoryColorMapping(stackedPoints) {
 
 // SECTION: Ongoing stage board color sync
 function applyStageBoardCategoryColors(categoryColorMap = new Map()) {
-  const categoryDots = document.querySelectorAll('.analytics-stage-board__category-dot[data-category-name]');
+  applyCategoryDots('.analytics-stage-board__category-dot[data-category-name]', categoryColorMap);
+}
+
+// SECTION: Shared category dot color sync
+function applyCategoryDots(selector, categoryColorMap = new Map()) {
+  const categoryDots = document.querySelectorAll(selector);
   if (!categoryDots.length) {
     return;
   }
@@ -762,6 +767,8 @@ function initCompletedAnalytics() {
   if (perYearEl) {
     if (data.perYearByParentCategory?.length) {
       createCompletedPerYearStackedChart(perYearEl, data.perYearByParentCategory);
+      const { categoryColorMap } = buildCategoryColorMapping(data.perYearByParentCategory);
+      applyCategoryDots('.analytics-completed-board__category-dot[data-category-name]', categoryColorMap);
     } else if (data.perYear?.length) {
       createBarChart(perYearEl, {
         labels: data.perYear.map((point) => point.year?.toString() ?? ''),
