@@ -531,7 +531,12 @@ function getCompletedAnalyticsData() {
 }
 
 // SECTION: Completed analytics chart builders
-function createCompletedPerYearStackedChart(canvas, points) {
+function createCompletedPerYearStackedChart(
+  canvas,
+  points,
+  categoryColorMap = new Map(),
+  categoryOrder = []
+) {
   if (!canvas || !window.Chart || !Array.isArray(points) || !points.length) {
     return null;
   }
@@ -545,9 +550,18 @@ function createCompletedPerYearStackedChart(canvas, points) {
     (first, second) => first - second
   );
 
-  const categories = Array.from(
-    new Set(points.map((point) => point.categoryName))
-  ).sort((first, second) => first.localeCompare(second));
+  const detectedCategories = Array.from(
+    new Set(points.map((point) => point.categoryName ?? 'Unassigned'))
+  );
+  let categories = detectedCategories.sort((first, second) => first.localeCompare(second));
+
+  if (Array.isArray(categoryOrder) && categoryOrder.length) {
+    const orderedSet = categoryOrder.filter((category) => detectedCategories.includes(category));
+    const remainingCategories = detectedCategories.filter(
+      (category) => !orderedSet.includes(category)
+    );
+    categories = [...orderedSet, ...remainingCategories];
+  }
 
   const palette = getPalette();
   const accentColors = palette.accents && palette.accents.length ? palette.accents : paletteFallback;
@@ -556,11 +570,11 @@ function createCompletedPerYearStackedChart(canvas, points) {
     label: category,
     data: years.map((year) => {
       const match = points.find(
-        (point) => point.year === year && point.categoryName === category
+        (point) => point.year === year && (point.categoryName ?? 'Unassigned') === category
       );
       return ensureNumber(match?.count);
     }),
-    backgroundColor: accentColors[index % accentColors.length],
+    backgroundColor: categoryColorMap.get(category) ?? accentColors[index % accentColors.length],
     borderWidth: 1
   }));
 
@@ -766,8 +780,13 @@ function initCompletedAnalytics() {
 
   if (perYearEl) {
     if (data.perYearByParentCategory?.length) {
-      createCompletedPerYearStackedChart(perYearEl, data.perYearByParentCategory);
-      const { categoryColorMap } = buildCategoryColorMapping(data.perYearByParentCategory);
+      const { categoryColorMap, rankedCategories } = buildCategoryColorMapping(data.perYearByParentCategory);
+      createCompletedPerYearStackedChart(
+        perYearEl,
+        data.perYearByParentCategory,
+        categoryColorMap,
+        rankedCategories
+      );
       applyCategoryDots('.analytics-completed-board__category-dot[data-category-name]', categoryColorMap);
     } else if (data.perYear?.length) {
       createBarChart(perYearEl, {
