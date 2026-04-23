@@ -16,6 +16,13 @@
     --pr-background: var(--pm-surface-bg);
     /* Accent text when we need emphasis */
     --pr-accent: var(--pm-text-contrast);
+    /* Unified horizontal rail and panel inset system */
+    --pr-page-max-width: 1680px;
+    --pr-page-gutter: 1.5rem;
+    --pr-card-pad-hero-y: 1.125rem;
+    --pr-card-pad-hero-x: 1.25rem;
+    --pr-card-pad-standard-y: 1rem;
+    --pr-card-pad-standard-x: 1.125rem;
 }
 
 .progress-review-shell {
@@ -25,11 +32,10 @@
 
 /* Page-scoped wide container for desktop-heavy report content */
 .pr-page {
-    width: 100%;
-    max-width: none;
-    margin-inline: 0;
+    width: min(var(--pr-page-max-width), 100%);
+    margin-inline: auto;
     box-sizing: border-box;
-    padding-inline: 0;
+    padding-inline: var(--pr-page-gutter);
 }
 
 /* =========================================================
@@ -41,7 +47,9 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 1.1rem;
-    padding: 0.5rem 0 0.65rem;
+    padding: 0.5rem 0 0.75rem;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    margin-bottom: 0.75rem;
 }
 
 .pr-report-header__title-block {
@@ -114,22 +122,9 @@
 }
 
 .progress-review__section {
-    margin-top: 0.9rem;
+    margin-top: 1rem;
 }
 
-
-.progress-review__section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 0.85rem;
-    margin-bottom: 0.65rem;
-}
-
-.pr-section-divider {
-    border-top: 1px solid var(--pm-surface-haze);
-    margin-bottom: 10px;
-}
 
 .progress-review__stack {
     display: flex;
@@ -200,8 +195,8 @@
     align-items: flex-end;
     justify-content: space-between;
     gap: 1rem;
-    margin-bottom: 0.65rem;
-    padding-bottom: 0.35rem;
+    margin-bottom: 0.7rem;
+    padding-bottom: 0.45rem;
     border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
@@ -231,6 +226,8 @@
     font-size: 0.98rem;
     color: #64748b;
     white-space: nowrap;
+    text-align: right;
+    margin-left: auto;
 }
 
 /* =========================================================
@@ -247,14 +244,14 @@
     background: var(--pm-card);
     border: 1px solid var(--pm-surface-silver);
     border-radius: 10px;
-    overflow: hidden;
+    overflow: clip;
     box-shadow: inset 0 0 0 1px rgba(35, 43, 59, 0.02);
 }
 
 .pr-category-header {
     background: var(--pm-surface-mist);
     border-left: 3px solid var(--pm-text-gray-soft);
-    padding: 6px 10px;
+    padding: 0.55rem var(--pr-card-pad-standard-x);
     display: flex;
     justify-content: space-between;
     align-items: baseline;
@@ -340,7 +337,7 @@
 .pr-media-item {
     display: flex;
     gap: 0.75rem;
-    padding: 0.6rem 0;
+    padding: 0.65rem 0;
     border-top: 1px solid var(--pm-surface-ice);
 }
 
@@ -428,7 +425,7 @@
 .progress-review__mini-section {
     background: var(--pm-surface-plain);
     border-radius: 0.75rem;
-    padding: 0.75rem 0.9rem;
+    padding: 0.75rem 0.95rem;
     border: 1px solid var(--pm-surface-ice);
 }
 
@@ -477,8 +474,7 @@
     }
 
     .pr-page {
-        width: 100%;
-        padding-inline: 0;
+        padding-inline: 0.875rem;
     }
 
     .progress-review__canvas {
@@ -516,7 +512,7 @@
     border: 1px solid rgba(15, 23, 42, 0.08);
     border-radius: 10px;
     background: #fff;
-    padding: 0.75rem 0.9rem;
+    padding: var(--pr-card-pad-standard-y) var(--pr-card-pad-standard-x);
     margin-top: 0.7rem;
 }
 
@@ -528,7 +524,7 @@
     background: var(--pm-card);
     border: 1px solid rgba(15, 23, 42, 0.08);
     border-radius: 0.95rem;
-    padding: 0.95rem 1.05rem 1.1rem;
+    padding: var(--pr-card-pad-hero-y) var(--pr-card-pad-hero-x);
     margin-top: 0.2rem;
     box-shadow: 0 8px 20px rgba(15, 30, 65, 0.04);
 }
@@ -565,14 +561,14 @@
 .pr-movement-table__head {
     background: var(--pm-surface-mist);
     border-bottom: 1px solid var(--pm-surface-ice);
-    padding: 0.75rem 0.9rem;
+    padding: 0.75rem 1rem;
     font-size: 0.76rem;
     font-weight: 600;
     color: var(--pm-text-gray-soft);
 }
 
 .pr-movement-table__row {
-    padding: 0.78rem 0.9rem;
+    padding: 0.8rem 1rem;
     border-top: 1px solid var(--pm-surface-ice);
 }
 
@@ -702,3 +698,42 @@
 .pr-status-pill.is-watch { border-color: #8d8d8d; }
 .pr-status-pill.is-delayed { border-color: #6f6f6f; font-weight: 600; }
 .pr-status-pill.is-long-pending { border-color: #4f4f4f; font-weight: 700; }
+
+/* =========================================================
+   SECTION: Unified card rail & metadata alignment
+   ========================================================= */
+
+.pr-card {
+    width: 100%;
+}
+
+.pr-card--hero {
+    padding: var(--pr-card-pad-hero-y) var(--pr-card-pad-hero-x);
+}
+
+.pr-card--standard {
+    padding: var(--pr-card-pad-standard-y) var(--pr-card-pad-standard-x);
+}
+
+.progress-review__block {
+    padding: var(--pr-card-pad-standard-y) var(--pr-card-pad-standard-x);
+}
+
+.progress-review__block .table-responsive,
+.pr-activity-table .table-responsive,
+.pr-attention-table .table-responsive {
+    margin-inline: 0;
+}
+
+.pr-activity-table .table > :not(caption) > * > *,
+.pr-attention-table .table > :not(caption) > * > *,
+.progress-review__block .table > :not(caption) > * > * {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+}
+
+.pr-category-block > .list-unstyled,
+.pr-category-block > p.pr-meta {
+    padding-left: var(--pr-card-pad-standard-x) !important;
+    padding-right: var(--pr-card-pad-standard-x) !important;
+}
