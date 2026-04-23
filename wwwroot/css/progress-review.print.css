@@ -45,6 +45,7 @@
     .btn,
     .date-range-button,
     .progress-review__section-meta,
+    .pr-section-header__meta,
     .progress-review__section-subtitle {
         display: none !important;
     }
@@ -71,7 +72,8 @@
         break-inside: auto;
     }
 
-    .progress-review__section-header {
+    .progress-review__section-header,
+    .pr-section-header {
         page-break-after: avoid;
         break-after: avoid;
     }
