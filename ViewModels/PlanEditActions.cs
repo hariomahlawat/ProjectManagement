@@ -4,5 +4,6 @@ public static class PlanEditActions
 {
     public const string Calculate = "Calculate";
     public const string SaveDraft = "SaveDraft";
+    public const string SaveChanges = "SaveChanges";
     public const string Submit = "Submit";
 }
