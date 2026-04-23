@@ -49,7 +49,7 @@ public class NewModel : PageModel
     public int VisitPhotoMaxMb => Math.Max(1, (int)Math.Floor(VisitPhotoMaxBytes / 1024d / 1024d));
 
     public string VisitPhotoHelpText =>
-        $"JPEG, PNG or WebP up to {VisitPhotoMaxMb} MB each. You can select up to {VisitPhotoMaxFiles} files.";
+        $"JPEG, PNG or WebP up to {VisitPhotoMaxMb} MB each. You can select up to {VisitPhotoMaxFiles} files, or leave this empty and add photos later.";
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -59,7 +59,7 @@ public class NewModel : PageModel
     public string? UploadCaption { get; set; }
 
     [BindProperty]
-    public List<IFormFile> Uploads { get; set; } = new();
+    public List<IFormFile>? Uploads { get; set; }
 
     public IReadOnlyList<SelectListItem> VisitTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
