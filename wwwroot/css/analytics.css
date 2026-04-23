@@ -567,6 +567,73 @@
 }
 /* END SECTION */
 
+/* SECTION: Completed year board */
+.analytics-completed-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(250px, 1fr);
+  gap: 1rem;
+  margin-top: 1.25rem;
+  overflow-x: auto;
+  padding-bottom: 0.35rem;
+}
+
+.analytics-completed-board__year-column {
+  background: var(--pm-card);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 0.9rem;
+  padding: 0.85rem 1rem;
+}
+
+.analytics-completed-board__year-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--pm-text);
+}
+
+.analytics-completed-board__category-group + .analytics-completed-board__category-group {
+  margin-top: 0.8rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.analytics-completed-board__category-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.35rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--pm-muted);
+}
+
+.analytics-completed-board__category-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: #94a3b8;
+  flex: 0 0 auto;
+}
+
+.analytics-completed-board__project-list {
+  margin: 0;
+  padding-left: 1.05rem;
+}
+
+.analytics-completed-board__project-item {
+  margin: 0.12rem 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--pm-text);
+  overflow-wrap: anywhere;
+}
+
+.analytics-completed-board__empty {
+  margin-top: 1rem;
+}
+/* END SECTION */
+
 
 /* SECTION: Analytics roadmap / subcategory listing */
 .analytics-roadmap {

@@ -207,6 +207,7 @@ namespace ProjectManagement.Pages.Analytics
             var perYearByParentCategory = await BuildCompletedPerYearByParentCategoryAsync(
                 completedQuery,
                 cancellationToken);
+            var yearBoard = await BuildCompletedYearBoardAsync(completedQuery, cancellationToken);
 
             // SECTION: Completed per-year aggregation
             var completionDates = await completedQuery
@@ -228,6 +229,7 @@ namespace ProjectManagement.Pages.Analytics
                 ByTechnical = byTechnical,
                 PerYear = perYear,
                 PerYearByParentCategory = perYearByParentCategory,
+                YearBoard = yearBoard,
                 TotalCompletedProjects = await completedQuery.CountAsync(cancellationToken)
             };
             // END SECTION
@@ -712,6 +714,68 @@ namespace ProjectManagement.Pages.Analytics
                 .ThenBy(point => point.CategoryName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
+
+        // SECTION: Completed analytics year board aggregation
+        private async Task<IReadOnlyList<CompletedYearBoardItemVm>> BuildCompletedYearBoardAsync(
+            IQueryable<Project> completedQuery,
+            CancellationToken cancellationToken)
+        {
+            var rows = await completedQuery
+                .Select(project => new
+                {
+                    project.Id,
+                    project.Name,
+                    project.CompletedOn,
+                    project.CompletedYear,
+                    ParentCategoryName = project.CategoryId.HasValue
+                        ? (project.Category!.Parent != null
+                            ? project.Category.Parent.Name
+                            : project.Category.Name)
+                        : null
+                })
+                .ToListAsync(cancellationToken);
+
+            var shapedRows = rows
+                .Select(row => new
+                {
+                    row.Id,
+                    ProjectName = string.IsNullOrWhiteSpace(row.Name)
+                        ? "Untitled project"
+                        : row.Name.Trim(),
+                    row.CompletedOn,
+                    EffectiveYear = row.CompletedYear ?? row.CompletedOn?.Year,
+                    ParentCategoryName = string.IsNullOrWhiteSpace(row.ParentCategoryName)
+                        ? "Unassigned"
+                        : row.ParentCategoryName.Trim()
+                })
+                .Where(row => row.EffectiveYear.HasValue)
+                .ToList();
+
+            return shapedRows
+                .GroupBy(row => row.EffectiveYear!.Value)
+                .OrderBy(group => group.Key)
+                .Select(yearGroup => new CompletedYearBoardItemVm(
+                    yearGroup.Key,
+                    yearGroup.Count(),
+                    yearGroup
+                        .GroupBy(project => project.ParentCategoryName)
+                        .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                        .Select(categoryGroup => new CompletedYearBoardCategoryVm(
+                            categoryGroup.Key,
+                            categoryGroup.Count(),
+                            categoryGroup
+                                .OrderByDescending(project => project.CompletedOn.HasValue)
+                                .ThenByDescending(project => project.CompletedOn)
+                                .ThenBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
+                                .Select(project => new CompletedYearBoardProjectVm(
+                                    project.Id,
+                                    project.ProjectName,
+                                    project.CompletedOn))
+                                .ToList()))
+                        .ToList()))
+                .ToList();
+        }
+        // END SECTION
 
         private async Task<IReadOnlyDictionary<int, string>> LoadCategoryNamesAsync(
             IEnumerable<CategoryAggregation> aggregations,

@@ -39,6 +39,48 @@
                 <div class="analytics-chart-container">
                     <canvas id="completedPerYearChart" aria-label="Projects completed per year" role="img"></canvas>
                 </div>
+
+                @if (Model.YearBoard.Count == 0)
+                {
+                    <p class="analytics-card__empty-text analytics-completed-board__empty">
+                        No completed projects available for year-wise listing.
+                    </p>
+                }
+                else
+                {
+                    <section class="analytics-completed-board" aria-label="Completed projects grouped by year">
+                        @foreach (var yearItem in Model.YearBoard)
+                        {
+                            <article class="analytics-completed-board__year-column"
+                                     aria-label="@($"{yearItem.Year} with {yearItem.YearCount} completed projects")">
+                                <h3 class="analytics-completed-board__year-title">@yearItem.Year (@yearItem.YearCount)</h3>
+
+                                @foreach (var category in yearItem.Categories)
+                                {
+                                    <section class="analytics-completed-board__category-group"
+                                             aria-label="@($"{category.ParentCategoryName} with {category.CategoryCount} projects")">
+                                        <h4 class="analytics-completed-board__category-title">
+                                            <span class="analytics-completed-board__category-dot"
+                                                  data-category-name="@category.ParentCategoryName"
+                                                  aria-hidden="true"></span>
+                                            @category.ParentCategoryName (@category.CategoryCount)
+                                        </h4>
+
+                                        <ol class="analytics-completed-board__project-list">
+                                            @foreach (var project in category.Projects)
+                                            {
+                                                <li class="analytics-completed-board__project-item"
+                                                    title="@project.ProjectName">
+                                                    @project.ProjectName
+                                                </li>
+                                            }
+                                        </ol>
+                                    </section>
+                                }
+                            </article>
+                        }
+                    </section>
+                }
             </div>
         </article>
         <!-- END SECTION -->
