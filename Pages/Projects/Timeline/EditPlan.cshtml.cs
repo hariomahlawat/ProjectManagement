@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Models;
@@ -75,8 +76,9 @@ public class EditPlanModel : PageModel
         }
 
         var principal = _userContext.User;
-        var isAdmin = principal.IsInRole("Admin");
-        var isHoD = principal.IsInRole("HoD");
+        var isAdmin = principal.IsInRole(RoleNames.Admin);
+        var isHoD = principal.IsInRole(RoleNames.HoD);
+        var canDirectApply = isAdmin || isHoD;
 
         var project = await _db.Projects
             .AsNoTracking()
@@ -100,10 +102,10 @@ public class EditPlanModel : PageModel
 
         if (string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
         {
-            return await HandleDurationsAsync(id, userId, cancellationToken, workflowVersion);
+            return await HandleDurationsAsync(id, userId, cancellationToken, workflowVersion, canDirectApply);
         }
 
-        return await HandleExactAsync(id, userId, principal, cancellationToken, workflowVersion);
+        return await HandleExactAsync(id, userId, principal, cancellationToken, workflowVersion, canDirectApply);
     }
 
     public async Task<IActionResult> OnGetValidateAsync(int id, CancellationToken cancellationToken)
@@ -191,7 +193,7 @@ public class EditPlanModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    private async Task<IActionResult> HandleExactAsync(int id, string userId, ClaimsPrincipal principal, CancellationToken cancellationToken, string? workflowVersion)
+    private async Task<IActionResult> HandleExactAsync(int id, string userId, ClaimsPrincipal principal, CancellationToken cancellationToken, string? workflowVersion, bool canDirectApply)
     {
         var rows = Input.Rows ??= new List<PlanEditInputRow>();
 
@@ -216,6 +218,11 @@ public class EditPlanModel : PageModel
         }
 
         var action = NormalizeAction(Input.Action);
+        if (canDirectApply)
+        {
+            return await HandleExactDirectSaveAsync(id, userId, principal, rows, cancellationToken);
+        }
+
         var submitForApproval = string.Equals(action, PlanEditActions.Submit, StringComparison.OrdinalIgnoreCase);
 
         PlanVersion draft;
@@ -363,7 +370,7 @@ public class EditPlanModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    private async Task<IActionResult> HandleDurationsAsync(int id, string userId, CancellationToken ct, string? workflowVersion)
+    private async Task<IActionResult> HandleDurationsAsync(int id, string userId, CancellationToken ct, string? workflowVersion, bool canDirectApply)
     {
         var action = NormalizeAction(Input.Action);
         var calculateOnly = string.Equals(action, PlanEditActions.Calculate, StringComparison.OrdinalIgnoreCase);
@@ -504,6 +511,24 @@ public class EditPlanModel : PageModel
             id,
             _db.Database.GetConnectionString());
 
+        if (canDirectApply)
+        {
+            await EnsureProjectStagesExistAsync(id, rows.Select(r => r.Code), ct);
+            await _planGeneration.GenerateAsync(id, ct);
+
+            await _audit.LogAsync(
+                "Projects.PlanGeneratedFromDurations",
+                userId: userId,
+                data: new Dictionary<string, string?>
+                {
+                    ["ProjectId"] = id.ToString(CultureInfo.InvariantCulture),
+                    ["Action"] = PlanEditActions.SaveChanges
+                });
+
+            TempData["Flash"] = "Timeline plan updated.";
+            return RedirectToPage("/Projects/Overview", new { id });
+        }
+
         PlanVersion draft;
         try
         {
@@ -622,6 +647,150 @@ public class EditPlanModel : PageModel
     }
 
     private static string? FormatDate(DateOnly? value) => value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    // SECTION: Direct-save helpers for HoD/Admin
+    private async Task<IActionResult> HandleExactDirectSaveAsync(
+        int projectId,
+        string userId,
+        ClaimsPrincipal principal,
+        IReadOnlyCollection<PlanEditInputRow> rows,
+        CancellationToken cancellationToken)
+    {
+        var stageRows = await _db.ProjectStages
+            .Where(stage => stage.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+
+        var stageLookup = stageRows
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+            .ToDictionary(stage => stage.StageCode!, StringComparer.OrdinalIgnoreCase);
+
+        var stageOrderLookup = ProcurementWorkflow.BuildOrderLookup(await _db.Projects
+            .AsNoTracking()
+            .Where(project => project.Id == projectId)
+            .Select(project => project.WorkflowVersion)
+            .SingleOrDefaultAsync(cancellationToken));
+
+        var nextSortOrder = stageRows.Count > 0
+            ? stageRows.Max(stage => stage.SortOrder) + 1
+            : stageOrderLookup.Count;
+
+        var changes = new List<StageChange>();
+
+        foreach (var row in rows)
+        {
+            if (string.IsNullOrWhiteSpace(row.Code))
+            {
+                continue;
+            }
+
+            if (!stageLookup.TryGetValue(row.Code, out var stage))
+            {
+                stage = new ProjectStage
+                {
+                    ProjectId = projectId,
+                    StageCode = row.Code,
+                    Status = StageStatus.NotStarted,
+                    SortOrder = StageOrder(row.Code, stageOrderLookup, ref nextSortOrder)
+                };
+                _db.ProjectStages.Add(stage);
+                stageLookup[row.Code] = stage;
+            }
+
+            var previousStart = stage.PlannedStart;
+            var previousDue = stage.PlannedDue;
+            if (previousStart == row.PlannedStart && previousDue == row.PlannedDue)
+            {
+                continue;
+            }
+
+            stage.PlannedStart = row.PlannedStart;
+            stage.PlannedDue = row.PlannedDue;
+            changes.Add(new StageChange(row.Code, row.Name, previousStart, previousDue, row.PlannedStart, row.PlannedDue));
+        }
+
+        if (changes.Count > 0)
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            var userName = principal.Identity?.Name;
+
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+                ["ChangedStages"] = string.Join(";", changes.Select(change => change.Code)),
+                ["SaveMode"] = "Direct"
+            };
+
+            for (var index = 0; index < changes.Count; index++)
+            {
+                var change = changes[index];
+                var prefix = $"Stage[{index}]";
+                data[$"{prefix}.Code"] = change.Code;
+                data[$"{prefix}.Name"] = change.Name;
+                data[$"{prefix}.Start.Before"] = FormatDate(change.PreviousStart);
+                data[$"{prefix}.Start.After"] = FormatDate(change.NewStart);
+                data[$"{prefix}.Due.Before"] = FormatDate(change.PreviousDue);
+                data[$"{prefix}.Due.After"] = FormatDate(change.NewDue);
+            }
+
+            await _audit.LogAsync(
+                "Projects.PlanUpdated",
+                userId: userId,
+                userName: userName,
+                data: data);
+        }
+
+        TempData["Flash"] = changes.Count > 0
+            ? "Timeline plan updated."
+            : "Planned dates saved successfully.";
+        return RedirectToPage("/Projects/Overview", new { id = projectId });
+    }
+
+    // SECTION: Ensure timeline stages exist for direct generation
+    private async Task EnsureProjectStagesExistAsync(int projectId, IEnumerable<string?> stageCodes, CancellationToken cancellationToken)
+    {
+        var codes = stageCodes
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (codes.Length == 0)
+        {
+            return;
+        }
+
+        var existingCodes = await _db.ProjectStages
+            .AsNoTracking()
+            .Where(stage => stage.ProjectId == projectId && stage.StageCode != null)
+            .Select(stage => stage.StageCode!)
+            .ToListAsync(cancellationToken);
+
+        var existingSet = new HashSet<string>(existingCodes, StringComparer.OrdinalIgnoreCase);
+        var stageOrderLookup = ProcurementWorkflow.BuildOrderLookup(await _db.Projects
+            .AsNoTracking()
+            .Where(project => project.Id == projectId)
+            .Select(project => project.WorkflowVersion)
+            .SingleOrDefaultAsync(cancellationToken));
+        var extraSortStart = stageOrderLookup.Count;
+
+        foreach (var code in codes)
+        {
+            if (existingSet.Contains(code))
+            {
+                continue;
+            }
+
+            _db.ProjectStages.Add(new ProjectStage
+            {
+                ProjectId = projectId,
+                StageCode = code,
+                SortOrder = StageOrder(code, stageOrderLookup, ref extraSortStart),
+                Status = StageStatus.NotStarted
+            });
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
 
     // SECTION: Stage ordering helpers
     private static int StageOrder(string stageCode, IReadOnlyDictionary<string, int> stageOrderLookup, ref int extraSortStart)
