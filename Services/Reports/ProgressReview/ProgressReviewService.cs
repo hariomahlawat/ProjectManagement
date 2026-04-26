@@ -1615,6 +1615,12 @@ public sealed class ProgressReviewService : IProgressReviewService
 
     private static bool IsInRangeAnchor(ProjectResolvedStageVm stage, DateOnly rangeFrom, DateOnly rangeTo)
     {
+        // SECTION: Skipped stages are never eligible as movement anchors
+        if (IsSkipped(stage))
+        {
+            return false;
+        }
+
         // SECTION: Authoritative anchors that establish in-period movement
         return (stage.CompletedOn.HasValue && stage.CompletedOn.Value >= rangeFrom && stage.CompletedOn.Value <= rangeTo)
             || (stage.IsCurrent && stage.StartedOn.HasValue && stage.StartedOn.Value >= rangeFrom && stage.StartedOn.Value <= rangeTo);
