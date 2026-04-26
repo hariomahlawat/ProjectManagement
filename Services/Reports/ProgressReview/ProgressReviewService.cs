@@ -1516,12 +1516,15 @@ public sealed class ProgressReviewService : IProgressReviewService
                         i == includedStages.Count - 1));
                 }
 
+                // SECTION: Board-local moves count aligned with rendered steps
+                var boardMovesCount = movementSteps.Count;
+
                 return new ProjectMovementRowVm(
                     row.ProjectId,
                     row.ProjectName,
                     row.ProjectCategoryName,
                     movementSteps,
-                    row.MovementCountInRange);
+                    boardMovesCount);
             })
             .Where(row => row.Steps.Count > 0)
             .OrderByDescending(r => r.MovementCount)
