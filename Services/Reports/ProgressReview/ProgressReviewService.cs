@@ -1498,17 +1498,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                     projectStages = [];
                 }
 
-                // SECTION: Filter to period using resolved stage dates
-                var includedStages = projectStages
-                    .Where(stage =>
-                        (stage.CompletedOn.HasValue && stage.CompletedOn.Value >= rangeFrom && stage.CompletedOn.Value <= rangeTo)
-                        || (stage.IsCurrent && stage.StartedOn.HasValue && stage.StartedOn.Value >= rangeFrom && stage.StartedOn.Value <= rangeTo)
-                        || string.Equals(stage.Status, nameof(StageStatus.Skipped), StringComparison.OrdinalIgnoreCase)
-                        || (string.Equals(stage.Status, nameof(StageStatus.Completed), StringComparison.OrdinalIgnoreCase)
-                            && !stage.CompletedOn.HasValue
-                            && stage.RequiresBackfill))
-                    .OrderBy(stage => stage.StageOrder)
-                    .ToList();
+                // SECTION: Resolve board-included stages with sequence-aware suppression
+                var includedStages = ResolveIncludedStagesForMovementBoard(projectStages, rangeFrom, rangeTo);
 
                 // SECTION: Resolve authoritative movement path steps with adjacency inference
                 var movementSteps = new List<ProjectMovementStepVm>(includedStages.Count);
@@ -1538,6 +1529,116 @@ public sealed class ProgressReviewService : IProgressReviewService
             .ToList();
 
         return new ProjectMovementBoardVm(rows, rows.Count);
+    }
+
+    private static IReadOnlyList<ProjectResolvedStageVm> ResolveIncludedStagesForMovementBoard(
+        IReadOnlyList<ProjectResolvedStageVm> projectStages,
+        DateOnly rangeFrom,
+        DateOnly rangeTo)
+    {
+        // SECTION: Stage ordering for sequence-aware evaluation
+        var orderedStages = projectStages
+            .OrderBy(stage => stage.StageOrder)
+            .ToList();
+
+        if (orderedStages.Count == 0)
+        {
+            return [];
+        }
+
+        // SECTION: Identify authoritative in-range anchors
+        var inRangeAnchorIndexes = new HashSet<int>();
+        for (var i = 0; i < orderedStages.Count; i++)
+        {
+            if (IsInRangeAnchor(orderedStages[i], rangeFrom, rangeTo))
+            {
+                inRangeAnchorIndexes.Add(i);
+            }
+        }
+
+        if (inRangeAnchorIndexes.Count == 0)
+        {
+            return [];
+        }
+
+        // SECTION: Include anchors and only directly connected undated backfill-completed chain stages
+        var includedIndexes = new HashSet<int>(inRangeAnchorIndexes);
+        foreach (var anchorIndex in inRangeAnchorIndexes)
+        {
+            ExpandUndatedBackfillChain(
+                orderedStages,
+                includedIndexes,
+                anchorIndex,
+                direction: -1);
+
+            ExpandUndatedBackfillChain(
+                orderedStages,
+                includedIndexes,
+                anchorIndex,
+                direction: 1);
+        }
+
+        return includedIndexes
+            .OrderBy(index => index)
+            .Select(index => orderedStages[index])
+            .ToList();
+    }
+
+    private static void ExpandUndatedBackfillChain(
+        IReadOnlyList<ProjectResolvedStageVm> orderedStages,
+        ISet<int> includedIndexes,
+        int anchorIndex,
+        int direction)
+    {
+        // SECTION: Expand through undated completed-backfill stages until an authoritative boundary is reached
+        for (var i = anchorIndex + direction; i >= 0 && i < orderedStages.Count; i += direction)
+        {
+            var stage = orderedStages[i];
+            if (IsSkipped(stage))
+            {
+                break;
+            }
+
+            if (HasAuthoritativeDate(stage))
+            {
+                break;
+            }
+
+            if (!IsUndatedCompletedBackfill(stage))
+            {
+                break;
+            }
+
+            includedIndexes.Add(i);
+        }
+    }
+
+    private static bool IsInRangeAnchor(ProjectResolvedStageVm stage, DateOnly rangeFrom, DateOnly rangeTo)
+    {
+        // SECTION: Authoritative anchors that establish in-period movement
+        return (stage.CompletedOn.HasValue && stage.CompletedOn.Value >= rangeFrom && stage.CompletedOn.Value <= rangeTo)
+            || (stage.IsCurrent && stage.StartedOn.HasValue && stage.StartedOn.Value >= rangeFrom && stage.StartedOn.Value <= rangeTo);
+    }
+
+    private static bool HasAuthoritativeDate(ProjectResolvedStageVm stage)
+    {
+        // SECTION: Dated authoritative stage boundary
+        return stage.CompletedOn.HasValue || (stage.IsCurrent && stage.StartedOn.HasValue);
+    }
+
+    private static bool IsUndatedCompletedBackfill(ProjectResolvedStageVm stage)
+    {
+        // SECTION: Undated completed stage candidate
+        return !stage.CompletedOn.HasValue
+            && !stage.StartedOn.HasValue
+            && stage.RequiresBackfill
+            && string.Equals(stage.Status, nameof(StageStatus.Completed), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSkipped(ProjectResolvedStageVm stage)
+    {
+        // SECTION: Skipped stages are never shown on the movement board
+        return string.Equals(stage.Status, nameof(StageStatus.Skipped), StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<IReadOnlyList<ProjectResolvedStageVm>> LoadResolvedProjectStagesAsync(
