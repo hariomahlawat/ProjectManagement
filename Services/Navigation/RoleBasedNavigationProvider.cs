@@ -71,6 +71,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
+                Text = "Action tracker",
+                Page = "/ActionTasks/Index",
+                AuthorizationPolicy = "ActionTracker.Access",
+                Icon = "bi-list-task"
+            },
+            new()
+            {
                 Text = "Proliferation compendium",
                 Page = "/Projects/Compendium/Index",
                 Icon = "bi-file-earmark-pdf"

@@ -49,6 +49,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Activities;
 using ProjectManagement.Services.Analytics;
+using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Documents;
@@ -217,6 +218,10 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("DocRepo.Purge", policy =>
         policy.RequireRole(RoleNames.Admin));
 
+    // SECTION: Action tracker authorization policy
+    options.AddPolicy("ActionTracker.Access", policy =>
+        policy.RequireRole(RoleNames.Comdt, RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.Mco, RoleNames.Ta));
+
 
 });
 
@@ -378,6 +383,8 @@ builder.Services.AddScoped<IUserLifecycleService, UserLifecycleService>();
 builder.Services.AddHostedService<UserPurgeWorker>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddScoped<ITodoService, TodoService>();
+builder.Services.AddScoped<ActionTaskPermissionService>();
+builder.Services.AddScoped<IActionTaskService, ActionTaskService>();
 builder.Services.Configure<TodoOptions>(
     builder.Configuration.GetSection("Todo"));
 builder.Services.AddScoped<ILoginAnalyticsService, LoginAnalyticsService>();
