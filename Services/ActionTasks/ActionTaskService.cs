@@ -84,6 +84,12 @@ public class ActionTaskService : IActionTaskService
             throw new InvalidOperationException("Invalid status transition.");
         }
 
+        // SECTION: Role-governed close transition
+        if (string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase) && !_permission.CanClose(role))
+        {
+            throw new InvalidOperationException("You are not authorized to close this task.");
+        }
+
         var oldStatus = task.Status;
         task.Status = status;
         if (string.Equals(status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
@@ -102,6 +108,13 @@ public class ActionTaskService : IActionTaskService
     public async Task SubmitTaskAsync(int taskId, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
     {
         var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
+
+        // SECTION: Ownership and role authorization checks
+        if (!_permission.CanUpdateTask(role, userId, task.AssignedToUserId))
+        {
+            throw new InvalidOperationException("You are not authorized to submit this task.");
+        }
+
         if (!_permission.CanSubmit(role))
         {
             throw new InvalidOperationException("You are not authorized to submit this task.");
