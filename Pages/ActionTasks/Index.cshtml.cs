@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Services.ActionTasks;
@@ -153,12 +154,19 @@ public class IndexModel : PageModel
 
     private async Task<IReadOnlyList<UserOption>> LoadAssignableUsersAsync()
     {
-        var targets = AssignmentRoles;
+        // SECTION: Stabilize user snapshot to avoid overlapping data-reader operations
+        var targets = new HashSet<string>(AssignmentRoles, StringComparer.OrdinalIgnoreCase);
+        var users = await _users.Users
+            .OrderBy(x => x.UserName)
+            .Take(200)
+            .ToListAsync();
+
+        // SECTION: Resolve assignable users with role checks
         var list = new List<UserOption>();
-        foreach (var user in _users.Users.OrderBy(x => x.UserName).Take(200))
+        foreach (var user in users)
         {
             var roles = await _users.GetRolesAsync(user);
-            var matchedRole = roles.FirstOrDefault(r => targets.Contains(r));
+            var matchedRole = roles.FirstOrDefault(targets.Contains);
             if (matchedRole is null)
             {
                 continue;
