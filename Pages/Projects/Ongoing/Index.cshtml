@@ -628,16 +628,17 @@ else
                                     }
                                     else
                                     {
+                                        var externalRemark = latestExternalRemark!;
                                         <article class="ongoing-remarks__item">
                                             <div class="ongoing-remarks__body ongoing-remarks__body--collapsed">
-                                                @Html.Raw(RenderRemark(latestExternalRemark.Body))
+                                                @Html.Raw(RenderRemark(externalRemark.Body))
                                             </div>
                                             <div class="ongoing-remarks__meta">
-                                                <span class="ongoing-remarks__author">@latestExternalRemark!.AuthorDisplayName</span>
+                                                <span class="ongoing-remarks__author">@externalRemark.AuthorDisplayName</span>
                                                 <span class="ongoing-remarks__meta-sep">·</span>
-                                                <span>@latestExternalRemark.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
+                                                <span>@externalRemark.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
                                                 <span class="ongoing-remarks__meta-sep">·</span>
-                                                <span>Event: @latestExternalRemark.EventDate.ToString("dd-MMM-yyyy")</span>
+                                                <span>Event: @externalRemark.EventDate.ToString("dd-MMM-yyyy")</span>
                                             </div>
                                         </article>
                                     }

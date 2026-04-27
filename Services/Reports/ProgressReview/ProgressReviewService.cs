@@ -1889,7 +1889,7 @@ public sealed class ProgressReviewService : IProgressReviewService
         return await _db.Projects
             .AsNoTracking()
             .Where(project => projectIds.Contains(project.Id))
-            .ToDictionaryAsync(project => project.Id, project => project.WorkflowVersion, cancellationToken);
+            .ToDictionaryAsync(project => project.Id, project => (string?)project.WorkflowVersion, cancellationToken);
     }
 
     private string? BuildAttachmentUrl(string? storageKey)
