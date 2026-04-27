@@ -27,7 +27,7 @@ namespace ProjectManagement.Migrations
                     CreatedByRole = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     AssignedToRole = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     AssignedOn = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    DueDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    DueDate = table.Column<DateTime>(type: "date", nullable: false),
                     Priority = table.Column<string>(type: "character varying(24)", maxLength: 24, nullable: false),
                     Status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     SubmittedOn = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
@@ -57,6 +57,12 @@ namespace ProjectManagement.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ActionTaskAuditLogs", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ActionTaskAuditLogs_ActionTasks_TaskId",
+                        column: x => x.TaskId,
+                        principalTable: "ActionTasks",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateIndex(

@@ -87,7 +87,7 @@ public class ActionTaskService : IActionTaskService
         // SECTION: Role-governed close transition
         if (string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase) && !_permission.CanClose(role))
         {
-            throw new InvalidOperationException("You are not authorized to close this task.");
+            throw new InvalidOperationException("Only HoD/Comdt can close tasks.");
         }
 
         var oldStatus = task.Status;
@@ -110,9 +110,10 @@ public class ActionTaskService : IActionTaskService
         var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
 
         // SECTION: Ownership and role authorization checks
-        if (!_permission.CanUpdateTask(role, userId, task.AssignedToUserId))
+        if (!_permission.CanViewAll(role) &&
+            !string.Equals(task.AssignedToUserId, userId, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("You are not authorized to submit this task.");
+            throw new InvalidOperationException("Unauthorized access.");
         }
 
         if (!_permission.CanSubmit(role))

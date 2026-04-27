@@ -1820,6 +1820,8 @@ namespace ProjectManagement.Data
                 e.Property(x => x.AssignedToRole).IsRequired().HasMaxLength(64);
                 e.Property(x => x.Priority).IsRequired().HasMaxLength(24);
                 e.Property(x => x.Status).IsRequired().HasMaxLength(32);
+                // SECTION: Action task due dates are stored as date-only values
+                e.Property(x => x.DueDate).HasColumnType("date");
                 e.Property(x => x.IsDeleted).HasDefaultValue(false);
             });
 
@@ -1831,6 +1833,11 @@ namespace ProjectManagement.Data
                 e.Property(x => x.PerformedByUserId).IsRequired().HasMaxLength(450);
                 e.Property(x => x.PerformedByRole).IsRequired().HasMaxLength(64);
                 e.Property(x => x.Remarks).HasMaxLength(2000);
+                // SECTION: Enforce task-to-audit-log referential integrity
+                e.HasOne<ActionTaskItem>()
+                    .WithMany()
+                    .HasForeignKey(x => x.TaskId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<Celebration>(e =>
