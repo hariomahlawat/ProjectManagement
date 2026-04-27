@@ -1,0 +1,79 @@
+/* SECTION: Action Tracker shell */
+.at-shell {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 1rem;
+    min-height: 70vh;
+}
+
+.at-sidebar {
+    background: #0e2445;
+    color: #fff;
+    border-radius: 12px;
+    padding: 1rem;
+}
+
+.at-brand { font-size: 1.9rem; font-weight: 800; }
+.at-module { opacity: .8; margin-bottom: 1rem; }
+
+.at-nav { display: grid; gap: .45rem; }
+.at-nav a {
+    color: #c3d3ea;
+    text-decoration: none;
+    border-radius: 10px;
+    padding: .55rem .75rem;
+}
+.at-nav a:hover,
+.at-nav a.active {
+    color: #fff;
+    background: #1f4677;
+}
+
+/* SECTION: Header and cards */
+.at-content { padding-bottom: 1.5rem; }
+.at-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+.at-header h1 { margin: 0; }
+.at-header p { margin: 0; color: #62718c; }
+
+.at-kpis {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .75rem;
+    margin-bottom: 1rem;
+}
+
+.at-kpis article,
+.at-panel {
+    border: 1px solid #ccd8ea;
+    background: #fff;
+    border-radius: 12px;
+    padding: .9rem;
+}
+
+.at-kpis h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: #566a89;
+}
+
+.at-kpis strong {
+    font-size: 1.7rem;
+    color: #1f2e45;
+}
+
+/* SECTION: Table controls */
+.at-actions {
+    display: grid;
+    gap: .4rem;
+}
+
+@media (max-width: 1199px) {
+    .at-shell { grid-template-columns: 1fr; }
+    .at-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

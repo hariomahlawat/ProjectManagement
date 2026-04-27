@@ -49,6 +49,8 @@ namespace ProjectManagement.Data
         public DbSet<ProjectTechStatus> ProjectTechStatuses => Set<ProjectTechStatus>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
+        public DbSet<ActionTaskItem> ActionTasks => Set<ActionTaskItem>();
+        public DbSet<ActionTaskAuditLog> ActionTaskAuditLogs => Set<ActionTaskAuditLog>();
         public DbSet<Celebration> Celebrations => Set<Celebration>();
         public DbSet<AuthEvent> AuthEvents => Set<AuthEvent>();
         public DbSet<DailyLoginStat> DailyLoginStats => Set<DailyLoginStat>();
@@ -1803,6 +1805,32 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Status).HasDefaultValue(TodoStatus.Open);
                 e.Property(x => x.IsPinned).HasDefaultValue(false);
                 e.Property(x => x.OrderIndex).HasDefaultValue(0);
+            });
+
+            builder.Entity<ActionTaskItem>(e =>
+            {
+                e.HasIndex(x => new { x.AssignedToUserId, x.Status });
+                e.HasIndex(x => new { x.DueDate, x.Status });
+                e.HasIndex(x => x.IsDeleted);
+                e.Property(x => x.Title).IsRequired().HasMaxLength(200);
+                e.Property(x => x.Description).IsRequired().HasMaxLength(4000);
+                e.Property(x => x.CreatedByUserId).IsRequired().HasMaxLength(450);
+                e.Property(x => x.AssignedToUserId).IsRequired().HasMaxLength(450);
+                e.Property(x => x.CreatedByRole).IsRequired().HasMaxLength(64);
+                e.Property(x => x.AssignedToRole).IsRequired().HasMaxLength(64);
+                e.Property(x => x.Priority).IsRequired().HasMaxLength(24);
+                e.Property(x => x.Status).IsRequired().HasMaxLength(32);
+                e.Property(x => x.IsDeleted).HasDefaultValue(false);
+            });
+
+            builder.Entity<ActionTaskAuditLog>(e =>
+            {
+                e.HasIndex(x => new { x.TaskId, x.PerformedAt });
+                e.HasIndex(x => x.PerformedByUserId);
+                e.Property(x => x.ActionType).IsRequired().HasMaxLength(64);
+                e.Property(x => x.PerformedByUserId).IsRequired().HasMaxLength(450);
+                e.Property(x => x.PerformedByRole).IsRequired().HasMaxLength(64);
+                e.Property(x => x.Remarks).HasMaxLength(2000);
             });
 
             builder.Entity<Celebration>(e =>
