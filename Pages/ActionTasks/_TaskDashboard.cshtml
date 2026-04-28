@@ -1,0 +1,52 @@
+@model ProjectManagement.Pages.ActionTasks.IndexModel
+
+@* SECTION: Command overview KPI strip. *@
+<section class="at-kpis">
+    <article><h3>Active</h3><strong>@Model.ActiveCount</strong></article>
+    <article><h3>Overdue</h3><strong>@Model.OverdueCount</strong></article>
+    <article><h3>Blocked</h3><strong>@Model.BlockedCount</strong></article>
+    <article><h3>Submitted</h3><strong>@Model.SubmittedCount</strong></article>
+    <article><h3>Closed</h3><strong>@Model.ClosedCount</strong></article>
+</section>
+
+@* SECTION: Attention-required panels with compact task rows. *@
+<section class="at-section-group">
+    <h2 class="at-section-title">Attention Required</h2>
+    <div class="at-card-grid">
+        <article class="at-panel">
+            <div class="at-panel-heading">
+                <h3>Critical Open Tasks</h3>
+                <span class="at-count-chip">@Model.CriticalOpenTaskDisplays.Count</span>
+            </div>
+            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.CriticalOpenTaskDisplays, "No critical open tasks.")' />
+        </article>
+        <article class="at-panel">
+            <div class="at-panel-heading">
+                <h3>Overdue Tasks</h3>
+                <span class="at-count-chip">@Model.OverdueTaskDisplays.Count</span>
+            </div>
+            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.OverdueTaskDisplays, "No overdue tasks.")' />
+        </article>
+    </div>
+</section>
+
+@* SECTION: Recent activity panels with compact task rows. *@
+<section class="at-section-group">
+    <h2 class="at-section-title">Recent Activity</h2>
+    <div class="at-card-grid">
+        <article class="at-panel">
+            <div class="at-panel-heading">
+                <h3>Recently Submitted</h3>
+                <span class="at-count-chip">@Model.RecentlySubmittedTaskDisplays.Count</span>
+            </div>
+            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.RecentlySubmittedTaskDisplays, "No tasks pending recent submission.")' />
+        </article>
+        <article class="at-panel">
+            <div class="at-panel-heading">
+                <h3>Recently Updated</h3>
+                <span class="at-count-chip">@Model.RecentlyUpdatedTaskDisplays.Count</span>
+            </div>
+            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.RecentlyUpdatedTaskDisplays, "No recently updated tasks.")' />
+        </article>
+    </div>
+</section>

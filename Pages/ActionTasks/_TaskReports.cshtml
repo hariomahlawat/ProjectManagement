@@ -1,0 +1,60 @@
+@model ProjectManagement.Pages.ActionTasks.IndexModel
+
+@* SECTION: Reports KPI row. *@
+<section class="at-kpis at-kpis-reports">
+    <article><h3>Total Active</h3><strong>@Model.ActiveCount</strong><p>Pending tasks only.</p></article>
+    <article><h3>Overdue</h3><strong>@Model.OverdueCount</strong><p>Open tasks past due date.</p></article>
+    <article><h3>Blocked</h3><strong>@Model.BlockedCount</strong><p>Tasks requiring intervention.</p></article>
+    <article><h3>Submitted Pending Closure</h3><strong>@Model.SubmittedCount</strong><p>Awaiting command review.</p></article>
+    <article><h3>Closed</h3><strong>@Model.ClosedCount</strong><p>Completed and closed items.</p></article>
+    <article><h3>Critical Open</h3><strong>@Model.CriticalOpenCount</strong><p>High-priority attention required.</p></article>
+</section>
+
+@* SECTION: Reports summary panels (no chart dependency). *@
+<section class="at-card-grid at-card-grid-reports">
+    <article class="at-panel">
+        <h2>Status Distribution</h2>
+        <p class="at-panel-note">Tasks by current workflow status.</p>
+        <table class="table table-sm at-table mb-0">
+            <tbody>
+                @foreach (var item in Model.StatusCounts)
+                {
+                    <tr><td>@item.Name</td><td class="text-end">@item.Count</td></tr>
+                }
+            </tbody>
+        </table>
+    </article>
+    <article class="at-panel">
+        <h2>Priority Distribution</h2>
+        <p class="at-panel-note">Open tasks by priority.</p>
+        <table class="table table-sm at-table mb-0">
+            <tbody>
+                @foreach (var item in Model.PriorityCounts)
+                {
+                    <tr><td>@item.Name</td><td class="text-end">@item.Count</td></tr>
+                }
+            </tbody>
+        </table>
+    </article>
+    <article class="at-panel">
+        <h2>Assignee Workload</h2>
+        <p class="at-panel-note">Pending tasks only.</p>
+        <table class="table table-sm at-table mb-0">
+            <tbody>
+                @foreach (var item in Model.AssigneePendingCounts)
+                {
+                    <tr><td>@item.Name</td><td class="text-end">@item.Count</td></tr>
+                }
+            </tbody>
+        </table>
+    </article>
+    <article class="at-panel">
+        <h2>Attention Required</h2>
+        <p class="at-panel-note">Critical, overdue and blocked tasks requiring command focus.</p>
+        <div class="at-attention-list">
+            <div><span>Critical Open</span><strong>@Model.CriticalOpenCount</strong></div>
+            <div><span>Overdue</span><strong>@Model.OverdueCount</strong></div>
+            <div><span>Blocked</span><strong>@Model.BlockedCount</strong></div>
+        </div>
+    </article>
+</section>

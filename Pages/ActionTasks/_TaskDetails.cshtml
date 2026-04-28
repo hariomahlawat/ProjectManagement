@@ -1,0 +1,58 @@
+@model ProjectManagement.Pages.ActionTasks.IndexModel
+
+@* SECTION: Audit trail is visible only for an explicitly selected task. *@
+<section class="at-panel mt-3">
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+        <div class="at-detail-hero">
+            <div>
+                <div class="text-muted small">Task Details</div>
+                <h2>AT-@Model.TaskId.Value · @(Model.SelectedTask?.Title ?? "Task")</h2>
+            </div>
+            @if (Model.SelectedTask is not null)
+            {
+                <div class="d-flex gap-2 flex-wrap">
+                    <span class="@Model.GetStatusBadgeClass(Model.SelectedTask.Status)">@Model.SelectedTask.Status</span>
+                    <span class="@Model.GetPriorityBadgeClass(Model.SelectedTask.Priority)">@Model.SelectedTask.Priority</span>
+                    <span class="at-detail-due">Due @Model.SelectedTask.DueDate.ToString("dd MMM yyyy")</span>
+                </div>
+            }
+        </div>
+        <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="btn btn-outline-secondary btn-sm">Back to Task List</a>
+    </div>
+
+    @if (Model.SelectedTask is not null)
+    {
+        <div class="at-task-details-grid mb-3">
+            <div><span class="text-muted">Title</span><div class="fw-semibold">@Model.SelectedTask.Title</div></div>
+            <div><span class="text-muted">Assignee</span><div class="fw-semibold">@Model.ResolveAssigneeName(Model.SelectedTask.AssignedToUserId) (@Model.SelectedTask.AssignedToRole)</div></div>
+            <div class="at-grid-span-2"><span class="text-muted">Description</span><div class="fw-semibold">@Model.SelectedTask.Description</div></div>
+            <div><span class="text-muted">Created On</span><div class="fw-semibold">@Model.SelectedTask.AssignedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
+            <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@(Model.SelectedTask.SubmittedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
+            <div><span class="text-muted">Closed On</span><div class="fw-semibold">@(Model.SelectedTask.ClosedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
+        </div>
+    }
+
+    <h3 class="h5 mb-2">Task Audit Trail</h3>
+    <div class="at-audit-list">
+        @foreach (var log in Model.SelectedTaskLogs)
+        {
+            <div class="at-audit-item">
+                <div class="d-flex justify-content-between gap-2 flex-wrap">
+                    <div>
+                        <strong>@log.ActionType</strong>
+                        <span class="text-muted">by @log.PerformedByRole</span>
+                    </div>
+                    <div class="text-muted small">@log.PerformedAt.ToString("dd MMM yyyy, HH:mm")</div>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(log.OldValue) || !string.IsNullOrWhiteSpace(log.NewValue))
+                {
+                    <div class="small text-muted">@log.OldValue → @log.NewValue</div>
+                }
+                @if (!string.IsNullOrWhiteSpace(log.Remarks))
+                {
+                    <div class="at-audit-remarks">@log.Remarks</div>
+                }
+            </div>
+        }
+    </div>
+</section>

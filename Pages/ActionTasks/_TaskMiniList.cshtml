@@ -15,19 +15,20 @@
 }
 else
 {
-    <div class="at-task-cards">
+    <div class="at-mini-list">
         @foreach (var item in tasks)
         {
             var task = item.Task;
-            <article class="at-task-card">
-                <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@pageModel.ResolvedViewMode">AT-@task.Id · @task.Title</a>
-                <div class="small text-muted">@item.AssigneeName · @task.AssignedToRole</div>
-                <div class="small text-muted">Due @task.DueDate.ToString("dd MMM yyyy")</div>
-                <div class="d-flex gap-2 mt-2 flex-wrap">
+            <a class="at-mini-row" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@pageModel.ResolvedViewMode">
+                <div class="at-mini-title">AT-@task.Id · @task.Title</div>
+                <div class="at-mini-meta">
+                    <span>@item.AssigneeName</span>
+                    <span>·</span>
+                    <span>Due @task.DueDate.ToString("dd MMM yyyy")</span>
+                    <span>·</span>
                     <span class="@pageModel.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
-                    <span class="@pageModel.GetStatusBadgeClass(task.Status)">@task.Status</span>
                 </div>
-            </article>
+            </a>
         }
     </div>
 }

@@ -87,6 +87,24 @@ public class IndexModel : PageModel
     public bool IsKanbanView => string.Equals(ResolvedViewMode, "Kanban", StringComparison.OrdinalIgnoreCase);
     public bool IsSprintBoardView => string.Equals(ResolvedViewMode, "Sprint", StringComparison.OrdinalIgnoreCase);
     public bool IsReportsView => string.Equals(ResolvedViewMode, "Reports", StringComparison.OrdinalIgnoreCase);
+    public string PageHeading => ResolvedViewMode switch
+    {
+        "MyTasks" => "My Tasks",
+        "Sprint" => "Due Window Board",
+        "Kanban" => "Task Kanban Board",
+        "TaskList" => "Command Task Register",
+        "Reports" => "Task Performance Summary",
+        _ => "Command Task Dashboard"
+    };
+    public string PageSubtitle => ResolvedViewMode switch
+    {
+        "MyTasks" => "Tasks assigned to the logged-in user.",
+        "Sprint" => "Tasks grouped by due date and urgency.",
+        "Kanban" => "Tasks grouped by current workflow status.",
+        "TaskList" => "Filterable register of all visible tasks.",
+        "Reports" => "Summary of pending, critical, blocked and closed tasks.",
+        _ => "Command-level visibility of active, delayed and critical tasks."
+    };
 
     public IReadOnlyList<string> AssignmentRoles => ActionTaskRoleResolver.AllowedAssignmentRoles();
     public IReadOnlyList<string> AllowedStatusOptions => new[]
@@ -315,6 +333,54 @@ public class IndexModel : PageModel
             SelectedTaskLogs = await _service.GetTaskLogsAsync(TaskId.Value, CurrentUserId, CurrentRole);
         }
     }
+
+    // SECTION: Task display projections for richer UI cards and mini-lists.
+    public IReadOnlyList<TaskDisplayItem> CriticalOpenTaskDisplays =>
+        ToDisplayItems(CriticalOpenTasks);
+
+    public IReadOnlyList<TaskDisplayItem> OverdueTaskDisplays =>
+        ToDisplayItems(OverdueTasks);
+
+    public IReadOnlyList<TaskDisplayItem> RecentlySubmittedTaskDisplays =>
+        ToDisplayItems(RecentlySubmittedTasks);
+
+    public IReadOnlyList<TaskDisplayItem> RecentlyUpdatedTaskDisplays =>
+        ToDisplayItems(RecentlyUpdatedTasks);
+
+    public IReadOnlyList<TaskDisplayItem> KanbanAssignedTaskDisplays =>
+        ToDisplayItems(KanbanAssignedTasks);
+
+    public IReadOnlyList<TaskDisplayItem> KanbanInProgressTaskDisplays =>
+        ToDisplayItems(KanbanInProgressTasks);
+
+    public IReadOnlyList<TaskDisplayItem> KanbanBlockedTaskDisplays =>
+        ToDisplayItems(KanbanBlockedTasks);
+
+    public IReadOnlyList<TaskDisplayItem> KanbanSubmittedTaskDisplays =>
+        ToDisplayItems(KanbanSubmittedTasks);
+
+    public IReadOnlyList<TaskDisplayItem> KanbanClosedTaskDisplays =>
+        ToDisplayItems(KanbanClosedTasks);
+
+    public IReadOnlyList<TaskDisplayItem> DueTodayTaskDisplays =>
+        ToDisplayItems(DueTodayTasks);
+
+    public IReadOnlyList<TaskDisplayItem> DueThisWeekTaskDisplays =>
+        ToDisplayItems(DueThisWeekTasks);
+
+    public IReadOnlyList<TaskDisplayItem> DueLaterTaskDisplays =>
+        ToDisplayItems(DueLaterTasks);
+
+    public IReadOnlyList<TaskDisplayItem> SprintOverdueTaskDisplays =>
+        ToDisplayItems(SprintOverdueTasks);
+
+    // SECTION: KPI helpers for dashboard and reports.
+    public int ActiveCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
+    public int OverdueCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase) && t.DueDate.Date < DateTime.UtcNow.Date);
+    public int SubmittedCount => CountByStatus(ActionTaskStatuses.Submitted);
+    public int BlockedCount => CountByStatus(ActionTaskStatuses.Blocked);
+    public int ClosedCount => CountByStatus(ActionTaskStatuses.Closed);
+    public int CriticalOpenCount => CriticalOpenTasks.Count;
 
     private IReadOnlyList<ActionTaskItem> ApplyTaskListFilters(IReadOnlyList<ActionTaskItem> tasks)
     {
@@ -555,4 +621,19 @@ public class IndexModel : PageModel
 
     public sealed record UserOption(string UserId, string DisplayName, string Role);
     public sealed record CountSummary(string Name, int Count);
+    public sealed class TaskDisplayItem
+    {
+        public ActionTaskItem Task { get; init; } = default!;
+        public string AssigneeName { get; init; } = string.Empty;
+    }
+
+    private int CountByStatus(string status) =>
+        Tasks.Count(t => string.Equals(t.Status, status, StringComparison.OrdinalIgnoreCase));
+
+    private IReadOnlyList<TaskDisplayItem> ToDisplayItems(IReadOnlyList<ActionTaskItem> tasks) =>
+        tasks.Select(task => new TaskDisplayItem
+        {
+            Task = task,
+            AssigneeName = ResolveAssigneeName(task.AssignedToUserId)
+        }).ToList();
 }
