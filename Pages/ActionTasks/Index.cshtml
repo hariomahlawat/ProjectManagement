@@ -4,15 +4,14 @@
 @{
     ViewData["Title"] = "Task Tracker";
     ViewData["UseFullWidth"] = true;
-    var activeView = (Model.ViewMode ?? "Dashboard").Trim();
 
     int CountByStatus(string status) => Model.Tasks.Count(t => string.Equals(t.Status, status, StringComparison.OrdinalIgnoreCase));
-    var activeCount = Model.Tasks.Count(t => t.Status != ActionTaskStatuses.Closed);
-    var overdueCount = Model.Tasks.Count(t => t.Status != ActionTaskStatuses.Closed && t.DueDate < DateTime.UtcNow);
+    var activeCount = Model.Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
+    var overdueCount = Model.Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase) && t.DueDate.Date < DateTime.UtcNow.Date);
     var submittedCount = CountByStatus(ActionTaskStatuses.Submitted);
     var blockedCount = CountByStatus(ActionTaskStatuses.Blocked);
     var closedCount = CountByStatus(ActionTaskStatuses.Closed);
-
+    var selectedTaskTitle = Model.SelectedTask?.Title ?? "Task";
 }
 
 @section Styles {
@@ -20,24 +19,26 @@
 }
 
 <div class="at-shell">
+    @* SECTION: Left navigation with standardized route values. *@
     <aside class="at-sidebar">
         <div class="at-brand">PRISM ERP</div>
         <div class="at-module">Task Tracker</div>
 
         <nav class="at-nav">
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Dashboard" class="@(activeView == "Dashboard" ? "active" : string.Empty)">Dashboard</a>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="MyTasks" class="@(activeView == "MyTasks" ? "active" : string.Empty)">My Tasks</a>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="SprintBoard" class="@(activeView == "SprintBoard" ? "active" : string.Empty)">Sprint Board</a>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Kanban" class="@(activeView == "Kanban" ? "active" : string.Empty)">Kanban Board</a>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="@(activeView == "TaskList" ? "active" : string.Empty)">Task List</a>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Reports" class="@(activeView == "Reports" ? "active" : string.Empty)">Reports</a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Dashboard" class="@(Model.IsDashboardView ? "active" : string.Empty)">Dashboard</a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="MyTasks" class="@(Model.IsMyTasksView ? "active" : string.Empty)">My Tasks</a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Sprint" class="@(Model.IsSprintBoardView ? "active" : string.Empty)">Sprint Board</a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Kanban" class="@(Model.IsKanbanView ? "active" : string.Empty)">Kanban Board</a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="@(Model.IsTaskListView ? "active" : string.Empty)">Task List</a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Reports" class="@(Model.IsReportsView ? "active" : string.Empty)">Reports</a>
         </nav>
     </aside>
 
     <section class="at-content">
+        @* SECTION: Shared page header and create-task trigger. *@
         <header class="at-header">
             <div>
-                <h1>Command Task Dashboard</h1>
+                <h1>@(Model.IsTaskListView ? "Command Task Register" : Model.IsMyTasksView ? "My Tasks" : "Command Task Dashboard")</h1>
                 <p>Command-level task tracking with role-governed access and audit integrity.</p>
             </div>
             @if (Model.CanCreate)
@@ -46,6 +47,7 @@
             }
         </header>
 
+        @* SECTION: Create panel stays collapsed by default; opens for validation failures. *@
         @if (Model.CanCreate)
         {
             <section id="createTaskPanel" class="collapse @(Model.ShowCreatePanel ? "show" : string.Empty) at-panel mb-3">
@@ -56,7 +58,7 @@
                 }
                 <form method="post" asp-page-handler="Create" class="row g-3">
                     @* SECTION: Preserve selected view mode during postbacks. *@
-                    <input type="hidden" name="ViewMode" value="@activeView" />
+                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                     <div class="col-md-4">
                         <label asp-for="Input.Title" class="form-label"></label>
                         <input asp-for="Input.Title" class="form-control" />
@@ -100,110 +102,298 @@
             </section>
         }
 
-        <section class="at-kpis">
-            <article><h3>Active</h3><strong>@activeCount</strong></article>
-            <article><h3>Overdue</h3><strong>@overdueCount</strong></article>
-            <article><h3>Blocked</h3><strong>@blockedCount</strong></article>
-            <article><h3>Submitted</h3><strong>@submittedCount</strong></article>
-            <article><h3>Closed</h3><strong>@closedCount</strong></article>
-        </section>
+        @* SECTION: View-specific rendering. *@
+        @if (Model.IsDashboardView)
+        {
+            <section class="at-kpis">
+                <article><h3>Active</h3><strong>@activeCount</strong></article>
+                <article><h3>Overdue</h3><strong>@overdueCount</strong></article>
+                <article><h3>Blocked</h3><strong>@blockedCount</strong></article>
+                <article><h3>Submitted</h3><strong>@submittedCount</strong></article>
+                <article><h3>Closed</h3><strong>@closedCount</strong></article>
+            </section>
 
-        <section class="at-panel">
-            <h2>@(activeView == "MyTasks" ? "My Tasks" : "Task Register")</h2>
-            @if (!Model.Tasks.Any())
-            {
-                <div class="at-empty-state">
-                    <div class="fw-semibold">No tasks have been created yet.</div>
-                    <div class="text-muted">Use New Task to create the first task.</div>
-                </div>
-            }
-            else
-            {
-            <div class="table-responsive">
-                <table class="table table-sm align-middle">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Task</th>
-                            <th>Assignee</th>
-                            <th>Due Date</th>
-                            <th>Status</th>
-                            <th>Priority</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var task in Model.Tasks)
+            <section class="at-card-grid">
+                <article class="at-panel">
+                    <h2>Critical Open Tasks</h2>
+                    <ul class="at-simple-list">
+                        @foreach (var task in Model.CriticalOpenTasks)
                         {
-                            <tr>
-                                <td>AT-@task.Id</td>
-                                <td>
-                                    <a asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@activeView">@task.Title</a>
-                                    <div class="small text-muted">@task.Description</div>
-                                </td>
-                                <td>
-                                    <div class="fw-semibold">@(Model.TaskAssigneeNames.TryGetValue(task.AssignedToUserId, out var assigneeName) ? assigneeName : "User")</div>
-                                    <div class="text-muted small">@task.AssignedToRole</div>
-                                </td>
-                                <td>@task.DueDate.ToString("dd MMM yyyy")</td>
-                                <td>@task.Status</td>
-                                <td>@task.Priority</td>
-                                <td class="at-actions">
-                                    <div class="at-actions-stack">
-                                        @if (Model.CanSubmitTask(task))
-                                        {
-                                            <form method="post" asp-page-handler="Submit">
-                                                @* SECTION: Preserve list context while performing row actions. *@
-                                                <input type="hidden" name="ViewMode" value="@activeView" />
-                                                <input type="hidden" name="id" value="@task.Id" />
-                                                <button type="submit" class="btn btn-outline-warning btn-sm">Submit</button>
-                                            </form>
-                                        }
-                                        @if (Model.CanCloseTask(task))
-                                        {
-                                            <form method="post" asp-page-handler="Close">
-                                                @* SECTION: Preserve list context while performing row actions. *@
-                                                <input type="hidden" name="ViewMode" value="@activeView" />
-                                                <input type="hidden" name="id" value="@task.Id" />
-                                                <button type="submit" class="btn btn-outline-success btn-sm">Close</button>
-                                            </form>
-                                        }
-                                        @if (Model.CanUpdateTaskStatus(task))
-                                        {
-                                            <form method="post" asp-page-handler="UpdateStatus" class="at-status-form">
-                                                @* SECTION: Preserve list context while performing row actions. *@
-                                                <input type="hidden" name="ViewMode" value="@activeView" />
-                                                <input type="hidden" name="id" value="@task.Id" />
-                                                <select name="status" class="form-select form-select-sm">
-                                                    @foreach (var status in Model.AllowedStatusOptions)
-                                                    {
-                                                        if (task.Status == status)
-                                                        {
-                                                            <option value="@status" selected>@status</option>
-                                                        }
-                                                        else
-                                                        {
-                                                            <option value="@status">@status</option>
-                                                        }
-                                                    }
-                                                </select>
-                                                <button type="submit" class="btn btn-outline-primary btn-sm">Update</button>
-                                            </form>
-                                        }
-                                    </div>
-                                </td>
-                            </tr>
+                            <li><a asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">AT-@task.Id · @task.Title</a></li>
                         }
-                    </tbody>
-                </table>
-            </div>
+                    </ul>
+                </article>
+                <article class="at-panel">
+                    <h2>Overdue Tasks</h2>
+                    <ul class="at-simple-list">
+                        @foreach (var task in Model.OverdueTasks)
+                        {
+                            <li><a asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">AT-@task.Id · @task.Title</a></li>
+                        }
+                    </ul>
+                </article>
+                <article class="at-panel">
+                    <h2>Recently Submitted</h2>
+                    <ul class="at-simple-list">
+                        @foreach (var task in Model.RecentlySubmittedTasks)
+                        {
+                            <li><a asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">AT-@task.Id · @task.Title</a></li>
+                        }
+                    </ul>
+                </article>
+                <article class="at-panel">
+                    <h2>Recently Updated</h2>
+                    <ul class="at-simple-list">
+                        @foreach (var task in Model.RecentlyUpdatedTasks)
+                        {
+                            <li><a asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">AT-@task.Id · @task.Title</a></li>
+                        }
+                    </ul>
+                </article>
+            </section>
+        }
+        else if (Model.IsMyTasksView || Model.IsTaskListView)
+        {
+            @if (Model.IsTaskListView)
+            {
+                <section class="at-panel mb-3">
+                    <h2>Task List Filters</h2>
+                    <form method="get" class="row g-2">
+                        <input type="hidden" name="viewMode" value="TaskList" />
+                        <div class="col-md-2">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" name="FilterStatus">
+                                <option value="">All</option>
+                                @foreach (var status in Model.AllowedStatusOptions.Append(ActionTaskStatuses.Closed))
+                                {
+                                    @if (string.Equals(Model.FilterStatus, status, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        <option value="@status" selected>@status</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@status">@status</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Priority</label>
+                            <select class="form-select" name="FilterPriority">
+                                <option value="">All</option>
+                                @foreach (var priority in new[] { "Low", "Normal", "High", "Critical" })
+                                {
+                                    @if (string.Equals(Model.FilterPriority, priority, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        <option value="@priority" selected>@priority</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@priority">@priority</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Assignee</label>
+                            <select class="form-select" name="FilterAssigneeUserId">
+                                <option value="">All</option>
+                                @foreach (var assignee in Model.AssignableUsers)
+                                {
+                                    @if (string.Equals(Model.FilterAssigneeUserId, assignee.UserId, StringComparison.Ordinal))
+                                    {
+                                        <option value="@assignee.UserId" selected>@assignee.DisplayName (@assignee.Role)</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@assignee.UserId">@assignee.DisplayName (@assignee.Role)</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Due Date</label>
+                            <input type="date" class="form-control" name="FilterDueDate" value="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Search by title</label>
+                            <input type="text" class="form-control" name="FilterSearch" value="@Model.FilterSearch" />
+                        </div>
+                        <div class="col-12 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">Apply Filters</button>
+                            <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="btn btn-outline-secondary btn-sm">Reset</a>
+                        </div>
+                    </form>
+                </section>
             }
-        </section>
 
+            <section class="at-panel">
+                <h2>@(Model.IsMyTasksView ? "My Tasks" : "Task Register")</h2>
+                @if (!Model.Tasks.Any())
+                {
+                    <div class="at-empty-state">
+                        <div class="fw-semibold">No tasks available for this view.</div>
+                        <div class="text-muted">Try adjusting filters or create a task.</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm at-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Task</th>
+                                    <th>Assignee</th>
+                                    <th>Due Date</th>
+                                    <th>Status</th>
+                                    <th>Priority</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var task in Model.Tasks)
+                                {
+                                    <tr>
+                                        <td><a asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">AT-@task.Id</a></td>
+                                        <td>
+                                            <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">@task.Title</a>
+                                            <div class="at-task-desc">@task.Description</div>
+                                        </td>
+                                        <td>
+                                            <div class="fw-semibold">@Model.ResolveAssigneeName(task.AssignedToUserId)</div>
+                                            <div class="text-muted small">@task.AssignedToRole</div>
+                                        </td>
+                                        <td>@task.DueDate.ToString("dd MMM yyyy")</td>
+                                        <td><span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span></td>
+                                        <td><span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span></td>
+                                        <td class="at-actions">
+                                            <div class="at-actions-stack">
+                                                @if (Model.CanSubmitTask(task))
+                                                {
+                                                    <form method="post" asp-page-handler="Submit">
+                                                        @* SECTION: Preserve list context while performing row actions. *@
+                                                        <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                                                        <input type="hidden" name="id" value="@task.Id" />
+                                                        <button type="submit" class="btn btn-outline-warning btn-sm">Submit</button>
+                                                    </form>
+                                                }
+                                                @if (Model.CanCloseTask(task))
+                                                {
+                                                    <form method="post" asp-page-handler="Close">
+                                                        @* SECTION: Preserve list context while performing row actions. *@
+                                                        <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                                                        <input type="hidden" name="id" value="@task.Id" />
+                                                        <button type="submit" class="btn btn-outline-success btn-sm">Close</button>
+                                                    </form>
+                                                }
+                                                @if (Model.CanUpdateTaskStatus(task))
+                                                {
+                                                    <form method="post" asp-page-handler="UpdateStatus" class="at-status-form">
+                                                        @* SECTION: Preserve list context while performing row actions. *@
+                                                        <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                                                        <input type="hidden" name="id" value="@task.Id" />
+                                                        <select name="status" class="form-select form-select-sm">
+                                                            @foreach (var status in Model.AllowedStatusOptions)
+                                                            {
+                                                                if (task.Status == status)
+                                                                {
+                                                                    <option value="@status" selected>@status</option>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <option value="@status">@status</option>
+                                                                }
+                                                            }
+                                                        </select>
+                                                        <button type="submit" class="btn btn-outline-primary btn-sm">Update</button>
+                                                    </form>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        }
+        else if (Model.IsKanbanView)
+        {
+            <section class="at-board-grid">
+                <article class="at-panel at-board-column"><h2>Assigned</h2>@await Html.PartialAsync("_TaskCards", Model.KanbanAssignedTasks)</article>
+                <article class="at-panel at-board-column"><h2>In Progress</h2>@await Html.PartialAsync("_TaskCards", Model.KanbanInProgressTasks)</article>
+                <article class="at-panel at-board-column"><h2>Blocked</h2>@await Html.PartialAsync("_TaskCards", Model.KanbanBlockedTasks)</article>
+                <article class="at-panel at-board-column"><h2>Submitted</h2>@await Html.PartialAsync("_TaskCards", Model.KanbanSubmittedTasks)</article>
+                <article class="at-panel at-board-column"><h2>Closed</h2>@await Html.PartialAsync("_TaskCards", Model.KanbanClosedTasks)</article>
+            </section>
+        }
+        else if (Model.IsSprintBoardView)
+        {
+            <section class="at-board-grid at-board-grid-sprint">
+                <article class="at-panel at-board-column"><h2>Due Today</h2>@await Html.PartialAsync("_TaskCards", Model.DueTodayTasks)</article>
+                <article class="at-panel at-board-column"><h2>Due This Week</h2>@await Html.PartialAsync("_TaskCards", Model.DueThisWeekTasks)</article>
+                <article class="at-panel at-board-column"><h2>Due Later</h2>@await Html.PartialAsync("_TaskCards", Model.DueLaterTasks)</article>
+                <article class="at-panel at-board-column"><h2>Overdue</h2>@await Html.PartialAsync("_TaskCards", Model.SprintOverdueTasks)</article>
+            </section>
+        }
+        else if (Model.IsReportsView)
+        {
+            <section class="at-kpis at-kpis-reports">
+                <article><h3>Total Active</h3><strong>@activeCount</strong></article>
+                <article><h3>Overdue</h3><strong>@overdueCount</strong></article>
+                <article><h3>Blocked</h3><strong>@blockedCount</strong></article>
+                <article><h3>Submitted Pending Closure</h3><strong>@submittedCount</strong></article>
+                <article><h3>Closed</h3><strong>@closedCount</strong></article>
+                <article><h3>Critical Open</h3><strong>@Model.CriticalOpenTasks.Count</strong></article>
+            </section>
+
+            <section class="at-card-grid">
+                <article class="at-panel">
+                    <h2>Assignee-wise Pending Tasks</h2>
+                    <table class="table table-sm at-table mb-0">
+                        <tbody>
+                            @foreach (var item in Model.AssigneePendingCounts)
+                            {
+                                <tr><td>@item.Name</td><td class="text-end">@item.Count</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </article>
+                <article class="at-panel">
+                    <h2>Priority-wise Task Count</h2>
+                    <table class="table table-sm at-table mb-0">
+                        <tbody>
+                            @foreach (var item in Model.PriorityCounts)
+                            {
+                                <tr><td>@item.Name</td><td class="text-end">@item.Count</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </article>
+                <article class="at-panel">
+                    <h2>Status-wise Task Count</h2>
+                    <table class="table table-sm at-table mb-0">
+                        <tbody>
+                            @foreach (var item in Model.StatusCounts)
+                            {
+                                <tr><td>@item.Name</td><td class="text-end">@item.Count</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </article>
+            </section>
+        }
+
+        @* SECTION: Audit trail is visible only for an explicitly selected task. *@
         @if (Model.TaskId.HasValue)
         {
             <section class="at-panel mt-3">
-                <h2>Task Audit Trail (AT-@Model.TaskId.Value)</h2>
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                    <h2 class="mb-0">Task Audit Trail: AT-@Model.TaskId.Value - @selectedTaskTitle</h2>
+                    <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="btn btn-outline-secondary btn-sm">Back to Task List</a>
+                </div>
                 <ul class="list-group list-group-flush">
                     @foreach (var log in Model.SelectedTaskLogs)
                     {
