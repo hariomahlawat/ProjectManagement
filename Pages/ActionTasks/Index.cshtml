@@ -11,7 +11,6 @@
     var submittedCount = CountByStatus(ActionTaskStatuses.Submitted);
     var blockedCount = CountByStatus(ActionTaskStatuses.Blocked);
     var closedCount = CountByStatus(ActionTaskStatuses.Closed);
-    var selectedTaskTitle = Model.SelectedTask?.Title ?? "Task";
 }
 
 @section Styles {
@@ -271,19 +270,21 @@
                                             <div class="at-actions-stack">
                                                 @if (Model.CanSubmitTask(task))
                                                 {
-                                                    <form method="post" asp-page-handler="Submit">
+                                                    <form method="post" asp-page-handler="Submit" class="at-inline-action-form">
                                                         @* SECTION: Preserve list context while performing row actions. *@
                                                         <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                                                         <input type="hidden" name="id" value="@task.Id" />
+                                                        <input name="remarks" class="form-control form-control-sm" placeholder="Submission remarks" maxlength="300" />
                                                         <button type="submit" class="btn btn-outline-warning btn-sm">Submit</button>
                                                     </form>
                                                 }
                                                 @if (Model.CanCloseTask(task))
                                                 {
-                                                    <form method="post" asp-page-handler="Close">
+                                                    <form method="post" asp-page-handler="Close" class="at-inline-action-form">
                                                         @* SECTION: Preserve list context while performing row actions. *@
                                                         <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                                                         <input type="hidden" name="id" value="@task.Id" />
+                                                        <input name="remarks" class="form-control form-control-sm" placeholder="Closure remarks" maxlength="300" />
                                                         <button type="submit" class="btn btn-outline-success btn-sm">Close</button>
                                                     </form>
                                                 }
@@ -306,6 +307,7 @@
                                                                 }
                                                             }
                                                         </select>
+                                                        <input name="remarks" class="form-control form-control-sm" placeholder="Remarks" maxlength="300" />
                                                         <button type="submit" class="btn btn-outline-primary btn-sm">Update</button>
                                                     </form>
                                                 }
@@ -391,21 +393,49 @@
         {
             <section class="at-panel mt-3">
                 <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-                    <h2 class="mb-0">Task Audit Trail: AT-@Model.TaskId.Value - @selectedTaskTitle</h2>
+                    <h2 class="mb-0">Task Details: AT-@Model.TaskId.Value</h2>
                     <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="btn btn-outline-secondary btn-sm">Back to Task List</a>
                 </div>
-                <ul class="list-group list-group-flush">
+
+                @if (Model.SelectedTask is not null)
+                {
+                    <div class="at-task-details-grid mb-3">
+                        <div><span class="text-muted">Task ID</span><div class="fw-semibold">AT-@Model.SelectedTask.Id</div></div>
+                        <div><span class="text-muted">Title</span><div class="fw-semibold">@Model.SelectedTask.Title</div></div>
+                        <div><span class="text-muted">Description</span><div class="fw-semibold">@Model.SelectedTask.Description</div></div>
+                        <div><span class="text-muted">Assignee</span><div class="fw-semibold">@Model.ResolveAssigneeName(Model.SelectedTask.AssignedToUserId) (@Model.SelectedTask.AssignedToRole)</div></div>
+                        <div><span class="text-muted">Priority</span><div class="fw-semibold">@Model.SelectedTask.Priority</div></div>
+                        <div><span class="text-muted">Status</span><div class="fw-semibold">@Model.SelectedTask.Status</div></div>
+                        <div><span class="text-muted">Due Date</span><div class="fw-semibold">@Model.SelectedTask.DueDate.ToString("dd MMM yyyy")</div></div>
+                        <div><span class="text-muted">Created On</span><div class="fw-semibold">@Model.SelectedTask.CreatedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
+                        <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@(Model.SelectedTask.SubmittedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
+                        <div><span class="text-muted">Closed On</span><div class="fw-semibold">@(Model.SelectedTask.ClosedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
+                    </div>
+                }
+
+                <h3 class="h5 mb-2">Task Audit Trail</h3>
+                <div class="at-audit-list">
                     @foreach (var log in Model.SelectedTaskLogs)
                     {
-                        <li class="list-group-item">
-                            <strong>@log.ActionType</strong> by @log.PerformedByRole on @log.PerformedAt.ToString("dd MMM yyyy HH:mm")
+                        <div class="at-audit-item">
+                            <div class="d-flex justify-content-between gap-2 flex-wrap">
+                                <div>
+                                    <strong>@log.ActionType</strong>
+                                    <span class="text-muted">by @log.PerformedByRole</span>
+                                </div>
+                                <div class="text-muted small">@log.PerformedAt.ToString("dd MMM yyyy, HH:mm")</div>
+                            </div>
                             @if (!string.IsNullOrWhiteSpace(log.OldValue) || !string.IsNullOrWhiteSpace(log.NewValue))
                             {
                                 <div class="small text-muted">@log.OldValue → @log.NewValue</div>
                             }
-                        </li>
+                            @if (!string.IsNullOrWhiteSpace(log.Remarks))
+                            {
+                                <div class="at-audit-remarks">@log.Remarks</div>
+                            }
+                        </div>
                     }
-                </ul>
+                </div>
             </section>
         }
     </section>
