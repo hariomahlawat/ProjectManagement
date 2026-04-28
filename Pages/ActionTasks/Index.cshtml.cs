@@ -47,6 +47,8 @@ public class IndexModel : PageModel
     public IReadOnlyList<CountSummary> AssigneePendingCounts { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> PriorityCounts { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> StatusCounts { get; private set; } = Array.Empty<CountSummary>();
+    public IReadOnlyList<CountSummary> OpenAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
+    public IReadOnlyList<CountSummary> OverdueAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
 
     [BindProperty(SupportsGet = true)]
     public string? ViewMode { get; set; } = "Dashboard";
@@ -387,6 +389,15 @@ public class IndexModel : PageModel
     public int BlockedCount => CountByStatus(ActionTaskStatuses.Blocked);
     public int ClosedCount => CountByStatus(ActionTaskStatuses.Closed);
     public int CriticalOpenCount => CriticalOpenTasks.Count;
+    public int StatusCountsMax => StatusCounts.Count == 0 ? 0 : StatusCounts.Max(x => x.Count);
+    public int PriorityCountsMax => PriorityCounts.Count == 0 ? 0 : PriorityCounts.Max(x => x.Count);
+    public int AssigneePendingCountsMax => AssigneePendingCounts.Count == 0 ? 0 : AssigneePendingCounts.Max(x => x.Count);
+    public int OpenAgeingBucketsMax => OpenAgeingBuckets.Count == 0 ? 0 : OpenAgeingBuckets.Max(x => x.Count);
+    public int OverdueAgeingBucketsMax => OverdueAgeingBuckets.Count == 0 ? 0 : OverdueAgeingBuckets.Max(x => x.Count);
+
+    // SECTION: Percentage helper for CSS bar-width calculations.
+    public int ToPercent(int value, int max) =>
+        max <= 0 ? 0 : (int)Math.Round((double)value / max * 100);
 
     private IReadOnlyList<ActionTaskItem> ApplyTaskListFilters(IReadOnlyList<ActionTaskItem> tasks)
     {
@@ -494,6 +505,11 @@ public class IndexModel : PageModel
 
     private void BuildReportCollections(IReadOnlyList<ActionTaskItem> tasks)
     {
+        var utcToday = DateTime.UtcNow.Date;
+        var openTasks = tasks
+            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
         AssigneePendingCounts = tasks
             .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
             .GroupBy(t => ResolveAssigneeName(t.AssignedToUserId))
@@ -512,6 +528,23 @@ public class IndexModel : PageModel
             .OrderByDescending(group => group.Count())
             .Select(group => new CountSummary(group.Key, group.Count()))
             .ToList();
+
+        // SECTION: Open-task ageing buckets for command trend analysis.
+        OpenAgeingBuckets = new[]
+        {
+            new CountSummary("0 to 3 days", openTasks.Count(t => (utcToday - t.AssignedOn.Date).TotalDays is >= 0 and <= 3)),
+            new CountSummary("4 to 7 days", openTasks.Count(t => (utcToday - t.AssignedOn.Date).TotalDays is >= 4 and <= 7)),
+            new CountSummary("8 to 14 days", openTasks.Count(t => (utcToday - t.AssignedOn.Date).TotalDays is >= 8 and <= 14)),
+            new CountSummary("15+ days", openTasks.Count(t => (utcToday - t.AssignedOn.Date).TotalDays >= 15))
+        };
+
+        // SECTION: Overdue ageing buckets for late-task exposure.
+        OverdueAgeingBuckets = new[]
+        {
+            new CountSummary("1 to 3 days overdue", openTasks.Count(t => (utcToday - t.DueDate.Date).TotalDays is >= 1 and <= 3)),
+            new CountSummary("4 to 7 days overdue", openTasks.Count(t => (utcToday - t.DueDate.Date).TotalDays is >= 4 and <= 7)),
+            new CountSummary("8+ days overdue", openTasks.Count(t => (utcToday - t.DueDate.Date).TotalDays >= 8))
+        };
     }
 
     private async Task ResolveIdentityAsync()

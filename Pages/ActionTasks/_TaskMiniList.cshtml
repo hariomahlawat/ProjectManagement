@@ -8,7 +8,7 @@
 @if (!tasks.Any())
 {
     <div class="at-empty-state at-empty-state-compact">
-        <div class="at-empty-icon">✓</div>
+        <div class="at-empty-icon"><i class="bi bi-inbox" aria-hidden="true"></i></div>
         <div class="fw-semibold">@emptyMessage</div>
         <div class="text-muted small">Tasks will appear here when available.</div>
     </div>
@@ -19,7 +19,7 @@ else
         @foreach (var item in tasks)
         {
             var task = item.Task;
-            <a class="at-mini-row @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@pageModel.ResolvedViewMode" asp-fragment="task-details">
+            <a class="at-mini-row @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@pageModel.ResolvedViewMode">
                 <div class="at-mini-title">AT-@task.Id · @task.Title</div>
                 <div class="at-mini-meta">
                     <span>@item.AssigneeName</span>
