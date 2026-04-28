@@ -34,7 +34,7 @@ public class IndexModel : PageModel
     public IReadOnlyDictionary<string, string> TaskAssigneeNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
 
     [BindProperty(SupportsGet = true)]
-    public string ViewMode { get; set; } = "Dashboard";
+    public string? ViewMode { get; set; } = "Dashboard";
 
     [BindProperty(SupportsGet = true)]
     public int? TaskId { get; set; }
@@ -116,7 +116,7 @@ public class IndexModel : PageModel
         });
 
         TempData["ToastMessage"] = "Task created.";
-        return RedirectToPage("/ActionTasks/Index", new { viewMode = ViewMode });
+        return RedirectToPage("/ActionTasks/Index", new { viewMode = ResolveViewMode() });
     }
 
     // SECTION: Submit task for closure review
@@ -125,7 +125,7 @@ public class IndexModel : PageModel
         await ResolveIdentityAsync();
         await _service.SubmitTaskAsync(id, CurrentUserId, CurrentRole, "Submitted by assignee/workflow actor.");
         TempData["ToastMessage"] = "Task submitted.";
-        return RedirectToPage(new { ViewMode, TaskId = id });
+        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
     }
 
     // SECTION: Close task by command role
@@ -134,7 +134,7 @@ public class IndexModel : PageModel
         await ResolveIdentityAsync();
         await _service.CloseTaskAsync(id, CurrentUserId, CurrentRole, "Closed by command authority.");
         TempData["ToastMessage"] = "Task closed.";
-        return RedirectToPage(new { ViewMode, TaskId = id });
+        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
     }
 
     // SECTION: Update in-flight status
@@ -143,7 +143,7 @@ public class IndexModel : PageModel
         await ResolveIdentityAsync();
         await _service.UpdateStatusAsync(id, status, CurrentUserId, CurrentRole);
         TempData["ToastMessage"] = "Task status updated.";
-        return RedirectToPage(new { ViewMode, TaskId = id });
+        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
     }
 
     // SECTION: Shared data loading
@@ -225,7 +225,14 @@ public class IndexModel : PageModel
 
     // SECTION: Normalize and evaluate selected view mode
     private bool IsMyTasksView() =>
-        string.Equals((ViewMode ?? string.Empty).Trim(), "MyTasks", StringComparison.OrdinalIgnoreCase);
+        string.Equals(ResolveViewMode(), "MyTasks", StringComparison.OrdinalIgnoreCase);
+
+    // SECTION: Resolve a safe view mode value for postback and redirects
+    private string ResolveViewMode()
+    {
+        var normalized = (ViewMode ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? "Dashboard" : normalized;
+    }
 
     public sealed class CreateTaskInput
     {
