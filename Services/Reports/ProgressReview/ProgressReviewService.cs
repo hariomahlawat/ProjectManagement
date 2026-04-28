@@ -1886,10 +1886,19 @@ public sealed class ProgressReviewService : IProgressReviewService
             return new Dictionary<int, string?>();
         }
 
-        return await _db.Projects
+        var workflowVersionLookup = await _db.Projects
             .AsNoTracking()
             .Where(project => projectIds.Contains(project.Id))
-            .ToDictionaryAsync(project => project.Id, project => (string?)project.WorkflowVersion, cancellationToken);
+            .Select(project => new
+            {
+                project.Id,
+                WorkflowVersion = (string?)project.WorkflowVersion
+            })
+            .ToListAsync(cancellationToken);
+
+        return workflowVersionLookup.ToDictionary(
+            project => project.Id,
+            project => project.WorkflowVersion);
     }
 
     private string? BuildAttachmentUrl(string? storageKey)

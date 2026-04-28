@@ -407,7 +407,7 @@
                         <div><span class="text-muted">Priority</span><div class="fw-semibold">@Model.SelectedTask.Priority</div></div>
                         <div><span class="text-muted">Status</span><div class="fw-semibold">@Model.SelectedTask.Status</div></div>
                         <div><span class="text-muted">Due Date</span><div class="fw-semibold">@Model.SelectedTask.DueDate.ToString("dd MMM yyyy")</div></div>
-                        <div><span class="text-muted">Created On</span><div class="fw-semibold">@Model.SelectedTask.CreatedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
+                        <div><span class="text-muted">Created On</span><div class="fw-semibold">@Model.SelectedTask.AssignedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
                         <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@(Model.SelectedTask.SubmittedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
                         <div><span class="text-muted">Closed On</span><div class="fw-semibold">@(Model.SelectedTask.ClosedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
                     </div>
