@@ -621,13 +621,13 @@ else
                                 <!-- SECTION: Latest external remark (30%) -->
                                 <div class="ongoing-remarks__column ongoing-remarks__column--external">
                                     <h3 class="ongoing-remarks__column-title">Latest external remark</h3>
-                                    @if (latestExternalRemark is not { Body: { Length: > 0 } })
+                                    @if (string.IsNullOrWhiteSpace(latestExternalRemark?.Body))
                                     {
                                         <p class="small text-muted mb-0">No external remarks.</p>
                                     }
                                     else
                                     {
-                                        var externalRemark = latestExternalRemark;
+                                        var externalRemark = latestExternalRemark!;
                                         <article class="ongoing-remarks__item">
                                             <div class="ongoing-remarks__body ongoing-remarks__body--collapsed">
                                                 @Html.Raw(RenderRemark(externalRemark.Body))
