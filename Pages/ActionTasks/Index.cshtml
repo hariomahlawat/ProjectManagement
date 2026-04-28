@@ -13,12 +13,13 @@
     @* SECTION: Compact left rail navigation. *@
     <aside class="at-rail" aria-label="Task tracker navigation">
         <nav class="at-nav">
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Dashboard" class="@(Model.IsDashboardView ? "active" : string.Empty)">Dashboard</a>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="MyTasks" class="@(Model.IsMyTasksView ? "active" : string.Empty)">My Tasks</a>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Sprint" class="@(Model.IsSprintBoardView ? "active" : string.Empty)">Due</a>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Kanban" class="@(Model.IsKanbanView ? "active" : string.Empty)">Kanban</a>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="@(Model.IsTaskListView ? "active" : string.Empty)">Register</a>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Reports" class="@(Model.IsReportsView ? "active" : string.Empty)">Reports</a>
+            @* SECTION: Icon-led rail links for compact enterprise navigation. *@
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Dashboard" class="@(Model.IsDashboardView ? "active" : string.Empty)"><i class="bi bi-speedometer2" aria-hidden="true"></i><span>Dashboard</span></a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="MyTasks" class="@(Model.IsMyTasksView ? "active" : string.Empty)"><i class="bi bi-check2-circle" aria-hidden="true"></i><span>My Tasks</span></a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Sprint" class="@(Model.IsSprintBoardView ? "active" : string.Empty)"><i class="bi bi-calendar2-week" aria-hidden="true"></i><span>Due</span></a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Kanban" class="@(Model.IsKanbanView ? "active" : string.Empty)"><i class="bi bi-columns-gap" aria-hidden="true"></i><span>Kanban</span></a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="@(Model.IsTaskListView ? "active" : string.Empty)"><i class="bi bi-list-task" aria-hidden="true"></i><span>Register</span></a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Reports" class="@(Model.IsReportsView ? "active" : string.Empty)"><i class="bi bi-bar-chart" aria-hidden="true"></i><span>Reports</span></a>
         </nav>
     </aside>
 
@@ -31,7 +32,7 @@
             </div>
             @if (Model.CanCreate)
             {
-                <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#createTaskPanel" aria-expanded="false" aria-controls="createTaskPanel">Create Task</button>
+                <button class="btn btn-primary at-create-trigger" type="button" data-bs-toggle="modal" data-bs-target="#createTaskModal"><i class="bi bi-plus-lg" aria-hidden="true"></i><span>Create Task</span></button>
             }
         </header>
 
@@ -62,18 +63,11 @@
         }
     </section>
 
-    @* SECTION: Persistent task inspector drawer host. *@
-    <aside class="at-drawer-host @(Model.TaskId.HasValue ? "is-open" : string.Empty)">
-        @if (Model.TaskId.HasValue)
-        {
+    @* SECTION: Task inspector renders only when a task is selected. *@
+    @if (Model.TaskId.HasValue)
+    {
+        <aside class="at-drawer-host is-open">
             <partial name="_TaskDetails" model="Model" />
-        }
-        else
-        {
-            <section class="at-panel at-drawer-empty" aria-live="polite">
-                <h2>Task Inspector</h2>
-                <p>Select a task from any view to inspect summary, metadata, actions, and audit trail.</p>
-            </section>
-        }
-    </aside>
+        </aside>
+    }
 </div>

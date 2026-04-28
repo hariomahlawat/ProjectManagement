@@ -81,7 +81,7 @@
     @if (!Model.Tasks.Any())
     {
         <div class="at-empty-state">
-            <div class="at-empty-icon">✓</div>
+            <div class="at-empty-icon"><i class="bi bi-inbox" aria-hidden="true"></i></div>
             <div class="fw-semibold">No tasks in this section</div>
             <div class="text-muted small">Try adjusting filters or create a task.</div>
         </div>
@@ -98,20 +98,15 @@
                         <th>Due Date</th>
                         <th>Status</th>
                         <th>Priority</th>
-                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var task in Model.Tasks)
                     {
-                        var submitModalId = $"atSubmitModal_{task.Id}";
-                        var closeModalId = $"atCloseModal_{task.Id}";
-                        var updateModalId = $"atUpdateModal_{task.Id}";
-
                         <tr class="@(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)">
-                            <td><a asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode" asp-fragment="task-details">AT-@task.Id</a></td>
+                            <td><a class="at-task-id-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">AT-@task.Id</a></td>
                             <td>
-                                <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode" asp-fragment="task-details">@task.Title</a>
+                                <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">@task.Title</a>
                                 <div class="at-task-desc">@task.Description</div>
                             </td>
                             <td>
@@ -121,136 +116,10 @@
                             <td>@task.DueDate.ToString("dd MMM yyyy")</td>
                             <td><span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span></td>
                             <td><span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span></td>
-                            <td class="at-actions-compact">
-                                @if (Model.CanUpdateTaskStatus(task))
-                                {
-                                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#@updateModalId">Update</button>
-                                }
-                                @if (Model.CanSubmitTask(task))
-                                {
-                                    <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#@submitModalId">Submit</button>
-                                }
-                                @if (Model.CanCloseTask(task))
-                                {
-                                    <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#@closeModalId">Close</button>
-                                }
-                                <a class="btn btn-outline-secondary btn-sm" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode" asp-fragment="task-details">Details</a>
-                            </td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
-
-        @* SECTION: Action modals are rendered outside table markup for valid structure. *@
-        @foreach (var task in Model.Tasks)
-        {
-            var submitModalId = $"atSubmitModal_{task.Id}";
-            var closeModalId = $"atCloseModal_{task.Id}";
-            var updateModalId = $"atUpdateModal_{task.Id}";
-
-            if (Model.CanUpdateTaskStatus(task))
-            {
-                <div class="modal fade" id="@updateModalId" tabindex="-1" aria-labelledby="@(updateModalId + "Label")" aria-hidden="true">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                            <form method="post" asp-page-handler="UpdateStatus">
-                                <div class="modal-header">
-                                    <h5 class="modal-title" id="@(updateModalId + "Label")">Update Task AT-@task.Id</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="id" value="@task.Id" />
-                                    <div class="mb-2 small text-muted">Current Status: @task.Status</div>
-                                    <div class="mb-3">
-                                        <label class="form-label">New Status</label>
-                                        <select name="status" class="form-select">
-                                            @foreach (var status in Model.AllowedStatusOptions)
-                                            {
-                                                if (task.Status == status)
-                                                {
-                                                    <option value="@status" selected>@status</option>
-                                                }
-                                                else
-                                                {
-                                                    <option value="@status">@status</option>
-                                                }
-                                            }
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="form-label">Remarks</label>
-                                        <textarea name="remarks" class="form-control" rows="3" maxlength="300" placeholder="Add update remarks"></textarea>
-                                    </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                                    <button type="submit" class="btn btn-primary">Confirm Update</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            }
-
-            if (Model.CanSubmitTask(task))
-            {
-                <div class="modal fade" id="@submitModalId" tabindex="-1" aria-labelledby="@(submitModalId + "Label")" aria-hidden="true">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                            <form method="post" asp-page-handler="Submit">
-                                <div class="modal-header">
-                                    <h5 class="modal-title" id="@(submitModalId + "Label")">Submit Task AT-@task.Id</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="id" value="@task.Id" />
-                                    <div class="mb-2 small text-muted">Current Status: @task.Status</div>
-                                    <div>
-                                        <label class="form-label">Submission Remarks</label>
-                                        <textarea name="remarks" class="form-control" rows="3" maxlength="300" placeholder="Add submission remarks"></textarea>
-                                    </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                                    <button type="submit" class="btn btn-warning">Confirm Submit</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            }
-
-            if (Model.CanCloseTask(task))
-            {
-                <div class="modal fade" id="@closeModalId" tabindex="-1" aria-labelledby="@(closeModalId + "Label")" aria-hidden="true">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                            <form method="post" asp-page-handler="Close">
-                                <div class="modal-header">
-                                    <h5 class="modal-title" id="@(closeModalId + "Label")">Close Task AT-@task.Id</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                                    <input type="hidden" name="id" value="@task.Id" />
-                                    <div class="mb-2 small text-muted">Current Status: @task.Status</div>
-                                    <div>
-                                        <label class="form-label">Closure Remarks</label>
-                                        <textarea name="remarks" class="form-control" rows="3" maxlength="300" placeholder="Add closure remarks"></textarea>
-                                    </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                                    <button type="submit" class="btn btn-success">Confirm Close</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            }
-        }
     }
 </section>
