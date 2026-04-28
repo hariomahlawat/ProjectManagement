@@ -1,20 +1,23 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-<section class="at-board-grid at-board-grid-sprint">
-    <article class="at-panel at-board-column">
-        <h2>Due Today</h2>
-        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueTodayTaskDisplays, "No tasks due today.")' />
-    </article>
-    <article class="at-panel at-board-column">
-        <h2>Due This Week</h2>
-        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueThisWeekTaskDisplays, "No tasks due this week.")' />
-    </article>
-    <article class="at-panel at-board-column">
-        <h2>Due Later</h2>
-        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueLaterTaskDisplays, "No tasks in this due window.")' />
-    </article>
-    <article class="at-panel at-board-column">
-        <h2>Overdue</h2>
-        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.SprintOverdueTaskDisplays, "No overdue tasks.")' />
-    </article>
+@* SECTION: Horizontally scrollable due-board workspace to preserve column readability. *@
+<section class="at-board-scroll" aria-label="Due board">
+    <div class="at-board-grid at-board-grid-sprint">
+        <article class="at-panel at-board-column">
+            <h2>Due Today</h2>
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueTodayTaskDisplays, "No tasks due today.")' />
+        </article>
+        <article class="at-panel at-board-column">
+            <h2>Due This Week</h2>
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueThisWeekTaskDisplays, "No tasks due this week.")' />
+        </article>
+        <article class="at-panel at-board-column">
+            <h2>Due Later</h2>
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueLaterTaskDisplays, "No tasks in this due window.")' />
+        </article>
+        <article class="at-panel at-board-column">
+            <h2>Overdue</h2>
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.SprintOverdueTaskDisplays, "No overdue tasks.")' />
+        </article>
+    </div>
 </section>

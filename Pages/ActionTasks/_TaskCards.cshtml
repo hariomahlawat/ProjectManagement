@@ -19,8 +19,8 @@ else
         @foreach (var item in tasks)
         {
             var task = item.Task;
-            <article class="at-task-card">
-                <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@pageModel.ResolvedViewMode">AT-@task.Id · @task.Title</a>
+            <article class="at-task-card @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)">
+                <a class="at-card-title-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@pageModel.ResolvedViewMode" asp-fragment="task-details">AT-@task.Id · @task.Title</a>
                 <div class="small text-muted">@item.AssigneeName · @task.AssignedToRole</div>
                 <div class="small text-muted">Due @task.DueDate.ToString("dd MMM yyyy")</div>
                 <div class="d-flex gap-2 mt-2 flex-wrap">

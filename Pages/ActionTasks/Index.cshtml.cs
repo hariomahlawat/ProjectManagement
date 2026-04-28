@@ -115,6 +115,12 @@ public class IndexModel : PageModel
         ActionTaskStatuses.Submitted
     };
 
+    // SECTION: Selected-task projection helper
+    public bool IsSelectedTask(ActionTaskItem task)
+    {
+        return TaskId.HasValue && TaskId.Value == task.Id;
+    }
+
     // SECTION: Per-task action visibility helpers
     public bool CanSubmitTask(ActionTaskItem task)
     {

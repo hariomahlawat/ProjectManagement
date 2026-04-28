@@ -9,24 +9,21 @@
     <link rel="stylesheet" href="~/css/action-tracker.css" asp-append-version="true" />
 }
 
-<div class="at-shell">
-    @* SECTION: Left navigation with standardized route values. *@
-    <aside class="at-sidebar">
-        <div class="at-brand">PRISM ERP</div>
-        <div class="at-module">Task Tracker</div>
-
+<div class="at-shell @(Model.TaskId.HasValue ? "has-selection" : string.Empty)">
+    @* SECTION: Compact left rail navigation. *@
+    <aside class="at-rail" aria-label="Task tracker navigation">
         <nav class="at-nav">
             <a asp-page="/ActionTasks/Index" asp-route-viewMode="Dashboard" class="@(Model.IsDashboardView ? "active" : string.Empty)">Dashboard</a>
             <a asp-page="/ActionTasks/Index" asp-route-viewMode="MyTasks" class="@(Model.IsMyTasksView ? "active" : string.Empty)">My Tasks</a>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Sprint" class="@(Model.IsSprintBoardView ? "active" : string.Empty)">Sprint Board</a>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Kanban" class="@(Model.IsKanbanView ? "active" : string.Empty)">Kanban Board</a>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="@(Model.IsTaskListView ? "active" : string.Empty)">Task List</a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Sprint" class="@(Model.IsSprintBoardView ? "active" : string.Empty)">Due</a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Kanban" class="@(Model.IsKanbanView ? "active" : string.Empty)">Kanban</a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="@(Model.IsTaskListView ? "active" : string.Empty)">Register</a>
             <a asp-page="/ActionTasks/Index" asp-route-viewMode="Reports" class="@(Model.IsReportsView ? "active" : string.Empty)">Reports</a>
         </nav>
     </aside>
 
-    <section class="at-content">
-        @* SECTION: Shared page header and create-task trigger. *@
+    @* SECTION: Main workspace column. *@
+    <section class="at-workspace">
         <header class="at-header">
             <div>
                 <h1>@Model.PageHeading</h1>
@@ -34,7 +31,7 @@
             </div>
             @if (Model.CanCreate)
             {
-                <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#createTaskPanel" aria-expanded="false" aria-controls="createTaskPanel">New Task</button>
+                <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#createTaskPanel" aria-expanded="false" aria-controls="createTaskPanel">Create Task</button>
             }
         </header>
 
@@ -63,10 +60,20 @@
         {
             <partial name="_TaskReports" model="Model" />
         }
+    </section>
 
+    @* SECTION: Persistent task inspector drawer host. *@
+    <aside class="at-drawer-host @(Model.TaskId.HasValue ? "is-open" : string.Empty)">
         @if (Model.TaskId.HasValue)
         {
             <partial name="_TaskDetails" model="Model" />
         }
-    </section>
+        else
+        {
+            <section class="at-panel at-drawer-empty" aria-live="polite">
+                <h2>Task Inspector</h2>
+                <p>Select a task from any view to inspect summary, metadata, actions, and audit trail.</p>
+            </section>
+        }
+    </aside>
 </div>
