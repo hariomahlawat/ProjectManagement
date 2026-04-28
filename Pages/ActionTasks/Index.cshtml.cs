@@ -31,6 +31,7 @@ public class IndexModel : PageModel
     public IReadOnlyList<ActionTaskItem> Tasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskAuditLog> SelectedTaskLogs { get; private set; } = Array.Empty<ActionTaskAuditLog>();
     public IReadOnlyList<UserOption> AssignableUsers { get; private set; } = Array.Empty<UserOption>();
+    public IReadOnlyDictionary<string, string> TaskAssigneeNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
 
     [BindProperty(SupportsGet = true)]
     public string ViewMode { get; set; } = "Dashboard";
@@ -48,6 +49,9 @@ public class IndexModel : PageModel
     public bool CanCreate => _permission.CanCreate(CurrentRole);
     public bool CanClose => _permission.CanClose(CurrentRole);
     public IReadOnlyList<string> AssignmentRoles => ActionTaskRoleResolver.AllowedAssignmentRoles();
+    public IReadOnlyList<string> AllowedStatusOptions => CanClose
+        ? ActionTaskStatuses.All
+        : new[] { ActionTaskStatuses.Assigned, ActionTaskStatuses.InProgress, ActionTaskStatuses.Blocked, ActionTaskStatuses.Submitted };
 
     public async Task OnGetAsync()
     {
@@ -79,10 +83,10 @@ public class IndexModel : PageModel
         }
 
         var assignedRoles = await _users.GetRolesAsync(assignedUser);
-        var assignedRole = assignedRoles.FirstOrDefault(r => string.Equals(r, Input.AssignedToRole, StringComparison.OrdinalIgnoreCase));
+        var assignedRole = ActionTaskRoleResolver.ResolveFromRoles(assignedRoles);
         if (assignedRole is null || !_permission.CanAssign(CurrentRole, assignedRole))
         {
-            ModelState.AddModelError(string.Empty, "Invalid assignment target selected.");
+            ModelState.AddModelError(string.Empty, "Selected user is not eligible for task assignment.");
             await LoadDataAsync();
             return Page();
         }
@@ -99,7 +103,7 @@ public class IndexModel : PageModel
             Priority = Input.Priority
         });
 
-        TempData["ToastMessage"] = "Action task created.";
+        TempData["ToastMessage"] = "Task created.";
         return RedirectToPage(new { ViewMode });
     }
 
@@ -135,8 +139,13 @@ public class IndexModel : PageModel
     {
         await ResolveIdentityAsync();
 
-        Tasks = await _service.GetTasksAsync(CurrentUserId, CurrentRole);
+        var tasks = await _service.GetTasksAsync(CurrentUserId, CurrentRole);
+        Tasks = IsMyTasksView()
+            ? tasks.Where(t => string.Equals(t.AssignedToUserId, CurrentUserId, StringComparison.Ordinal)).ToList()
+            : tasks;
+
         AssignableUsers = await LoadAssignableUsersAsync();
+        TaskAssigneeNames = await LoadTaskAssigneeNamesAsync(Tasks);
 
         if (TaskId.HasValue)
         {
@@ -178,6 +187,35 @@ public class IndexModel : PageModel
         return list;
     }
 
+    // SECTION: Resolve assignee display names for task register rendering
+    private async Task<IReadOnlyDictionary<string, string>> LoadTaskAssigneeNamesAsync(IReadOnlyList<ActionTaskItem> tasks)
+    {
+        var userIds = tasks
+            .Select(t => t.AssignedToUserId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (userIds.Count == 0)
+        {
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+
+        var users = await _users.Users
+            .Where(u => userIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.UserName, u.Email })
+            .ToListAsync();
+
+        return users.ToDictionary(
+            u => u.Id,
+            u => string.IsNullOrWhiteSpace(u.UserName) ? (u.Email ?? "User") : u.UserName!,
+            StringComparer.Ordinal);
+    }
+
+    // SECTION: Normalize and evaluate selected view mode
+    private bool IsMyTasksView() =>
+        string.Equals((ViewMode ?? string.Empty).Trim(), "MyTasks", StringComparison.OrdinalIgnoreCase);
+
     public sealed class CreateTaskInput
     {
         [Required, StringLength(200)]
@@ -188,9 +226,6 @@ public class IndexModel : PageModel
 
         [Required]
         public string AssignedToUserId { get; set; } = string.Empty;
-
-        [Required]
-        public string AssignedToRole { get; set; } = RoleNames.ProjectOfficer;
 
         [Required]
         public DateTime DueDate { get; set; } = DateTime.UtcNow.Date.AddDays(7);

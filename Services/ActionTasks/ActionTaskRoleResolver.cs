@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
 using ProjectManagement.Configuration;
 
@@ -31,4 +33,11 @@ public static class ActionTaskRoleResolver
 
     public static IReadOnlyList<string> AllowedAssignmentRoles()
         => new[] { RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.Mco, RoleNames.Ta };
+
+    // SECTION: Resolve highest-precedence tracker role from user role list
+    public static string? ResolveFromRoles(IEnumerable<string> roles)
+    {
+        var roleSet = new HashSet<string>(roles, StringComparer.OrdinalIgnoreCase);
+        return Precedence.FirstOrDefault(roleSet.Contains);
+    }
 }
