@@ -108,10 +108,10 @@
                         var closeModalId = $"atCloseModal_{task.Id}";
                         var updateModalId = $"atUpdateModal_{task.Id}";
 
-                        <tr>
-                            <td><a asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">AT-@task.Id</a></td>
+                        <tr class="@(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)">
+                            <td><a asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode" asp-fragment="task-details">AT-@task.Id</a></td>
                             <td>
-                                <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">@task.Title</a>
+                                <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode" asp-fragment="task-details">@task.Title</a>
                                 <div class="at-task-desc">@task.Description</div>
                             </td>
                             <td>
@@ -134,7 +134,7 @@
                                 {
                                     <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#@closeModalId">Close</button>
                                 }
-                                <a class="btn btn-outline-secondary btn-sm" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">Details</a>
+                                <a class="btn btn-outline-secondary btn-sm" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode" asp-fragment="task-details">Details</a>
                             </td>
                         </tr>
                     }

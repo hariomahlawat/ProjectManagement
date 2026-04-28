@@ -16,59 +16,66 @@
 }
 
 /* SECTION: Action Tracker shell */
+html {
+    scroll-behavior: smooth;
+}
+
 .at-shell {
     display: grid;
-    grid-template-columns: 230px minmax(0, 1fr);
+    grid-template-columns: 88px minmax(0, 1fr) minmax(320px, 30vw);
     gap: 1rem;
     min-height: 70vh;
     width: 100%;
 }
 
-.at-sidebar {
+.at-rail {
     position: sticky;
     top: 5rem;
     align-self: start;
-    background: linear-gradient(180deg, #173663 0%, #112a4e 100%);
-    color: #fff;
-    border-radius: 1.25rem;
-    padding: 0.85rem;
+    background: #ffffff;
+    border: 1px solid var(--at-border);
+    border-radius: 1rem;
+    padding: 0.65rem 0.5rem;
     box-shadow: var(--at-shadow-sm);
-}
-
-.at-brand {
-    font-size: 1.45rem;
-    font-weight: 800;
-}
-
-.at-module {
-    opacity: .86;
-    margin-bottom: 0.8rem;
 }
 
 .at-nav {
     display: grid;
-    gap: 0.3rem;
+    gap: 0.45rem;
 }
 
 .at-nav a {
     display: flex;
+    justify-content: center;
     align-items: center;
-    gap: 0.55rem;
-    color: #d2e1f7;
+    text-align: center;
+    color: #334155;
     text-decoration: none;
     border-radius: 10px;
-    padding: .45rem .65rem;
-    font-weight: 600;
+    padding: 0.55rem 0.35rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    line-height: 1.2;
+    border: 1px solid transparent;
 }
 
 .at-nav a:hover,
 .at-nav a.active {
-    color: #fff;
-    background: rgba(37, 99, 235, 0.3);
+    color: #1d4ed8;
+    background: #eff6ff;
+    border-color: #bfdbfe;
 }
 
+.at-drawer-host {
+    min-width: 0;
+}
+
+.at-drawer-empty p {
+    margin-bottom: 0;
+    color: var(--at-muted);
+}
 /* SECTION: Header and panels */
-.at-content {
+.at-workspace {
     min-width: 0;
     padding-bottom: 1.5rem;
 }
@@ -104,6 +111,16 @@
     font-weight: 800;
     color: var(--at-text);
     margin-bottom: 0.85rem;
+}
+
+
+.at-task-details-panel {
+    scroll-margin-top: 6rem;
+}
+
+.at-task-details-panel:focus {
+    outline: 3px solid rgba(37, 99, 235, 0.25);
+    outline-offset: 4px;
 }
 
 .at-panel-heading {
@@ -379,14 +396,25 @@
 }
 
 /* SECTION: Board and reports */
-.at-board-grid {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: .75rem;
+.at-board-scroll {
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
 }
 
-.at-board-grid-sprint {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+.at-board-grid {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(280px, 1fr);
+    gap: 1rem;
+    min-width: max-content;
+}
+
+.at-board-grid.at-board-grid-sprint {
+    grid-template-columns: repeat(4, minmax(260px, 1fr));
+}
+
+.at-board-grid.is-kanban {
+    grid-template-columns: repeat(5, minmax(260px, 1fr));
 }
 
 .at-board-column h2 {
@@ -403,6 +431,28 @@
     border-radius: var(--at-radius-md);
     padding: .65rem;
     background: var(--at-surface-soft);
+}
+
+.at-card-title-link {
+    font-weight: 800;
+    color: var(--at-blue);
+    text-decoration: none;
+}
+
+.at-card-title-link:hover {
+    text-decoration: underline;
+}
+
+.at-task-card.is-selected,
+.at-mini-row.is-selected,
+.at-table tbody tr.is-selected {
+    border-color: rgba(37, 99, 235, 0.55);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    background: #eff6ff;
+}
+
+.at-table tbody tr.is-selected td {
+    background: #eff6ff;
 }
 
 .at-panel-note {
@@ -452,35 +502,71 @@
 }
 
 @media (max-width: 1399px) {
-    .at-board-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+    .at-shell {
+        grid-template-columns: 88px minmax(0, 1fr);
+    }
+
+    .at-drawer-host {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(460px, 90vw);
+        padding: 5rem 1rem 1rem;
+        background: rgba(15, 23, 42, 0.2);
+        backdrop-filter: blur(2px);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        overflow-y: auto;
+        z-index: 1030;
+    }
+
+    .at-drawer-host .at-panel {
+        background: var(--at-surface);
+    }
+
+    .at-drawer-host.is-open {
+        opacity: 1;
+        pointer-events: auto;
     }
 }
 
 @media (max-width: 1199px) {
-    .at-shell {
-        grid-template-columns: 1fr;
-    }
-
-    .at-sidebar {
-        position: static;
-    }
-
     .at-kpis,
     .at-kpis-reports,
-    .at-card-grid,
-    .at-board-grid,
-    .at-board-grid-sprint {
+    .at-card-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 767px) {
+    .at-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .at-rail {
+        position: static;
+    }
+
+    .at-nav {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .at-drawer-host {
+        width: 100vw;
+        padding: 0;
+    }
+
+    .at-drawer-host .at-panel {
+        min-height: 100vh;
+        border-radius: 0;
+        border: none;
+    }
+
     .at-kpis,
     .at-kpis-reports,
-    .at-card-grid,
-    .at-board-grid,
-    .at-board-grid-sprint {
+    .at-card-grid {
         grid-template-columns: 1fr;
     }
 

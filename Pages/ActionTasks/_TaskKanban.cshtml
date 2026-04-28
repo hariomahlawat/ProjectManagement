@@ -1,24 +1,27 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-<section class="at-board-grid">
-    <article class="at-panel at-board-column">
-        <h2>Assigned</h2>
-        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanAssignedTaskDisplays, "No assigned tasks.")' />
-    </article>
-    <article class="at-panel at-board-column">
-        <h2>In Progress</h2>
-        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanInProgressTaskDisplays, "No tasks in progress.")' />
-    </article>
-    <article class="at-panel at-board-column">
-        <h2>Blocked</h2>
-        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanBlockedTaskDisplays, "No blocked tasks.")' />
-    </article>
-    <article class="at-panel at-board-column">
-        <h2>Submitted</h2>
-        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanSubmittedTaskDisplays, "No submitted tasks.")' />
-    </article>
-    <article class="at-panel at-board-column">
-        <h2>Closed</h2>
-        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanClosedTaskDisplays, "No closed tasks yet.")' />
-    </article>
+@* SECTION: Horizontally scrollable Kanban workspace to preserve professional card widths. *@
+<section class="at-board-scroll" aria-label="Kanban board">
+    <div class="at-board-grid is-kanban">
+        <article class="at-panel at-board-column">
+            <h2>Assigned</h2>
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanAssignedTaskDisplays, "No assigned tasks.")' />
+        </article>
+        <article class="at-panel at-board-column">
+            <h2>In Progress</h2>
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanInProgressTaskDisplays, "No tasks in progress.")' />
+        </article>
+        <article class="at-panel at-board-column">
+            <h2>Blocked</h2>
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanBlockedTaskDisplays, "No blocked tasks.")' />
+        </article>
+        <article class="at-panel at-board-column">
+            <h2>Submitted</h2>
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanSubmittedTaskDisplays, "No submitted tasks.")' />
+        </article>
+        <article class="at-panel at-board-column">
+            <h2>Closed</h2>
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanClosedTaskDisplays, "No closed tasks yet.")' />
+        </article>
+    </div>
 </section>
