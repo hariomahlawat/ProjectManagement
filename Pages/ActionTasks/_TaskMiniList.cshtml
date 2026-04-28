@@ -26,6 +26,8 @@ else
                     <span>·</span>
                     <span>Due @task.DueDate.ToString("dd MMM yyyy")</span>
                     <span>·</span>
+                    <span class="@pageModel.GetStatusBadgeClass(task.Status)">@task.Status</span>
+                    <span>·</span>
                     <span class="@pageModel.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
                 </div>
             </a>

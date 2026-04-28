@@ -90,6 +90,12 @@ public class ActionTaskService : IActionTaskService
             throw new InvalidOperationException("Use the close action to close a task.");
         }
 
+        // SECTION: Ignore no-op updates and avoid redundant audit logs.
+        if (string.Equals(task.Status, status, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         // SECTION: Enforce lifecycle transitions
         if (!IsAllowedTransition(task.Status, status))
         {

@@ -43,18 +43,18 @@
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label">Assignee</label>
+                <label class="form-label">Responsible Person</label>
                 <select class="form-select" name="FilterAssigneeUserId">
                     <option value="">All</option>
                     @foreach (var assignee in Model.AssignableUsers)
                     {
                         @if (string.Equals(Model.FilterAssigneeUserId, assignee.UserId, StringComparison.Ordinal))
                         {
-                            <option value="@assignee.UserId" selected>@assignee.DisplayName (@assignee.Role)</option>
+                            <option value="@assignee.UserId" selected>@assignee.DisplayName</option>
                         }
                         else
                         {
-                            <option value="@assignee.UserId">@assignee.DisplayName (@assignee.Role)</option>
+                            <option value="@assignee.UserId">@assignee.DisplayName</option>
                         }
                     }
                 </select>
@@ -72,6 +72,33 @@
                 <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="btn btn-outline-secondary btn-sm">Reset</a>
             </div>
         </form>
+
+        @if (Model.HasActiveFilters)
+        {
+            <div class="at-active-filters" aria-label="Active filters">
+                @if (!string.IsNullOrWhiteSpace(Model.FilterStatus))
+                {
+                    <span class="at-filter-chip">Status: @Model.FilterStatus</span>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.FilterPriority))
+                {
+                    <span class="at-filter-chip">Priority: @Model.FilterPriority</span>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.FilterAssigneeUserId))
+                {
+                    <span class="at-filter-chip">Responsible Person: @Model.ResolveAssigneeName(Model.FilterAssigneeUserId)</span>
+                }
+                @if (Model.FilterDueDate.HasValue)
+                {
+                    <span class="at-filter-chip">Due: @Model.FilterDueDate.Value.ToString("dd MMM yyyy")</span>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.FilterSearch))
+                {
+                    <span class="at-filter-chip">Search: @Model.FilterSearch</span>
+                }
+                <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="at-filter-clear">Clear all</a>
+            </div>
+        }
     </section>
 }
 
@@ -94,7 +121,7 @@
                     <tr>
                         <th>ID</th>
                         <th>Task</th>
-                        <th>Assignee</th>
+                        <th>Responsible Person</th>
                         <th>Due Date</th>
                         <th>Status</th>
                         <th>Priority</th>
@@ -107,11 +134,10 @@
                             <td><a class="at-task-id-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">AT-@task.Id</a></td>
                             <td>
                                 <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">@task.Title</a>
-                                <div class="at-task-desc">@task.Description</div>
+                                <div class="at-task-desc-preview">@task.Description</div>
                             </td>
                             <td>
                                 <div class="fw-semibold">@Model.ResolveAssigneeName(task.AssignedToUserId)</div>
-                                <div class="text-muted small">@task.AssignedToRole</div>
                             </td>
                             <td>@task.DueDate.ToString("dd MMM yyyy")</td>
                             <td><span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span></td>

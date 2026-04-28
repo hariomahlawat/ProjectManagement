@@ -50,7 +50,7 @@
                     </div>
                     <div class="mb-2">
                         <label class="form-label at-small">Remarks</label>
-                        <textarea name="remarks" rows="2" class="form-control form-control-sm" maxlength="300" placeholder="Status update remarks"></textarea>
+                        <textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Status update remarks"></textarea>
                     </div>
                     <button type="submit" class="btn btn-primary btn-sm">Update Status</button>
                 </form>
@@ -65,7 +65,7 @@
                     <div class="at-action-title">Submit Task</div>
                     <div class="mb-2">
                         <label class="form-label at-small">Submission Remarks</label>
-                        <textarea name="remarks" rows="2" class="form-control form-control-sm" maxlength="300" placeholder="Add submission notes"></textarea>
+                        <textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Add submission notes"></textarea>
                     </div>
                     <button type="submit" class="btn btn-warning btn-sm">Submit Task</button>
                 </form>
@@ -80,7 +80,7 @@
                     <div class="at-action-title">Close Task</div>
                     <div class="mb-2">
                         <label class="form-label at-small">Closure Remarks</label>
-                        <textarea name="remarks" rows="2" class="form-control form-control-sm" maxlength="300" placeholder="Add closure notes"></textarea>
+                        <textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Add closure notes"></textarea>
                     </div>
                     <button type="submit" class="btn btn-success btn-sm">Close Task</button>
                 </form>
@@ -92,8 +92,8 @@
             <h3>Task Information</h3>
             <div class="at-task-details-grid">
                 <div><span class="text-muted">Title</span><div class="fw-semibold">@Model.SelectedTask.Title</div></div>
-                <div><span class="text-muted">Assignee</span><div class="fw-semibold">@Model.ResolveAssigneeName(Model.SelectedTask.AssignedToUserId) (@Model.SelectedTask.AssignedToRole)</div></div>
-                <div class="at-grid-span-2"><span class="text-muted">Description</span><div class="fw-semibold">@Model.SelectedTask.Description</div></div>
+                <div><span class="text-muted">Responsible Person</span><div class="fw-semibold">@Model.ResolveAssigneeName(Model.SelectedTask.AssignedToUserId)</div></div>
+                <div class="at-grid-span-2"><span class="text-muted">Description</span><div class="fw-semibold at-description-text">@Model.SelectedTask.Description</div></div>
                 <div><span class="text-muted">Created On</span><div class="fw-semibold">@Model.SelectedTask.AssignedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
                 <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@(Model.SelectedTask.SubmittedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
                 <div><span class="text-muted">Closed On</span><div class="fw-semibold">@(Model.SelectedTask.ClosedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
@@ -109,7 +109,7 @@
                 <div class="d-flex justify-content-between gap-2 flex-wrap">
                     <div>
                         <strong>@log.ActionType</strong>
-                        <span class="text-muted">by @log.PerformedByRole</span>
+                        <span class="text-muted">by @Model.ResolveActorName(log.PerformedByUserId)</span>
                     </div>
                     <div class="text-muted small">@log.PerformedAt.ToString("dd MMM yyyy, HH:mm")</div>
                 </div>
@@ -119,7 +119,7 @@
                 }
                 @if (!string.IsNullOrWhiteSpace(log.Remarks))
                 {
-                    <div class="at-audit-remarks">@log.Remarks</div>
+                    <div class="at-audit-remarks at-remarks-text">@log.Remarks</div>
                 }
             </div>
         }

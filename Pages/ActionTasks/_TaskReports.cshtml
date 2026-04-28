@@ -13,6 +13,14 @@
     </section>
 </section>
 
+@* SECTION: Command summary card with rule-based grammar. *@
+<section class="at-section-group">
+    <article class="at-panel">
+        <h2>Command Summary</h2>
+        <p class="at-panel-note">@Model.CommandSummary</p>
+    </article>
+</section>
+
 @* SECTION: Reports analysis panels with lightweight proportional bars. *@
 <section class="at-card-grid at-card-grid-reports">
     <article class="at-panel">
@@ -72,8 +80,8 @@
         </div>
     </article>
     <article class="at-panel">
-        <h2>Workload Distribution</h2>
-        <p class="at-panel-note">Pending tasks grouped by assignee.</p>
+        <h2>Responsible Person Workload</h2>
+        <p class="at-panel-note">Pending tasks grouped by responsible person.</p>
         <div class="at-metric-bars">
             @foreach (var item in Model.AssigneePendingCounts)
             {

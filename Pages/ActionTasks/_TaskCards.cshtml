@@ -21,7 +21,7 @@ else
                     <span class="@pageModel.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
                 </div>
                 <a class="at-card-subject" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@pageModel.ResolvedViewMode">@task.Title</a>
-                <div class="small text-muted">@item.AssigneeName · @task.AssignedToRole</div>
+                <div class="small text-muted">@item.AssigneeName</div>
                 <div class="at-card-footer">
                     <div class="small text-muted">Due @task.DueDate.ToString("dd MMM yyyy")</div>
                     <div class="small at-card-status">@task.Status</div>
