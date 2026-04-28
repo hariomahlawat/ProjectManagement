@@ -44,6 +44,7 @@ public class IndexModel : PageModel
     public IReadOnlyList<ActionTaskAuditLog> SelectedTaskLogs { get; private set; } = Array.Empty<ActionTaskAuditLog>();
     public IReadOnlyList<UserOption> AssignableUsers { get; private set; } = Array.Empty<UserOption>();
     public IReadOnlyDictionary<string, string> TaskAssigneeNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
+    public IReadOnlyDictionary<string, string> TaskActorNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
     public IReadOnlyList<CountSummary> AssigneePendingCounts { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> PriorityCounts { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> StatusCounts { get; private set; } = Array.Empty<CountSummary>();
@@ -187,6 +188,13 @@ public class IndexModel : PageModel
     {
         return TaskAssigneeNames.TryGetValue(assignedToUserId, out var assigneeName)
             ? assigneeName
+            : "User";
+    }
+
+    public string ResolveActorName(string performedByUserId)
+    {
+        return TaskActorNames.TryGetValue(performedByUserId, out var actorName)
+            ? actorName
             : "User";
     }
 
@@ -339,6 +347,7 @@ public class IndexModel : PageModel
         {
             SelectedTask = tasks.FirstOrDefault(t => t.Id == TaskId.Value);
             SelectedTaskLogs = await _service.GetTaskLogsAsync(TaskId.Value, CurrentUserId, CurrentRole);
+            TaskActorNames = await LoadTaskActorNamesAsync(SelectedTaskLogs);
         }
     }
 
@@ -394,6 +403,44 @@ public class IndexModel : PageModel
     public int AssigneePendingCountsMax => AssigneePendingCounts.Count == 0 ? 0 : AssigneePendingCounts.Max(x => x.Count);
     public int OpenAgeingBucketsMax => OpenAgeingBuckets.Count == 0 ? 0 : OpenAgeingBuckets.Max(x => x.Count);
     public int OverdueAgeingBucketsMax => OverdueAgeingBuckets.Count == 0 ? 0 : OverdueAgeingBuckets.Max(x => x.Count);
+    public int ActiveCriticalCount => Tasks.Count(t =>
+        !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(t.Priority, "Critical", StringComparison.OrdinalIgnoreCase));
+
+    public int SubmittedPendingClosureCount => Tasks.Count(t =>
+        string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase));
+
+    public bool HasActiveFilters =>
+        IsTaskListView &&
+        (!string.IsNullOrWhiteSpace(FilterStatus)
+         || !string.IsNullOrWhiteSpace(FilterPriority)
+         || !string.IsNullOrWhiteSpace(FilterAssigneeUserId)
+         || FilterDueDate.HasValue
+         || !string.IsNullOrWhiteSpace(FilterSearch));
+
+    public string CommandSummary
+    {
+        get
+        {
+            var activeTasksText = $"There {(ActiveCount == 1 ? "is" : "are")} {ActiveCount} active {(ActiveCount == 1 ? "task" : "tasks")}";
+            var criticalText = $", including {ActiveCriticalCount} critical {(ActiveCriticalCount == 1 ? "task" : "tasks")}.";
+            var overdueText = OverdueCount switch
+            {
+                0 => "No tasks are overdue.",
+                1 => "1 task is overdue.",
+                _ => $"{OverdueCount} tasks are overdue."
+            };
+
+            var submittedPendingText = SubmittedPendingClosureCount switch
+            {
+                0 => "No submitted task is pending closure.",
+                1 => "1 submitted task is pending closure.",
+                _ => $"{SubmittedPendingClosureCount} submitted tasks are pending closure."
+            };
+
+            return $"{activeTasksText}{criticalText} {overdueText} {submittedPendingText}";
+        }
+    }
 
     // SECTION: Percentage helper for CSS bar-width calculations.
     public int ToPercent(int value, int max) =>
@@ -559,7 +606,8 @@ public class IndexModel : PageModel
     {
         // SECTION: Stabilize user snapshot to avoid overlapping data-reader operations
         var users = await _users.Users
-            .OrderBy(x => x.UserName)
+            .OrderBy(x => x.FullName)
+            .ThenBy(x => x.UserName)
             .Take(200)
             .ToListAsync();
 
@@ -574,7 +622,7 @@ public class IndexModel : PageModel
                 continue;
             }
 
-            list.Add(new UserOption(user.Id, user.UserName ?? user.Email ?? "User", matchedRole));
+            list.Add(new UserOption(user.Id, BuildPersonDisplayName(user), matchedRole));
         }
 
         return list;
@@ -596,13 +644,66 @@ public class IndexModel : PageModel
 
         var users = await _users.Users
             .Where(u => userIds.Contains(u.Id))
-            .Select(u => new { u.Id, u.UserName, u.Email })
+            .Select(u => new { u.Id, u.Rank, u.FullName, u.UserName, u.Email })
             .ToListAsync();
 
         return users.ToDictionary(
             u => u.Id,
-            u => string.IsNullOrWhiteSpace(u.UserName) ? (u.Email ?? "User") : u.UserName!,
+            u => BuildPersonDisplayName(u.Rank, u.FullName, u.UserName, u.Email),
             StringComparer.Ordinal);
+    }
+
+    // SECTION: Resolve inspector actor names for audit visibility.
+    private async Task<IReadOnlyDictionary<string, string>> LoadTaskActorNamesAsync(IReadOnlyList<ActionTaskAuditLog> logs)
+    {
+        var actorIds = logs
+            .Select(log => log.PerformedByUserId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (actorIds.Count == 0)
+        {
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+
+        var users = await _users.Users
+            .Where(u => actorIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.Rank, u.FullName, u.UserName, u.Email })
+            .ToListAsync();
+
+        return users.ToDictionary(
+            u => u.Id,
+            u => BuildPersonDisplayName(u.Rank, u.FullName, u.UserName, u.Email),
+            StringComparer.Ordinal);
+    }
+
+    // SECTION: Person display helper for rank and full-name-first rendering.
+    private static string BuildPersonDisplayName(ApplicationUser user) =>
+        BuildPersonDisplayName(user.Rank, user.FullName, user.UserName, user.Email);
+
+    // SECTION: Person display helper for query projections.
+    private static string BuildPersonDisplayName(string? rank, string? fullName, string? userName, string? email)
+    {
+        var trimmedRank = rank?.Trim();
+        var trimmedFullName = fullName?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(trimmedRank) && !string.IsNullOrWhiteSpace(trimmedFullName))
+        {
+            return $"{trimmedRank} {trimmedFullName}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(trimmedFullName))
+        {
+            return trimmedFullName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(userName))
+        {
+            return userName;
+        }
+
+        return string.IsNullOrWhiteSpace(email) ? "User" : email;
     }
 
     // SECTION: Resolve a safe, standardized view mode value for postback and redirects

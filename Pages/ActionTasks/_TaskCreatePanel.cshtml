@@ -24,16 +24,19 @@
                         </div>
                         <div class="col-md-7">
                             <label asp-for="Input.Description" class="form-label">Description / Instructions</label>
-                            <textarea asp-for="Input.Description" class="form-control" rows="3"></textarea>
+                            <textarea asp-for="Input.Description"
+                                      class="form-control"
+                                      rows="4"
+                                      placeholder="Enter task instructions, background and expected output"></textarea>
                             <span asp-validation-for="Input.Description" class="text-danger small"></span>
                         </div>
-                        <div class="col-md-5">
+                        <div class="col-12">
                             <label asp-for="Input.AssignedToUserId" class="form-label">Assign To</label>
                             <select asp-for="Input.AssignedToUserId" class="form-select">
                                 <option value="">Select user</option>
                                 @foreach (var user in Model.AssignableUsers)
                                 {
-                                    <option value="@user.UserId">@user.DisplayName (@user.Role)</option>
+                                    <option value="@user.UserId">@user.DisplayName</option>
                                 }
                             </select>
                             <span asp-validation-for="Input.AssignedToUserId" class="text-danger small"></span>
