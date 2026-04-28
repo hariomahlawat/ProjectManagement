@@ -50,7 +50,10 @@
         {
             <section id="createTaskPanel" class="collapse @(Model.ShowCreatePanel ? "show" : string.Empty) at-panel mb-3">
                 <h2>Create Task</h2>
-                <div asp-validation-summary="All" class="alert alert-danger mb-3"></div>
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div asp-validation-summary="All" class="alert alert-danger mb-3"></div>
+                }
                 <form method="post" asp-page-handler="Create" class="row g-3">
                     @* SECTION: Preserve selected view mode during postbacks. *@
                     <input type="hidden" name="ViewMode" value="@activeView" />
@@ -146,46 +149,48 @@
                                 <td>@task.Status</td>
                                 <td>@task.Priority</td>
                                 <td class="at-actions">
-                                    @if (task.Status != ActionTaskStatuses.Submitted && task.Status != ActionTaskStatuses.Closed)
-                                    {
-                                        <form method="post" asp-page-handler="Submit">
-                                            @* SECTION: Preserve list context while performing row actions. *@
-                                            <input type="hidden" name="ViewMode" value="@activeView" />
-                                            <input type="hidden" name="id" value="@task.Id" />
-                                            <button type="submit" class="btn btn-outline-warning btn-sm">Submit</button>
-                                        </form>
-                                    }
-                                    @if (Model.CanClose && task.Status != ActionTaskStatuses.Closed)
-                                    {
-                                        <form method="post" asp-page-handler="Close">
-                                            @* SECTION: Preserve list context while performing row actions. *@
-                                            <input type="hidden" name="ViewMode" value="@activeView" />
-                                            <input type="hidden" name="id" value="@task.Id" />
-                                            <button type="submit" class="btn btn-outline-success btn-sm">Close</button>
-                                        </form>
-                                    }
-                                    @if (task.Status != ActionTaskStatuses.Closed)
-                                    {
-                                        <form method="post" asp-page-handler="UpdateStatus" class="d-flex gap-1">
-                                            @* SECTION: Preserve list context while performing row actions. *@
-                                            <input type="hidden" name="ViewMode" value="@activeView" />
-                                            <input type="hidden" name="id" value="@task.Id" />
-                                            <select name="status" class="form-select form-select-sm">
-                                                @foreach (var status in Model.AllowedStatusOptions)
-                                                {
-                                                    if (task.Status == status)
+                                    <div class="at-actions-stack">
+                                        @if (Model.CanSubmitTask(task))
+                                        {
+                                            <form method="post" asp-page-handler="Submit">
+                                                @* SECTION: Preserve list context while performing row actions. *@
+                                                <input type="hidden" name="ViewMode" value="@activeView" />
+                                                <input type="hidden" name="id" value="@task.Id" />
+                                                <button type="submit" class="btn btn-outline-warning btn-sm">Submit</button>
+                                            </form>
+                                        }
+                                        @if (Model.CanCloseTask(task))
+                                        {
+                                            <form method="post" asp-page-handler="Close">
+                                                @* SECTION: Preserve list context while performing row actions. *@
+                                                <input type="hidden" name="ViewMode" value="@activeView" />
+                                                <input type="hidden" name="id" value="@task.Id" />
+                                                <button type="submit" class="btn btn-outline-success btn-sm">Close</button>
+                                            </form>
+                                        }
+                                        @if (Model.CanUpdateTaskStatus(task))
+                                        {
+                                            <form method="post" asp-page-handler="UpdateStatus" class="at-status-form">
+                                                @* SECTION: Preserve list context while performing row actions. *@
+                                                <input type="hidden" name="ViewMode" value="@activeView" />
+                                                <input type="hidden" name="id" value="@task.Id" />
+                                                <select name="status" class="form-select form-select-sm">
+                                                    @foreach (var status in Model.AllowedStatusOptions)
                                                     {
-                                                        <option value="@status" selected>@status</option>
+                                                        if (task.Status == status)
+                                                        {
+                                                            <option value="@status" selected>@status</option>
+                                                        }
+                                                        else
+                                                        {
+                                                            <option value="@status">@status</option>
+                                                        }
                                                     }
-                                                    else
-                                                    {
-                                                        <option value="@status">@status</option>
-                                                    }
-                                                }
-                                            </select>
-                                            <button type="submit" class="btn btn-outline-primary btn-sm">Update</button>
-                                        </form>
-                                    }
+                                                </select>
+                                                <button type="submit" class="btn btn-outline-primary btn-sm">Update</button>
+                                            </form>
+                                        }
+                                    </div>
                                 </td>
                             </tr>
                         }

@@ -50,9 +50,33 @@ public class IndexModel : PageModel
     public bool CanCreate => _permission.CanCreate(CurrentRole);
     public bool CanClose => _permission.CanClose(CurrentRole);
     public IReadOnlyList<string> AssignmentRoles => ActionTaskRoleResolver.AllowedAssignmentRoles();
-    public IReadOnlyList<string> AllowedStatusOptions => CanClose
-        ? ActionTaskStatuses.All
-        : new[] { ActionTaskStatuses.Assigned, ActionTaskStatuses.InProgress, ActionTaskStatuses.Blocked, ActionTaskStatuses.Submitted };
+    public IReadOnlyList<string> AllowedStatusOptions => new[]
+    {
+        ActionTaskStatuses.Assigned,
+        ActionTaskStatuses.InProgress,
+        ActionTaskStatuses.Blocked,
+        ActionTaskStatuses.Submitted
+    };
+
+    // SECTION: Per-task action visibility helpers
+    public bool CanSubmitTask(ActionTaskItem task)
+    {
+        return !string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(task.AssignedToUserId, CurrentUserId, StringComparison.Ordinal);
+    }
+
+    public bool CanCloseTask(ActionTaskItem task)
+    {
+        return CanClose
+            && string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public bool CanUpdateTaskStatus(ActionTaskItem task)
+    {
+        return !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+            && (_permission.CanViewAll(CurrentRole) || string.Equals(task.AssignedToUserId, CurrentUserId, StringComparison.Ordinal));
+    }
 
     public async Task OnGetAsync()
     {
@@ -123,8 +147,16 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnPostSubmitAsync(int id)
     {
         await ResolveIdentityAsync();
-        await _service.SubmitTaskAsync(id, CurrentUserId, CurrentRole, "Submitted by assignee/workflow actor.");
-        TempData["ToastMessage"] = "Task submitted.";
+        try
+        {
+            await _service.SubmitTaskAsync(id, CurrentUserId, CurrentRole, "Submitted by assignee/workflow actor.");
+            TempData["ToastMessage"] = "Task submitted.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
         return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
     }
 
@@ -132,8 +164,16 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnPostCloseAsync(int id)
     {
         await ResolveIdentityAsync();
-        await _service.CloseTaskAsync(id, CurrentUserId, CurrentRole, "Closed by command authority.");
-        TempData["ToastMessage"] = "Task closed.";
+        try
+        {
+            await _service.CloseTaskAsync(id, CurrentUserId, CurrentRole, "Closed by command authority.");
+            TempData["ToastMessage"] = "Task closed.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
         return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
     }
 
@@ -141,8 +181,16 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnPostUpdateStatusAsync(int id, string status)
     {
         await ResolveIdentityAsync();
-        await _service.UpdateStatusAsync(id, status, CurrentUserId, CurrentRole);
-        TempData["ToastMessage"] = "Task status updated.";
+        try
+        {
+            await _service.UpdateStatusAsync(id, status, CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Task status updated.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
         return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
     }
 
@@ -236,15 +284,18 @@ public class IndexModel : PageModel
 
     public sealed class CreateTaskInput
     {
+        [Display(Name = "Task Title")]
         [Required, StringLength(200)]
         public string Title { get; set; } = string.Empty;
 
+        [Display(Name = "Description / Instructions")]
         [Required, StringLength(4000)]
         public string Description { get; set; } = string.Empty;
 
         [Required]
         public string AssignedToUserId { get; set; } = string.Empty;
 
+        [Display(Name = "Due Date")]
         [Required]
         public DateTime DueDate { get; set; } = DateTime.UtcNow.Date.AddDays(7);
 

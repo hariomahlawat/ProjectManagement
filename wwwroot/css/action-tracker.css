@@ -73,8 +73,21 @@
 
 /* SECTION: Table controls */
 .at-actions {
-    display: grid;
+    min-width: 300px;
+}
+
+.at-actions-stack {
+    display: flex;
+    flex-wrap: wrap;
     gap: .4rem;
+    align-items: center;
+}
+
+.at-status-form {
+    display: flex;
+    gap: .35rem;
+    align-items: center;
+    min-width: 220px;
 }
 
 /* SECTION: Empty states */

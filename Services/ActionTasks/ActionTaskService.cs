@@ -84,10 +84,16 @@ public class ActionTaskService : IActionTaskService
             throw new InvalidOperationException("Invalid status transition.");
         }
 
-        // SECTION: Role-governed close transition
-        if (string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase) && !_permission.CanClose(role))
+        // SECTION: Enforce dedicated close action
+        if (string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("Only HoD/Comdt can close tasks.");
+            throw new InvalidOperationException("Use the close action to close a task.");
+        }
+
+        // SECTION: Enforce lifecycle transitions
+        if (!IsAllowedTransition(task.Status, status))
+        {
+            throw new InvalidOperationException($"Invalid status transition from {task.Status} to {status}.");
         }
 
         var oldStatus = task.Status;
@@ -110,15 +116,19 @@ public class ActionTaskService : IActionTaskService
         var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
 
         // SECTION: Ownership and role authorization checks
-        if (!_permission.CanViewAll(role) &&
-            !string.Equals(task.AssignedToUserId, userId, StringComparison.Ordinal))
+        if (!string.Equals(task.AssignedToUserId, userId, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("Unauthorized access.");
+            throw new InvalidOperationException("Only the assigned user can submit this task.");
         }
 
         if (!_permission.CanSubmit(role))
         {
             throw new InvalidOperationException("You are not authorized to submit this task.");
+        }
+
+        if (string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Closed tasks cannot be submitted.");
         }
 
         var oldStatus = task.Status;
@@ -137,6 +147,10 @@ public class ActionTaskService : IActionTaskService
         }
 
         var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
+        if (!string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Only submitted tasks can be closed.");
+        }
 
         var oldStatus = task.Status;
         task.Status = ActionTaskStatuses.Closed;
@@ -162,5 +176,33 @@ public class ActionTaskService : IActionTaskService
         });
 
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    // SECTION: Workflow transition guard
+    private static bool IsAllowedTransition(string currentStatus, string nextStatus)
+    {
+        if (string.Equals(currentStatus, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.Equals(nextStatus, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.Equals(currentStatus, nextStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return currentStatus switch
+        {
+            ActionTaskStatuses.Assigned => nextStatus is ActionTaskStatuses.InProgress or ActionTaskStatuses.Blocked or ActionTaskStatuses.Submitted,
+            ActionTaskStatuses.InProgress => nextStatus is ActionTaskStatuses.Blocked or ActionTaskStatuses.Submitted,
+            ActionTaskStatuses.Blocked => nextStatus is ActionTaskStatuses.InProgress or ActionTaskStatuses.Submitted,
+            ActionTaskStatuses.Submitted => nextStatus is ActionTaskStatuses.InProgress or ActionTaskStatuses.Blocked,
+            _ => false
+        };
     }
 }
