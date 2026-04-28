@@ -73,7 +73,7 @@ public class IndexModel : PageModel
 
     public string CurrentRole { get; private set; } = string.Empty;
     public string CurrentUserId { get; private set; } = string.Empty;
-    public bool ShowCreatePanel { get; private set; }
+    public bool ShowCreateModal { get; private set; }
     public ActionTaskItem? SelectedTask { get; private set; }
 
     [BindProperty]
@@ -207,7 +207,7 @@ public class IndexModel : PageModel
 
         if (!ModelState.IsValid)
         {
-            ShowCreatePanel = true;
+            ShowCreateModal = true;
             await LoadDataAsync();
             return Page();
         }
@@ -216,7 +216,7 @@ public class IndexModel : PageModel
         if (assignedUser is null)
         {
             ModelState.AddModelError(string.Empty, "Assigned user was not found.");
-            ShowCreatePanel = true;
+            ShowCreateModal = true;
             await LoadDataAsync();
             return Page();
         }
@@ -226,7 +226,7 @@ public class IndexModel : PageModel
         if (assignedRole is null)
         {
             ModelState.AddModelError(string.Empty, "Selected user does not have an assignable Task Tracker role.");
-            ShowCreatePanel = true;
+            ShowCreateModal = true;
             await LoadDataAsync();
             return Page();
         }
@@ -234,7 +234,7 @@ public class IndexModel : PageModel
         if (!_permission.CanAssign(CurrentRole, assignedRole))
         {
             ModelState.AddModelError(string.Empty, $"Current role is not permitted to assign tasks to {assignedRole}.");
-            ShowCreatePanel = true;
+            ShowCreateModal = true;
             await LoadDataAsync();
             return Page();
         }

@@ -1,13 +1,16 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Command-attention KPI strip. *@
-<section class="at-kpis at-kpis-reports">
-    <article><h3>Active</h3><strong>@Model.ActiveCount</strong><p>All open workflow tasks.</p></article>
-    <article><h3>Critical Open</h3><strong>@Model.CriticalOpenCount</strong><p>Urgent open tasks.</p></article>
-    <article><h3>Overdue</h3><strong>@Model.OverdueCount</strong><p>Open tasks past due date.</p></article>
-    <article><h3>Blocked</h3><strong>@Model.BlockedCount</strong><p>Tasks requiring intervention.</p></article>
-    <article><h3>Submitted</h3><strong>@Model.SubmittedCount</strong><p>Pending command closure.</p></article>
-    <article><h3>Closed</h3><strong>@Model.ClosedCount</strong><p>Completed outcomes.</p></article>
+@* SECTION: Report KPI strip. *@
+<section class="at-section-group">
+    <h2 class="at-section-title">KPI Strip</h2>
+    <section class="at-kpis at-kpis-reports">
+        <article><h3>Active</h3><strong>@Model.ActiveCount</strong><p>All open workflow tasks.</p></article>
+        <article><h3>Critical Open</h3><strong>@Model.CriticalOpenCount</strong><p>Urgent open tasks.</p></article>
+        <article><h3>Overdue</h3><strong>@Model.OverdueCount</strong><p>Open tasks past due date.</p></article>
+        <article><h3>Blocked</h3><strong>@Model.BlockedCount</strong><p>Tasks requiring intervention.</p></article>
+        <article><h3>Submitted</h3><strong>@Model.SubmittedCount</strong><p>Pending command closure.</p></article>
+        <article><h3>Closed</h3><strong>@Model.ClosedCount</strong><p>Completed outcomes.</p></article>
+    </section>
 </section>
 
 @* SECTION: Reports analysis panels with lightweight proportional bars. *@
@@ -38,7 +41,7 @@
     </article>
     <article class="at-panel">
         <h2>Ageing Analysis</h2>
-        <p class="at-panel-note">Open and overdue ageing buckets.</p>
+        <p class="at-panel-note">Open and overdue task ageing buckets.</p>
         <div class="at-ageing-grid">
             <div>
                 <h3 class="at-small at-section-eyebrow">Open Tasks Ageing</h3>
@@ -83,8 +86,8 @@
         </div>
     </article>
     <article class="at-panel">
-        <h2>Closure Performance</h2>
-        <p class="at-panel-note">Priority exposure across open tasks.</p>
+        <h2>Priority Exposure</h2>
+        <p class="at-panel-note">Open tasks grouped by urgency.</p>
         <div class="at-metric-bars">
             @foreach (var item in Model.PriorityCounts)
             {

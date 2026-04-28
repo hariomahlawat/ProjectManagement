@@ -5,15 +5,15 @@
     <div class="at-board-grid at-board-grid-sprint">
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>Due Today</h2><span class="at-count-chip">@Model.DueTodayTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueTodayTaskDisplays, "No tasks due today.")' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueTodayTaskDisplays, "No tasks")' />
         </article>
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>Due This Week</h2><span class="at-count-chip">@Model.DueThisWeekTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueThisWeekTaskDisplays, "No tasks due this week.")' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueThisWeekTaskDisplays, "No tasks")' />
         </article>
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>Due Later</h2><span class="at-count-chip">@Model.DueLaterTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueLaterTaskDisplays, "No tasks in this due window.")' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueLaterTaskDisplays, "No tasks")' />
         </article>
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>Overdue</h2><span class="at-count-chip">@Model.SprintOverdueTaskDisplays.Count</span></div>
