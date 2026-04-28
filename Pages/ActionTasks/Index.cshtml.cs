@@ -509,17 +509,27 @@ public class IndexModel : PageModel
             return "Dashboard";
         }
 
+        // SECTION: Normalize known aliases first so legacy links remain valid.
         if (string.Equals(normalized, "SprintBoard", StringComparison.OrdinalIgnoreCase))
         {
-            return "Sprint";
+            normalized = "Sprint";
         }
-
-        if (string.Equals(normalized, "My Tasks", StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(normalized, "My Tasks", StringComparison.OrdinalIgnoreCase))
         {
-            return "MyTasks";
+            normalized = "MyTasks";
         }
 
-        return normalized;
+        // SECTION: Explicitly whitelist supported view modes and default unsupported inputs.
+        return normalized switch
+        {
+            _ when string.Equals(normalized, "Dashboard", StringComparison.OrdinalIgnoreCase) => "Dashboard",
+            _ when string.Equals(normalized, "MyTasks", StringComparison.OrdinalIgnoreCase) => "MyTasks",
+            _ when string.Equals(normalized, "TaskList", StringComparison.OrdinalIgnoreCase) => "TaskList",
+            _ when string.Equals(normalized, "Kanban", StringComparison.OrdinalIgnoreCase) => "Kanban",
+            _ when string.Equals(normalized, "Sprint", StringComparison.OrdinalIgnoreCase) => "Sprint",
+            _ when string.Equals(normalized, "Reports", StringComparison.OrdinalIgnoreCase) => "Reports",
+            _ => "Dashboard"
+        };
     }
 
     public sealed class CreateTaskInput
