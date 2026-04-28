@@ -52,6 +52,8 @@
                 <h2>Create Task</h2>
                 <div asp-validation-summary="All" class="alert alert-danger mb-3"></div>
                 <form method="post" asp-page-handler="Create" class="row g-3">
+                    @* SECTION: Preserve selected view mode during postbacks. *@
+                    <input type="hidden" name="ViewMode" value="@activeView" />
                     <div class="col-md-4">
                         <label asp-for="Input.Title" class="form-label"></label>
                         <input asp-for="Input.Title" class="form-control" />
@@ -147,6 +149,8 @@
                                     @if (task.Status != ActionTaskStatuses.Submitted && task.Status != ActionTaskStatuses.Closed)
                                     {
                                         <form method="post" asp-page-handler="Submit">
+                                            @* SECTION: Preserve list context while performing row actions. *@
+                                            <input type="hidden" name="ViewMode" value="@activeView" />
                                             <input type="hidden" name="id" value="@task.Id" />
                                             <button type="submit" class="btn btn-outline-warning btn-sm">Submit</button>
                                         </form>
@@ -154,6 +158,8 @@
                                     @if (Model.CanClose && task.Status != ActionTaskStatuses.Closed)
                                     {
                                         <form method="post" asp-page-handler="Close">
+                                            @* SECTION: Preserve list context while performing row actions. *@
+                                            <input type="hidden" name="ViewMode" value="@activeView" />
                                             <input type="hidden" name="id" value="@task.Id" />
                                             <button type="submit" class="btn btn-outline-success btn-sm">Close</button>
                                         </form>
@@ -161,6 +167,8 @@
                                     @if (task.Status != ActionTaskStatuses.Closed)
                                     {
                                         <form method="post" asp-page-handler="UpdateStatus" class="d-flex gap-1">
+                                            @* SECTION: Preserve list context while performing row actions. *@
+                                            <input type="hidden" name="ViewMode" value="@activeView" />
                                             <input type="hidden" name="id" value="@task.Id" />
                                             <select name="status" class="form-select form-select-sm">
                                                 @foreach (var status in Model.AllowedStatusOptions)
