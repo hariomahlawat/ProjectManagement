@@ -40,4 +40,11 @@ public static class ActionTaskRoleResolver
         var roleSet = new HashSet<string>(roles, StringComparer.OrdinalIgnoreCase);
         return Precedence.FirstOrDefault(roleSet.Contains);
     }
+
+    // SECTION: Resolve highest-precedence assignable tracker role from user role list
+    public static string? ResolveAssignableRoleFromRoles(IEnumerable<string> roles)
+    {
+        var roleSet = new HashSet<string>(roles, StringComparer.OrdinalIgnoreCase);
+        return AllowedAssignmentRoles().FirstOrDefault(roleSet.Contains);
+    }
 }
