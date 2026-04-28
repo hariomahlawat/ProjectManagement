@@ -2,7 +2,8 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 @using ProjectManagement.Models
 @{
-    ViewData["Title"] = "Action Tracker";
+    ViewData["Title"] = "Task Tracker";
+    ViewData["UseFullWidth"] = true;
     var activeView = (Model.ViewMode ?? "Dashboard").Trim();
 
     int CountByStatus(string status) => Model.Tasks.Count(t => string.Equals(t.Status, status, StringComparison.OrdinalIgnoreCase));
@@ -12,7 +13,6 @@
     var blockedCount = CountByStatus(ActionTaskStatuses.Blocked);
     var closedCount = CountByStatus(ActionTaskStatuses.Closed);
 
-    var grouped = Model.Tasks.GroupBy(x => x.Status).OrderBy(g => g.Key).ToList();
 }
 
 @section Styles {
@@ -22,7 +22,7 @@
 <div class="at-shell">
     <aside class="at-sidebar">
         <div class="at-brand">PRISM ERP</div>
-        <div class="at-module">Action Tracker</div>
+        <div class="at-module">Task Tracker</div>
 
         <nav class="at-nav">
             <a asp-page="/ActionTasks/Index" asp-route-viewMode="Dashboard" class="@(activeView == "Dashboard" ? "active" : string.Empty)">Dashboard</a>
@@ -37,19 +37,19 @@
     <section class="at-content">
         <header class="at-header">
             <div>
-                <h1>Task Command Dashboard</h1>
-                <p>Command-level action tracking with role-governed access and audit integrity.</p>
+                <h1>Command Task Dashboard</h1>
+                <p>Command-level task tracking with role-governed access and audit integrity.</p>
             </div>
             @if (Model.CanCreate)
             {
-                <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#createActionTaskPanel" aria-expanded="false" aria-controls="createActionTaskPanel">New Task</button>
+                <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#createTaskPanel" aria-expanded="false" aria-controls="createTaskPanel">New Task</button>
             }
         </header>
 
         @if (Model.CanCreate)
         {
-            <section id="createActionTaskPanel" class="collapse at-panel mb-3">
-                <h2>Create Action Task</h2>
+            <section id="createTaskPanel" class="collapse at-panel mb-3">
+                <h2>Create Task</h2>
                 <form method="post" asp-page-handler="Create" class="row g-3">
                     <div class="col-md-4">
                         <label asp-for="Input.Title" class="form-label"></label>
@@ -57,7 +57,7 @@
                     </div>
                     <div class="col-md-8">
                         <label asp-for="Input.Description" class="form-label"></label>
-                        <input asp-for="Input.Description" class="form-control" />
+                        <textarea asp-for="Input.Description" class="form-control" rows="3"></textarea>
                     </div>
                     <div class="col-md-3">
                         <label asp-for="Input.AssignedToUserId" class="form-label">Assign To</label>
@@ -66,15 +66,6 @@
                             @foreach (var user in Model.AssignableUsers)
                             {
                                 <option value="@user.UserId">@user.DisplayName (@user.Role)</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label asp-for="Input.AssignedToRole" class="form-label"></label>
-                        <select asp-for="Input.AssignedToRole" class="form-select">
-                            @foreach (var role in Model.AssignmentRoles)
-                            {
-                                <option value="@role">@role</option>
                             }
                         </select>
                     </div>
@@ -92,7 +83,7 @@
                         <input asp-for="Input.DueDate" type="date" class="form-control" />
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-success w-100">Create</button>
+                        <button type="submit" class="btn btn-success w-100">Create Task</button>
                     </div>
                 </form>
             </section>
@@ -107,14 +98,23 @@
         </section>
 
         <section class="at-panel">
-            <h2>@(activeView == "MyTasks" ? "My Action Tasks" : "Action Task Register")</h2>
+            <h2>@(activeView == "MyTasks" ? "My Tasks" : "Task Register")</h2>
+            @if (!Model.Tasks.Any())
+            {
+                <div class="at-empty-state">
+                    <div class="fw-semibold">No tasks have been created yet.</div>
+                    <div class="text-muted">Use New Task to create the first task.</div>
+                </div>
+            }
+            else
+            {
             <div class="table-responsive">
                 <table class="table table-sm align-middle">
                     <thead>
                         <tr>
                             <th>ID</th>
                             <th>Task</th>
-                            <th>Assignee Role</th>
+                            <th>Assignee</th>
                             <th>Due Date</th>
                             <th>Status</th>
                             <th>Priority</th>
@@ -130,7 +130,10 @@
                                     <a asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@activeView">@task.Title</a>
                                     <div class="small text-muted">@task.Description</div>
                                 </td>
-                                <td>@task.AssignedToRole</td>
+                                <td>
+                                    <div class="fw-semibold">@(Model.TaskAssigneeNames.TryGetValue(task.AssignedToUserId, out var assigneeName) ? assigneeName : "User")</div>
+                                    <div class="text-muted small">@task.AssignedToRole</div>
+                                </td>
                                 <td>@task.DueDate.ToString("dd MMM yyyy")</td>
                                 <td>@task.Status</td>
                                 <td>@task.Priority</td>
@@ -154,7 +157,7 @@
                                         <form method="post" asp-page-handler="UpdateStatus" class="d-flex gap-1">
                                             <input type="hidden" name="id" value="@task.Id" />
                                             <select name="status" class="form-select form-select-sm">
-                                                @foreach (var status in ActionTaskStatuses.All)
+                                                @foreach (var status in Model.AllowedStatusOptions)
                                                 {
                                                     if (task.Status == status)
                                                     {
@@ -175,6 +178,7 @@
                     </tbody>
                 </table>
             </div>
+            }
         </section>
 
         @if (Model.TaskId.HasValue)

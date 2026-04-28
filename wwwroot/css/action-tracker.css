@@ -1,9 +1,10 @@
 /* SECTION: Action Tracker shell */
 .at-shell {
     display: grid;
-    grid-template-columns: 220px 1fr;
+    grid-template-columns: 240px minmax(0, 1fr);
     gap: 1rem;
     min-height: 70vh;
+    width: 100%;
 }
 
 .at-sidebar {
@@ -30,7 +31,10 @@
 }
 
 /* SECTION: Header and cards */
-.at-content { padding-bottom: 1.5rem; }
+.at-content {
+    min-width: 0;
+    padding-bottom: 1.5rem;
+}
 .at-header {
     display: flex;
     justify-content: space-between;
@@ -71,6 +75,15 @@
 .at-actions {
     display: grid;
     gap: .4rem;
+}
+
+/* SECTION: Empty states */
+.at-empty-state {
+    border: 1px dashed #cbd5e1;
+    border-radius: 14px;
+    padding: 1.25rem;
+    background: #f8fafc;
+    color: #475569;
 }
 
 @media (max-width: 1199px) {
