@@ -230,12 +230,12 @@ public class IndexModel : PageModel
     }
 
     // SECTION: Submit task for closure review
-    public async Task<IActionResult> OnPostSubmitAsync(int id)
+    public async Task<IActionResult> OnPostSubmitAsync(int id, string? remarks)
     {
         await ResolveIdentityAsync();
         try
         {
-            await _service.SubmitTaskAsync(id, CurrentUserId, CurrentRole, "Submitted by assignee/workflow actor.");
+            await _service.SubmitTaskAsync(id, CurrentUserId, CurrentRole, remarks);
             TempData["ToastMessage"] = "Task submitted.";
         }
         catch (InvalidOperationException ex)
@@ -247,12 +247,12 @@ public class IndexModel : PageModel
     }
 
     // SECTION: Close task by command role
-    public async Task<IActionResult> OnPostCloseAsync(int id)
+    public async Task<IActionResult> OnPostCloseAsync(int id, string? remarks)
     {
         await ResolveIdentityAsync();
         try
         {
-            await _service.CloseTaskAsync(id, CurrentUserId, CurrentRole, "Closed by command authority.");
+            await _service.CloseTaskAsync(id, CurrentUserId, CurrentRole, remarks);
             TempData["ToastMessage"] = "Task closed.";
         }
         catch (InvalidOperationException ex)
@@ -264,12 +264,12 @@ public class IndexModel : PageModel
     }
 
     // SECTION: Update in-flight status
-    public async Task<IActionResult> OnPostUpdateStatusAsync(int id, string status)
+    public async Task<IActionResult> OnPostUpdateStatusAsync(int id, string status, string? remarks)
     {
         await ResolveIdentityAsync();
         try
         {
-            await _service.UpdateStatusAsync(id, status, CurrentUserId, CurrentRole);
+            await _service.UpdateStatusAsync(id, status, CurrentUserId, CurrentRole, remarks);
             TempData["ToastMessage"] = "Task status updated.";
         }
         catch (InvalidOperationException ex)

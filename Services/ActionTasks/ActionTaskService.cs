@@ -96,6 +96,9 @@ public class ActionTaskService : IActionTaskService
             throw new InvalidOperationException($"Invalid status transition from {task.Status} to {status}.");
         }
 
+        // SECTION: Remarks validation for key transitions
+        ValidateRemarksForStatusTransition(task.Status, status, remarks);
+
         var oldStatus = task.Status;
         task.Status = status;
         if (string.Equals(status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
@@ -131,6 +134,12 @@ public class ActionTaskService : IActionTaskService
             throw new InvalidOperationException("Closed tasks cannot be submitted.");
         }
 
+        // SECTION: Remarks validation for submit action
+        if (IsBlank(remarks))
+        {
+            throw new InvalidOperationException("Remarks are required when submitting a task.");
+        }
+
         var oldStatus = task.Status;
         task.Status = ActionTaskStatuses.Submitted;
         task.SubmittedOn = DateTime.UtcNow;
@@ -150,6 +159,12 @@ public class ActionTaskService : IActionTaskService
         if (!string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Only submitted tasks can be closed.");
+        }
+
+        // SECTION: Remarks validation for close action
+        if (IsBlank(remarks))
+        {
+            throw new InvalidOperationException("Closure remarks are required.");
         }
 
         var oldStatus = task.Status;
@@ -177,6 +192,29 @@ public class ActionTaskService : IActionTaskService
 
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    // SECTION: Remarks rule helpers
+    private static void ValidateRemarksForStatusTransition(string currentStatus, string nextStatus, string? remarks)
+    {
+        if (string.Equals(nextStatus, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase) && IsBlank(remarks))
+        {
+            throw new InvalidOperationException("Remarks are required when marking a task as blocked.");
+        }
+
+        if (string.Equals(nextStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase) && IsBlank(remarks))
+        {
+            throw new InvalidOperationException("Remarks are required when submitting a task.");
+        }
+
+        if (string.Equals(currentStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(nextStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
+            && IsBlank(remarks))
+        {
+            throw new InvalidOperationException("Remarks are required when returning a submitted task for further action.");
+        }
+    }
+
+    private static bool IsBlank(string? value) => string.IsNullOrWhiteSpace(value);
 
     // SECTION: Workflow transition guard
     private static bool IsAllowedTransition(string currentStatus, string nextStatus)

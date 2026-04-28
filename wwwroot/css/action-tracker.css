@@ -117,21 +117,69 @@
 }
 
 .at-actions {
-    min-width: 300px;
+    min-width: 420px;
 }
 
 .at-actions-stack {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: .45rem;
+}
+
+.at-status-form,
+.at-inline-action-form {
+    display: flex;
     gap: .4rem;
     align-items: center;
 }
 
-.at-status-form {
-    display: flex;
-    gap: .35rem;
-    align-items: center;
-    min-width: 220px;
+.at-status-form select {
+    max-width: 150px;
+}
+
+.at-status-form input,
+.at-inline-action-form input {
+    min-width: 180px;
+}
+
+.at-inline-action-form .btn,
+.at-status-form .btn {
+    white-space: nowrap;
+}
+
+/* SECTION: Selected task details and audit context */
+.at-task-details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .65rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #f8fafc;
+    padding: .9rem;
+}
+
+.at-audit-list {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.at-audit-item {
+    padding: .85rem 1rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.at-audit-item:last-child {
+    border-bottom: none;
+}
+
+.at-audit-remarks {
+    margin-top: .45rem;
+    padding: .55rem .7rem;
+    border-left: 3px solid #94a3b8;
+    background: #f8fafc;
+    color: #334155;
+    border-radius: .35rem;
 }
 
 /* SECTION: Badge system */
@@ -243,4 +291,8 @@
     .at-card-grid,
     .at-board-grid,
     .at-board-grid-sprint { grid-template-columns: 1fr; }
+
+    .at-task-details-grid {
+        grid-template-columns: 1fr;
+    }
 }
