@@ -22,89 +22,86 @@
     @if (Model.SelectedTask is not null)
     {
         @* SECTION: Context-valid task actions rendered inside inspector only. *@
-        <div class="at-inspector-actions">
+        <section class="at-inspector-actions" aria-label="Task Actions">
+            <h3>Task Actions</h3>
+
             @if (Model.CanUpdateTaskStatus(Model.SelectedTask))
             {
-                <form method="post" asp-page-handler="UpdateStatus" class="at-inline-form">
+                <form method="post" asp-page-handler="UpdateStatus" class="at-action-card">
                     <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                     <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                     <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
-                    <div class="at-inline-grid">
-                        <div>
-                            <label class="form-label at-small">Update Status</label>
-                            <select name="status" class="form-select form-select-sm">
-                                @foreach (var status in Model.AllowedStatusOptions)
+                    <div class="at-action-title">Update Status</div>
+                    <div class="mb-2">
+                        <label class="form-label at-small">Change Status</label>
+                        <select name="status" class="form-select form-select-sm">
+                            @foreach (var status in Model.AllowedStatusOptions)
+                            {
+                                if (Model.SelectedTask.Status == status)
                                 {
-                                    if (Model.SelectedTask.Status == status)
-                                    {
-                                        <option value="@status" selected>@status</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="@status">@status</option>
-                                    }
+                                    <option value="@status" selected>@status</option>
                                 }
-                            </select>
-                        </div>
-                        <div>
-                            <label class="form-label at-small">Remarks</label>
-                            <input name="remarks" class="form-control form-control-sm" maxlength="300" placeholder="Status update remarks" />
-                        </div>
-                        <div class="d-flex align-items-end">
-                            <button type="submit" class="btn btn-primary btn-sm w-100">Save Update</button>
-                        </div>
+                                else
+                                {
+                                    <option value="@status">@status</option>
+                                }
+                            }
+                        </select>
                     </div>
+                    <div class="mb-2">
+                        <label class="form-label at-small">Remarks</label>
+                        <textarea name="remarks" rows="2" class="form-control form-control-sm" maxlength="300" placeholder="Status update remarks"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">Update Status</button>
                 </form>
             }
 
             @if (Model.CanSubmitTask(Model.SelectedTask))
             {
-                <form method="post" asp-page-handler="Submit" class="at-inline-form">
+                <form method="post" asp-page-handler="Submit" class="at-action-card">
                     <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                     <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                     <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
-                    <div class="at-inline-grid at-inline-grid-submit">
-                        <div class="at-grid-span-2">
-                            <label class="form-label at-small">Submission Remarks</label>
-                            <input name="remarks" class="form-control form-control-sm" maxlength="300" placeholder="Add submission notes" />
-                        </div>
-                        <div class="d-flex align-items-end">
-                            <button type="submit" class="btn btn-warning btn-sm w-100">Submit</button>
-                        </div>
+                    <div class="at-action-title">Submit Task</div>
+                    <div class="mb-2">
+                        <label class="form-label at-small">Submission Remarks</label>
+                        <textarea name="remarks" rows="2" class="form-control form-control-sm" maxlength="300" placeholder="Add submission notes"></textarea>
                     </div>
+                    <button type="submit" class="btn btn-warning btn-sm">Submit Task</button>
                 </form>
             }
 
             @if (Model.CanCloseTask(Model.SelectedTask))
             {
-                <form method="post" asp-page-handler="Close" class="at-inline-form">
+                <form method="post" asp-page-handler="Close" class="at-action-card">
                     <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                     <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                     <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
-                    <div class="at-inline-grid at-inline-grid-submit">
-                        <div class="at-grid-span-2">
-                            <label class="form-label at-small">Closure Remarks</label>
-                            <input name="remarks" class="form-control form-control-sm" maxlength="300" placeholder="Add closure notes" />
-                        </div>
-                        <div class="d-flex align-items-end">
-                            <button type="submit" class="btn btn-success btn-sm w-100">Close Task</button>
-                        </div>
+                    <div class="at-action-title">Close Task</div>
+                    <div class="mb-2">
+                        <label class="form-label at-small">Closure Remarks</label>
+                        <textarea name="remarks" rows="2" class="form-control form-control-sm" maxlength="300" placeholder="Add closure notes"></textarea>
                     </div>
+                    <button type="submit" class="btn btn-success btn-sm">Close Task</button>
                 </form>
             }
-        </div>
+        </section>
 
-        <div class="at-task-details-grid mb-3">
-            <div><span class="text-muted">Title</span><div class="fw-semibold">@Model.SelectedTask.Title</div></div>
-            <div><span class="text-muted">Assignee</span><div class="fw-semibold">@Model.ResolveAssigneeName(Model.SelectedTask.AssignedToUserId) (@Model.SelectedTask.AssignedToRole)</div></div>
-            <div class="at-grid-span-2"><span class="text-muted">Description</span><div class="fw-semibold">@Model.SelectedTask.Description</div></div>
-            <div><span class="text-muted">Created On</span><div class="fw-semibold">@Model.SelectedTask.AssignedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
-            <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@(Model.SelectedTask.SubmittedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
-            <div><span class="text-muted">Closed On</span><div class="fw-semibold">@(Model.SelectedTask.ClosedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
-        </div>
+        @* SECTION: Task metadata for inspector context. *@
+        <section class="at-task-info mb-3" aria-label="Task Information">
+            <h3>Task Information</h3>
+            <div class="at-task-details-grid">
+                <div><span class="text-muted">Title</span><div class="fw-semibold">@Model.SelectedTask.Title</div></div>
+                <div><span class="text-muted">Assignee</span><div class="fw-semibold">@Model.ResolveAssigneeName(Model.SelectedTask.AssignedToUserId) (@Model.SelectedTask.AssignedToRole)</div></div>
+                <div class="at-grid-span-2"><span class="text-muted">Description</span><div class="fw-semibold">@Model.SelectedTask.Description</div></div>
+                <div><span class="text-muted">Created On</span><div class="fw-semibold">@Model.SelectedTask.AssignedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
+                <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@(Model.SelectedTask.SubmittedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
+                <div><span class="text-muted">Closed On</span><div class="fw-semibold">@(Model.SelectedTask.ClosedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
+            </div>
+        </section>
     }
 
-    <h3 class="h5 mb-2">Task Audit Trail</h3>
+    <h3 class="h5 mb-2">Audit Trail</h3>
     <div class="at-audit-list">
         @foreach (var log in Model.SelectedTaskLogs)
         {

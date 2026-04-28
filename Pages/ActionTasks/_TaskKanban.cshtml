@@ -5,11 +5,11 @@
     <div class="at-board-grid is-kanban">
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>Assigned</h2><span class="at-count-chip">@Model.KanbanAssignedTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanAssignedTaskDisplays, "No assigned tasks.")' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanAssignedTaskDisplays, "No tasks")' />
         </article>
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>In Progress</h2><span class="at-count-chip">@Model.KanbanInProgressTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanInProgressTaskDisplays, "No tasks in progress.")' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanInProgressTaskDisplays, "No tasks")' />
         </article>
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>Blocked</h2><span class="at-count-chip">@Model.KanbanBlockedTaskDisplays.Count</span></div>
@@ -17,11 +17,11 @@
         </article>
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>Submitted</h2><span class="at-count-chip">@Model.KanbanSubmittedTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanSubmittedTaskDisplays, "No submitted tasks.")' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanSubmittedTaskDisplays, "No tasks")' />
         </article>
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>Closed</h2><span class="at-count-chip">@Model.KanbanClosedTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanClosedTaskDisplays, "No closed tasks yet.")' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanClosedTaskDisplays, "No tasks")' />
         </article>
     </div>
 </section>
