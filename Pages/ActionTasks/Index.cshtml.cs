@@ -41,6 +41,7 @@ public class IndexModel : PageModel
 
     public string CurrentRole { get; private set; } = string.Empty;
     public string CurrentUserId { get; private set; } = string.Empty;
+    public bool ShowCreatePanel { get; private set; }
 
     [BindProperty]
     public CreateTaskInput Input { get; set; } = new();
@@ -70,6 +71,7 @@ public class IndexModel : PageModel
 
         if (!ModelState.IsValid)
         {
+            ShowCreatePanel = true;
             await LoadDataAsync();
             return Page();
         }
@@ -78,15 +80,25 @@ public class IndexModel : PageModel
         if (assignedUser is null)
         {
             ModelState.AddModelError(string.Empty, "Assigned user was not found.");
+            ShowCreatePanel = true;
             await LoadDataAsync();
             return Page();
         }
 
         var assignedRoles = await _users.GetRolesAsync(assignedUser);
-        var assignedRole = ActionTaskRoleResolver.ResolveFromRoles(assignedRoles);
-        if (assignedRole is null || !_permission.CanAssign(CurrentRole, assignedRole))
+        var assignedRole = ActionTaskRoleResolver.ResolveAssignableRoleFromRoles(assignedRoles);
+        if (assignedRole is null)
         {
-            ModelState.AddModelError(string.Empty, "Selected user is not eligible for task assignment.");
+            ModelState.AddModelError(string.Empty, "Selected user does not have an assignable Task Tracker role.");
+            ShowCreatePanel = true;
+            await LoadDataAsync();
+            return Page();
+        }
+
+        if (!_permission.CanAssign(CurrentRole, assignedRole))
+        {
+            ModelState.AddModelError(string.Empty, $"Current role is not permitted to assign tasks to {assignedRole}.");
+            ShowCreatePanel = true;
             await LoadDataAsync();
             return Page();
         }
@@ -104,7 +116,7 @@ public class IndexModel : PageModel
         });
 
         TempData["ToastMessage"] = "Task created.";
-        return RedirectToPage(new { ViewMode });
+        return RedirectToPage("/ActionTasks/Index", new { viewMode = ViewMode });
     }
 
     // SECTION: Submit task for closure review
@@ -164,7 +176,6 @@ public class IndexModel : PageModel
     private async Task<IReadOnlyList<UserOption>> LoadAssignableUsersAsync()
     {
         // SECTION: Stabilize user snapshot to avoid overlapping data-reader operations
-        var targets = new HashSet<string>(AssignmentRoles, StringComparer.OrdinalIgnoreCase);
         var users = await _users.Users
             .OrderBy(x => x.UserName)
             .Take(200)
@@ -175,8 +186,8 @@ public class IndexModel : PageModel
         foreach (var user in users)
         {
             var roles = await _users.GetRolesAsync(user);
-            var matchedRole = roles.FirstOrDefault(targets.Contains);
-            if (matchedRole is null)
+            var matchedRole = ActionTaskRoleResolver.ResolveAssignableRoleFromRoles(roles);
+            if (matchedRole is null || !_permission.CanAssign(CurrentRole, matchedRole))
             {
                 continue;
             }
