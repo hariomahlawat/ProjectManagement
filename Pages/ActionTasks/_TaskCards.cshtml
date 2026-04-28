@@ -1,0 +1,41 @@
+@model IReadOnlyList<ProjectManagement.Models.ActionTaskItem>
+@using ProjectManagement.Models
+@{
+    string StatusClass(string status)
+    {
+        if (string.Equals(status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase)) return "at-badge at-badge-status-progress";
+        if (string.Equals(status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)) return "at-badge at-badge-status-blocked";
+        if (string.Equals(status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)) return "at-badge at-badge-status-submitted";
+        if (string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)) return "at-badge at-badge-status-closed";
+        return "at-badge at-badge-status-assigned";
+    }
+
+    string PriorityClass(string priority)
+    {
+        if (string.Equals(priority, "Critical", StringComparison.OrdinalIgnoreCase)) return "at-badge at-badge-priority-critical";
+        if (string.Equals(priority, "High", StringComparison.OrdinalIgnoreCase)) return "at-badge at-badge-priority-high";
+        return "at-badge at-badge-priority-normal";
+    }
+}
+
+@if (!Model.Any())
+{
+    <div class="at-empty-column">No tasks</div>
+}
+else
+{
+    <div class="at-task-cards">
+        @foreach (var task in Model)
+        {
+            <article class="at-task-card">
+                <div class="fw-semibold">AT-@task.Id · @task.Title</div>
+                <div class="small text-muted">Assignee Role: @task.AssignedToRole</div>
+                <div class="small text-muted">Due: @task.DueDate.ToString("dd MMM yyyy")</div>
+                <div class="d-flex gap-2 mt-2 flex-wrap">
+                    <span class="@PriorityClass(task.Priority)">@task.Priority</span>
+                    <span class="@StatusClass(task.Status)">@task.Status</span>
+                </div>
+            </article>
+        }
+    </div>
+}

@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Services.ActionTasks;
 
@@ -29,9 +28,25 @@ public class IndexModel : PageModel
     }
 
     public IReadOnlyList<ActionTaskItem> Tasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> CriticalOpenTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> OverdueTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> RecentlySubmittedTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> RecentlyUpdatedTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> KanbanAssignedTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> KanbanInProgressTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> KanbanBlockedTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> KanbanSubmittedTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> KanbanClosedTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> DueTodayTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> DueThisWeekTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> DueLaterTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> SprintOverdueTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskAuditLog> SelectedTaskLogs { get; private set; } = Array.Empty<ActionTaskAuditLog>();
     public IReadOnlyList<UserOption> AssignableUsers { get; private set; } = Array.Empty<UserOption>();
     public IReadOnlyDictionary<string, string> TaskAssigneeNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
+    public IReadOnlyList<CountSummary> AssigneePendingCounts { get; private set; } = Array.Empty<CountSummary>();
+    public IReadOnlyList<CountSummary> PriorityCounts { get; private set; } = Array.Empty<CountSummary>();
+    public IReadOnlyList<CountSummary> StatusCounts { get; private set; } = Array.Empty<CountSummary>();
 
     [BindProperty(SupportsGet = true)]
     public string? ViewMode { get; set; } = "Dashboard";
@@ -39,9 +54,25 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public int? TaskId { get; set; }
 
+    [BindProperty(SupportsGet = true)]
+    public string? FilterStatus { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? FilterPriority { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? FilterAssigneeUserId { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public DateTime? FilterDueDate { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? FilterSearch { get; set; }
+
     public string CurrentRole { get; private set; } = string.Empty;
     public string CurrentUserId { get; private set; } = string.Empty;
     public bool ShowCreatePanel { get; private set; }
+    public ActionTaskItem? SelectedTask { get; private set; }
 
     [BindProperty]
     public CreateTaskInput Input { get; set; } = new();
@@ -49,6 +80,14 @@ public class IndexModel : PageModel
     // SECTION: UI state projections
     public bool CanCreate => _permission.CanCreate(CurrentRole);
     public bool CanClose => _permission.CanClose(CurrentRole);
+    public string ResolvedViewMode => ResolveViewMode();
+    public bool IsDashboardView => string.Equals(ResolvedViewMode, "Dashboard", StringComparison.OrdinalIgnoreCase);
+    public bool IsMyTasksView => string.Equals(ResolvedViewMode, "MyTasks", StringComparison.OrdinalIgnoreCase);
+    public bool IsTaskListView => string.Equals(ResolvedViewMode, "TaskList", StringComparison.OrdinalIgnoreCase);
+    public bool IsKanbanView => string.Equals(ResolvedViewMode, "Kanban", StringComparison.OrdinalIgnoreCase);
+    public bool IsSprintBoardView => string.Equals(ResolvedViewMode, "Sprint", StringComparison.OrdinalIgnoreCase);
+    public bool IsReportsView => string.Equals(ResolvedViewMode, "Reports", StringComparison.OrdinalIgnoreCase);
+
     public IReadOnlyList<string> AssignmentRoles => ActionTaskRoleResolver.AllowedAssignmentRoles();
     public IReadOnlyList<string> AllowedStatusOptions => new[]
     {
@@ -76,6 +115,53 @@ public class IndexModel : PageModel
     {
         return !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
             && (_permission.CanViewAll(CurrentRole) || string.Equals(task.AssignedToUserId, CurrentUserId, StringComparison.Ordinal));
+    }
+
+    public string GetStatusBadgeClass(string status)
+    {
+        if (string.Equals(status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
+        {
+            return "at-badge at-badge-status-progress";
+        }
+
+        if (string.Equals(status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase))
+        {
+            return "at-badge at-badge-status-blocked";
+        }
+
+        if (string.Equals(status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+        {
+            return "at-badge at-badge-status-submitted";
+        }
+
+        if (string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            return "at-badge at-badge-status-closed";
+        }
+
+        return "at-badge at-badge-status-assigned";
+    }
+
+    public string GetPriorityBadgeClass(string priority)
+    {
+        if (string.Equals(priority, "Critical", StringComparison.OrdinalIgnoreCase))
+        {
+            return "at-badge at-badge-priority-critical";
+        }
+
+        if (string.Equals(priority, "High", StringComparison.OrdinalIgnoreCase))
+        {
+            return "at-badge at-badge-priority-high";
+        }
+
+        return "at-badge at-badge-priority-normal";
+    }
+
+    public string ResolveAssigneeName(string assignedToUserId)
+    {
+        return TaskAssigneeNames.TryGetValue(assignedToUserId, out var assigneeName)
+            ? assigneeName
+            : "User";
     }
 
     public async Task OnGetAsync()
@@ -200,17 +286,160 @@ public class IndexModel : PageModel
         await ResolveIdentityAsync();
 
         var tasks = await _service.GetTasksAsync(CurrentUserId, CurrentRole);
-        Tasks = IsMyTasksView()
-            ? tasks.Where(t => string.Equals(t.AssignedToUserId, CurrentUserId, StringComparison.Ordinal)).ToList()
-            : tasks;
+
+        // SECTION: Apply view-specific filtering
+        if (IsMyTasksView)
+        {
+            tasks = tasks
+                .Where(t => string.Equals(t.AssignedToUserId, CurrentUserId, StringComparison.Ordinal))
+                .ToList();
+        }
 
         AssignableUsers = await LoadAssignableUsersAsync();
-        TaskAssigneeNames = await LoadTaskAssigneeNamesAsync(Tasks);
+        TaskAssigneeNames = await LoadTaskAssigneeNamesAsync(tasks);
+
+        // SECTION: Populate overview and grouping collections
+        BuildDashboardCollections(tasks);
+        BuildKanbanCollections(tasks);
+        BuildSprintCollections(tasks);
+        BuildReportCollections(tasks);
+
+        // SECTION: Apply task-list filters only in task list mode
+        Tasks = IsTaskListView
+            ? ApplyTaskListFilters(tasks)
+            : tasks;
 
         if (TaskId.HasValue)
         {
+            SelectedTask = tasks.FirstOrDefault(t => t.Id == TaskId.Value);
             SelectedTaskLogs = await _service.GetTaskLogsAsync(TaskId.Value, CurrentUserId, CurrentRole);
         }
+    }
+
+    private IReadOnlyList<ActionTaskItem> ApplyTaskListFilters(IReadOnlyList<ActionTaskItem> tasks)
+    {
+        var query = tasks.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(FilterStatus))
+        {
+            query = query.Where(t => string.Equals(t.Status, FilterStatus, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(FilterPriority))
+        {
+            query = query.Where(t => string.Equals(t.Priority, FilterPriority, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(FilterAssigneeUserId))
+        {
+            query = query.Where(t => string.Equals(t.AssignedToUserId, FilterAssigneeUserId, StringComparison.Ordinal));
+        }
+
+        if (FilterDueDate.HasValue)
+        {
+            var dueDate = FilterDueDate.Value.Date;
+            query = query.Where(t => t.DueDate.Date == dueDate);
+        }
+
+        if (!string.IsNullOrWhiteSpace(FilterSearch))
+        {
+            var search = FilterSearch.Trim();
+            query = query.Where(t => t.Title.Contains(search, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return query.ToList();
+    }
+
+    private void BuildDashboardCollections(IReadOnlyList<ActionTaskItem> tasks)
+    {
+        var utcNow = DateTime.UtcNow;
+
+        CriticalOpenTasks = tasks
+            .Where(t => string.Equals(t.Priority, "Critical", StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(t => t.DueDate)
+            .Take(5)
+            .ToList();
+
+        OverdueTasks = tasks
+            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+                        && t.DueDate.Date < utcNow.Date)
+            .OrderBy(t => t.DueDate)
+            .Take(5)
+            .ToList();
+
+        RecentlySubmittedTasks = tasks
+            .Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(t => t.SubmittedOn ?? DateTime.MinValue)
+            .Take(5)
+            .ToList();
+
+        RecentlyUpdatedTasks = tasks
+            .OrderByDescending(t => t.SubmittedOn ?? t.AssignedOn)
+            .Take(5)
+            .ToList();
+    }
+
+    private void BuildKanbanCollections(IReadOnlyList<ActionTaskItem> tasks)
+    {
+        KanbanAssignedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase)).ToList();
+        KanbanInProgressTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase)).ToList();
+        KanbanBlockedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)).ToList();
+        KanbanSubmittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).ToList();
+        KanbanClosedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    private void BuildSprintCollections(IReadOnlyList<ActionTaskItem> tasks)
+    {
+        var utcToday = DateTime.UtcNow.Date;
+        var endOfWeek = utcToday.AddDays(7);
+
+        SprintOverdueTasks = tasks
+            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+                        && t.DueDate.Date < utcToday)
+            .OrderBy(t => t.DueDate)
+            .ToList();
+
+        DueTodayTasks = tasks
+            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+                        && t.DueDate.Date == utcToday)
+            .OrderBy(t => t.DueDate)
+            .ToList();
+
+        DueThisWeekTasks = tasks
+            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+                        && t.DueDate.Date > utcToday
+                        && t.DueDate.Date <= endOfWeek)
+            .OrderBy(t => t.DueDate)
+            .ToList();
+
+        DueLaterTasks = tasks
+            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+                        && t.DueDate.Date > endOfWeek)
+            .OrderBy(t => t.DueDate)
+            .ToList();
+    }
+
+    private void BuildReportCollections(IReadOnlyList<ActionTaskItem> tasks)
+    {
+        AssigneePendingCounts = tasks
+            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(t => ResolveAssigneeName(t.AssignedToUserId))
+            .OrderByDescending(group => group.Count())
+            .Select(group => new CountSummary(group.Key, group.Count()))
+            .ToList();
+
+        PriorityCounts = tasks
+            .GroupBy(t => t.Priority)
+            .OrderByDescending(group => group.Count())
+            .Select(group => new CountSummary(group.Key, group.Count()))
+            .ToList();
+
+        StatusCounts = tasks
+            .GroupBy(t => t.Status)
+            .OrderByDescending(group => group.Count())
+            .Select(group => new CountSummary(group.Key, group.Count()))
+            .ToList();
     }
 
     private async Task ResolveIdentityAsync()
@@ -271,15 +500,26 @@ public class IndexModel : PageModel
             StringComparer.Ordinal);
     }
 
-    // SECTION: Normalize and evaluate selected view mode
-    private bool IsMyTasksView() =>
-        string.Equals(ResolveViewMode(), "MyTasks", StringComparison.OrdinalIgnoreCase);
-
-    // SECTION: Resolve a safe view mode value for postback and redirects
+    // SECTION: Resolve a safe, standardized view mode value for postback and redirects
     private string ResolveViewMode()
     {
         var normalized = (ViewMode ?? string.Empty).Trim();
-        return string.IsNullOrWhiteSpace(normalized) ? "Dashboard" : normalized;
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return "Dashboard";
+        }
+
+        if (string.Equals(normalized, "SprintBoard", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Sprint";
+        }
+
+        if (string.Equals(normalized, "My Tasks", StringComparison.OrdinalIgnoreCase))
+        {
+            return "MyTasks";
+        }
+
+        return normalized;
     }
 
     public sealed class CreateTaskInput
@@ -304,4 +544,5 @@ public class IndexModel : PageModel
     }
 
     public sealed record UserOption(string UserId, string DisplayName, string Role);
+    public sealed record CountSummary(string Name, int Count);
 }

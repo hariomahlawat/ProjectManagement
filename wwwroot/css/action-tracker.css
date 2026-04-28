@@ -52,6 +52,10 @@
     margin-bottom: 1rem;
 }
 
+.at-kpis-reports {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .at-kpis article,
 .at-panel {
     border: 1px solid #ccd8ea;
@@ -71,7 +75,47 @@
     color: #1f2e45;
 }
 
-/* SECTION: Table controls */
+.at-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .75rem;
+}
+
+.at-simple-list {
+    margin: 0;
+    padding-left: 1rem;
+}
+
+/* SECTION: Table controls and styling */
+.at-table {
+    margin-bottom: 0;
+}
+
+.at-table thead th {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #475569;
+    background: #f8fafc;
+}
+
+.at-table td {
+    vertical-align: middle;
+}
+
+.at-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+.at-task-title {
+    font-weight: 700;
+}
+
+.at-task-desc {
+    color: #64748b;
+    font-size: 0.86rem;
+}
+
 .at-actions {
     min-width: 300px;
 }
@@ -90,6 +134,87 @@
     min-width: 220px;
 }
 
+/* SECTION: Badge system */
+.at-badge {
+    border-radius: 999px;
+    padding: 0.25rem 0.55rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    border: 1px solid transparent;
+}
+
+.at-badge-status-assigned {
+    color: #1f2937;
+    background: #e5e7eb;
+}
+
+.at-badge-status-progress {
+    color: #1e3a8a;
+    background: #dbeafe;
+}
+
+.at-badge-status-blocked {
+    color: #991b1b;
+    background: #fee2e2;
+}
+
+.at-badge-status-submitted {
+    color: #92400e;
+    background: #fef3c7;
+}
+
+.at-badge-status-closed {
+    color: #166534;
+    background: #dcfce7;
+}
+
+.at-badge-priority-normal {
+    color: #334155;
+    background: #e2e8f0;
+}
+
+.at-badge-priority-high {
+    color: #92400e;
+    background: #fef3c7;
+}
+
+.at-badge-priority-critical {
+    color: #991b1b;
+    background: #fee2e2;
+}
+
+/* SECTION: Board and card layouts */
+.at-board-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .75rem;
+}
+
+.at-board-grid-sprint {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.at-board-column h2 {
+    font-size: 1rem;
+}
+
+.at-task-cards {
+    display: grid;
+    gap: .55rem;
+}
+
+.at-task-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: .65rem;
+    background: #f8fafc;
+}
+
+.at-empty-column {
+    color: #64748b;
+    font-size: .9rem;
+}
+
 /* SECTION: Empty states */
 .at-empty-state {
     border: 1px dashed #cbd5e1;
@@ -99,7 +224,23 @@
     color: #475569;
 }
 
+@media (max-width: 1399px) {
+    .at-board-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 1199px) {
     .at-shell { grid-template-columns: 1fr; }
-    .at-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .at-kpis,
+    .at-kpis-reports,
+    .at-card-grid,
+    .at-board-grid,
+    .at-board-grid-sprint { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 767px) {
+    .at-kpis,
+    .at-kpis-reports,
+    .at-card-grid,
+    .at-board-grid,
+    .at-board-grid-sprint { grid-template-columns: 1fr; }
 }
