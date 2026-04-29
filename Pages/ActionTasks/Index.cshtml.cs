@@ -100,7 +100,7 @@ public class IndexModel : PageModel
         "Sprint" => "Due Window Board",
         "Kanban" => "Task Kanban Board",
         "TaskList" => "Command Task Register",
-        "Reports" => "Task Performance Summary",
+        "Reports" => "Task Command Summary",
         _ => "Command Task Dashboard"
     };
     public string PageSubtitle => ResolvedViewMode switch
@@ -618,18 +618,21 @@ public class IndexModel : PageModel
             .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
             .GroupBy(t => ResolveAssigneeName(t.AssignedToUserId))
             .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key)
             .Select(group => new CountSummary(group.Key, group.Count()))
             .ToList();
 
         PriorityCounts = tasks
             .GroupBy(t => t.Priority)
             .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key)
             .Select(group => new CountSummary(group.Key, group.Count()))
             .ToList();
 
         StatusCounts = tasks
             .GroupBy(t => t.Status)
             .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key)
             .Select(group => new CountSummary(group.Key, group.Count()))
             .ToList();
 
@@ -672,7 +675,6 @@ public class IndexModel : PageModel
             .ThenBy(x => x.Task.DueDate)
             .ThenBy(x => x.Task.Id)
             .Take(3)
-            .Where(x => x.Score < 99)
             .Select(x => x.Task)
             .ToList();
         return ToDisplayItems(top);
@@ -686,7 +688,7 @@ public class IndexModel : PageModel
         if (string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase) && isCritical) return 3;
         if (isCritical) return 4;
         if (string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)) return 5;
-        return 99;
+        return 6;
     }
 
     private async Task ResolveIdentityAsync()

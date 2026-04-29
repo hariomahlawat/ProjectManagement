@@ -675,7 +675,28 @@ html {
 /* SECTION: Reports metric bars */
 .at-metric-bars {
     display: grid;
-    gap: 0.45rem;
+    gap: 0.4rem;
+}
+
+.at-metric-bars-tight {
+    gap: 0.35rem;
+}
+
+.at-metric-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.at-empty-state-note {
+    margin: 0.35rem 0 0;
+    padding: 0.55rem 0.65rem;
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    background: #f8fafc;
+    color: var(--at-muted);
+    font-size: 0.81rem;
 }
 
 .at-metric-row {
@@ -709,7 +730,7 @@ html {
 .at-ageing-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 0.7rem;
+    gap: 0.5rem;
 }
 
 /* SECTION: Empty states */
