@@ -5,23 +5,23 @@
     <div class="at-board-grid is-kanban">
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>Assigned</h2><span class="at-count-chip">@Model.KanbanAssignedTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanAssignedTaskDisplays, "No tasks")' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanAssignedTaskDisplays, "No assigned tasks.", true)' />
         </article>
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>In Progress</h2><span class="at-count-chip">@Model.KanbanInProgressTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanInProgressTaskDisplays, "No tasks")' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanInProgressTaskDisplays, "No in progress tasks.", true)' />
         </article>
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>Blocked</h2><span class="at-count-chip">@Model.KanbanBlockedTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanBlockedTaskDisplays, "No blocked tasks.")' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanBlockedTaskDisplays, "No blocked tasks.", true)' />
         </article>
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>Submitted</h2><span class="at-count-chip">@Model.KanbanSubmittedTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanSubmittedTaskDisplays, "No tasks")' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanSubmittedTaskDisplays, "No submitted tasks.", true)' />
         </article>
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>Closed</h2><span class="at-count-chip">@Model.KanbanClosedTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanClosedTaskDisplays, "No tasks")' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanClosedTaskDisplays, "No closed tasks.", true)' />
         </article>
     </div>
 </section>

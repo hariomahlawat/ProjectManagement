@@ -1,8 +1,9 @@
-@model Tuple<ProjectManagement.Pages.ActionTasks.IndexModel, IReadOnlyList<ProjectManagement.Pages.ActionTasks.IndexModel.TaskDisplayItem>, string>
+@model Tuple<ProjectManagement.Pages.ActionTasks.IndexModel, IReadOnlyList<ProjectManagement.Pages.ActionTasks.IndexModel.TaskDisplayItem>, string, bool>
 @{
     var pageModel = Model.Item1;
     var tasks = Model.Item2;
     var emptyMessage = Model.Item3;
+    var hideStatusBadge = Model.Item4;
 }
 
 @if (!tasks.Any())
@@ -16,16 +17,18 @@ else
         {
             var task = item.Task;
             <article class="at-task-card @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)">
-                <div class="at-card-top-row">
-                    <a class="at-card-title-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@pageModel.ResolvedViewMode">AT-@task.Id</a>
-                    <span class="@pageModel.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
-                </div>
-                <a class="at-card-subject" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@pageModel.ResolvedViewMode">@task.Title</a>
-                <div class="small text-muted">@item.AssigneeName</div>
-                <div class="at-card-footer">
-                    <div class="small text-muted">Due @task.DueDate.ToString("dd MMM yyyy")</div>
-                    <div class="small at-card-status">@task.Status</div>
-                </div>
+                <a class="at-task-card-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@pageModel.ResolvedViewMode" aria-label="Open task AT-@task.Id details">
+                    <div class="at-card-top-row">
+                        <h3 class="at-card-subject">@task.Title</h3>
+                        <span class="@pageModel.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
+                    </div>
+                    <div class="at-card-meta">AT-@task.Id · @item.AssigneeName</div>
+                    <div class="at-card-due">Due @task.DueDate.ToString("dd MMM yyyy")</div>
+                    @if (!hideStatusBadge)
+                    {
+                        <div class="small at-card-status">@task.Status</div>
+                    }
+                </a>
             </article>
         }
     </div>

@@ -572,31 +572,42 @@ html {
 .at-task-card {
     border: 1px solid var(--at-border);
     border-radius: var(--at-radius-md);
-    padding: .65rem;
     background: var(--at-surface-soft);
-    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .at-task-card:hover {
-    transform: translateY(-1px);
+    border-color: #b9c8de;
+    background: #f3f7fd;
 }
 
-.at-card-title-link {
-    font-weight: 750;
-    color: var(--at-blue);
+.at-task-card-link {
+    display: block;
     text-decoration: none;
-}
-
-.at-card-title-link:hover {
-    text-decoration: underline;
+    color: inherit;
+    padding: .65rem;
+    cursor: pointer;
 }
 
 .at-card-subject {
-    display: block;
-    text-decoration: none;
+    margin: 0;
     color: var(--at-text);
-    font-weight: 700;
-    margin: 0.2rem 0 0.3rem;
+    font-size: 0.98rem;
+    font-weight: 760;
+    line-height: 1.3;
+}
+
+.at-card-meta {
+    margin-top: 0.28rem;
+    font-size: 0.79rem;
+    color: #64748b;
+}
+
+.at-card-due {
+    margin-top: 0.2rem;
+    font-size: 0.82rem;
+    color: #334155;
+    font-weight: 600;
 }
 
 .at-card-top-row,
@@ -607,16 +618,11 @@ html {
     gap: 0.45rem;
 }
 
-.at-card-footer {
-    margin-top: 0.2rem;
-}
-
 .at-card-status {
+    margin-top: 0.18rem;
     color: #64748b;
+    font-size: 0.78rem;
     font-weight: 600;
-}
-.at-card-footer span {
-    color: #7a8798;
 }
 .at-sort-link {
     color: inherit;
@@ -640,8 +646,9 @@ html {
 
 .at-task-card.is-selected,
 .at-mini-row.is-selected {
-    border-color: var(--at-border);
+    border-color: #9bb8ef;
     border-left: 4px solid var(--at-blue);
+    background: #eef4ff;
 }
 
 .at-table tbody tr.is-selected td {
@@ -761,9 +768,10 @@ html {
 }
 
 .at-empty-inline {
-    margin: 0.2rem 0;
+    margin: 0.1rem 0 0.2rem;
     font-size: 0.78rem;
     color: var(--at-muted);
+    line-height: 1.35;
 }
 
 .at-create-trigger {
