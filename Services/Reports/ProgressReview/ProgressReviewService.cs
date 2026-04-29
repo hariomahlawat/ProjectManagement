@@ -1898,7 +1898,7 @@ public sealed class ProgressReviewService : IProgressReviewService
 
         return workflowVersionLookup.ToDictionary(
             project => project.Id,
-            project => project.WorkflowVersion);
+            project => (string?)project.WorkflowVersion);
     }
 
     private string? BuildAttachmentUrl(string? storageKey)

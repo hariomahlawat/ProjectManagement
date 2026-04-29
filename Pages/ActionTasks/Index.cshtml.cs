@@ -414,6 +414,7 @@ public class IndexModel : PageModel
     // SECTION: KPI helpers for dashboard and reports.
     public int ActiveCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
     public int OverdueCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase) && t.DueDate.Date < DateTime.UtcNow.Date);
+    public int InProgressCount => CountByStatus(ActionTaskStatuses.InProgress);
     public int SubmittedCount => CountByStatus(ActionTaskStatuses.Submitted);
     public int BlockedCount => CountByStatus(ActionTaskStatuses.Blocked);
     public int ClosedCount => CountByStatus(ActionTaskStatuses.Closed);
