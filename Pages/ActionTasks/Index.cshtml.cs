@@ -223,7 +223,23 @@ public class IndexModel : PageModel
         var assignedUser = await _users.FindByIdAsync(Input.AssignedToUserId);
         if (assignedUser is null)
         {
-            ModelState.AddModelError(string.Empty, "Assigned user was not found.");
+            ModelState.AddModelError(nameof(Input.AssignedToUserId), "Selected user was not found.");
+            ShowCreateModal = true;
+            await LoadDataAsync();
+            return Page();
+        }
+
+        if (assignedUser.IsDisabled || assignedUser.PendingDeletion)
+        {
+            ModelState.AddModelError(nameof(Input.AssignedToUserId), "Selected user is inactive and cannot be assigned a task.");
+            ShowCreateModal = true;
+            await LoadDataAsync();
+            return Page();
+        }
+
+        if (assignedUser.LockoutEnd.HasValue && assignedUser.LockoutEnd > DateTimeOffset.UtcNow)
+        {
+            ModelState.AddModelError(nameof(Input.AssignedToUserId), "Selected user is locked and cannot be assigned a task.");
             ShowCreateModal = true;
             await LoadDataAsync();
             return Page();
@@ -605,9 +621,14 @@ public class IndexModel : PageModel
     private async Task<IReadOnlyList<UserOption>> LoadAssignableUsersAsync()
     {
         // SECTION: Stabilize user snapshot to avoid overlapping data-reader operations
+        var utcNow = DateTimeOffset.UtcNow;
         var users = await _users.Users
-            .OrderBy(x => x.FullName)
-            .ThenBy(x => x.UserName)
+            .Where(u => !u.IsDisabled)
+            .Where(u => !u.PendingDeletion)
+            .Where(u => !u.LockoutEnd.HasValue || u.LockoutEnd <= utcNow)
+            .OrderBy(u => u.Rank)
+            .ThenBy(u => u.FullName)
+            .ThenBy(u => u.UserName)
             .Take(200)
             .ToListAsync();
 
