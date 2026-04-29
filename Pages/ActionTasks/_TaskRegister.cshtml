@@ -44,7 +44,7 @@
             </div>
             <div class="col-md-3">
                 <label class="form-label">Responsible Person</label>
-                <select class="form-select" name="FilterAssigneeUserId">
+                <select class="form-select at-searchable-select" name="FilterAssigneeUserId" data-at-searchable-select="true" data-at-placeholder="All Responsible Persons">
                     <option value="">All</option>
                     @foreach (var assignee in Model.AssignableUsers)
                     {
@@ -107,11 +107,9 @@
     <h2>@(Model.IsMyTasksView ? "My Tasks" : "Task Register")</h2>
     @if (!Model.Tasks.Any())
     {
-        <div class="at-empty-state">
-            <div class="at-empty-icon"><i class="bi bi-inbox" aria-hidden="true"></i></div>
-            <div class="fw-semibold">No tasks in this section</div>
-            <div class="text-muted small">Try adjusting filters or create a task.</div>
-        </div>
+            <div class="at-empty-state">
+                <div class="fw-semibold">No tasks found for the current filters.</div>
+            </div>
     }
     else
     {
@@ -119,12 +117,12 @@
             <table class="table table-sm at-table">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Task</th>
-                        <th>Responsible Person</th>
-                        <th>Due Date</th>
-                        <th>Status</th>
-                        <th>Priority</th>
+                        <th><a class="at-sort-link" asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="id" asp-route-SortDir="@(Model.SortBy == "id" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">ID</a></th>
+                        <th><a class="at-sort-link" asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="title" asp-route-SortDir="@(Model.SortBy == "title" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Task</a></th>
+                        <th><a class="at-sort-link" asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="assignee" asp-route-SortDir="@(Model.SortBy == "assignee" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Responsible Person</a></th>
+                        <th><a class="at-sort-link" asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="due" asp-route-SortDir="@(Model.SortBy == "due" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Due Date</a></th>
+                        <th><a class="at-sort-link" asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="status" asp-route-SortDir="@(Model.SortBy == "status" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Status</a></th>
+                        <th><a class="at-sort-link" asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="priority" asp-route-SortDir="@(Model.SortBy == "priority" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Priority</a></th>
                     </tr>
                 </thead>
                 <tbody>

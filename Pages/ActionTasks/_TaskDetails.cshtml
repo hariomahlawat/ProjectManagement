@@ -34,7 +34,7 @@
                     <div class="at-action-title">Update Status</div>
                     <div class="mb-2">
                         <label class="form-label at-small">Change Status</label>
-                        <select name="status" class="form-select form-select-sm">
+                        <select name="status" class="form-select form-select-sm" data-at-status-select data-current-status="@Model.SelectedTask.Status">
                             @foreach (var status in Model.AllowedStatusOptions)
                             {
                                 if (Model.SelectedTask.Status == status)
@@ -52,7 +52,7 @@
                         <label class="form-label at-small">Remarks</label>
                         <textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Status update remarks"></textarea>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-sm">Update Status</button>
+                    <button type="submit" class="btn btn-primary btn-sm" data-at-status-submit>Update Status</button>
                 </form>
             }
 
@@ -102,10 +102,18 @@
     }
 
     <h3 class="h5 mb-2">Audit Trail</h3>
-    <div class="at-audit-list">
-        @foreach (var log in Model.SelectedTaskLogs)
-        {
-            <div class="at-audit-item">
+    @if (!Model.SelectedTaskLogs.Any())
+    {
+        <div class="at-empty-state">
+            <div class="fw-semibold">No audit logs recorded for this task yet.</div>
+        </div>
+    }
+    else
+    {
+        <div class="at-audit-list">
+            @foreach (var log in Model.SelectedTaskLogs)
+            {
+                <div class="at-audit-item">
                 <div class="d-flex justify-content-between gap-2 flex-wrap">
                     <div>
                         <strong>@log.ActionType</strong>
@@ -121,7 +129,8 @@
                 {
                     <div class="at-audit-remarks at-remarks-text">@log.Remarks</div>
                 }
-            </div>
-        }
-    </div>
+                </div>
+            }
+        </div>
+    }
 </section>

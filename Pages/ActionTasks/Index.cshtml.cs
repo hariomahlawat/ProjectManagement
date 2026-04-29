@@ -71,6 +71,10 @@ public class IndexModel : PageModel
 
     [BindProperty(SupportsGet = true)]
     public string? FilterSearch { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public string? SortBy { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public string? SortDir { get; set; }
 
     public string CurrentRole { get; private set; } = string.Empty;
     public string CurrentUserId { get; private set; } = string.Empty;
@@ -433,6 +437,10 @@ public class IndexModel : PageModel
          || !string.IsNullOrWhiteSpace(FilterAssigneeUserId)
          || FilterDueDate.HasValue
          || !string.IsNullOrWhiteSpace(FilterSearch));
+    public string DashboardCommandFocusSummary =>
+        $"{ActiveCount} active tasks. {CriticalOpenCount} critical. {OverdueCount} overdue. {InProgressCount} in progress. {SubmittedCount} pending closure.";
+    public IReadOnlyList<CountSummary> SubmittedPendingClosureAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
+    public IReadOnlyList<TaskDisplayItem> TopAttentionTaskDisplays => BuildTopAttentionItems();
 
     public string CommandSummary
     {
@@ -492,8 +500,40 @@ public class IndexModel : PageModel
             var search = FilterSearch.Trim();
             query = query.Where(t => t.Title.Contains(search, StringComparison.OrdinalIgnoreCase));
         }
-
-        return query.ToList();
+        return ApplyTaskListSorting(query).ToList();
+    }
+    // SECTION: Task list sorting after filters.
+    private IEnumerable<ActionTaskItem> ApplyTaskListSorting(IEnumerable<ActionTaskItem> query)
+    {
+        var sortBy = (SortBy ?? "due").Trim().ToLowerInvariant();
+        var descending = string.Equals(SortDir, "desc", StringComparison.OrdinalIgnoreCase);
+        Func<ActionTaskItem, int> statusOrder = task => task.Status switch
+        {
+            ActionTaskStatuses.Assigned => 1,
+            ActionTaskStatuses.InProgress => 2,
+            ActionTaskStatuses.Blocked => 3,
+            ActionTaskStatuses.Submitted => 4,
+            ActionTaskStatuses.Closed => 5,
+            _ => 99
+        };
+        Func<ActionTaskItem, int> priorityOrder = task => task.Priority switch
+        {
+            "Critical" => 1,
+            "High" => 2,
+            "Normal" => 3,
+            "Low" => 4,
+            _ => 99
+        };
+        var ordered = sortBy switch
+        {
+            "title" => descending ? query.OrderByDescending(t => t.Title) : query.OrderBy(t => t.Title),
+            "assignee" => descending ? query.OrderByDescending(t => ResolveAssigneeName(t.AssignedToUserId)) : query.OrderBy(t => ResolveAssigneeName(t.AssignedToUserId)),
+            "status" => descending ? query.OrderByDescending(statusOrder).ThenBy(t => t.DueDate) : query.OrderBy(statusOrder).ThenBy(t => t.DueDate),
+            "priority" => descending ? query.OrderByDescending(priorityOrder).ThenBy(t => t.DueDate) : query.OrderBy(priorityOrder).ThenBy(t => t.DueDate),
+            "id" => descending ? query.OrderByDescending(t => t.Id) : query.OrderBy(t => t.Id),
+            _ => descending ? query.OrderByDescending(t => t.DueDate) : query.OrderBy(t => t.DueDate)
+        };
+        return ordered.ThenBy(t => t.Id);
     }
 
     private void BuildDashboardCollections(IReadOnlyList<ActionTaskItem> tasks)
@@ -608,6 +648,44 @@ public class IndexModel : PageModel
             new CountSummary("4 to 7 days overdue", openTasks.Count(t => (utcToday - t.DueDate.Date).TotalDays is >= 4 and <= 7)),
             new CountSummary("8+ days overdue", openTasks.Count(t => (utcToday - t.DueDate.Date).TotalDays >= 8))
         };
+        var submittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).ToList();
+        SubmittedPendingClosureAgeingBuckets = new[]
+        {
+            new CountSummary("0 to 1 day", submittedTasks.Count(t => (utcToday - (t.SubmittedOn ?? t.AssignedOn).Date).TotalDays is >= 0 and <= 1)),
+            new CountSummary("2 to 3 days", submittedTasks.Count(t => (utcToday - (t.SubmittedOn ?? t.AssignedOn).Date).TotalDays is >= 2 and <= 3)),
+            new CountSummary("4+ days", submittedTasks.Count(t => (utcToday - (t.SubmittedOn ?? t.AssignedOn).Date).TotalDays >= 4))
+        };
+    }
+    // SECTION: Report top-attention prioritization.
+    private IReadOnlyList<TaskDisplayItem> BuildTopAttentionItems()
+    {
+        var today = DateTime.UtcNow.Date;
+        var top = Tasks
+            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+            .Select(t => new
+            {
+                Task = t,
+                Score = GetAttentionScore(t, today)
+            })
+            .OrderBy(x => x.Score)
+            .ThenBy(x => x.Task.DueDate)
+            .ThenBy(x => x.Task.Id)
+            .Take(3)
+            .Where(x => x.Score < 99)
+            .Select(x => x.Task)
+            .ToList();
+        return ToDisplayItems(top);
+    }
+    private static int GetAttentionScore(ActionTaskItem task, DateTime today)
+    {
+        var isOverdue = task.DueDate.Date < today;
+        var isCritical = string.Equals(task.Priority, "Critical", StringComparison.OrdinalIgnoreCase);
+        if (isOverdue && isCritical) return 1;
+        if (isOverdue) return 2;
+        if (string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase) && isCritical) return 3;
+        if (isCritical) return 4;
+        if (string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)) return 5;
+        return 99;
     }
 
     private async Task ResolveIdentityAsync()

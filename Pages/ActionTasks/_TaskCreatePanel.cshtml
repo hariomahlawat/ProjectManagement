@@ -32,7 +32,7 @@
                         </div>
                         <div class="col-12">
                             <label asp-for="Input.AssignedToUserId" class="form-label">Assign To</label>
-                            <select asp-for="Input.AssignedToUserId" class="form-select">
+                            <select asp-for="Input.AssignedToUserId" class="form-select at-searchable-select" data-at-searchable-select="true" data-at-placeholder="Select responsible person">
                                 <option value="">Select user</option>
                                 @foreach (var user in Model.AssignableUsers)
                                 {
