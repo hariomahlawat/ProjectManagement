@@ -59,9 +59,89 @@
         sync();
     }
 
+    // SECTION: Task register filter auto-apply and responsible-person searchable picker.
+    function initTaskRegisterFilters() {
+        const form = document.querySelector("[data-at-task-filter-form='true']");
+        if (!form) {
+            return;
+        }
+
+        const immediateControls = form.querySelectorAll("select[name='FilterStatus'], select[name='FilterPriority'], input[name='FilterDueDate']");
+        immediateControls.forEach((control) => {
+            control.addEventListener("change", () => {
+                form.requestSubmit();
+            });
+        });
+
+        const searchInput = form.querySelector("[data-at-filter-search='true']");
+        if (searchInput) {
+            let searchDebounceHandle;
+            searchInput.addEventListener("input", () => {
+                if (searchDebounceHandle) {
+                    window.clearTimeout(searchDebounceHandle);
+                }
+                searchDebounceHandle = window.setTimeout(() => {
+                    form.requestSubmit();
+                }, 400);
+            });
+        }
+
+        const assigneeInput = form.querySelector("[data-at-assignee-picker='true']");
+        if (!assigneeInput) {
+            return;
+        }
+
+        const targetId = assigneeInput.getAttribute("data-at-assignee-target");
+        const hiddenInput = targetId ? form.querySelector(`#${targetId}`) : null;
+        const optionsListId = assigneeInput.getAttribute("list");
+        const optionsList = optionsListId ? document.getElementById(optionsListId) : null;
+        if (!hiddenInput || !optionsList) {
+            return;
+        }
+
+        function syncAssigneeSelection() {
+            const typedName = (assigneeInput.value || "").trim();
+            if (!typedName) {
+                hiddenInput.value = "";
+                return true;
+            }
+
+            const matchedOption = Array.from(optionsList.options).find((option) =>
+                (option.value || "").trim().toLowerCase() === typedName.toLowerCase());
+
+            if (!matchedOption) {
+                hiddenInput.value = "";
+                return false;
+            }
+
+            hiddenInput.value = matchedOption.dataset.userId || "";
+            assigneeInput.value = matchedOption.value;
+            return true;
+        }
+
+        assigneeInput.addEventListener("change", () => {
+            syncAssigneeSelection();
+            form.requestSubmit();
+        });
+
+        assigneeInput.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter") {
+                return;
+            }
+            event.preventDefault();
+            syncAssigneeSelection();
+            form.requestSubmit();
+        });
+
+        assigneeInput.addEventListener("blur", () => {
+            syncAssigneeSelection();
+        });
+    }
+
     document.addEventListener("DOMContentLoaded", function () {
         openCreateTaskModalOnLoad();
         initSearchableSelects();
         initStatusUpdateGuard();
+        initTaskRegisterFilters();
     });
 })();

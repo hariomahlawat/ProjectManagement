@@ -6,7 +6,7 @@
 {
     <section class="at-panel mb-3">
         <h2>Task List Filters</h2>
-        <form method="get" class="row g-2">
+        <form id="taskFilterForm" method="get" class="row g-2" data-at-task-filter-form="true">
             <input type="hidden" name="viewMode" value="TaskList" />
             <div class="col-md-2">
                 <label class="form-label">Status</label>
@@ -44,20 +44,23 @@
             </div>
             <div class="col-md-3">
                 <label class="form-label">Responsible Person</label>
-                <select class="form-select at-searchable-select" name="FilterAssigneeUserId" data-at-searchable-select="true" data-at-placeholder="All Responsible Persons">
-                    <option value="">All</option>
+                <input type="hidden" name="FilterAssigneeUserId" id="FilterAssigneeUserId" value="@Model.FilterAssigneeUserId" />
+                <input
+                    type="search"
+                    class="form-control"
+                    id="FilterAssigneePicker"
+                    list="FilterAssigneeOptions"
+                    autocomplete="off"
+                    placeholder="All Responsible Persons"
+                    value="@(string.IsNullOrWhiteSpace(Model.FilterAssigneeUserId) ? string.Empty : Model.ResolveAssigneeName(Model.FilterAssigneeUserId))"
+                    data-at-assignee-picker="true"
+                    data-at-assignee-target="FilterAssigneeUserId" />
+                <datalist id="FilterAssigneeOptions">
                     @foreach (var assignee in Model.AssignableUsers)
                     {
-                        @if (string.Equals(Model.FilterAssigneeUserId, assignee.UserId, StringComparison.Ordinal))
-                        {
-                            <option value="@assignee.UserId" selected>@assignee.DisplayName</option>
-                        }
-                        else
-                        {
-                            <option value="@assignee.UserId">@assignee.DisplayName</option>
-                        }
+                        <option value="@assignee.DisplayName" data-user-id="@assignee.UserId"></option>
                     }
-                </select>
+                </datalist>
             </div>
             <div class="col-md-2">
                 <label class="form-label">Due Date</label>
@@ -65,10 +68,9 @@
             </div>
             <div class="col-md-3">
                 <label class="form-label">Search by title</label>
-                <input type="text" class="form-control" name="FilterSearch" value="@Model.FilterSearch" />
+                <input type="text" class="form-control" name="FilterSearch" value="@Model.FilterSearch" data-at-filter-search="true" />
             </div>
             <div class="col-12 d-flex gap-2">
-                <button type="submit" class="btn btn-primary btn-sm">Apply Filters</button>
                 <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="btn btn-outline-secondary btn-sm">Reset</a>
             </div>
         </form>
