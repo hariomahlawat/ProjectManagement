@@ -2,7 +2,7 @@
 
 @* SECTION: Report KPI strip. *@
 <section class="at-section-group">
-    <h2 class="at-section-title">KPI Strip</h2>
+    <h2 class="at-section-title">Overview</h2>
     <section class="at-kpis at-kpis-reports">
         <article><h3>Active</h3><strong>@Model.ActiveCount</strong><p>All open workflow tasks.</p></article>
         <article><h3>Critical Open</h3><strong>@Model.CriticalOpenCount</strong><p>Urgent open tasks.</p></article>
@@ -40,7 +40,7 @@
             @foreach (var item in Model.StatusCounts)
             {
                 <div class="at-metric-row">
-                    <span>@item.Name</span>
+                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
                     <div class="at-metric-track"><div class="at-metric-fill" style="width:@Model.ToPercent(item.Count, Model.StatusCountsMax)%"></div></div>
                     <strong>@item.Count</strong>
                 </div>
@@ -57,7 +57,7 @@
                     @foreach (var item in Model.OpenAgeingBuckets)
                     {
                         <div class="at-metric-row">
-                            <span>@item.Name</span>
+                            <span class="at-metric-label" title="@item.Name">@item.Name</span>
                             <div class="at-metric-track"><div class="at-metric-fill" style="width:@Model.ToPercent(item.Count, Model.OpenAgeingBucketsMax)%"></div></div>
                             <strong>@item.Count</strong>
                         </div>
@@ -70,7 +70,7 @@
                     @foreach (var item in Model.OverdueAgeingBuckets)
                     {
                         <div class="at-metric-row">
-                            <span>@item.Name</span>
+                            <span class="at-metric-label" title="@item.Name">@item.Name</span>
                             <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-danger" style="width:@Model.ToPercent(item.Count, Model.OverdueAgeingBucketsMax)%"></div></div>
                             <strong>@item.Count</strong>
                         </div>
@@ -80,27 +80,34 @@
         </div>
     </article>
     <article class="at-panel">
-        <h2>Submitted Pending Closure Ageing</h2>
+        <h2>Pending Closure Ageing</h2>
         <p class="at-panel-note">Ageing buckets for submitted tasks awaiting closure.</p>
-        <div class="at-metric-bars">
-            @foreach (var item in Model.SubmittedPendingClosureAgeingBuckets)
-            {
-                <div class="at-metric-row">
-                    <span>@item.Name</span>
-                    <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-amber" style="width:@Model.ToPercent(item.Count, Model.SubmittedCount == 0 ? 1 : Model.SubmittedCount)%"></div></div>
-                    <strong>@item.Count</strong>
-                </div>
-            }
-        </div>
+        @if (Model.SubmittedPendingClosureAgeingBuckets.All(item => item.Count == 0))
+        {
+            <p class="at-empty-state-note">No submitted tasks are awaiting closure.</p>
+        }
+        else
+        {
+            <div class="at-metric-bars">
+                @foreach (var item in Model.SubmittedPendingClosureAgeingBuckets)
+                {
+                    <div class="at-metric-row">
+                        <span class="at-metric-label" title="@item.Name">@item.Name</span>
+                        <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-amber" style="width:@Model.ToPercent(item.Count, Model.SubmittedCount == 0 ? 1 : Model.SubmittedCount)%"></div></div>
+                        <strong>@item.Count</strong>
+                    </div>
+                }
+            </div>
+        }
     </article>
     <article class="at-panel">
-        <h2>Responsible Person Workload</h2>
-        <p class="at-panel-note">Pending tasks grouped by responsible person.</p>
-        <div class="at-metric-bars">
+        <h2>Assignee Workload</h2>
+        <p class="at-panel-note">Pending tasks grouped by assignee.</p>
+        <div class="at-metric-bars at-metric-bars-tight">
             @foreach (var item in Model.AssigneePendingCounts)
             {
                 <div class="at-metric-row">
-                    <span>@item.Name</span>
+                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
                     <div class="at-metric-track"><div class="at-metric-fill" style="width:@Model.ToPercent(item.Count, Model.AssigneePendingCountsMax)%"></div></div>
                     <strong>@item.Count</strong>
                 </div>
@@ -114,7 +121,7 @@
             @foreach (var item in Model.PriorityCounts)
             {
                 <div class="at-metric-row">
-                    <span>@item.Name</span>
+                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
                     <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-amber" style="width:@Model.ToPercent(item.Count, Model.PriorityCountsMax)%"></div></div>
                     <strong>@item.Count</strong>
                 </div>
