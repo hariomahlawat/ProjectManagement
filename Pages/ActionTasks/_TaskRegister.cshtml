@@ -45,6 +45,24 @@
             <div class="col-md-3">
                 <label class="form-label">Responsible Person</label>
                 <input type="hidden" name="FilterAssigneeUserId" id="FilterAssigneeUserId" value="@Model.FilterAssigneeUserId" />
+                @{
+                    // SECTION: Build unique, user-readable datalist labels even when display names collide.
+                    var duplicateDisplayNames = Model.AssignableUsers
+                        .Where(u => !string.IsNullOrWhiteSpace(u.DisplayName))
+                        .GroupBy(u => u.DisplayName.Trim(), StringComparer.OrdinalIgnoreCase)
+                        .Where(g => g.Count() > 1)
+                        .Select(g => g.Key)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    var selectedAssignee = string.IsNullOrWhiteSpace(Model.FilterAssigneeUserId)
+                        ? null
+                        : Model.AssignableUsers.FirstOrDefault(u => string.Equals(u.UserId, Model.FilterAssigneeUserId, StringComparison.Ordinal));
+                    var selectedDisplayName = (selectedAssignee?.DisplayName ?? string.Empty).Trim();
+                    var selectedUserId = (selectedAssignee?.UserId ?? string.Empty).Trim();
+                    var selectedAssigneeLabel = string.IsNullOrWhiteSpace(selectedDisplayName)
+                        ? selectedUserId
+                        : (duplicateDisplayNames.Contains(selectedDisplayName) ? $"{selectedDisplayName} ({selectedUserId})" : selectedDisplayName);
+                }
                 <input
                     type="search"
                     class="form-control"
@@ -52,13 +70,13 @@
                     list="FilterAssigneeOptions"
                     autocomplete="off"
                     placeholder="All Responsible Persons"
-                    value="@(string.IsNullOrWhiteSpace(Model.FilterAssigneeUserId) ? string.Empty : Model.ResolveAssigneeName(Model.FilterAssigneeUserId))"
+                    value="@selectedAssigneeLabel"
                     data-at-assignee-picker="true"
                     data-at-assignee-target="FilterAssigneeUserId" />
                 <datalist id="FilterAssigneeOptions">
                     @foreach (var assignee in Model.AssignableUsers)
                     {
-                        <option value="@assignee.DisplayName" data-user-id="@assignee.UserId"></option>
+                        <option value="@((duplicateDisplayNames.Contains((assignee.DisplayName ?? string.Empty).Trim()) ? $"{assignee.DisplayName} ({assignee.UserId})" : assignee.DisplayName) ?? assignee.UserId)" data-user-id="@assignee.UserId"></option>
                     }
                 </datalist>
             </div>
