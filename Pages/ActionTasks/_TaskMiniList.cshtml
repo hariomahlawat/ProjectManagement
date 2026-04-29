@@ -7,11 +7,7 @@
 
 @if (!tasks.Any())
 {
-    <div class="at-empty-state at-empty-state-compact">
-        <div class="at-empty-icon"><i class="bi bi-inbox" aria-hidden="true"></i></div>
-        <div class="fw-semibold">@emptyMessage</div>
-        <div class="text-muted small">Tasks will appear here when available.</div>
-    </div>
+    <div class="at-empty-inline">@emptyMessage</div>
 }
 else
 {

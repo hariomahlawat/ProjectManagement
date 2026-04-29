@@ -80,6 +80,20 @@
         </div>
     </article>
     <article class="at-panel">
+        <h2>Submitted Pending Closure Ageing</h2>
+        <p class="at-panel-note">Ageing buckets for submitted tasks awaiting closure.</p>
+        <div class="at-metric-bars">
+            @foreach (var item in Model.SubmittedPendingClosureAgeingBuckets)
+            {
+                <div class="at-metric-row">
+                    <span>@item.Name</span>
+                    <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-amber" style="width:@Model.ToPercent(item.Count, Model.SubmittedCount == 0 ? 1 : Model.SubmittedCount)%"></div></div>
+                    <strong>@item.Count</strong>
+                </div>
+            }
+        </div>
+    </article>
+    <article class="at-panel">
         <h2>Responsible Person Workload</h2>
         <p class="at-panel-note">Pending tasks grouped by responsible person.</p>
         <div class="at-metric-bars">
@@ -106,5 +120,10 @@
                 </div>
             }
         </div>
+    </article>
+    <article class="at-panel">
+        <h2>Top Attention Items</h2>
+        <p class="at-panel-note">Top 3 tasks requiring command attention now.</p>
+        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.TopAttentionTaskDisplays, "No urgent attention items.")' />
     </article>
 </section>

@@ -141,7 +141,7 @@ html {
     font-size: 0.72rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     color: var(--at-muted);
 }
 
@@ -196,7 +196,7 @@ html {
 .at-section-title {
     font-size: 0.87rem;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.045em;
     color: var(--at-muted);
     font-weight: 800;
     margin-bottom: 0.55rem;
@@ -293,12 +293,14 @@ html {
     color: #475569;
     font-size: 0.72rem;
     text-transform: uppercase;
-    letter-spacing: 0.045em;
+    letter-spacing: 0.03em;
     border-bottom: 1px solid var(--at-border);
 }
 
 .at-table td {
     vertical-align: middle;
+    padding-top: 0.42rem;
+    padding-bottom: 0.42rem;
 }
 
 .at-table tbody tr {
@@ -344,7 +346,7 @@ html {
 }
 
 .at-task-desc-preview {
-    color: var(--at-muted);
+    color: #7a8798;
     font-size: 0.82rem;
     line-height: 1.35;
     white-space: pre-line;
@@ -399,14 +401,14 @@ html {
     border: 1px solid var(--at-border);
     border-radius: 14px;
     background: #f8fafc;
-    padding: 0.85rem;
+    padding: 0.8rem;
 }
 
 .at-action-title {
     font-size: 0.78rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.04em;
     color: var(--at-muted);
     margin-bottom: 0.5rem;
 }
@@ -463,8 +465,8 @@ html {
     display: inline-flex;
     align-items: center;
     border: 1px solid var(--at-border);
-    background: #eff6ff;
-    color: #1e3a8a;
+    background: #f8fafc;
+    color: #334155;
     border-radius: 999px;
     padding: 0.2rem 0.6rem;
     font-size: 0.78rem;
@@ -473,8 +475,8 @@ html {
 
 .at-filter-clear {
     font-size: 0.8rem;
-    font-weight: 700;
-    color: #1d4ed8;
+    font-weight: 600;
+    color: #64748b;
     text-decoration: none;
 }
 
@@ -610,9 +612,24 @@ html {
 }
 
 .at-card-status {
-    color: #334155;
-    font-weight: 700;
+    color: #64748b;
+    font-weight: 600;
 }
+.at-card-footer span {
+    color: #7a8798;
+}
+.at-sort-link {
+    color: inherit;
+    text-decoration: none;
+}
+.at-sort-link:hover { text-decoration: underline; }
+.at-command-focus-strip {
+    padding: 0.65rem 0.9rem;
+    font-size: 0.84rem;
+    color: #334155;
+}
+.at-select-search-wrap { display: grid; gap: 0.35rem; }
+.at-select-search-input { font-size: 0.78rem; }
 
 .at-task-card.is-selected,
 .at-mini-row.is-selected,
