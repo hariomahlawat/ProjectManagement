@@ -22,10 +22,10 @@
     @if (Model.SelectedTask is not null)
     {
         @* SECTION: Progress & updates work journal with attachments. *@
-        <section class="at-task-updates mb-3" aria-label="Progress and Updates">
+        <section class="at-task-updates at-inspector-section" aria-label="Progress and Updates">
             <h3>Progress &amp; Updates</h3>
             <p class="at-helper-text">Record progress, comments and supporting documents without changing task status.</p>
-            <form method="post" asp-page-handler="AddUpdate" class="at-action-card" enctype="multipart/form-data">
+            <form method="post" asp-page-handler="AddUpdate" class="at-action-card at-journal-card" enctype="multipart/form-data">
                 <input type="hidden" asp-for="UpdateInput.TaskId" value="@Model.SelectedTask.Id" />
                 <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                 <div class="mb-2">
@@ -42,7 +42,7 @@
 
             @if (!Model.SelectedTaskUpdates.Any())
             {
-                <div class="at-empty-state mt-2"><div class="fw-semibold">No updates posted for this task yet.</div></div>
+                <div class="at-empty-state at-empty-state-compact mt-2"><div>No updates posted yet.</div></div>
             }
             else
             {
@@ -88,12 +88,12 @@
         </section>
 
         @* SECTION: Context-valid task actions rendered inside inspector only. *@
-        <section class="at-inspector-actions" aria-label="Task Actions">
+        <section class="at-inspector-actions at-inspector-section" aria-label="Task Actions">
             <h3>Task Actions</h3>
 
             @if (Model.CanUpdateTaskStatus(Model.SelectedTask))
             {
-                <form method="post" asp-page-handler="UpdateStatus" class="at-action-card">
+                <form method="post" asp-page-handler="UpdateStatus" class="at-action-card at-action-card-compact">
                     <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                     <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                     <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
@@ -124,7 +124,7 @@
 
             @if (Model.CanSubmitTask(Model.SelectedTask))
             {
-                <form method="post" asp-page-handler="Submit" class="at-action-card">
+                <form method="post" asp-page-handler="Submit" class="at-action-card at-action-card-compact">
                     <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                     <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                     <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
@@ -139,7 +139,7 @@
 
             @if (Model.CanCloseTask(Model.SelectedTask))
             {
-                <form method="post" asp-page-handler="Close" class="at-action-card">
+                <form method="post" asp-page-handler="Close" class="at-action-card at-action-card-compact">
                     <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                     <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                     <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
@@ -154,11 +154,9 @@
         </section>
 
         @* SECTION: Task metadata for inspector context. *@
-        <section class="at-task-info mb-3" aria-label="Task Information">
+        <section class="at-task-info at-inspector-section" aria-label="Task Information">
             <h3>Task Information</h3>
             <div class="at-task-details-grid">
-                <div><span class="text-muted">Title</span><div class="fw-semibold">@Model.SelectedTask.Title</div></div>
-                <div><span class="text-muted">Responsible Person</span><div class="fw-semibold">@Model.ResolveAssigneeName(Model.SelectedTask.AssignedToUserId)</div></div>
                 <div class="at-grid-span-2"><span class="text-muted">Description</span><div class="fw-semibold at-description-text">@Model.SelectedTask.Description</div></div>
                 <div><span class="text-muted">Assigned On</span><div class="fw-semibold">@Model.SelectedTask.AssignedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
                 <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@(Model.SelectedTask.SubmittedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
@@ -170,7 +168,7 @@
     <h3 class="h5 mb-2 at-audit-title">Audit Trail</h3>
     @if (!Model.SelectedTaskLogs.Any())
     {
-        <div class="at-empty-state">
+        <div class="at-empty-state at-empty-state-compact">
             <div class="fw-semibold">No audit logs recorded for this task yet.</div>
         </div>
     }

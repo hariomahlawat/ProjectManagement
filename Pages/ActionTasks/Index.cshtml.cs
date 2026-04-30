@@ -368,8 +368,8 @@ public class IndexModel : PageModel
     {
         await ResolveIdentityAsync();
 
-        // SECTION: Remove stale create-task model entries before validating update payload.
-        ClearModelStateEntries(nameof(Input));
+        // SECTION: Reset model validation scope for update posting only.
+        ModelState.Clear();
 
         // SECTION: Validate only update form data so create-task fields do not block update posting.
         TryValidateModel(UpdateInput, nameof(UpdateInput));
@@ -387,24 +387,15 @@ public class IndexModel : PageModel
         }
         catch (InvalidOperationException ex)
         {
-            TempData["ToastError"] = ex.Message;
+            TempData["ToastError"] = string.Equals(
+                ex.Message,
+                "Update text is required unless at least one attachment is uploaded.",
+                StringComparison.Ordinal)
+                ? "Enter an update or attach at least one file."
+                : ex.Message;
         }
 
         return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = UpdateInput.TaskId });
-    }
-
-    // SECTION: Remove model-state entries for a bound root object and its nested properties.
-    private void ClearModelStateEntries(string rootKey)
-    {
-        var scopedKeys = ModelState.Keys
-            .Where(key => string.Equals(key, rootKey, StringComparison.Ordinal)
-                || key.StartsWith(rootKey + ".", StringComparison.Ordinal))
-            .ToList();
-
-        foreach (var key in scopedKeys)
-        {
-            ModelState.Remove(key);
-        }
     }
 
     // SECTION: Shared data loading
