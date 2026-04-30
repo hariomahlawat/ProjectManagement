@@ -385,6 +385,7 @@ builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddScoped<ITodoService, TodoService>();
 builder.Services.AddScoped<ActionTaskPermissionService>();
 builder.Services.AddScoped<IActionTaskService, ActionTaskService>();
+builder.Services.AddScoped<IActionTaskCollaborationService, ActionTaskCollaborationService>();
 builder.Services.Configure<TodoOptions>(
     builder.Configuration.GetSection("Todo"));
 builder.Services.AddScoped<ILoginAnalyticsService, LoginAnalyticsService>();

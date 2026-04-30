@@ -99,6 +99,61 @@
                 <div><span class="text-muted">Closed On</span><div class="fw-semibold">@(Model.SelectedTask.ClosedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
             </div>
         </section>
+
+        @* SECTION: Progress & updates work journal with attachments. *@
+        <section class="at-task-updates mb-3" aria-label="Progress and Updates">
+            <h3>Progress &amp; Updates</h3>
+            <form method="post" asp-page-handler="AddUpdate" class="at-action-card" enctype="multipart/form-data">
+                <input type="hidden" asp-for="UpdateInput.TaskId" value="@Model.SelectedTask.Id" />
+                <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                <div class="at-action-title">Post Update</div>
+                <div class="mb-2">
+                    <label class="form-label at-small" asp-for="UpdateInput.UpdateType">Update Type</label>
+                    <select class="form-select form-select-sm" asp-for="UpdateInput.UpdateType">
+                        <option value="Progress">Progress</option>
+                        <option value="Comment">Comment</option>
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label at-small" asp-for="UpdateInput.Body">Update details</label>
+                    <textarea class="form-control form-control-sm" rows="4" asp-for="UpdateInput.Body" maxlength="4000" placeholder="Add progress details or clarification notes"></textarea>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label at-small" asp-for="UpdateInput.Files">Add supporting files</label>
+                    <input class="form-control form-control-sm" asp-for="UpdateInput.Files" type="file" multiple />
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">Post Update</button>
+            </form>
+
+            @if (!Model.SelectedTaskUpdates.Any())
+            {
+                <div class="at-empty-state mt-2"><div class="fw-semibold">No updates posted for this task yet.</div></div>
+            }
+            else
+            {
+                <div class="at-audit-list mt-2">
+                    @foreach (var update in Model.SelectedTaskUpdates)
+                    {
+                        <div class="at-audit-item">
+                            <div class="d-flex justify-content-between gap-2 flex-wrap">
+                                <div><strong>@Model.ResolveActorName(update.CreatedByUserId)</strong><span class="text-muted"> · @update.UpdateType</span></div>
+                                <div class="text-muted small">@update.CreatedAtUtc.ToString("dd MMM yyyy, HH:mm")</div>
+                            </div>
+                            <div class="at-audit-remarks at-remarks-text">@update.Body</div>
+                            @if (Model.UpdateAttachments.TryGetValue(update.Id, out var files) && files.Count > 0)
+                            {
+                                <div class="d-flex flex-wrap gap-2 mt-1">
+                                    @foreach (var file in files)
+                                    {
+                                        <a class="btn btn-outline-secondary btn-sm" href="@file.DownloadUrl" title="@file.FileName">@file.FileName</a>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </section>
     }
 
     <h3 class="h5 mb-2">Audit Trail</h3>

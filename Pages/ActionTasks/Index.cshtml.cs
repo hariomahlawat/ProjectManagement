@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -17,12 +18,14 @@ namespace ProjectManagement.Pages.ActionTasks;
 public class IndexModel : PageModel
 {
     private readonly IActionTaskService _service;
+    private readonly IActionTaskCollaborationService _collaborationService;
     private readonly ActionTaskPermissionService _permission;
     private readonly UserManager<ApplicationUser> _users;
 
-    public IndexModel(IActionTaskService service, ActionTaskPermissionService permission, UserManager<ApplicationUser> users)
+    public IndexModel(IActionTaskService service, IActionTaskCollaborationService collaborationService, ActionTaskPermissionService permission, UserManager<ApplicationUser> users)
     {
         _service = service;
+        _collaborationService = collaborationService;
         _permission = permission;
         _users = users;
     }
@@ -42,6 +45,8 @@ public class IndexModel : PageModel
     public IReadOnlyList<ActionTaskItem> DueLaterTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> SprintOverdueTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskAuditLog> SelectedTaskLogs { get; private set; } = Array.Empty<ActionTaskAuditLog>();
+    public IReadOnlyList<ActionTaskUpdate> SelectedTaskUpdates { get; private set; } = Array.Empty<ActionTaskUpdate>();
+    public IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>> UpdateAttachments { get; private set; } = new Dictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>();
     public IReadOnlyList<UserOption> AssignableUsers { get; private set; } = Array.Empty<UserOption>();
     public IReadOnlyDictionary<string, string> TaskAssigneeNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
     public IReadOnlyDictionary<string, string> TaskActorNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -83,6 +88,8 @@ public class IndexModel : PageModel
 
     [BindProperty]
     public CreateTaskInput Input { get; set; } = new();
+    [BindProperty]
+    public AddTaskUpdateInput UpdateInput { get; set; } = new();
 
     // SECTION: UI state projections
     public bool CanCreate => _permission.CanCreate(CurrentRole);
@@ -334,6 +341,23 @@ public class IndexModel : PageModel
         return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
     }
 
+    // SECTION: Post task progress update with optional attachments
+    public async Task<IActionResult> OnPostAddUpdateAsync()
+    {
+        await ResolveIdentityAsync();
+        try
+        {
+            await _collaborationService.AddUpdateAsync(UpdateInput.TaskId, UpdateInput.Body, UpdateInput.UpdateType, CurrentUserId, CurrentRole, UpdateInput.Files);
+            TempData["ToastMessage"] = "Task update posted.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
+        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = UpdateInput.TaskId });
+    }
+
     // SECTION: Shared data loading
     private async Task LoadDataAsync()
     {
@@ -367,8 +391,30 @@ public class IndexModel : PageModel
         {
             SelectedTask = tasks.FirstOrDefault(t => t.Id == TaskId.Value);
             SelectedTaskLogs = await _service.GetTaskLogsAsync(TaskId.Value, CurrentUserId, CurrentRole);
+            SelectedTaskUpdates = await _collaborationService.GetUpdatesAsync(TaskId.Value, CurrentUserId, CurrentRole);
+            UpdateAttachments = await _collaborationService.GetAttachmentMetadataByUpdateAsync(TaskId.Value, CurrentUserId, CurrentRole);
             TaskActorNames = await LoadTaskActorNamesAsync(SelectedTaskLogs);
+            TaskActorNames = await MergeActorNamesAsync(TaskActorNames, SelectedTaskUpdates);
         }
+    }
+
+    private async Task<IReadOnlyDictionary<string, string>> MergeActorNamesAsync(IReadOnlyDictionary<string, string> current, IReadOnlyList<ActionTaskUpdate> updates)
+    {
+        var userIds = updates.Select(x => x.CreatedByUserId).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal).ToList();
+        var missingIds = userIds.Where(x => !current.ContainsKey(x)).ToList();
+        if (missingIds.Count == 0)
+        {
+            return current;
+        }
+
+        var users = await _users.Users.Where(u => missingIds.Contains(u.Id)).Select(u => new { u.Id, u.Rank, u.FullName, u.UserName, u.Email }).ToListAsync();
+        var merged = new Dictionary<string, string>(current, StringComparer.Ordinal);
+        foreach (var user in users)
+        {
+            merged[user.Id] = BuildPersonDisplayName(user.Rank, user.FullName, user.UserName, user.Email);
+        }
+
+        return merged;
     }
 
     // SECTION: Task display projections for richer UI cards and mini-lists.
@@ -859,6 +905,20 @@ public class IndexModel : PageModel
 
         [Required, StringLength(24)]
         public string Priority { get; set; } = "Normal";
+    }
+
+    public sealed class AddTaskUpdateInput
+    {
+        [Required]
+        public int TaskId { get; set; }
+
+        [StringLength(4000)]
+        public string Body { get; set; } = string.Empty;
+
+        [Required, StringLength(32)]
+        public string UpdateType { get; set; } = ActionTaskUpdateTypes.Progress;
+
+        public List<IFormFile> Files { get; set; } = new();
     }
 
     public sealed record UserOption(string UserId, string DisplayName, string Role);
