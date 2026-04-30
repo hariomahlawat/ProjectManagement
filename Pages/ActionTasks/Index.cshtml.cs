@@ -345,6 +345,12 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnPostAddUpdateAsync()
     {
         await ResolveIdentityAsync();
+        if (!ModelState.IsValid)
+        {
+            TempData["ToastError"] = "Unable to post update. Please check the entered details and try again.";
+            return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = UpdateInput.TaskId });
+        }
+
         try
         {
             await _collaborationService.AddUpdateAsync(UpdateInput.TaskId, UpdateInput.Body, UpdateInput.UpdateType, CurrentUserId, CurrentRole, UpdateInput.Files);
