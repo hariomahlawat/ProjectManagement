@@ -21,35 +21,26 @@
 
     @if (Model.SelectedTask is not null)
     {
-        @* SECTION: Progress & updates work journal with attachments. *@
-        <section class="at-task-updates at-inspector-section" aria-label="Progress and Updates">
-            <h3>Progress &amp; Updates</h3>
-            <p class="at-helper-text">Record progress, comments and supporting documents without changing task status.</p>
-            <form method="post" asp-page-handler="AddUpdate" class="at-action-card at-journal-card" enctype="multipart/form-data">
-                <input type="hidden" asp-for="UpdateInput.TaskId" value="@Model.SelectedTask.Id" />
-                <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                <div class="mb-2">
-                    <label class="form-label at-small" asp-for="UpdateInput.Body">Update details</label>
-                    <textarea class="form-control form-control-sm" rows="4" asp-for="UpdateInput.Body" maxlength="4000" placeholder="Add progress details or clarification notes"></textarea>
-                </div>
-                <div class="mb-2">
-                    <label class="form-label at-small" asp-for="UpdateInput.Files">Supporting files</label>
-                    <input class="form-control form-control-sm" asp-for="UpdateInput.Files" type="file" multiple />
-                    <div class="form-text at-small">Allowed: PDF, Word, Excel, JPG, PNG, TXT.</div>
-                </div>
-                <button type="submit" class="btn btn-primary btn-sm">Post Update</button>
-            </form>
+        @* SECTION: Activity-first snapshot row. *@
+        <div class="at-inspector-snapshot">
+            <span>Last update: @((Model.SelectedTaskUpdates.FirstOrDefault()?.CreatedAtUtc ?? Model.SelectedTask.AssignedOn).ToString("dd MMM yyyy, HH:mm"))</span>
+            <span>@Model.SelectedTaskUpdates.Count() updates</span>
+            <span>@Model.UpdateAttachments.Sum(entry => entry.Value.Count) attachments</span>
+        </div>
 
-            @if (!Model.SelectedTaskUpdates.Any())
+        @* SECTION: Activity timeline as primary task narrative. *@
+        <section class="at-inspector-section" aria-label="Activity Timeline">
+            <h3>Activity</h3>
+            @if (!Model.SelectedTaskUpdates.Any() && !Model.SelectedTaskLogs.Any())
             {
-                <div class="at-empty-state at-empty-state-compact mt-2"><div>No updates posted yet.</div></div>
+                <div class="at-empty-state at-empty-state-compact mt-2"><div>No activity recorded for this task yet.</div></div>
             }
             else
             {
                 <div class="at-audit-list at-update-thread mt-2">
                     @foreach (var update in Model.SelectedTaskUpdates)
                     {
-                        <div class="at-audit-item">
+                        <div class="at-audit-item at-activity-item">
                             <div class="d-flex justify-content-between gap-2 flex-wrap">
                                 <div><strong>@Model.ResolveActorName(update.CreatedByUserId)</strong></div>
                                 <div class="text-muted small">@update.CreatedAtUtc.ToString("dd MMM yyyy, HH:mm")</div>
@@ -83,17 +74,68 @@
                             }
                         </div>
                     }
+                    @foreach (var log in Model.SelectedTaskLogs)
+                    {
+                        <div class="at-audit-item at-system-event">
+                            <div class="d-flex justify-content-between gap-2 flex-wrap">
+                                <div>
+                                    <strong>@log.ActionType</strong>
+                                    <span class="text-muted">by @Model.ResolveActorName(log.PerformedByUserId)</span>
+                                </div>
+                                <div class="text-muted small">@log.PerformedAt.ToString("dd MMM yyyy, HH:mm")</div>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(log.OldValue) || !string.IsNullOrWhiteSpace(log.NewValue))
+                            {
+                                <div class="small text-muted">@log.OldValue → @log.NewValue</div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(log.Remarks))
+                            {
+                                <div class="at-audit-remarks at-remarks-text">@log.Remarks</div>
+                            }
+                        </div>
+                    }
                 </div>
             }
         </section>
 
-        @* SECTION: Context-valid task actions rendered inside inspector only. *@
-        <section class="at-inspector-actions at-inspector-section" aria-label="Task Actions">
-            <h3>Task Actions</h3>
+        @* SECTION: Secondary details section below activity timeline. *@
+        <details class="at-inspector-section at-details-collapsible">
+            <summary>Details</summary>
+            <div class="at-task-details-grid mt-2">
+                <div class="at-grid-span-2"><span class="text-muted">Description</span><div class="fw-semibold at-description-text">@Model.SelectedTask.Description</div></div>
+                <div><span class="text-muted">Assigned On</span><div class="fw-semibold">@Model.SelectedTask.AssignedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
+                <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@(Model.SelectedTask.SubmittedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
+                <div><span class="text-muted">Closed On</span><div class="fw-semibold">@(Model.SelectedTask.ClosedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
+            </div>
+        </details>
 
+        @* SECTION: Sticky on-demand action layer to preserve reading-first layout. *@
+        <section class="at-inspector-actions at-inspector-section" aria-label="Task Actions">
+            <h3>Actions</h3>
+            <div class="at-action-toolbar">
+                <details class="at-action-drawer">
+                    <summary class="btn btn-primary btn-sm">+ Add Update</summary>
+                    <form method="post" asp-page-handler="AddUpdate" class="at-action-card at-journal-card mt-2" enctype="multipart/form-data">
+                        <input type="hidden" asp-for="UpdateInput.TaskId" value="@Model.SelectedTask.Id" />
+                        <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                        <div class="mb-2">
+                            <label class="form-label at-small" asp-for="UpdateInput.Body">Update details</label>
+                            <textarea class="form-control form-control-sm" rows="4" asp-for="UpdateInput.Body" maxlength="4000" placeholder="Add progress details or clarification notes"></textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label at-small" asp-for="UpdateInput.Files">Supporting files</label>
+                            <input class="form-control form-control-sm" asp-for="UpdateInput.Files" type="file" multiple />
+                            <div class="form-text at-small">Allowed: PDF, Word, Excel, JPG, PNG, TXT.</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm">Post Update</button>
+                    </form>
+                </details>
+            </div>
             @if (Model.CanUpdateTaskStatus(Model.SelectedTask))
             {
-                <form method="post" asp-page-handler="UpdateStatus" class="at-action-card at-action-card-compact">
+                <details class="at-action-drawer">
+                    <summary class="btn btn-outline-primary btn-sm">Change Status</summary>
+                    <form method="post" asp-page-handler="UpdateStatus" class="at-action-card at-action-card-compact mt-2">
                     <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                     <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                     <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
@@ -119,12 +161,15 @@
                         <textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Status update remarks"></textarea>
                     </div>
                     <button type="submit" class="btn btn-primary btn-sm" data-at-status-submit>Update Status</button>
-                </form>
+                    </form>
+                </details>
             }
 
             @if (Model.CanSubmitTask(Model.SelectedTask))
             {
-                <form method="post" asp-page-handler="Submit" class="at-action-card at-action-card-compact">
+                <details class="at-action-drawer">
+                    <summary class="btn btn-outline-warning btn-sm">Submit Task</summary>
+                    <form method="post" asp-page-handler="Submit" class="at-action-card at-action-card-compact mt-2">
                     <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                     <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                     <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
@@ -134,12 +179,15 @@
                         <textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Add submission notes"></textarea>
                     </div>
                     <button type="submit" class="btn btn-warning btn-sm">Submit Task</button>
-                </form>
+                    </form>
+                </details>
             }
 
             @if (Model.CanCloseTask(Model.SelectedTask))
             {
-                <form method="post" asp-page-handler="Close" class="at-action-card at-action-card-compact">
+                <details class="at-action-drawer">
+                    <summary class="btn btn-outline-success btn-sm">Close Task</summary>
+                    <form method="post" asp-page-handler="Close" class="at-action-card at-action-card-compact mt-2">
                     <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                     <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                     <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
@@ -149,52 +197,9 @@
                         <textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Add closure notes"></textarea>
                     </div>
                     <button type="submit" class="btn btn-success btn-sm">Close Task</button>
-                </form>
+                    </form>
+                </details>
             }
         </section>
-
-        @* SECTION: Task metadata for inspector context. *@
-        <section class="at-task-info at-inspector-section" aria-label="Task Information">
-            <h3>Task Information</h3>
-            <div class="at-task-details-grid">
-                <div class="at-grid-span-2"><span class="text-muted">Description</span><div class="fw-semibold at-description-text">@Model.SelectedTask.Description</div></div>
-                <div><span class="text-muted">Assigned On</span><div class="fw-semibold">@Model.SelectedTask.AssignedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
-                <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@(Model.SelectedTask.SubmittedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
-                <div><span class="text-muted">Closed On</span><div class="fw-semibold">@(Model.SelectedTask.ClosedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
-            </div>
-        </section>
-    }
-
-    <h3 class="h5 mb-2 at-audit-title">Audit Trail</h3>
-    @if (!Model.SelectedTaskLogs.Any())
-    {
-        <div class="at-empty-state at-empty-state-compact">
-            <div class="fw-semibold">No audit logs recorded for this task yet.</div>
-        </div>
-    }
-    else
-    {
-        <div class="at-audit-list">
-            @foreach (var log in Model.SelectedTaskLogs)
-            {
-                <div class="at-audit-item">
-                <div class="d-flex justify-content-between gap-2 flex-wrap">
-                    <div>
-                        <strong>@log.ActionType</strong>
-                        <span class="text-muted">by @Model.ResolveActorName(log.PerformedByUserId)</span>
-                    </div>
-                    <div class="text-muted small">@log.PerformedAt.ToString("dd MMM yyyy, HH:mm")</div>
-                </div>
-                @if (!string.IsNullOrWhiteSpace(log.OldValue) || !string.IsNullOrWhiteSpace(log.NewValue))
-                {
-                    <div class="small text-muted">@log.OldValue → @log.NewValue</div>
-                }
-                @if (!string.IsNullOrWhiteSpace(log.Remarks))
-                {
-                    <div class="at-audit-remarks at-remarks-text">@log.Remarks</div>
-                }
-                </div>
-            }
-        </div>
     }
 </section>

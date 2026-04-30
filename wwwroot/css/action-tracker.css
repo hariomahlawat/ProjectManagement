@@ -439,6 +439,11 @@ html {
 .at-inspector-actions {
     display: grid;
     gap: 0.4rem;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    padding: 0.4rem 0 0.2rem;
+    background: linear-gradient(to top, #ffffff 75%, rgba(255,255,255,0));
 }
 
 .at-inspector-actions h3,
@@ -523,6 +528,39 @@ html {
     color: var(--at-muted);
     font-size: 0.86rem;
     font-weight: 700;
+}
+
+.at-inspector-snapshot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.65rem;
+    margin-bottom: 0.45rem;
+    font-size: 0.76rem;
+    color: var(--at-muted);
+}
+
+.at-system-event {
+    background: #f8fafc;
+}
+
+.at-details-collapsible > summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 750;
+}
+
+.at-action-toolbar {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.at-action-drawer > summary {
+    list-style: none;
+}
+
+.at-action-drawer > summary::-webkit-details-marker {
+    display: none;
 }
 
 .at-active-filters {
