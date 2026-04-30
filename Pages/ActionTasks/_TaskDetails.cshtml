@@ -37,62 +37,86 @@
             }
             else
             {
+                @* SECTION: Merge updates and logs into one chronological activity stream. *@
+                var activityEntries = Model.SelectedTaskUpdates
+                    .Select(update => new
+                    {
+                        Timestamp = update.CreatedAtUtc,
+                        EntryType = "Update",
+                        Update = update,
+                        Log = (dynamic?)null
+                    })
+                    .Concat(Model.SelectedTaskLogs.Select(log => new
+                    {
+                        Timestamp = log.PerformedAt,
+                        EntryType = "Log",
+                        Update = (dynamic?)null,
+                        Log = log
+                    }))
+                    .OrderByDescending(entry => entry.Timestamp)
+                    .ToList();
+
                 <div class="at-audit-list at-update-thread mt-2">
-                    @foreach (var update in Model.SelectedTaskUpdates)
+                    @foreach (var entry in activityEntries)
                     {
-                        <div class="at-audit-item at-activity-item">
-                            <div class="d-flex justify-content-between gap-2 flex-wrap">
-                                <div><strong>@Model.ResolveActorName(update.CreatedByUserId)</strong></div>
-                                <div class="text-muted small">@update.CreatedAtUtc.ToString("dd MMM yyyy, HH:mm")</div>
-                            </div>
-                            <div class="at-audit-remarks at-remarks-text">@update.Body</div>
-                            @if (Model.UpdateAttachments.TryGetValue(update.Id, out var files) && files.Count > 0)
-                            {
-                                <div class="at-update-files mt-2">
-                                    @foreach (var file in files)
-                                    {
-                                        var typeLabel = file.ContentType switch
+                        if (entry.EntryType == "Update")
+                        {
+                            var update = entry.Update;
+                            <div class="at-audit-item at-activity-item">
+                                <div class="d-flex justify-content-between gap-2 flex-wrap">
+                                    <div><strong>@Model.ResolveActorName(update.CreatedByUserId)</strong></div>
+                                    <div class="text-muted small">@update.CreatedAtUtc.ToString("dd MMM yyyy, HH:mm")</div>
+                                </div>
+                                <div class="at-audit-remarks at-remarks-text">@update.Body</div>
+                                @if (Model.UpdateAttachments.TryGetValue(update.Id, out var files) && files.Count > 0)
+                                {
+                                    <div class="at-update-files mt-2">
+                                        @foreach (var file in files)
                                         {
-                                            "application/pdf" => "PDF",
-                                            "application/msword" => "DOC",
-                                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "DOCX",
-                                            "application/vnd.ms-excel" => "XLS",
-                                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "XLSX",
-                                            "image/jpeg" => "JPG",
-                                            "image/png" => "PNG",
-                                            "text/plain" => "TXT",
-                                            _ => "FILE"
-                                        };
-                                        <div class="at-update-file-item">
-                                            <span class="at-file-type">@typeLabel</span>
-                                            <a class="at-file-name" href="@file.DownloadUrl" title="@file.FileName">@file.FileName</a>
-                                            <span class="at-file-size">@ProjectManagement.Helpers.FileSizeFormatter.FormatFileSize(file.FileSize)</span>
-                                            <a class="btn btn-outline-secondary btn-sm" href="@file.DownloadUrl">Download</a>
-                                        </div>
-                                    }
-                                </div>
-                            }
-                        </div>
-                    }
-                    @foreach (var log in Model.SelectedTaskLogs)
-                    {
-                        <div class="at-audit-item at-system-event">
-                            <div class="d-flex justify-content-between gap-2 flex-wrap">
-                                <div>
-                                    <strong>@log.ActionType</strong>
-                                    <span class="text-muted">by @Model.ResolveActorName(log.PerformedByUserId)</span>
-                                </div>
-                                <div class="text-muted small">@log.PerformedAt.ToString("dd MMM yyyy, HH:mm")</div>
+                                            var typeLabel = file.ContentType switch
+                                            {
+                                                "application/pdf" => "PDF",
+                                                "application/msword" => "DOC",
+                                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "DOCX",
+                                                "application/vnd.ms-excel" => "XLS",
+                                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "XLSX",
+                                                "image/jpeg" => "JPG",
+                                                "image/png" => "PNG",
+                                                "text/plain" => "TXT",
+                                                _ => "FILE"
+                                            };
+                                            <div class="at-update-file-item">
+                                                <span class="at-file-type">@typeLabel</span>
+                                                <a class="at-file-name" href="@file.DownloadUrl" title="@file.FileName">@file.FileName</a>
+                                                <span class="at-file-size">@ProjectManagement.Helpers.FileSizeFormatter.FormatFileSize(file.FileSize)</span>
+                                                <a class="btn btn-outline-secondary btn-sm" href="@file.DownloadUrl">Download</a>
+                                            </div>
+                                        }
+                                    </div>
+                                }
                             </div>
-                            @if (!string.IsNullOrWhiteSpace(log.OldValue) || !string.IsNullOrWhiteSpace(log.NewValue))
-                            {
-                                <div class="small text-muted">@log.OldValue → @log.NewValue</div>
-                            }
-                            @if (!string.IsNullOrWhiteSpace(log.Remarks))
-                            {
-                                <div class="at-audit-remarks at-remarks-text">@log.Remarks</div>
-                            }
-                        </div>
+                        }
+                        else
+                        {
+                            var log = entry.Log;
+                            <div class="at-audit-item at-system-event">
+                                <div class="d-flex justify-content-between gap-2 flex-wrap">
+                                    <div>
+                                        <strong>@log.ActionType</strong>
+                                        <span class="text-muted">by @Model.ResolveActorName(log.PerformedByUserId)</span>
+                                    </div>
+                                    <div class="text-muted small">@log.PerformedAt.ToString("dd MMM yyyy, HH:mm")</div>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(log.OldValue) || !string.IsNullOrWhiteSpace(log.NewValue))
+                                {
+                                    <div class="small text-muted">@log.OldValue → @log.NewValue</div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(log.Remarks))
+                                {
+                                    <div class="at-audit-remarks at-remarks-text">@log.Remarks</div>
+                                }
+                            </div>
+                        }
                     }
                 </div>
             }
