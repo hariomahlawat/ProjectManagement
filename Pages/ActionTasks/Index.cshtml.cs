@@ -367,6 +367,12 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnPostAddUpdateAsync()
     {
         await ResolveIdentityAsync();
+
+        // SECTION: Validate only update form data so unrelated create-task fields do not block update posting.
+        ModelState.ClearValidationState(nameof(Input));
+        ModelState.MarkFieldValid(nameof(Input));
+        TryValidateModel(UpdateInput, nameof(UpdateInput));
+
         if (!ModelState.IsValid)
         {
             TempData["ToastError"] = "Unable to post update. Please check the entered details and try again.";
@@ -375,7 +381,7 @@ public class IndexModel : PageModel
 
         try
         {
-            await _collaborationService.AddUpdateAsync(UpdateInput.TaskId, UpdateInput.Body, UpdateInput.UpdateType, CurrentUserId, CurrentRole, UpdateInput.Files);
+            await _collaborationService.AddUpdateAsync(UpdateInput.TaskId, UpdateInput.Body, ActionTaskUpdateTypes.Progress, CurrentUserId, CurrentRole, UpdateInput.Files);
             TempData["ToastMessage"] = "Task update posted.";
         }
         catch (InvalidOperationException ex)
@@ -942,9 +948,6 @@ public class IndexModel : PageModel
 
         [StringLength(4000)]
         public string Body { get; set; } = string.Empty;
-
-        [Required, StringLength(32)]
-        public string UpdateType { get; set; } = ActionTaskUpdateTypes.Progress;
 
         public List<IFormFile> Files { get; set; } = new();
     }

@@ -76,24 +76,46 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         // SECTION: Validate all uploaded files before persisting update
         ValidateAttachments(files);
 
-        var update = new ActionTaskUpdate
-        {
-            TaskId = taskId,
-            CreatedByUserId = userId,
-            CreatedAtUtc = DateTime.UtcNow,
-            UpdateType = ActionTaskUpdateTypes.All.First(x => string.Equals(x, updateType, StringComparison.OrdinalIgnoreCase)),
-            Body = hasBody ? body.Trim() : "Attachment update",
-            IsDeleted = false
-        };
-        _context.ActionTaskUpdates.Add(update);
-        await _context.SaveChangesAsync(cancellationToken);
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        var committedFiles = new List<string>();
 
-        foreach (var file in files.Where(x => x.Length > 0))
+        try
         {
-            await AddAttachmentAsync(taskId, update.Id, userId, file, cancellationToken);
+            var update = new ActionTaskUpdate
+            {
+                TaskId = taskId,
+                CreatedByUserId = userId,
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdateType = ActionTaskUpdateTypes.All.First(x => string.Equals(x, updateType, StringComparison.OrdinalIgnoreCase)),
+                Body = hasBody ? body.Trim() : "Attachment update",
+                IsDeleted = false
+            };
+
+            _context.ActionTaskUpdates.Add(update);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            foreach (var file in files.Where(x => x.Length > 0))
+            {
+                var storedPath = await AddAttachmentAsync(taskId, update.Id, userId, file, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(storedPath))
+                {
+                    committedFiles.Add(storedPath);
+                }
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            return update;
         }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            foreach (var filePath in committedFiles)
+            {
+                SafeDelete(filePath);
+            }
 
-        return update;
+            throw;
+        }
     }
 
     // SECTION: Read updates for inspector thread
@@ -135,12 +157,12 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
                 group => (IReadOnlyList<ActionTaskAttachmentMetadata>)group.Select(ToMetadata).ToList());
     }
 
-    private async Task AddAttachmentAsync(int taskId, int updateId, string userId, IFormFile file, CancellationToken cancellationToken)
+    private async Task<string?> AddAttachmentAsync(int taskId, int updateId, string userId, IFormFile file, CancellationToken cancellationToken)
     {
         ValidateAttachment(file);
         if (file.Length <= 0)
         {
-            return;
+            return null;
         }
 
         var sanitizedFileName = Path.GetFileName(file.FileName);
@@ -182,6 +204,7 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             IsDeleted = false
         });
         await _context.SaveChangesAsync(cancellationToken);
+        return absolutePath;
     }
 
     // SECTION: Attachment validation helpers
