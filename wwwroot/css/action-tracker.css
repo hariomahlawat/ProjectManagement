@@ -401,8 +401,18 @@ html {
 /* SECTION: Details dossier and audit */
 .at-detail-hero {
     display: grid;
-    gap: 0.35rem;
+    gap: 0.2rem;
     flex: 1;
+}
+
+.at-detail-assignee {
+    color: var(--at-text);
+    font-size: 0.85rem;
+    font-weight: 650;
+}
+
+.at-detail-meta {
+    align-items: center;
 }
 
 .at-inspector-header {
@@ -410,7 +420,7 @@ html {
     justify-content: space-between;
     align-items: start;
     gap: 0.75rem;
-    margin-bottom: 0.8rem;
+    margin-bottom: 0.65rem;
 }
 
 .at-inspector-close {
@@ -428,8 +438,8 @@ html {
 
 .at-inspector-actions {
     display: grid;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
+    gap: 0.55rem;
+    margin-bottom: 0.75rem;
 }
 
 .at-inspector-actions h3,
@@ -443,7 +453,7 @@ html {
     border: 1px solid var(--at-border);
     border-radius: 14px;
     background: #f8fafc;
-    padding: 0.8rem;
+    padding: 0.65rem;
 }
 
 .at-action-title {
@@ -458,11 +468,11 @@ html {
 .at-task-details-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: .65rem 1rem;
+    gap: .45rem .8rem;
     border: 1px solid var(--at-border);
     border-radius: var(--at-radius-md);
     background: var(--at-surface-soft);
-    padding: .9rem;
+    padding: .7rem;
 }
 
 .at-grid-span-2 {
@@ -476,7 +486,7 @@ html {
 }
 
 .at-audit-item {
-    padding: .85rem 1rem;
+    padding: .6rem .75rem;
     border-bottom: 1px solid #e5e7eb;
 }
 
@@ -485,14 +495,23 @@ html {
 }
 
 .at-audit-remarks {
-    margin-top: .45rem;
-    padding: .55rem .7rem;
+    margin-top: .35rem;
+    padding: .45rem .6rem;
     border-left: 3px solid var(--at-border-strong, #94a3b8);
     background: #f8fafc;
     color: var(--at-text);
     border-radius: .35rem;
     white-space: pre-line;
     line-height: 1.45;
+}
+
+.at-update-thread .at-audit-item {
+    background: #ffffff;
+}
+
+.at-audit-title {
+    color: var(--at-muted);
+    font-size: 0.94rem;
 }
 
 .at-active-filters {

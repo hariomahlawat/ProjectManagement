@@ -5,11 +5,11 @@
     @* SECTION: Inspector header with compact identity and close action. *@
     <div class="at-inspector-header">
         <div class="at-detail-hero">
-            <div class="at-section-eyebrow">Task Inspector</div>
-            <h2 class="at-panel-title mb-1">AT-@Model.TaskId.Value · @(Model.SelectedTask?.Title ?? "Task")</h2>
+            <h2 class="at-panel-title mb-0">AT-@Model.TaskId.Value · @(Model.SelectedTask?.Title ?? "Task")</h2>
             @if (Model.SelectedTask is not null)
             {
-                <div class="d-flex gap-2 flex-wrap">
+                <div class="at-detail-assignee">@Model.ResolveAssigneeName(Model.SelectedTask.AssignedToUserId)</div>
+                <div class="d-flex gap-2 flex-wrap at-detail-meta">
                     <span class="@Model.GetStatusBadgeClass(Model.SelectedTask.Status)">@Model.SelectedTask.Status</span>
                     <span class="@Model.GetPriorityBadgeClass(Model.SelectedTask.Priority)">@Model.SelectedTask.Priority</span>
                     <span class="at-detail-due">Due @Model.SelectedTask.DueDate.ToString("dd MMM yyyy")</span>
@@ -21,6 +21,72 @@
 
     @if (Model.SelectedTask is not null)
     {
+        @* SECTION: Progress & updates work journal with attachments. *@
+        <section class="at-task-updates mb-3" aria-label="Progress and Updates">
+            <h3>Progress &amp; Updates</h3>
+            <p class="at-helper-text">Record progress, comments and supporting documents without changing task status.</p>
+            <form method="post" asp-page-handler="AddUpdate" class="at-action-card" enctype="multipart/form-data">
+                <input type="hidden" asp-for="UpdateInput.TaskId" value="@Model.SelectedTask.Id" />
+                <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                <div class="mb-2">
+                    <label class="form-label at-small" asp-for="UpdateInput.Body">Update details</label>
+                    <textarea class="form-control form-control-sm" rows="4" asp-for="UpdateInput.Body" maxlength="4000" placeholder="Add progress details or clarification notes"></textarea>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label at-small" asp-for="UpdateInput.Files">Supporting files</label>
+                    <input class="form-control form-control-sm" asp-for="UpdateInput.Files" type="file" multiple />
+                    <div class="form-text at-small">Allowed: PDF, Word, Excel, JPG, PNG, TXT.</div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">Post Update</button>
+            </form>
+
+            @if (!Model.SelectedTaskUpdates.Any())
+            {
+                <div class="at-empty-state mt-2"><div class="fw-semibold">No updates posted for this task yet.</div></div>
+            }
+            else
+            {
+                <div class="at-audit-list at-update-thread mt-2">
+                    @foreach (var update in Model.SelectedTaskUpdates)
+                    {
+                        <div class="at-audit-item">
+                            <div class="d-flex justify-content-between gap-2 flex-wrap">
+                                <div><strong>@Model.ResolveActorName(update.CreatedByUserId)</strong></div>
+                                <div class="text-muted small">@update.CreatedAtUtc.ToString("dd MMM yyyy, HH:mm")</div>
+                            </div>
+                            <div class="at-audit-remarks at-remarks-text">@update.Body</div>
+                            @if (Model.UpdateAttachments.TryGetValue(update.Id, out var files) && files.Count > 0)
+                            {
+                                <div class="at-update-files mt-2">
+                                    @foreach (var file in files)
+                                    {
+                                        var typeLabel = file.ContentType switch
+                                        {
+                                            "application/pdf" => "PDF",
+                                            "application/msword" => "DOC",
+                                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "DOCX",
+                                            "application/vnd.ms-excel" => "XLS",
+                                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "XLSX",
+                                            "image/jpeg" => "JPG",
+                                            "image/png" => "PNG",
+                                            "text/plain" => "TXT",
+                                            _ => "FILE"
+                                        };
+                                        <div class="at-update-file-item">
+                                            <span class="at-file-type">@typeLabel</span>
+                                            <a class="at-file-name" href="@file.DownloadUrl" title="@file.FileName">@file.FileName</a>
+                                            <span class="at-file-size">@ProjectManagement.Helpers.FileSizeFormatter.FormatFileSize(file.FileSize)</span>
+                                            <a class="btn btn-outline-secondary btn-sm" href="@file.DownloadUrl">Download</a>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
         @* SECTION: Context-valid task actions rendered inside inspector only. *@
         <section class="at-inspector-actions" aria-label="Task Actions">
             <h3>Task Actions</h3>
@@ -99,83 +165,9 @@
                 <div><span class="text-muted">Closed On</span><div class="fw-semibold">@(Model.SelectedTask.ClosedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
             </div>
         </section>
-
-        @* SECTION: Progress & updates work journal with attachments. *@
-        <section class="at-task-updates mb-3" aria-label="Progress and Updates">
-            <h3>Progress &amp; Updates</h3>
-            <p class="at-helper-text">Use this section to record progress, comments, and supporting documents without changing task status.</p>
-            <form method="post" asp-page-handler="AddUpdate" class="at-action-card" enctype="multipart/form-data">
-                <input type="hidden" asp-for="UpdateInput.TaskId" value="@Model.SelectedTask.Id" />
-                <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                <div class="at-action-title">Post Update</div>
-                <div class="mb-2">
-                    <label class="form-label at-small" asp-for="UpdateInput.UpdateType">Update Type</label>
-                    <select class="form-select form-select-sm" asp-for="UpdateInput.UpdateType">
-                        <option value="Progress">Progress</option>
-                        <option value="Comment">Comment</option>
-                    </select>
-                </div>
-                <div class="mb-2">
-                    <label class="form-label at-small" asp-for="UpdateInput.Body">Update details</label>
-                    <textarea class="form-control form-control-sm" rows="4" asp-for="UpdateInput.Body" maxlength="4000" placeholder="Add progress details or clarification notes"></textarea>
-                </div>
-                <div class="mb-2">
-                    <label class="form-label at-small" asp-for="UpdateInput.Files">Add supporting files</label>
-                    <input class="form-control form-control-sm" asp-for="UpdateInput.Files" type="file" multiple />
-                    <div class="form-text at-small">Allowed file types: PDF, Word, Excel, JPG, PNG, TXT. Maximum file size as per upload policy.</div>
-                </div>
-                <button type="submit" class="btn btn-primary btn-sm">Post Update</button>
-            </form>
-
-            @if (!Model.SelectedTaskUpdates.Any())
-            {
-                <div class="at-empty-state mt-2"><div class="fw-semibold">No updates posted for this task yet.</div></div>
-            }
-            else
-            {
-                <div class="at-audit-list mt-2">
-                    @foreach (var update in Model.SelectedTaskUpdates)
-                    {
-                        <div class="at-audit-item">
-                            <div class="d-flex justify-content-between gap-2 flex-wrap">
-                                <div><strong>@Model.ResolveActorName(update.CreatedByUserId)</strong><span class="text-muted"> · @update.UpdateType</span></div>
-                                <div class="text-muted small">@update.CreatedAtUtc.ToString("dd MMM yyyy, HH:mm")</div>
-                            </div>
-                            <div class="at-audit-remarks at-remarks-text">@update.Body</div>
-                            @if (Model.UpdateAttachments.TryGetValue(update.Id, out var files) && files.Count > 0)
-                            {
-                                <div class="at-update-files mt-2">
-                                    @foreach (var file in files)
-                                    {
-                                        var typeLabel = file.ContentType switch
-                                        {
-                                            "application/pdf" => "PDF",
-                                            "application/msword" => "DOC",
-                                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "DOCX",
-                                            "application/vnd.ms-excel" => "XLS",
-                                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "XLSX",
-                                            "image/jpeg" => "JPG",
-                                            "image/png" => "PNG",
-                                            "text/plain" => "TXT",
-                                            _ => "FILE"
-                                        };
-                                        <div class="at-update-file-item">
-                                            <span class="at-file-type">@typeLabel</span>
-                                            <a class="at-file-name" href="@file.DownloadUrl" title="@file.FileName">@file.FileName</a>
-                                            <span class="at-file-size">@ProjectManagement.Helpers.FileSizeFormatter.FormatFileSize(file.FileSize)</span>
-                                            <a class="btn btn-outline-secondary btn-sm" href="@file.DownloadUrl">Download</a>
-                                        </div>
-                                    }
-                                </div>
-                            }
-                        </div>
-                    }
-                </div>
-            }
-        </section>
     }
 
-    <h3 class="h5 mb-2">Audit Trail</h3>
+    <h3 class="h5 mb-2 at-audit-title">Audit Trail</h3>
     @if (!Model.SelectedTaskLogs.Any())
     {
         <div class="at-empty-state">
