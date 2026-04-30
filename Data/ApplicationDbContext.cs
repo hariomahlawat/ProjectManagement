@@ -51,6 +51,8 @@ namespace ProjectManagement.Data
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
         public DbSet<ActionTaskItem> ActionTasks => Set<ActionTaskItem>();
         public DbSet<ActionTaskAuditLog> ActionTaskAuditLogs => Set<ActionTaskAuditLog>();
+        public DbSet<ActionTaskUpdate> ActionTaskUpdates => Set<ActionTaskUpdate>();
+        public DbSet<ActionTaskAttachment> ActionTaskAttachments => Set<ActionTaskAttachment>();
         public DbSet<Celebration> Celebrations => Set<Celebration>();
         public DbSet<AuthEvent> AuthEvents => Set<AuthEvent>();
         public DbSet<DailyLoginStat> DailyLoginStats => Set<DailyLoginStat>();
