@@ -48,6 +48,8 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
     // SECTION: Add update with optional attachments
     public async Task<ActionTaskUpdate> AddUpdateAsync(int taskId, string body, string updateType, string userId, string role, IReadOnlyList<IFormFile> files, CancellationToken cancellationToken = default)
     {
+        files ??= Array.Empty<IFormFile>();
+
         var task = await _context.ActionTasks.FirstOrDefaultAsync(x => x.Id == taskId && !x.IsDeleted, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
         if (!_permission.CanViewLogs(role, userId, task.AssignedToUserId))
         {
@@ -70,6 +72,9 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         {
             throw new InvalidOperationException($"A maximum of {MaxAttachmentsPerUpdate} files can be attached per update.");
         }
+
+        // SECTION: Validate all uploaded files before persisting update
+        ValidateAttachments(files);
 
         var update = new ActionTaskUpdate
         {
@@ -132,19 +137,10 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
 
     private async Task AddAttachmentAsync(int taskId, int updateId, string userId, IFormFile file, CancellationToken cancellationToken)
     {
+        ValidateAttachment(file);
         if (file.Length <= 0)
         {
             return;
-        }
-
-        if (file.Length > MaxFileSizeBytes)
-        {
-            throw new InvalidOperationException("File size exceeds the 25 MB limit.");
-        }
-
-        if (!AllowedContentTypes.Contains(file.ContentType))
-        {
-            throw new InvalidOperationException("This file type is not allowed.");
         }
 
         var sanitizedFileName = Path.GetFileName(file.FileName);
@@ -186,6 +182,33 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             IsDeleted = false
         });
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    // SECTION: Attachment validation helpers
+    private static void ValidateAttachments(IReadOnlyList<IFormFile> files)
+    {
+        foreach (var file in files)
+        {
+            ValidateAttachment(file);
+        }
+    }
+
+    private static void ValidateAttachment(IFormFile file)
+    {
+        if (file.Length <= 0)
+        {
+            return;
+        }
+
+        if (file.Length > MaxFileSizeBytes)
+        {
+            throw new InvalidOperationException("File size exceeds the 25 MB limit.");
+        }
+
+        if (!AllowedContentTypes.Contains(file.ContentType))
+        {
+            throw new InvalidOperationException("This file type is not allowed.");
+        }
     }
 
     private ActionTaskAttachmentMetadata ToMetadata(ActionTaskAttachment attachment)
