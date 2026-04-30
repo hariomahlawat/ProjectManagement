@@ -39,20 +39,16 @@
             {
                 @* SECTION: Merge updates and logs into one chronological activity stream. *@
                 var activityEntries = Model.SelectedTaskUpdates
-                    .Select(update => new
-                    {
-                        Timestamp = update.CreatedAtUtc,
-                        EntryType = "Update",
-                        Update = update,
-                        Log = (dynamic?)null
-                    })
-                    .Concat(Model.SelectedTaskLogs.Select(log => new
-                    {
-                        Timestamp = log.PerformedAt,
-                        EntryType = "Log",
-                        Update = (dynamic?)null,
-                        Log = log
-                    }))
+                    .Select(update => (
+                        Timestamp: update.CreatedAtUtc,
+                        EntryType: "Update",
+                        Update: update,
+                        Log: (ProjectManagement.Models.ActionTaskAuditLog?)null))
+                    .Concat(Model.SelectedTaskLogs.Select(log => (
+                        Timestamp: log.PerformedAt,
+                        EntryType: "Log",
+                        Update: (ProjectManagement.Models.ActionTaskUpdate?)null,
+                        Log: log)))
                     .OrderByDescending(entry => entry.Timestamp)
                     .ToList();
 
