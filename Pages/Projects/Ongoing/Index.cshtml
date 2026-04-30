@@ -628,9 +628,10 @@ else
                                     else
                                     {
                                         var externalRemark = latestExternalRemark!;
+                                        var externalRemarkBody = externalRemark.Body ?? string.Empty;
                                         <article class="ongoing-remarks__item">
                                             <div class="ongoing-remarks__body ongoing-remarks__body--collapsed">
-                                                @Html.Raw(RenderRemark(externalRemark.Body!))
+                                                @Html.Raw(RenderRemark(externalRemarkBody))
                                             </div>
                                             <div class="ongoing-remarks__meta">
                                                 <span class="ongoing-remarks__author">@externalRemark.AuthorDisplayName</span>
