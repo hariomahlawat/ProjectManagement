@@ -154,6 +154,48 @@ html {
     font-size: 0.78rem;
 }
 
+/* SECTION: Inspector collaboration helper text and attachment rows */
+.at-helper-text {
+    color: var(--at-muted);
+    font-size: 0.82rem;
+    margin-bottom: 0.6rem;
+}
+
+.at-update-files {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.at-update-file-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    gap: 0.5rem;
+    align-items: center;
+    border: 1px solid var(--at-border);
+    border-radius: 0.5rem;
+    padding: 0.45rem 0.55rem;
+    background: var(--at-surface-soft);
+}
+
+.at-file-type {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--at-muted);
+}
+
+.at-file-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--at-text);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.at-file-size {
+    color: var(--at-muted);
+    font-size: 0.78rem;
+}
+
 
 .at-task-details-panel {
     scroll-margin-top: 6rem;
