@@ -94,7 +94,7 @@
                 <div><span class="text-muted">Title</span><div class="fw-semibold">@Model.SelectedTask.Title</div></div>
                 <div><span class="text-muted">Responsible Person</span><div class="fw-semibold">@Model.ResolveAssigneeName(Model.SelectedTask.AssignedToUserId)</div></div>
                 <div class="at-grid-span-2"><span class="text-muted">Description</span><div class="fw-semibold at-description-text">@Model.SelectedTask.Description</div></div>
-                <div><span class="text-muted">Created On</span><div class="fw-semibold">@Model.SelectedTask.AssignedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
+                <div><span class="text-muted">Assigned On</span><div class="fw-semibold">@Model.SelectedTask.AssignedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
                 <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@(Model.SelectedTask.SubmittedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
                 <div><span class="text-muted">Closed On</span><div class="fw-semibold">@(Model.SelectedTask.ClosedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
             </div>
@@ -103,6 +103,7 @@
         @* SECTION: Progress & updates work journal with attachments. *@
         <section class="at-task-updates mb-3" aria-label="Progress and Updates">
             <h3>Progress &amp; Updates</h3>
+            <p class="at-helper-text">Use this section to record progress, comments, and supporting documents without changing task status.</p>
             <form method="post" asp-page-handler="AddUpdate" class="at-action-card" enctype="multipart/form-data">
                 <input type="hidden" asp-for="UpdateInput.TaskId" value="@Model.SelectedTask.Id" />
                 <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
@@ -121,6 +122,7 @@
                 <div class="mb-2">
                     <label class="form-label at-small" asp-for="UpdateInput.Files">Add supporting files</label>
                     <input class="form-control form-control-sm" asp-for="UpdateInput.Files" type="file" multiple />
+                    <div class="form-text at-small">Allowed file types: PDF, Word, Excel, JPG, PNG, TXT. Maximum file size as per upload policy.</div>
                 </div>
                 <button type="submit" class="btn btn-primary btn-sm">Post Update</button>
             </form>
@@ -142,10 +144,27 @@
                             <div class="at-audit-remarks at-remarks-text">@update.Body</div>
                             @if (Model.UpdateAttachments.TryGetValue(update.Id, out var files) && files.Count > 0)
                             {
-                                <div class="d-flex flex-wrap gap-2 mt-1">
+                                <div class="at-update-files mt-2">
                                     @foreach (var file in files)
                                     {
-                                        <a class="btn btn-outline-secondary btn-sm" href="@file.DownloadUrl" title="@file.FileName">@file.FileName</a>
+                                        var typeLabel = file.ContentType switch
+                                        {
+                                            "application/pdf" => "PDF",
+                                            "application/msword" => "DOC",
+                                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "DOCX",
+                                            "application/vnd.ms-excel" => "XLS",
+                                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "XLSX",
+                                            "image/jpeg" => "JPG",
+                                            "image/png" => "PNG",
+                                            "text/plain" => "TXT",
+                                            _ => "FILE"
+                                        };
+                                        <div class="at-update-file-item">
+                                            <span class="at-file-type">@typeLabel</span>
+                                            <a class="at-file-name" href="@file.DownloadUrl" title="@file.FileName">@file.FileName</a>
+                                            <span class="at-file-size">@ProjectManagement.Helpers.FileSizeFormatter.FormatFileSize(file.FileSize)</span>
+                                            <a class="btn btn-outline-secondary btn-sm" href="@file.DownloadUrl">Download</a>
+                                        </div>
                                     }
                                 </div>
                             }

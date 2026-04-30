@@ -330,6 +330,20 @@ public class IndexModel : PageModel
         await ResolveIdentityAsync();
         try
         {
+            // SECTION: Prevent no-op status submissions from showing a misleading success message.
+            var task = await _service.GetTaskAsync(id);
+            if (task is null)
+            {
+                TempData["ToastError"] = "Task not found.";
+                return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
+            }
+
+            if (string.Equals(task.Status, status, StringComparison.OrdinalIgnoreCase))
+            {
+                TempData["ToastMessage"] = "No status change applied because the selected status is already current.";
+                return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
+            }
+
             await _service.UpdateStatusAsync(id, status, CurrentUserId, CurrentRole, remarks);
             TempData["ToastMessage"] = "Task status updated.";
         }
