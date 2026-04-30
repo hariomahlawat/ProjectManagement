@@ -338,6 +338,14 @@ public class IndexModel : PageModel
                 return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
             }
 
+            // SECTION: Preserve permission enforcement even for status no-op submissions.
+            if (!_permission.CanUpdateTask(CurrentRole, CurrentUserId, task.AssignedToUserId))
+            {
+                TempData["ToastError"] = "You are not authorized to update this task.";
+                return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
+            }
+
+            // SECTION: Keep no-op handling for user-friendly messaging after permission validation.
             if (string.Equals(task.Status, status, StringComparison.OrdinalIgnoreCase))
             {
                 TempData["ToastMessage"] = "No status change applied because the selected status is already current.";
