@@ -368,9 +368,10 @@ public class IndexModel : PageModel
     {
         await ResolveIdentityAsync();
 
-        // SECTION: Validate only update form data so unrelated create-task fields do not block update posting.
-        ModelState.ClearValidationState(nameof(Input));
-        ModelState.MarkFieldValid(nameof(Input));
+        // SECTION: Remove stale create-task model entries before validating update payload.
+        ClearModelStateEntries(nameof(Input));
+
+        // SECTION: Validate only update form data so create-task fields do not block update posting.
         TryValidateModel(UpdateInput, nameof(UpdateInput));
 
         if (!ModelState.IsValid)
@@ -390,6 +391,20 @@ public class IndexModel : PageModel
         }
 
         return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = UpdateInput.TaskId });
+    }
+
+    // SECTION: Remove model-state entries for a bound root object and its nested properties.
+    private void ClearModelStateEntries(string rootKey)
+    {
+        var scopedKeys = ModelState.Keys
+            .Where(key => string.Equals(key, rootKey, StringComparison.Ordinal)
+                || key.StartsWith(rootKey + ".", StringComparison.Ordinal))
+            .ToList();
+
+        foreach (var key in scopedKeys)
+        {
+            ModelState.Remove(key);
+        }
     }
 
     // SECTION: Shared data loading
