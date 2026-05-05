@@ -1844,6 +1844,53 @@ namespace ProjectManagement.Data
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
+            builder.Entity<ActionTaskUpdate>(e =>
+            {
+                // SECTION: Action task update indexing strategy
+                e.HasIndex(x => new { x.TaskId, x.CreatedAtUtc });
+                e.HasIndex(x => x.CreatedByUserId);
+                e.HasIndex(x => x.IsDeleted);
+
+                // SECTION: Action task update field constraints
+                e.Property(x => x.CreatedByUserId).IsRequired().HasMaxLength(450);
+                e.Property(x => x.UpdateType).IsRequired().HasMaxLength(32);
+                e.Property(x => x.Body).IsRequired().HasMaxLength(4000);
+                e.Property(x => x.IsDeleted).HasDefaultValue(false);
+
+                // SECTION: Action task update relationship constraints
+                e.HasOne<ActionTaskItem>()
+                    .WithMany()
+                    .HasForeignKey(x => x.TaskId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ActionTaskAttachment>(e =>
+            {
+                // SECTION: Action task attachment indexing strategy
+                e.HasIndex(x => x.TaskId);
+                e.HasIndex(x => x.UpdateId);
+                e.HasIndex(x => x.IsDeleted);
+
+                // SECTION: Action task attachment field constraints
+                e.Property(x => x.UploadedByUserId).IsRequired().HasMaxLength(450);
+                e.Property(x => x.OriginalFileName).IsRequired().HasMaxLength(260);
+                e.Property(x => x.StorageKey).IsRequired().HasMaxLength(1024);
+                e.Property(x => x.ContentType).IsRequired().HasMaxLength(200);
+                e.Property(x => x.IsDeleted).HasDefaultValue(false);
+
+                // SECTION: Action task attachment relationship constraints
+                e.HasOne<ActionTaskItem>()
+                    .WithMany()
+                    .HasForeignKey(x => x.TaskId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                // SECTION: Update link remains optional; attachment may exist without an update
+                e.HasOne<ActionTaskUpdate>()
+                    .WithMany()
+                    .HasForeignKey(x => x.UpdateId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
             builder.Entity<Celebration>(e =>
             {
                 e.HasIndex(x => x.DeletedUtc).HasFilter("\"DeletedUtc\" IS NULL");
