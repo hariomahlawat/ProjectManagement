@@ -974,3 +974,87 @@ html {
         gap: 0.25rem;
     }
 }
+
+/* SECTION: Activity-first inspector drawer redesign */
+.at-task-details-panel {
+    height: calc(100vh - 2rem);
+    max-height: calc(100vh - 2rem);
+}
+
+.at-inspector-shell {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.at-inspector-header {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    margin-bottom: 0;
+    padding-bottom: 0.5rem;
+    background: var(--bs-body-bg, #fff);
+    border-bottom: 1px solid var(--at-border);
+}
+
+.at-inspector-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0.6rem 0 0.75rem;
+}
+
+.at-inspector-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    background: var(--bs-body-bg, #fff);
+    border-top: 1px solid var(--at-border);
+    padding-top: 0.45rem;
+    padding-bottom: 0.2rem;
+}
+
+.at-context-panel-host {
+    display: grid;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+}
+
+.at-action-drawer > summary {
+    display: none;
+}
+
+.at-action-drawer:not([open]) {
+    display: none;
+}
+
+.at-action-buttons {
+    display: flex;
+    gap: 0.45rem;
+    justify-content: flex-end;
+}
+
+.at-activity-stream {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.at-activity-update-card {
+    border: 1px solid var(--at-border);
+    border-radius: var(--at-radius-md);
+    background: #fff;
+    padding: 0.5rem 0.6rem;
+}
+
+.at-activity-system-row {
+    border-radius: 0.5rem;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    padding: 0.4rem 0.55rem;
+}
+
+.at-system-event-created {
+    opacity: 0.9;
+    background: #f1f5f9;
+}
