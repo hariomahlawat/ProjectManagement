@@ -427,15 +427,31 @@ public class IndexModel : PageModel
             ? ApplyTaskListFilters(tasks)
             : tasks;
 
-        if (TaskId.HasValue)
+        // SECTION: Selected Task Resolution
+        if (!TaskId.HasValue)
         {
-            SelectedTask = tasks.FirstOrDefault(t => t.Id == TaskId.Value);
-            SelectedTaskLogs = await _service.GetTaskLogsAsync(TaskId.Value, CurrentUserId, CurrentRole);
-            SelectedTaskUpdates = await _collaborationService.GetUpdatesAsync(TaskId.Value, CurrentUserId, CurrentRole);
-            UpdateAttachments = await _collaborationService.GetAttachmentMetadataByUpdateAsync(TaskId.Value, CurrentUserId, CurrentRole);
-            TaskActorNames = await LoadTaskActorNamesAsync(SelectedTaskLogs);
-            TaskActorNames = await MergeActorNamesAsync(TaskActorNames, SelectedTaskUpdates);
+            return;
         }
+
+        var visibleTaskScope = Tasks;
+        SelectedTask = visibleTaskScope.FirstOrDefault(t => t.Id == TaskId.Value);
+        if (SelectedTask is null)
+        {
+            TaskId = null;
+            SelectedTask = null;
+            SelectedTaskLogs = Array.Empty<ActionTaskAuditLog>();
+            SelectedTaskUpdates = Array.Empty<ActionTaskUpdate>();
+            UpdateAttachments = new Dictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>();
+            TempData["ToastError"] = "The selected task is no longer available in the current view.";
+            return;
+        }
+
+        // SECTION: Selected Task Detail Loading
+        SelectedTaskLogs = await _service.GetTaskLogsAsync(SelectedTask.Id, CurrentUserId, CurrentRole);
+        SelectedTaskUpdates = await _collaborationService.GetUpdatesAsync(SelectedTask.Id, CurrentUserId, CurrentRole);
+        UpdateAttachments = await _collaborationService.GetAttachmentMetadataByUpdateAsync(SelectedTask.Id, CurrentUserId, CurrentRole);
+        TaskActorNames = await LoadTaskActorNamesAsync(SelectedTaskLogs);
+        TaskActorNames = await MergeActorNamesAsync(TaskActorNames, SelectedTaskUpdates);
     }
 
     private async Task<IReadOnlyDictionary<string, string>> MergeActorNamesAsync(IReadOnlyDictionary<string, string> current, IReadOnlyList<ActionTaskUpdate> updates)
