@@ -51,7 +51,15 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         files ??= Array.Empty<IFormFile>();
 
         var task = await _context.ActionTasks.FirstOrDefaultAsync(x => x.Id == taskId && !x.IsDeleted, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
-        if (!_permission.CanViewLogs(role, userId, task.AssignedToUserId))
+        var hasBody = !string.IsNullOrWhiteSpace(body);
+        var hasFiles = files is { Count: > 0 } && files.Any(x => x.Length > 0);
+
+        if (!_permission.CanAddTaskUpdate(role, userId, task.AssignedToUserId))
+        {
+            throw new InvalidOperationException("You are not authorized to add updates for this task.");
+        }
+
+        if (hasFiles && !_permission.CanUploadTaskAttachment(role, userId, task.AssignedToUserId))
         {
             throw new InvalidOperationException("You are not authorized to add updates for this task.");
         }
@@ -61,8 +69,6 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             throw new InvalidOperationException("Invalid update type.");
         }
 
-        var hasBody = !string.IsNullOrWhiteSpace(body);
-        var hasFiles = files is { Count: > 0 } && files.Any(x => x.Length > 0);
         if (!hasBody && !hasFiles)
         {
             throw new InvalidOperationException("Update text is required unless at least one attachment is uploaded.");
@@ -122,7 +128,7 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
     public async Task<List<ActionTaskUpdate>> GetUpdatesAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default)
     {
         var task = await _context.ActionTasks.FirstOrDefaultAsync(x => x.Id == taskId && !x.IsDeleted, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
-        if (!_permission.CanViewLogs(role, userId, task.AssignedToUserId))
+        if (!_permission.CanViewTaskThread(role, userId, task.AssignedToUserId))
         {
             throw new InvalidOperationException("You are not authorized to view updates for this task.");
         }
@@ -138,7 +144,7 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
     public async Task<IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>> GetAttachmentMetadataByUpdateAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default)
     {
         var task = await _context.ActionTasks.FirstOrDefaultAsync(x => x.Id == taskId && !x.IsDeleted, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
-        if (!_permission.CanViewLogs(role, userId, task.AssignedToUserId))
+        if (!_permission.CanViewTaskThread(role, userId, task.AssignedToUserId))
         {
             throw new InvalidOperationException("You are not authorized to view attachments for this task.");
         }
