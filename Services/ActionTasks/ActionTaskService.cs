@@ -60,19 +60,33 @@ public class ActionTaskService : IActionTaskService
     // SECTION: Task mutation APIs
     public async Task<ActionTaskItem> CreateTaskAsync(ActionTaskItem task, CancellationToken cancellationToken = default)
     {
+        // SECTION: Validation
+
+        // SECTION: State Mutation
         task.AssignedOn = DateTime.UtcNow;
         task.Status = ActionTaskStatuses.Assigned;
 
         _context.ActionTasks.Add(task);
-        await _context.SaveChangesAsync(cancellationToken);
 
-        await Log(task.Id, "TaskCreated", task.CreatedByUserId, task.CreatedByRole, null, task.Status, null, cancellationToken);
+        // SECTION: Audit Enqueue
+        _context.ActionTaskAuditLogs.Add(Log(
+            action: "TaskCreated",
+            userId: task.CreatedByUserId,
+            role: task.CreatedByRole,
+            oldValue: null,
+            newValue: task.Status,
+            remarks: null,
+            task: task));
+
+        // SECTION: Persistence
+        await _context.SaveChangesAsync(cancellationToken);
 
         return task;
     }
 
     public async Task UpdateStatusAsync(int taskId, string status, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
     {
+        // SECTION: Validation
         var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
         if (!_permission.CanUpdateTask(role, userId, task.AssignedToUserId))
         {
@@ -105,6 +119,7 @@ public class ActionTaskService : IActionTaskService
         // SECTION: Remarks validation for key transitions
         ValidateRemarksForStatusTransition(task.Status, status, remarks);
 
+        // SECTION: State Mutation
         var oldStatus = task.Status;
         task.Status = status;
         if (string.Equals(status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
@@ -116,12 +131,16 @@ public class ActionTaskService : IActionTaskService
             task.ClosedOn = DateTime.UtcNow;
         }
 
+        // SECTION: Audit Enqueue
+        _context.ActionTaskAuditLogs.Add(Log(taskId, "StatusUpdated", userId, role, oldStatus, task.Status, remarks));
+
+        // SECTION: Persistence
         await _context.SaveChangesAsync(cancellationToken);
-        await Log(taskId, "StatusUpdated", userId, role, oldStatus, task.Status, remarks, cancellationToken);
     }
 
     public async Task SubmitTaskAsync(int taskId, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
     {
+        // SECTION: Validation
         var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
 
         // SECTION: Ownership and role authorization checks
@@ -146,16 +165,21 @@ public class ActionTaskService : IActionTaskService
             throw new InvalidOperationException("Remarks are required when submitting a task.");
         }
 
+        // SECTION: State Mutation
         var oldStatus = task.Status;
         task.Status = ActionTaskStatuses.Submitted;
         task.SubmittedOn = DateTime.UtcNow;
 
+        // SECTION: Audit Enqueue
+        _context.ActionTaskAuditLogs.Add(Log(taskId, "Submitted", userId, role, oldStatus, task.Status, remarks));
+
+        // SECTION: Persistence
         await _context.SaveChangesAsync(cancellationToken);
-        await Log(taskId, "Submitted", userId, role, oldStatus, task.Status, remarks, cancellationToken);
     }
 
     public async Task CloseTaskAsync(int taskId, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
     {
+        // SECTION: Validation
         if (!_permission.CanClose(role))
         {
             throw new InvalidOperationException("You are not authorized to close this task.");
@@ -173,18 +197,22 @@ public class ActionTaskService : IActionTaskService
             throw new InvalidOperationException("Closure remarks are required.");
         }
 
+        // SECTION: State Mutation
         var oldStatus = task.Status;
         task.Status = ActionTaskStatuses.Closed;
         task.ClosedOn = DateTime.UtcNow;
 
+        // SECTION: Audit Enqueue
+        _context.ActionTaskAuditLogs.Add(Log(taskId, "Closed", userId, role, oldStatus, task.Status, remarks));
+
+        // SECTION: Persistence
         await _context.SaveChangesAsync(cancellationToken);
-        await Log(taskId, "Closed", userId, role, oldStatus, task.Status, remarks, cancellationToken);
     }
 
     // SECTION: Audit logging
-    private async Task Log(int taskId, string action, string userId, string role, string? oldValue, string? newValue, string? remarks, CancellationToken cancellationToken)
+    private static ActionTaskAuditLog Log(int taskId, string action, string userId, string role, string? oldValue, string? newValue, string? remarks)
     {
-        _context.ActionTaskAuditLogs.Add(new ActionTaskAuditLog
+        return new ActionTaskAuditLog
         {
             TaskId = taskId,
             ActionType = action,
@@ -194,9 +222,22 @@ public class ActionTaskService : IActionTaskService
             OldValue = oldValue,
             NewValue = newValue,
             Remarks = remarks
-        });
+        };
+    }
 
-        await _context.SaveChangesAsync(cancellationToken);
+    private static ActionTaskAuditLog Log(string action, string userId, string role, string? oldValue, string? newValue, string? remarks, ActionTaskItem task)
+    {
+        return new ActionTaskAuditLog
+        {
+            Task = task,
+            ActionType = action,
+            PerformedByUserId = userId,
+            PerformedByRole = role,
+            PerformedAt = DateTime.UtcNow,
+            OldValue = oldValue,
+            NewValue = newValue,
+            Remarks = remarks
+        };
     }
 
     // SECTION: Remarks rule helpers
