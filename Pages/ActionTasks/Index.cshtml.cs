@@ -428,8 +428,11 @@ public class IndexModel : PageModel
         AssignableUsers = await LoadAssignableUsersAsync();
         TaskAssigneeNames = await LoadTaskAssigneeNamesAsync(tasks);
 
+        // SECTION: Activity Timestamp Derivation
+        var activityByTaskId = await _service.GetLastActivityUtcByTaskIdsAsync(tasks.Select(t => t.Id).ToArray());
+
         // SECTION: Populate overview and grouping collections
-        BuildDashboardCollections(tasks);
+        BuildDashboardCollections(tasks, activityByTaskId);
         BuildKanbanCollections(tasks);
         BuildSprintCollections(tasks);
         BuildReportCollections(tasks);
@@ -651,7 +654,7 @@ public class IndexModel : PageModel
         return ordered.ThenBy(t => t.Id);
     }
 
-    private void BuildDashboardCollections(IReadOnlyList<ActionTaskItem> tasks)
+    private void BuildDashboardCollections(IReadOnlyList<ActionTaskItem> tasks, IReadOnlyDictionary<int, DateTime?> activityByTaskId)
     {
         var utcNow = DateTime.UtcNow;
 
@@ -675,10 +678,21 @@ public class IndexModel : PageModel
             .Take(5)
             .ToList();
 
+        // SECTION: Dashboard Recently Updated Projection
         RecentlyUpdatedTasks = tasks
-            .OrderByDescending(t => t.SubmittedOn ?? t.AssignedOn)
+            .OrderByDescending(t => ResolveLastActivityUtc(t, activityByTaskId) ?? DateTime.MinValue)
+            .ThenByDescending(t => t.Id)
             .Take(5)
             .ToList();
+    }
+
+    // SECTION: Activity Timestamp Derivation
+    private static DateTime? ResolveLastActivityUtc(ActionTaskItem task, IReadOnlyDictionary<int, DateTime?> activityByTaskId)
+    {
+        activityByTaskId.TryGetValue(task.Id, out var activityTimestampUtc);
+        return activityTimestampUtc
+            ?? task.SubmittedOn
+            ?? task.AssignedOn;
     }
 
     private void BuildKanbanCollections(IReadOnlyList<ActionTaskItem> tasks)
