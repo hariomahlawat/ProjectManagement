@@ -57,6 +57,39 @@ public class ActionTaskService : IActionTaskService
             .ToListAsync(cancellationToken);
     }
 
+
+    public async Task<Dictionary<int, DateTime?>> GetLastActivityUtcByTaskIdsAsync(IReadOnlyCollection<int> taskIds, CancellationToken cancellationToken = default)
+    {
+        if (taskIds.Count == 0)
+        {
+            return new Dictionary<int, DateTime?>();
+        }
+
+        var updateActivity = await _context.ActionTaskUpdates
+            .AsNoTracking()
+            .Where(x => taskIds.Contains(x.TaskId))
+            .GroupBy(x => x.TaskId)
+            .Select(g => new { TaskId = g.Key, LastUpdateUtc = g.Max(x => x.CreatedOn) })
+            .ToDictionaryAsync(x => x.TaskId, x => (DateTime?)x.LastUpdateUtc, cancellationToken);
+
+        var auditActivity = await _context.ActionTaskAuditLogs
+            .AsNoTracking()
+            .Where(x => taskIds.Contains(x.TaskId))
+            .GroupBy(x => x.TaskId)
+            .Select(g => new { TaskId = g.Key, LastAuditUtc = g.Max(x => x.PerformedAt) })
+            .ToDictionaryAsync(x => x.TaskId, x => (DateTime?)x.LastAuditUtc, cancellationToken);
+
+        var result = new Dictionary<int, DateTime?>(taskIds.Count);
+        foreach (var taskId in taskIds)
+        {
+            updateActivity.TryGetValue(taskId, out var lastUpdateUtc);
+            auditActivity.TryGetValue(taskId, out var lastAuditUtc);
+            result[taskId] = lastUpdateUtc ?? lastAuditUtc;
+        }
+
+        return result;
+    }
+
     // SECTION: Task mutation APIs
     public async Task<ActionTaskItem> CreateTaskAsync(ActionTaskItem task, CancellationToken cancellationToken = default)
     {
