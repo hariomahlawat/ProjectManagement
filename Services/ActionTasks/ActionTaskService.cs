@@ -84,7 +84,7 @@ public class ActionTaskService : IActionTaskService
         return task;
     }
 
-    public async Task UpdateStatusAsync(int taskId, string status, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
+    public async Task UpdateStatusAsync(int taskId, byte[] rowVersion, string status, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
     {
         // SECTION: Validation
         var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
@@ -119,6 +119,9 @@ public class ActionTaskService : IActionTaskService
         // SECTION: Remarks validation for key transitions
         ValidateRemarksForStatusTransition(task.Status, status, remarks);
 
+        // SECTION: Concurrency token validation
+        _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
+
         // SECTION: State Mutation
         var oldStatus = task.Status;
         task.Status = status;
@@ -135,10 +138,17 @@ public class ActionTaskService : IActionTaskService
         _context.ActionTaskAuditLogs.Add(Log(taskId, "StatusUpdated", userId, role, oldStatus, task.Status, remarks));
 
         // SECTION: Persistence
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
+        }
     }
 
-    public async Task SubmitTaskAsync(int taskId, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
+    public async Task SubmitTaskAsync(int taskId, byte[] rowVersion, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
     {
         // SECTION: Validation
         var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
@@ -165,6 +175,9 @@ public class ActionTaskService : IActionTaskService
             throw new InvalidOperationException("Remarks are required when submitting a task.");
         }
 
+        // SECTION: Concurrency token validation
+        _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
+
         // SECTION: State Mutation
         var oldStatus = task.Status;
         task.Status = ActionTaskStatuses.Submitted;
@@ -174,10 +187,17 @@ public class ActionTaskService : IActionTaskService
         _context.ActionTaskAuditLogs.Add(Log(taskId, "Submitted", userId, role, oldStatus, task.Status, remarks));
 
         // SECTION: Persistence
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
+        }
     }
 
-    public async Task CloseTaskAsync(int taskId, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
+    public async Task CloseTaskAsync(int taskId, byte[] rowVersion, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
     {
         // SECTION: Validation
         if (!_permission.CanClose(role))
@@ -197,6 +217,9 @@ public class ActionTaskService : IActionTaskService
             throw new InvalidOperationException("Closure remarks are required.");
         }
 
+        // SECTION: Concurrency token validation
+        _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
+
         // SECTION: State Mutation
         var oldStatus = task.Status;
         task.Status = ActionTaskStatuses.Closed;
@@ -206,7 +229,14 @@ public class ActionTaskService : IActionTaskService
         _context.ActionTaskAuditLogs.Add(Log(taskId, "Closed", userId, role, oldStatus, task.Status, remarks));
 
         // SECTION: Persistence
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
+        }
     }
 
     // SECTION: Audit logging
