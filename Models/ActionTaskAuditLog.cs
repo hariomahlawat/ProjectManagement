@@ -26,4 +26,6 @@ public class ActionTaskAuditLog
 
     [StringLength(2000)]
     public string? Remarks { get; set; }
+
+    public ActionTaskItem? Task { get; set; }
 }
