@@ -37,6 +37,18 @@ public class ActionTaskPermissionService
     public bool CanViewLogs(string role, string currentUserId, string ownerUserId)
         => CanViewAll(role) || string.Equals(currentUserId, ownerUserId, StringComparison.Ordinal);
 
+    // SECTION: Thread Read Authorization
+    public bool CanViewTaskThread(string role, string currentUserId, string ownerUserId)
+        => CanViewAll(role) || string.Equals(currentUserId, ownerUserId, StringComparison.Ordinal);
+
+    // SECTION: Update Write Authorization
+    public bool CanAddTaskUpdate(string role, string currentUserId, string ownerUserId)
+        => CanViewAll(role) || string.Equals(currentUserId, ownerUserId, StringComparison.Ordinal);
+
+    // SECTION: Attachment Write Authorization
+    public bool CanUploadTaskAttachment(string role, string currentUserId, string ownerUserId)
+        => CanViewAll(role) || string.Equals(currentUserId, ownerUserId, StringComparison.Ordinal);
+
     public bool CanUpdateTask(string role, string currentUserId, string ownerUserId)
         => CanViewAll(role) || string.Equals(currentUserId, ownerUserId, StringComparison.Ordinal);
 
