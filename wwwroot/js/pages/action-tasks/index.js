@@ -138,10 +138,67 @@
         });
     }
 
+
+    // SECTION: Sticky inspector action panel orchestration and keyboard behavior.
+    function initInspectorActionPanels() {
+        const shell = document.querySelector("[data-at-action-shell='true']");
+        if (!shell) {
+            return;
+        }
+
+        const panels = Array.from(shell.querySelectorAll("[data-at-action-panel]"));
+        const openButtons = shell.querySelectorAll("[data-at-open-action]");
+        const closeButtons = shell.querySelectorAll("[data-at-close-action]");
+
+        const closeAllPanels = () => {
+            panels.forEach((panel) => panel.removeAttribute("open"));
+        };
+
+        const openPanel = (name) => {
+            closeAllPanels();
+            const panel = shell.querySelector(`[data-at-action-panel='${name}']`);
+            if (!panel) {
+                return;
+            }
+            panel.setAttribute("open", "open");
+            const focusTarget = panel.querySelector("textarea, select, input, button");
+            if (focusTarget) {
+                focusTarget.focus();
+            }
+        };
+
+        openButtons.forEach((button) => {
+            button.addEventListener("click", () => {
+                const target = button.getAttribute("data-at-open-action");
+                openPanel(target);
+            });
+        });
+
+        closeButtons.forEach((button) => {
+            button.addEventListener("click", () => {
+                closeAllPanels();
+            });
+        });
+
+        shell.addEventListener("keydown", (event) => {
+            if (event.key !== "Escape") {
+                return;
+            }
+            const hasOpenPanel = panels.some((panel) => panel.hasAttribute("open"));
+            if (!hasOpenPanel) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            closeAllPanels();
+        });
+    }
+
     document.addEventListener("DOMContentLoaded", function () {
         openCreateTaskModalOnLoad();
         initSearchableSelects();
         initStatusUpdateGuard();
         initTaskRegisterFilters();
+        initInspectorActionPanels();
     });
 })();
