@@ -1811,6 +1811,8 @@ namespace ProjectManagement.Data
 
             builder.Entity<ActionTaskItem>(e =>
             {
+                // SECTION: Optimistic concurrency token mapping for action tasks
+                e.Property(x => x.RowVersion).IsRowVersion();
                 e.HasIndex(x => new { x.AssignedToUserId, x.Status });
                 e.HasIndex(x => new { x.DueDate, x.Status });
                 e.HasIndex(x => x.IsDeleted);

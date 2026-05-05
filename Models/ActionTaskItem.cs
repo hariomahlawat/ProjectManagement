@@ -56,5 +56,8 @@ public class ActionTaskItem
     public DateTime? SubmittedOn { get; set; }
     public DateTime? ClosedOn { get; set; }
 
+    // SECTION: Optimistic concurrency token for task updates
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
     public bool IsDeleted { get; set; }
 }

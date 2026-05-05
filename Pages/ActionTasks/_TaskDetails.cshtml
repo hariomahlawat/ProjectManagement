@@ -162,6 +162,7 @@
                                 <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                                 <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
+                                <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" />
                                 <div class="at-action-title">Change Status</div>
                                 <div class="mb-2">
                                     <label class="form-label at-small">Target Status</label>
@@ -199,6 +200,7 @@
                                 <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                                 <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
+                                <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" />
                                 <div class="at-action-title">Submit Task</div>
                                 <div class="mb-2">
                                     <label class="form-label at-small">Submission Remarks</label>
@@ -220,6 +222,7 @@
                                 <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                                 <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
+                                <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" />
                                 <div class="at-action-title">Close Task</div>
                                 <div class="mb-2">
                                     <label class="form-label at-small">Closure Remarks</label>

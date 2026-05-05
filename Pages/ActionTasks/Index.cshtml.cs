@@ -291,13 +291,17 @@ public class IndexModel : PageModel
     }
 
     // SECTION: Submit task for closure review
-    public async Task<IActionResult> OnPostSubmitAsync(int id, string? remarks)
+    public async Task<IActionResult> OnPostSubmitAsync(int id, string rowVersion, string? remarks)
     {
         await ResolveIdentityAsync();
         try
         {
-            await _service.SubmitTaskAsync(id, CurrentUserId, CurrentRole, remarks);
+            await _service.SubmitTaskAsync(id, DecodeRowVersion(rowVersion), CurrentUserId, CurrentRole, remarks);
             TempData["ToastMessage"] = "Task submitted.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
         }
         catch (InvalidOperationException ex)
         {
@@ -308,13 +312,17 @@ public class IndexModel : PageModel
     }
 
     // SECTION: Close task by command role
-    public async Task<IActionResult> OnPostCloseAsync(int id, string? remarks)
+    public async Task<IActionResult> OnPostCloseAsync(int id, string rowVersion, string? remarks)
     {
         await ResolveIdentityAsync();
         try
         {
-            await _service.CloseTaskAsync(id, CurrentUserId, CurrentRole, remarks);
+            await _service.CloseTaskAsync(id, DecodeRowVersion(rowVersion), CurrentUserId, CurrentRole, remarks);
             TempData["ToastMessage"] = "Task closed.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
         }
         catch (InvalidOperationException ex)
         {
@@ -325,7 +333,7 @@ public class IndexModel : PageModel
     }
 
     // SECTION: Update in-flight status
-    public async Task<IActionResult> OnPostUpdateStatusAsync(int id, string status, string? remarks)
+    public async Task<IActionResult> OnPostUpdateStatusAsync(int id, string rowVersion, string status, string? remarks)
     {
         await ResolveIdentityAsync();
         try
@@ -352,8 +360,12 @@ public class IndexModel : PageModel
                 return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
             }
 
-            await _service.UpdateStatusAsync(id, status, CurrentUserId, CurrentRole, remarks);
+            await _service.UpdateStatusAsync(id, DecodeRowVersion(rowVersion), status, CurrentUserId, CurrentRole, remarks);
             TempData["ToastMessage"] = "Task status updated.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
         }
         catch (InvalidOperationException ex)
         {
@@ -911,6 +923,25 @@ public class IndexModel : PageModel
     }
 
     // SECTION: Resolve a safe, standardized view mode value for postback and redirects
+
+    // SECTION: Decode Base64 row-version tokens posted from forms
+    private static byte[] DecodeRowVersion(string rowVersion)
+    {
+        if (string.IsNullOrWhiteSpace(rowVersion))
+        {
+            throw new InvalidOperationException("Task version is missing. Please reload and try again.");
+        }
+
+        try
+        {
+            return Convert.FromBase64String(rowVersion);
+        }
+        catch (FormatException)
+        {
+            throw new InvalidOperationException("Task version is invalid. Please reload and try again.");
+        }
+    }
+
     private string ResolveViewMode()
     {
         var normalized = (ViewMode ?? string.Empty).Trim();
