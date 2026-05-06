@@ -17,9 +17,9 @@
     <div class="at-panel-heading">
         <div>
             <h2>Active Planning Window Health</h2>
-            @if (!string.IsNullOrWhiteSpace(Model.ActiveSprintMetrics.ActiveSprintName))
+            @if (Model.ActiveSprint is not null)
             {
-                <p class="at-panel-note">@Model.ActiveSprintMetrics.ActiveSprintName · @Model.ActiveSprintMetrics.ActiveSprintDateRange</p>
+                <p class="at-panel-note">@Model.DisplayPlanningWindowName(Model.ActiveSprint) · @Model.ActiveSprintMetrics.ActiveSprintDateRange</p>
             }
             else
             {

@@ -48,7 +48,7 @@
         <div class="at-planning-command-main">
             <div class="at-planning-command-title">
                 <span class="at-section-eyebrow">Selected Planning Window</span>
-                <h2>@Model.SelectedSprint.Name</h2>
+                <h2>@Model.DisplayPlanningWindowName(Model.SelectedSprint)</h2>
                 <span class="at-sprint-status-pill">@Model.SelectedSprint.Status</span>
                 <span class="at-sprint-date-range">@Model.SelectedSprint.StartDate.ToString("dd MMM yyyy") – @Model.SelectedSprint.EndDate.ToString("dd MMM yyyy")</span>
             </div>

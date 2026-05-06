@@ -65,7 +65,7 @@
                         <option value="">Select next Planning Window when carrying tasks forward</option>
                         @foreach (var sprint in Model.ClosureTargetSprints)
                         {
-                            <option value="@sprint.Id">@sprint.Name (@sprint.Status) · @sprint.StartDate.ToString("dd MMM") – @sprint.EndDate.ToString("dd MMM yyyy")</option>
+                            <option value="@sprint.Id">@Model.DisplayPlanningWindowName(sprint) (@sprint.Status) · @sprint.StartDate.ToString("dd MMM") – @sprint.EndDate.ToString("dd MMM yyyy")</option>
                         }
                     </select>
                     <div class="form-text">Next Planning Window is required only for tasks marked to carry forward to the next Planning Window.</div>

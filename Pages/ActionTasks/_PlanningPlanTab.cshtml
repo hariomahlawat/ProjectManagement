@@ -1,4 +1,10 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
+@{
+    // SECTION: Backlog filters are compact by default, expanding automatically when an active filter needs visibility.
+    var hasBacklogFilters = !string.IsNullOrWhiteSpace(Model.FilterStatus)
+        || !string.IsNullOrWhiteSpace(Model.FilterPriority)
+        || !string.IsNullOrWhiteSpace(Model.FilterSearch);
+}
 
 @* SECTION: Plan tab contains planning-window list, backlog filters, backlog queue, and assignment. *@
 <section class="at-planning-tab-panel at-planning-plan-grid" aria-label="Planning Board Plan tab">
@@ -22,11 +28,11 @@
                     {
                         if (Model.SelectedSprint?.Id == sprint.Id)
                         {
-                            <option value="@sprint.Id" selected>@sprint.Name (@sprint.Status)</option>
+                            <option value="@sprint.Id" selected>@Model.DisplayPlanningWindowName(sprint) (@sprint.Status)</option>
                         }
                         else
                         {
-                            <option value="@sprint.Id">@sprint.Name (@sprint.Status)</option>
+                            <option value="@sprint.Id">@Model.DisplayPlanningWindowName(sprint) (@sprint.Status)</option>
                         }
                     }
                 </select>
@@ -42,7 +48,7 @@
                 else
                 {
                     <a class="at-sprint-list-item is-active @(Model.SelectedSprint?.Id == Model.ActiveSprint.Id ? "is-selected" : string.Empty)" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Execute" asp-route-SelectedSprintId="@Model.ActiveSprint.Id">
-                        <strong>@Model.ActiveSprint.Name</strong>
+                        <strong>@Model.DisplayPlanningWindowName(Model.ActiveSprint)</strong>
                         <span>@Model.ActiveSprint.StartDate.ToString("dd MMM") – @Model.ActiveSprint.EndDate.ToString("dd MMM yyyy")</span>
                     </a>
                 }
@@ -57,7 +63,7 @@
                 @foreach (var sprint in Model.PlannedSprints)
                 {
                     <a class="at-sprint-list-item @(Model.SelectedSprint?.Id == sprint.Id ? "is-selected" : string.Empty)" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Execute" asp-route-SelectedSprintId="@sprint.Id">
-                        <strong>@sprint.Name</strong>
+                        <strong>@Model.DisplayPlanningWindowName(sprint)</strong>
                         <span>@sprint.StartDate.ToString("dd MMM") – @sprint.EndDate.ToString("dd MMM yyyy")</span>
                     </a>
                 }
@@ -72,7 +78,7 @@
                 @foreach (var sprint in Model.ClosedSprints.Take(8))
                 {
                     <a class="at-sprint-list-item is-closed @(Model.SelectedSprint?.Id == sprint.Id ? "is-selected" : string.Empty)" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Close" asp-route-SelectedSprintId="@sprint.Id">
-                        <strong>@sprint.Name</strong>
+                        <strong>@Model.DisplayPlanningWindowName(sprint)</strong>
                         <span>@sprint.EndDate.ToString("dd MMM yyyy")</span>
                     </a>
                 }
@@ -116,50 +122,56 @@
                 <article><strong>@Model.BacklogOverdueCount</strong><span>Overdue</span></article>
             </div>
 
-            @* SECTION: Backlog filters remain GET-based and CSP-safe with no inline scripts. *@
-            <form method="get" class="at-planning-backlog-filter">
-                <input type="hidden" name="viewMode" value="Planning" />
-                <input type="hidden" name="PlanningTab" value="Plan" />
-                <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                <label class="form-label at-small" for="PlanningFilterStatus">Status</label>
-                <select class="form-select form-select-sm" id="PlanningFilterStatus" name="FilterStatus">
-                    <option value="">All open statuses</option>
-                    @foreach (var status in Model.AllowedStatusOptions)
-                    {
-                        if (string.Equals(Model.FilterStatus, status, StringComparison.OrdinalIgnoreCase))
+            @* SECTION: Backlog filters remain GET-based, CSP-safe, and collapsed so low counts keep the queue prominent. *@
+            <details class="at-planning-backlog-filter-shell" open="@hasBacklogFilters">
+                <summary>
+                    <span>Filter Backlog</span>
+                    <span class="at-filter-state">@(hasBacklogFilters ? "Filters active" : "All open backlog")</span>
+                </summary>
+                <form method="get" class="at-planning-backlog-filter">
+                    <input type="hidden" name="viewMode" value="Planning" />
+                    <input type="hidden" name="PlanningTab" value="Plan" />
+                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                    <label class="form-label at-small" for="PlanningFilterStatus">Status</label>
+                    <select class="form-select form-select-sm" id="PlanningFilterStatus" name="FilterStatus">
+                        <option value="">All open statuses</option>
+                        @foreach (var status in Model.AllowedStatusOptions)
                         {
-                            <option value="@status" selected>@status</option>
+                            if (string.Equals(Model.FilterStatus, status, StringComparison.OrdinalIgnoreCase))
+                            {
+                                <option value="@status" selected>@status</option>
+                            }
+                            else
+                            {
+                                <option value="@status">@status</option>
+                            }
                         }
-                        else
-                        {
-                            <option value="@status">@status</option>
-                        }
-                    }
-                </select>
+                    </select>
 
-                <label class="form-label at-small" for="PlanningFilterPriority">Priority</label>
-                <select class="form-select form-select-sm" id="PlanningFilterPriority" name="FilterPriority">
-                    <option value="">All priorities</option>
-                    @foreach (var priority in Model.PriorityOptions)
-                    {
-                        if (string.Equals(Model.FilterPriority, priority, StringComparison.OrdinalIgnoreCase))
+                    <label class="form-label at-small" for="PlanningFilterPriority">Priority</label>
+                    <select class="form-select form-select-sm" id="PlanningFilterPriority" name="FilterPriority">
+                        <option value="">All priorities</option>
+                        @foreach (var priority in Model.PriorityOptions)
                         {
-                            <option value="@priority" selected>@priority</option>
+                            if (string.Equals(Model.FilterPriority, priority, StringComparison.OrdinalIgnoreCase))
+                            {
+                                <option value="@priority" selected>@priority</option>
+                            }
+                            else
+                            {
+                                <option value="@priority">@priority</option>
+                            }
                         }
-                        else
-                        {
-                            <option value="@priority">@priority</option>
-                        }
-                    }
-                </select>
+                    </select>
 
-                <label class="form-label at-small" for="PlanningFilterSearch">Search by title</label>
-                <input type="text" class="form-control form-control-sm" id="PlanningFilterSearch" name="FilterSearch" value="@Model.FilterSearch" data-at-filter-search="true" />
-                <div class="at-planning-backlog-filter-actions">
-                    <button type="submit" class="btn btn-outline-primary btn-sm">Apply</button>
-                    <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Plan" asp-route-SelectedSprintId="@Model.SelectedSprintId" class="btn btn-outline-secondary btn-sm">Reset</a>
-                </div>
-            </form>
+                    <label class="form-label at-small" for="PlanningFilterSearch">Search by title</label>
+                    <input type="text" class="form-control form-control-sm" id="PlanningFilterSearch" name="FilterSearch" value="@Model.FilterSearch" data-at-filter-search="true" />
+                    <div class="at-planning-backlog-filter-actions">
+                        <button type="submit" class="btn btn-outline-primary btn-sm">Apply</button>
+                        <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Plan" asp-route-SelectedSprintId="@Model.SelectedSprintId" class="btn btn-outline-secondary btn-sm">Reset</a>
+                    </div>
+                </form>
+            </details>
 
             @* SECTION: Backlog cards use the existing AssignToSprint handler and retain per-task assignability checks. *@
             @if (!Model.BacklogTaskDisplays.Any())
@@ -199,7 +211,7 @@
                                             <option value="">Select Planning Window</option>
                                             @foreach (var sprint in Model.AssignableSprints)
                                             {
-                                                <option value="@sprint.Id">@sprint.Name (@sprint.Status)</option>
+                                                <option value="@sprint.Id">@Model.DisplayPlanningWindowName(sprint) (@sprint.Status)</option>
                                             }
                                         </select>
                                         <button type="submit" class="btn btn-primary btn-sm">Assign</button>
