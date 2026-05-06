@@ -1838,7 +1838,7 @@ namespace ProjectManagement.Data
                 e.Property(x => x.PerformedByRole).IsRequired().HasMaxLength(64);
                 e.Property(x => x.Remarks).HasMaxLength(2000);
                 // SECTION: Enforce task-to-audit-log referential integrity
-                e.HasOne<ActionTaskItem>()
+                e.HasOne(x => x.Task)
                     .WithMany()
                     .HasForeignKey(x => x.TaskId)
                     .OnDelete(DeleteBehavior.Cascade);

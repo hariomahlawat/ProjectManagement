@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -60,8 +61,39 @@ public class ActionTaskServiceTests
         var submitted = await service.GetTaskAsync(task.Id);
         Assert.Equal(ActionTaskStatuses.Submitted, submitted!.Status);
 
+        var resubmitEx = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SubmitTaskAsync(task.Id, submitted.RowVersion, "assignee", RoleNames.Ta, "again"));
+        Assert.Contains("Only assigned, in-progress, or blocked tasks can be submitted.", resubmitEx.Message);
+
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.CloseTaskAsync(task.Id, submitted.RowVersion, "non-cmd", RoleNames.Ta, "close"));
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_WithStaleRowVersion_ThrowsConcurrencyException()
+    {
+        // SECTION: Arrange
+        var databaseName = Guid.NewGuid().ToString();
+        var databaseRoot = new InMemoryDatabaseRoot();
+        await using var staleDb = CreateDb(databaseName, databaseRoot);
+        var task = await SeedTaskAsync(staleDb, ActionTaskStatuses.Assigned, "assignee");
+        var staleRowVersion = task.RowVersion.ToArray();
+        staleDb.ChangeTracker.Clear();
+        _ = await staleDb.ActionTasks.SingleAsync(x => x.Id == task.Id);
+
+        await using (var concurrentDb = CreateDb(databaseName, databaseRoot))
+        {
+            var concurrentTask = await concurrentDb.ActionTasks.SingleAsync(x => x.Id == task.Id);
+            concurrentTask.RowVersion = [9, 9, 9];
+            concurrentTask.Status = ActionTaskStatuses.InProgress;
+            await concurrentDb.SaveChangesAsync();
+        }
+
+        var service = new ActionTaskService(staleDb, new ActionTaskPermissionService());
+
+        // SECTION: Act + Assert
+        await Assert.ThrowsAsync<ActionTaskConcurrencyException>(() =>
+            service.UpdateStatusAsync(task.Id, staleRowVersion, ActionTaskStatuses.Blocked, "assignee", RoleNames.Ta, "blocked"));
     }
 
     [Fact]
@@ -81,9 +113,12 @@ public class ActionTaskServiceTests
     }
 
     private static ApplicationDbContext CreateDb()
+        => CreateDb(Guid.NewGuid().ToString(), new InMemoryDatabaseRoot());
+
+    private static ApplicationDbContext CreateDb(string databaseName, InMemoryDatabaseRoot databaseRoot)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName, databaseRoot)
             .Options;
         return new ApplicationDbContext(options);
     }

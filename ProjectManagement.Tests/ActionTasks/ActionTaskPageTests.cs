@@ -58,6 +58,26 @@ public class ActionTaskPageTests
     }
 
     [Fact]
+    public async Task TaskList_SelectedTaskLoadsWhenFilteredOutOfRegister()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var page = setup.Page;
+        var selectedTaskId = await setup.Db.ActionTasks.Select(t => t.Id).SingleAsync();
+        page.ViewMode = "TaskList";
+        page.FilterStatus = ActionTaskStatuses.Closed;
+        page.TaskId = selectedTaskId;
+
+        // SECTION: Act
+        await page.OnGetAsync();
+
+        // SECTION: Assert
+        Assert.Empty(page.Tasks);
+        Assert.NotNull(page.SelectedTask);
+        Assert.Equal(selectedTaskId, page.SelectedTask!.Id);
+    }
+
+    [Fact]
     public async Task CreateValidationFailure_ReopensPanel()
     {
         // SECTION: Arrange
@@ -74,7 +94,52 @@ public class ActionTaskPageTests
         Assert.True(page.ShowCreateModal);
     }
 
-    private static async Task<(IndexModel Page, ApplicationDbContext Db)> CreateSetupAsync()
+    [Fact]
+    public async Task CreatePastDueDate_ReopensPanelAndRejectsTask()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var page = setup.Page;
+        var existingTaskCount = await setup.Db.ActionTasks.CountAsync();
+        page.Input = new IndexModel.CreateTaskInput
+        {
+            Title = "Late task",
+            Description = "Should be rejected",
+            AssignedToUserId = "user-1",
+            DueDate = DateTime.UtcNow.Date.AddDays(-1),
+            Priority = "Normal"
+        };
+
+        // SECTION: Act
+        var result = await page.OnPostCreateAsync();
+
+        // SECTION: Assert
+        Assert.IsType<PageResult>(result);
+        Assert.True(page.ShowCreateModal);
+        Assert.False(page.ModelState.IsValid);
+        Assert.Equal(existingTaskCount, await setup.Db.ActionTasks.CountAsync());
+        Assert.Contains(page.ModelState[nameof(IndexModel.CreateTaskInput.DueDate)]!.Errors, e => e.ErrorMessage == "Due date cannot be in the past.");
+    }
+
+    [Fact]
+    public void AuditLogModel_DoesNotCreateShadowTaskIdRelationship()
+    {
+        // SECTION: Arrange
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        using var db = new ApplicationDbContext(options);
+
+        // SECTION: Act
+        var entityType = db.Model.FindEntityType(typeof(ActionTaskAuditLog))!;
+        var taskId1 = entityType.FindProperty("TaskId1");
+
+        // SECTION: Assert
+        Assert.Null(taskId1);
+        Assert.Single(entityType.GetForeignKeys().Where(fk => fk.PrincipalEntityType.ClrType == typeof(ActionTaskItem)));
+    }
+
+    private static async Task<(IndexModel Page, ApplicationDbContext Db)> CreateSetupAsync(string currentRole = RoleNames.HoD)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         var db = new ApplicationDbContext(options);
@@ -84,6 +149,8 @@ public class ActionTaskPageTests
             Id = "user-1", UserName = "user1@test", NormalizedUserName = "USER1@TEST", Email = "user1@test", NormalizedEmail = "USER1@TEST", SecurityStamp = Guid.NewGuid().ToString(), FullName = "User One"
         };
         db.Users.Add(user);
+        db.Roles.Add(new IdentityRole { Id = RoleNames.Ta, Name = RoleNames.Ta, NormalizedName = RoleNames.Ta.ToUpperInvariant() });
+        db.UserRoles.Add(new IdentityUserRole<string> { UserId = user.Id, RoleId = RoleNames.Ta });
         db.ActionTasks.Add(new ActionTaskItem
         {
             Title = "Mine", Description = "d", CreatedByUserId = "creator", AssignedToUserId = "user-1", CreatedByRole = RoleNames.HoD, AssignedToRole = RoleNames.Ta, DueDate = DateTime.UtcNow.AddDays(1), Priority = "Normal", AssignedOn = DateTime.UtcNow, Status = ActionTaskStatuses.Assigned
@@ -106,7 +173,7 @@ public class ActionTaskPageTests
             User = new ClaimsPrincipal(new ClaimsIdentity(new[]
             {
                 new Claim(ClaimTypes.NameIdentifier, "user-1"),
-                new Claim(ClaimTypes.Role, RoleNames.Ta)
+                new Claim(ClaimTypes.Role, currentRole)
             }, "TestAuth"))
         };
 
