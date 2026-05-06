@@ -20,13 +20,17 @@ public class IndexModel : PageModel
     private readonly IActionTaskService _service;
     private readonly IActionTaskCollaborationService _collaborationService;
     private readonly ActionTaskPermissionService _permission;
+    private readonly ActionTaskQueryService _queryService;
+    private readonly ActionTaskWorkflowPolicy _workflowPolicy;
     private readonly UserManager<ApplicationUser> _users;
 
-    public IndexModel(IActionTaskService service, IActionTaskCollaborationService collaborationService, ActionTaskPermissionService permission, UserManager<ApplicationUser> users)
+    public IndexModel(IActionTaskService service, IActionTaskCollaborationService collaborationService, ActionTaskPermissionService permission, ActionTaskQueryService queryService, ActionTaskWorkflowPolicy workflowPolicy, UserManager<ApplicationUser> users)
     {
         _service = service;
         _collaborationService = collaborationService;
         _permission = permission;
+        _queryService = queryService;
+        _workflowPolicy = workflowPolicy;
         _users = users;
     }
 
@@ -121,13 +125,7 @@ public class IndexModel : PageModel
     };
 
     public IReadOnlyList<string> AssignmentRoles => ActionTaskRoleResolver.AllowedAssignmentRoles();
-    public IReadOnlyList<string> AllowedStatusOptions => new[]
-    {
-        ActionTaskStatuses.Assigned,
-        ActionTaskStatuses.InProgress,
-        ActionTaskStatuses.Blocked,
-        ActionTaskStatuses.Submitted
-    };
+    public IReadOnlyList<string> AllowedStatusOptions => _workflowPolicy.AllowedStatusOptions;
 
     // SECTION: Selected-task projection helper
     public bool IsSelectedTask(ActionTaskItem task)
@@ -138,61 +136,27 @@ public class IndexModel : PageModel
     // SECTION: Per-task action visibility helpers
     public bool CanSubmitTask(ActionTaskItem task)
     {
-        return !string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(task.AssignedToUserId, CurrentUserId, StringComparison.Ordinal);
+        return _workflowPolicy.CanSubmitTask(task, CurrentUserId);
     }
 
     public bool CanCloseTask(ActionTaskItem task)
     {
-        return CanClose
-            && string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
+        return _workflowPolicy.CanCloseTask(task, CurrentRole);
     }
 
     public bool CanUpdateTaskStatus(ActionTaskItem task)
     {
-        return !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
-            && (_permission.CanViewAll(CurrentRole) || string.Equals(task.AssignedToUserId, CurrentUserId, StringComparison.Ordinal));
+        return _workflowPolicy.CanUpdateTaskStatus(task, CurrentRole, CurrentUserId);
     }
 
     public string GetStatusBadgeClass(string status)
     {
-        if (string.Equals(status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
-        {
-            return "at-badge at-badge-status-progress";
-        }
-
-        if (string.Equals(status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase))
-        {
-            return "at-badge at-badge-status-blocked";
-        }
-
-        if (string.Equals(status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
-        {
-            return "at-badge at-badge-status-submitted";
-        }
-
-        if (string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
-        {
-            return "at-badge at-badge-status-closed";
-        }
-
-        return "at-badge at-badge-status-assigned";
+        return _workflowPolicy.GetStatusBadgeClass(status);
     }
 
     public string GetPriorityBadgeClass(string priority)
     {
-        if (string.Equals(priority, "Critical", StringComparison.OrdinalIgnoreCase))
-        {
-            return "at-badge at-badge-priority-critical";
-        }
-
-        if (string.Equals(priority, "High", StringComparison.OrdinalIgnoreCase))
-        {
-            return "at-badge at-badge-priority-high";
-        }
-
-        return "at-badge at-badge-priority-normal";
+        return _workflowPolicy.GetPriorityBadgeClass(priority);
     }
 
     public string ResolveAssigneeName(string assignedToUserId)
@@ -354,9 +318,10 @@ public class IndexModel : PageModel
             }
 
             // SECTION: Keep no-op handling for user-friendly messaging after permission validation.
-            if (string.Equals(task.Status, status, StringComparison.OrdinalIgnoreCase))
+            var noOpMessage = _workflowPolicy.ValidateStatusUpdate(task, status);
+            if (!string.IsNullOrWhiteSpace(noOpMessage))
             {
-                TempData["ToastMessage"] = "No status change applied because the selected status is already current.";
+                TempData["ToastMessage"] = noOpMessage;
                 return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
             }
 
@@ -417,30 +382,39 @@ public class IndexModel : PageModel
 
         var tasks = await _service.GetTasksAsync(CurrentUserId, CurrentRole);
 
-        // SECTION: Apply view-specific filtering
-        if (IsMyTasksView)
-        {
-            tasks = tasks
-                .Where(t => string.Equals(t.AssignedToUserId, CurrentUserId, StringComparison.Ordinal))
-                .ToList();
-        }
-
+        // SECTION: Query read-model dependencies
         AssignableUsers = await LoadAssignableUsersAsync();
         TaskAssigneeNames = await LoadTaskAssigneeNamesAsync(tasks);
 
-        // SECTION: Activity Timestamp Derivation
+        // SECTION: Query read-model orchestration boundary
         var activityByTaskId = await _service.GetLastActivityUtcByTaskIdsAsync(tasks.Select(t => t.Id).ToArray());
+        var readModel = _queryService.BuildReadModel(
+            tasks,
+            new ActionTaskQueryService.ActionTaskQueryRequest(CurrentUserId, IsMyTasksView, IsTaskListView, FilterStatus, FilterPriority, FilterAssigneeUserId, FilterDueDate, FilterSearch, SortBy, SortDir),
+            TaskAssigneeNames,
+            activityByTaskId);
 
-        // SECTION: Populate overview and grouping collections
-        BuildDashboardCollections(tasks, activityByTaskId);
-        BuildKanbanCollections(tasks);
-        BuildSprintCollections(tasks);
-        BuildReportCollections(tasks);
-
-        // SECTION: Apply task-list filters only in task list mode
-        Tasks = IsTaskListView
-            ? ApplyTaskListFilters(tasks)
-            : tasks;
+        // SECTION: Read-model projections assignment boundary
+        Tasks = readModel.TaskListTasks;
+        CriticalOpenTasks = readModel.CriticalOpenTasks;
+        OverdueTasks = readModel.OverdueTasks;
+        RecentlySubmittedTasks = readModel.RecentlySubmittedTasks;
+        RecentlyUpdatedTasks = readModel.RecentlyUpdatedTasks;
+        KanbanAssignedTasks = readModel.KanbanAssignedTasks;
+        KanbanInProgressTasks = readModel.KanbanInProgressTasks;
+        KanbanBlockedTasks = readModel.KanbanBlockedTasks;
+        KanbanSubmittedTasks = readModel.KanbanSubmittedTasks;
+        KanbanClosedTasks = readModel.KanbanClosedTasks;
+        SprintOverdueTasks = readModel.DueBuckets.Overdue;
+        DueTodayTasks = readModel.DueBuckets.Today;
+        DueThisWeekTasks = readModel.DueBuckets.ThisWeek;
+        DueLaterTasks = readModel.DueBuckets.Later;
+        AssigneePendingCounts = readModel.Reports.AssigneePendingCounts.Select(x => new CountSummary(x.Name, x.Count)).ToList();
+        PriorityCounts = readModel.Reports.PriorityCounts.Select(x => new CountSummary(x.Name, x.Count)).ToList();
+        StatusCounts = readModel.Reports.StatusCounts.Select(x => new CountSummary(x.Name, x.Count)).ToList();
+        OpenAgeingBuckets = readModel.Reports.OpenAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
+        OverdueAgeingBuckets = readModel.Reports.OverdueAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
+        SubmittedPendingClosureAgeingBuckets = readModel.Reports.SubmittedPendingClosureAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
 
         // SECTION: Selected Task Resolution
         if (!TaskId.HasValue)
@@ -448,8 +422,8 @@ public class IndexModel : PageModel
             return;
         }
 
-        var visibleTaskScope = Tasks;
-        SelectedTask = visibleTaskScope.FirstOrDefault(t => t.Id == TaskId.Value);
+        // SECTION: Selected detail read-model boundary
+        SelectedTask = _queryService.SelectTask(Tasks, TaskId);
         if (SelectedTask is null)
         {
             TaskId = null;
