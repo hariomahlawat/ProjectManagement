@@ -19,11 +19,15 @@ public sealed class ActionTaskQueryService
             : sourceTasks.ToList();
 
         var taskList = request.IsTaskListView ? ApplyTaskListFilters(tasks, request, assigneeNames).ToList() : tasks;
+        var backlogTasks = BuildBacklogTasks(tasks, request, assigneeNames);
+        var sprintReadModel = BuildSprintReadModel(tasks, request.Sprints, request.SelectedSprintId, assigneeNames);
 
         return new ActionTaskReadModel
         {
             ScopeTasks = tasks,
             TaskListTasks = taskList,
+            BacklogTasks = backlogTasks,
+            SprintReadModel = sprintReadModel,
             CriticalOpenTasks = tasks.Where(t => IsCriticalOpen(t)).OrderBy(t => t.DueDate).Take(5).ToList(),
             OverdueTasks = tasks.Where(t => IsOpen(t) && t.DueDate.Date < DateTime.UtcNow.Date).OrderBy(t => t.DueDate).Take(5).ToList(),
             RecentlySubmittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).OrderByDescending(t => t.SubmittedOn ?? DateTime.MinValue).Take(5).ToList(),
@@ -48,6 +52,74 @@ public sealed class ActionTaskQueryService
     {
         activityByTaskId.TryGetValue(task.Id, out var activityTimestampUtc);
         return activityTimestampUtc ?? task.SubmittedOn ?? task.AssignedOn;
+    }
+
+    // SECTION: Backlog read-model projection where null SprintId is the backlog contract.
+    private static IReadOnlyList<ActionTaskItem> BuildBacklogTasks(IReadOnlyList<ActionTaskItem> tasks, ActionTaskQueryRequest request, IReadOnlyDictionary<string, string> assigneeNames)
+    {
+        var backlogTasks = tasks.Where(t => t.SprintId is null).ToList();
+        return request.IsBacklogView
+            ? ApplyTaskListFilters(backlogTasks, request, assigneeNames).ToList()
+            : backlogTasks.OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
+    }
+
+    // SECTION: Sprint read-model projection for selected sprint operational rendering.
+    private static ActionSprintReadModel BuildSprintReadModel(IReadOnlyList<ActionTaskItem> tasks, IReadOnlyList<ActionSprint> sprints, int? selectedSprintId, IReadOnlyDictionary<string, string> assigneeNames)
+    {
+        var orderedSprints = sprints
+            .OrderByDescending(s => s.Status == ActionSprintStatus.Active)
+            .ThenByDescending(s => s.StartDate)
+            .ThenByDescending(s => s.Id)
+            .ToList();
+
+        var activeSprint = orderedSprints.FirstOrDefault(s => s.Status == ActionSprintStatus.Active);
+        var selectedSprint = selectedSprintId.HasValue
+            ? orderedSprints.FirstOrDefault(s => s.Id == selectedSprintId.Value)
+            : activeSprint ?? orderedSprints.FirstOrDefault();
+
+        var selectedTasks = selectedSprint is null
+            ? new List<ActionTaskItem>()
+            : tasks.Where(t => t.SprintId == selectedSprint.Id).OrderBy(t => StatusOrder(t)).ThenBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
+
+        var backlogTasks = tasks.Where(t => t.SprintId is null).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
+
+        return new ActionSprintReadModel
+        {
+            Sprints = orderedSprints,
+            ActiveSprint = activeSprint,
+            SelectedSprint = selectedSprint,
+            SelectedSprintTasks = selectedTasks,
+            BacklogTasks = backlogTasks,
+            Summary = selectedSprint is null
+                ? ActionSprintSummary.Empty
+                : BuildSprintSummary(selectedSprint, selectedTasks, backlogTasks.Count, assigneeNames)
+        };
+    }
+
+    // SECTION: Compact sprint summary suitable for low-risk UI exposure.
+    private static ActionSprintSummary BuildSprintSummary(ActionSprint sprint, IReadOnlyList<ActionTaskItem> sprintTasks, int backlogCount, IReadOnlyDictionary<string, string> assigneeNames)
+    {
+        var openTasks = sprintTasks.Count(IsOpen);
+        var closedTasks = sprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
+        var blockedTasks = sprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase));
+        var submittedTasks = sprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase));
+        var assigneeCount = sprintTasks.Select(t => assigneeNames.TryGetValue(t.AssignedToUserId, out var name) ? name : t.AssignedToUserId).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+
+        return new ActionSprintSummary
+        {
+            SprintId = sprint.Id,
+            Title = sprint.Name,
+            Status = sprint.Status.ToString(),
+            DateRange = $"{sprint.StartDate:dd MMM yyyy} – {sprint.EndDate:dd MMM yyyy}",
+            CommandFocus = sprint.Goal,
+            TaskCount = sprintTasks.Count,
+            OpenCount = openTasks,
+            ClosedCount = closedTasks,
+            BlockedCount = blockedTasks,
+            SubmittedCount = submittedTasks,
+            BacklogCount = backlogCount,
+            AssigneeCount = assigneeCount
+        };
     }
 
     private static ActionTaskDueBuckets BuildDueBuckets(IReadOnlyList<ActionTaskItem> tasks)
@@ -93,7 +165,7 @@ public sealed class ActionTaskQueryService
         var sortBy = (request.SortBy ?? "due").Trim().ToLowerInvariant();
         var descending = string.Equals(request.SortDir, "desc", StringComparison.OrdinalIgnoreCase);
         Func<ActionTaskItem, string> assignee = t => assigneeNames.TryGetValue(t.AssignedToUserId, out var n) ? n : "User";
-        Func<ActionTaskItem, int> statusOrder = task => task.Status switch { ActionTaskStatuses.Assigned => 1, ActionTaskStatuses.InProgress => 2, ActionTaskStatuses.Blocked => 3, ActionTaskStatuses.Submitted => 4, ActionTaskStatuses.Closed => 5, _ => 99 };
+        Func<ActionTaskItem, int> statusOrder = StatusOrder;
         Func<ActionTaskItem, int> priorityOrder = task => task.Priority switch { "Critical" => 1, "High" => 2, "Normal" => 3, "Low" => 4, _ => 99 };
         var ordered = sortBy switch
         {
@@ -107,10 +179,24 @@ public sealed class ActionTaskQueryService
         return ordered.ThenBy(t => t.Id);
     }
 
+    // SECTION: Shared operational status ordering for boards and filtered lists.
+    private static int StatusOrder(ActionTaskItem task) => task.Status switch
+    {
+        ActionTaskStatuses.Assigned => 1,
+        ActionTaskStatuses.InProgress => 2,
+        ActionTaskStatuses.Blocked => 3,
+        ActionTaskStatuses.Submitted => 4,
+        ActionTaskStatuses.Closed => 5,
+        _ => 99
+    };
+
     public sealed record ActionTaskQueryRequest(
         string CurrentUserId,
         bool IsMyTasksView,
         bool IsTaskListView,
+        bool IsBacklogView,
+        int? SelectedSprintId,
+        IReadOnlyList<ActionSprint> Sprints,
         string? FilterStatus,
         string? FilterPriority,
         string? FilterAssigneeUserId,
@@ -123,6 +209,8 @@ public sealed class ActionTaskQueryService
     {
         public IReadOnlyList<ActionTaskItem> ScopeTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> TaskListTasks { get; init; } = Array.Empty<ActionTaskItem>();
+        public IReadOnlyList<ActionTaskItem> BacklogTasks { get; init; } = Array.Empty<ActionTaskItem>();
+        public ActionSprintReadModel SprintReadModel { get; init; } = new();
         public IReadOnlyList<ActionTaskItem> CriticalOpenTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> OverdueTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> RecentlySubmittedTasks { get; init; } = Array.Empty<ActionTaskItem>();
@@ -136,7 +224,49 @@ public sealed class ActionTaskQueryService
         public ActionTaskReportReadModel Reports { get; init; } = new();
     }
 
-    public sealed class ActionTaskDueBuckets { public IReadOnlyList<ActionTaskItem> Overdue { get; init; } = Array.Empty<ActionTaskItem>(); public IReadOnlyList<ActionTaskItem> Today { get; init; } = Array.Empty<ActionTaskItem>(); public IReadOnlyList<ActionTaskItem> ThisWeek { get; init; } = Array.Empty<ActionTaskItem>(); public IReadOnlyList<ActionTaskItem> Later { get; init; } = Array.Empty<ActionTaskItem>(); }
-    public sealed class ActionTaskReportReadModel { public IReadOnlyList<CountSummary> AssigneePendingCounts { get; init; } = Array.Empty<CountSummary>(); public IReadOnlyList<CountSummary> PriorityCounts { get; init; } = Array.Empty<CountSummary>(); public IReadOnlyList<CountSummary> StatusCounts { get; init; } = Array.Empty<CountSummary>(); public IReadOnlyList<CountSummary> OpenAgeingBuckets { get; init; } = Array.Empty<CountSummary>(); public IReadOnlyList<CountSummary> OverdueAgeingBuckets { get; init; } = Array.Empty<CountSummary>(); public IReadOnlyList<CountSummary> SubmittedPendingClosureAgeingBuckets { get; init; } = Array.Empty<CountSummary>(); }
+    public sealed class ActionTaskDueBuckets
+    {
+        public IReadOnlyList<ActionTaskItem> Overdue { get; init; } = Array.Empty<ActionTaskItem>();
+        public IReadOnlyList<ActionTaskItem> Today { get; init; } = Array.Empty<ActionTaskItem>();
+        public IReadOnlyList<ActionTaskItem> ThisWeek { get; init; } = Array.Empty<ActionTaskItem>();
+        public IReadOnlyList<ActionTaskItem> Later { get; init; } = Array.Empty<ActionTaskItem>();
+    }
+
+    public sealed class ActionSprintReadModel
+    {
+        public IReadOnlyList<ActionSprint> Sprints { get; init; } = Array.Empty<ActionSprint>();
+        public ActionSprint? ActiveSprint { get; init; }
+        public ActionSprint? SelectedSprint { get; init; }
+        public IReadOnlyList<ActionTaskItem> SelectedSprintTasks { get; init; } = Array.Empty<ActionTaskItem>();
+        public IReadOnlyList<ActionTaskItem> BacklogTasks { get; init; } = Array.Empty<ActionTaskItem>();
+        public ActionSprintSummary Summary { get; init; } = ActionSprintSummary.Empty;
+    }
+
+    public sealed class ActionSprintSummary
+    {
+        public static ActionSprintSummary Empty { get; } = new();
+        public int? SprintId { get; init; }
+        public string Title { get; init; } = string.Empty;
+        public string Status { get; init; } = string.Empty;
+        public string DateRange { get; init; } = string.Empty;
+        public string? CommandFocus { get; init; }
+        public int TaskCount { get; init; }
+        public int OpenCount { get; init; }
+        public int ClosedCount { get; init; }
+        public int BlockedCount { get; init; }
+        public int SubmittedCount { get; init; }
+        public int BacklogCount { get; init; }
+        public int AssigneeCount { get; init; }
+    }
+
+    public sealed class ActionTaskReportReadModel
+    {
+        public IReadOnlyList<CountSummary> AssigneePendingCounts { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<CountSummary> PriorityCounts { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<CountSummary> StatusCounts { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<CountSummary> OpenAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<CountSummary> OverdueAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<CountSummary> SubmittedPendingClosureAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
+    }
     public sealed record CountSummary(string Name, int Count);
 }

@@ -1058,3 +1058,164 @@ html {
     opacity: 0.9;
     background: #f1f5f9;
 }
+
+/* SECTION: Sprint and backlog scope badges */
+.at-scope-badge {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    border-radius: 999px;
+    padding: 0.12rem 0.45rem;
+    font-size: 0.72rem;
+    font-weight: 750;
+    line-height: 1.25;
+    border: 1px solid transparent;
+}
+
+.at-scope-badge-sprint {
+    color: #1e3a8a;
+    background: #dbeafe;
+    border-color: #bfdbfe;
+}
+
+.at-scope-badge-backlog {
+    color: #475569;
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+/* SECTION: Backlog and sprint planning surfaces */
+.at-inline-sprint-form,
+.at-sprint-add-form {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.at-inline-sprint-form .form-select {
+    min-width: 13rem;
+}
+
+.at-sprint-layout {
+    display: grid;
+    grid-template-columns: minmax(230px, 280px) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.at-sprint-list-panel {
+    position: sticky;
+    top: 5rem;
+}
+
+.at-sprint-selector-form {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.at-sprint-main {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.at-sprint-meta-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.at-sprint-meta-header h2 {
+    margin-bottom: 0.15rem;
+}
+
+.at-sprint-date-range {
+    color: var(--at-muted);
+    font-size: 0.86rem;
+    font-weight: 650;
+}
+
+.at-sprint-status-pill {
+    border-radius: 999px;
+    padding: 0.2rem 0.6rem;
+    color: #0f172a;
+    background: #e0f2fe;
+    border: 1px solid #bae6fd;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.at-sprint-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(90px, 1fr));
+    gap: 0.65rem;
+    margin-top: 0.85rem;
+}
+
+.at-sprint-summary-grid div {
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    padding: 0.6rem;
+    background: var(--at-surface-soft);
+}
+
+.at-sprint-summary-grid span,
+.at-sprint-summary-grid small {
+    display: block;
+}
+
+.at-sprint-summary-grid span {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--at-text);
+}
+
+.at-sprint-summary-grid small {
+    color: var(--at-muted);
+    font-weight: 700;
+}
+
+.at-board-grid.is-sprints {
+    grid-template-columns: repeat(5, minmax(260px, 1fr));
+}
+
+.at-card-action-form {
+    padding: 0 0.65rem 0.65rem;
+}
+
+@media (max-width: 991px) {
+    .at-sprint-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .at-sprint-list-panel {
+        position: static;
+    }
+
+    .at-sprint-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .at-inline-sprint-form,
+    .at-sprint-add-form {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .at-inline-sprint-form .form-select {
+        min-width: 0;
+    }
+}
+
+/* SECTION: Active sprint selector note */
+.at-active-sprint-note {
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #1e40af;
+    border-radius: 10px;
+    padding: 0.45rem 0.55rem;
+    font-size: 0.8rem;
+    font-weight: 750;
+    margin-bottom: 0.55rem;
+}
