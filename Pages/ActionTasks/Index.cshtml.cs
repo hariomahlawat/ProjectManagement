@@ -192,9 +192,7 @@ public class IndexModel : PageModel
     }
 
     public bool CanModifySelectedSprint =>
-        CanPlanSprints
-        && SelectedSprint is not null
-        && SelectedSprint.Status != ActionSprintStatus.Closed;
+        CanPlanSprints && SelectedSprint is not null && SelectedSprint.Status != ActionSprintStatus.Closed;
 
     public bool CanReviewSprintClosure =>
         CanPlanSprints
