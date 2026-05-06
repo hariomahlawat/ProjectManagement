@@ -3,6 +3,8 @@
     var pageModel = Model.Item1;
     var tasks = Model.Item2;
     var emptyMessage = Model.Item3;
+    // SECTION: Preserve Planning Board tab context when compact links open the task inspector.
+    var planningTabRouteValue = pageModel.IsPlanningView ? pageModel.ResolvedPlanningTab : null;
 }
 
 @if (!tasks.Any())
@@ -15,8 +17,8 @@ else
         @foreach (var item in tasks)
         {
             var task = item.Task;
-            @* SECTION: Preserve contextual sprint selection when compact task links open the inspector. *@
-            <a class="at-mini-row @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@pageModel.ResolvedViewMode" asp-route-SelectedSprintId="@pageModel.SelectedSprintId">
+            @* SECTION: Preserve contextual sprint and Planning Board tab selection when compact task links open the inspector. *@
+            <a class="at-mini-row @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@pageModel.ResolvedViewMode" asp-route-PlanningTab="@planningTabRouteValue" asp-route-SelectedSprintId="@pageModel.SelectedSprintId">
                 <div class="at-mini-title">AT-@task.Id · @task.Title</div>
                 <div class="at-mini-meta">
                     <span>@item.AssigneeName</span>
