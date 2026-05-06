@@ -350,6 +350,31 @@ public class ActionSprintServiceTests
     }
 
     [Fact]
+    public async Task CloseSprintWithDispositionAsync_WithMaximumRemarks_KeepsAuditRemarksWithinLimit()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var source = await service.CreateSprintAsync(NewSprint("Source"), "planner", RoleNames.Comdt);
+        var target = await service.CreateSprintAsync(NewSprint("Next", 15, 30), "planner", RoleNames.Comdt);
+        await service.ActivateSprintAsync(source.Id, source.RowVersion, "planner", RoleNames.Comdt);
+        var task = await SeedTaskAsync(db);
+        await service.AssignTaskToSprintAsync(task.Id, source.Id, "planner", RoleNames.Comdt);
+        var remarks = new string('R', 2000);
+
+        // SECTION: Act
+        await service.CloseSprintWithDispositionAsync(source.Id, source.RowVersion, new[] { task.Id }, target.Id, Array.Empty<int>(), remarks, "planner", RoleNames.Comdt);
+
+        // SECTION: Assert
+        var sprintAudit = await db.ActionSprintAuditLogs.SingleAsync(x => x.SprintId == source.Id && x.ActionType == "SprintClosed");
+        var taskAudit = await db.ActionTaskAuditLogs.SingleAsync(x => x.TaskId == task.Id && x.ActionType == "TaskCarriedForward");
+        Assert.NotNull(sprintAudit.Remarks);
+        Assert.NotNull(taskAudit.Remarks);
+        Assert.True(sprintAudit.Remarks!.Length <= 2000);
+        Assert.True(taskAudit.Remarks!.Length <= 2000);
+    }
+
+    [Fact]
     public async Task CloseSprintWithDispositionAsync_MovesSelectedTaskToBacklog()
     {
         // SECTION: Arrange
