@@ -1,58 +1,30 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Report KPI strip. *@
-<section class="at-section-group">
-    <h2 class="at-section-title">Overview</h2>
-    <section class="at-kpis at-kpis-reports">
-        <article><h3>Active</h3><strong>@Model.ActiveCount</strong><p>All open workflow tasks.</p></article>
-        <article><h3>Critical Open</h3><strong>@Model.CriticalOpenCount</strong><p>Urgent open tasks.</p></article>
-        <article><h3>Overdue</h3><strong>@Model.OverdueCount</strong><p>Open tasks past due date.</p></article>
-        <article><h3>Blocked</h3><strong>@Model.BlockedCount</strong><p>Tasks requiring intervention.</p></article>
-        <article><h3>Submitted</h3><strong>@Model.SubmittedCount</strong><p>Pending command closure.</p></article>
-        <article><h3>Closed</h3><strong>@Model.ClosedCount</strong><p>Completed outcomes.</p></article>
-    </section>
-</section>
-
-@* SECTION: Command summary card with rule-based grammar. *@
+@* SECTION: Reports introduction and scope. *@
 <section class="at-section-group">
     <article class="at-panel">
-        <h2>Command Summary</h2>
-        <p class="at-panel-note">@Model.CommandSummary</p>
+        <div class="at-panel-heading">
+            <div>
+                <h2>Task Analysis Reports</h2>
+                <p class="at-panel-note">Analytical views for ageing, closure latency, workload distribution, and priority exposure.</p>
+            </div>
+        </div>
+        <p class="at-empty-state-note">This page intentionally excludes the Command Centre KPI strip so reports remain focused on analysis rather than operational command cards.</p>
     </article>
 </section>
 
-@* SECTION: Reports analysis panels with lightweight proportional bars. *@
-<section class="at-card-grid at-card-grid-reports">
+@* SECTION: Current-state analytical reports with proportional bars. *@
+<section class="at-card-grid at-card-grid-reports" aria-label="Task analytical reports">
     <article class="at-panel">
-        <h2>Command Attention</h2>
-        <p class="at-panel-note">What requires command focus now.</p>
-        <div class="at-attention-list">
-            <div><span>Critical Open</span><strong>@Model.CriticalOpenCount</strong></div>
-            <div><span>Overdue</span><strong>@Model.OverdueCount</strong></div>
-            <div><span>Blocked</span><strong>@Model.BlockedCount</strong></div>
-            <div><span>Submitted Pending Closure</span><strong>@Model.SubmittedCount</strong></div>
+        <div class="at-panel-heading">
+            <div>
+                <h2>Ageing Analysis</h2>
+                <p class="at-panel-note">Identifies open work by age and highlights overdue exposure by elapsed overdue period.</p>
+            </div>
         </div>
-    </article>
-    <article class="at-panel">
-        <h2>Workflow Health</h2>
-        <p class="at-panel-note">Tasks by current stage of completion.</p>
-        <div class="at-metric-bars">
-            @foreach (var item in Model.StatusCounts)
-            {
-                <div class="at-metric-row">
-                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                    <div class="at-metric-track"><div class="at-metric-fill" style="width:@Model.ToPercent(item.Count, Model.StatusCountsMax)%"></div></div>
-                    <strong>@item.Count</strong>
-                </div>
-            }
-        </div>
-    </article>
-    <article class="at-panel">
-        <h2>Ageing Analysis</h2>
-        <p class="at-panel-note">Open and overdue task ageing buckets.</p>
         <div class="at-ageing-grid">
             <div>
-                <h3 class="at-small at-section-eyebrow">Open Tasks Ageing</h3>
+                <h3 class="at-small at-section-eyebrow">Open tasks ageing</h3>
                 <div class="at-metric-bars">
                     @foreach (var item in Model.OpenAgeingBuckets)
                     {
@@ -65,7 +37,7 @@
                 </div>
             </div>
             <div>
-                <h3 class="at-small at-section-eyebrow">Overdue Ageing</h3>
+                <h3 class="at-small at-section-eyebrow">Overdue ageing</h3>
                 <div class="at-metric-bars">
                     @foreach (var item in Model.OverdueAgeingBuckets)
                     {
@@ -79,9 +51,14 @@
             </div>
         </div>
     </article>
+
     <article class="at-panel">
-        <h2>Pending Closure Ageing</h2>
-        <p class="at-panel-note">Ageing buckets for submitted tasks awaiting closure.</p>
+        <div class="at-panel-heading">
+            <div>
+                <h2>Pending Closure Ageing</h2>
+                <p class="at-panel-note">Shows how long submitted tasks have been waiting for close-out review.</p>
+            </div>
+        </div>
         @if (Model.SubmittedPendingClosureAgeingBuckets.All(item => item.Count == 0))
         {
             <p class="at-empty-state-note">No submitted tasks are awaiting closure.</p>
@@ -100,9 +77,14 @@
             </div>
         }
     </article>
+
     <article class="at-panel">
-        <h2>Assignee Workload</h2>
-        <p class="at-panel-note">Pending tasks grouped by assignee.</p>
+        <div class="at-panel-heading">
+            <div>
+                <h2>Assignee Workload</h2>
+                <p class="at-panel-note">Compares pending task volume across assignees to surface capacity imbalance.</p>
+            </div>
+        </div>
         <div class="at-metric-bars at-metric-bars-tight">
             @foreach (var item in Model.AssigneePendingCounts)
             {
@@ -114,9 +96,14 @@
             }
         </div>
     </article>
+
     <article class="at-panel">
-        <h2>Priority Exposure</h2>
-        <p class="at-panel-note">Open tasks grouped by urgency.</p>
+        <div class="at-panel-heading">
+            <div>
+                <h2>Priority Exposure</h2>
+                <p class="at-panel-note">Breaks down open task volume by urgency to support prioritisation decisions.</p>
+            </div>
+        </div>
         <div class="at-metric-bars">
             @foreach (var item in Model.PriorityCounts)
             {
@@ -128,9 +115,34 @@
             }
         </div>
     </article>
+
     <article class="at-panel">
-        <h2>Top Attention Items</h2>
-        <p class="at-panel-note">Top 3 tasks requiring command attention now.</p>
-        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.TopAttentionTaskDisplays, "No urgent attention items.")' />
+        <div class="at-panel-heading">
+            <div>
+                <h2>Workflow Distribution</h2>
+                <p class="at-panel-note">Summarises task spread by workflow stage for process-level analysis.</p>
+            </div>
+        </div>
+        <div class="at-metric-bars">
+            @foreach (var item in Model.StatusCounts)
+            {
+                <div class="at-metric-row">
+                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
+                    <div class="at-metric-track"><div class="at-metric-fill" style="width:@Model.ToPercent(item.Count, Model.StatusCountsMax)%"></div></div>
+                    <strong>@item.Count</strong>
+                </div>
+            }
+        </div>
+    </article>
+
+    @* SECTION: Deferred trend report state because the current read model has no historical snapshots. *@
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <div>
+                <h2>Historical Trend Reports</h2>
+                <p class="at-panel-note">Trend charts require dated snapshot data before they can show reliable movement over time.</p>
+            </div>
+        </div>
+        <p class="at-empty-state-note">Trend reporting is deferred for this phase. The current task read model only exposes the present state, so this page will not duplicate Command Centre cards as a substitute for missing history.</p>
     </article>
 </section>
