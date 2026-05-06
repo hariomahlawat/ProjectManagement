@@ -12,6 +12,9 @@ public class ActionTaskQueryServiceSprintMetricsTests
         var today = DateTime.UtcNow.Date;
         var activeSprint = new ActionSprint { Id = 7, Name = "Active Ops", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(14) };
         var nextSprint = new ActionSprint { Id = 8, Name = "Next Ops", Status = ActionSprintStatus.Planned, StartDate = today.AddDays(15), EndDate = today.AddDays(30) };
+        var olderSprint = new ActionSprint { Id = 9, Name = "Older Ops", Status = ActionSprintStatus.Planned, StartDate = today.AddDays(-15), EndDate = today.AddDays(-1) };
+        var sameStartSprint = new ActionSprint { Id = 10, Name = "Same Start Ops", Status = ActionSprintStatus.Planned, StartDate = today, EndDate = today.AddDays(7) };
+        var closedLaterSprint = new ActionSprint { Id = 11, Name = "Closed Later Ops", Status = ActionSprintStatus.Closed, StartDate = today.AddDays(31), EndDate = today.AddDays(45) };
         var tasks = new[]
         {
             NewTask(1, activeSprint.Id, ActionTaskStatuses.Closed, today.AddDays(-1)),
@@ -25,7 +28,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
         // SECTION: Act
         var model = service.BuildReadModel(
             tasks,
-            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, false, false, activeSprint.Id, new[] { activeSprint, nextSprint }, null, null, null, null, null, null, null),
+            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, false, false, activeSprint.Id, new[] { activeSprint, nextSprint, olderSprint, sameStartSprint, closedLaterSprint }, null, null, null, null, null, null, null),
             new Dictionary<string, string> { ["assignee"] = "Assignee" },
             new Dictionary<int, DateTime?>());
 

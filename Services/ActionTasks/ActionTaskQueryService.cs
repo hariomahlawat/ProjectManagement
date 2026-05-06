@@ -132,7 +132,7 @@ public sealed class ActionTaskQueryService
     {
         var unfinishedTasks = sprintTasks.Where(IsOpen).OrderBy(t => StatusOrder(t)).ThenBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
         var targetOptions = sprints
-            .Where(s => s.Id != sprint.Id && s.Status != ActionSprintStatus.Closed)
+            .Where(s => s.Id != sprint.Id && s.Status != ActionSprintStatus.Closed && s.StartDate.Date > sprint.StartDate.Date)
             .OrderBy(s => s.StartDate)
             .ThenBy(s => s.Id)
             .ToList();

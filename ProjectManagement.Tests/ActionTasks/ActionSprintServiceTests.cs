@@ -370,6 +370,46 @@ public class ActionSprintServiceTests
     }
 
     [Fact]
+    public async Task CloseSprintWithDispositionAsync_WithPartialDisposition_RejectsRequest()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var source = await service.CreateSprintAsync(NewSprint("Source"), "planner", RoleNames.Comdt);
+        var target = await service.CreateSprintAsync(NewSprint("Next", 15, 30), "planner", RoleNames.Comdt);
+        await service.ActivateSprintAsync(source.Id, source.RowVersion, "planner", RoleNames.Comdt);
+        var carriedTask = await SeedTaskAsync(db, ActionTaskStatuses.Assigned);
+        var undispositionedTask = await SeedTaskAsync(db, ActionTaskStatuses.Blocked);
+        await service.AssignTaskToSprintAsync(carriedTask.Id, source.Id, "planner", RoleNames.Comdt);
+        await service.AssignTaskToSprintAsync(undispositionedTask.Id, source.Id, "planner", RoleNames.Comdt);
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CloseSprintWithDispositionAsync(source.Id, source.RowVersion, new[] { carriedTask.Id }, target.Id, Array.Empty<int>(), "Only one task dispositioned", "planner", RoleNames.Comdt));
+        Assert.Contains("all unfinished tasks", ex.Message.ToLowerInvariant());
+    }
+
+    [Theory]
+    [InlineData(-15, 0)]
+    [InlineData(0, 14)]
+    public async Task CloseSprintWithDispositionAsync_RejectsCarryForwardIntoOlderOrNonLaterSprint(int targetStartOffsetDays, int targetEndOffsetDays)
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var source = await service.CreateSprintAsync(NewSprint("Source"), "planner", RoleNames.Comdt);
+        var target = await service.CreateSprintAsync(NewSprint("Older or Same Target", targetStartOffsetDays, targetEndOffsetDays), "planner", RoleNames.Comdt);
+        await service.ActivateSprintAsync(source.Id, source.RowVersion, "planner", RoleNames.Comdt);
+        var task = await SeedTaskAsync(db);
+        await service.AssignTaskToSprintAsync(task.Id, source.Id, "planner", RoleNames.Comdt);
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CloseSprintWithDispositionAsync(source.Id, source.RowVersion, new[] { task.Id }, target.Id, Array.Empty<int>(), "Invalid target timing", "planner", RoleNames.Comdt));
+        Assert.Contains("must be later", ex.Message.ToLowerInvariant());
+    }
+
+    [Fact]
     public async Task CloseSprintWithDispositionAsync_RejectsMovementIntoClosedSprint()
     {
         // SECTION: Arrange

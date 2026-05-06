@@ -55,6 +55,11 @@ public class ActionSprintWorkflowPolicy
             throw new InvalidOperationException("Carry-forward target sprint must be different from the sprint being closed.");
         }
 
+        if (targetSprint.StartDate.Date <= sourceSprint.StartDate.Date)
+        {
+            throw new InvalidOperationException("Carry-forward target sprint must be later than the sprint being closed.");
+        }
+
         if (targetSprint.Status == ActionSprintStatus.Closed)
         {
             throw new InvalidOperationException("Tasks cannot be carried forward into a closed sprint.");
