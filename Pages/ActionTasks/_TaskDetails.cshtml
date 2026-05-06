@@ -29,103 +29,93 @@
 
         @if (Model.SelectedTask is not null)
         {
-            @* SECTION: Scrollable body with unified activity timeline and collapsible details. *@
+            @* SECTION: Scrollable body prioritizes progress updates, with audit and long details collapsed by default. *@
             <div class="at-inspector-body">
-                <section class="at-inspector-section" aria-label="Activity Timeline">
-                    <h3>Activity</h3>
-                    @if (!Model.SelectedTaskUpdates.Any() && !Model.SelectedTaskLogs.Any())
+                <section class="at-inspector-section at-progress-timeline" aria-label="Progress Timeline">
+                    <div class="at-inspector-section-heading">
+                        <h3>Progress Timeline</h3>
+                        <span class="at-count-chip">@Model.SelectedTaskUpdates.Count</span>
+                    </div>
+                    @if (!Model.SelectedTaskUpdates.Any())
                     {
-                        <div class="at-empty-state at-empty-state-compact mt-2"><div>No activity recorded for this task yet.</div></div>
+                        <div class="at-empty-state at-empty-state-compact mt-2"><div>No progress updates recorded for this task yet.</div></div>
                     }
                     else
                     {
-                        // SECTION: Timeline projection keeps update/log payloads nullable by design.
-                        var updateEntries = Model.SelectedTaskUpdates
-                            .Select(update => new
-                            {
-                                Timestamp = update.CreatedAtUtc,
-                                EntryType = "Update",
-                                Update = (ProjectManagement.Models.ActionTaskUpdate?)update,
-                                Log = (ProjectManagement.Models.ActionTaskAuditLog?)null
-                            });
-
-                        var logEntries = Model.SelectedTaskLogs
-                            .Select(log => new
-                            {
-                                Timestamp = log.PerformedAt,
-                                EntryType = "Log",
-                                Update = (ProjectManagement.Models.ActionTaskUpdate?)null,
-                                Log = (ProjectManagement.Models.ActionTaskAuditLog?)log
-                            });
-
-                        var activityEntries = updateEntries
-                            .Concat(logEntries)
-                            .OrderByDescending(entry => entry.Timestamp)
-                            .ToList();
-
                         <div class="at-activity-stream mt-2">
-                            @foreach (var entry in activityEntries)
+                            @foreach (var update in Model.SelectedTaskUpdates.OrderByDescending(update => update.CreatedAtUtc))
                             {
-                                if (entry.Update is { } update)
-                                {
-                                    <article class="at-activity-update-card">
-                                        <div class="d-flex justify-content-between gap-2 flex-wrap">
-                                            <div><strong>@Model.ResolveActorName(update.CreatedByUserId)</strong></div>
-                                            <div class="text-muted small">@update.CreatedAtUtc.ToString("dd MMM yyyy, HH:mm")</div>
-                                        </div>
-                                        <div class="at-audit-remarks at-remarks-text">@update.Body</div>
-                                        @if (Model.UpdateAttachments.TryGetValue(update.Id, out var files) && files.Count > 0)
-                                        {
-                                            <div class="at-update-files mt-2">
-                                                @foreach (var file in files)
+                                <article class="at-activity-update-card">
+                                    <div class="d-flex justify-content-between gap-2 flex-wrap">
+                                        <div><strong>@Model.ResolveActorName(update.CreatedByUserId)</strong></div>
+                                        <div class="text-muted small">@update.CreatedAtUtc.ToString("dd MMM yyyy, HH:mm")</div>
+                                    </div>
+                                    <div class="at-audit-remarks at-remarks-text">@update.Body</div>
+                                    @if (Model.UpdateAttachments.TryGetValue(update.Id, out var files) && files.Count > 0)
+                                    {
+                                        <div class="at-update-files mt-2">
+                                            @foreach (var file in files)
+                                            {
+                                                var typeLabel = file.ContentType switch
                                                 {
-                                                    var typeLabel = file.ContentType switch
-                                                    {
-                                                        "application/pdf" => "PDF",
-                                                        "application/msword" => "DOC",
-                                                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "DOCX",
-                                                        "application/vnd.ms-excel" => "XLS",
-                                                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "XLSX",
-                                                        "image/jpeg" => "JPG",
-                                                        "image/png" => "PNG",
-                                                        "text/plain" => "TXT",
-                                                        _ => "FILE"
-                                                    };
-                                                    <div class="at-update-file-item">
-                                                        <span class="at-file-type">@typeLabel</span>
-                                                        <a class="at-file-name" href="@file.DownloadUrl" title="@file.FileName">@file.FileName</a>
-                                                        <span class="at-file-size">@ProjectManagement.Helpers.FileSizeFormatter.FormatFileSize(file.FileSize)</span>
-                                                        <a class="btn btn-outline-secondary btn-sm" href="@file.DownloadUrl">Download</a>
-                                                    </div>
-                                                }
-                                            </div>
-                                        }
-                                    </article>
-                                }
-                                else if (entry.Log is { } log)
-                                {
-                                    <article class="at-activity-system-row @(log.ActionType == "Task Created" ? "at-system-event-created" : "")">
-                                        <div class="d-flex justify-content-between gap-2 flex-wrap">
-                                            <div>
-                                                <strong>@log.ActionType</strong>
-                                                <span class="text-muted">by @Model.ResolveActorName(log.PerformedByUserId)</span>
-                                            </div>
-                                            <div class="text-muted small">@log.PerformedAt.ToString("dd MMM yyyy, HH:mm")</div>
+                                                    "application/pdf" => "PDF",
+                                                    "application/msword" => "DOC",
+                                                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "DOCX",
+                                                    "application/vnd.ms-excel" => "XLS",
+                                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "XLSX",
+                                                    "image/jpeg" => "JPG",
+                                                    "image/png" => "PNG",
+                                                    "text/plain" => "TXT",
+                                                    _ => "FILE"
+                                                };
+                                                <div class="at-update-file-item">
+                                                    <span class="at-file-type">@typeLabel</span>
+                                                    <a class="at-file-name" href="@file.DownloadUrl" title="@file.FileName">@file.FileName</a>
+                                                    <span class="at-file-size">@ProjectManagement.Helpers.FileSizeFormatter.FormatFileSize(file.FileSize)</span>
+                                                    <a class="btn btn-outline-secondary btn-sm" href="@file.DownloadUrl">Download</a>
+                                                </div>
+                                            }
                                         </div>
-                                        @if (!string.IsNullOrWhiteSpace(log.OldValue) || !string.IsNullOrWhiteSpace(log.NewValue))
-                                        {
-                                            <div class="small text-muted">@log.OldValue → @log.NewValue</div>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(log.Remarks))
-                                        {
-                                            <div class="at-audit-remarks at-remarks-text">@log.Remarks</div>
-                                        }
-                                    </article>
-                                }
+                                    }
+                                </article>
                             }
                         </div>
                     }
                 </section>
+
+                @* SECTION: Audit trail remains available but collapsed by default to reduce inspector clutter. *@
+                <details class="at-inspector-section at-details-collapsible at-audit-collapsible">
+                    <summary>Audit Trail <span class="at-count-chip">@Model.SelectedTaskLogs.Count</span></summary>
+                    @if (!Model.SelectedTaskLogs.Any())
+                    {
+                        <div class="at-empty-inline mt-2">No audit entries recorded.</div>
+                    }
+                    else
+                    {
+                        <div class="at-audit-list mt-2">
+                            @foreach (var log in Model.SelectedTaskLogs.OrderByDescending(log => log.PerformedAt))
+                            {
+                                <article class="at-activity-system-row @(log.ActionType == "Task Created" ? "at-system-event-created" : "")">
+                                    <div class="d-flex justify-content-between gap-2 flex-wrap">
+                                        <div>
+                                            <strong>@log.ActionType</strong>
+                                            <span class="text-muted">by @Model.ResolveActorName(log.PerformedByUserId)</span>
+                                        </div>
+                                        <div class="text-muted small">@log.PerformedAt.ToString("dd MMM yyyy, HH:mm")</div>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(log.OldValue) || !string.IsNullOrWhiteSpace(log.NewValue))
+                                    {
+                                        <div class="small text-muted">@log.OldValue → @log.NewValue</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(log.Remarks))
+                                    {
+                                        <div class="at-audit-remarks at-remarks-text">@log.Remarks</div>
+                                    }
+                                </article>
+                            }
+                        </div>
+                    }
+                </details>
 
                 <details class="at-inspector-section at-details-collapsible">
                     <summary>Task Details</summary>
