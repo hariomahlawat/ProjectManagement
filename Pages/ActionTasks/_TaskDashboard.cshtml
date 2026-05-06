@@ -1,15 +1,15 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Command overview KPI strip. *@
-<section class="at-kpis">
-    <article><h3>Active</h3><strong>@Model.ActiveCount</strong></article>
-    <article><h3>Overdue</h3><strong>@Model.OverdueCount</strong></article>
-    <article><h3>Blocked</h3><strong>@Model.BlockedCount</strong></article>
-    <article><h3>Submitted</h3><strong>@Model.SubmittedCount</strong></article>
-    <article><h3>Closed</h3><strong>@Model.ClosedCount</strong></article>
+@* SECTION: Command-attention strip for command-centre exceptions. *@
+<section class="at-kpis" aria-label="Command attention metrics">
+    <article><h3>Overdue</h3><strong>@Model.OverdueCount</strong><p>Past due and open</p></article>
+    <article><h3>Blocked</h3><strong>@Model.BlockedCount</strong><p>Needs unblock action</p></article>
+    <article><h3>Pending Closure</h3><strong>@Model.SubmittedPendingClosureCount</strong><p>Submitted for close-out</p></article>
+    <article><h3>Critical Open</h3><strong>@Model.CriticalOpenCount</strong><p>Critical priority, not closed</p></article>
+    <article><h3>Carry Forward</h3><strong>@Model.ActiveSprintMetrics.CarryForwardCandidateTasks</strong><p>Active sprint candidates</p></article>
 </section>
 <section class="at-panel at-command-focus-strip mb-3">
-    <strong>Command Focus:</strong> @Model.DashboardCommandFocusSummary
+    <strong>Command Attention:</strong> @Model.DashboardCommandFocusSummary
 </section>
 
 @* SECTION: Active sprint operational health metrics. *@
@@ -74,23 +74,25 @@
     </div>
 </section>
 
-@* SECTION: Recent activity panels with compact task rows. *@
+@* SECTION: Recent activity is secondary to command-critical work and collapsed by default. *@
 <section class="at-section-group">
-    <h2 class="at-section-title">Recent Activity</h2>
-    <div class="at-card-grid">
-        <article class="at-panel">
-            <div class="at-panel-heading">
-                <h3>Recently Submitted</h3>
-                <span class="at-count-chip">@Model.RecentlySubmittedTaskDisplays.Count</span>
-            </div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.RecentlySubmittedTaskDisplays, "No submitted tasks awaiting closure.")' />
-        </article>
-        <article class="at-panel">
-            <div class="at-panel-heading">
-                <h3>Recently Updated</h3>
-                <span class="at-count-chip">@Model.RecentlyUpdatedTaskDisplays.Count</span>
-            </div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.RecentlyUpdatedTaskDisplays, "No recently updated tasks.")' />
-        </article>
-    </div>
+    <details class="at-panel at-details-collapsible">
+        <summary>Recent Activity</summary>
+        <div class="at-card-grid mt-3">
+            <article class="at-panel">
+                <div class="at-panel-heading">
+                    <h3>Recently Submitted</h3>
+                    <span class="at-count-chip">@Model.RecentlySubmittedTaskDisplays.Count</span>
+                </div>
+                <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.RecentlySubmittedTaskDisplays, "No submitted tasks awaiting closure.")' />
+            </article>
+            <article class="at-panel">
+                <div class="at-panel-heading">
+                    <h3>Recently Updated</h3>
+                    <span class="at-count-chip">@Model.RecentlyUpdatedTaskDisplays.Count</span>
+                </div>
+                <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.RecentlyUpdatedTaskDisplays, "No recently updated tasks.")' />
+            </article>
+        </div>
+    </details>
 </section>
