@@ -1,6 +1,6 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Compact selected planning-window command strip keeps existing sprint handlers intact. *@
+@* SECTION: Compact selected sprint command strip keeps existing sprint handlers intact. *@
 <section class="at-panel at-sprint-command-strip at-planning-command-strip">
     @if (Model.SelectedSprint is null)
     {
@@ -9,20 +9,20 @@
             <div class="at-empty-state at-empty-state-compact">
                 @if (!Model.Sprints.Any())
                 {
-                    <strong>No Planning Window has been created yet.</strong>
-                    <span>Create the first Planning Window from Plan to start execution planning.</span>
+                    <strong>No sprint has been created yet.</strong>
+                    <span>Create the first sprint from Plan to start execution planning.</span>
                 }
                 else
                 {
-                    <strong>No Planning Window is selected.</strong>
-                    <span>Select an existing Planning Window from Plan to open Execute.</span>
+                    <strong>No sprint is selected.</strong>
+                    <span>Select an existing sprint from Plan to open Execute.</span>
                 }
             </div>
             @if (Model.CanPlanSprints)
             {
                 <div class="at-sprint-action-row at-sprint-action-row-strip">
                     <details class="at-sprint-form-disclosure" open="@Model.ShowCreateSprintPanel">
-                        <summary class="btn btn-primary btn-sm">Create Planning Window</summary>
+                        <summary class="btn btn-primary btn-sm">Create Sprint</summary>
                         <form method="post" asp-page-handler="CreateSprint" class="at-sprint-command-form">
                             <input type="hidden" name="ViewMode" value="Planning" />
                             <input type="hidden" name="PlanningTab" value="Plan" />
@@ -34,8 +34,8 @@
                             <label class="form-label" asp-for="SprintInput.EndDate"></label>
                             <input class="form-control" asp-for="SprintInput.EndDate" type="date" />
                             <label class="form-label" asp-for="SprintInput.Goal"></label>
-                            <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this Planning Window"></textarea>
-                            <button type="submit" class="btn btn-primary btn-sm">Create Planning Window</button>
+                            <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this sprint"></textarea>
+                            <button type="submit" class="btn btn-primary btn-sm">Create Sprint</button>
                         </form>
                     </details>
                 </div>
@@ -47,12 +47,12 @@
         @* SECTION: Single-line command summary reduces visual load while retaining counts and actions. *@
         <div class="at-planning-command-main">
             <div class="at-planning-command-title">
-                <span class="at-section-eyebrow">Selected Planning Window</span>
-                <h2>@Model.DisplayPlanningWindowName(Model.SelectedSprint)</h2>
+                <span class="at-section-eyebrow">Selected Sprint</span>
+                <h2>@Model.DisplaySprintName(Model.SelectedSprint)</h2>
                 <span class="at-sprint-status-pill">@Model.SelectedSprint.Status</span>
                 <span class="at-sprint-date-range">@Model.SelectedSprint.StartDate.ToString("dd MMM yyyy") – @Model.SelectedSprint.EndDate.ToString("dd MMM yyyy")</span>
             </div>
-            <div class="at-planning-command-pills" aria-label="Planning Window summary">
+            <div class="at-planning-command-pills" aria-label="Sprint summary">
                 <span class="at-compact-counter"><strong>@Model.SprintSummary.OpenCount</strong> Open</span>
                 <span class="at-compact-counter"><strong>@Model.SelectedSprintOverdueCount</strong> Overdue</span>
                 <span class="at-compact-counter"><strong>@Model.SprintSummary.BlockedCount</strong> Blocked</span>
@@ -71,7 +71,7 @@
                 @if (Model.CanPlanSprints)
                 {
                     <details class="at-sprint-form-disclosure" open="@Model.ShowCreateSprintPanel">
-                        <summary class="btn btn-primary btn-sm">Create Planning Window</summary>
+                        <summary class="btn btn-primary btn-sm">Create Sprint</summary>
                         <form method="post" asp-page-handler="CreateSprint" class="at-sprint-command-form">
                             <input type="hidden" name="ViewMode" value="Planning" />
                             <input type="hidden" name="PlanningTab" value="Plan" />
@@ -83,15 +83,15 @@
                             <label class="form-label" asp-for="SprintInput.EndDate"></label>
                             <input class="form-control" asp-for="SprintInput.EndDate" type="date" />
                             <label class="form-label" asp-for="SprintInput.Goal"></label>
-                            <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this Planning Window"></textarea>
-                            <button type="submit" class="btn btn-primary btn-sm">Create Planning Window</button>
+                            <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this sprint"></textarea>
+                            <button type="submit" class="btn btn-primary btn-sm">Create Sprint</button>
                         </form>
                     </details>
                 }
                 @if (Model.CanEditSelectedSprint)
                 {
                     <details class="at-sprint-form-disclosure" open="@Model.ShowEditSprintPanel">
-                        <summary class="btn btn-outline-primary btn-sm">Edit Window</summary>
+                        <summary class="btn btn-outline-primary btn-sm">Edit Sprint</summary>
                         <form method="post" asp-page-handler="UpdateSprint" class="at-sprint-command-form">
                             <input type="hidden" name="ViewMode" value="Planning" />
                             <input type="hidden" name="PlanningTab" value="Plan" />
@@ -106,7 +106,7 @@
                             <input class="form-control" asp-for="SprintEditInput.EndDate" type="date" />
                             <label class="form-label" asp-for="SprintEditInput.Goal"></label>
                             <textarea class="form-control" asp-for="SprintEditInput.Goal" rows="3" maxlength="2000"></textarea>
-                            <button type="submit" class="btn btn-primary btn-sm">Save Planning Window</button>
+                            <button type="submit" class="btn btn-primary btn-sm">Save Sprint</button>
                         </form>
                     </details>
                 }

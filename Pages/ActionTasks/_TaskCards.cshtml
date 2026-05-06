@@ -4,7 +4,7 @@
     var tasks = Model.Item2;
     var emptyMessage = Model.Item3;
     var hideStatusBadge = Model.Item4;
-    // SECTION: Planning Board task cards preserve the selected internal tab, alternate view, and Planning Window when opening the inspector.
+    // SECTION: Sprint Board task cards preserve the selected internal tab, alternate view, and Sprint when opening the inspector.
     var planningTabRouteValue = pageModel.IsPlanningView ? pageModel.ResolvedPlanningTab : null;
     var planningViewRouteValue = pageModel.IsPlanningView && !string.Equals(pageModel.ResolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase)
         ? pageModel.ResolvedPlanningView

@@ -154,13 +154,13 @@ public sealed class ActionTaskQueryService
     {
         if (unfinishedTasks.Count == 0)
         {
-            return new[] { "Close the Planning Window after recording closure remarks." };
+            return new[] { "Close the sprint after recording closure remarks." };
         }
 
-        var options = new List<string> { "Move unfinished tasks with continuing operational value to the next open Planning Window.", "Move deferred or unscheduled tasks to backlog." };
+        var options = new List<string> { "Move unfinished tasks with continuing operational value to the next open sprint.", "Move deferred or unscheduled tasks to backlog." };
         if (targetOptions.Count == 0)
         {
-            options.Add("Create or reopen a planned Planning Window before carrying tasks forward.");
+            options.Add("Create or reopen a planned sprint before carrying tasks forward.");
         }
 
         return options;

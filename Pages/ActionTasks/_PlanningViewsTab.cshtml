@@ -1,10 +1,10 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
 @* SECTION: Views tab exposes exactly one selected alternate view at a time. *@
-<section class="at-planning-tab-panel at-planning-views-panel" aria-label="Planning Board Views tab">
-    <nav class="at-panel at-planning-view-toggle" aria-label="Planning Board alternate view selector">
+<section class="at-planning-tab-panel at-planning-views-panel" aria-label="Sprint Board Views tab">
+    <nav class="at-panel at-planning-view-toggle" aria-label="Sprint Board alternate view selector">
         <span class="at-section-eyebrow">Alternate views</span>
-        <div class="btn-group" role="group" aria-label="Planning Board view options">
+        <div class="btn-group" role="group" aria-label="Sprint Board view options">
             <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Views" asp-route-PlanningView="DueExceptions" asp-route-SelectedSprintId="@Model.SelectedSprintId" asp-route-taskId="@Model.TaskId" class="btn btn-sm @(string.Equals(Model.ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase) ? "btn-outline-primary" : "btn-primary")">Due / exceptions</a>
             <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Views" asp-route-PlanningView="Kanban" asp-route-SelectedSprintId="@Model.SelectedSprintId" asp-route-taskId="@Model.TaskId" class="btn btn-sm @(string.Equals(Model.ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase) ? "btn-primary" : "btn-outline-primary")">Kanban</a>
         </div>

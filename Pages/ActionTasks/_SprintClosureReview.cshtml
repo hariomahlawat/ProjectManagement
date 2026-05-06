@@ -1,19 +1,19 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Planning Window closure review and explicit disposition workflow. *@
+@* SECTION: Sprint closure review and explicit disposition workflow. *@
 @if (Model.SelectedSprint is not null && Model.CanReviewSprintClosure)
 {
     var review = Model.SprintClosureReview;
     <section id="sprint-closure-review" class="at-panel at-closure-review" data-at-closure-review="true">
         <div class="at-panel-heading">
             <div>
-                <h2>Planning Window Closure Review</h2>
-                <p class="at-panel-note">Review unfinished work and record where each task will continue before closing the Planning Window.</p>
+                <h2>Sprint Closure Review</h2>
+                <p class="at-panel-note">Review unfinished work and record where each task will continue before closing the Sprint.</p>
             </div>
             <span class="at-count-chip">@review.UnfinishedTasks.Count unfinished</span>
         </div>
 
-        <div class="at-closure-metrics" aria-label="Planning Window closure review summary">
+        <div class="at-closure-metrics" aria-label="Sprint closure review summary">
             <div><span>@review.CompletedTasks.Count</span><small>Completed</small></div>
             <div><span>@review.UnfinishedTasks.Count</span><small>Unfinished</small></div>
             <div><span>@review.BlockedTasks.Count</span><small>Blocked</small></div>
@@ -32,10 +32,10 @@
 
         @if (review.UnfinishedTasks.Any() && Model.ShouldShowCreateNextSprint)
         {
-            @* SECTION: Closure-context next Planning Window creation when no later carry-forward target exists. *@
+            @* SECTION: Closure-context next Sprint creation when no later carry-forward target exists. *@
             <details class="at-next-sprint-panel" open="@Model.ShowCreateNextSprintPanel">
-                <summary class="btn btn-outline-primary btn-sm">Next Planning Window</summary>
-                <div class="at-panel-note">Create a planned Planning Window after this one; it will then appear as a carry-forward target.</div>
+                <summary class="btn btn-outline-primary btn-sm">Next Sprint</summary>
+                <div class="at-panel-note">Create a planned sprint after this one; it will then appear as a carry-forward target.</div>
                 <form method="post" asp-page-handler="CreateNextSprint" class="at-sprint-command-form">
                     <input type="hidden" name="ViewMode" value="Sprints" />
                     <input type="hidden" asp-for="NextSprintInput.SourceSprintId" value="@Model.SelectedSprint.Id" />
@@ -48,7 +48,7 @@
                     <input class="form-control" asp-for="NextSprintInput.EndDate" type="date" />
                     <label class="form-label" asp-for="NextSprintInput.Goal"></label>
                     <textarea class="form-control" asp-for="NextSprintInput.Goal" rows="2" maxlength="2000"></textarea>
-                    <button type="submit" class="btn btn-primary btn-sm">Create Next Planning Window</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Create Next Sprint</button>
                 </form>
             </details>
         }
@@ -60,20 +60,20 @@
             @if (review.UnfinishedTasks.Any())
             {
                 <div class="at-closure-target-row">
-                    <label class="form-label" asp-for="ClosureInput.TargetSprintId">Next Planning Window for carry-forward</label>
+                    <label class="form-label" asp-for="ClosureInput.TargetSprintId">Next Sprint for carry-forward</label>
                     <select class="form-select" asp-for="ClosureInput.TargetSprintId">
-                        <option value="">Select next Planning Window when carrying tasks forward</option>
+                        <option value="">Select next sprint when carrying tasks forward</option>
                         @foreach (var sprint in Model.ClosureTargetSprints)
                         {
-                            <option value="@sprint.Id">@Model.DisplayPlanningWindowName(sprint) (@sprint.Status) · @sprint.StartDate.ToString("dd MMM") – @sprint.EndDate.ToString("dd MMM yyyy")</option>
+                            <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status) · @sprint.StartDate.ToString("dd MMM") – @sprint.EndDate.ToString("dd MMM yyyy")</option>
                         }
                     </select>
-                    <div class="form-text">Next Planning Window is required only for tasks marked to carry forward to the next Planning Window.</div>
+                    <div class="form-text">Next sprint is required only for tasks marked to carry forward to the next sprint.</div>
                 </div>
 
-                <p class="at-panel-note">Each unfinished task must be carried forward to the next Planning Window or moved to backlog before this Planning Window can close.</p>
+                <p class="at-panel-note">Each unfinished task must be carried forward to the next sprint or moved to backlog before this sprint can close.</p>
 
-                <div class="at-closure-task-table" role="table" aria-label="Unfinished Planning Window tasks requiring disposition">
+                <div class="at-closure-task-table" role="table" aria-label="Unfinished Sprint tasks requiring disposition">
                     <div class="at-closure-task-row at-closure-task-head" role="row">
                         <span>Task</span>
                         <span>Status</span>
@@ -90,7 +90,7 @@
                             <span><span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span></span>
                             <label class="at-closure-choice">
                                 <input type="checkbox" name="ClosureInput.CarryForwardTaskIds" value="@task.Id" data-at-closure-choice="carry" />
-                                <span>Next Planning Window</span>
+                                <span>Next Sprint</span>
                             </label>
                             <label class="at-closure-choice">
                                 <input type="checkbox" name="ClosureInput.BacklogTaskIds" value="@task.Id" data-at-closure-choice="backlog" />
@@ -102,14 +102,14 @@
             }
             else
             {
-                <div class="at-empty-state at-empty-state-compact">All tasks in this Planning Window are completed. Add closure remarks and close the Planning Window.</div>
+                <div class="at-empty-state at-empty-state-compact">All tasks in this sprint are completed. Add closure remarks and close the sprint.</div>
             }
 
             <label class="form-label" asp-for="ClosureInput.Remarks">Closure remarks</label>
             <textarea class="form-control" asp-for="ClosureInput.Remarks" rows="3" maxlength="2000" required placeholder="Summarize command decision and disposition rationale."></textarea>
 
             <div class="at-closure-actions">
-                <button type="submit" class="btn btn-danger">Close Planning Window with Review</button>
+                <button type="submit" class="btn btn-danger">Close Sprint with Review</button>
             </div>
         </form>
     </section>
@@ -118,9 +118,9 @@ else if (Model.SelectedSprint?.Status == ProjectManagement.Models.ActionSprintSt
 {
     <section class="at-panel at-closure-review is-readonly">
         <div class="at-panel-heading">
-            <h2>Planning Window Closure Review</h2>
+            <h2>Sprint Closure Review</h2>
             <span class="at-sprint-status-pill">Closed</span>
         </div>
-        <p class="at-empty-inline">This Planning Window is closed and remains read-only in the normal workflow.</p>
+        <p class="at-empty-inline">This sprint is closed and remains read-only in the normal workflow.</p>
     </section>
 }

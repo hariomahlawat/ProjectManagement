@@ -42,9 +42,9 @@
         <p>Awaiting closure review.</p>
     </article>
     <article>
-        <h3>Active Planning Window</h3>
+        <h3>Active Sprint</h3>
         <strong>@activeSprintTaskCount</strong>
-        <p>@(Model.ActiveSprint is null ? "No active Planning Window set." : Model.DisplayPlanningWindowName(Model.ActiveSprint))</p>
+        <p>@(Model.ActiveSprint is null ? "No active sprint set." : Model.DisplaySprintName(Model.ActiveSprint))</p>
     </article>
 </section>
 
