@@ -7,7 +7,7 @@
         @* SECTION: Fixed header with compact identity and close action. *@
         <header class="at-inspector-header">
             <div class="at-detail-hero">
-                <h2 class="at-panel-title mb-0">AT-@Model.TaskId.Value · @(Model.SelectedTask?.Title ?? "Task")</h2>
+                <h2 class="at-panel-title mb-0">AT-@(Model.SelectedTask?.Id.ToString() ?? Model.TaskId?.ToString() ?? "—") · @(Model.SelectedTask?.Title ?? "Task")</h2>
                 @if (Model.SelectedTask is not null)
                 {
                     <div class="at-detail-assignee">@Model.ResolveAssigneeName(Model.SelectedTask.AssignedToUserId)</div>
@@ -38,26 +38,35 @@
                     }
                     else
                     {
-                        var activityEntries = Model.SelectedTaskUpdates
-                            .Select(update => (
-                                Timestamp: update.CreatedAtUtc,
-                                EntryType: "Update",
-                                Update: update,
-                                Log: (ProjectManagement.Models.ActionTaskAuditLog?)null))
-                            .Concat(Model.SelectedTaskLogs.Select(log => (
-                                Timestamp: log.PerformedAt,
-                                EntryType: "Log",
-                                Update: (ProjectManagement.Models.ActionTaskUpdate?)null,
-                                Log: log)))
+                        // SECTION: Timeline projection keeps update/log payloads nullable by design.
+                        var updateEntries = Model.SelectedTaskUpdates
+                            .Select(update => new
+                            {
+                                Timestamp = update.CreatedAtUtc,
+                                EntryType = "Update",
+                                Update = (ProjectManagement.Models.ActionTaskUpdate?)update,
+                                Log = (ProjectManagement.Models.ActionTaskAuditLog?)null
+                            });
+
+                        var logEntries = Model.SelectedTaskLogs
+                            .Select(log => new
+                            {
+                                Timestamp = log.PerformedAt,
+                                EntryType = "Log",
+                                Update = (ProjectManagement.Models.ActionTaskUpdate?)null,
+                                Log = (ProjectManagement.Models.ActionTaskAuditLog?)log
+                            });
+
+                        var activityEntries = updateEntries
+                            .Concat(logEntries)
                             .OrderByDescending(entry => entry.Timestamp)
                             .ToList();
 
                         <div class="at-activity-stream mt-2">
                             @foreach (var entry in activityEntries)
                             {
-                                if (entry.EntryType == "Update")
+                                if (entry.Update is { } update)
                                 {
-                                    var update = entry.Update;
                                     <article class="at-activity-update-card">
                                         <div class="d-flex justify-content-between gap-2 flex-wrap">
                                             <div><strong>@Model.ResolveActorName(update.CreatedByUserId)</strong></div>
@@ -92,9 +101,8 @@
                                         }
                                     </article>
                                 }
-                                else
+                                else if (entry.Log is { } log)
                                 {
-                                    var log = entry.Log;
                                     <article class="at-activity-system-row @(log.ActionType == "Task Created" ? "at-system-event-created" : "")">
                                         <div class="d-flex justify-content-between gap-2 flex-wrap">
                                             <div>

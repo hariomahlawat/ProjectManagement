@@ -69,7 +69,7 @@ public class ActionTaskService : IActionTaskService
             .AsNoTracking()
             .Where(x => taskIds.Contains(x.TaskId))
             .GroupBy(x => x.TaskId)
-            .Select(g => new { TaskId = g.Key, LastUpdateUtc = g.Max(x => x.CreatedOn) })
+            .Select(g => new { TaskId = g.Key, LastUpdateUtc = g.Max(x => x.CreatedAtUtc) })
             .ToDictionaryAsync(x => x.TaskId, x => (DateTime?)x.LastUpdateUtc, cancellationToken);
 
         var auditActivity = await _context.ActionTaskAuditLogs
@@ -84,10 +84,27 @@ public class ActionTaskService : IActionTaskService
         {
             updateActivity.TryGetValue(taskId, out var lastUpdateUtc);
             auditActivity.TryGetValue(taskId, out var lastAuditUtc);
-            result[taskId] = lastUpdateUtc ?? lastAuditUtc;
+            result[taskId] = GetLatestActivityUtc(lastUpdateUtc, lastAuditUtc);
         }
 
         return result;
+    }
+
+
+    // SECTION: Last activity helpers
+    private static DateTime? GetLatestActivityUtc(DateTime? lastUpdateUtc, DateTime? lastAuditUtc)
+    {
+        if (lastUpdateUtc is null)
+        {
+            return lastAuditUtc;
+        }
+
+        if (lastAuditUtc is null)
+        {
+            return lastUpdateUtc;
+        }
+
+        return lastUpdateUtc > lastAuditUtc ? lastUpdateUtc : lastAuditUtc;
     }
 
     // SECTION: Task mutation APIs
