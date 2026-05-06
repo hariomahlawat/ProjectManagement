@@ -51,6 +51,7 @@ namespace ProjectManagement.Data
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
         public DbSet<ActionTaskItem> ActionTasks => Set<ActionTaskItem>();
         public DbSet<ActionSprint> ActionSprints => Set<ActionSprint>();
+        public DbSet<ActionSprintAuditLog> ActionSprintAuditLogs => Set<ActionSprintAuditLog>();
         public DbSet<ActionTaskAuditLog> ActionTaskAuditLogs => Set<ActionTaskAuditLog>();
         public DbSet<ActionTaskUpdate> ActionTaskUpdates => Set<ActionTaskUpdate>();
         public DbSet<ActionTaskAttachment> ActionTaskAttachments => Set<ActionTaskAttachment>();
@@ -1838,6 +1839,9 @@ namespace ProjectManagement.Data
 
             builder.Entity<ActionSprint>(e =>
             {
+                // SECTION: Optimistic concurrency token mapping for action sprints
+                ConfigureRowVersion(e);
+
                 // SECTION: Sprint indexing strategy
                 e.HasIndex(x => x.Status);
                 e.HasIndex(x => new { x.StartDate, x.EndDate });
@@ -1854,6 +1858,21 @@ namespace ProjectManagement.Data
                 e.Property(x => x.StartDate).HasColumnType("date");
                 e.Property(x => x.EndDate).HasColumnType("date");
                 e.Property(x => x.IsDeleted).HasDefaultValue(false);
+            });
+
+            builder.Entity<ActionSprintAuditLog>(e =>
+            {
+                e.HasIndex(x => new { x.SprintId, x.PerformedAt });
+                e.HasIndex(x => x.PerformedByUserId);
+                e.Property(x => x.ActionType).IsRequired().HasMaxLength(64);
+                e.Property(x => x.PerformedByUserId).IsRequired().HasMaxLength(450);
+                e.Property(x => x.PerformedByRole).IsRequired().HasMaxLength(64);
+                e.Property(x => x.Remarks).HasMaxLength(2000);
+                // SECTION: Keep sprint lifecycle audit entries with their sprint record
+                e.HasOne(x => x.Sprint)
+                    .WithMany(x => x.AuditLogs)
+                    .HasForeignKey(x => x.SprintId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<ActionTaskAuditLog>(e =>

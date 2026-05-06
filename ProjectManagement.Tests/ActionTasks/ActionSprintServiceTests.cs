@@ -23,6 +23,7 @@ public class ActionSprintServiceTests
         Assert.True(sprint.Id > 0);
         Assert.Equal(ActionSprintStatus.Planned, sprint.Status);
         Assert.Equal("planner", sprint.CreatedByUserId);
+        Assert.Contains(await db.ActionSprintAuditLogs.ToListAsync(), x => x.SprintId == sprint.Id && x.ActionType == "SprintCreated");
     }
 
     [Fact]
@@ -40,6 +41,33 @@ public class ActionSprintServiceTests
     }
 
     [Fact]
+    public async Task CreateSprintAsync_WithNonAuthority_RejectsRequest()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CreateSprintAsync(NewSprint(), "actor", RoleNames.ProjectOfficer));
+        Assert.Contains("not authorized", ex.Message.ToLowerInvariant());
+    }
+
+    [Fact]
+    public async Task UpdateSprintAsync_WithNonAuthority_RejectsRequest()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.Comdt);
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateSprintAsync(sprint.Id, "Updated", "Goal", DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddDays(7), "actor", RoleNames.ProjectOfficer));
+        Assert.Contains("not authorized", ex.Message.ToLowerInvariant());
+    }
+
+    [Fact]
     public async Task ActivateSprintAsync_PlannedSprint_BecomesActive()
     {
         // SECTION: Arrange
@@ -53,6 +81,21 @@ public class ActionSprintServiceTests
         // SECTION: Assert
         Assert.Equal(ActionSprintStatus.Active, active.Status);
         Assert.NotNull(active.ActivatedAtUtc);
+        Assert.Contains(await db.ActionSprintAuditLogs.ToListAsync(), x => x.SprintId == sprint.Id && x.ActionType == "SprintActivated");
+    }
+
+    [Fact]
+    public async Task ActivateSprintAsync_WithNonAuthority_RejectsRequest()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.Comdt);
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.ActivateSprintAsync(sprint.Id, "actor", RoleNames.ProjectOfficer));
+        Assert.Contains("not authorized", ex.Message.ToLowerInvariant());
     }
 
     [Fact]
@@ -86,6 +129,38 @@ public class ActionSprintServiceTests
         // SECTION: Assert
         Assert.Equal(ActionSprintStatus.Closed, closed.Status);
         Assert.NotNull(closed.ClosedAtUtc);
+        Assert.Contains(await db.ActionSprintAuditLogs.ToListAsync(), x => x.SprintId == sprint.Id && x.ActionType == "SprintClosed");
+    }
+
+    [Fact]
+    public async Task CloseSprintAsync_WithNonAuthority_RejectsRequest()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.Comdt);
+        await service.ActivateSprintAsync(sprint.Id, "planner", RoleNames.Comdt);
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CloseSprintAsync(sprint.Id, "actor", RoleNames.ProjectOfficer));
+        Assert.Contains("not authorized", ex.Message.ToLowerInvariant());
+    }
+
+    [Fact]
+    public async Task UpdateSprintAsync_WithPlanningAuthority_UpdatesAndAuditsSprint()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.Comdt);
+
+        // SECTION: Act
+        var updated = await service.UpdateSprintAsync(sprint.Id, "Updated Sprint", "Updated goal", DateTime.UtcNow.Date.AddDays(1), DateTime.UtcNow.Date.AddDays(8), "planner", RoleNames.Comdt);
+
+        // SECTION: Assert
+        Assert.Equal("Updated Sprint", updated.Name);
+        Assert.Contains(await db.ActionSprintAuditLogs.ToListAsync(), x => x.SprintId == sprint.Id && x.ActionType == "SprintUpdated" && x.OldValue != null && x.NewValue != null);
     }
 
     [Fact]
@@ -106,6 +181,36 @@ public class ActionSprintServiceTests
     }
 
     [Fact]
+    public async Task AssignTaskToSprintAsync_WhenTaskClosed_RejectsRequest()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.Comdt);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Closed);
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.AssignTaskToSprintAsync(task.Id, sprint.Id, "planner", RoleNames.Comdt));
+        Assert.Contains("closed tasks cannot be assigned", ex.Message.ToLowerInvariant());
+    }
+
+    [Fact]
+    public async Task AssignTaskToSprintAsync_WithNonAuthority_RejectsRequest()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.Comdt);
+        var task = await SeedTaskAsync(db);
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.AssignTaskToSprintAsync(task.Id, sprint.Id, "actor", RoleNames.ProjectOfficer));
+        Assert.Contains("not authorized", ex.Message.ToLowerInvariant());
+    }
+
+    [Fact]
     public async Task MoveTaskToBacklogAsync_ClearsSprintIdAndAuditsMove()
     {
         // SECTION: Arrange
@@ -121,6 +226,39 @@ public class ActionSprintServiceTests
         // SECTION: Assert
         Assert.Null(backlogTask.SprintId);
         Assert.Contains(await db.ActionTaskAuditLogs.ToListAsync(), x => x.TaskId == task.Id && x.ActionType == "TaskMovedToBacklog");
+    }
+
+    [Fact]
+    public async Task MoveTaskToBacklogAsync_WhenTaskClosed_RejectsRequest()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.HoD);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Closed);
+        task.SprintId = sprint.Id;
+        await db.SaveChangesAsync();
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.MoveTaskToBacklogAsync(task.Id, "planner", RoleNames.HoD));
+        Assert.Contains("closed tasks cannot be moved", ex.Message.ToLowerInvariant());
+    }
+
+    [Fact]
+    public async Task MoveTaskToBacklogAsync_WithNonAuthority_RejectsRequest()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.HoD);
+        var task = await SeedTaskAsync(db);
+        await service.AssignTaskToSprintAsync(task.Id, sprint.Id, "planner", RoleNames.HoD);
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.MoveTaskToBacklogAsync(task.Id, "actor", RoleNames.ProjectOfficer));
+        Assert.Contains("not authorized", ex.Message.ToLowerInvariant());
     }
 
     // SECTION: Test helpers
@@ -147,8 +285,9 @@ public class ActionSprintServiceTests
             EndDate = DateTime.UtcNow.Date.AddDays(endOffsetDays)
         };
 
-    private static async Task<ActionTaskItem> SeedTaskAsync(ApplicationDbContext db)
+    private static async Task<ActionTaskItem> SeedTaskAsync(ApplicationDbContext db, string status = ActionTaskStatuses.Assigned)
     {
+        var now = DateTime.UtcNow;
         var task = new ActionTaskItem
         {
             Title = "Task",
@@ -157,10 +296,11 @@ public class ActionSprintServiceTests
             AssignedToUserId = "assignee",
             CreatedByRole = RoleNames.HoD,
             AssignedToRole = RoleNames.Ta,
-            DueDate = DateTime.UtcNow.AddDays(1),
+            DueDate = now.AddDays(1),
             Priority = "Normal",
-            AssignedOn = DateTime.UtcNow,
-            Status = ActionTaskStatuses.Assigned,
+            AssignedOn = now,
+            Status = status,
+            ClosedOn = string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase) ? now : null,
             RowVersion = [1, 2, 3]
         };
 

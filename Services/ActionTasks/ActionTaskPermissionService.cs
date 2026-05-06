@@ -25,7 +25,7 @@ public class ActionTaskPermissionService
 
     // SECTION: Role capability checks
     public bool CanCreate(string role)
-        => role == RoleNames.Comdt || role == RoleNames.HoD;
+        => IsPlanningAuthority(role);
 
     public bool CanAssign(string assignerRole, string assigneeRole)
     {
@@ -43,16 +43,36 @@ public class ActionTaskPermissionService
     }
 
     public bool CanClose(string role)
-        => role == RoleNames.Comdt || role == RoleNames.HoD;
+        => IsPlanningAuthority(role);
 
+    // SECTION: Sprint lifecycle permission checks
+    public bool CanCreateSprint(string role)
+        => IsPlanningAuthority(role);
+
+    public bool CanEditSprint(string role)
+        => IsPlanningAuthority(role);
+
+    public bool CanActivateSprint(string role)
+        => IsPlanningAuthority(role);
+
+    public bool CanCloseSprint(string role)
+        => IsPlanningAuthority(role);
+
+    public bool CanAssignTaskToSprint(string role)
+        => IsPlanningAuthority(role);
+
+    public bool CanMoveTaskToBacklog(string role)
+        => IsPlanningAuthority(role);
+
+    // SECTION: Backward-compatible broad sprint capability checks
     public bool CanManageSprints(string role)
-        => role == RoleNames.Comdt || role == RoleNames.HoD;
+        => IsPlanningAuthority(role);
 
     public bool CanMoveTasksInSprint(string role)
-        => CanManageSprints(role);
+        => IsPlanningAuthority(role);
 
     public bool CanViewAll(string role)
-        => role == RoleNames.Comdt || role == RoleNames.HoD;
+        => IsPlanningAuthority(role);
 
     public bool CanViewLogs(string role, string currentUserId, string ownerUserId)
         => CanViewAll(role) || string.Equals(currentUserId, ownerUserId, StringComparison.Ordinal);
@@ -74,4 +94,9 @@ public class ActionTaskPermissionService
 
     public bool CanSubmit(string role)
         => role is RoleNames.Comdt or RoleNames.HoD or RoleNames.ProjectOfficer or RoleNames.Mco or RoleNames.Ta or RoleNames.Ito;
+
+    // SECTION: Shared role helpers
+    private static bool IsPlanningAuthority(string role)
+        => string.Equals(role, RoleNames.Comdt, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(role, RoleNames.HoD, StringComparison.OrdinalIgnoreCase);
 }

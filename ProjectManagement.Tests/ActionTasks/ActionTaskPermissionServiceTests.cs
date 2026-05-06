@@ -69,10 +69,22 @@ public class ActionTaskPermissionServiceTests
         // SECTION: Act
         var canManageSprints = service.CanManageSprints(role);
         var canMoveTasksInSprint = service.CanMoveTasksInSprint(role);
+        var canCreateSprint = service.CanCreateSprint(role);
+        var canEditSprint = service.CanEditSprint(role);
+        var canActivateSprint = service.CanActivateSprint(role);
+        var canCloseSprint = service.CanCloseSprint(role);
+        var canAssignTaskToSprint = service.CanAssignTaskToSprint(role);
+        var canMoveTaskToBacklog = service.CanMoveTaskToBacklog(role);
 
         // SECTION: Assert
         Assert.Equal(expected, canManageSprints);
         Assert.Equal(expected, canMoveTasksInSprint);
+        Assert.Equal(expected, canCreateSprint);
+        Assert.Equal(expected, canEditSprint);
+        Assert.Equal(expected, canActivateSprint);
+        Assert.Equal(expected, canCloseSprint);
+        Assert.Equal(expected, canAssignTaskToSprint);
+        Assert.Equal(expected, canMoveTaskToBacklog);
     }
 
 }

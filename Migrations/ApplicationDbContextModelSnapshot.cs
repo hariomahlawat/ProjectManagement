@@ -2184,6 +2184,54 @@ namespace ProjectManagement.Migrations
                     b.ToTable("ActionTaskAttachments");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ActionSprintAuditLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActionType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("NewValue")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OldValue")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("PerformedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("PerformedByRole")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("PerformedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("SprintId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PerformedByUserId");
+
+                    b.HasIndex("SprintId", "PerformedAt");
+
+                    b.ToTable("ActionSprintAuditLogs");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ActionTaskAuditLog", b =>
                 {
                     b.Property<int>("Id")
@@ -2275,6 +2323,11 @@ namespace ProjectManagement.Migrations
                         .IsRequired()
                         .HasMaxLength(160)
                         .HasColumnType("character varying(160)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("date");
@@ -6675,8 +6728,21 @@ namespace ProjectManagement.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ActionSprintAuditLog", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ActionSprint", "Sprint")
+                        .WithMany("AuditLogs")
+                        .HasForeignKey("SprintId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Sprint");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ActionSprint", b =>
                 {
+                    b.Navigation("AuditLogs");
+
                     b.Navigation("Tasks");
                 });
 
