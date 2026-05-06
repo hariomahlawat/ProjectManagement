@@ -11,6 +11,9 @@ namespace ProjectManagement.Services.ActionTasks;
 
 public class ActionSprintService
 {
+    // SECTION: Audit persistence limits
+    private const int AuditRemarksMaxLength = 2000;
+
     private readonly ApplicationDbContext _context;
     private readonly ActionTaskPermissionService _permission;
     private readonly ActionSprintWorkflowPolicy _workflow;
@@ -382,7 +385,7 @@ public class ActionSprintService
             PerformedAt = performedAt ?? DateTime.UtcNow,
             OldValue = oldValue,
             NewValue = newValue,
-            Remarks = remarks
+            Remarks = TrimAuditRemarks(remarks)
         });
     }
 
@@ -397,8 +400,18 @@ public class ActionSprintService
             PerformedAt = performedAt,
             OldValue = oldValue,
             NewValue = newValue,
-            Remarks = remarks
+            Remarks = TrimAuditRemarks(remarks)
         });
+    }
+
+    private static string TrimAuditRemarks(string remarks)
+    {
+        if (remarks.Length <= AuditRemarksMaxLength)
+        {
+            return remarks;
+        }
+
+        return remarks[..AuditRemarksMaxLength];
     }
 
     private static string DescribeSprint(ActionSprint sprint)
