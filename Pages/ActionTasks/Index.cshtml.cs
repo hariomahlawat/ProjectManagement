@@ -141,29 +141,29 @@ public class IndexModel : PageModel
     public bool IsRegisterView => string.Equals(ResolvedViewMode, "Register", StringComparison.OrdinalIgnoreCase);
     public bool IsReportsView => string.Equals(ResolvedViewMode, "Reports", StringComparison.OrdinalIgnoreCase);
 
-    // SECTION: Legacy view-state aliases retained for existing partials and links.
+    // SECTION: Legacy view-state aliases retained for existing partials, tests and links.
     public bool IsDashboardView => IsCommandCentreView;
     public bool IsMyTasksView => IsMyWorkView;
     public bool IsTaskListView => IsRegisterView;
-    public bool IsKanbanView => false;
-    public bool IsSprintBoardView => false;
-    public bool IsBacklogView => false;
+    public bool IsKanbanView => IsPlanningView && string.Equals(ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase);
+    public bool IsSprintBoardView => IsPlanningView && string.Equals(ResolvedPlanningView, "DueExceptions", StringComparison.OrdinalIgnoreCase);
+    public bool IsBacklogView => IsLegacyViewMode("Backlog");
     public bool IsSprintsView => IsPlanningView;
     public string PageHeading => ResolvedViewMode switch
     {
-        "Planning" => "Planning Board",
+        "Planning" => "Planning",
         "MyWork" => "My Work",
-        "Register" => "Command Task Register",
-        "Reports" => "Task Command Summary",
+        "Register" => "Register",
+        "Reports" => "Reports",
         _ => "Command Centre"
     };
     public string PageSubtitle => ResolvedViewMode switch
     {
-        "Planning" => "Real sprint task view with controlled planning actions.",
-        "MyWork" => "Tasks assigned to the logged-in user.",
-        "Register" => "Filterable register of all visible tasks.",
-        "Reports" => "Summary of pending, critical, blocked and closed tasks.",
-        _ => "Command workspace for overdue, blocked, submitted and critical task action."
+        "Planning" => "Plan sprint work, review due exceptions and coordinate Kanban flow.",
+        "MyWork" => "Focus on the work assigned to you.",
+        "Register" => "Search, filter and review every task you can access.",
+        "Reports" => "Review pending, critical, blocked and closed task trends.",
+        _ => "Monitor overdue, blocked, submitted and critical task action."
     };
 
     public IReadOnlyList<string> AssignmentRoles => ActionTaskRoleResolver.AllowedAssignmentRoles();
@@ -1303,11 +1303,22 @@ public class IndexModel : PageModel
     private string ResolvePlanningView()
     {
         var normalized = (PlanningView ?? string.Empty).Trim();
-        return normalized switch
+        if (!string.IsNullOrWhiteSpace(normalized))
         {
-            _ when string.Equals(normalized, "DueExceptions", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
-            _ when string.Equals(normalized, "Due / exceptions", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
-            _ when string.Equals(normalized, "Kanban", StringComparison.OrdinalIgnoreCase) => "Kanban",
+            return normalized switch
+            {
+                _ when string.Equals(normalized, "DueExceptions", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
+                _ when string.Equals(normalized, "Due / exceptions", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
+                _ when string.Equals(normalized, "Kanban", StringComparison.OrdinalIgnoreCase) => "Kanban",
+                _ => "Default"
+            };
+        }
+
+        // SECTION: Promote legacy top-level planning aliases to their closest secondary Planning view.
+        return (ViewMode ?? string.Empty).Trim() switch
+        {
+            var legacyView when string.Equals(legacyView, "Kanban", StringComparison.OrdinalIgnoreCase) => "Kanban",
+            var legacyView when string.Equals(legacyView, "SprintBoard", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
             _ => "Default"
         };
     }
@@ -1328,6 +1339,12 @@ public class IndexModel : PageModel
         }
 
         return RedirectToPage(routeValues);
+    }
+
+    // SECTION: Legacy view-state matching isolates backward-compatible aliases from canonical workspace names.
+    private bool IsLegacyViewMode(string legacyViewMode)
+    {
+        return string.Equals((ViewMode ?? string.Empty).Trim(), legacyViewMode, StringComparison.OrdinalIgnoreCase);
     }
 
     private string ResolveViewMode()
