@@ -12,6 +12,32 @@
     <strong>Command Focus:</strong> @Model.DashboardCommandFocusSummary
 </section>
 
+@* SECTION: Active sprint operational health metrics. *@
+<section class="at-panel at-active-sprint-dashboard">
+    <div class="at-panel-heading">
+        <div>
+            <h2>Active Sprint Health</h2>
+            @if (!string.IsNullOrWhiteSpace(Model.ActiveSprintMetrics.ActiveSprintName))
+            {
+                <p class="at-panel-note">@Model.ActiveSprintMetrics.ActiveSprintName · @Model.ActiveSprintMetrics.ActiveSprintDateRange</p>
+            }
+            else
+            {
+                <p class="at-panel-note">No active sprint is currently set.</p>
+            }
+        </div>
+    </div>
+    <div class="at-sprint-health-grid" aria-label="Active sprint health metrics">
+        <article><h3>Total in active sprint</h3><strong>@Model.ActiveSprintMetrics.TotalTasks</strong></article>
+        <article><h3>Completed</h3><strong>@Model.ActiveSprintMetrics.CompletedTasks</strong></article>
+        <article><h3>In progress</h3><strong>@Model.ActiveSprintMetrics.InProgressTasks</strong></article>
+        <article><h3>Blocked</h3><strong>@Model.ActiveSprintMetrics.BlockedTasks</strong></article>
+        <article><h3>Overdue in sprint</h3><strong>@Model.ActiveSprintMetrics.OverdueTasks</strong></article>
+        <article><h3>Backlog</h3><strong>@Model.ActiveSprintMetrics.BacklogTasks</strong></article>
+        <article><h3>Carry-forward candidates</h3><strong>@Model.ActiveSprintMetrics.CarryForwardCandidateTasks</strong></article>
+    </div>
+</section>
+
 @* SECTION: Attention-required panels with compact task rows. *@
 <section class="at-section-group">
     <h2 class="at-section-title">Attention Required</h2>

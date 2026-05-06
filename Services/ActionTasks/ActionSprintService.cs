@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -133,6 +135,12 @@ public class ActionSprintService
         _workflow.EnsureCanClose(sprint);
         ApplySprintRowVersion(sprint, rowVersion);
 
+        var unfinishedTaskCount = await CountUnfinishedSprintTasksAsync(sprint.Id, cancellationToken);
+        if (unfinishedTaskCount > 0)
+        {
+            throw new InvalidOperationException("Sprint contains unfinished tasks. Use the closure review to move unfinished tasks to the next sprint or backlog before closing.");
+        }
+
         var performedAt = DateTime.UtcNow;
         var oldStatus = sprint.Status.ToString();
 
@@ -143,6 +151,85 @@ public class ActionSprintService
         sprint.UpdatedAtUtc = performedAt;
 
         AddSprintAudit(sprint.Id, "SprintClosed", userId, role, performedAt, oldStatus, sprint.Status.ToString(), $"Closed sprint: {sprint.Name}");
+        await SaveSprintChangesAsync(cancellationToken);
+        return sprint;
+    }
+
+    public async Task<ActionSprint> CloseSprintWithDispositionAsync(int sprintId, byte[] rowVersion, IReadOnlyCollection<int> carryForwardTaskIds, int? targetSprintId, IReadOnlyCollection<int> backlogTaskIds, string remarks, string userId, string role, CancellationToken cancellationToken = default)
+    {
+        EnsureCanCloseSprint(role);
+        EnsureSprintRowVersionSupplied(rowVersion);
+        if (string.IsNullOrWhiteSpace(remarks))
+        {
+            throw new InvalidOperationException("Closure remarks are required when closing a sprint through closure review.");
+        }
+
+        var carryIds = (carryForwardTaskIds ?? Array.Empty<int>()).Distinct().ToList();
+        var backIds = (backlogTaskIds ?? Array.Empty<int>()).Distinct().ToList();
+        var duplicateDispositionIds = carryIds.Intersect(backIds).ToList();
+        if (duplicateDispositionIds.Count > 0)
+        {
+            throw new InvalidOperationException("Each unfinished task can have only one closure disposition.");
+        }
+
+        var sprint = await GetSprintForUpdateAsync(sprintId, cancellationToken);
+        _workflow.EnsureCanClose(sprint);
+        ApplySprintRowVersion(sprint, rowVersion);
+
+        ActionSprint? targetSprint = null;
+        if (carryIds.Count > 0)
+        {
+            if (!targetSprintId.HasValue)
+            {
+                throw new InvalidOperationException("Select a target sprint for carry-forward tasks.");
+            }
+
+            targetSprint = await GetSprintForUpdateAsync(targetSprintId.Value, cancellationToken);
+            _workflow.EnsureCanCarryForward(sprint, targetSprint);
+        }
+
+        var unfinishedTasks = await _context.ActionTasks
+            .Where(t => !t.IsDeleted && t.SprintId == sprint.Id && t.Status != ActionTaskStatuses.Closed)
+            .OrderBy(t => t.Id)
+            .ToListAsync(cancellationToken);
+
+        var dispositionedIds = carryIds.Concat(backIds).Distinct().ToHashSet();
+        var missingDispositionIds = unfinishedTasks.Select(t => t.Id).Where(id => !dispositionedIds.Contains(id)).ToList();
+        if (missingDispositionIds.Count > 0)
+        {
+            throw new InvalidOperationException("All unfinished tasks must be moved to the next sprint or backlog before the sprint can close.");
+        }
+
+        var invalidDispositionIds = dispositionedIds.Except(unfinishedTasks.Select(t => t.Id)).ToList();
+        if (invalidDispositionIds.Count > 0)
+        {
+            throw new InvalidOperationException("Closure disposition includes tasks that are not unfinished tasks in this sprint.");
+        }
+
+        var performedAt = DateTime.UtcNow;
+        foreach (var task in unfinishedTasks.Where(t => carryIds.Contains(t.Id)))
+        {
+            var oldValue = task.SprintId?.ToString();
+            task.SprintId = targetSprint!.Id;
+            AddTaskSprintAudit(task.Id, "TaskCarriedForward", userId, role, oldValue, targetSprint.Id.ToString(), $"Carried forward from sprint {sprint.Name} to {targetSprint.Name}. Closure remarks: {remarks.Trim()}", performedAt);
+        }
+
+        foreach (var task in unfinishedTasks.Where(t => backIds.Contains(t.Id)))
+        {
+            var oldValue = task.SprintId?.ToString();
+            task.SprintId = null;
+            AddTaskSprintAudit(task.Id, "TaskRemovedFromSprint", userId, role, oldValue, null, $"Moved from sprint {sprint.Name} to backlog during closure. Closure remarks: {remarks.Trim()}", performedAt);
+        }
+
+        var oldStatus = sprint.Status.ToString();
+        sprint.Status = ActionSprintStatus.Closed;
+        sprint.ClosedAtUtc = performedAt;
+        sprint.UpdatedByUserId = userId;
+        sprint.UpdatedByRole = role;
+        sprint.UpdatedAtUtc = performedAt;
+
+        var detail = $"Closed sprint: {sprint.Name}. Carried forward: {carryIds.Count}. Moved to backlog: {backIds.Count}. Remarks: {remarks.Trim()}";
+        AddSprintAudit(sprint.Id, "SprintClosed", userId, role, performedAt, oldStatus, sprint.Status.ToString(), detail);
         await SaveSprintChangesAsync(cancellationToken);
         return sprint;
     }
@@ -181,6 +268,7 @@ public class ActionSprintService
 
         var oldValue = task.SprintId?.ToString();
         task.SprintId = null;
+        AddTaskSprintAudit(task.Id, "TaskRemovedFromSprint", userId, role, oldValue, null, "Removed from sprint and moved to backlog.");
         AddTaskSprintAudit(task.Id, "TaskMovedToBacklog", userId, role, oldValue, null, "Moved to backlog.");
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -188,6 +276,9 @@ public class ActionSprintService
     }
 
     // SECTION: Authorization helpers
+    private async Task<int> CountUnfinishedSprintTasksAsync(int sprintId, CancellationToken cancellationToken)
+        => await _context.ActionTasks.CountAsync(t => !t.IsDeleted && t.SprintId == sprintId && t.Status != ActionTaskStatuses.Closed, cancellationToken);
+
     private void EnsureCanCreateSprint(string role)
     {
         if (!_permission.CanCreateSprint(role))
@@ -280,7 +371,7 @@ public class ActionSprintService
     }
 
     // SECTION: Audit helpers
-    private void AddTaskSprintAudit(int taskId, string actionType, string userId, string role, string? oldValue, string? newValue, string remarks)
+    private void AddTaskSprintAudit(int taskId, string actionType, string userId, string role, string? oldValue, string? newValue, string remarks, DateTime? performedAt = null)
     {
         _context.ActionTaskAuditLogs.Add(new ActionTaskAuditLog
         {
@@ -288,7 +379,7 @@ public class ActionSprintService
             ActionType = actionType,
             PerformedByUserId = userId,
             PerformedByRole = role,
-            PerformedAt = DateTime.UtcNow,
+            PerformedAt = performedAt ?? DateTime.UtcNow,
             OldValue = oldValue,
             NewValue = newValue,
             Remarks = remarks

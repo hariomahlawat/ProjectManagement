@@ -155,6 +155,32 @@
         });
     }
 
+    // SECTION: Keep closure disposition choices mutually exclusive per task.
+    function initSprintClosureReview() {
+        const review = document.querySelector("[data-at-closure-review='true']");
+        if (!review) {
+            return;
+        }
+
+        review.addEventListener("change", (event) => {
+            const input = event.target;
+            if (!input || input.getAttribute("data-at-closure-choice") === null || !input.checked) {
+                return;
+            }
+
+            const row = input.closest(".at-closure-task-row");
+            if (!row) {
+                return;
+            }
+
+            row.querySelectorAll("input[data-at-closure-choice]").forEach((candidate) => {
+                if (candidate !== input) {
+                    candidate.checked = false;
+                }
+            });
+        });
+    }
+
 
     // SECTION: Sticky inspector action panel orchestration and keyboard behavior.
     function initInspectorActionPanels() {
@@ -217,6 +243,7 @@
         initStatusUpdateGuard();
         initTaskRegisterFilters();
         initSprintSelector();
+        initSprintClosureReview();
         initInspectorActionPanels();
     });
 })();
