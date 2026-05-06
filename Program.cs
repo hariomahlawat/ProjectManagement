@@ -384,6 +384,8 @@ builder.Services.AddHostedService<UserPurgeWorker>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddScoped<ITodoService, TodoService>();
 builder.Services.AddScoped<ActionTaskPermissionService>();
+builder.Services.AddScoped<ActionTaskQueryService>();
+builder.Services.AddScoped<ActionTaskWorkflowPolicy>();
 builder.Services.AddScoped<IActionTaskService, ActionTaskService>();
 builder.Services.AddScoped<IActionTaskCollaborationService, ActionTaskCollaborationService>();
 builder.Services.Configure<TodoOptions>(
