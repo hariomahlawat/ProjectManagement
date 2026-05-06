@@ -80,30 +80,57 @@ namespace ProjectManagement.Migrations
                 return;
             }
 
-            migrationBuilder.CreateTable(
-                name: "ActionTasks",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", Npgsql.EntityFrameworkCore.PostgreSQL.Metadata.NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    Description = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
-                    CreatedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
-                    AssignedToUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
-                    CreatedByRole = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    AssignedToRole = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    AssignedOn = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    DueDate = table.Column<DateTime>(type: "date", nullable: false),
-                    Priority = table.Column<string>(type: "character varying(24)", maxLength: 24, nullable: false),
-                    Status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    SubmittedOn = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    ClosedOn = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ActionTasks", x => x.Id);
-                });
+            // SECTION: SQLite idempotent prerequisite reconciliation
+            if (ActiveProvider.Contains("Sqlite", StringComparison.OrdinalIgnoreCase))
+            {
+                migrationBuilder.Sql(
+                    """
+                    CREATE TABLE IF NOT EXISTS "ActionTasks" (
+                        "Id" INTEGER NOT NULL CONSTRAINT "PK_ActionTasks" PRIMARY KEY AUTOINCREMENT,
+                        "Title" character varying(200) NOT NULL,
+                        "Description" character varying(4000) NOT NULL,
+                        "CreatedByUserId" character varying(450) NOT NULL,
+                        "AssignedToUserId" character varying(450) NOT NULL,
+                        "CreatedByRole" character varying(64) NOT NULL,
+                        "AssignedToRole" character varying(64) NOT NULL,
+                        "AssignedOn" timestamp with time zone NOT NULL,
+                        "DueDate" date NOT NULL,
+                        "Priority" character varying(24) NOT NULL,
+                        "Status" character varying(32) NOT NULL,
+                        "SubmittedOn" timestamp with time zone NULL,
+                        "ClosedOn" timestamp with time zone NULL,
+                        "IsDeleted" boolean NOT NULL DEFAULT 0
+                    );
+                    """);
+            }
+            else
+            {
+                // SECTION: Provider-neutral ActionTasks creation for providers without idempotent DDL
+                migrationBuilder.CreateTable(
+                    name: "ActionTasks",
+                    columns: table => new
+                    {
+                        Id = table.Column<int>(type: "integer", nullable: false)
+                            .Annotation("Npgsql:ValueGenerationStrategy", Npgsql.EntityFrameworkCore.PostgreSQL.Metadata.NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                        Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                        Description = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
+                        CreatedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                        AssignedToUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                        CreatedByRole = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                        AssignedToRole = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                        AssignedOn = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                        DueDate = table.Column<DateTime>(type: "date", nullable: false),
+                        Priority = table.Column<string>(type: "character varying(24)", maxLength: 24, nullable: false),
+                        Status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                        SubmittedOn = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                        ClosedOn = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                        IsDeleted = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false)
+                    },
+                    constraints: table =>
+                    {
+                        table.PrimaryKey("PK_ActionTasks", x => x.Id);
+                    });
+            }
 
             migrationBuilder.CreateTable(
                 name: "ActionTaskAuditLogs",
