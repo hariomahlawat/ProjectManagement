@@ -1,5 +1,14 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
+@{
+    // SECTION: Inspector actions preserve the active Planning Board tab, alternate view, and Planning Window route state.
+    var planningTabRouteValue = Model.IsPlanningView ? Model.ResolvedPlanningTab : null;
+    var planningViewRouteValue = Model.IsPlanningView && !string.Equals(Model.ResolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase)
+        ? Model.ResolvedPlanningView
+        : null;
+    var selectedSprintRouteValue = Model.IsPlanningView ? Model.SelectedSprintId : null;
+}
+
 @* SECTION: Right-side task inspector drawer content. *@
 <section id="task-details" class="at-panel at-task-details-panel" tabindex="-1">
     @* SECTION: Inspector shell organizes fixed header, scrollable body, and sticky action rail. *@
@@ -24,7 +33,7 @@
                     </div>
                 }
             </div>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="@Model.ResolvedViewMode" asp-route-SelectedSprintId="@Model.SelectedSprintId" asp-route-PlanningView="@Model.ResolvedPlanningView" class="btn btn-light btn-sm at-inspector-close" aria-label="Close inspector"><i class="bi bi-x-lg" aria-hidden="true"></i></a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="@Model.ResolvedViewMode" asp-route-SelectedSprintId="@selectedSprintRouteValue" asp-route-PlanningTab="@planningTabRouteValue" asp-route-PlanningView="@planningViewRouteValue" class="btn btn-light btn-sm at-inspector-close" aria-label="Close inspector"><i class="bi bi-x-lg" aria-hidden="true"></i></a>
         </header>
 
         @if (Model.SelectedTask is not null)
@@ -138,6 +147,7 @@
                             <input type="hidden" asp-for="UpdateInput.TaskId" value="@Model.SelectedTask.Id" />
                             <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                             <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                            <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />
                             <input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" />
                             <div class="at-action-title">Add Update</div>
                             <div class="mb-2">
@@ -163,6 +173,7 @@
                             <form method="post" asp-page-handler="UpdateStatus" class="at-action-card at-action-card-compact">
                                 <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                                 <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />
                                 <input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" />
                                 <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
@@ -203,6 +214,7 @@
                             <form method="post" asp-page-handler="Submit" class="at-action-card at-action-card-compact">
                                 <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                                 <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />
                                 <input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" />
                                 <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
@@ -227,6 +239,7 @@
                             <form method="post" asp-page-handler="Close" class="at-action-card at-action-card-compact">
                                 <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                                 <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />
                                 <input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" />
                                 <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
