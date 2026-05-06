@@ -5,14 +5,7 @@
     ViewData["UseFullWidth"] = true;
 
     // SECTION: Planning Board view-state normalization keeps Kanban out of primary navigation.
-    var requestedPlanningView = (Context.Request.Query["PlanningView"].ToString() ?? string.Empty).Trim();
-    var resolvedPlanningView = requestedPlanningView switch
-    {
-        var value when string.Equals(value, "DueExceptions", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
-        var value when string.Equals(value, "Due / exceptions", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
-        var value when string.Equals(value, "Kanban", StringComparison.OrdinalIgnoreCase) => "Kanban",
-        _ => "Default"
-    };
+    var resolvedPlanningView = Model.ResolvedPlanningView;
     var isDefaultPlanningView = string.Equals(resolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase);
     var isDueExceptionsPlanningView = string.Equals(resolvedPlanningView, "DueExceptions", StringComparison.OrdinalIgnoreCase);
     var isKanbanPlanningView = string.Equals(resolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase);

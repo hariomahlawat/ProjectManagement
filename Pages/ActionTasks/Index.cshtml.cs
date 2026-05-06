@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Models;
 using ProjectManagement.Services.ActionTasks;
@@ -83,6 +84,9 @@ public class IndexModel : PageModel
     public int? SelectedSprintId { get; set; }
 
     [BindProperty(SupportsGet = true)]
+    public string? PlanningView { get; set; }
+
+    [BindProperty(SupportsGet = true)]
     public string? FilterStatus { get; set; }
 
     [BindProperty(SupportsGet = true)]
@@ -130,6 +134,7 @@ public class IndexModel : PageModel
     public bool CanCreate => _permission.CanCreate(CurrentRole);
     public bool CanClose => _permission.CanClose(CurrentRole);
     public string ResolvedViewMode => ResolveViewMode();
+    public string ResolvedPlanningView => ResolvePlanningView();
     public bool IsCommandCentreView => string.Equals(ResolvedViewMode, "CommandCentre", StringComparison.OrdinalIgnoreCase);
     public bool IsPlanningView => string.Equals(ResolvedViewMode, "Planning", StringComparison.OrdinalIgnoreCase);
     public bool IsMyWorkView => string.Equals(ResolvedViewMode, "MyWork", StringComparison.OrdinalIgnoreCase);
@@ -541,7 +546,7 @@ public class IndexModel : PageModel
             TempData["ToastError"] = ex.Message;
         }
 
-        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
+        return RedirectToTaskPage(id, SelectedSprintId);
     }
 
     // SECTION: Close task by command role
@@ -562,7 +567,7 @@ public class IndexModel : PageModel
             TempData["ToastError"] = ex.Message;
         }
 
-        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
+        return RedirectToTaskPage(id, SelectedSprintId);
     }
 
     // SECTION: Update in-flight status
@@ -576,14 +581,14 @@ public class IndexModel : PageModel
             if (task is null)
             {
                 TempData["ToastError"] = "Task not found.";
-                return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
+                return RedirectToTaskPage(id, SelectedSprintId);
             }
 
             // SECTION: Preserve permission enforcement even for status no-op submissions.
             if (!_permission.CanUpdateTask(CurrentRole, CurrentUserId, task.AssignedToUserId))
             {
                 TempData["ToastError"] = "You are not authorized to update this task.";
-                return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
+                return RedirectToTaskPage(id, SelectedSprintId);
             }
 
             // SECTION: Keep no-op handling for user-friendly messaging after permission validation.
@@ -591,7 +596,7 @@ public class IndexModel : PageModel
             if (!string.IsNullOrWhiteSpace(noOpMessage))
             {
                 TempData["ToastMessage"] = noOpMessage;
-                return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
+                return RedirectToTaskPage(id, SelectedSprintId);
             }
 
             await _service.UpdateStatusAsync(id, DecodeRowVersion(rowVersion), status, CurrentUserId, CurrentRole, remarks);
@@ -606,7 +611,7 @@ public class IndexModel : PageModel
             TempData["ToastError"] = ex.Message;
         }
 
-        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
+        return RedirectToTaskPage(id, SelectedSprintId);
     }
 
     // SECTION: Assign backlog or visible task into an available sprint.
@@ -624,7 +629,7 @@ public class IndexModel : PageModel
             TempData["ToastError"] = ex.Message;
         }
 
-        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId = sprintId });
+        return RedirectToTaskPage(id, sprintId);
     }
 
     // SECTION: Move a sprint task back to backlog without altering task lifecycle state.
@@ -642,7 +647,7 @@ public class IndexModel : PageModel
             TempData["ToastError"] = ex.Message;
         }
 
-        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
+        return RedirectToTaskPage(id, SelectedSprintId);
     }
 
     // SECTION: Close active sprint after explicit closure review disposition.
@@ -688,7 +693,7 @@ public class IndexModel : PageModel
         if (!ModelState.IsValid)
         {
             TempData["ToastError"] = "Unable to post update. Please check the entered details and try again.";
-            return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = UpdateInput.TaskId, SelectedSprintId });
+            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
         }
 
         try
@@ -706,7 +711,7 @@ public class IndexModel : PageModel
                 : ex.Message;
         }
 
-        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = UpdateInput.TaskId, SelectedSprintId });
+        return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
     }
 
     // SECTION: Shared data loading
@@ -1285,6 +1290,37 @@ public class IndexModel : PageModel
         {
             throw new InvalidOperationException("Sprint version is invalid. Please reload and try again.");
         }
+    }
+
+    // SECTION: Planning Board sub-view normalization keeps secondary view state safe across links and postbacks.
+    private string ResolvePlanningView()
+    {
+        var normalized = (PlanningView ?? string.Empty).Trim();
+        return normalized switch
+        {
+            _ when string.Equals(normalized, "DueExceptions", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
+            _ when string.Equals(normalized, "Due / exceptions", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
+            _ when string.Equals(normalized, "Kanban", StringComparison.OrdinalIgnoreCase) => "Kanban",
+            _ => "Default"
+        };
+    }
+
+    // SECTION: Shared task redirect route preserves Planning Board sub-view state from inspector actions.
+    private RedirectToPageResult RedirectToTaskPage(int? taskId, int? selectedSprintId)
+    {
+        var routeValues = new RouteValueDictionary
+        {
+            [nameof(ViewMode)] = ResolveViewMode(),
+            [nameof(TaskId)] = taskId,
+            [nameof(SelectedSprintId)] = selectedSprintId
+        };
+
+        if (IsPlanningView && !string.Equals(ResolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase))
+        {
+            routeValues[nameof(PlanningView)] = ResolvedPlanningView;
+        }
+
+        return RedirectToPage(routeValues);
     }
 
     private string ResolveViewMode()

@@ -2,7 +2,7 @@
 
 @{
     // SECTION: Kanban is scoped to the Planning Board view toggle and is not a primary navigation mode.
-    var isKanbanPlanningView = string.Equals(Context.Request.Query["PlanningView"].ToString(), "Kanban", StringComparison.OrdinalIgnoreCase);
+    var isKanbanPlanningView = string.Equals(Model.ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase);
     var kanbanColumns = new[]
     {
         (Title: "Assigned", Tasks: Model.KanbanAssignedTaskDisplays, EmptyMessage: "No assigned tasks."),

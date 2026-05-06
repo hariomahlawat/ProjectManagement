@@ -66,6 +66,51 @@ public class ActionTaskPageTests
     }
 
     [Fact]
+    public async Task PlanningKanban_StatusNoOpRedirect_PreservesPlanningView()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var page = setup.Page;
+        var task = await setup.Db.ActionTasks.SingleAsync();
+        var sprint = AddSprint(setup.Db, "Kanban Sprint", ActionSprintStatus.Active);
+        task.SprintId = sprint.Id;
+        await setup.Db.SaveChangesAsync();
+        page.ViewMode = "Planning";
+        page.PlanningView = "Kanban";
+        page.SelectedSprintId = sprint.Id;
+
+        // SECTION: Act
+        var result = await page.OnPostUpdateStatusAsync(task.Id, Convert.ToBase64String(task.RowVersion), task.Status, "No status change");
+
+        // SECTION: Assert
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal("Planning", redirect.RouteValues![nameof(IndexModel.ViewMode)]);
+        Assert.Equal("Kanban", redirect.RouteValues[nameof(IndexModel.PlanningView)]);
+        Assert.Equal(sprint.Id, redirect.RouteValues[nameof(IndexModel.SelectedSprintId)]);
+        Assert.Equal(task.Id, redirect.RouteValues[nameof(IndexModel.TaskId)]);
+    }
+
+    [Fact]
+    public async Task TaskDetailsPartial_KanbanInspectorFormsCarryPlanningView()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var page = setup.Page;
+        var task = await setup.Db.ActionTasks.SingleAsync();
+        page.ViewMode = "Planning";
+        page.PlanningView = "Kanban";
+        page.TaskId = task.Id;
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("name=\"PlanningView\" value=\"Kanban\"", html, StringComparison.Ordinal);
+        Assert.Contains("PlanningView=Kanban", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task TaskList_SelectedTaskLoadsWhenFilteredOutOfRegister()
     {
         // SECTION: Arrange
