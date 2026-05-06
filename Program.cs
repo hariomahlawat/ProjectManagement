@@ -220,7 +220,7 @@ builder.Services.AddAuthorization(options =>
 
     // SECTION: Action tracker authorization policy
     options.AddPolicy("ActionTracker.Access", policy =>
-        policy.RequireRole(RoleNames.Comdt, RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.Mco, RoleNames.Ta));
+        policy.RequireRole(RoleNames.Comdt, RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.Mco, RoleNames.Ta, RoleNames.Ito));
 
 
 });

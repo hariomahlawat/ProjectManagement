@@ -63,7 +63,7 @@ public class ActionSprintServiceTests
 
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.UpdateSprintAsync(sprint.Id, "Updated", "Goal", DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddDays(7), "actor", RoleNames.ProjectOfficer));
+            service.UpdateSprintAsync(sprint.Id, sprint.RowVersion, "Updated", "Goal", DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddDays(7), "actor", RoleNames.ProjectOfficer));
         Assert.Contains("not authorized", ex.Message.ToLowerInvariant());
     }
 
@@ -76,7 +76,7 @@ public class ActionSprintServiceTests
         var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.HoD);
 
         // SECTION: Act
-        var active = await service.ActivateSprintAsync(sprint.Id, "planner", RoleNames.HoD);
+        var active = await service.ActivateSprintAsync(sprint.Id, sprint.RowVersion, "planner", RoleNames.HoD);
 
         // SECTION: Assert
         Assert.Equal(ActionSprintStatus.Active, active.Status);
@@ -94,7 +94,7 @@ public class ActionSprintServiceTests
 
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.ActivateSprintAsync(sprint.Id, "actor", RoleNames.ProjectOfficer));
+            service.ActivateSprintAsync(sprint.Id, sprint.RowVersion, "actor", RoleNames.ProjectOfficer));
         Assert.Contains("not authorized", ex.Message.ToLowerInvariant());
     }
 
@@ -106,11 +106,11 @@ public class ActionSprintServiceTests
         var service = CreateService(db);
         var first = await service.CreateSprintAsync(NewSprint("Sprint 1"), "planner", RoleNames.Comdt);
         var second = await service.CreateSprintAsync(NewSprint("Sprint 2"), "planner", RoleNames.Comdt);
-        await service.ActivateSprintAsync(first.Id, "planner", RoleNames.Comdt);
+        await service.ActivateSprintAsync(first.Id, first.RowVersion, "planner", RoleNames.Comdt);
 
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.ActivateSprintAsync(second.Id, "planner", RoleNames.Comdt));
+            service.ActivateSprintAsync(second.Id, second.RowVersion, "planner", RoleNames.Comdt));
         Assert.Contains("Only one active sprint", ex.Message);
     }
 
@@ -121,10 +121,10 @@ public class ActionSprintServiceTests
         await using var db = CreateDb();
         var service = CreateService(db);
         var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.HoD);
-        await service.ActivateSprintAsync(sprint.Id, "planner", RoleNames.HoD);
+        await service.ActivateSprintAsync(sprint.Id, sprint.RowVersion, "planner", RoleNames.HoD);
 
         // SECTION: Act
-        var closed = await service.CloseSprintAsync(sprint.Id, "planner", RoleNames.HoD);
+        var closed = await service.CloseSprintAsync(sprint.Id, sprint.RowVersion, "planner", RoleNames.HoD);
 
         // SECTION: Assert
         Assert.Equal(ActionSprintStatus.Closed, closed.Status);
@@ -139,11 +139,11 @@ public class ActionSprintServiceTests
         await using var db = CreateDb();
         var service = CreateService(db);
         var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.Comdt);
-        await service.ActivateSprintAsync(sprint.Id, "planner", RoleNames.Comdt);
+        await service.ActivateSprintAsync(sprint.Id, sprint.RowVersion, "planner", RoleNames.Comdt);
 
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.CloseSprintAsync(sprint.Id, "actor", RoleNames.ProjectOfficer));
+            service.CloseSprintAsync(sprint.Id, sprint.RowVersion, "actor", RoleNames.ProjectOfficer));
         Assert.Contains("not authorized", ex.Message.ToLowerInvariant());
     }
 
@@ -156,11 +156,58 @@ public class ActionSprintServiceTests
         var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.Comdt);
 
         // SECTION: Act
-        var updated = await service.UpdateSprintAsync(sprint.Id, "Updated Sprint", "Updated goal", DateTime.UtcNow.Date.AddDays(1), DateTime.UtcNow.Date.AddDays(8), "planner", RoleNames.Comdt);
+        var updated = await service.UpdateSprintAsync(sprint.Id, sprint.RowVersion, "Updated Sprint", "Updated goal", DateTime.UtcNow.Date.AddDays(1), DateTime.UtcNow.Date.AddDays(8), "planner", RoleNames.Comdt);
 
         // SECTION: Assert
         Assert.Equal("Updated Sprint", updated.Name);
         Assert.Contains(await db.ActionSprintAuditLogs.ToListAsync(), x => x.SprintId == sprint.Id && x.ActionType == "SprintUpdated" && x.OldValue != null && x.NewValue != null);
+    }
+
+    [Fact]
+    public async Task UpdateSprintAsync_WithoutRowVersion_RejectsRequest()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.Comdt);
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateSprintAsync(sprint.Id, Array.Empty<byte>(), "Updated", "Goal", DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddDays(7), "planner", RoleNames.Comdt));
+        Assert.Contains("row version", ex.Message.ToLowerInvariant());
+    }
+
+    [Fact]
+    public async Task UpdateSprintAsync_WithStaleRowVersion_RaisesConcurrencyConflict()
+    {
+        // SECTION: Arrange
+        var databaseName = Guid.NewGuid().ToString();
+        var databaseRoot = new InMemoryDatabaseRoot();
+        byte[] staleRowVersion;
+        int sprintId;
+
+        await using (var setupDb = CreateDb(databaseName, databaseRoot))
+        {
+            var setupService = CreateService(setupDb);
+            var sprint = await setupService.CreateSprintAsync(NewSprint(), "planner", RoleNames.Comdt);
+            staleRowVersion = sprint.RowVersion.ToArray();
+            sprintId = sprint.Id;
+        }
+
+        await using (var currentDb = CreateDb(databaseName, databaseRoot))
+        {
+            var currentService = CreateService(currentDb);
+            var currentSprint = await currentDb.ActionSprints.SingleAsync(x => x.Id == sprintId);
+            await currentService.UpdateSprintAsync(currentSprint.Id, currentSprint.RowVersion, "Current Sprint", "Current goal", DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddDays(7), "planner", RoleNames.Comdt);
+        }
+
+        await using var staleDb = CreateDb(databaseName, databaseRoot);
+        var staleService = CreateService(staleDb);
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<ActionTaskConcurrencyException>(() =>
+            staleService.UpdateSprintAsync(sprintId, staleRowVersion, "Stale Sprint", "Stale goal", DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddDays(7), "planner", RoleNames.Comdt));
+        Assert.Contains("updated by another user", ex.Message);
     }
 
     [Fact]
@@ -170,8 +217,8 @@ public class ActionSprintServiceTests
         await using var db = CreateDb();
         var service = CreateService(db);
         var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.Comdt);
-        await service.ActivateSprintAsync(sprint.Id, "planner", RoleNames.Comdt);
-        await service.CloseSprintAsync(sprint.Id, "planner", RoleNames.Comdt);
+        await service.ActivateSprintAsync(sprint.Id, sprint.RowVersion, "planner", RoleNames.Comdt);
+        await service.CloseSprintAsync(sprint.Id, sprint.RowVersion, "planner", RoleNames.Comdt);
         var task = await SeedTaskAsync(db);
 
         // SECTION: Act + Assert

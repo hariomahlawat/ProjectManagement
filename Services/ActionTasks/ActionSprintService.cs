@@ -45,13 +45,16 @@ public class ActionSprintService
         return sprint;
     }
 
-    public async Task<ActionSprint> UpdateSprintAsync(int sprintId, string name, string? goal, DateTime startDate, DateTime endDate, string userId, string role, CancellationToken cancellationToken = default)
+    public async Task<ActionSprint> UpdateSprintAsync(int sprintId, byte[] rowVersion, string name, string? goal, DateTime startDate, DateTime endDate, string userId, string role, CancellationToken cancellationToken = default)
     {
         EnsureCanEditSprint(role);
         _workflow.ValidateDateRange(startDate, endDate);
 
+        EnsureSprintRowVersionSupplied(rowVersion);
+
         var sprint = await GetSprintForUpdateAsync(sprintId, cancellationToken);
         _workflow.EnsureCanUpdate(sprint);
+        ApplySprintRowVersion(sprint, rowVersion);
 
         var performedAt = DateTime.UtcNow;
         var oldValue = DescribeSprint(sprint);
@@ -65,16 +68,19 @@ public class ActionSprintService
         sprint.UpdatedAtUtc = performedAt;
 
         AddSprintAudit(sprint.Id, "SprintUpdated", userId, role, performedAt, oldValue, DescribeSprint(sprint), $"Updated sprint: {sprint.Name}");
-        await _context.SaveChangesAsync(cancellationToken);
+        await SaveSprintChangesAsync(cancellationToken);
         return sprint;
     }
 
-    public async Task<ActionSprint> ActivateSprintAsync(int sprintId, string userId, string role, CancellationToken cancellationToken = default)
+    public async Task<ActionSprint> ActivateSprintAsync(int sprintId, byte[] rowVersion, string userId, string role, CancellationToken cancellationToken = default)
     {
         EnsureCanActivateSprint(role);
 
+        EnsureSprintRowVersionSupplied(rowVersion);
+
         var sprint = await GetSprintForUpdateAsync(sprintId, cancellationToken);
         _workflow.EnsureCanActivate(sprint);
+        ApplySprintRowVersion(sprint, rowVersion);
         _workflow.ValidateDateRange(sprint.StartDate, sprint.EndDate);
 
         var activeSprintExists = await _context.ActionSprints
@@ -94,16 +100,19 @@ public class ActionSprintService
         sprint.UpdatedAtUtc = performedAt;
 
         AddSprintAudit(sprint.Id, "SprintActivated", userId, role, performedAt, oldStatus, sprint.Status.ToString(), $"Activated sprint: {sprint.Name}");
-        await _context.SaveChangesAsync(cancellationToken);
+        await SaveSprintChangesAsync(cancellationToken);
         return sprint;
     }
 
-    public async Task<ActionSprint> CloseSprintAsync(int sprintId, string userId, string role, CancellationToken cancellationToken = default)
+    public async Task<ActionSprint> CloseSprintAsync(int sprintId, byte[] rowVersion, string userId, string role, CancellationToken cancellationToken = default)
     {
         EnsureCanCloseSprint(role);
 
+        EnsureSprintRowVersionSupplied(rowVersion);
+
         var sprint = await GetSprintForUpdateAsync(sprintId, cancellationToken);
         _workflow.EnsureCanClose(sprint);
+        ApplySprintRowVersion(sprint, rowVersion);
 
         var performedAt = DateTime.UtcNow;
         var oldStatus = sprint.Status.ToString();
@@ -115,7 +124,7 @@ public class ActionSprintService
         sprint.UpdatedAtUtc = performedAt;
 
         AddSprintAudit(sprint.Id, "SprintClosed", userId, role, performedAt, oldStatus, sprint.Status.ToString(), $"Closed sprint: {sprint.Name}");
-        await _context.SaveChangesAsync(cancellationToken);
+        await SaveSprintChangesAsync(cancellationToken);
         return sprint;
     }
 
@@ -222,6 +231,32 @@ public class ActionSprintService
         if (string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(message);
+        }
+    }
+
+    // SECTION: Sprint concurrency helpers
+    private static void EnsureSprintRowVersionSupplied(byte[] rowVersion)
+    {
+        if (rowVersion is not { Length: > 0 })
+        {
+            throw new InvalidOperationException("Sprint row version is required for this operation.");
+        }
+    }
+
+    private void ApplySprintRowVersion(ActionSprint sprint, byte[] rowVersion)
+    {
+        _context.Entry(sprint).Property(x => x.RowVersion).OriginalValue = rowVersion;
+    }
+
+    private async Task SaveSprintChangesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ActionTaskConcurrencyException("This sprint was updated by another user. Please reload the sprint details and try again.");
         }
     }
 
