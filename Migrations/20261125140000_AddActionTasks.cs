@@ -157,19 +157,33 @@ namespace ProjectManagement.Migrations
                 column: "IsDeleted");
         }
 
-        // SECTION: Revert Action Tracker schema
+        // SECTION: Revert Action Tracker audit log and indexes
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // SECTION: PostgreSQL idempotent schema revert
+            // SECTION: PostgreSQL idempotent schema revert without dropping prerequisite table
             if (ActiveProvider.Contains("Npgsql", StringComparison.OrdinalIgnoreCase))
             {
                 migrationBuilder.Sql("""DROP TABLE IF EXISTS "ActionTaskAuditLogs";""");
-                migrationBuilder.Sql("""DROP TABLE IF EXISTS "ActionTasks";""");
+                migrationBuilder.Sql("""DROP INDEX IF EXISTS "IX_ActionTasks_AssignedToUserId_Status";""");
+                migrationBuilder.Sql("""DROP INDEX IF EXISTS "IX_ActionTasks_DueDate_Status";""");
+                migrationBuilder.Sql("""DROP INDEX IF EXISTS "IX_ActionTasks_IsDeleted";""");
                 return;
             }
 
+            // SECTION: Provider-neutral schema revert without dropping prerequisite table
             migrationBuilder.DropTable(name: "ActionTaskAuditLogs");
-            migrationBuilder.DropTable(name: "ActionTasks");
+
+            migrationBuilder.DropIndex(
+                name: "IX_ActionTasks_AssignedToUserId_Status",
+                table: "ActionTasks");
+
+            migrationBuilder.DropIndex(
+                name: "IX_ActionTasks_DueDate_Status",
+                table: "ActionTasks");
+
+            migrationBuilder.DropIndex(
+                name: "IX_ActionTasks_IsDeleted",
+                table: "ActionTasks");
         }
     }
 }
