@@ -40,5 +40,10 @@ public class ActionSprint
 
     public bool IsDeleted { get; set; }
 
+    // SECTION: Optimistic concurrency token for sprint updates
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
+    // SECTION: Sprint relationships
     public ICollection<ActionTaskItem> Tasks { get; set; } = new List<ActionTaskItem>();
+    public ICollection<ActionSprintAuditLog> AuditLogs { get; set; } = new List<ActionSprintAuditLog>();
 }

@@ -26,28 +26,35 @@ public class ActionSprintService
     // SECTION: Sprint mutation APIs
     public async Task<ActionSprint> CreateSprintAsync(ActionSprint sprint, string userId, string role, CancellationToken cancellationToken = default)
     {
-        EnsureCanManageSprint(role);
+        EnsureCanCreateSprint(role);
         _workflow.ValidateDateRange(sprint.StartDate, sprint.EndDate);
 
+        var performedAt = DateTime.UtcNow;
         sprint.Status = ActionSprintStatus.Planned;
         sprint.CreatedByUserId = userId;
         sprint.CreatedByRole = role;
-        sprint.CreatedAtUtc = DateTime.UtcNow;
+        sprint.CreatedAtUtc = performedAt;
         sprint.StartDate = sprint.StartDate.Date;
         sprint.EndDate = sprint.EndDate.Date;
 
         _context.ActionSprints.Add(sprint);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        AddSprintAudit(sprint.Id, "SprintCreated", userId, role, performedAt, null, DescribeSprint(sprint), $"Created sprint: {sprint.Name}");
         await _context.SaveChangesAsync(cancellationToken);
         return sprint;
     }
 
     public async Task<ActionSprint> UpdateSprintAsync(int sprintId, string name, string? goal, DateTime startDate, DateTime endDate, string userId, string role, CancellationToken cancellationToken = default)
     {
-        EnsureCanManageSprint(role);
+        EnsureCanEditSprint(role);
         _workflow.ValidateDateRange(startDate, endDate);
 
         var sprint = await GetSprintForUpdateAsync(sprintId, cancellationToken);
         _workflow.EnsureCanUpdate(sprint);
+
+        var performedAt = DateTime.UtcNow;
+        var oldValue = DescribeSprint(sprint);
 
         sprint.Name = name;
         sprint.Goal = goal;
@@ -55,15 +62,16 @@ public class ActionSprintService
         sprint.EndDate = endDate.Date;
         sprint.UpdatedByUserId = userId;
         sprint.UpdatedByRole = role;
-        sprint.UpdatedAtUtc = DateTime.UtcNow;
+        sprint.UpdatedAtUtc = performedAt;
 
+        AddSprintAudit(sprint.Id, "SprintUpdated", userId, role, performedAt, oldValue, DescribeSprint(sprint), $"Updated sprint: {sprint.Name}");
         await _context.SaveChangesAsync(cancellationToken);
         return sprint;
     }
 
     public async Task<ActionSprint> ActivateSprintAsync(int sprintId, string userId, string role, CancellationToken cancellationToken = default)
     {
-        EnsureCanManageSprint(role);
+        EnsureCanActivateSprint(role);
 
         var sprint = await GetSprintForUpdateAsync(sprintId, cancellationToken);
         _workflow.EnsureCanActivate(sprint);
@@ -76,29 +84,37 @@ public class ActionSprintService
             throw new InvalidOperationException("Only one active sprint is allowed.");
         }
 
+        var performedAt = DateTime.UtcNow;
+        var oldStatus = sprint.Status.ToString();
+
         sprint.Status = ActionSprintStatus.Active;
-        sprint.ActivatedAtUtc = DateTime.UtcNow;
+        sprint.ActivatedAtUtc = performedAt;
         sprint.UpdatedByUserId = userId;
         sprint.UpdatedByRole = role;
-        sprint.UpdatedAtUtc = sprint.ActivatedAtUtc;
+        sprint.UpdatedAtUtc = performedAt;
 
+        AddSprintAudit(sprint.Id, "SprintActivated", userId, role, performedAt, oldStatus, sprint.Status.ToString(), $"Activated sprint: {sprint.Name}");
         await _context.SaveChangesAsync(cancellationToken);
         return sprint;
     }
 
     public async Task<ActionSprint> CloseSprintAsync(int sprintId, string userId, string role, CancellationToken cancellationToken = default)
     {
-        EnsureCanManageSprint(role);
+        EnsureCanCloseSprint(role);
 
         var sprint = await GetSprintForUpdateAsync(sprintId, cancellationToken);
         _workflow.EnsureCanClose(sprint);
 
+        var performedAt = DateTime.UtcNow;
+        var oldStatus = sprint.Status.ToString();
+
         sprint.Status = ActionSprintStatus.Closed;
-        sprint.ClosedAtUtc = DateTime.UtcNow;
+        sprint.ClosedAtUtc = performedAt;
         sprint.UpdatedByUserId = userId;
         sprint.UpdatedByRole = role;
-        sprint.UpdatedAtUtc = sprint.ClosedAtUtc;
+        sprint.UpdatedAtUtc = performedAt;
 
+        AddSprintAudit(sprint.Id, "SprintClosed", userId, role, performedAt, oldStatus, sprint.Status.ToString(), $"Closed sprint: {sprint.Name}");
         await _context.SaveChangesAsync(cancellationToken);
         return sprint;
     }
@@ -106,9 +122,11 @@ public class ActionSprintService
     // SECTION: Sprint task assignment APIs
     public async Task<ActionTaskItem> AssignTaskToSprintAsync(int taskId, int sprintId, string userId, string role, CancellationToken cancellationToken = default)
     {
-        EnsureCanMoveTasksInSprint(role);
+        EnsureCanAssignTaskToSprint(role);
 
         var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
+        EnsureTaskIsNotClosed(task, "Closed tasks cannot be assigned to a sprint.");
+
         var sprint = await GetSprintForUpdateAsync(sprintId, cancellationToken);
         _workflow.EnsureCanAcceptTask(sprint);
 
@@ -122,9 +140,11 @@ public class ActionSprintService
 
     public async Task<ActionTaskItem> MoveTaskToBacklogAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default)
     {
-        EnsureCanMoveTasksInSprint(role);
+        EnsureCanMoveTaskToBacklog(role);
 
         var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
+        EnsureTaskIsNotClosed(task, "Closed tasks cannot be moved between sprint and backlog.");
+
         if (task.SprintId.HasValue)
         {
             var currentSprint = await GetSprintForUpdateAsync(task.SprintId.Value, cancellationToken);
@@ -140,19 +160,51 @@ public class ActionSprintService
     }
 
     // SECTION: Authorization helpers
-    private void EnsureCanManageSprint(string role)
+    private void EnsureCanCreateSprint(string role)
     {
-        if (!_permission.CanManageSprints(role))
+        if (!_permission.CanCreateSprint(role))
         {
-            throw new InvalidOperationException("You are not authorized to manage sprints.");
+            throw new InvalidOperationException("You are not authorized to create sprints.");
         }
     }
 
-    private void EnsureCanMoveTasksInSprint(string role)
+    private void EnsureCanEditSprint(string role)
     {
-        if (!_permission.CanMoveTasksInSprint(role))
+        if (!_permission.CanEditSprint(role))
         {
-            throw new InvalidOperationException("You are not authorized to move tasks into or out of sprints.");
+            throw new InvalidOperationException("You are not authorized to update sprints.");
+        }
+    }
+
+    private void EnsureCanActivateSprint(string role)
+    {
+        if (!_permission.CanActivateSprint(role))
+        {
+            throw new InvalidOperationException("You are not authorized to activate sprints.");
+        }
+    }
+
+    private void EnsureCanCloseSprint(string role)
+    {
+        if (!_permission.CanCloseSprint(role))
+        {
+            throw new InvalidOperationException("You are not authorized to close sprints.");
+        }
+    }
+
+    private void EnsureCanAssignTaskToSprint(string role)
+    {
+        if (!_permission.CanAssignTaskToSprint(role))
+        {
+            throw new InvalidOperationException("You are not authorized to assign tasks to sprints.");
+        }
+    }
+
+    private void EnsureCanMoveTaskToBacklog(string role)
+    {
+        if (!_permission.CanMoveTaskToBacklog(role))
+        {
+            throw new InvalidOperationException("You are not authorized to move tasks to backlog.");
         }
     }
 
@@ -164,6 +216,14 @@ public class ActionSprintService
     private async Task<ActionTaskItem> GetTaskForUpdateAsync(int taskId, CancellationToken cancellationToken)
         => await _context.ActionTasks.FirstOrDefaultAsync(x => x.Id == taskId && !x.IsDeleted, cancellationToken)
             ?? throw new InvalidOperationException("Task not found.");
+
+    private static void EnsureTaskIsNotClosed(ActionTaskItem task, string message)
+    {
+        if (string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(message);
+        }
+    }
 
     // SECTION: Audit helpers
     private void AddTaskSprintAudit(int taskId, string actionType, string userId, string role, string? oldValue, string? newValue, string remarks)
@@ -180,4 +240,22 @@ public class ActionSprintService
             Remarks = remarks
         });
     }
+
+    private void AddSprintAudit(int sprintId, string actionType, string userId, string role, DateTime performedAt, string? oldValue, string? newValue, string remarks)
+    {
+        _context.ActionSprintAuditLogs.Add(new ActionSprintAuditLog
+        {
+            SprintId = sprintId,
+            ActionType = actionType,
+            PerformedByUserId = userId,
+            PerformedByRole = role,
+            PerformedAt = performedAt,
+            OldValue = oldValue,
+            NewValue = newValue,
+            Remarks = remarks
+        });
+    }
+
+    private static string DescribeSprint(ActionSprint sprint)
+        => $"Name={sprint.Name}; Goal={sprint.Goal}; StartDate={sprint.StartDate:yyyy-MM-dd}; EndDate={sprint.EndDate:yyyy-MM-dd}; Status={sprint.Status}";
 }
