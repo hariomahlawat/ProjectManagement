@@ -3,8 +3,20 @@
 @{
     ViewData["Title"] = "Task Tracker";
     ViewData["UseFullWidth"] = true;
-}
 
+    // SECTION: Planning Board view-state normalization keeps Kanban out of primary navigation.
+    var requestedPlanningView = (Context.Request.Query["PlanningView"].ToString() ?? string.Empty).Trim();
+    var resolvedPlanningView = requestedPlanningView switch
+    {
+        var value when string.Equals(value, "DueExceptions", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
+        var value when string.Equals(value, "Due / exceptions", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
+        var value when string.Equals(value, "Kanban", StringComparison.OrdinalIgnoreCase) => "Kanban",
+        _ => "Default"
+    };
+    var isDefaultPlanningView = string.Equals(resolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase);
+    var isDueExceptionsPlanningView = string.Equals(resolvedPlanningView, "DueExceptions", StringComparison.OrdinalIgnoreCase);
+    var isKanbanPlanningView = string.Equals(resolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase);
+}
 @section Styles {
     <link rel="stylesheet" href="~/css/action-tracker.css" asp-append-version="true" />
 }
@@ -50,7 +62,45 @@
         }
         else if (Model.IsPlanningView)
         {
-            <partial name="_TaskSprints" model="Model" />
+            @* SECTION: Planning Board secondary view toggle uses PlanningView query state instead of a top-level Kanban navigation mode. *@
+            <nav class="at-panel at-planning-view-toggle" aria-label="Planning Board view toggle">
+                <span class="at-section-eyebrow">Planning Board view</span>
+                <div class="btn-group" role="group" aria-label="Planning Board view options">
+                    <a asp-page="/ActionTasks/Index"
+                       asp-route-viewMode="Planning"
+                       asp-route-SelectedSprintId="@Model.SelectedSprintId"
+                       asp-route-taskId="@Model.TaskId"
+                       class="btn btn-sm @(isDefaultPlanningView ? "btn-primary" : "btn-outline-primary")"
+                       aria-current="@(isDefaultPlanningView ? "page" : null)">Default</a>
+                    <a asp-page="/ActionTasks/Index"
+                       asp-route-viewMode="Planning"
+                       asp-route-PlanningView="DueExceptions"
+                       asp-route-SelectedSprintId="@Model.SelectedSprintId"
+                       asp-route-taskId="@Model.TaskId"
+                       class="btn btn-sm @(isDueExceptionsPlanningView ? "btn-primary" : "btn-outline-primary")"
+                       aria-current="@(isDueExceptionsPlanningView ? "page" : null)">Due / exceptions</a>
+                    <a asp-page="/ActionTasks/Index"
+                       asp-route-viewMode="Planning"
+                       asp-route-PlanningView="Kanban"
+                       asp-route-SelectedSprintId="@Model.SelectedSprintId"
+                       asp-route-taskId="@Model.TaskId"
+                       class="btn btn-sm @(isKanbanPlanningView ? "btn-primary" : "btn-outline-primary")"
+                       aria-current="@(isKanbanPlanningView ? "page" : null)">Kanban</a>
+                </div>
+            </nav>
+
+            @if (isDueExceptionsPlanningView)
+            {
+                <partial name="_TaskSprintBoard" model="Model" />
+            }
+            else if (isKanbanPlanningView)
+            {
+                <partial name="_TaskKanban" model="Model" />
+            }
+            else
+            {
+                <partial name="_TaskSprints" model="Model" />
+            }
         }
         else if (Model.IsMyWorkView)
         {
