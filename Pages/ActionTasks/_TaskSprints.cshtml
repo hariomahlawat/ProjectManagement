@@ -7,7 +7,42 @@
     <section class="at-panel at-sprint-command-strip">
         @if (Model.SelectedSprint is null)
         {
-            <div class="at-empty-state">Select a sprint to view sprint command details.</div>
+            @* SECTION: First-sprint empty state keeps sprint creation independent of any selected sprint. *@
+            <div class="at-sprint-empty-command">
+                <div class="at-empty-state">
+                    @if (!Model.Sprints.Any())
+                    {
+                        <strong>No sprint has been created yet.</strong>
+                        <span>Create the first sprint to start planning task execution from this workspace.</span>
+                    }
+                    else
+                    {
+                        <strong>No sprint is selected.</strong>
+                        <span>Select an existing sprint, or create another sprint for a new planning window.</span>
+                    }
+                </div>
+                @if (Model.CanPlanSprints)
+                {
+                    <div class="at-sprint-action-row at-sprint-action-row-strip">
+                        <details class="at-sprint-form-disclosure" open="@Model.ShowCreateSprintPanel">
+                            <summary class="btn btn-primary btn-sm">Create Sprint</summary>
+                            <form method="post" asp-page-handler="CreateSprint" class="at-sprint-command-form">
+                                <input type="hidden" name="ViewMode" value="Sprints" />
+                                <div asp-validation-summary="All" class="text-danger small"></div>
+                                <label class="form-label" asp-for="SprintInput.Name"></label>
+                                <input class="form-control" asp-for="SprintInput.Name" maxlength="160" />
+                                <label class="form-label" asp-for="SprintInput.StartDate"></label>
+                                <input class="form-control" asp-for="SprintInput.StartDate" type="date" />
+                                <label class="form-label" asp-for="SprintInput.EndDate"></label>
+                                <input class="form-control" asp-for="SprintInput.EndDate" type="date" />
+                                <label class="form-label" asp-for="SprintInput.Goal"></label>
+                                <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this planning window"></textarea>
+                                <button type="submit" class="btn btn-primary btn-sm">Create Sprint</button>
+                            </form>
+                        </details>
+                    </div>
+                }
+            </div>
         }
         else
         {
@@ -38,7 +73,7 @@
                     @if (Model.CanPlanSprints)
                     {
                         <details class="at-sprint-form-disclosure" open="@Model.ShowCreateSprintPanel">
-                            <summary class="btn btn-primary btn-sm">Create</summary>
+                            <summary class="btn btn-primary btn-sm">Create Sprint</summary>
                             <form method="post" asp-page-handler="CreateSprint" class="at-sprint-command-form">
                                 <input type="hidden" name="ViewMode" value="Sprints" />
                                 <div asp-validation-summary="All" class="text-danger small"></div>
@@ -50,14 +85,14 @@
                                 <input class="form-control" asp-for="SprintInput.EndDate" type="date" />
                                 <label class="form-label" asp-for="SprintInput.Goal"></label>
                                 <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this planning window"></textarea>
-                                <button type="submit" class="btn btn-primary btn-sm">Create Planned Sprint</button>
+                                <button type="submit" class="btn btn-primary btn-sm">Create Sprint</button>
                             </form>
                         </details>
                     }
                     @if (Model.CanEditSelectedSprint)
                     {
                         <details class="at-sprint-form-disclosure" open="@Model.ShowEditSprintPanel">
-                            <summary class="btn btn-outline-primary btn-sm">Edit</summary>
+                            <summary class="btn btn-outline-primary btn-sm">Edit Sprint</summary>
                             <form method="post" asp-page-handler="UpdateSprint" class="at-sprint-command-form">
                                 <input type="hidden" name="ViewMode" value="Sprints" />
                                 <input type="hidden" asp-for="SprintEditInput.SprintId" value="@Model.SelectedSprint.Id" />
@@ -109,7 +144,7 @@
             </div>
             @if (!Model.Sprints.Any())
             {
-                <div class="at-empty-state at-empty-state-compact">No sprints are available yet.</div>
+                <div class="at-empty-state at-empty-state-compact">No sprint has been created yet. Use Create Sprint to create the first sprint.</div>
             }
             else
             {

@@ -448,7 +448,7 @@ public class ActionTaskPageTests
         await page.OnGetAsync();
 
         // SECTION: Act
-        var html = await RenderSprintClosureReviewAsync(page);
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_SprintClosureReview.cshtml");
 
         // SECTION: Assert
         var createFormStart = html.IndexOf("at-sprint-command-form", StringComparison.Ordinal);
@@ -458,6 +458,73 @@ public class ActionTaskPageTests
         Assert.True(createFormStart >= 0, "Create next sprint form should render.");
         Assert.True(closureFormStart >= 0, "Closure disposition form should render.");
         Assert.True(createFormStart < closureFormStart || createFormStart > closureFormEnd, "Create next sprint form must not be nested inside the closure disposition form.");
+    }
+
+
+    [Fact]
+    public async Task SprintsPartial_NoSprints_ExposesCreateSprintForAuthorisedUsers()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var page = setup.Page;
+        page.ViewMode = "Sprints";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskSprints.cshtml");
+
+        // SECTION: Assert
+        Assert.Null(page.SelectedSprint);
+        Assert.Contains("No sprint has been created yet", html, StringComparison.Ordinal);
+        Assert.Contains("Create Sprint", html, StringComparison.Ordinal);
+        Assert.Contains("handler=CreateSprint", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Select a sprint to view sprint command details.", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SprintsPartial_SelectedSprint_UsesExplicitSprintActionLabels()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.Comdt);
+        var sprint = AddSprint(setup.Db, "Command Sprint", ActionSprintStatus.Planned);
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Sprints";
+        page.SelectedSprintId = sprint.Id;
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskSprints.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("Create Sprint", html, StringComparison.Ordinal);
+        Assert.Contains("Edit Sprint", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Create</summary>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Edit</summary>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SprintsPartial_SelectedSprint_RendersSprintAndTaskBoard()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var sprint = AddSprint(setup.Db, "Execution Sprint", ActionSprintStatus.Active);
+        setup.Db.ActionTasks.Add(NewTask("Sprint board task", ActionTaskStatuses.InProgress, sprint.Id));
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Sprints";
+        page.SelectedSprintId = sprint.Id;
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskSprints.cshtml");
+
+        // SECTION: Assert
+        Assert.NotNull(page.SelectedSprint);
+        Assert.Contains("Execution Sprint", html, StringComparison.Ordinal);
+        Assert.Contains("Selected sprint task board", html, StringComparison.Ordinal);
+        Assert.Contains("Sprint board task", html, StringComparison.Ordinal);
+        Assert.Contains("at-board-grid is-sprints", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -503,9 +570,9 @@ public class ActionTaskPageTests
         Assert.Single(entityType.GetForeignKeys().Where(fk => fk.PrincipalEntityType.ClrType == typeof(ActionTaskItem)));
     }
 
-    private static async Task<string> RenderSprintClosureReviewAsync(IndexModel page)
+    private static async Task<string> RenderPartialAsync(IndexModel page, string viewPath)
     {
-        // SECTION: Razor partial rendering helper for closure-review markup checks.
+        // SECTION: Razor partial rendering helper for sprint workspace markup checks.
         await using var writer = new StringWriter();
         using var provider = BuildRazorServiceProvider();
         using var scope = provider.CreateScope();
@@ -522,10 +589,10 @@ public class ActionTaskPageTests
         var actionDescriptor = new ActionDescriptor();
         actionDescriptor.RouteValues["page"] = "/ActionTasks/Index";
         var actionContext = new ActionContext(httpContext, routeData, actionDescriptor);
-        var viewResult = viewEngine.GetView(executingFilePath: null, viewPath: "/Pages/ActionTasks/_SprintClosureReview.cshtml", isMainPage: false);
+        var viewResult = viewEngine.GetView(executingFilePath: null, viewPath: viewPath, isMainPage: false);
         if (!viewResult.Success)
         {
-            throw new InvalidOperationException("Unable to locate _SprintClosureReview partial view.");
+            throw new InvalidOperationException($"Unable to locate {viewPath} partial view.");
         }
 
         var viewData = new ViewDataDictionary<IndexModel>(new EmptyModelMetadataProvider(), page.ModelState)
