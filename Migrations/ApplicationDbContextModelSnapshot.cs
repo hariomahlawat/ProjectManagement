@@ -2230,7 +2230,7 @@ namespace ProjectManagement.Migrations
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
+                        .IsRequired()
                         .HasColumnType("bytea");
 
                     b.Property<string>("Status")
