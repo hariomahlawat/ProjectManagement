@@ -61,7 +61,7 @@ public class ActionTaskPageTests
     public async Task CreateValidationFailure_ReopensPanel()
     {
         // SECTION: Arrange
-        var setup = await CreateSetupAsync();
+        var setup = await CreateSetupAsync(RoleNames.HoD);
         var page = setup.Page;
         page.Input = new IndexModel.CreateTaskInput();
         page.ModelState.AddModelError("Input.Title", "required");
@@ -74,7 +74,7 @@ public class ActionTaskPageTests
         Assert.True(page.ShowCreateModal);
     }
 
-    private static async Task<(IndexModel Page, ApplicationDbContext Db)> CreateSetupAsync()
+    private static async Task<(IndexModel Page, ApplicationDbContext Db)> CreateSetupAsync(string role = RoleNames.Ta)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         var db = new ApplicationDbContext(options);
@@ -102,7 +102,7 @@ public class ActionTaskPageTests
             User = new ClaimsPrincipal(new ClaimsIdentity(new[]
             {
                 new Claim(ClaimTypes.NameIdentifier, "user-1"),
-                new Claim(ClaimTypes.Role, RoleNames.Ta)
+                new Claim(ClaimTypes.Role, role)
             }, "TestAuth"))
         };
 
