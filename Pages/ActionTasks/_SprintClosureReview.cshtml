@@ -30,9 +30,9 @@
             </ul>
         </div>
 
-        @if (Model.ShouldShowCreateNextSprint)
+        @if (review.UnfinishedTasks.Any() && Model.ShouldShowCreateNextSprint)
         {
-            @* SECTION: Standalone next sprint creation when no later carry-forward target exists. *@
+            @* SECTION: Closure-context next sprint creation when no later carry-forward target exists. *@
             <details class="at-next-sprint-panel" open="@Model.ShowCreateNextSprintPanel">
                 <summary class="btn btn-outline-primary btn-sm">Create Next Sprint</summary>
                 <div class="at-panel-note">Create a planned sprint after this sprint; it will then appear as a carry-forward target.</div>
@@ -53,7 +53,6 @@
             </details>
         }
 
-        @* SECTION: Closure disposition form; keep this separate from create-next form to avoid invalid nested forms. *@
         <form method="post" asp-page-handler="CloseSprintWithDisposition" class="at-closure-form">
             <input type="hidden" asp-for="ClosureInput.SprintId" value="@Model.SelectedSprint.Id" />
             <input type="hidden" asp-for="ClosureInput.RowVersion" value="@Convert.ToBase64String(Model.SelectedSprint.RowVersion)" />
