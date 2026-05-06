@@ -2028,6 +2028,79 @@ html {
     }
 }
 
+
+/* SECTION: Planning Board due/exception section stays nested and avoids horizontal-first interaction. */
+.at-planning-due-exceptions-section {
+    display: grid;
+    gap: 0;
+    margin-top: 1rem;
+    border: 1px solid var(--at-border);
+    border-radius: 14px;
+    background: var(--at-surface);
+    box-shadow: var(--at-shadow-sm);
+}
+
+.at-planning-due-exceptions-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    cursor: pointer;
+    padding: 0.75rem 0.9rem;
+}
+
+.at-planning-due-exceptions-title {
+    color: var(--at-text);
+    font-weight: var(--at-weight-bold);
+}
+
+.at-planning-due-exceptions-meta {
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: 600;
+}
+
+.at-planning-due-exceptions-summary .at-count-chip {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+}
+
+.at-planning-due-exceptions-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    min-width: 0;
+    padding: 0.9rem;
+    border-top: 1px solid var(--at-border);
+}
+
+.at-due-exception-column {
+    min-width: 0;
+}
+
+.at-due-exception-column-overdue {
+    border-color: #fecaca;
+}
+
+@media (min-width: 992px) {
+    .at-planning-due-exceptions-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        align-items: start;
+    }
+}
+
+@media (max-width: 767px) {
+    .at-planning-due-exceptions-summary {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .at-planning-due-exceptions-summary .at-count-chip {
+        grid-row: auto;
+        grid-column: auto;
+        width: fit-content;
+    }
+}
+
 /* SECTION: Planning Board integrated backlog and alternate views */
 .at-planning-backlog-queue,
 .at-planning-secondary-view {
@@ -2098,4 +2171,5 @@ html {
 .at-planning-secondary-grid {
     grid-auto-columns: initial;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    min-width: 0;
 }

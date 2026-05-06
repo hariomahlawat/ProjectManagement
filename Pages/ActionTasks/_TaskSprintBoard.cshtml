@@ -1,25 +1,35 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Planning Board due-and-exception review is a secondary toggle, not the primary work mode. *@
-<details class="at-panel at-planning-secondary-view at-planning-due-exceptions-view">
-    <summary>
-        <span>Due / Exceptions View</span>
-        <span class="at-count-chip">@(Model.DueTodayTaskDisplays.Count + Model.DueThisWeekTaskDisplays.Count + Model.DueLaterTaskDisplays.Count + Model.SprintOverdueTaskDisplays.Count)</span>
+@{
+    var dueExceptionCount = Model.DueTodayTaskDisplays.Count
+        + Model.DueThisWeekTaskDisplays.Count
+        + Model.DueLaterTaskDisplays.Count
+        + Model.SprintOverdueTaskDisplays.Count;
+}
+
+@* SECTION: Collapsible Planning Board due and exception review stays nested below the primary sprint workflow. *@
+<details class="at-planning-due-exceptions-section">
+    <summary class="at-planning-due-exceptions-summary">
+        <span class="at-planning-due-exceptions-title">Due / exceptions</span>
+        <span class="at-planning-due-exceptions-meta">Review upcoming and overdue task buckets without leaving the Planning Board.</span>
+        <span class="at-count-chip">@dueExceptionCount</span>
     </summary>
-    <div class="at-board-grid at-board-grid-sprint at-planning-secondary-grid" aria-label="Planning Board due and exceptions">
-        <article class="at-panel at-board-column">
+
+    @* SECTION: Due buckets stack by default and only become lateral review columns on wider screens. *@
+    <div class="at-planning-due-exceptions-grid" aria-label="Planning Board due and exceptions">
+        <article class="at-panel at-board-column at-due-exception-column">
             <div class="at-panel-heading"><h2>Due Today</h2><span class="at-count-chip">@Model.DueTodayTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueTodayTaskDisplays, "No tasks", false)' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueTodayTaskDisplays, "No tasks due today.", false)' />
         </article>
-        <article class="at-panel at-board-column">
+        <article class="at-panel at-board-column at-due-exception-column">
             <div class="at-panel-heading"><h2>Due This Week</h2><span class="at-count-chip">@Model.DueThisWeekTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueThisWeekTaskDisplays, "No tasks", false)' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueThisWeekTaskDisplays, "No tasks due this week.", false)' />
         </article>
-        <article class="at-panel at-board-column">
+        <article class="at-panel at-board-column at-due-exception-column">
             <div class="at-panel-heading"><h2>Due Later</h2><span class="at-count-chip">@Model.DueLaterTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueLaterTaskDisplays, "No tasks", false)' />
+            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueLaterTaskDisplays, "No later tasks.", false)' />
         </article>
-        <article class="at-panel at-board-column">
+        <article class="at-panel at-board-column at-due-exception-column at-due-exception-column-overdue">
             <div class="at-panel-heading"><h2>Overdue</h2><span class="at-count-chip">@Model.SprintOverdueTaskDisplays.Count</span></div>
             <partial name="_TaskCards" model='@Tuple.Create(Model, Model.SprintOverdueTaskDisplays, "No overdue tasks.", false)' />
         </article>
