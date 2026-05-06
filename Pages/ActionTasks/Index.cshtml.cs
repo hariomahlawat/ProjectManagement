@@ -87,6 +87,9 @@ public class IndexModel : PageModel
     public string? PlanningView { get; set; }
 
     [BindProperty(SupportsGet = true)]
+    public string? PlanningTab { get; set; }
+
+    [BindProperty(SupportsGet = true)]
     public string? FilterStatus { get; set; }
 
     [BindProperty(SupportsGet = true)]
@@ -135,6 +138,7 @@ public class IndexModel : PageModel
     public bool CanClose => _permission.CanClose(CurrentRole);
     public string ResolvedViewMode => ResolveViewMode();
     public string ResolvedPlanningView => ResolvePlanningView();
+    public string ResolvedPlanningTab => ResolvePlanningTab();
     public bool IsCommandCentreView => string.Equals(ResolvedViewMode, "CommandCentre", StringComparison.OrdinalIgnoreCase);
     public bool IsPlanningView => string.Equals(ResolvedViewMode, "Planning", StringComparison.OrdinalIgnoreCase);
     public bool IsMyWorkView => string.Equals(ResolvedViewMode, "MyWork", StringComparison.OrdinalIgnoreCase);
@@ -147,6 +151,10 @@ public class IndexModel : PageModel
     public bool IsTaskListView => IsRegisterView;
     public bool IsKanbanView => IsPlanningView && string.Equals(ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase);
     public bool IsSprintBoardView => IsPlanningView && string.Equals(ResolvedPlanningView, "DueExceptions", StringComparison.OrdinalIgnoreCase);
+    public bool IsPlanningPlanTab => IsPlanningView && string.Equals(ResolvedPlanningTab, "Plan", StringComparison.OrdinalIgnoreCase);
+    public bool IsPlanningExecuteTab => IsPlanningView && string.Equals(ResolvedPlanningTab, "Execute", StringComparison.OrdinalIgnoreCase);
+    public bool IsPlanningCloseTab => IsPlanningView && string.Equals(ResolvedPlanningTab, "Close", StringComparison.OrdinalIgnoreCase);
+    public bool IsPlanningViewsTab => IsPlanningView && string.Equals(ResolvedPlanningTab, "Views", StringComparison.OrdinalIgnoreCase);
     public bool IsBacklogView => IsLegacyViewMode("Backlog") || IsPlanningBacklogFilterContext();
     public bool IsSprintsView => IsPlanningView;
     public string PageHeading => ResolvedViewMode switch
@@ -1326,6 +1334,45 @@ public class IndexModel : PageModel
         };
     }
 
+
+    // SECTION: Planning Board internal tab normalization keeps planning, execution, closure, and alternate views separated.
+    private string ResolvePlanningTab()
+    {
+        var normalized = (PlanningTab ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(normalized))
+        {
+            return normalized switch
+            {
+                _ when string.Equals(normalized, "Plan", StringComparison.OrdinalIgnoreCase) => "Plan",
+                _ when string.Equals(normalized, "Planning", StringComparison.OrdinalIgnoreCase) => "Plan",
+                _ when string.Equals(normalized, "Backlog", StringComparison.OrdinalIgnoreCase) => "Plan",
+                _ when string.Equals(normalized, "Execute", StringComparison.OrdinalIgnoreCase) => "Execute",
+                _ when string.Equals(normalized, "Execution", StringComparison.OrdinalIgnoreCase) => "Execute",
+                _ when string.Equals(normalized, "Close", StringComparison.OrdinalIgnoreCase) => "Close",
+                _ when string.Equals(normalized, "Closure", StringComparison.OrdinalIgnoreCase) => "Close",
+                _ when string.Equals(normalized, "Views", StringComparison.OrdinalIgnoreCase) => "Views",
+                _ when string.Equals(normalized, "View", StringComparison.OrdinalIgnoreCase) => "Views",
+                _ => GetDefaultPlanningTab()
+            };
+        }
+
+        // SECTION: Legacy PlanningView aliases open the new Views tab while keeping old links functional.
+        if (!string.Equals(ResolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Views";
+        }
+
+        return GetDefaultPlanningTab();
+    }
+
+    // SECTION: Planning tab default follows selected planning window availability.
+    private string GetDefaultPlanningTab()
+    {
+        return SelectedSprintId.HasValue || SelectedSprint is not null || ActiveSprint is not null
+            ? "Execute"
+            : "Plan";
+    }
+
     // SECTION: Shared task redirect route preserves workspace, selection, and relevant list state from inspector actions.
     private RedirectToPageResult RedirectToTaskPage(int? taskId, int? selectedSprintId)
     {
@@ -1342,6 +1389,11 @@ public class IndexModel : PageModel
             [nameof(TaskId)] = taskId,
             [nameof(SelectedSprintId)] = selectedSprintId
         };
+
+        if (IsPlanningView && !string.Equals(ResolvedPlanningTab, GetDefaultPlanningTab(), StringComparison.OrdinalIgnoreCase))
+        {
+            routeValues[nameof(PlanningTab)] = ResolvedPlanningTab;
+        }
 
         if (IsPlanningView && !string.Equals(ResolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase))
         {
