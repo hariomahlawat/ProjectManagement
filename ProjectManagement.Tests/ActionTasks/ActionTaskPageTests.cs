@@ -539,8 +539,8 @@ public class ActionTaskPageTests
 
         // SECTION: Assert
         Assert.Null(page.SelectedSprint);
-        Assert.Contains("No sprint has been created yet", html, StringComparison.Ordinal);
-        Assert.Contains("Create Sprint", html, StringComparison.Ordinal);
+        Assert.Contains("No planning window has been created yet", html, StringComparison.Ordinal);
+        Assert.Contains("Create Planning Window", html, StringComparison.Ordinal);
         Assert.Contains("handler=CreateSprint", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Select a sprint to view sprint command details.", html, StringComparison.Ordinal);
     }
@@ -561,8 +561,8 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskSprints.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("Create Sprint", html, StringComparison.Ordinal);
-        Assert.Contains("Edit Sprint", html, StringComparison.Ordinal);
+        Assert.Contains("Create Planning Window", html, StringComparison.Ordinal);
+        Assert.Contains("Edit Window", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Create</summary>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Edit</summary>", html, StringComparison.Ordinal);
     }
@@ -589,6 +589,7 @@ public class ActionTaskPageTests
         Assert.Contains("Selected Planning Board task board", html, StringComparison.Ordinal);
         Assert.Contains("Sprint board task", html, StringComparison.Ordinal);
         Assert.Contains("at-board-grid is-sprints", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Backlog Queue", html, StringComparison.Ordinal);
     }
 
     [Fact]
