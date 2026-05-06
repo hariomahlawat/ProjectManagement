@@ -20,15 +20,17 @@ public class IndexModel : PageModel
     private readonly IActionTaskService _service;
     private readonly IActionTaskCollaborationService _collaborationService;
     private readonly ActionTaskPermissionService _permission;
+    private readonly ActionSprintService _sprintService;
     private readonly ActionTaskQueryService _queryService;
     private readonly ActionTaskWorkflowPolicy _workflowPolicy;
     private readonly UserManager<ApplicationUser> _users;
 
-    public IndexModel(IActionTaskService service, IActionTaskCollaborationService collaborationService, ActionTaskPermissionService permission, ActionTaskQueryService queryService, ActionTaskWorkflowPolicy workflowPolicy, UserManager<ApplicationUser> users)
+    public IndexModel(IActionTaskService service, IActionTaskCollaborationService collaborationService, ActionTaskPermissionService permission, ActionSprintService sprintService, ActionTaskQueryService queryService, ActionTaskWorkflowPolicy workflowPolicy, UserManager<ApplicationUser> users)
     {
         _service = service;
         _collaborationService = collaborationService;
         _permission = permission;
+        _sprintService = sprintService;
         _queryService = queryService;
         _workflowPolicy = workflowPolicy;
         _users = users;
@@ -48,6 +50,13 @@ public class IndexModel : PageModel
     public IReadOnlyList<ActionTaskItem> DueThisWeekTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> DueLaterTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> SprintOverdueTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> BacklogTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> SelectedSprintTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> SprintBacklogTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionSprint> Sprints { get; private set; } = Array.Empty<ActionSprint>();
+    public ActionSprint? ActiveSprint { get; private set; }
+    public ActionSprint? SelectedSprint { get; private set; }
+    public ActionTaskQueryService.ActionSprintSummary SprintSummary { get; private set; } = ActionTaskQueryService.ActionSprintSummary.Empty;
     public IReadOnlyList<ActionTaskAuditLog> SelectedTaskLogs { get; private set; } = Array.Empty<ActionTaskAuditLog>();
     public IReadOnlyList<ActionTaskUpdate> SelectedTaskUpdates { get; private set; } = Array.Empty<ActionTaskUpdate>();
     public IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>> UpdateAttachments { get; private set; } = new Dictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>();
@@ -65,6 +74,9 @@ public class IndexModel : PageModel
 
     [BindProperty(SupportsGet = true)]
     public int? TaskId { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public int? SelectedSprintId { get; set; }
 
     [BindProperty(SupportsGet = true)]
     public string? FilterStatus { get; set; }
@@ -104,11 +116,15 @@ public class IndexModel : PageModel
     public bool IsTaskListView => string.Equals(ResolvedViewMode, "TaskList", StringComparison.OrdinalIgnoreCase);
     public bool IsKanbanView => string.Equals(ResolvedViewMode, "Kanban", StringComparison.OrdinalIgnoreCase);
     public bool IsSprintBoardView => string.Equals(ResolvedViewMode, "Sprint", StringComparison.OrdinalIgnoreCase);
+    public bool IsBacklogView => string.Equals(ResolvedViewMode, "Backlog", StringComparison.OrdinalIgnoreCase);
+    public bool IsSprintsView => string.Equals(ResolvedViewMode, "Sprints", StringComparison.OrdinalIgnoreCase);
     public bool IsReportsView => string.Equals(ResolvedViewMode, "Reports", StringComparison.OrdinalIgnoreCase);
     public string PageHeading => ResolvedViewMode switch
     {
         "MyTasks" => "My Tasks",
-        "Sprint" => "Due Window Board",
+        "Sprint" => "Due Board",
+        "Backlog" => "Task Backlog",
+        "Sprints" => "Sprint Board",
         "Kanban" => "Task Kanban Board",
         "TaskList" => "Command Task Register",
         "Reports" => "Task Command Summary",
@@ -117,7 +133,9 @@ public class IndexModel : PageModel
     public string PageSubtitle => ResolvedViewMode switch
     {
         "MyTasks" => "Tasks assigned to the logged-in user.",
-        "Sprint" => "Tasks grouped by due date and urgency.",
+        "Sprint" => "Existing due-bucket view grouped by due date and urgency.",
+        "Backlog" => "Tasks not assigned to a sprint.",
+        "Sprints" => "Real sprint task view with controlled planning actions.",
         "Kanban" => "Tasks grouped by current workflow status.",
         "TaskList" => "Filterable register of all visible tasks.",
         "Reports" => "Summary of pending, critical, blocked and closed tasks.",
@@ -126,6 +144,8 @@ public class IndexModel : PageModel
 
     public IReadOnlyList<string> AssignmentRoles => ActionTaskRoleResolver.AllowedAssignmentRoles();
     public IReadOnlyList<string> AllowedStatusOptions => _workflowPolicy.AllowedStatusOptions;
+    public bool CanPlanSprints => _permission.CanManageSprints(CurrentRole);
+    public IReadOnlyList<ActionSprint> AssignableSprints => Sprints.Where(s => s.Status != ActionSprintStatus.Closed).ToList();
 
     // SECTION: Selected-task projection helper
     public bool IsSelectedTask(ActionTaskItem task)
@@ -165,6 +185,25 @@ public class IndexModel : PageModel
             ? assigneeName
             : "User";
     }
+
+    public string ResolveSprintName(int? sprintId)
+    {
+        if (!sprintId.HasValue)
+        {
+            return "Backlog";
+        }
+
+        return Sprints.FirstOrDefault(s => s.Id == sprintId.Value)?.Name ?? $"Sprint #{sprintId.Value}";
+    }
+
+    public string GetSprintBadgeText(ActionTaskItem task)
+        => task.SprintId.HasValue ? ResolveSprintName(task.SprintId) : "Backlog";
+
+    public string GetSprintBadgeClass(ActionTaskItem task)
+        => task.SprintId.HasValue ? "at-scope-badge at-scope-badge-sprint" : "at-scope-badge at-scope-badge-backlog";
+
+    public IReadOnlyList<TaskDisplayItem> GetSprintTasksByStatus(string status)
+        => ToDisplayItems(SelectedSprintTasks.Where(t => string.Equals(t.Status, status, StringComparison.OrdinalIgnoreCase)).ToList());
 
     public string ResolveActorName(string performedByUserId)
     {
@@ -281,7 +320,7 @@ public class IndexModel : PageModel
             TempData["ToastError"] = ex.Message;
         }
 
-        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
+        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
     }
 
     // SECTION: Close task by command role
@@ -302,7 +341,7 @@ public class IndexModel : PageModel
             TempData["ToastError"] = ex.Message;
         }
 
-        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
+        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
     }
 
     // SECTION: Update in-flight status
@@ -316,14 +355,14 @@ public class IndexModel : PageModel
             if (task is null)
             {
                 TempData["ToastError"] = "Task not found.";
-                return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
+                return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
             }
 
             // SECTION: Preserve permission enforcement even for status no-op submissions.
             if (!_permission.CanUpdateTask(CurrentRole, CurrentUserId, task.AssignedToUserId))
             {
                 TempData["ToastError"] = "You are not authorized to update this task.";
-                return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
+                return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
             }
 
             // SECTION: Keep no-op handling for user-friendly messaging after permission validation.
@@ -331,7 +370,7 @@ public class IndexModel : PageModel
             if (!string.IsNullOrWhiteSpace(noOpMessage))
             {
                 TempData["ToastMessage"] = noOpMessage;
-                return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
+                return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
             }
 
             await _service.UpdateStatusAsync(id, DecodeRowVersion(rowVersion), status, CurrentUserId, CurrentRole, remarks);
@@ -346,7 +385,43 @@ public class IndexModel : PageModel
             TempData["ToastError"] = ex.Message;
         }
 
-        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id });
+        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
+    }
+
+    // SECTION: Assign backlog or visible task into an available sprint.
+    public async Task<IActionResult> OnPostAssignToSprintAsync(int id, int sprintId)
+    {
+        await ResolveIdentityAsync();
+
+        try
+        {
+            await _sprintService.AssignTaskToSprintAsync(id, sprintId, CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Task assigned to sprint.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
+        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId = sprintId });
+    }
+
+    // SECTION: Move a sprint task back to backlog without altering task lifecycle state.
+    public async Task<IActionResult> OnPostMoveToBacklogAsync(int id)
+    {
+        await ResolveIdentityAsync();
+
+        try
+        {
+            await _sprintService.MoveTaskToBacklogAsync(id, CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Task moved to backlog.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
+        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
     }
 
     // SECTION: Post task progress update with optional attachments
@@ -363,7 +438,7 @@ public class IndexModel : PageModel
         if (!ModelState.IsValid)
         {
             TempData["ToastError"] = "Unable to post update. Please check the entered details and try again.";
-            return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = UpdateInput.TaskId });
+            return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = UpdateInput.TaskId, SelectedSprintId });
         }
 
         try
@@ -381,7 +456,7 @@ public class IndexModel : PageModel
                 : ex.Message;
         }
 
-        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = UpdateInput.TaskId });
+        return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = UpdateInput.TaskId, SelectedSprintId });
     }
 
     // SECTION: Shared data loading
@@ -390,6 +465,7 @@ public class IndexModel : PageModel
         await ResolveIdentityAsync();
 
         var tasks = await _service.GetTasksAsync(CurrentUserId, CurrentRole);
+        var sprints = await _sprintService.GetSprintsAsync();
 
         // SECTION: Query read-model dependencies
         AssignableUsers = await LoadAssignableUsersAsync();
@@ -399,7 +475,7 @@ public class IndexModel : PageModel
         var activityByTaskId = await _service.GetLastActivityUtcByTaskIdsAsync(tasks.Select(t => t.Id).ToArray());
         var readModel = _queryService.BuildReadModel(
             tasks,
-            new ActionTaskQueryService.ActionTaskQueryRequest(CurrentUserId, IsMyTasksView, IsTaskListView, FilterStatus, FilterPriority, FilterAssigneeUserId, FilterDueDate, FilterSearch, SortBy, SortDir),
+            new ActionTaskQueryService.ActionTaskQueryRequest(CurrentUserId, IsMyTasksView, IsTaskListView, IsBacklogView, SelectedSprintId, sprints, FilterStatus, FilterPriority, FilterAssigneeUserId, FilterDueDate, FilterSearch, SortBy, SortDir),
             TaskAssigneeNames,
             activityByTaskId);
 
@@ -415,6 +491,14 @@ public class IndexModel : PageModel
         KanbanSubmittedTasks = readModel.KanbanSubmittedTasks;
         KanbanClosedTasks = readModel.KanbanClosedTasks;
         SprintOverdueTasks = readModel.DueBuckets.Overdue;
+        BacklogTasks = readModel.BacklogTasks;
+        SelectedSprintTasks = readModel.SprintReadModel.SelectedSprintTasks;
+        SprintBacklogTasks = readModel.SprintReadModel.BacklogTasks;
+        Sprints = readModel.SprintReadModel.Sprints;
+        ActiveSprint = readModel.SprintReadModel.ActiveSprint;
+        SelectedSprint = readModel.SprintReadModel.SelectedSprint;
+        SelectedSprintId = SelectedSprint?.Id ?? SelectedSprintId;
+        SprintSummary = readModel.SprintReadModel.Summary;
         DueTodayTasks = readModel.DueBuckets.Today;
         DueThisWeekTasks = readModel.DueBuckets.ThisWeek;
         DueLaterTasks = readModel.DueBuckets.Later;
@@ -511,6 +595,15 @@ public class IndexModel : PageModel
     public IReadOnlyList<TaskDisplayItem> SprintOverdueTaskDisplays =>
         ToDisplayItems(SprintOverdueTasks);
 
+    public IReadOnlyList<TaskDisplayItem> BacklogTaskDisplays =>
+        ToDisplayItems(BacklogTasks);
+
+    public IReadOnlyList<TaskDisplayItem> SelectedSprintTaskDisplays =>
+        ToDisplayItems(SelectedSprintTasks);
+
+    public IReadOnlyList<TaskDisplayItem> SprintBacklogTaskDisplays =>
+        ToDisplayItems(SprintBacklogTasks);
+
     // SECTION: KPI helpers for dashboard and reports.
     public int ActiveCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
     public int OverdueCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase) && t.DueDate.Date < DateTime.UtcNow.Date);
@@ -532,7 +625,7 @@ public class IndexModel : PageModel
         string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase));
 
     public bool HasActiveFilters =>
-        IsTaskListView &&
+        (IsTaskListView || IsBacklogView) &&
         (!string.IsNullOrWhiteSpace(FilterStatus)
          || !string.IsNullOrWhiteSpace(FilterPriority)
          || !string.IsNullOrWhiteSpace(FilterAssigneeUserId)
@@ -765,6 +858,8 @@ public class IndexModel : PageModel
             _ when string.Equals(normalized, "TaskList", StringComparison.OrdinalIgnoreCase) => "TaskList",
             _ when string.Equals(normalized, "Kanban", StringComparison.OrdinalIgnoreCase) => "Kanban",
             _ when string.Equals(normalized, "Sprint", StringComparison.OrdinalIgnoreCase) => "Sprint",
+            _ when string.Equals(normalized, "Backlog", StringComparison.OrdinalIgnoreCase) => "Backlog",
+            _ when string.Equals(normalized, "Sprints", StringComparison.OrdinalIgnoreCase) => "Sprints",
             _ when string.Equals(normalized, "Reports", StringComparison.OrdinalIgnoreCase) => "Reports",
             _ => "Dashboard"
         };

@@ -20,7 +20,9 @@
             @* SECTION: Icon-led rail links for compact enterprise navigation. *@
             <a title="Dashboard" asp-page="/ActionTasks/Index" asp-route-viewMode="Dashboard" class="@(Model.IsDashboardView ? "active" : string.Empty)"><i class="bi bi-speedometer2" aria-hidden="true"></i><span>Dashboard</span></a>
             <a title="My Tasks" asp-page="/ActionTasks/Index" asp-route-viewMode="MyTasks" class="@(Model.IsMyTasksView ? "active" : string.Empty)"><i class="bi bi-check2-circle" aria-hidden="true"></i><span>My Tasks</span></a>
-            <a title="Due" asp-page="/ActionTasks/Index" asp-route-viewMode="Sprint" class="@(Model.IsSprintBoardView ? "active" : string.Empty)"><i class="bi bi-calendar2-week" aria-hidden="true"></i><span>Due</span></a>
+            <a title="Due Board" asp-page="/ActionTasks/Index" asp-route-viewMode="Sprint" class="@(Model.IsSprintBoardView ? "active" : string.Empty)"><i class="bi bi-calendar2-week" aria-hidden="true"></i><span>Due Board</span></a>
+            <a title="Backlog" asp-page="/ActionTasks/Index" asp-route-viewMode="Backlog" class="@(Model.IsBacklogView ? "active" : string.Empty)"><i class="bi bi-inbox" aria-hidden="true"></i><span>Backlog</span></a>
+            <a title="Sprints" asp-page="/ActionTasks/Index" asp-route-viewMode="Sprints" class="@(Model.IsSprintsView ? "active" : string.Empty)"><i class="bi bi-calendar-range" aria-hidden="true"></i><span>Sprints</span></a>
             <a title="Kanban" asp-page="/ActionTasks/Index" asp-route-viewMode="Kanban" class="@(Model.IsKanbanView ? "active" : string.Empty)"><i class="bi bi-columns-gap" aria-hidden="true"></i><span>Kanban</span></a>
             <a title="Register" asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="@(Model.IsTaskListView ? "active" : string.Empty)"><i class="bi bi-list-task" aria-hidden="true"></i><span>Register</span></a>
             <a title="Reports" asp-page="/ActionTasks/Index" asp-route-viewMode="Reports" class="@(Model.IsReportsView ? "active" : string.Empty)"><i class="bi bi-bar-chart" aria-hidden="true"></i><span>Reports</span></a>
@@ -60,6 +62,14 @@
         else if (Model.IsSprintBoardView)
         {
             <partial name="_TaskSprintBoard" model="Model" />
+        }
+        else if (Model.IsBacklogView)
+        {
+            <partial name="_TaskBacklog" model="Model" />
+        }
+        else if (Model.IsSprintsView)
+        {
+            <partial name="_TaskSprints" model="Model" />
         }
         else if (Model.IsReportsView)
         {

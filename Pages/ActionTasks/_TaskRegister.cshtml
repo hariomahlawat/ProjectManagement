@@ -154,6 +154,7 @@
                             <td>
                                 <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">@task.Title</a>
                                 <div class="at-task-desc-preview">@task.Description</div>
+                                <div class="mt-1"><span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span></div>
                             </td>
                             <td>
                                 <div class="fw-semibold">@Model.ResolveAssigneeName(task.AssignedToUserId)</div>

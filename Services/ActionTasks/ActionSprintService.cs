@@ -23,6 +23,25 @@ public class ActionSprintService
         _workflow = workflow;
     }
 
+
+    // SECTION: Sprint read APIs
+    public async Task<List<ActionSprint>> GetSprintsAsync(CancellationToken cancellationToken = default)
+        => await _context.ActionSprints
+            .AsNoTracking()
+            .Where(x => !x.IsDeleted)
+            .OrderByDescending(x => x.Status == ActionSprintStatus.Active)
+            .ThenByDescending(x => x.StartDate)
+            .ThenByDescending(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+    public async Task<ActionSprint?> GetActiveSprintAsync(CancellationToken cancellationToken = default)
+        => await _context.ActionSprints
+            .AsNoTracking()
+            .Where(x => !x.IsDeleted && x.Status == ActionSprintStatus.Active)
+            .OrderByDescending(x => x.StartDate)
+            .ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
     // SECTION: Sprint mutation APIs
     public async Task<ActionSprint> CreateSprintAsync(ActionSprint sprint, string userId, string role, CancellationToken cancellationToken = default)
     {

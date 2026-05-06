@@ -15,6 +15,7 @@
                         <span class="@Model.GetStatusBadgeClass(Model.SelectedTask.Status)">@Model.SelectedTask.Status</span>
                         <span class="@Model.GetPriorityBadgeClass(Model.SelectedTask.Priority)">@Model.SelectedTask.Priority</span>
                         <span class="at-detail-due">Due @Model.SelectedTask.DueDate.ToString("dd MMM yyyy")</span>
+                        <span class="@Model.GetSprintBadgeClass(Model.SelectedTask)">@Model.GetSprintBadgeText(Model.SelectedTask)</span>
                     </div>
                     <div class="at-inspector-snapshot">
                         <span>Last update: @((Model.SelectedTaskUpdates.FirstOrDefault()?.CreatedAtUtc ?? Model.SelectedTask.AssignedOn).ToString("dd MMM yyyy, HH:mm"))</span>
@@ -23,7 +24,7 @@
                     </div>
                 }
             </div>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="@Model.ResolvedViewMode" class="btn btn-light btn-sm at-inspector-close" aria-label="Close inspector"><i class="bi bi-x-lg" aria-hidden="true"></i></a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="@Model.ResolvedViewMode" asp-route-SelectedSprintId="@Model.SelectedSprintId" class="btn btn-light btn-sm at-inspector-close" aria-label="Close inspector"><i class="bi bi-x-lg" aria-hidden="true"></i></a>
         </header>
 
         @if (Model.SelectedTask is not null)
@@ -133,6 +134,7 @@
                         <div><span class="text-muted">Assigned On</span><div class="fw-semibold">@Model.SelectedTask.AssignedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
                         <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@(Model.SelectedTask.SubmittedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
                         <div><span class="text-muted">Closed On</span><div class="fw-semibold">@(Model.SelectedTask.ClosedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
+                        <div><span class="text-muted">Sprint / Backlog</span><div class="fw-semibold">@Model.GetSprintBadgeText(Model.SelectedTask)</div></div>
                     </div>
                 </details>
             </div>
@@ -145,6 +147,7 @@
                         <form method="post" asp-page-handler="AddUpdate" class="at-action-card at-journal-card" enctype="multipart/form-data">
                             <input type="hidden" asp-for="UpdateInput.TaskId" value="@Model.SelectedTask.Id" />
                             <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                            <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
                             <div class="at-action-title">Add Update</div>
                             <div class="mb-2">
                                 <label class="form-label at-small" asp-for="UpdateInput.Body">Update details</label>
@@ -168,6 +171,7 @@
                             <summary class="visually-hidden">Open status panel</summary>
                             <form method="post" asp-page-handler="UpdateStatus" class="at-action-card at-action-card-compact">
                                 <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                            <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
                                 <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" />
@@ -206,6 +210,7 @@
                             <summary class="visually-hidden">Open submit panel</summary>
                             <form method="post" asp-page-handler="Submit" class="at-action-card at-action-card-compact">
                                 <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                            <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
                                 <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" />
@@ -228,6 +233,7 @@
                             <summary class="visually-hidden">Open close panel</summary>
                             <form method="post" asp-page-handler="Close" class="at-action-card at-action-card-compact">
                                 <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                            <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
                                 <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" />

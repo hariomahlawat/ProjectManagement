@@ -66,7 +66,7 @@
             return;
         }
 
-        const immediateControls = form.querySelectorAll("select[name='FilterStatus'], select[name='FilterPriority'], input[name='FilterDueDate']");
+        const immediateControls = form.querySelectorAll("select[name='FilterStatus'], select[name='FilterPriority'], select[name='FilterAssigneeUserId'], input[name='FilterDueDate']");
         immediateControls.forEach((control) => {
             control.addEventListener("change", () => {
                 form.requestSubmit();
@@ -138,6 +138,23 @@
         });
     }
 
+    // SECTION: Sprint selector opens selected sprint through safe GET navigation.
+    function initSprintSelector() {
+        const form = document.querySelector("[data-at-sprint-selector='true']");
+        if (!form) {
+            return;
+        }
+
+        const selector = form.querySelector("select[name='SelectedSprintId']");
+        if (!selector) {
+            return;
+        }
+
+        selector.addEventListener("change", () => {
+            form.requestSubmit();
+        });
+    }
+
 
     // SECTION: Sticky inspector action panel orchestration and keyboard behavior.
     function initInspectorActionPanels() {
@@ -199,6 +216,7 @@
         initSearchableSelects();
         initStatusUpdateGuard();
         initTaskRegisterFilters();
+        initSprintSelector();
         initInspectorActionPanels();
     });
 })();
