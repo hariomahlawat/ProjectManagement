@@ -93,9 +93,13 @@ public class ActionTaskPageTests
         var sp = new ServiceCollection().BuildServiceProvider();
         var userManager = new UserManager<ApplicationUser>(new UserStore<ApplicationUser>(db), Options.Create(new IdentityOptions()), new PasswordHasher<ApplicationUser>(), Array.Empty<IUserValidator<ApplicationUser>>(), Array.Empty<IPasswordValidator<ApplicationUser>>(), new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), sp, NullLogger<UserManager<ApplicationUser>>.Instance);
 
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        // SECTION: Action task page services
+        var permission = new ActionTaskPermissionService();
+        var service = new ActionTaskService(db, permission);
         var collab = new StubCollabService();
-        var page = new IndexModel(service, collab, new ActionTaskPermissionService(), userManager);
+        var queryService = new ActionTaskQueryService();
+        var workflowPolicy = new ActionTaskWorkflowPolicy(permission);
+        var page = new IndexModel(service, collab, permission, queryService, workflowPolicy, userManager);
 
         var httpContext = new DefaultHttpContext
         {
