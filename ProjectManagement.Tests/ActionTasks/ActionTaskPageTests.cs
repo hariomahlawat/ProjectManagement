@@ -91,7 +91,7 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task MyWorkPartial_RendersAssignedTasksOutsidePriorityLanes()
+    public async Task MyWorkPartial_RendersRedesignedPersonalQueueSections()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
@@ -103,10 +103,79 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskMyWork.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("Remaining assigned work", html, StringComparison.Ordinal);
-        Assert.Contains("Open task AT-", html, StringComparison.Ordinal);
+        Assert.Contains("Assigned to me", html, StringComparison.Ordinal);
+        Assert.Contains("Needs action now", html, StringComparison.Ordinal);
+        Assert.Contains("Active Planning Window", html, StringComparison.Ordinal);
+        Assert.Contains("Action Required", html, StringComparison.Ordinal);
+        Assert.Contains("Current Work", html, StringComparison.Ordinal);
+        Assert.Contains("Submitted / Awaiting Closure", html, StringComparison.Ordinal);
+        Assert.Contains("All My Tasks", html, StringComparison.Ordinal);
+        Assert.Contains("Open details", html, StringComparison.Ordinal);
         Assert.Contains("Mine", html, StringComparison.Ordinal);
-        Assert.Single(page.MyRemainingAssignedTaskDisplays);
+        Assert.Single(page.MyWorkAllMyTasksDisplays);
+    }
+
+    [Fact]
+    public async Task MyWorkQueue_TaskAppearsOnlyInHighestPrioritySection()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var overlappingTask = await setup.Db.ActionTasks.SingleAsync();
+        overlappingTask.Title = "Overdue in progress";
+        overlappingTask.Status = ActionTaskStatuses.InProgress;
+        overlappingTask.DueDate = DateTime.UtcNow.Date.AddDays(-1);
+        setup.Db.ActionTasks.Add(NewTask("Later in progress", ActionTaskStatuses.InProgress));
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "MyWork";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskMyWork.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains(page.MyWorkActionRequiredDisplays, item => item.Task.Title == "Overdue in progress");
+        Assert.DoesNotContain(page.MyWorkCurrentWorkDisplays, item => item.Task.Title == "Overdue in progress");
+        Assert.Contains(page.MyWorkCurrentWorkDisplays, item => item.Task.Title == "Later in progress");
+        Assert.Equal(1, CountOccurrences(html, "Overdue in progress"));
+    }
+
+    [Fact]
+    public async Task MyWorkPartial_EmptySectionsRenderCompactly()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var page = setup.Page;
+        page.ViewMode = "MyWork";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskMyWork.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("at-mywork-empty-line", html, StringComparison.Ordinal);
+        Assert.Contains("No action-required tasks right now.", html, StringComparison.Ordinal);
+        Assert.Contains("at-panel at-mywork-section is-empty", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("No tasks assigned to you are due today.", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MyWorkTaskLink_PreservesRouteStateWhenOpeningInspector()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var task = await setup.Db.ActionTasks.SingleAsync();
+        var page = setup.Page;
+        page.ViewMode = "MyWork";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskMyWork.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains($"taskId={task.Id}", html, StringComparison.Ordinal);
+        Assert.Contains("viewMode=MyWork", html, StringComparison.Ordinal);
+        Assert.Contains($"Open task AT-{task.Id} details", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -704,6 +773,21 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.Null(taskId1);
         Assert.Single(entityType.GetForeignKeys().Where(fk => fk.PrincipalEntityType.ClrType == typeof(ActionTaskItem)));
+    }
+
+
+    private static int CountOccurrences(string value, string searchTerm)
+    {
+        // SECTION: HTML assertion helper avoids regex dependencies for simple rendered-text counts.
+        var count = 0;
+        var startIndex = 0;
+        while ((startIndex = value.IndexOf(searchTerm, startIndex, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            startIndex += searchTerm.Length;
+        }
+
+        return count;
     }
 
     private static async Task<string> RenderPartialAsync(IndexModel page, string viewPath)
