@@ -39,9 +39,9 @@
         <p>Awaiting closure review.</p>
     </article>
     <article>
-        <h3>Active sprint</h3>
+        <h3>Active Planning Window</h3>
         <strong>@activeSprintTaskCount</strong>
-        <p>@(string.IsNullOrWhiteSpace(Model.ActiveSprintMetrics.ActiveSprintName) ? "No active sprint set." : Model.ActiveSprintMetrics.ActiveSprintName)</p>
+        <p>@(string.IsNullOrWhiteSpace(Model.ActiveSprintMetrics.ActiveSprintName) ? "No active Planning Window set." : Model.ActiveSprintMetrics.ActiveSprintName)</p>
     </article>
 </section>
 
@@ -107,7 +107,7 @@
         <div class="at-panel-heading">
             <div>
                 <h3>Remaining assigned work</h3>
-                <p class="at-panel-note">Open assigned tasks outside today's, overdue, in-progress, submitted, and active sprint lanes.</p>
+                <p class="at-panel-note">Open assigned tasks outside today's, overdue, in-progress, submitted, and active Planning Window lanes.</p>
             </div>
             <span class="at-count-chip">@remainingAssignedTaskCount</span>
         </div>
@@ -115,23 +115,23 @@
     </article>
 </section>
 
-@* SECTION: Active sprint context shows assigned work in the current sprint without moving workflow actions out of the inspector. *@
+@* SECTION: Active Planning Window context shows assigned work in the current Planning Window without moving workflow actions out of the inspector. *@
 <section class="at-section-group">
     <article class="at-panel">
         <div class="at-panel-heading">
             <div>
-                <h3>My active sprint</h3>
+                <h3>My active Planning Window</h3>
                 @if (!string.IsNullOrWhiteSpace(Model.ActiveSprintMetrics.ActiveSprintName))
                 {
                     <p class="at-panel-note">@Model.ActiveSprintMetrics.ActiveSprintName · @Model.ActiveSprintMetrics.ActiveSprintDateRange</p>
                 }
                 else
                 {
-                    <p class="at-panel-note">No active sprint is currently set.</p>
+                    <p class="at-panel-note">No active Planning Window is currently set.</p>
                 }
             </div>
             <span class="at-count-chip">@activeSprintTaskCount</span>
         </div>
-        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.MyActiveSprintTaskDisplays, "No assigned tasks are in the active sprint.", false)' />
+        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.MyActiveSprintTaskDisplays, "No assigned tasks are in the active Planning Window.", false)' />
     </article>
 </section>

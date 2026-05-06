@@ -124,7 +124,7 @@
                         <div><span class="text-muted">Assigned On</span><div class="fw-semibold">@Model.SelectedTask.AssignedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
                         <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@(Model.SelectedTask.SubmittedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
                         <div><span class="text-muted">Closed On</span><div class="fw-semibold">@(Model.SelectedTask.ClosedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
-                        <div><span class="text-muted">Sprint / Backlog</span><div class="fw-semibold">@Model.GetSprintBadgeText(Model.SelectedTask)</div></div>
+                        <div><span class="text-muted">Planning Window / Backlog</span><div class="fw-semibold">@Model.GetSprintBadgeText(Model.SelectedTask)</div></div>
                     </div>
                 </details>
             </div>

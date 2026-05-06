@@ -2772,3 +2772,97 @@ html {
         padding-right: 0.9rem;
     }
 }
+
+/* SECTION: Phase 3A-4 Planning Board polish, contained Kanban scrolling, and compact empty states. */
+.at-shell.is-planning-board {
+    overflow-x: clip;
+}
+
+.at-shell.is-planning-board .at-create-trigger {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+    box-shadow: none;
+}
+
+.at-planning-views-panel,
+.at-planning-kanban-view {
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.at-planning-kanban-view {
+    width: 100%;
+}
+
+.at-kanban-scroll {
+    contain: inline-size;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+}
+
+.at-kanban-scroll .at-board-grid.is-kanban {
+    width: max-content;
+    min-width: max-content;
+}
+
+.at-shell.is-planning-board.has-selection .at-planning-kanban-view {
+    max-width: min(100%, calc(100vw - 88px - 31rem));
+}
+
+.at-shell.is-planning-board.has-selection .at-kanban-scroll {
+    padding-right: 0.9rem;
+}
+
+.at-execute-status-section.is-empty {
+    min-height: 0;
+    padding: 0.58rem 0.7rem;
+}
+
+.at-execute-status-section.is-empty .at-panel-heading,
+.at-execute-closed-section.is-empty > summary {
+    margin-bottom: 0;
+}
+
+.at-execute-status-section.is-empty .at-empty-inline,
+.at-execute-closed-section.is-empty .at-empty-inline {
+    margin-top: 0.25rem;
+}
+
+.at-execute-closed-section.is-empty {
+    padding: 0.58rem 0.7rem;
+}
+
+.at-execute-quick-add-inline.is-empty {
+    min-width: 0;
+    background: #f8fafc;
+}
+
+.at-execute-quick-add-empty {
+    margin-top: 0.45rem;
+}
+
+.at-closure-review {
+    border-color: var(--at-border);
+}
+
+.at-closure-recommendations {
+    border-color: #fed7aa;
+    border-left: 4px solid var(--at-warning);
+    box-shadow: none;
+    padding: 0.6rem 0.75rem;
+}
+
+.at-closure-actions .btn-danger {
+    box-shadow: 0 10px 22px rgba(220, 38, 38, 0.22);
+    font-weight: var(--at-weight-bold);
+}
+
+@media (max-width: 1399px) {
+    .at-shell.is-planning-board.has-selection .at-planning-kanban-view {
+        max-width: 100%;
+    }
+}

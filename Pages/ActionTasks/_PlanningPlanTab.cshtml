@@ -9,7 +9,7 @@
         </div>
         @if (!Model.Sprints.Any())
         {
-            <div class="at-empty-state at-empty-state-compact">No planning window has been created yet.</div>
+            <div class="at-empty-state at-empty-state-compact">No Planning Window has been created yet.</div>
         }
         else
         {
@@ -37,7 +37,7 @@
                 <div class="at-sprint-list-heading">Active</div>
                 @if (Model.ActiveSprint is null)
                 {
-                    <div class="at-empty-inline">No active planning window.</div>
+                    <div class="at-empty-inline">No active Planning Window.</div>
                 }
                 else
                 {
@@ -52,7 +52,7 @@
                 <div class="at-sprint-list-heading">Planned</div>
                 @if (!Model.PlannedSprints.Any())
                 {
-                    <div class="at-empty-inline">No planned windows.</div>
+                    <div class="at-empty-inline">No planned Planning Windows.</div>
                 }
                 @foreach (var sprint in Model.PlannedSprints)
                 {
@@ -67,7 +67,7 @@
                 <summary class="at-sprint-list-heading">Closed <span class="at-count-chip">@Model.ClosedSprints.Count</span></summary>
                 @if (!Model.ClosedSprints.Any())
                 {
-                    <div class="at-empty-inline">No closed windows.</div>
+                    <div class="at-empty-inline">No closed Planning Windows.</div>
                 }
                 @foreach (var sprint in Model.ClosedSprints.Take(8))
                 {
@@ -94,7 +94,7 @@
                     <label class="form-label" asp-for="SprintInput.EndDate"></label>
                     <input class="form-control" asp-for="SprintInput.EndDate" type="date" />
                     <label class="form-label" asp-for="SprintInput.Goal"></label>
-                    <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this planning window"></textarea>
+                    <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this Planning Window"></textarea>
                     <button type="submit" class="btn btn-primary btn-sm">Create Planning Window</button>
                 </form>
             </details>
@@ -105,7 +105,7 @@
         <div class="at-panel-heading">
             <div>
                 <h2>Backlog Queue</h2>
-                <p class="at-panel-note">Filter backlog tasks and assign eligible work into a planning window.</p>
+                <p class="at-panel-note">Filter backlog tasks and assign eligible work into a Planning Window.</p>
             </div>
             <span class="at-count-chip">@Model.BacklogTaskDisplays.Count</span>
         </div>
@@ -195,8 +195,8 @@
                                         <input type="hidden" name="PlanningTab" value="Execute" />
                                         <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
                                         <input type="hidden" name="id" value="@task.Id" />
-                                        <select class="form-select form-select-sm" name="sprintId" aria-label="Select planning window for AT-@task.Id" required>
-                                            <option value="">Select planning window</option>
+                                        <select class="form-select form-select-sm" name="sprintId" aria-label="Select Planning Window for AT-@task.Id" required>
+                                            <option value="">Select Planning Window</option>
                                             @foreach (var sprint in Model.AssignableSprints)
                                             {
                                                 <option value="@sprint.Id">@sprint.Name (@sprint.Status)</option>
