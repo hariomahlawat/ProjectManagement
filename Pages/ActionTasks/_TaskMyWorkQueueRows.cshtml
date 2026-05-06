@@ -1,0 +1,30 @@
+@model Tuple<ProjectManagement.Pages.ActionTasks.IndexModel, IReadOnlyList<ProjectManagement.Pages.ActionTasks.IndexModel.TaskDisplayItem>>
+@{
+    var pageModel = Model.Item1;
+    var tasks = Model.Item2;
+}
+
+@* SECTION: Compact My Work rows preserve inspector routing without large task-card bodies. *@
+<div class="at-mywork-rows">
+    @foreach (var item in tasks)
+    {
+        var task = item.Task;
+        <a class="at-mywork-row @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)"
+           asp-page="/ActionTasks/Index"
+           asp-route-taskId="@task.Id"
+           asp-route-viewMode="@pageModel.ResolvedViewMode"
+           aria-label="Open task AT-@task.Id details">
+            <div class="at-mywork-row-main">
+                <span class="at-mywork-task-id">AT-@task.Id</span>
+                <span class="at-mywork-title">@task.Title</span>
+            </div>
+            <div class="at-mywork-row-meta" aria-label="Task metadata">
+                <span>Due @task.DueDate.ToString("dd MMM yyyy")</span>
+                <span class="@pageModel.GetStatusBadgeClass(task.Status)">@task.Status</span>
+                <span class="@pageModel.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
+                <span class="@pageModel.GetSprintBadgeClass(task)">@pageModel.GetSprintBadgeText(task)</span>
+                <span class="at-mywork-open-action">Open details</span>
+            </div>
+        </a>
+    }
+</div>

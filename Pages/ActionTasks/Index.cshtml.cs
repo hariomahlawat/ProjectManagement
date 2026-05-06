@@ -970,11 +970,20 @@ public class IndexModel : PageModel
             .ToList());
 
     public IReadOnlyList<TaskDisplayItem> MyRemainingAssignedTaskDisplays =>
-        ToDisplayItems(GetRemainingAssignedTasks()
-            .OrderBy(t => StatusOrder(t.Status))
-            .ThenBy(t => t.DueDate)
-            .ThenBy(t => t.Id)
-            .ToList());
+        MyWorkAllMyTasksDisplays;
+
+    // SECTION: My Work queue projections de-duplicate tasks by urgency before rendering primary workspace sections.
+    public IReadOnlyList<TaskDisplayItem> MyWorkActionRequiredDisplays =>
+        ToDisplayItems(BuildMyWorkQueueSection(MyWorkQueueSection.ActionRequired));
+
+    public IReadOnlyList<TaskDisplayItem> MyWorkCurrentWorkDisplays =>
+        ToDisplayItems(BuildMyWorkQueueSection(MyWorkQueueSection.CurrentWork));
+
+    public IReadOnlyList<TaskDisplayItem> MyWorkSubmittedAwaitingClosureDisplays =>
+        ToDisplayItems(BuildMyWorkQueueSection(MyWorkQueueSection.SubmittedAwaitingClosure));
+
+    public IReadOnlyList<TaskDisplayItem> MyWorkAllMyTasksDisplays =>
+        ToDisplayItems(BuildMyWorkQueueSection(MyWorkQueueSection.AllMyTasks));
 
     // SECTION: Legacy My Tasks display alias retained for older partial references.
     public IReadOnlyList<TaskDisplayItem> MyWorkOverdueTaskDisplays =>
@@ -1685,19 +1694,76 @@ public class IndexModel : PageModel
             ? Array.Empty<ActionTaskItem>()
             : Tasks.Where(t => t.SprintId == ActiveSprint.Id).ToList();
 
-    // SECTION: Remaining personal work keeps assigned tasks visible when they do not fit a priority lane.
-    private IReadOnlyList<ActionTaskItem> GetRemainingAssignedTasks()
+    // SECTION: My Work queue section identifiers keep the presentation grouping explicit and replaceable.
+    private enum MyWorkQueueSection
     {
-        var activeSprintId = ActiveSprint?.Id;
-        return Tasks
-            .Where(IsOpenTask)
-            .Where(t => t.DueDate.Date != DateTime.UtcNow.Date)
-            .Where(t => !IsTaskOverdue(t))
-            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
-            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
-            .Where(t => !activeSprintId.HasValue || t.SprintId != activeSprintId.Value)
-            .ToList();
+        ActionRequired,
+        CurrentWork,
+        SubmittedAwaitingClosure,
+        AllMyTasks
     }
+
+    // SECTION: Remaining personal work keeps assigned tasks visible when they do not fit a priority lane.
+    private IReadOnlyList<ActionTaskItem> GetRemainingAssignedTasks() =>
+        BuildMyWorkQueueSection(MyWorkQueueSection.AllMyTasks);
+
+    // SECTION: Priority-based My Work queue assigns each task to exactly one primary section.
+    private IReadOnlyList<ActionTaskItem> BuildMyWorkQueueSection(MyWorkQueueSection section) =>
+        Tasks
+            .Select(task => new { Task = task, Section = ResolveMyWorkQueueSection(task) })
+            .Where(item => item.Section == section)
+            .Select(item => item.Task)
+            .OrderBy(task => ResolveMyWorkPriorityRank(task))
+            .ThenBy(task => StatusOrder(task.Status))
+            .ThenBy(task => task.DueDate)
+            .ThenBy(task => task.Id)
+            .ToList();
+
+    // SECTION: My Work precedence prevents repeated cards across action, execution, submitted, and remaining sections.
+    private MyWorkQueueSection ResolveMyWorkQueueSection(ActionTaskItem task)
+    {
+        if (IsTaskOverdue(task) || IsTaskDueToday(task) || IsTaskBlocked(task))
+        {
+            return MyWorkQueueSection.ActionRequired;
+        }
+
+        if (IsTaskInProgress(task))
+        {
+            return MyWorkQueueSection.CurrentWork;
+        }
+
+        if (IsTaskSubmitted(task))
+        {
+            return MyWorkQueueSection.SubmittedAwaitingClosure;
+        }
+
+        return MyWorkQueueSection.AllMyTasks;
+    }
+
+    // SECTION: My Work row ordering follows the required urgency precedence inside compact sections.
+    private int ResolveMyWorkPriorityRank(ActionTaskItem task)
+    {
+        if (IsTaskOverdue(task)) return 1;
+        if (IsTaskDueToday(task)) return 2;
+        if (IsTaskBlocked(task)) return 3;
+        if (IsTaskInProgress(task)) return 4;
+        if (IsTaskSubmitted(task)) return 5;
+        return 6;
+    }
+
+    // SECTION: My Work status predicates keep grouping readable without changing workflow rules.
+    private static bool IsTaskBlocked(ActionTaskItem task) =>
+        string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTaskInProgress(ActionTaskItem task) =>
+        string.Equals(task.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTaskSubmitted(ActionTaskItem task) =>
+        string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTaskDueToday(ActionTaskItem task) =>
+        IsOpenTask(task)
+        && task.DueDate.Date == DateTime.UtcNow.Date;
 
     private IReadOnlyList<TaskDisplayItem> ToDisplayItems(IReadOnlyList<ActionTaskItem> tasks) =>
         tasks.Select(task => new TaskDisplayItem
