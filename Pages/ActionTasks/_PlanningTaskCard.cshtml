@@ -1,0 +1,40 @@
+@model Tuple<ProjectManagement.Pages.ActionTasks.IndexModel, ProjectManagement.Pages.ActionTasks.IndexModel.TaskDisplayItem, string, bool>
+@{
+    // SECTION: Shared Planning Board task card keeps Execute and closed-section card behaviour consistent.
+    var pageModel = Model.Item1;
+    var item = Model.Item2;
+    var planningTab = Model.Item3;
+    var allowMoveToBacklog = Model.Item4;
+    var task = item.Task;
+}
+
+<article class="at-task-card at-sprint-task-card @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)">
+    <a class="at-task-card-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Planning" asp-route-PlanningTab="@planningTab" asp-route-SelectedSprintId="@pageModel.SelectedSprintId" aria-label="Open task AT-@task.Id details">
+        <div class="at-card-top-row">
+            <h3 class="at-card-subject">AT-@task.Id · @task.Title</h3>
+            <span class="@pageModel.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
+        </div>
+        <dl class="at-card-facts">
+            <div><dt>Owner</dt><dd>@item.AssigneeName</dd></div>
+            <div><dt>Due</dt><dd>@task.DueDate.ToString("dd MMM yyyy")</dd></div>
+        </dl>
+        <div class="at-card-footer">
+            <span class="@pageModel.GetStatusBadgeClass(task.Status)">@task.Status</span>
+            @if (pageModel.IsTaskOverdue(task))
+            {
+                <span class="at-overdue-marker">Overdue</span>
+            }
+            <span class="at-open-details-label">Open details</span>
+        </div>
+    </a>
+    @if (allowMoveToBacklog && pageModel.CanMoveTaskToBacklog(task))
+    {
+        <form method="post" asp-page-handler="MoveToBacklog" class="at-card-action-form">
+            <input type="hidden" name="ViewMode" value="Planning" />
+            <input type="hidden" name="PlanningTab" value="Execute" />
+            <input type="hidden" name="SelectedSprintId" value="@pageModel.SelectedSprintId" />
+            <input type="hidden" name="id" value="@task.Id" />
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Move to Backlog</button>
+        </form>
+    }
+</article>

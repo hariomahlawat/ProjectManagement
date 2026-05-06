@@ -2342,3 +2342,254 @@ html {
 .at-planning-views-panel .at-board-grid {
     min-width: 0;
 }
+
+/* SECTION: Phase 3A-2 Planning Board compact command strip and overlay-safe workspace. */
+.at-shell.is-planning-board.has-selection {
+    grid-template-columns: 88px minmax(0, 1fr);
+}
+
+.at-shell.is-planning-board.has-selection .at-drawer-host {
+    position: fixed;
+    top: 5.5rem;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 1040;
+    width: min(28rem, calc(100vw - 2rem));
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
+}
+
+.at-shell.is-planning-board.has-selection .at-task-details-panel,
+.at-shell.is-planning-board.has-selection .at-inspector-shell {
+    height: 100%;
+    max-height: 100%;
+}
+
+.at-planning-command-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.55rem 0.85rem;
+    align-items: center;
+    padding: 0.55rem 0.7rem;
+}
+
+.at-planning-command-main {
+    display: grid;
+    grid-template-columns: minmax(0, auto) auto minmax(12rem, 1fr);
+    gap: 0.45rem 0.65rem;
+    align-items: center;
+    min-width: 0;
+}
+
+.at-planning-command-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.55rem;
+    min-width: 0;
+}
+
+.at-planning-command-title h2 {
+    margin: 0;
+    font-size: 0.96rem;
+    line-height: 1.2;
+}
+
+.at-planning-command-title .at-section-eyebrow {
+    margin: 0;
+}
+
+.at-planning-command-pills {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.at-compact-counter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 1px solid var(--at-border);
+    border-radius: 999px;
+    background: #f8fafc;
+    color: var(--at-muted);
+    padding: 0.16rem 0.45rem;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
+    white-space: nowrap;
+}
+
+.at-compact-counter strong {
+    color: var(--at-text);
+}
+
+.at-planning-command-focus {
+    overflow: hidden;
+    padding: 0.24rem 0.45rem;
+    border: 0;
+    border-left: 3px solid #bfdbfe;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.at-planning-command-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.at-planning-empty-command {
+    grid-column: 1 / -1;
+}
+
+/* SECTION: Phase 3A-2 compact internal Planning Board tabs. */
+.at-planning-tabs-compact {
+    display: flex;
+    gap: 0;
+    padding: 0 0.65rem;
+    border-bottom: 1px solid var(--at-border);
+    background: #ffffff;
+}
+
+.at-planning-tabs-compact a {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: -1px;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    padding: 0.55rem 0.8rem 0.45rem;
+}
+
+.at-planning-tabs-compact a small {
+    display: none;
+}
+
+.at-planning-tabs-compact a.active {
+    border-color: var(--at-blue);
+    background: #f8fbff;
+    box-shadow: none;
+}
+
+/* SECTION: Phase 3A-2 Execute board replaces horizontal primary columns with responsive status sections. */
+.at-planning-execute-panel {
+    gap: 0.7rem;
+}
+
+.at-execute-status-board {
+    gap: 0.7rem;
+}
+
+.at-execute-status-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    align-items: start;
+    min-width: 0;
+}
+
+.at-execute-status-section {
+    min-width: 0;
+    min-height: 10rem;
+}
+
+.at-execute-status-section .at-task-cards,
+.at-execute-closed-section .at-task-cards {
+    margin-top: 0.55rem;
+}
+
+.at-execute-toolbar {
+    display: grid;
+    grid-template-columns: minmax(16rem, 0.8fr) minmax(0, 1.2fr);
+    gap: 0.7rem;
+    align-items: start;
+}
+
+.at-execute-quick-add {
+    padding: 0.65rem 0.75rem;
+}
+
+.at-execute-quick-add > summary,
+.at-execute-attention > summary,
+.at-execute-closed-section > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    cursor: pointer;
+    color: var(--at-text);
+    font-weight: var(--at-weight-bold);
+}
+
+.at-execute-quick-add .at-sprint-add-form {
+    margin-top: 0.65rem;
+}
+
+.at-execute-attention {
+    min-width: 0;
+    padding: 0.65rem 0.75rem;
+}
+
+.at-execute-attention .at-attention-grid {
+    margin-top: 0.65rem;
+}
+
+.at-shell.is-planning-board.has-selection .at-execute-status-grid {
+    grid-template-columns: 1fr;
+}
+
+.at-shell.is-planning-board.has-selection .at-planning-view-toggle {
+    padding-right: min(29rem, calc(100vw - 1rem));
+}
+
+.at-planning-views-panel .at-planning-due-exceptions-grid,
+.at-planning-views-panel .at-task-cards,
+.at-planning-views-panel .at-panel {
+    min-width: 0;
+}
+
+.at-planning-views-panel .at-board-grid.is-kanban {
+    min-width: max-content;
+}
+
+@media (max-width: 1200px) {
+    .at-planning-command-strip,
+    .at-planning-command-main,
+    .at-execute-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .at-planning-command-actions {
+        justify-content: flex-start;
+    }
+
+    .at-execute-status-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 767px) {
+    .at-shell.is-planning-board.has-selection .at-drawer-host {
+        left: 0.75rem;
+        right: 0.75rem;
+        width: auto;
+    }
+
+    .at-planning-tabs-compact {
+        overflow-x: auto;
+        padding: 0 0.35rem;
+    }
+
+    .at-planning-tabs-compact a {
+        flex: 0 0 auto;
+    }
+
+    .at-planning-command-focus {
+        white-space: normal;
+    }
+}

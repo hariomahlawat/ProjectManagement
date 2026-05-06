@@ -12,7 +12,7 @@
     <script src="~/js/pages/action-tasks/index.js" asp-append-version="true"></script>
 }
 
-<div class="at-shell @(Model.TaskId.HasValue ? "has-selection" : string.Empty)">
+<div class="at-shell @(Model.TaskId.HasValue ? "has-selection" : string.Empty) @(Model.IsPlanningView ? "is-planning-board" : string.Empty)">
     @* SECTION: Compact left rail navigation. *@
     <aside class="at-rail" aria-label="Task tracker navigation">
         <nav class="at-nav">
