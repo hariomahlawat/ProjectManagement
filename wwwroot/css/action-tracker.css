@@ -1504,7 +1504,7 @@ html {
 }
 
 .at-sprint-layout-refined {
-    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(240px, 300px);
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
 }
 
 .at-sprint-execution-main {
@@ -1571,10 +1571,14 @@ html {
 }
 
 .at-sprint-attention-lane {
-    position: sticky;
-    top: 5rem;
     display: grid;
     gap: 0.75rem;
+}
+
+.at-attention-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.65rem;
 }
 
 .at-attention-group,
@@ -1629,7 +1633,7 @@ html {
 .at-card-facts dt {
     color: var(--at-muted);
     font-size: var(--at-font-xs);
-    font-weight: var(--at-weight-bold);
+    font-weight: var(--at-weight-semibold);
     text-transform: uppercase;
 }
 
@@ -1637,14 +1641,14 @@ html {
     margin: 0;
     color: var(--at-text);
     font-size: var(--at-font-md);
-    font-weight: 700;
+    font-weight: var(--at-weight-medium);
     overflow-wrap: anywhere;
 }
 
 .at-open-details-label {
     color: var(--at-blue);
     font-size: var(--at-font-sm);
-    font-weight: var(--at-weight-bold);
+    font-weight: var(--at-weight-medium);
 }
 
 .at-overdue-marker {
@@ -1864,7 +1868,7 @@ html {
 
 .at-open-details-label {
     font-size: var(--at-font-xs);
-    font-weight: var(--at-weight-bold);
+    font-weight: var(--at-weight-medium);
 }
 
 /* SECTION: Phase 2A sprint workspace cleanup and inspector-safe board layout */
@@ -1915,16 +1919,33 @@ html {
     box-shadow: var(--at-shadow-sm);
 }
 
+.at-sprint-board-stack {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
 .at-board-grid.is-sprints {
-    grid-auto-columns: minmax(185px, 1fr);
-    grid-template-columns: repeat(5, minmax(185px, 1fr));
+    grid-auto-columns: initial;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.at-sprint-primary-statuses {
+    align-items: start;
+}
+
+.at-sprint-closed-section {
+    min-height: 0;
+}
+
+.at-sprint-closed-cards {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .at-sprint-execution-main .at-board-scroll {
     max-width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-x: contain;
+    overflow-x: visible;
+    overflow-y: visible;
 }
 
 .at-sprint-task-card {
@@ -1940,8 +1961,7 @@ html {
 }
 
 .at-shell.has-selection .at-sprint-attention-lane {
-    grid-column: 2;
-    position: static;
+    grid-column: auto;
 }
 
 .at-shell.has-selection .at-sprint-board-column {
@@ -1949,8 +1969,8 @@ html {
 }
 
 .at-shell.has-selection .at-board-grid.is-sprints {
-    grid-auto-columns: minmax(175px, 1fr);
-    grid-template-columns: repeat(5, minmax(175px, 1fr));
+    grid-auto-columns: initial;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 @media (max-width: 1399px) {
@@ -1965,9 +1985,20 @@ html {
         grid-template-columns: 1fr;
         grid-column: auto;
     }
+
+    .at-board-grid.is-sprints {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 767px) {
+    .at-board-grid.is-sprints,
+    .at-shell.has-selection .at-board-grid.is-sprints,
+    .at-sprint-closed-cards,
+    .at-attention-grid {
+        grid-template-columns: 1fr;
+    }
+
     .at-sprint-empty-command {
         align-items: stretch;
         flex-direction: column;
