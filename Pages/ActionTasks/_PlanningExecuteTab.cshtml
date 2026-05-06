@@ -7,7 +7,7 @@
     var attentionCount = Model.SprintAttentionOverdueTaskDisplays.Count + Model.SprintAttentionBlockedTaskDisplays.Count + Model.SprintAttentionSubmittedTaskDisplays.Count;
 }
 
-@* SECTION: Execute tab makes the real execution board the first dominant content. *@
+@* SECTION: Execute tab starts with a compact board header before status work sections. *@
 <section class="at-planning-tab-panel at-sprint-execution-main at-planning-execute-panel" aria-label="Planning Board Execute tab">
     @if (Model.SelectedSprint is null)
     {
@@ -15,6 +15,61 @@
     }
     else
     {
+        <header class="at-panel at-execute-board-header" aria-label="Execution board header">
+            <div class="at-execute-board-title">
+                <span class="at-section-eyebrow">Execute</span>
+                <h2>Execution board</h2>
+            </div>
+            @if (Model.CanModifySelectedSprint)
+            {
+                @* SECTION: Add Backlog Task remains a secondary collapsed action, now discoverable at the top of Execute. *@
+                <details class="at-execute-quick-add at-execute-quick-add-inline">
+                    <summary>Add Backlog Task <span class="at-count-chip">@Model.AssignableBacklogTaskDisplays.Count</span></summary>
+                    <form method="post" asp-page-handler="AssignToSprint" class="at-sprint-add-form">
+                        <input type="hidden" name="ViewMode" value="Planning" />
+                        <input type="hidden" name="PlanningTab" value="Execute" />
+                        <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprint?.Id" />
+                        <input type="hidden" name="sprintId" value="@Model.SelectedSprint?.Id" />
+                        <select class="form-select form-select-sm" name="id" aria-label="Select backlog task" required>
+                            <option value="">Select backlog task</option>
+                            @foreach (var item in Model.AssignableBacklogTaskDisplays)
+                            {
+                                <option value="@item.Task.Id">AT-@item.Task.Id · @item.Task.Title (@item.AssigneeName)</option>
+                            }
+                        </select>
+                        <button type="submit" class="btn btn-primary btn-sm" @(Model.AssignableBacklogTaskDisplays.Any() ? null : "disabled")>Assign</button>
+                    </form>
+                </details>
+            }
+        </header>
+
+        @* SECTION: Compact attention summary is default; task mini-lists stay inside the collapsed details panel. *@
+        <details class="at-panel at-sprint-attention-lane at-execute-attention">
+            <summary>
+                <span>Execution attention</span>
+                <span class="at-execute-attention-summary" aria-label="Execution attention counts">
+                    <span>Overdue <strong>@Model.SprintAttentionOverdueTaskDisplays.Count</strong></span>
+                    <span>Blocked <strong>@Model.SprintAttentionBlockedTaskDisplays.Count</strong></span>
+                    <span>Submitted pending closure <strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></span>
+                </span>
+                <span class="at-count-chip">@attentionCount</span>
+            </summary>
+            <div class="at-attention-grid">
+                <div class="at-attention-group">
+                    <div class="at-attention-heading"><span>Overdue</span><strong>@Model.SprintAttentionOverdueTaskDisplays.Count</strong></div>
+                    <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionOverdueTaskDisplays, "No overdue planning tasks.")' />
+                </div>
+                <div class="at-attention-group">
+                    <div class="at-attention-heading"><span>Blocked</span><strong>@Model.SprintAttentionBlockedTaskDisplays.Count</strong></div>
+                    <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionBlockedTaskDisplays, "No blocked planning tasks.")' />
+                </div>
+                <div class="at-attention-group">
+                    <div class="at-attention-heading"><span>Submitted pending closure</span><strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></div>
+                    <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionSubmittedTaskDisplays, "No submitted planning tasks.")' />
+                </div>
+            </div>
+        </details>
+
         <section class="at-sprint-board-stack at-execute-status-board" aria-label="Selected Planning Board task board">
             <div class="at-execute-status-grid">
                 @foreach (var status in activeStatuses)
@@ -57,47 +112,5 @@
                 }
             </details>
         </section>
-
-        <div class="at-execute-toolbar" aria-label="Execute secondary actions and attention">
-            @if (Model.CanModifySelectedSprint)
-            {
-                @* SECTION: Add Backlog Task is secondary and collapsed below the execution board. *@
-                <details class="at-panel at-execute-quick-add">
-                    <summary>Add Backlog Task <span class="at-count-chip">@Model.AssignableBacklogTaskDisplays.Count</span></summary>
-                    <form method="post" asp-page-handler="AssignToSprint" class="at-sprint-add-form">
-                        <input type="hidden" name="ViewMode" value="Planning" />
-                        <input type="hidden" name="PlanningTab" value="Execute" />
-                        <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprint?.Id" />
-                        <input type="hidden" name="sprintId" value="@Model.SelectedSprint?.Id" />
-                        <select class="form-select form-select-sm" name="id" aria-label="Select backlog task" required>
-                            <option value="">Select backlog task</option>
-                            @foreach (var item in Model.AssignableBacklogTaskDisplays)
-                            {
-                                <option value="@item.Task.Id">AT-@item.Task.Id · @item.Task.Title (@item.AssigneeName)</option>
-                            }
-                        </select>
-                        <button type="submit" class="btn btn-primary btn-sm" @(Model.AssignableBacklogTaskDisplays.Any() ? null : "disabled")>Assign</button>
-                    </form>
-                </details>
-            }
-
-            <details class="at-panel at-sprint-attention-lane at-execute-attention" @(attentionCount > 0 ? "open" : null)>
-                <summary>Execution attention <span class="at-count-chip">@attentionCount</span></summary>
-                <div class="at-attention-grid">
-                    <div class="at-attention-group">
-                        <div class="at-attention-heading"><span>Overdue</span><strong>@Model.SprintAttentionOverdueTaskDisplays.Count</strong></div>
-                        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionOverdueTaskDisplays, "No overdue planning tasks.")' />
-                    </div>
-                    <div class="at-attention-group">
-                        <div class="at-attention-heading"><span>Blocked</span><strong>@Model.SprintAttentionBlockedTaskDisplays.Count</strong></div>
-                        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionBlockedTaskDisplays, "No blocked planning tasks.")' />
-                    </div>
-                    <div class="at-attention-group">
-                        <div class="at-attention-heading"><span>Submitted pending closure</span><strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></div>
-                        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionSubmittedTaskDisplays, "No submitted planning tasks.")' />
-                    </div>
-                </div>
-            </details>
-        </div>
     }
 </section>
