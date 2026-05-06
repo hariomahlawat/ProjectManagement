@@ -241,9 +241,10 @@
 
             <partial name="_SprintClosureReview" model="Model" />
 
-            <section class="at-board-scroll" aria-label="Selected sprint task board">
-                <div class="at-board-grid is-sprints">
-                    @foreach (var status in new[] { ActionTaskStatuses.Assigned, ActionTaskStatuses.InProgress, ActionTaskStatuses.Blocked, ActionTaskStatuses.Submitted, ActionTaskStatuses.Closed })
+            @* SECTION: Primary execution board keeps active workflow statuses in the main row to avoid default horizontal scrolling. *@
+            <section class="at-sprint-board-stack" aria-label="Selected sprint task board">
+                <div class="at-board-grid is-sprints at-sprint-primary-statuses">
+                    @foreach (var status in new[] { ActionTaskStatuses.Assigned, ActionTaskStatuses.InProgress, ActionTaskStatuses.Blocked, ActionTaskStatuses.Submitted })
                     {
                         var groupedTasks = Model.GetSprintTasksByStatus(status);
                         <article class="at-panel at-board-column at-sprint-board-column">
@@ -293,7 +294,80 @@
                         </article>
                     }
                 </div>
+
+                @* SECTION: Closed work remains grouped but moves below active execution statuses to protect board width. *@
+                @{
+                    var closedTasks = Model.GetSprintTasksByStatus(ActionTaskStatuses.Closed);
+                }
+                <article class="at-panel at-board-column at-sprint-board-column at-sprint-closed-section">
+                    <div class="at-panel-heading"><h2>@(ActionTaskStatuses.Closed)</h2><span class="at-count-chip">@closedTasks.Count</span></div>
+                    @if (!closedTasks.Any())
+                    {
+                        <p class="at-empty-inline">No @(ActionTaskStatuses.Closed.ToLowerInvariant()) tasks.</p>
+                    }
+                    else
+                    {
+                        <div class="at-task-cards at-sprint-closed-cards">
+                            @foreach (var item in closedTasks)
+                            {
+                                var task = item.Task;
+                                <article class="at-task-card at-sprint-task-card @(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)">
+                                    <a class="at-task-card-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Sprints" asp-route-SelectedSprintId="@Model.SelectedSprintId" aria-label="Open task AT-@task.Id details">
+                                        <div class="at-card-top-row">
+                                            <h3 class="at-card-subject">AT-@task.Id · @task.Title</h3>
+                                            <span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
+                                        </div>
+                                        <dl class="at-card-facts">
+                                            <div><dt>Owner</dt><dd>@item.AssigneeName</dd></div>
+                                            <div><dt>Due</dt><dd>@task.DueDate.ToString("dd MMM yyyy")</dd></div>
+                                        </dl>
+                                        <div class="at-card-footer">
+                                            <span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span>
+                                            @if (Model.IsTaskOverdue(task))
+                                            {
+                                                <span class="at-overdue-marker">Overdue</span>
+                                            }
+                                            <span class="at-open-details-label">Open details</span>
+                                        </div>
+                                    </a>
+                                    @if (Model.CanMoveTaskToBacklog(task))
+                                    {
+                                        <form method="post" asp-page-handler="MoveToBacklog" class="at-card-action-form">
+                                            <input type="hidden" name="ViewMode" value="Sprints" />
+                                            <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                            <input type="hidden" name="id" value="@task.Id" />
+                                            <button type="submit" class="btn btn-outline-secondary btn-sm">Move to Backlog</button>
+                                        </form>
+                                    }
+                                </article>
+                            }
+                        </div>
+                    }
+                </article>
             </section>
+
+            @* SECTION: Attention lane sits below execution board so it remains visible without stealing board width. *@
+            <aside class="at-panel at-sprint-attention-lane">
+                <div class="at-panel-heading"><h2>Attention Lane</h2></div>
+                <div class="at-attention-grid">
+                    <div class="at-attention-group">
+                        <div class="at-attention-heading"><span>Overdue</span><strong>@Model.SprintAttentionOverdueTaskDisplays.Count</strong></div>
+                        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionOverdueTaskDisplays, "No overdue sprint tasks.")' />
+                    </div>
+                    <div class="at-attention-group">
+                        <div class="at-attention-heading"><span>Blocked</span><strong>@Model.SprintAttentionBlockedTaskDisplays.Count</strong></div>
+                        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionBlockedTaskDisplays, "No blocked sprint tasks.")' />
+                    </div>
+                    <div class="at-attention-group">
+                        <div class="at-attention-heading"><span>Submitted pending closure</span><strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></div>
+                        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionSubmittedTaskDisplays, "No submitted sprint tasks.")' />
+                    </div>
+                    <div class="at-attention-group">
+                        <div class="at-attention-heading"><span>Carry-forward candidates</span><strong>@Model.SprintCarryForwardCandidateDisplays.Count</strong></div>
+                        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintCarryForwardCandidateDisplays, "No carry-forward candidates.")' />
+                    </div>
+                </div>
+            </aside>
 
             @if (Model.SelectedSprint is not null)
             {
@@ -327,25 +401,5 @@
             }
         </main>
 
-        @* SECTION: Right attention lane surfaces command exceptions and carry-forward candidates. *@
-        <aside class="at-panel at-sprint-attention-lane">
-            <div class="at-panel-heading"><h2>Attention Lane</h2></div>
-            <div class="at-attention-group">
-                <div class="at-attention-heading"><span>Overdue</span><strong>@Model.SprintAttentionOverdueTaskDisplays.Count</strong></div>
-                <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionOverdueTaskDisplays, "No overdue sprint tasks.")' />
-            </div>
-            <div class="at-attention-group">
-                <div class="at-attention-heading"><span>Blocked</span><strong>@Model.SprintAttentionBlockedTaskDisplays.Count</strong></div>
-                <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionBlockedTaskDisplays, "No blocked sprint tasks.")' />
-            </div>
-            <div class="at-attention-group">
-                <div class="at-attention-heading"><span>Submitted pending closure</span><strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></div>
-                <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionSubmittedTaskDisplays, "No submitted sprint tasks.")' />
-            </div>
-            <div class="at-attention-group">
-                <div class="at-attention-heading"><span>Carry-forward candidates</span><strong>@Model.SprintCarryForwardCandidateDisplays.Count</strong></div>
-                <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintCarryForwardCandidateDisplays, "No carry-forward candidates.")' />
-            </div>
-        </aside>
     </div>
 </section>
