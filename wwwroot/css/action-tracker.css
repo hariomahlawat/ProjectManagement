@@ -2027,3 +2027,75 @@ html {
         grid-template-columns: 1fr;
     }
 }
+
+/* SECTION: Planning Board integrated backlog and alternate views */
+.at-planning-backlog-queue,
+.at-planning-secondary-view {
+    border: 1px solid var(--at-border);
+    border-radius: 14px;
+    background: var(--at-surface);
+    box-shadow: var(--at-shadow-sm);
+}
+
+.at-planning-backlog-queue {
+    margin-top: 1rem;
+}
+
+.at-planning-backlog-queue > summary,
+.at-planning-secondary-view > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    cursor: pointer;
+    font-weight: var(--at-weight-bold);
+    padding: 0.75rem 0.9rem;
+}
+
+.at-planning-backlog-body,
+.at-planning-secondary-view .at-planning-secondary-grid {
+    border-top: 1px solid var(--at-border);
+    padding: 0.9rem;
+}
+
+.at-planning-backlog-filter {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+}
+
+.at-planning-backlog-filter-actions,
+.at-planning-backlog-assign-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.at-planning-backlog-list {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 0.9rem;
+}
+
+.at-planning-backlog-card {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: var(--at-surface-soft);
+}
+
+.at-planning-backlog-card.is-selected {
+    border-color: var(--at-primary);
+    box-shadow: inset 3px 0 0 var(--at-primary);
+}
+
+.at-planning-secondary-view {
+    margin-top: 1rem;
+}
+
+.at-planning-secondary-grid {
+    grid-auto-columns: initial;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}

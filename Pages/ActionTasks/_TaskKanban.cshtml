@@ -1,8 +1,12 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Horizontally scrollable Kanban workspace to preserve professional card widths. *@
-<section class="at-board-scroll" aria-label="Kanban board">
-    <div class="at-board-grid is-kanban">
+@* SECTION: Planning Board Kanban is an alternate review toggle, not the default primary work mode. *@
+<details class="at-panel at-planning-secondary-view at-planning-kanban-view">
+    <summary>
+        <span>Kanban Alternate View</span>
+        <span class="at-count-chip">@(Model.KanbanAssignedTaskDisplays.Count + Model.KanbanInProgressTaskDisplays.Count + Model.KanbanBlockedTaskDisplays.Count + Model.KanbanSubmittedTaskDisplays.Count + Model.KanbanClosedTaskDisplays.Count)</span>
+    </summary>
+    <div class="at-board-grid is-kanban at-planning-secondary-grid" aria-label="Planning Board Kanban alternate view">
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>Assigned</h2><span class="at-count-chip">@Model.KanbanAssignedTaskDisplays.Count</span></div>
             <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanAssignedTaskDisplays, "No assigned tasks.", true)' />
@@ -24,4 +28,4 @@
             <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanClosedTaskDisplays, "No closed tasks.", true)' />
         </article>
     </div>
-</section>
+</details>

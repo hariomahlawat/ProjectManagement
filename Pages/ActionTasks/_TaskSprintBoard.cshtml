@@ -1,8 +1,12 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Horizontally scrollable due-board workspace to preserve column readability. *@
-<section class="at-board-scroll" aria-label="Due board">
-    <div class="at-board-grid at-board-grid-sprint">
+@* SECTION: Planning Board due-and-exception review is a secondary toggle, not the primary work mode. *@
+<details class="at-panel at-planning-secondary-view at-planning-due-exceptions-view">
+    <summary>
+        <span>Due / Exceptions View</span>
+        <span class="at-count-chip">@(Model.DueTodayTaskDisplays.Count + Model.DueThisWeekTaskDisplays.Count + Model.DueLaterTaskDisplays.Count + Model.SprintOverdueTaskDisplays.Count)</span>
+    </summary>
+    <div class="at-board-grid at-board-grid-sprint at-planning-secondary-grid" aria-label="Planning Board due and exceptions">
         <article class="at-panel at-board-column">
             <div class="at-panel-heading"><h2>Due Today</h2><span class="at-count-chip">@Model.DueTodayTaskDisplays.Count</span></div>
             <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueTodayTaskDisplays, "No tasks", false)' />
@@ -20,4 +24,4 @@
             <partial name="_TaskCards" model='@Tuple.Create(Model, Model.SprintOverdueTaskDisplays, "No overdue tasks.", false)' />
         </article>
     </div>
-</section>
+</details>
