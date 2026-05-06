@@ -121,6 +121,97 @@ public class ActionTaskPageTests
         Assert.Contains(page.ModelState[nameof(IndexModel.CreateTaskInput.DueDate)]!.Errors, e => e.ErrorMessage == "Due date cannot be in the past.");
     }
 
+
+    [Fact]
+    public async Task BacklogView_ShowsOnlyTasksWithoutSprintAssignment()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var sprint = AddSprint(setup.Db, "Active Sprint", ActionSprintStatus.Active);
+        await setup.Db.SaveChangesAsync();
+        setup.Db.ActionTasks.Add(NewTask("Sprint task", ActionTaskStatuses.Assigned, sprint.Id));
+        setup.Db.ActionTasks.Add(NewTask("Closed backlog", ActionTaskStatuses.Closed));
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Backlog";
+
+        // SECTION: Act
+        await page.OnGetAsync();
+
+        // SECTION: Assert
+        Assert.NotEmpty(page.BacklogTasks);
+        Assert.All(page.BacklogTasks, task => Assert.Null(task.SprintId));
+        Assert.Contains(page.BacklogTasks, task => task.Title == "Mine");
+        Assert.Contains(page.BacklogTasks, task => task.Title == "Closed backlog");
+        Assert.DoesNotContain(page.BacklogTasks, task => task.Title == "Sprint task");
+    }
+
+    [Fact]
+    public async Task SprintsView_SelectsActiveSprintByDefault()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        AddSprint(setup.Db, "Older planned sprint", ActionSprintStatus.Planned, startOffsetDays: -14);
+        var activeSprint = AddSprint(setup.Db, "Current active sprint", ActionSprintStatus.Active, startOffsetDays: -1);
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Sprints";
+
+        // SECTION: Act
+        await page.OnGetAsync();
+
+        // SECTION: Assert
+        Assert.NotNull(page.SelectedSprint);
+        Assert.Equal(activeSprint.Id, page.SelectedSprint!.Id);
+        Assert.Equal(activeSprint.Id, page.SelectedSprintId);
+        Assert.True(page.CanModifySelectedSprint);
+    }
+
+    [Fact]
+    public async Task SprintsView_DoesNotOfferClosedBacklogTasksForAssignment()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        AddSprint(setup.Db, "Active Sprint", ActionSprintStatus.Active);
+        setup.Db.ActionTasks.Add(NewTask("Closed backlog", ActionTaskStatuses.Closed));
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Sprints";
+
+        // SECTION: Act
+        await page.OnGetAsync();
+
+        // SECTION: Assert
+        Assert.Contains(page.SprintBacklogTasks, task => task.Title == "Closed backlog");
+        Assert.DoesNotContain(page.AssignableBacklogTaskDisplays, item => item.Task.Title == "Closed backlog");
+        Assert.All(page.AssignableBacklogTaskDisplays, item => Assert.NotEqual(ActionTaskStatuses.Closed, item.Task.Status));
+        Assert.False(page.CanAssignTaskToSprint(page.SprintBacklogTasks.Single(task => task.Title == "Closed backlog")));
+    }
+
+    [Fact]
+    public async Task SelectedClosedSprint_IsReadOnlyInUiHelperLogic()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var closedSprint = AddSprint(setup.Db, "Closed Sprint", ActionSprintStatus.Closed, startOffsetDays: -7);
+        await setup.Db.SaveChangesAsync();
+        setup.Db.ActionTasks.Add(NewTask("Closed sprint task", ActionTaskStatuses.Assigned, closedSprint.Id));
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Sprints";
+        page.SelectedSprintId = closedSprint.Id;
+
+        // SECTION: Act
+        await page.OnGetAsync();
+
+        // SECTION: Assert
+        Assert.NotNull(page.SelectedSprint);
+        Assert.Equal(ActionSprintStatus.Closed, page.SelectedSprint!.Status);
+        Assert.False(page.CanModifySelectedSprint);
+        var sprintTask = Assert.Single(page.SelectedSprintTasks);
+        Assert.False(page.CanMoveTaskToBacklog(sprintTask));
+    }
+
     [Fact]
     public void AuditLogModel_DoesNotCreateShadowTaskIdRelationship()
     {
@@ -166,7 +257,9 @@ public class ActionTaskPageTests
         var collab = new StubCollabService();
         var queryService = new ActionTaskQueryService();
         var workflowPolicy = new ActionTaskWorkflowPolicy(permission);
-        var page = new IndexModel(service, collab, permission, queryService, workflowPolicy, userManager);
+        var sprintWorkflowPolicy = new ActionSprintWorkflowPolicy();
+        var sprintService = new ActionSprintService(db, permission, sprintWorkflowPolicy);
+        var page = new IndexModel(service, collab, permission, sprintService, queryService, workflowPolicy, userManager);
 
         var httpContext = new DefaultHttpContext
         {
@@ -180,6 +273,44 @@ public class ActionTaskPageTests
         page.PageContext = new PageContext(new ActionContext(httpContext, new RouteData(), new ActionDescriptor()));
         page.TempData = new TempDataDictionary(httpContext, new DictionaryTempDataProvider());
         return (page, db);
+    }
+
+
+    private static ActionSprint AddSprint(ApplicationDbContext db, string name, ActionSprintStatus status, int startOffsetDays = 0)
+    {
+        // SECTION: Sprint test fixture creation helper.
+        var sprint = new ActionSprint
+        {
+            Name = name,
+            Goal = $"Goal for {name}",
+            StartDate = DateTime.UtcNow.Date.AddDays(startOffsetDays),
+            EndDate = DateTime.UtcNow.Date.AddDays(startOffsetDays + 7),
+            Status = status,
+            CreatedByUserId = "creator",
+            CreatedByRole = RoleNames.HoD,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        db.ActionSprints.Add(sprint);
+        return sprint;
+    }
+
+    private static ActionTaskItem NewTask(string title, string status, int? sprintId = null)
+    {
+        // SECTION: Action task test fixture creation helper.
+        return new ActionTaskItem
+        {
+            Title = title,
+            Description = "d",
+            CreatedByUserId = "creator",
+            AssignedToUserId = "user-1",
+            CreatedByRole = RoleNames.HoD,
+            AssignedToRole = RoleNames.Ta,
+            DueDate = DateTime.UtcNow.AddDays(2),
+            Priority = "Normal",
+            AssignedOn = DateTime.UtcNow,
+            Status = status,
+            SprintId = sprintId
+        };
     }
 
     private sealed class StubCollabService : IActionTaskCollaborationService

@@ -83,7 +83,7 @@
         <h2>Backlog Tasks</h2>
         @if (Model.CanPlanSprints)
         {
-            <span class="at-panel-note">Comdt and HoD can assign tasks into open sprints.</span>
+            <span class="at-panel-note">Comdt and HoD can assign open tasks into open sprints.</span>
         }
     </div>
 
@@ -124,6 +124,8 @@
                             @if (Model.CanPlanSprints)
                             {
                                 <td>
+                                    @if (Model.CanAssignTaskToSprint(task))
+                                    {
                                     <form method="post" asp-page-handler="AssignToSprint" class="at-inline-sprint-form">
                                         <input type="hidden" name="ViewMode" value="Backlog" />
                                         <input type="hidden" name="id" value="@task.Id" />
@@ -134,8 +136,13 @@
                                                 <option value="@sprint.Id">@sprint.Name (@sprint.Status)</option>
                                             }
                                         </select>
-                                        <button type="submit" class="btn btn-primary btn-sm" @(Model.AssignableSprints.Any() ? null : "disabled")>Assign</button>
+                                        <button type="submit" class="btn btn-primary btn-sm">Assign</button>
                                     </form>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">Not assignable</span>
+                                    }
                                 </td>
                             }
                         </tr>

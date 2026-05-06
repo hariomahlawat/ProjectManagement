@@ -147,6 +147,26 @@ public class IndexModel : PageModel
     public bool CanPlanSprints => _permission.CanManageSprints(CurrentRole);
     public IReadOnlyList<ActionSprint> AssignableSprints => Sprints.Where(s => s.Status != ActionSprintStatus.Closed).ToList();
 
+    // SECTION: Sprint planning visibility helpers for lifecycle-aware UI actions.
+    public bool CanAssignTaskToSprint(ActionTaskItem task)
+    {
+        return _permission.CanAssignTaskToSprint(CurrentRole)
+               && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+               && AssignableSprints.Any();
+    }
+
+    public bool CanMoveTaskToBacklog(ActionTaskItem task)
+    {
+        return _permission.CanMoveTaskToBacklog(CurrentRole)
+               && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+               && CanModifySelectedSprint;
+    }
+
+    public bool CanModifySelectedSprint =>
+        CanPlanSprints
+        && SelectedSprint is not null
+        && SelectedSprint.Status != ActionSprintStatus.Closed;
+
     // SECTION: Selected-task projection helper
     public bool IsSelectedTask(ActionTaskItem task)
     {
@@ -603,6 +623,11 @@ public class IndexModel : PageModel
 
     public IReadOnlyList<TaskDisplayItem> SprintBacklogTaskDisplays =>
         ToDisplayItems(SprintBacklogTasks);
+
+    public IReadOnlyList<TaskDisplayItem> AssignableBacklogTaskDisplays =>
+        ToDisplayItems(SprintBacklogTasks
+            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+            .ToList());
 
     // SECTION: KPI helpers for dashboard and reports.
     public int ActiveCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
