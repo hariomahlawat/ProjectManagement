@@ -1309,6 +1309,8 @@ public class IndexModel : PageModel
             {
                 _ when string.Equals(normalized, "DueExceptions", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
                 _ when string.Equals(normalized, "Due / exceptions", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
+                _ when string.Equals(normalized, "Due Board", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
+                _ when string.Equals(normalized, "Sprint Board", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
                 _ when string.Equals(normalized, "Kanban", StringComparison.OrdinalIgnoreCase) => "Kanban",
                 _ => "Default"
             };
@@ -1318,7 +1320,9 @@ public class IndexModel : PageModel
         return (ViewMode ?? string.Empty).Trim() switch
         {
             var legacyView when string.Equals(legacyView, "Kanban", StringComparison.OrdinalIgnoreCase) => "Kanban",
+            var legacyView when string.Equals(legacyView, "Due Board", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
             var legacyView when string.Equals(legacyView, "SprintBoard", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
+            var legacyView when string.Equals(legacyView, "Sprint Board", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
             _ => "Default"
         };
     }
@@ -1426,7 +1430,9 @@ public class IndexModel : PageModel
             _ when IsViewModeAlias(normalized, "Sprints") => "Planning",
             _ when IsViewModeAlias(normalized, "Backlog") => "Planning",
             _ when IsViewModeAlias(normalized, "Sprint") => "Planning",
+            _ when IsViewModeAlias(normalized, "Due Board") => "Planning",
             _ when IsViewModeAlias(normalized, "SprintBoard") => "Planning",
+            _ when IsViewModeAlias(normalized, "Sprint Board") => "Planning",
             _ when IsViewModeAlias(normalized, "Kanban") => "Planning",
             _ when IsViewModeAlias(normalized, "MyTasks") => "MyWork",
             _ when IsViewModeAlias(normalized, "My Tasks") => "MyWork",

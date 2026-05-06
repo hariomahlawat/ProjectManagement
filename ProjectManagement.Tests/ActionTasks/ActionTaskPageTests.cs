@@ -36,7 +36,7 @@ public class ActionTaskPageTests
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
         var page = setup.Page;
-        page.ViewMode = "MyTasks";
+        page.ViewMode = "MyWork";
         page.TaskId = 9999;
 
         // SECTION: Act
@@ -48,12 +48,12 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task MyTasksView_StaysActiveWhenSortingTaskList()
+    public async Task MyWorkView_StaysActiveWhenSortingRegister()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
         var page = setup.Page;
-        page.ViewMode = "MyTasks";
+        page.ViewMode = "MyWork";
         page.SortBy = "title";
         page.SortDir = "desc";
 
@@ -61,8 +61,8 @@ public class ActionTaskPageTests
         await page.OnGetAsync();
 
         // SECTION: Assert
-        Assert.True(page.IsMyTasksView);
-        Assert.Equal("MyTasks", page.ResolvedViewMode);
+        Assert.True(page.IsMyWorkView);
+        Assert.Equal("MyWork", page.ResolvedViewMode);
     }
 
     [Fact]
@@ -130,13 +130,13 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task TaskList_SelectedTaskLoadsWhenFilteredOutOfRegister()
+    public async Task Register_SelectedTaskLoadsWhenFilteredOutOfRegister()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
         var page = setup.Page;
         var selectedTaskId = await setup.Db.ActionTasks.Select(t => t.Id).SingleAsync();
-        page.ViewMode = "TaskList";
+        page.ViewMode = "Register";
         page.FilterStatus = ActionTaskStatuses.Closed;
         page.TaskId = selectedTaskId;
 
@@ -195,7 +195,7 @@ public class ActionTaskPageTests
 
 
     [Fact]
-    public async Task BacklogView_ShowsOnlyTasksWithoutSprintAssignment()
+    public async Task PlanningBoard_ShowsBacklogTasksWithoutSprintAssignment()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
@@ -205,7 +205,7 @@ public class ActionTaskPageTests
         setup.Db.ActionTasks.Add(NewTask("Closed backlog", ActionTaskStatuses.Closed));
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
-        page.ViewMode = "Backlog";
+        page.ViewMode = "Planning";
 
         // SECTION: Act
         await page.OnGetAsync();
@@ -219,7 +219,7 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task SprintsView_SelectsActiveSprintByDefault()
+    public async Task PlanningBoard_SelectsActiveSprintByDefault()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
@@ -227,7 +227,7 @@ public class ActionTaskPageTests
         var activeSprint = AddSprint(setup.Db, "Current active sprint", ActionSprintStatus.Active, startOffsetDays: -1);
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
-        page.ViewMode = "Sprints";
+        page.ViewMode = "Planning";
 
         // SECTION: Act
         await page.OnGetAsync();
@@ -240,7 +240,7 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task SprintsView_DoesNotOfferClosedBacklogTasksForAssignment()
+    public async Task PlanningBoard_DoesNotOfferClosedRegisterTasksForAssignment()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
@@ -248,7 +248,7 @@ public class ActionTaskPageTests
         setup.Db.ActionTasks.Add(NewTask("Closed backlog", ActionTaskStatuses.Closed));
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
-        page.ViewMode = "Sprints";
+        page.ViewMode = "Planning";
 
         // SECTION: Act
         await page.OnGetAsync();
@@ -270,7 +270,7 @@ public class ActionTaskPageTests
         setup.Db.ActionTasks.Add(NewTask("Closed sprint task", ActionTaskStatuses.Assigned, closedSprint.Id));
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
-        page.ViewMode = "Sprints";
+        page.ViewMode = "Planning";
         page.SelectedSprintId = closedSprint.Id;
 
         // SECTION: Act
@@ -292,7 +292,7 @@ public class ActionTaskPageTests
         // SECTION: Arrange
         var setup = await CreateSetupAsync(RoleNames.Comdt);
         var page = setup.Page;
-        page.ViewMode = "Sprints";
+        page.ViewMode = "Planning";
         page.SprintInput = new IndexModel.CreateSprintInput
         {
             Name = "Command Sprint",
@@ -316,7 +316,7 @@ public class ActionTaskPageTests
         // SECTION: Arrange
         var setup = await CreateSetupAsync(RoleNames.ProjectOfficer);
         var page = setup.Page;
-        page.ViewMode = "Sprints";
+        page.ViewMode = "Planning";
         page.SprintInput = new IndexModel.CreateSprintInput
         {
             Name = "Unauthorized Sprint",
@@ -340,7 +340,7 @@ public class ActionTaskPageTests
         // SECTION: Arrange
         var setup = await CreateSetupAsync(RoleNames.HoD);
         var page = setup.Page;
-        page.ViewMode = "Sprints";
+        page.ViewMode = "Planning";
         page.SprintInput = new IndexModel.CreateSprintInput
         {
             Name = "Invalid Sprint",
@@ -469,7 +469,7 @@ public class ActionTaskPageTests
         var next = await setup.Db.ActionSprints.SingleAsync(s => s.Name == page.NextSprintInput.Name);
         Assert.Equal(expectedStart, next.StartDate.Date);
         page.SelectedSprintId = source.Id;
-        page.ViewMode = "Sprints";
+        page.ViewMode = "Planning";
         await page.OnGetAsync();
         Assert.Contains(page.ClosureTargetSprints, s => s.Id == next.Id);
     }
@@ -507,7 +507,7 @@ public class ActionTaskPageTests
         setup.Db.ActionTasks.Add(NewTask("Carry me", ActionTaskStatuses.Assigned, source.Id));
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
-        page.ViewMode = "Sprints";
+        page.ViewMode = "Planning";
         page.SelectedSprintId = source.Id;
         await page.OnGetAsync();
 
@@ -526,12 +526,12 @@ public class ActionTaskPageTests
 
 
     [Fact]
-    public async Task SprintsPartial_NoSprints_ExposesCreateSprintForAuthorisedUsers()
+    public async Task PlanningBoardPartial_NoPlanningWindows_ExposesCreateSprintForAuthorisedUsers()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync(RoleNames.HoD);
         var page = setup.Page;
-        page.ViewMode = "Sprints";
+        page.ViewMode = "Planning";
         await page.OnGetAsync();
 
         // SECTION: Act
@@ -546,14 +546,14 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task SprintsPartial_SelectedSprint_UsesExplicitSprintActionLabels()
+    public async Task PlanningBoardPartial_SelectedSprint_UsesExplicitSprintActionLabels()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync(RoleNames.Comdt);
         var sprint = AddSprint(setup.Db, "Command Sprint", ActionSprintStatus.Planned);
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
-        page.ViewMode = "Sprints";
+        page.ViewMode = "Planning";
         page.SelectedSprintId = sprint.Id;
         await page.OnGetAsync();
 
@@ -568,7 +568,7 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task SprintsPartial_SelectedSprint_RendersSprintAndTaskBoard()
+    public async Task PlanningBoardPartial_SelectedSprint_RendersSprintAndTaskBoard()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync(RoleNames.HoD);
@@ -576,7 +576,7 @@ public class ActionTaskPageTests
         setup.Db.ActionTasks.Add(NewTask("Sprint board task", ActionTaskStatuses.InProgress, sprint.Id));
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
-        page.ViewMode = "Sprints";
+        page.ViewMode = "Planning";
         page.SelectedSprintId = sprint.Id;
         await page.OnGetAsync();
 
@@ -586,7 +586,7 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.NotNull(page.SelectedSprint);
         Assert.Contains("Execution Sprint", html, StringComparison.Ordinal);
-        Assert.Contains("Selected sprint task board", html, StringComparison.Ordinal);
+        Assert.Contains("Selected Planning Board task board", html, StringComparison.Ordinal);
         Assert.Contains("Sprint board task", html, StringComparison.Ordinal);
         Assert.Contains("at-board-grid is-sprints", html, StringComparison.Ordinal);
     }
@@ -605,7 +605,7 @@ public class ActionTaskPageTests
         };
         await page.OnPostCreateSprintAsync();
         var sprint = await setup.Db.ActionSprints.SingleAsync(s => s.Name == "Audited Sprint");
-        page.ViewMode = "Sprints";
+        page.ViewMode = "Planning";
         page.SelectedSprintId = sprint.Id;
 
         // SECTION: Act
@@ -614,6 +614,46 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.Contains(page.SprintAuditHistory, x => x.ActionType == "SprintCreated");
         Assert.Equal("User One", page.ResolveSprintActorName("user-1"));
+    }
+
+    [Theory]
+    [InlineData("CommandCentre", "Command Centre")]
+    [InlineData("Planning", "Planning Board")]
+    [InlineData("MyWork", "My Work")]
+    [InlineData("Register", "Register")]
+    [InlineData("Reports", "Reports")]
+    public void WorkspaceNavigation_UsesCanonicalLabelsAndRoutes(string viewMode, string expectedLabel)
+    {
+        // SECTION: Arrange
+        var pageMarkup = File.ReadAllText(Path.Combine(GetContentRoot(), "Pages", "ActionTasks", "Index.cshtml"));
+
+        // SECTION: Assert
+        Assert.Contains($"title=\"{expectedLabel}\"", pageMarkup, StringComparison.Ordinal);
+        Assert.Contains($"asp-route-viewMode=\"{viewMode}\"", pageMarkup, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Dashboard", "CommandCentre", "Default")]
+    [InlineData("My Tasks", "MyWork", "Default")]
+    [InlineData("Due Board", "Planning", "DueExceptions")]
+    [InlineData("Backlog", "Planning", "Default")]
+    [InlineData("Sprints", "Planning", "Default")]
+    [InlineData("Kanban", "Planning", "Kanban")]
+    [InlineData("TaskList", "Register", "Default")]
+    [InlineData("Sprint Board", "Planning", "DueExceptions")]
+    public async Task LegacyViewModeAliases_ResolveToCanonicalWorkspace(string legacyViewMode, string expectedViewMode, string expectedPlanningView)
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var page = setup.Page;
+        page.ViewMode = legacyViewMode;
+
+        // SECTION: Act
+        await page.OnGetAsync();
+
+        // SECTION: Assert
+        Assert.Equal(expectedViewMode, page.ResolvedViewMode);
+        Assert.Equal(expectedPlanningView, page.ResolvedPlanningView);
     }
 
     [Fact]
@@ -669,10 +709,16 @@ public class ActionTaskPageTests
         return writer.ToString();
     }
 
+    private static string GetContentRoot()
+    {
+        // SECTION: Test content-root resolution for static markup checks and Razor partial rendering.
+        return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+    }
+
     private static ServiceProvider BuildRazorServiceProvider()
     {
         // SECTION: Minimal MVC services required to render Razor partials in tests.
-        var contentRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var contentRoot = GetContentRoot();
         var webRoot = Path.Combine(contentRoot, "wwwroot");
         var environment = new TestWebHostEnvironment
         {
