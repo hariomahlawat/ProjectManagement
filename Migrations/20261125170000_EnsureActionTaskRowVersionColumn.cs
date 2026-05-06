@@ -58,61 +58,13 @@ namespace ProjectManagement.Migrations
                 defaultValue: Array.Empty<byte>());
         }
 
-        // SECTION: Remove ActionTasks optimistic concurrency column
+        // SECTION: Preserve ActionTasks optimistic concurrency column on rollback
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // SECTION: PostgreSQL idempotent RowVersion rollback
-            if (ActiveProvider.Contains("Npgsql", StringComparison.OrdinalIgnoreCase))
-            {
-                migrationBuilder.Sql(
-                    """
-                    ALTER TABLE "ActionTasks"
-                    DROP COLUMN IF EXISTS "RowVersion";
-                    """);
-
-                return;
-            }
-
-            // SECTION: SQLite rollback leaves the original concurrency migration untouched
-            if (ActiveProvider.Contains("Sqlite", StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
-            // SECTION: SQL Server idempotent RowVersion rollback
-            if (ActiveProvider.Contains("SqlServer", StringComparison.OrdinalIgnoreCase))
-            {
-                migrationBuilder.Sql(
-                    """
-                    IF COL_LENGTH(N'ActionTasks', N'RowVersion') IS NOT NULL
-                    BEGIN
-                        DECLARE @ConstraintName nvarchar(200);
-
-                        SELECT @ConstraintName = dc.name
-                        FROM sys.default_constraints dc
-                        INNER JOIN sys.columns c
-                            ON c.default_object_id = dc.object_id
-                        INNER JOIN sys.tables t
-                            ON t.object_id = c.object_id
-                        WHERE t.name = N'ActionTasks'
-                            AND c.name = N'RowVersion';
-
-                        IF @ConstraintName IS NOT NULL
-                        BEGIN
-                            EXEC(N'ALTER TABLE [ActionTasks] DROP CONSTRAINT [' + @ConstraintName + N']');
-                        END
-
-                        ALTER TABLE [ActionTasks] DROP COLUMN [RowVersion];
-                    END
-                    """);
-
-                return;
-            }
-
-            // SECTION: Provider-neutral RowVersion rollback
-            migrationBuilder.DropColumn(
-                name: "RowVersion",
-                table: "ActionTasks");
+            // SECTION: Non-destructive rollback
+            // This repair migration may be a no-op when RowVersion was already created by
+            // 20260505130000_AddActionTaskRowVersionConcurrency. Dropping the column here
+            // would break the model after rolling back only this repair migration.
         }
     }
 }
