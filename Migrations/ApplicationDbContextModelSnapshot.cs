@@ -2293,6 +2293,10 @@ namespace ProjectManagement.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("IsDeleted");
+
                     b.HasIndex("TaskId", "CreatedAtUtc");
 
                     b.ToTable("ActionTaskUpdates");
@@ -2344,6 +2348,8 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("character varying(450)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IsDeleted");
 
                     b.HasIndex("TaskId");
 
