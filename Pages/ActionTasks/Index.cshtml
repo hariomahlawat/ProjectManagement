@@ -52,7 +52,11 @@
         {
             <partial name="_TaskSprints" model="Model" />
         }
-        else if (Model.IsMyWorkView || Model.IsRegisterView)
+        else if (Model.IsMyWorkView)
+        {
+            <partial name="_TaskMyWork" model="Model" />
+        }
+        else if (Model.IsRegisterView)
         {
             <partial name="_TaskRegister" model="Model" />
         }

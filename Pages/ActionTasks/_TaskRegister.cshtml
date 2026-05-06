@@ -1,13 +1,11 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 @using ProjectManagement.Models
 
-@* SECTION: Task-list specific filters. *@
-@if (Model.IsTaskListView)
-{
-    <section class="at-panel mb-3">
-        <h2>Task List Filters</h2>
-        <form id="taskFilterForm" method="get" class="row g-2" data-at-task-filter-form="true">
-            <input type="hidden" name="viewMode" value="TaskList" />
+@* SECTION: Register filters keep task records searchable and auditable. *@
+<section class="at-panel mb-3">
+    <h2>Register Filters</h2>
+    <form id="taskFilterForm" method="get" class="row g-2" data-at-task-filter-form="true">
+        <input type="hidden" name="viewMode" value="Register" />
             <div class="col-md-2">
                 <label class="form-label">Status</label>
                 <select class="form-select" name="FilterStatus">
@@ -89,12 +87,12 @@
                 <input type="text" class="form-control" name="FilterSearch" value="@Model.FilterSearch" data-at-filter-search="true" />
             </div>
             <div class="col-12 d-flex gap-2">
-                <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="btn btn-outline-secondary btn-sm">Reset</a>
+                <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="btn btn-outline-secondary btn-sm">Reset</a>
             </div>
         </form>
 
-        @if (Model.HasActiveFilters)
-        {
+    @if (Model.HasActiveFilters)
+    {
             <div class="at-active-filters" aria-label="Active filters">
                 @if (!string.IsNullOrWhiteSpace(Model.FilterStatus))
                 {
@@ -116,20 +114,19 @@
                 {
                     <span class="at-filter-chip">Search: @Model.FilterSearch</span>
                 }
-                <a asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="at-filter-clear">Clear all</a>
+                <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="at-filter-clear">Clear all</a>
             </div>
-        }
-    </section>
-}
+    }
+</section>
 
-@* SECTION: Shared register table for MyTasks and TaskList views. *@
+@* SECTION: Auditable task register table. *@
 <section class="at-panel">
-    <h2>@(Model.IsMyTasksView ? "My Tasks" : "Task Register")</h2>
+    <h2>Task Register</h2>
     @if (!Model.Tasks.Any())
     {
-            <div class="at-empty-state">
-                <div class="fw-semibold">No tasks found for the current filters.</div>
-            </div>
+        <div class="at-empty-state">
+            <div class="fw-semibold">No tasks found for the current filters.</div>
+        </div>
     }
     else
     {

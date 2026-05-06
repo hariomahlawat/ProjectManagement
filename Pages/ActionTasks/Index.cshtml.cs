@@ -896,6 +896,9 @@ public class IndexModel : PageModel
     public IReadOnlyList<TaskDisplayItem> SprintOverdueTaskDisplays =>
         ToDisplayItems(SprintOverdueTasks);
 
+    public IReadOnlyList<TaskDisplayItem> MyWorkOverdueTaskDisplays =>
+        ToDisplayItems(SprintOverdueTasks);
+
     public IReadOnlyList<TaskDisplayItem> BacklogTaskDisplays =>
         ToDisplayItems(BacklogTasks);
 
@@ -904,6 +907,13 @@ public class IndexModel : PageModel
 
     public IReadOnlyList<TaskDisplayItem> SprintBacklogTaskDisplays =>
         ToDisplayItems(SprintBacklogTasks);
+
+    public IReadOnlyList<TaskDisplayItem> ActiveSprintTaskDisplays =>
+        ToDisplayItems(GetActiveSprintTasks()
+            .OrderBy(t => StatusOrder(t.Status))
+            .ThenBy(t => t.DueDate)
+            .ThenBy(t => t.Id)
+            .ToList());
 
     public IReadOnlyList<TaskDisplayItem> AssignableBacklogTaskDisplays =>
         ToDisplayItems(SprintBacklogTasks
@@ -1401,6 +1411,17 @@ public class IndexModel : PageModel
 
     private int CountByStatus(string status) =>
         Tasks.Count(t => string.Equals(t.Status, status, StringComparison.OrdinalIgnoreCase));
+
+    // SECTION: Reusable status ordering for page-level task projections.
+    private static int StatusOrder(string status) => status switch
+    {
+        ActionTaskStatuses.Assigned => 1,
+        ActionTaskStatuses.InProgress => 2,
+        ActionTaskStatuses.Blocked => 3,
+        ActionTaskStatuses.Submitted => 4,
+        ActionTaskStatuses.Closed => 5,
+        _ => 99
+    };
 
     public bool IsTaskOverdue(ActionTaskItem task) =>
         !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
