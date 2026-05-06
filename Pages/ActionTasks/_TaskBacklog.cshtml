@@ -145,7 +145,7 @@
                                             <option value="">Select Planning Window</option>
                                             @foreach (var sprint in Model.AssignableSprints)
                                             {
-                                                <option value="@sprint.Id">@sprint.Name (@sprint.Status)</option>
+                                                <option value="@sprint.Id">@Model.DisplayPlanningWindowName(sprint) (@sprint.Status)</option>
                                             }
                                         </select>
                                         <button type="submit" class="btn btn-primary btn-sm">Assign</button>

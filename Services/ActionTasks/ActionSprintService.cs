@@ -74,7 +74,7 @@ public class ActionSprintService
         _context.ActionSprints.Add(sprint);
         await _context.SaveChangesAsync(cancellationToken);
 
-        AddSprintAudit(sprint.Id, "SprintCreated", userId, role, performedAt, null, DescribeSprint(sprint), $"Created sprint: {sprint.Name}");
+        AddSprintAudit(sprint.Id, "SprintCreated", userId, role, performedAt, null, DescribeSprint(sprint), $"Created Planning Window: {sprint.Name}");
         await _context.SaveChangesAsync(cancellationToken);
         return sprint;
     }
@@ -102,7 +102,7 @@ public class ActionSprintService
         sprint.UpdatedAtUtc = performedAt;
         sprint.RowVersion = NewSprintRowVersion();
 
-        AddSprintAudit(sprint.Id, "SprintUpdated", userId, role, performedAt, oldValue, DescribeSprint(sprint), $"Updated sprint: {sprint.Name}");
+        AddSprintAudit(sprint.Id, "SprintUpdated", userId, role, performedAt, oldValue, DescribeSprint(sprint), $"Updated Planning Window: {sprint.Name}");
         await SaveSprintChangesAsync(cancellationToken);
         return sprint;
     }
@@ -122,7 +122,7 @@ public class ActionSprintService
             .AnyAsync(x => x.Id != sprintId && !x.IsDeleted && x.Status == ActionSprintStatus.Active, cancellationToken);
         if (activeSprintExists)
         {
-            throw new InvalidOperationException("Only one active sprint is allowed.");
+            throw new InvalidOperationException("Only one active Planning Window is allowed.");
         }
 
         var performedAt = DateTime.UtcNow;
@@ -135,7 +135,7 @@ public class ActionSprintService
         sprint.UpdatedAtUtc = performedAt;
         sprint.RowVersion = NewSprintRowVersion();
 
-        AddSprintAudit(sprint.Id, "SprintActivated", userId, role, performedAt, oldStatus, sprint.Status.ToString(), $"Activated sprint: {sprint.Name}");
+        AddSprintAudit(sprint.Id, "SprintActivated", userId, role, performedAt, oldStatus, sprint.Status.ToString(), $"Activated Planning Window: {sprint.Name}");
         await SaveSprintChangesAsync(cancellationToken);
         return sprint;
     }
@@ -153,7 +153,7 @@ public class ActionSprintService
         var unfinishedTaskCount = await CountUnfinishedSprintTasksAsync(sprint.Id, cancellationToken);
         if (unfinishedTaskCount > 0)
         {
-            throw new InvalidOperationException("Sprint contains unfinished tasks. Use the closure review to move unfinished tasks to the next sprint or backlog before closing.");
+            throw new InvalidOperationException("Planning Window contains unfinished tasks. Use the closure review to move unfinished tasks to the next Planning Window or backlog before closing.");
         }
 
         var performedAt = DateTime.UtcNow;
@@ -166,7 +166,7 @@ public class ActionSprintService
         sprint.UpdatedAtUtc = performedAt;
         sprint.RowVersion = NewSprintRowVersion();
 
-        AddSprintAudit(sprint.Id, "SprintClosed", userId, role, performedAt, oldStatus, sprint.Status.ToString(), $"Closed sprint: {sprint.Name}");
+        AddSprintAudit(sprint.Id, "SprintClosed", userId, role, performedAt, oldStatus, sprint.Status.ToString(), $"Closed Planning Window: {sprint.Name}");
         await SaveSprintChangesAsync(cancellationToken);
         return sprint;
     }
@@ -177,7 +177,7 @@ public class ActionSprintService
         EnsureSprintRowVersionSupplied(rowVersion);
         if (string.IsNullOrWhiteSpace(remarks))
         {
-            throw new InvalidOperationException("Closure remarks are required when closing a sprint through closure review.");
+            throw new InvalidOperationException("Closure remarks are required when closing a Planning Window through closure review.");
         }
 
         var carryIds = (carryForwardTaskIds ?? Array.Empty<int>()).Distinct().ToList();
@@ -197,7 +197,7 @@ public class ActionSprintService
         {
             if (!targetSprintId.HasValue)
             {
-                throw new InvalidOperationException("Select a target sprint for carry-forward tasks.");
+                throw new InvalidOperationException("Select a target Planning Window for carry-forward tasks.");
             }
 
             targetSprint = await GetSprintForUpdateAsync(targetSprintId.Value, cancellationToken);
@@ -213,13 +213,13 @@ public class ActionSprintService
         var missingDispositionIds = unfinishedTasks.Select(t => t.Id).Where(id => !dispositionedIds.Contains(id)).ToList();
         if (missingDispositionIds.Count > 0)
         {
-            throw new InvalidOperationException("All unfinished tasks must be moved to the next sprint or backlog before the sprint can close.");
+            throw new InvalidOperationException("All unfinished tasks must be moved to the next Planning Window or backlog before the Planning Window can close.");
         }
 
         var invalidDispositionIds = dispositionedIds.Except(unfinishedTasks.Select(t => t.Id)).ToList();
         if (invalidDispositionIds.Count > 0)
         {
-            throw new InvalidOperationException("Closure disposition includes tasks that are not unfinished tasks in this sprint.");
+            throw new InvalidOperationException("Closure disposition includes tasks that are not unfinished tasks in this Planning Window.");
         }
 
         var performedAt = DateTime.UtcNow;
@@ -227,14 +227,14 @@ public class ActionSprintService
         {
             var oldValue = task.SprintId?.ToString();
             task.SprintId = targetSprint!.Id;
-            AddTaskSprintAudit(task.Id, "TaskCarriedForward", userId, role, oldValue, targetSprint.Id.ToString(), $"Carried forward from sprint {sprint.Name} to {targetSprint.Name}. Closure remarks: {remarks.Trim()}", performedAt);
+            AddTaskSprintAudit(task.Id, "TaskCarriedForward", userId, role, oldValue, targetSprint.Id.ToString(), $"Carried forward from Planning Window {sprint.Name} to {targetSprint.Name}. Closure remarks: {remarks.Trim()}", performedAt);
         }
 
         foreach (var task in unfinishedTasks.Where(t => backIds.Contains(t.Id)))
         {
             var oldValue = task.SprintId?.ToString();
             task.SprintId = null;
-            AddTaskSprintAudit(task.Id, "TaskRemovedFromSprint", userId, role, oldValue, null, $"Moved from sprint {sprint.Name} to backlog during closure. Closure remarks: {remarks.Trim()}", performedAt);
+            AddTaskSprintAudit(task.Id, "TaskRemovedFromSprint", userId, role, oldValue, null, $"Moved from Planning Window {sprint.Name} to backlog during closure. Closure remarks: {remarks.Trim()}", performedAt);
         }
 
         var oldStatus = sprint.Status.ToString();
@@ -245,7 +245,7 @@ public class ActionSprintService
         sprint.UpdatedAtUtc = performedAt;
         sprint.RowVersion = NewSprintRowVersion();
 
-        var detail = $"Closed sprint: {sprint.Name}. Carried forward: {carryIds.Count}. Moved to backlog: {backIds.Count}. Remarks: {remarks.Trim()}";
+        var detail = $"Closed Planning Window: {sprint.Name}. Carried forward: {carryIds.Count}. Moved to backlog: {backIds.Count}. Remarks: {remarks.Trim()}";
         AddSprintAudit(sprint.Id, "SprintClosed", userId, role, performedAt, oldStatus, sprint.Status.ToString(), detail);
         await SaveSprintChangesAsync(cancellationToken);
         return sprint;
@@ -257,14 +257,14 @@ public class ActionSprintService
         EnsureCanAssignTaskToSprint(role);
 
         var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
-        EnsureTaskIsNotClosed(task, "Closed tasks cannot be assigned to a sprint.");
+        EnsureTaskIsNotClosed(task, "Closed tasks cannot be assigned to a Planning Window.");
 
         var sprint = await GetSprintForUpdateAsync(sprintId, cancellationToken);
         _workflow.EnsureCanAcceptTask(sprint);
 
         var oldValue = task.SprintId?.ToString();
         task.SprintId = sprint.Id;
-        AddTaskSprintAudit(task.Id, "TaskAssignedToSprint", userId, role, oldValue, sprint.Id.ToString(), $"Assigned to sprint: {sprint.Name}");
+        AddTaskSprintAudit(task.Id, "TaskAssignedToSprint", userId, role, oldValue, sprint.Id.ToString(), $"Assigned to Planning Window: {sprint.Name}");
 
         await _context.SaveChangesAsync(cancellationToken);
         return task;
@@ -275,7 +275,7 @@ public class ActionSprintService
         EnsureCanMoveTaskToBacklog(role);
 
         var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
-        EnsureTaskIsNotClosed(task, "Closed tasks cannot be moved between sprint and backlog.");
+        EnsureTaskIsNotClosed(task, "Closed tasks cannot be moved between a Planning Window and backlog.");
 
         if (task.SprintId.HasValue)
         {
@@ -285,7 +285,7 @@ public class ActionSprintService
 
         var oldValue = task.SprintId?.ToString();
         task.SprintId = null;
-        AddTaskSprintAudit(task.Id, "TaskMovedToBacklog", userId, role, oldValue, null, "Removed from sprint and moved to backlog.");
+        AddTaskSprintAudit(task.Id, "TaskMovedToBacklog", userId, role, oldValue, null, "Removed from Planning Window and moved to backlog.");
 
         await _context.SaveChangesAsync(cancellationToken);
         return task;
@@ -299,7 +299,7 @@ public class ActionSprintService
     {
         if (!_permission.CanCreateSprint(role))
         {
-            throw new InvalidOperationException("You are not authorized to create sprints.");
+            throw new InvalidOperationException("You are not authorized to create Planning Windows.");
         }
     }
 
@@ -307,7 +307,7 @@ public class ActionSprintService
     {
         if (!_permission.CanEditSprint(role))
         {
-            throw new InvalidOperationException("You are not authorized to update sprints.");
+            throw new InvalidOperationException("You are not authorized to update Planning Windows.");
         }
     }
 
@@ -315,7 +315,7 @@ public class ActionSprintService
     {
         if (!_permission.CanActivateSprint(role))
         {
-            throw new InvalidOperationException("You are not authorized to activate sprints.");
+            throw new InvalidOperationException("You are not authorized to activate Planning Windows.");
         }
     }
 
@@ -323,7 +323,7 @@ public class ActionSprintService
     {
         if (!_permission.CanCloseSprint(role))
         {
-            throw new InvalidOperationException("You are not authorized to close sprints.");
+            throw new InvalidOperationException("You are not authorized to close Planning Windows.");
         }
     }
 
@@ -331,7 +331,7 @@ public class ActionSprintService
     {
         if (!_permission.CanAssignTaskToSprint(role))
         {
-            throw new InvalidOperationException("You are not authorized to assign tasks to sprints.");
+            throw new InvalidOperationException("You are not authorized to assign tasks to Planning Windows.");
         }
     }
 
@@ -346,7 +346,7 @@ public class ActionSprintService
     // SECTION: Entity loading helpers
     private async Task<ActionSprint> GetSprintForUpdateAsync(int sprintId, CancellationToken cancellationToken)
         => await _context.ActionSprints.FirstOrDefaultAsync(x => x.Id == sprintId && !x.IsDeleted, cancellationToken)
-            ?? throw new InvalidOperationException("Sprint not found.");
+            ?? throw new InvalidOperationException("Planning Window not found.");
 
     private async Task<ActionTaskItem> GetTaskForUpdateAsync(int taskId, CancellationToken cancellationToken)
         => await _context.ActionTasks.FirstOrDefaultAsync(x => x.Id == taskId && !x.IsDeleted, cancellationToken)
@@ -365,7 +365,7 @@ public class ActionSprintService
     {
         if (rowVersion is not { Length: > 0 })
         {
-            throw new InvalidOperationException("Sprint row version is required for this operation.");
+            throw new InvalidOperationException("Planning Window row version is required for this operation.");
         }
     }
 
@@ -382,7 +382,7 @@ public class ActionSprintService
         }
         catch (DbUpdateConcurrencyException)
         {
-            throw new ActionTaskConcurrencyException("This sprint was updated by another user. Please reload the sprint details and try again.");
+            throw new ActionTaskConcurrencyException("This Planning Window was updated by another user. Please reload the Planning Window details and try again.");
         }
     }
 

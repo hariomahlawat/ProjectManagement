@@ -2866,3 +2866,138 @@ html {
         max-width: 100%;
     }
 }
+
+/* SECTION: Phase 3A-5 Planning Board final polish, compact backlog filters, and contained close panels. */
+.at-planning-board-workspace,
+.at-planning-tab-panel,
+.at-planning-plan-grid,
+.at-sprint-execution-main {
+    min-height: 0;
+}
+
+.at-planning-backlog-filter-shell {
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: #ffffff;
+    margin-top: 0.75rem;
+}
+
+.at-planning-backlog-filter-shell > summary,
+.at-close-carry-forward-panel > summary,
+.at-sprint-history-panel > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    cursor: pointer;
+    color: var(--at-text);
+    font-size: var(--at-font-md);
+    font-weight: var(--at-weight-bold);
+    list-style: none;
+}
+
+.at-planning-backlog-filter-shell > summary {
+    padding: 0.55rem 0.7rem;
+}
+
+.at-planning-backlog-filter-shell > summary::-webkit-details-marker,
+.at-close-carry-forward-panel > summary::-webkit-details-marker,
+.at-sprint-history-panel > summary::-webkit-details-marker {
+    display: none;
+}
+
+.at-filter-state {
+    color: var(--at-muted);
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-planning-backlog-filter-shell .at-planning-backlog-filter {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: end;
+    gap: 0.45rem;
+    margin-top: 0;
+    padding: 0 0.7rem 0.7rem;
+}
+
+.at-planning-backlog-filter-shell .at-planning-backlog-filter .form-label {
+    margin-bottom: -0.2rem;
+}
+
+.at-planning-backlog-filter-shell .at-planning-backlog-filter-actions {
+    align-self: end;
+}
+
+.at-planning-backlog-list {
+    max-height: min(56vh, 42rem);
+    overflow-y: auto;
+    padding-right: 0.15rem;
+    overscroll-behavior-block: contain;
+}
+
+.at-close-carry-forward-panel,
+.at-sprint-history-panel {
+    padding: 0.72rem 0.85rem;
+}
+
+.at-close-carry-forward-panel[open] .at-mini-list,
+.at-sprint-history-panel[open] .at-sprint-history-list {
+    max-height: min(42vh, 26rem);
+    overflow-y: auto;
+    overscroll-behavior-block: contain;
+}
+
+.at-close-carry-forward-panel[open] .at-mini-list {
+    margin-top: 0.7rem;
+}
+
+.at-closure-recommendations {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    font-size: var(--at-font-md);
+    margin-bottom: 0.65rem;
+}
+
+.at-closure-recommendations ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    margin-top: 0;
+}
+
+.at-sprint-task-card .at-card-action-form {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 0.45rem 0.38rem;
+}
+
+.at-sprint-task-card .at-card-subtle-action {
+    color: var(--at-muted);
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-semibold);
+    padding: 0;
+    text-decoration: none;
+}
+
+.at-sprint-task-card .at-card-subtle-action:hover,
+.at-sprint-task-card .at-card-subtle-action:focus {
+    color: var(--at-danger);
+    text-decoration: underline;
+}
+
+@media (max-width: 991px) {
+    .at-planning-backlog-filter-shell .at-planning-backlog-filter {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .at-closure-recommendations {
+        display: block;
+    }
+
+    .at-closure-recommendations ul {
+        display: block;
+        margin-top: 0.35rem;
+    }
+}

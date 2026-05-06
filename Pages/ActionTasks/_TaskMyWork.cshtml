@@ -41,7 +41,7 @@
     <article>
         <h3>Active Planning Window</h3>
         <strong>@activeSprintTaskCount</strong>
-        <p>@(string.IsNullOrWhiteSpace(Model.ActiveSprintMetrics.ActiveSprintName) ? "No active Planning Window set." : Model.ActiveSprintMetrics.ActiveSprintName)</p>
+        <p>@(Model.ActiveSprint is null ? "No active Planning Window set." : Model.DisplayPlanningWindowName(Model.ActiveSprint))</p>
     </article>
 </section>
 
@@ -121,9 +121,9 @@
         <div class="at-panel-heading">
             <div>
                 <h3>My active Planning Window</h3>
-                @if (!string.IsNullOrWhiteSpace(Model.ActiveSprintMetrics.ActiveSprintName))
+                @if (Model.ActiveSprint is not null)
                 {
-                    <p class="at-panel-note">@Model.ActiveSprintMetrics.ActiveSprintName · @Model.ActiveSprintMetrics.ActiveSprintDateRange</p>
+                    <p class="at-panel-note">@Model.DisplayPlanningWindowName(Model.ActiveSprint) · @Model.ActiveSprintMetrics.ActiveSprintDateRange</p>
                 }
                 else
                 {
