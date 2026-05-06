@@ -1095,6 +1095,9 @@ public class IndexModel : PageModel
          || !string.IsNullOrWhiteSpace(FilterAssigneeUserId)
          || FilterDueDate.HasValue
          || !string.IsNullOrWhiteSpace(FilterSearch));
+
+    // SECTION: Planning backlog disclosure mirrors every route value that can alter the backlog read model.
+    public bool HasBacklogFilterRouteState => HasTaskFilterRouteState();
     public string DashboardCommandFocusSummary =>
         $"{OverdueCount} overdue. {BlockedCount} blocked. {SubmittedPendingClosureCount} submitted pending closure. {CriticalOpenCount} critical open. {ActiveSprintMetrics.CarryForwardCandidateTasks} carry-forward candidates.";
     public IReadOnlyList<CountSummary> SubmittedPendingClosureAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();

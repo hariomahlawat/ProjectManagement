@@ -1,9 +1,7 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 @{
-    // SECTION: Backlog filters are compact by default, expanding automatically when an active filter needs visibility.
-    var hasBacklogFilters = !string.IsNullOrWhiteSpace(Model.FilterStatus)
-        || !string.IsNullOrWhiteSpace(Model.FilterPriority)
-        || !string.IsNullOrWhiteSpace(Model.FilterSearch);
+    // SECTION: Backlog filters are compact by default, expanding automatically when any route filter or sort state changes the queue.
+    var hasBacklogFilters = Model.HasBacklogFilterRouteState;
 }
 
 @* SECTION: Plan tab contains planning-window list, backlog filters, backlog queue, and assignment. *@
@@ -126,7 +124,7 @@
             <details class="at-planning-backlog-filter-shell" open="@hasBacklogFilters">
                 <summary>
                     <span>Filter Backlog</span>
-                    <span class="at-filter-state">@(hasBacklogFilters ? "Filters active" : "All open backlog")</span>
+                    <span class="at-filter-state">@(hasBacklogFilters ? "Custom backlog view" : "All open backlog")</span>
                 </summary>
                 <form method="get" class="at-planning-backlog-filter">
                     <input type="hidden" name="viewMode" value="Planning" />
