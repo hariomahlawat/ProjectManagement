@@ -9,13 +9,13 @@
             <div class="at-empty-state at-empty-state-compact">
                 @if (!Model.Sprints.Any())
                 {
-                    <strong>No planning window has been created yet.</strong>
-                    <span>Create the first planning window from Plan to start execution planning.</span>
+                    <strong>No Planning Window has been created yet.</strong>
+                    <span>Create the first Planning Window from Plan to start execution planning.</span>
                 }
                 else
                 {
-                    <strong>No planning window is selected.</strong>
-                    <span>Select an existing planning window from Plan to open Execute.</span>
+                    <strong>No Planning Window is selected.</strong>
+                    <span>Select an existing Planning Window from Plan to open Execute.</span>
                 }
             </div>
             @if (Model.CanPlanSprints)
@@ -34,7 +34,7 @@
                             <label class="form-label" asp-for="SprintInput.EndDate"></label>
                             <input class="form-control" asp-for="SprintInput.EndDate" type="date" />
                             <label class="form-label" asp-for="SprintInput.Goal"></label>
-                            <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this planning window"></textarea>
+                            <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this Planning Window"></textarea>
                             <button type="submit" class="btn btn-primary btn-sm">Create Planning Window</button>
                         </form>
                     </details>
@@ -52,7 +52,7 @@
                 <span class="at-sprint-status-pill">@Model.SelectedSprint.Status</span>
                 <span class="at-sprint-date-range">@Model.SelectedSprint.StartDate.ToString("dd MMM yyyy") – @Model.SelectedSprint.EndDate.ToString("dd MMM yyyy")</span>
             </div>
-            <div class="at-planning-command-pills" aria-label="Planning window summary">
+            <div class="at-planning-command-pills" aria-label="Planning Window summary">
                 <span class="at-compact-counter"><strong>@Model.SprintSummary.OpenCount</strong> Open</span>
                 <span class="at-compact-counter"><strong>@Model.SelectedSprintOverdueCount</strong> Overdue</span>
                 <span class="at-compact-counter"><strong>@Model.SprintSummary.BlockedCount</strong> Blocked</span>
@@ -83,7 +83,7 @@
                             <label class="form-label" asp-for="SprintInput.EndDate"></label>
                             <input class="form-control" asp-for="SprintInput.EndDate" type="date" />
                             <label class="form-label" asp-for="SprintInput.Goal"></label>
-                            <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this planning window"></textarea>
+                            <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this Planning Window"></textarea>
                             <button type="submit" class="btn btn-primary btn-sm">Create Planning Window</button>
                         </form>
                     </details>
@@ -130,7 +130,7 @@
                 }
                 else if (Model.CanReviewSprintClosure && Model.SprintClosureReview.UnfinishedTasks.Any())
                 {
-                    <a class="btn btn-outline-danger btn-sm" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Close" asp-route-SelectedSprintId="@Model.SelectedSprintId">Review close</a>
+                    <a class="btn btn-outline-danger btn-sm" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Close" asp-route-SelectedSprintId="@Model.SelectedSprintId">Review Closure</a>
                 }
             </div>
         }

@@ -167,7 +167,7 @@ public class IndexModel : PageModel
     };
     public string PageSubtitle => ResolvedViewMode switch
     {
-        "Planning" => "Plan sprint work, review due exceptions and coordinate Kanban flow.",
+        "Planning" => "Coordinate Planning Window work, review due exceptions and manage Kanban flow.",
         "MyWork" => "Focus on the work assigned to you.",
         "Register" => "Search, filter and review every task you can access.",
         "Reports" => "Review pending, critical, blocked and closed task trends.",
@@ -254,7 +254,7 @@ public class IndexModel : PageModel
             return "Backlog";
         }
 
-        return Sprints.FirstOrDefault(s => s.Id == sprintId.Value)?.Name ?? $"Sprint #{sprintId.Value}";
+        return Sprints.FirstOrDefault(s => s.Id == sprintId.Value)?.Name ?? $"Planning Window #{sprintId.Value}";
     }
 
     public string GetSprintBadgeText(ActionTaskItem task)
@@ -397,7 +397,7 @@ public class IndexModel : PageModel
                 StartDate = SprintInput.StartDate,
                 EndDate = SprintInput.EndDate
             }, CurrentUserId, CurrentRole);
-            TempData["ToastMessage"] = "Sprint created.";
+            TempData["ToastMessage"] = "Planning Window created.";
             return RedirectToPage(new { ViewMode = "Planning", SelectedSprintId = sprint.Id });
         }
         catch (InvalidOperationException ex)
@@ -437,7 +437,7 @@ public class IndexModel : PageModel
                 SprintEditInput.EndDate,
                 CurrentUserId,
                 CurrentRole);
-            TempData["ToastMessage"] = "Sprint updated.";
+            TempData["ToastMessage"] = "Planning Window updated.";
             return RedirectToPage(new { ViewMode = "Planning", SelectedSprintId = SprintEditInput.SprintId });
         }
         catch (ActionTaskConcurrencyException ex)
@@ -461,7 +461,7 @@ public class IndexModel : PageModel
         try
         {
             await _sprintService.ActivateSprintAsync(sprintId, DecodeSprintRowVersion(rowVersion), CurrentUserId, CurrentRole);
-            TempData["ToastMessage"] = "Sprint activated.";
+            TempData["ToastMessage"] = "Planning Window activated.";
         }
         catch (ActionTaskConcurrencyException ex)
         {
@@ -482,7 +482,7 @@ public class IndexModel : PageModel
         try
         {
             await _sprintService.CloseSprintAsync(sprintId, DecodeSprintRowVersion(rowVersion), CurrentUserId, CurrentRole);
-            TempData["ToastMessage"] = "Sprint closed.";
+            TempData["ToastMessage"] = "Planning Window closed.";
         }
         catch (ActionTaskConcurrencyException ex)
         {
@@ -523,7 +523,7 @@ public class IndexModel : PageModel
                 StartDate = NextSprintInput.StartDate,
                 EndDate = NextSprintInput.EndDate
             }, CurrentUserId, CurrentRole);
-            TempData["ToastMessage"] = "Next sprint created and is available for carry-forward.";
+            TempData["ToastMessage"] = "Next Planning Window created and is available for carry-forward.";
             return RedirectToPage(new { ViewMode = "Planning", SelectedSprintId = NextSprintInput.SourceSprintId });
         }
         catch (InvalidOperationException ex)
@@ -629,7 +629,7 @@ public class IndexModel : PageModel
         try
         {
             await _sprintService.AssignTaskToSprintAsync(id, sprintId, CurrentUserId, CurrentRole);
-            TempData["ToastMessage"] = "Task assigned to sprint.";
+            TempData["ToastMessage"] = "Task assigned to Planning Window.";
         }
         catch (InvalidOperationException ex)
         {
@@ -672,7 +672,7 @@ public class IndexModel : PageModel
                 ClosureInput.Remarks,
                 CurrentUserId,
                 CurrentRole);
-            TempData["ToastMessage"] = "Sprint closed after closure review.";
+            TempData["ToastMessage"] = "Planning Window closed after closure review.";
         }
         catch (ActionTaskConcurrencyException ex)
         {
@@ -1252,13 +1252,13 @@ public class IndexModel : PageModel
         var sourceSprint = (await _sprintService.GetSprintsAsync()).FirstOrDefault(s => s.Id == NextSprintInput.SourceSprintId);
         if (sourceSprint is null)
         {
-            ModelState.AddModelError($"{nameof(NextSprintInput)}.{nameof(CreateNextSprintInput.SourceSprintId)}", "Source sprint was not found. Reload the sprint closure review and try again.");
+            ModelState.AddModelError($"{nameof(NextSprintInput)}.{nameof(CreateNextSprintInput.SourceSprintId)}", "Source Planning Window was not found. Reload the closure review and try again.");
             return;
         }
 
         if (NextSprintInput.StartDate.Date <= sourceSprint.EndDate.Date)
         {
-            ModelState.AddModelError($"{nameof(NextSprintInput)}.{nameof(CreateNextSprintInput.StartDate)}", $"Next sprint start date must be later than the source sprint end date ({sourceSprint.EndDate:dd MMM yyyy}).");
+            ModelState.AddModelError($"{nameof(NextSprintInput)}.{nameof(CreateNextSprintInput.StartDate)}", $"Next Planning Window start date must be later than the source Planning Window end date ({sourceSprint.EndDate:dd MMM yyyy}).");
         }
     }
 
@@ -1267,7 +1267,7 @@ public class IndexModel : PageModel
         // SECTION: Page-level sprint date validation mirrors workflow policy for clear form errors.
         if (startDate.Date > endDate.Date)
         {
-            ModelState.AddModelError($"{prefix}.EndDate", "Sprint start date must be on or before the end date.");
+            ModelState.AddModelError($"{prefix}.EndDate", "Planning Window start date must be on or before the end date.");
         }
     }
 
@@ -1293,7 +1293,7 @@ public class IndexModel : PageModel
     {
         if (string.IsNullOrWhiteSpace(rowVersion))
         {
-            throw new InvalidOperationException("Sprint version is missing. Please reload and try again.");
+            throw new InvalidOperationException("Planning Window version is missing. Please reload and try again.");
         }
 
         try
@@ -1302,7 +1302,7 @@ public class IndexModel : PageModel
         }
         catch (FormatException)
         {
-            throw new InvalidOperationException("Sprint version is invalid. Please reload and try again.");
+            throw new InvalidOperationException("Planning Window version is invalid. Please reload and try again.");
         }
     }
 
@@ -1526,7 +1526,7 @@ public class IndexModel : PageModel
 
     public class CreateSprintInput
     {
-        [Display(Name = "Sprint name")]
+        [Display(Name = "Planning Window name")]
         [Required, StringLength(160)]
         public string Name { get; set; } = string.Empty;
 
@@ -1549,7 +1549,7 @@ public class IndexModel : PageModel
             var end = today.Day <= 15 ? new DateTime(today.Year, today.Month, 15) : new DateTime(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
             return new CreateSprintInput
             {
-                Name = $"Sprint {start:dd MMM} - {end:dd MMM}",
+                Name = $"Planning Window {start:dd MMM} - {end:dd MMM}",
                 StartDate = start,
                 EndDate = end
             };
@@ -1589,7 +1589,7 @@ public class IndexModel : PageModel
             return new CreateNextSprintInput
             {
                 SourceSprintId = sprint.Id,
-                Name = $"Sprint {start:dd MMM} - {end:dd MMM}",
+                Name = $"Planning Window {start:dd MMM} - {end:dd MMM}",
                 Goal = sprint.Goal,
                 StartDate = start,
                 EndDate = end
