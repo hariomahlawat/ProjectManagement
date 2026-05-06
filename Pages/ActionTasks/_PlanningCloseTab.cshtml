@@ -1,0 +1,49 @@
+@model ProjectManagement.Pages.ActionTasks.IndexModel
+
+@* SECTION: Close tab groups closure review, carry-forward, next-window creation, and history. *@
+<section class="at-planning-tab-panel at-sprint-execution-main" aria-label="Planning Board Close tab">
+    @if (Model.SelectedSprint is null)
+    {
+        <div class="at-panel at-empty-state at-empty-state-compact">Select a planning window in Plan before reviewing closure.</div>
+    }
+    else
+    {
+        <partial name="_SprintClosureReview" model="Model" />
+
+        <section class="at-panel at-sprint-attention-lane">
+            <div class="at-panel-heading"><h2>Carry-forward candidates</h2><span class="at-count-chip">@Model.SprintCarryForwardCandidateDisplays.Count</span></div>
+            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintCarryForwardCandidateDisplays, "No carry-forward candidates.")' />
+        </section>
+
+        @if (Model.SelectedSprint is not null)
+        {
+            <details class="at-panel at-sprint-history-panel" open>
+                <summary>Planning Window History <span class="at-count-chip">@Model.SprintAuditHistory.Count</span></summary>
+                @if (!Model.SprintAuditHistory.Any())
+                {
+                    <p class="at-empty-inline">No planning lifecycle history is recorded yet.</p>
+                }
+                else
+                {
+                    <ol class="at-sprint-history-list">
+                        @foreach (var entry in Model.SprintAuditHistory)
+                        {
+                            <li>
+                                <div><strong>@entry.ActionType.Replace("Sprint", string.Empty)</strong> by @Model.ResolveSprintActorName(entry.PerformedByUserId)</div>
+                                <small>@entry.PerformedAt.ToString("dd MMM yyyy HH:mm") UTC</small>
+                                @if (!string.IsNullOrWhiteSpace(entry.Remarks))
+                                {
+                                    <p>@entry.Remarks</p>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(entry.OldValue) || !string.IsNullOrWhiteSpace(entry.NewValue))
+                                {
+                                    <code>@entry.OldValue → @entry.NewValue</code>
+                                }
+                            </li>
+                        }
+                    </ol>
+                }
+            </details>
+        }
+    }
+</section>
