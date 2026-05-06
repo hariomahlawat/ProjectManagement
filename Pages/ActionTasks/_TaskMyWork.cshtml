@@ -1,0 +1,154 @@
+@model ProjectManagement.Pages.ActionTasks.IndexModel
+@using ProjectManagement.Models
+
+@{
+    // SECTION: My Work read-model aliases keep the Razor below focused on presentation.
+    var assignedTaskCount = Model.Tasks.Count;
+    var activeSprintTaskCount = Model.ActiveSprintTaskDisplays.Count;
+}
+
+@* SECTION: Personal execution KPI strip. *@
+<section class="at-kpis at-kpis-mywork" aria-label="My work task summary">
+    <article>
+        <h3>Assigned to me</h3>
+        <strong>@assignedTaskCount</strong>
+        <p>Visible tasks scoped by your assignment.</p>
+    </article>
+    <article>
+        <h3>Overdue</h3>
+        <strong>@Model.MyWorkOverdueTaskDisplays.Count</strong>
+        <p>Needs immediate attention.</p>
+    </article>
+    <article>
+        <h3>Due today</h3>
+        <strong>@Model.DueTodayTaskDisplays.Count</strong>
+        <p>Due by end of day.</p>
+    </article>
+    <article>
+        <h3>In progress</h3>
+        <strong>@Model.KanbanInProgressTaskDisplays.Count</strong>
+        <p>Currently underway.</p>
+    </article>
+    <article>
+        <h3>Submitted</h3>
+        <strong>@Model.KanbanSubmittedTaskDisplays.Count</strong>
+        <p>Awaiting closure review.</p>
+    </article>
+    <article>
+        <h3>Active sprint</h3>
+        <strong>@activeSprintTaskCount</strong>
+        <p>@(string.IsNullOrWhiteSpace(Model.ActiveSprintMetrics.ActiveSprintName) ? "No active sprint set." : Model.ActiveSprintMetrics.ActiveSprintName)</p>
+    </article>
+</section>
+
+@* SECTION: Personal priority lanes for time-sensitive work. *@
+<section class="at-section-group">
+    <h2 class="at-section-title">Today and overdue</h2>
+    <div class="at-card-grid">
+        <article class="at-panel">
+            <div class="at-panel-heading">
+                <h3>Overdue tasks</h3>
+                <span class="at-count-chip">@Model.MyWorkOverdueTaskDisplays.Count</span>
+            </div>
+            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.MyWorkOverdueTaskDisplays, "No overdue tasks assigned to you.")' />
+        </article>
+        <article class="at-panel">
+            <div class="at-panel-heading">
+                <h3>Due today</h3>
+                <span class="at-count-chip">@Model.DueTodayTaskDisplays.Count</span>
+            </div>
+            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.DueTodayTaskDisplays, "No tasks due today.")' />
+        </article>
+    </div>
+</section>
+
+@* SECTION: Personal workflow lanes for execution and handoff. *@
+<section class="at-section-group">
+    <h2 class="at-section-title">Execution lanes</h2>
+    <div class="at-card-grid">
+        <article class="at-panel">
+            <div class="at-panel-heading">
+                <h3>In progress</h3>
+                <span class="at-count-chip">@Model.KanbanInProgressTaskDisplays.Count</span>
+            </div>
+            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.KanbanInProgressTaskDisplays, "No in-progress tasks assigned to you.")' />
+        </article>
+        <article class="at-panel">
+            <div class="at-panel-heading">
+                <h3>Submitted for closure</h3>
+                <span class="at-count-chip">@Model.KanbanSubmittedTaskDisplays.Count</span>
+            </div>
+            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.KanbanSubmittedTaskDisplays, "No submitted tasks are awaiting closure.")' />
+        </article>
+    </div>
+</section>
+
+@* SECTION: Active sprint context for assigned work. *@
+<section class="at-section-group">
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <div>
+                <h3>My active sprint tasks</h3>
+                @if (!string.IsNullOrWhiteSpace(Model.ActiveSprintMetrics.ActiveSprintName))
+                {
+                    <p class="at-panel-note">@Model.ActiveSprintMetrics.ActiveSprintName · @Model.ActiveSprintMetrics.ActiveSprintDateRange</p>
+                }
+                else
+                {
+                    <p class="at-panel-note">No active sprint is currently set.</p>
+                }
+            </div>
+            <span class="at-count-chip">@activeSprintTaskCount</span>
+        </div>
+        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintTaskDisplays, "No assigned tasks are in the active sprint.")' />
+    </article>
+</section>
+
+@* SECTION: Assigned task records provide a quick personal work list without replacing the auditable register. *@
+<section class="at-section-group">
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <h3>All assigned tasks</h3>
+            <span class="at-count-chip">@assignedTaskCount</span>
+        </div>
+        @if (!Model.Tasks.Any())
+        {
+            <div class="at-empty-state">
+                <div class="fw-semibold">No tasks are currently assigned to you.</div>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm at-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Task</th>
+                            <th>Due Date</th>
+                            <th>Status</th>
+                            <th>Priority</th>
+                            <th>Sprint</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var task in Model.Tasks)
+                        {
+                            <tr class="@(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)">
+                                <td><a class="at-task-id-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="MyWork">AT-@task.Id</a></td>
+                                <td>
+                                    <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="MyWork">@task.Title</a>
+                                    <div class="at-task-desc-preview">@task.Description</div>
+                                </td>
+                                <td>@task.DueDate.ToString("dd MMM yyyy")</td>
+                                <td><span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span></td>
+                                <td><span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span></td>
+                                <td><span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </article>
+</section>

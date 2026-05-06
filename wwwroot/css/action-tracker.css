@@ -2010,3 +2010,20 @@ html {
         width: min(100%, calc(100vw - 2rem));
     }
 }
+
+/* SECTION: My Work focused execution workspace */
+.at-kpis-mywork {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+@media (max-width: 1399px) {
+    .at-kpis-mywork {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    .at-kpis-mywork {
+        grid-template-columns: 1fr;
+    }
+}
