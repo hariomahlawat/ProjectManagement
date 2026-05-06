@@ -13,13 +13,21 @@ public sealed class ActionTaskWorkflowPolicy
         _permission = permission;
     }
 
-    // SECTION: Supported transition targets for in-flight status updates.
+    // SECTION: Supported option lists for task forms and filters.
     public IReadOnlyList<string> AllowedStatusOptions => new[]
     {
         ActionTaskStatuses.Assigned,
         ActionTaskStatuses.InProgress,
         ActionTaskStatuses.Blocked,
         ActionTaskStatuses.Submitted
+    };
+
+    public IReadOnlyList<string> PriorityOptions => new[]
+    {
+        "Low",
+        "Normal",
+        "High",
+        "Critical"
     };
 
     // SECTION: Action availability guards.

@@ -168,6 +168,7 @@ public class IndexModel : PageModel
 
     public IReadOnlyList<string> AssignmentRoles => ActionTaskRoleResolver.AllowedAssignmentRoles();
     public IReadOnlyList<string> AllowedStatusOptions => _workflowPolicy.AllowedStatusOptions;
+    public IReadOnlyList<string> PriorityOptions => _workflowPolicy.PriorityOptions;
     public bool CanPlanSprints => _permission.CanManageSprints(CurrentRole);
     public IReadOnlyList<ActionSprint> AssignableSprints => Sprints.Where(s => s.Status != ActionSprintStatus.Closed).ToList();
     public IReadOnlyList<ActionSprint> ClosureTargetSprints => SprintClosureReview.TargetSprintOptions;
