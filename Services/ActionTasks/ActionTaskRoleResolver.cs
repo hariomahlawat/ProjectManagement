@@ -14,7 +14,8 @@ public static class ActionTaskRoleResolver
         RoleNames.HoD,
         RoleNames.ProjectOfficer,
         RoleNames.Mco,
-        RoleNames.Ta
+        RoleNames.Ta,
+        RoleNames.Ito
     };
 
     // SECTION: Resolve highest-precedence action-tracker role
@@ -32,7 +33,7 @@ public static class ActionTaskRoleResolver
     }
 
     public static IReadOnlyList<string> AllowedAssignmentRoles()
-        => new[] { RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.Mco, RoleNames.Ta };
+        => new[] { RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.Mco, RoleNames.Ta, RoleNames.Ito };
 
     // SECTION: Resolve highest-precedence tracker role from user role list
     public static string? ResolveFromRoles(IEnumerable<string> roles)

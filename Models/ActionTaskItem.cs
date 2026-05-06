@@ -56,6 +56,10 @@ public class ActionTaskItem
     public DateTime? SubmittedOn { get; set; }
     public DateTime? ClosedOn { get; set; }
 
+    // SECTION: Optional sprint assignment; null represents the backlog
+    public int? SprintId { get; set; }
+    public ActionSprint? Sprint { get; set; }
+
     // SECTION: Optimistic concurrency token for task updates
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 

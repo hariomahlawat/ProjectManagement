@@ -50,6 +50,7 @@ namespace ProjectManagement.Data
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
         public DbSet<ActionTaskItem> ActionTasks => Set<ActionTaskItem>();
+        public DbSet<ActionSprint> ActionSprints => Set<ActionSprint>();
         public DbSet<ActionTaskAuditLog> ActionTaskAuditLogs => Set<ActionTaskAuditLog>();
         public DbSet<ActionTaskUpdate> ActionTaskUpdates => Set<ActionTaskUpdate>();
         public DbSet<ActionTaskAttachment> ActionTaskAttachments => Set<ActionTaskAttachment>();
@@ -1815,6 +1816,7 @@ namespace ProjectManagement.Data
                 ConfigureRowVersion(e);
                 e.HasIndex(x => new { x.AssignedToUserId, x.Status });
                 e.HasIndex(x => new { x.DueDate, x.Status });
+                e.HasIndex(x => x.SprintId);
                 e.HasIndex(x => x.IsDeleted);
                 e.Property(x => x.Title).IsRequired().HasMaxLength(200);
                 e.Property(x => x.Description).IsRequired().HasMaxLength(4000);
@@ -1826,6 +1828,31 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Status).IsRequired().HasMaxLength(32);
                 // SECTION: Action task due dates are stored as date-only values
                 e.Property(x => x.DueDate).HasColumnType("date");
+                e.Property(x => x.IsDeleted).HasDefaultValue(false);
+                // SECTION: Optional sprint link; null SprintId keeps a task in backlog
+                e.HasOne(x => x.Sprint)
+                    .WithMany(x => x.Tasks)
+                    .HasForeignKey(x => x.SprintId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<ActionSprint>(e =>
+            {
+                // SECTION: Sprint indexing strategy
+                e.HasIndex(x => x.Status);
+                e.HasIndex(x => new { x.StartDate, x.EndDate });
+                e.HasIndex(x => x.IsDeleted);
+
+                // SECTION: Sprint field constraints
+                e.Property(x => x.Name).IsRequired().HasMaxLength(160);
+                e.Property(x => x.Goal).HasMaxLength(2000);
+                e.Property(x => x.Status).HasConversion<string>().IsRequired().HasMaxLength(32);
+                e.Property(x => x.CreatedByUserId).IsRequired().HasMaxLength(450);
+                e.Property(x => x.CreatedByRole).IsRequired().HasMaxLength(64);
+                e.Property(x => x.UpdatedByUserId).HasMaxLength(450);
+                e.Property(x => x.UpdatedByRole).HasMaxLength(64);
+                e.Property(x => x.StartDate).HasColumnType("date");
+                e.Property(x => x.EndDate).HasColumnType("date");
                 e.Property(x => x.IsDeleted).HasDefaultValue(false);
             });
 
