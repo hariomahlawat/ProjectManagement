@@ -1,10 +1,13 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
-@using ProjectManagement.Models
 
 @{
-    // SECTION: My Work read-model aliases keep the Razor below focused on presentation.
+    // SECTION: My Work read-model aliases keep personal task presentation consistent and CSP-safe.
     var assignedTaskCount = Model.Tasks.Count;
-    var activeSprintTaskCount = Model.ActiveSprintTaskDisplays.Count;
+    var dueTodayCount = Model.MyDueTodayTaskDisplays.Count;
+    var overdueCount = Model.MyOverdueTaskDisplays.Count;
+    var inProgressCount = Model.MyInProgressTaskDisplays.Count;
+    var submittedCount = Model.MySubmittedTaskDisplays.Count;
+    var activeSprintTaskCount = Model.MyActiveSprintTaskDisplays.Count;
 }
 
 @* SECTION: Personal execution KPI strip. *@
@@ -15,23 +18,23 @@
         <p>Visible tasks scoped by your assignment.</p>
     </article>
     <article>
-        <h3>Overdue</h3>
-        <strong>@Model.MyWorkOverdueTaskDisplays.Count</strong>
-        <p>Needs immediate attention.</p>
+        <h3>Needs action now</h3>
+        <strong>@dueTodayCount</strong>
+        <p>Assigned tasks due today.</p>
     </article>
     <article>
-        <h3>Due today</h3>
-        <strong>@Model.DueTodayTaskDisplays.Count</strong>
-        <p>Due by end of day.</p>
+        <h3>Overdue</h3>
+        <strong>@overdueCount</strong>
+        <p>Past due and still open.</p>
     </article>
     <article>
         <h3>In progress</h3>
-        <strong>@Model.KanbanInProgressTaskDisplays.Count</strong>
+        <strong>@inProgressCount</strong>
         <p>Currently underway.</p>
     </article>
     <article>
         <h3>Submitted</h3>
-        <strong>@Model.KanbanSubmittedTaskDisplays.Count</strong>
+        <strong>@submittedCount</strong>
         <p>Awaiting closure review.</p>
     </article>
     <article>
@@ -41,54 +44,68 @@
     </article>
 </section>
 
-@* SECTION: Personal priority lanes for time-sensitive work. *@
-<section class="at-section-group">
-    <h2 class="at-section-title">Today and overdue</h2>
-    <div class="at-card-grid">
-        <article class="at-panel">
-            <div class="at-panel-heading">
-                <h3>Overdue tasks</h3>
-                <span class="at-count-chip">@Model.MyWorkOverdueTaskDisplays.Count</span>
-            </div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.MyWorkOverdueTaskDisplays, "No overdue tasks assigned to you.")' />
-        </article>
-        <article class="at-panel">
-            <div class="at-panel-heading">
-                <h3>Due today</h3>
-                <span class="at-count-chip">@Model.DueTodayTaskDisplays.Count</span>
-            </div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.DueTodayTaskDisplays, "No tasks due today.")' />
-        </article>
-    </div>
-</section>
-
-@* SECTION: Personal workflow lanes for execution and handoff. *@
-<section class="at-section-group">
-    <h2 class="at-section-title">Execution lanes</h2>
-    <div class="at-card-grid">
-        <article class="at-panel">
-            <div class="at-panel-heading">
-                <h3>In progress</h3>
-                <span class="at-count-chip">@Model.KanbanInProgressTaskDisplays.Count</span>
-            </div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.KanbanInProgressTaskDisplays, "No in-progress tasks assigned to you.")' />
-        </article>
-        <article class="at-panel">
-            <div class="at-panel-heading">
-                <h3>Submitted for closure</h3>
-                <span class="at-count-chip">@Model.KanbanSubmittedTaskDisplays.Count</span>
-            </div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.KanbanSubmittedTaskDisplays, "No submitted tasks are awaiting closure.")' />
-        </article>
-    </div>
-</section>
-
-@* SECTION: Active sprint context for assigned work. *@
+@* SECTION: Needs action now is intentionally first so the user sees today's required work before other lanes. *@
 <section class="at-section-group">
     <article class="at-panel">
         <div class="at-panel-heading">
             <div>
-                <h3>My active sprint tasks</h3>
+                <h3>Needs action now</h3>
+                <p class="at-panel-note">Tasks assigned to you that are due today.</p>
+            </div>
+            <span class="at-count-chip">@dueTodayCount</span>
+        </div>
+        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.MyDueTodayTaskDisplays, "No tasks assigned to you are due today.", false)' />
+    </article>
+</section>
+
+@* SECTION: Overdue work follows today's commitments to keep time exceptions visible. *@
+<section class="at-section-group">
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <div>
+                <h3>Overdue</h3>
+                <p class="at-panel-note">Open assigned tasks with due dates before today.</p>
+            </div>
+            <span class="at-count-chip">@overdueCount</span>
+        </div>
+        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.MyOverdueTaskDisplays, "No overdue tasks assigned to you.")' />
+    </article>
+</section>
+
+@* SECTION: In-progress work highlights tasks currently being executed. *@
+<section class="at-section-group">
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <div>
+                <h3>In progress</h3>
+                <p class="at-panel-note">Assigned tasks currently underway.</p>
+            </div>
+            <span class="at-count-chip">@inProgressCount</span>
+        </div>
+        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.MyInProgressTaskDisplays, "No in-progress tasks assigned to you.", true)' />
+    </article>
+</section>
+
+@* SECTION: Submitted handoffs remain visible while pending manager closure. *@
+<section class="at-section-group">
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <div>
+                <h3>Submitted pending closure</h3>
+                <p class="at-panel-note">Submitted tasks awaiting closure review.</p>
+            </div>
+            <span class="at-count-chip">@submittedCount</span>
+        </div>
+        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.MySubmittedTaskDisplays, "No submitted tasks are awaiting closure.")' />
+    </article>
+</section>
+
+@* SECTION: Active sprint context shows assigned work in the current sprint without moving workflow actions out of the inspector. *@
+<section class="at-section-group">
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <div>
+                <h3>My active sprint</h3>
                 @if (!string.IsNullOrWhiteSpace(Model.ActiveSprintMetrics.ActiveSprintName))
                 {
                     <p class="at-panel-note">@Model.ActiveSprintMetrics.ActiveSprintName · @Model.ActiveSprintMetrics.ActiveSprintDateRange</p>
@@ -100,55 +117,6 @@
             </div>
             <span class="at-count-chip">@activeSprintTaskCount</span>
         </div>
-        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintTaskDisplays, "No assigned tasks are in the active sprint.")' />
-    </article>
-</section>
-
-@* SECTION: Assigned task records provide a quick personal work list without replacing the auditable register. *@
-<section class="at-section-group">
-    <article class="at-panel">
-        <div class="at-panel-heading">
-            <h3>All assigned tasks</h3>
-            <span class="at-count-chip">@assignedTaskCount</span>
-        </div>
-        @if (!Model.Tasks.Any())
-        {
-            <div class="at-empty-state">
-                <div class="fw-semibold">No tasks are currently assigned to you.</div>
-            </div>
-        }
-        else
-        {
-            <div class="table-responsive">
-                <table class="table table-sm at-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Task</th>
-                            <th>Due Date</th>
-                            <th>Status</th>
-                            <th>Priority</th>
-                            <th>Sprint</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var task in Model.Tasks)
-                        {
-                            <tr class="@(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)">
-                                <td><a class="at-task-id-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="MyWork">AT-@task.Id</a></td>
-                                <td>
-                                    <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="MyWork">@task.Title</a>
-                                    <div class="at-task-desc-preview">@task.Description</div>
-                                </td>
-                                <td>@task.DueDate.ToString("dd MMM yyyy")</td>
-                                <td><span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span></td>
-                                <td><span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span></td>
-                                <td><span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span></td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
+        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.MyActiveSprintTaskDisplays, "No assigned tasks are in the active sprint.", false)' />
     </article>
 </section>
