@@ -8,6 +8,7 @@
     var inProgressCount = Model.MyInProgressTaskDisplays.Count;
     var submittedCount = Model.MySubmittedTaskDisplays.Count;
     var activeSprintTaskCount = Model.MyActiveSprintTaskDisplays.Count;
+    var remainingAssignedTaskCount = Model.MyRemainingAssignedTaskDisplays.Count;
 }
 
 @* SECTION: Personal execution KPI strip. *@
@@ -97,6 +98,20 @@
             <span class="at-count-chip">@submittedCount</span>
         </div>
         <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.MySubmittedTaskDisplays, "No submitted tasks are awaiting closure.")' />
+    </article>
+</section>
+
+@* SECTION: Remaining assigned work keeps personal tasks reachable even when they do not belong to the priority lanes above. *@
+<section class="at-section-group">
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <div>
+                <h3>Remaining assigned work</h3>
+                <p class="at-panel-note">Open assigned tasks outside today's, overdue, in-progress, submitted, and active sprint lanes.</p>
+            </div>
+            <span class="at-count-chip">@remainingAssignedTaskCount</span>
+        </div>
+        <partial name="_TaskCards" model='@Tuple.Create(Model, Model.MyRemainingAssignedTaskDisplays, "No remaining assigned tasks outside the priority lanes.", false)' />
     </article>
 </section>
 

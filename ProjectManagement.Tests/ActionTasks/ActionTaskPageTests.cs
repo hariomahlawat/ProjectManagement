@@ -91,6 +91,25 @@ public class ActionTaskPageTests
     }
 
     [Fact]
+    public async Task MyWorkPartial_RendersAssignedTasksOutsidePriorityLanes()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var page = setup.Page;
+        page.ViewMode = "MyWork";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskMyWork.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("Remaining assigned work", html, StringComparison.Ordinal);
+        Assert.Contains("Open task AT-", html, StringComparison.Ordinal);
+        Assert.Contains("Mine", html, StringComparison.Ordinal);
+        Assert.Single(page.MyRemainingAssignedTaskDisplays);
+    }
+
+    [Fact]
     public async Task TaskDetailsPartial_KanbanInspectorFormsCarryPlanningView()
     {
         // SECTION: Arrange

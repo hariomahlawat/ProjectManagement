@@ -938,6 +938,13 @@ public class IndexModel : PageModel
             .ThenBy(t => t.Id)
             .ToList());
 
+    public IReadOnlyList<TaskDisplayItem> MyRemainingAssignedTaskDisplays =>
+        ToDisplayItems(GetRemainingAssignedTasks()
+            .OrderBy(t => StatusOrder(t.Status))
+            .ThenBy(t => t.DueDate)
+            .ThenBy(t => t.Id)
+            .ToList());
+
     // SECTION: Legacy My Tasks display alias retained for older partial references.
     public IReadOnlyList<TaskDisplayItem> MyWorkOverdueTaskDisplays =>
         MyOverdueTaskDisplays;
@@ -1509,6 +1516,20 @@ public class IndexModel : PageModel
         ActiveSprint is null
             ? Array.Empty<ActionTaskItem>()
             : Tasks.Where(t => t.SprintId == ActiveSprint.Id).ToList();
+
+    // SECTION: Remaining personal work keeps assigned tasks visible when they do not fit a priority lane.
+    private IReadOnlyList<ActionTaskItem> GetRemainingAssignedTasks()
+    {
+        var activeSprintId = ActiveSprint?.Id;
+        return Tasks
+            .Where(IsOpenTask)
+            .Where(t => t.DueDate.Date != DateTime.UtcNow.Date)
+            .Where(t => !IsTaskOverdue(t))
+            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
+            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+            .Where(t => !activeSprintId.HasValue || t.SprintId != activeSprintId.Value)
+            .ToList();
+    }
 
     private IReadOnlyList<TaskDisplayItem> ToDisplayItems(IReadOnlyList<ActionTaskItem> tasks) =>
         tasks.Select(task => new TaskDisplayItem
