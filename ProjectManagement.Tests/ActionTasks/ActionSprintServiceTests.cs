@@ -454,6 +454,26 @@ public class ActionSprintServiceTests
         Assert.Contains("closed sprint", ex.Message.ToLowerInvariant());
     }
 
+
+
+    [Fact]
+    public async Task GetSprintAuditHistoryAsync_ReturnsLifecycleAuditEvents()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.Comdt);
+        await service.UpdateSprintAsync(sprint.Id, sprint.RowVersion, "Updated Sprint", "Updated goal", sprint.StartDate, sprint.EndDate, "planner", RoleNames.Comdt);
+
+        // SECTION: Act
+        var history = await service.GetSprintAuditHistoryAsync(sprint.Id);
+
+        // SECTION: Assert
+        Assert.Contains(history, x => x.ActionType == "SprintCreated");
+        Assert.Contains(history, x => x.ActionType == "SprintUpdated");
+        Assert.All(history, x => Assert.Equal(sprint.Id, x.SprintId));
+    }
+
     // SECTION: Test helpers
     private static ActionSprintService CreateService(ApplicationDbContext db)
         => new(db, new ActionTaskPermissionService(), new ActionSprintWorkflowPolicy());

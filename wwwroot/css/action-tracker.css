@@ -1345,3 +1345,101 @@ html {
         display: none;
     }
 }
+
+/* SECTION: Sprint command planning forms and lifecycle actions */
+.at-sprint-form-disclosure,
+.at-next-sprint-panel {
+    display: grid;
+    gap: 0.6rem;
+    margin: 0.75rem 0;
+}
+
+.at-sprint-form-disclosure > summary,
+.at-next-sprint-panel > summary {
+    cursor: pointer;
+    list-style: none;
+    width: fit-content;
+}
+
+.at-sprint-form-disclosure > summary::-webkit-details-marker,
+.at-next-sprint-panel > summary::-webkit-details-marker {
+    display: none;
+}
+
+.at-sprint-command-form {
+    display: grid;
+    gap: 0.55rem;
+    padding: 0.75rem;
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: var(--at-surface-soft);
+}
+
+.at-sprint-command-form .form-label {
+    margin-bottom: -0.25rem;
+    color: var(--at-muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.at-sprint-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem;
+    margin-top: 0.85rem;
+}
+
+.at-sprint-action-row form {
+    display: inline-flex;
+}
+
+/* SECTION: Compact sprint lifecycle history */
+.at-sprint-history-panel {
+    padding: 0.85rem 1rem;
+}
+
+.at-sprint-history-panel > summary {
+    cursor: pointer;
+    color: var(--at-text);
+    font-weight: 850;
+}
+
+.at-sprint-history-list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0.85rem 0 0;
+    padding-left: 1.2rem;
+}
+
+.at-sprint-history-list li {
+    border-bottom: 1px solid var(--at-border);
+    padding-bottom: 0.65rem;
+}
+
+.at-sprint-history-list li:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.at-sprint-history-list small,
+.at-sprint-history-list p,
+.at-sprint-history-list code {
+    display: block;
+    margin-top: 0.2rem;
+}
+
+.at-sprint-history-list small {
+    color: var(--at-muted);
+    font-weight: 700;
+}
+
+.at-sprint-history-list p {
+    margin-bottom: 0;
+    color: var(--at-muted);
+}
+
+.at-sprint-history-list code {
+    white-space: pre-wrap;
+    word-break: break-word;
+}

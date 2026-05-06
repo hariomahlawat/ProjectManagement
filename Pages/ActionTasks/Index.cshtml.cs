@@ -60,11 +60,13 @@ public class IndexModel : PageModel
     public ActionTaskQueryService.ActionSprintClosureReview SprintClosureReview { get; private set; } = ActionTaskQueryService.ActionSprintClosureReview.Empty;
     public ActionTaskQueryService.ActiveSprintOperationalMetrics ActiveSprintMetrics { get; private set; } = ActionTaskQueryService.ActiveSprintOperationalMetrics.Empty;
     public IReadOnlyList<ActionTaskAuditLog> SelectedTaskLogs { get; private set; } = Array.Empty<ActionTaskAuditLog>();
+    public IReadOnlyList<ActionSprintAuditLog> SprintAuditHistory { get; private set; } = Array.Empty<ActionSprintAuditLog>();
     public IReadOnlyList<ActionTaskUpdate> SelectedTaskUpdates { get; private set; } = Array.Empty<ActionTaskUpdate>();
     public IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>> UpdateAttachments { get; private set; } = new Dictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>();
     public IReadOnlyList<UserOption> AssignableUsers { get; private set; } = Array.Empty<UserOption>();
     public IReadOnlyDictionary<string, string> TaskAssigneeNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
     public IReadOnlyDictionary<string, string> TaskActorNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
+    public IReadOnlyDictionary<string, string> SprintActorNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
     public IReadOnlyList<CountSummary> AssigneePendingCounts { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> PriorityCounts { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> StatusCounts { get; private set; } = Array.Empty<CountSummary>();
@@ -102,12 +104,24 @@ public class IndexModel : PageModel
     public string CurrentRole { get; private set; } = string.Empty;
     public string CurrentUserId { get; private set; } = string.Empty;
     public bool ShowCreateModal { get; private set; }
+    public bool ShowCreateSprintPanel { get; private set; }
+    public bool ShowEditSprintPanel { get; private set; }
+    public bool ShowCreateNextSprintPanel { get; private set; }
     public ActionTaskItem? SelectedTask { get; private set; }
 
     [BindProperty]
     public CreateTaskInput Input { get; set; } = new();
     [BindProperty]
     public AddTaskUpdateInput UpdateInput { get; set; } = new();
+
+    [BindProperty]
+    public CreateSprintInput SprintInput { get; set; } = CreateSprintInput.FromPlanningWindow(DateTime.UtcNow.Date);
+
+    [BindProperty]
+    public UpdateSprintInput SprintEditInput { get; set; } = new();
+
+    [BindProperty]
+    public CreateNextSprintInput NextSprintInput { get; set; } = new();
 
     [BindProperty]
     public SprintClosureInput ClosureInput { get; set; } = new();
@@ -152,6 +166,10 @@ public class IndexModel : PageModel
     public bool CanPlanSprints => _permission.CanManageSprints(CurrentRole);
     public IReadOnlyList<ActionSprint> AssignableSprints => Sprints.Where(s => s.Status != ActionSprintStatus.Closed).ToList();
     public IReadOnlyList<ActionSprint> ClosureTargetSprints => SprintClosureReview.TargetSprintOptions;
+    public bool CanActivateSelectedSprint => CanPlanSprints && SelectedSprint?.Status == ActionSprintStatus.Planned;
+    public bool CanEditSelectedSprint => CanPlanSprints && SelectedSprint is not null && SelectedSprint.Status != ActionSprintStatus.Closed;
+    public bool CanCloseSelectedSprintDirectly => CanReviewSprintClosure && SprintClosureReview.CanCloseDirectly;
+    public bool ShouldShowCreateNextSprint => CanReviewSprintClosure && SprintClosureReview.UnfinishedTasks.Any() && !ClosureTargetSprints.Any();
 
     // SECTION: Sprint planning visibility helpers for lifecycle-aware UI actions.
     public bool CanAssignTaskToSprint(ActionTaskItem task)
@@ -239,6 +257,13 @@ public class IndexModel : PageModel
     public string ResolveActorName(string performedByUserId)
     {
         return TaskActorNames.TryGetValue(performedByUserId, out var actorName)
+            ? actorName
+            : "User";
+    }
+
+    public string ResolveSprintActorName(string performedByUserId)
+    {
+        return SprintActorNames.TryGetValue(performedByUserId, out var actorName)
             ? actorName
             : "User";
     }
@@ -331,6 +356,170 @@ public class IndexModel : PageModel
 
         TempData["ToastMessage"] = "Task created.";
         return RedirectToPage("/ActionTasks/Index", new { viewMode = ResolveViewMode() });
+    }
+
+
+
+    // SECTION: Create sprint from Sprints workspace through sprint service boundary.
+    public async Task<IActionResult> OnPostCreateSprintAsync()
+    {
+        await ResolveIdentityAsync();
+        ViewMode = "Sprints";
+        ModelState.Clear();
+        TryValidateModel(SprintInput, nameof(SprintInput));
+        ValidateSprintDateRange(SprintInput.StartDate, SprintInput.EndDate, nameof(SprintInput));
+
+        if (!ModelState.IsValid)
+        {
+            ShowCreateSprintPanel = true;
+            await LoadDataAsync();
+            return Page();
+        }
+
+        try
+        {
+            var sprint = await _sprintService.CreateSprintAsync(new ActionSprint
+            {
+                Name = SprintInput.Name.Trim(),
+                Goal = SprintInput.Goal?.Trim(),
+                StartDate = SprintInput.StartDate,
+                EndDate = SprintInput.EndDate
+            }, CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Sprint created.";
+            return RedirectToPage(new { ViewMode = "Sprints", SelectedSprintId = sprint.Id });
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            ShowCreateSprintPanel = true;
+            await LoadDataAsync();
+            return Page();
+        }
+    }
+
+    // SECTION: Update selected non-closed sprint through sprint service boundary.
+    public async Task<IActionResult> OnPostUpdateSprintAsync()
+    {
+        await ResolveIdentityAsync();
+        ViewMode = "Sprints";
+        SelectedSprintId = SprintEditInput.SprintId;
+        ModelState.Clear();
+        TryValidateModel(SprintEditInput, nameof(SprintEditInput));
+        ValidateSprintDateRange(SprintEditInput.StartDate, SprintEditInput.EndDate, nameof(SprintEditInput));
+
+        if (!ModelState.IsValid)
+        {
+            ShowEditSprintPanel = true;
+            await LoadDataAsync();
+            return Page();
+        }
+
+        try
+        {
+            await _sprintService.UpdateSprintAsync(
+                SprintEditInput.SprintId,
+                DecodeSprintRowVersion(SprintEditInput.RowVersion),
+                SprintEditInput.Name.Trim(),
+                SprintEditInput.Goal?.Trim(),
+                SprintEditInput.StartDate,
+                SprintEditInput.EndDate,
+                CurrentUserId,
+                CurrentRole);
+            TempData["ToastMessage"] = "Sprint updated.";
+            return RedirectToPage(new { ViewMode = "Sprints", SelectedSprintId = SprintEditInput.SprintId });
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+        }
+
+        ShowEditSprintPanel = true;
+        await LoadDataAsync();
+        return Page();
+    }
+
+    // SECTION: Activate a planned sprint through sprint service boundary.
+    public async Task<IActionResult> OnPostActivateSprintAsync(int sprintId, string rowVersion)
+    {
+        await ResolveIdentityAsync();
+        try
+        {
+            await _sprintService.ActivateSprintAsync(sprintId, DecodeSprintRowVersion(rowVersion), CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Sprint activated.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
+        return RedirectToPage(new { ViewMode = "Sprints", SelectedSprintId = sprintId });
+    }
+
+    // SECTION: Direct close for active sprints that have no unfinished task disposition requirement.
+    public async Task<IActionResult> OnPostCloseSprintAsync(int sprintId, string rowVersion)
+    {
+        await ResolveIdentityAsync();
+        try
+        {
+            await _sprintService.CloseSprintAsync(sprintId, DecodeSprintRowVersion(rowVersion), CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Sprint closed.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
+        return RedirectToPage(new { ViewMode = "Sprints", SelectedSprintId = sprintId });
+    }
+
+    // SECTION: Create next planned sprint from closure context through sprint service boundary.
+    public async Task<IActionResult> OnPostCreateNextSprintAsync()
+    {
+        await ResolveIdentityAsync();
+        ViewMode = "Sprints";
+        SelectedSprintId = NextSprintInput.SourceSprintId;
+        ModelState.Clear();
+        TryValidateModel(NextSprintInput, nameof(NextSprintInput));
+        ValidateSprintDateRange(NextSprintInput.StartDate, NextSprintInput.EndDate, nameof(NextSprintInput));
+
+        if (!ModelState.IsValid)
+        {
+            ShowCreateNextSprintPanel = true;
+            await LoadDataAsync();
+            return Page();
+        }
+
+        try
+        {
+            await _sprintService.CreateSprintAsync(new ActionSprint
+            {
+                Name = NextSprintInput.Name.Trim(),
+                Goal = NextSprintInput.Goal?.Trim(),
+                StartDate = NextSprintInput.StartDate,
+                EndDate = NextSprintInput.EndDate
+            }, CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Next sprint created and is available for carry-forward.";
+            return RedirectToPage(new { ViewMode = "Sprints", SelectedSprintId = NextSprintInput.SourceSprintId });
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            ShowCreateNextSprintPanel = true;
+            await LoadDataAsync();
+            return Page();
+        }
     }
 
     // SECTION: Submit task for closure review
@@ -560,6 +749,8 @@ public class IndexModel : PageModel
         SelectedSprintId = SelectedSprint?.Id ?? SelectedSprintId;
         SprintSummary = readModel.SprintReadModel.Summary;
         SprintClosureReview = readModel.SprintReadModel.ClosureReview;
+        PrepareSprintForms();
+        await LoadSprintAuditHistoryAsync();
         ActiveSprintMetrics = readModel.ActiveSprintMetrics;
         DueTodayTasks = readModel.DueBuckets.Today;
         DueThisWeekTasks = readModel.DueBuckets.ThisWeek;
@@ -596,6 +787,53 @@ public class IndexModel : PageModel
         UpdateAttachments = await _collaborationService.GetAttachmentMetadataByUpdateAsync(SelectedTask.Id, CurrentUserId, CurrentRole);
         TaskActorNames = await LoadTaskActorNamesAsync(SelectedTaskLogs);
         TaskActorNames = await MergeActorNamesAsync(TaskActorNames, SelectedTaskUpdates);
+    }
+
+
+    private async Task LoadSprintAuditHistoryAsync()
+    {
+        // SECTION: Selected sprint audit read-model loading.
+        if (SelectedSprint is null)
+        {
+            SprintAuditHistory = Array.Empty<ActionSprintAuditLog>();
+            SprintActorNames = new Dictionary<string, string>(StringComparer.Ordinal);
+            return;
+        }
+
+        SprintAuditHistory = await _sprintService.GetSprintAuditHistoryAsync(SelectedSprint.Id);
+        SprintActorNames = await LoadSprintActorNamesAsync(SprintAuditHistory);
+    }
+
+    private void PrepareSprintForms()
+    {
+        // SECTION: Keep create defaults editable while deriving current planning window.
+        if (!ShowCreateSprintPanel)
+        {
+            SprintInput = CreateSprintInput.FromPlanningWindow(DateTime.UtcNow.Date);
+        }
+
+        if (SelectedSprint is not null && !ShowEditSprintPanel)
+        {
+            SprintEditInput = UpdateSprintInput.FromSprint(SelectedSprint);
+        }
+
+        if (SelectedSprint is not null && !ShowCreateNextSprintPanel)
+        {
+            NextSprintInput = CreateNextSprintInput.FromSourceSprint(SelectedSprint);
+        }
+    }
+
+    private async Task<IReadOnlyDictionary<string, string>> LoadSprintActorNamesAsync(IReadOnlyList<ActionSprintAuditLog> logs)
+    {
+        // SECTION: Resolve sprint lifecycle actor display names without changing audit schema.
+        var userIds = logs.Select(x => x.PerformedByUserId).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal).ToList();
+        if (userIds.Count == 0)
+        {
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+
+        var users = await _users.Users.Where(u => userIds.Contains(u.Id)).Select(u => new { u.Id, u.Rank, u.FullName, u.UserName, u.Email }).ToListAsync();
+        return users.ToDictionary(x => x.Id, x => BuildPersonDisplayName(x.Rank, x.FullName, x.UserName, x.Email), StringComparer.Ordinal);
     }
 
     private async Task<IReadOnlyDictionary<string, string>> MergeActorNamesAsync(IReadOnlyDictionary<string, string> current, IReadOnlyList<ActionTaskUpdate> updates)
@@ -881,6 +1119,15 @@ public class IndexModel : PageModel
 
     // SECTION: Resolve a safe, standardized view mode value for postback and redirects
 
+    private void ValidateSprintDateRange(DateTime startDate, DateTime endDate, string prefix)
+    {
+        // SECTION: Page-level sprint date validation mirrors workflow policy for clear form errors.
+        if (startDate.Date > endDate.Date)
+        {
+            ModelState.AddModelError($"{prefix}.EndDate", "Sprint start date must be on or before the end date.");
+        }
+    }
+
     // SECTION: Decode Base64 row-version tokens posted from forms
     private static byte[] DecodeRowVersion(string rowVersion)
     {
@@ -896,6 +1143,23 @@ public class IndexModel : PageModel
         catch (FormatException)
         {
             throw new InvalidOperationException("Task version is invalid. Please reload and try again.");
+        }
+    }
+
+    private static byte[] DecodeSprintRowVersion(string rowVersion)
+    {
+        if (string.IsNullOrWhiteSpace(rowVersion))
+        {
+            throw new InvalidOperationException("Sprint version is missing. Please reload and try again.");
+        }
+
+        try
+        {
+            return Convert.FromBase64String(rowVersion);
+        }
+        catch (FormatException)
+        {
+            throw new InvalidOperationException("Sprint version is invalid. Please reload and try again.");
         }
     }
 
@@ -951,6 +1215,79 @@ public class IndexModel : PageModel
 
         [Required, StringLength(24)]
         public string Priority { get; set; } = "Normal";
+    }
+
+    public class CreateSprintInput
+    {
+        [Display(Name = "Sprint name")]
+        [Required, StringLength(160)]
+        public string Name { get; set; } = string.Empty;
+
+        [Display(Name = "Start date")]
+        [Required]
+        public DateTime StartDate { get; set; }
+
+        [Display(Name = "End date")]
+        [Required]
+        public DateTime EndDate { get; set; }
+
+        [Display(Name = "Goal / Command Focus")]
+        [StringLength(2000)]
+        public string? Goal { get; set; }
+
+        public static CreateSprintInput FromPlanningWindow(DateTime today)
+        {
+            // SECTION: Default to editable half-month command planning windows.
+            var start = today.Day <= 15 ? new DateTime(today.Year, today.Month, 1) : new DateTime(today.Year, today.Month, 16);
+            var end = today.Day <= 15 ? new DateTime(today.Year, today.Month, 15) : new DateTime(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+            return new CreateSprintInput
+            {
+                Name = $"Sprint {start:dd MMM} - {end:dd MMM}",
+                StartDate = start,
+                EndDate = end
+            };
+        }
+    }
+
+    public sealed class UpdateSprintInput : CreateSprintInput
+    {
+        [Required]
+        public int SprintId { get; set; }
+
+        [Required]
+        public string RowVersion { get; set; } = string.Empty;
+
+        public static UpdateSprintInput FromSprint(ActionSprint sprint)
+            => new()
+            {
+                SprintId = sprint.Id,
+                RowVersion = Convert.ToBase64String(sprint.RowVersion),
+                Name = sprint.Name,
+                Goal = sprint.Goal,
+                StartDate = sprint.StartDate,
+                EndDate = sprint.EndDate
+            };
+    }
+
+    public sealed class CreateNextSprintInput : CreateSprintInput
+    {
+        [Required]
+        public int SourceSprintId { get; set; }
+
+        public static CreateNextSprintInput FromSourceSprint(ActionSprint sprint)
+        {
+            // SECTION: Closure-review next sprint defaults immediately follow source sprint end.
+            var start = sprint.EndDate.Date.AddDays(1);
+            var end = start.AddDays(14);
+            return new CreateNextSprintInput
+            {
+                SourceSprintId = sprint.Id,
+                Name = $"Sprint {start:dd MMM} - {end:dd MMM}",
+                Goal = sprint.Goal,
+                StartDate = start,
+                EndDate = end
+            };
+        }
     }
 
     public sealed class SprintClosureInput
