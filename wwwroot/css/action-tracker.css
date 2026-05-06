@@ -13,6 +13,15 @@
     --at-radius-lg: 18px;
     --at-radius-md: 12px;
     --at-shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.06);
+    --at-font-xs: 0.68rem;
+    --at-font-sm: 0.74rem;
+    --at-font-md: 0.8125rem;
+    --at-font-base: 0.875rem;
+    --at-font-lg: 1rem;
+    --at-font-xl: 1.2rem;
+    --at-weight-medium: 500;
+    --at-weight-semibold: 600;
+    --at-weight-bold: 700;
 }
 
 /* SECTION: Action Tracker shell */
@@ -22,6 +31,7 @@ html {
 
 .at-shell {
     display: grid;
+    font-size: var(--at-font-base);
     grid-template-columns: 88px minmax(0, 1fr);
     gap: 1rem;
     min-height: 70vh;
@@ -59,7 +69,7 @@ html {
     text-decoration: none;
     border-radius: 10px;
     padding: 0.55rem 0.35rem;
-    font-size: 0.72rem;
+    font-size: var(--at-font-sm);
     font-weight: 700;
     line-height: 1.2;
     border: 1px solid transparent;
@@ -67,11 +77,11 @@ html {
 }
 
 .at-nav a i {
-    font-size: 0.95rem;
+    font-size: var(--at-font-base);
 }
 
 .at-nav a span {
-    font-size: 0.72rem;
+    font-size: var(--at-font-sm);
     font-weight: 700;
 }
 
@@ -97,6 +107,7 @@ html {
 /* SECTION: Header and panels */
 .at-workspace {
     min-width: 0;
+    font-size: var(--at-font-base);
     padding-bottom: 1.5rem;
 }
 
@@ -111,15 +122,15 @@ html {
 .at-header h1 {
     margin: 0;
     color: var(--at-text);
-    font-size: 1.45rem;
-    font-weight: 760;
+    font-size: 1.32rem;
+    font-weight: var(--at-weight-semibold);
     letter-spacing: -0.02em;
 }
 
 .at-header p {
     margin: 0;
     color: var(--at-muted);
-    font-size: 0.92rem;
+    font-size: var(--at-font-base);
 }
 
 .at-panel {
@@ -127,37 +138,37 @@ html {
     border: 1px solid var(--at-border);
     border-radius: var(--at-radius-lg);
     box-shadow: var(--at-shadow-sm);
-    padding: 1rem;
+    padding: 0.9rem;
 }
 
 .at-panel h2 {
-    font-size: 0.98rem;
-    font-weight: 750;
+    font-size: var(--at-font-base);
+    font-weight: var(--at-weight-semibold);
     color: var(--at-text);
     margin-bottom: 0.85rem;
 }
 
 .at-section-eyebrow {
-    font-size: 0.72rem;
-    font-weight: 800;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--at-muted);
 }
 
 .at-panel-title {
-    font-size: 1rem;
-    font-weight: 760;
+    font-size: var(--at-font-lg);
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-small {
-    font-size: 0.78rem;
+    font-size: var(--at-font-sm);
 }
 
 /* SECTION: Inspector collaboration helper text and attachment rows */
 .at-helper-text {
     color: var(--at-muted);
-    font-size: 0.82rem;
+    font-size: var(--at-font-md);
     margin-bottom: 0.6rem;
 }
 
@@ -178,8 +189,8 @@ html {
 }
 
 .at-file-type {
-    font-size: 0.72rem;
-    font-weight: 800;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
     color: var(--at-muted);
 }
 
@@ -193,7 +204,7 @@ html {
 
 .at-file-size {
     color: var(--at-muted);
-    font-size: 0.78rem;
+    font-size: var(--at-font-sm);
 }
 
 
@@ -216,8 +227,8 @@ html {
 
 .at-panel-heading h3 {
     margin: 0;
-    font-size: 0.98rem;
-    font-weight: 750;
+    font-size: var(--at-font-base);
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-count-chip {
@@ -228,7 +239,7 @@ html {
     color: #1d4ed8;
     padding: 0.15rem 0.55rem;
     font-weight: 700;
-    font-size: 0.8rem;
+    font-size: var(--at-font-md);
 }
 
 .at-section-group + .at-section-group {
@@ -236,11 +247,11 @@ html {
 }
 
 .at-section-title {
-    font-size: 0.87rem;
+    font-size: var(--at-font-md);
     text-transform: uppercase;
     letter-spacing: 0.045em;
     color: var(--at-muted);
-    font-weight: 800;
+    font-weight: var(--at-weight-bold);
     margin-bottom: 0.55rem;
 }
 
@@ -260,7 +271,7 @@ html {
 }
 
 .at-kpis h3 {
-    font-size: 0.82rem;
+    font-size: var(--at-font-md);
     color: var(--at-muted);
     font-weight: 700;
     text-transform: uppercase;
@@ -269,7 +280,7 @@ html {
 }
 
 .at-kpis strong {
-    font-size: 1.8rem;
+    font-size: 1.55rem;
     color: var(--at-text);
 }
 
@@ -316,7 +327,7 @@ html {
 .at-mini-meta {
     margin-top: 0.2rem;
     color: var(--at-muted);
-    font-size: 0.82rem;
+    font-size: var(--at-font-md);
     display: flex;
     gap: 0.3rem;
     align-items: center;
@@ -333,7 +344,7 @@ html {
 .at-table thead th {
     background: #f8fafc;
     color: #475569;
-    font-size: 0.72rem;
+    font-size: var(--at-font-sm);
     text-transform: uppercase;
     letter-spacing: 0.03em;
     border-bottom: 1px solid var(--at-border);
@@ -354,7 +365,7 @@ html {
 }
 
 .at-task-title {
-    font-weight: 750;
+    font-weight: var(--at-weight-semibold);
     color: var(--at-blue);
     text-decoration: none;
 }
@@ -370,7 +381,7 @@ html {
 
 .at-task-desc {
     color: var(--at-muted);
-    font-size: 0.86rem;
+    font-size: var(--at-font-md);
 }
 
 .at-preline {
@@ -389,7 +400,7 @@ html {
 
 .at-task-desc-preview {
     color: #7a8798;
-    font-size: 0.82rem;
+    font-size: var(--at-font-md);
     line-height: 1.35;
     white-space: pre-line;
     display: -webkit-box;
@@ -407,8 +418,8 @@ html {
 
 .at-detail-assignee {
     color: var(--at-text);
-    font-size: 0.85rem;
-    font-weight: 650;
+    font-size: var(--at-font-md);
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-detail-meta {
@@ -432,7 +443,7 @@ html {
     background: #e2e8f0;
     color: #334155;
     padding: 0.15rem 0.45rem;
-    font-size: 0.74rem;
+    font-size: var(--at-font-sm);
     font-weight: 700;
 }
 
@@ -449,8 +460,8 @@ html {
 .at-inspector-actions h3,
 .at-task-info h3 {
     margin: 0;
-    font-size: 0.9rem;
-    font-weight: 750;
+    font-size: var(--at-font-base);
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-action-card {
@@ -472,8 +483,8 @@ html {
 }
 
 .at-action-title {
-    font-size: 0.74rem;
-    font-weight: 760;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--at-muted);
@@ -526,7 +537,7 @@ html {
 
 .at-audit-title {
     color: var(--at-muted);
-    font-size: 0.86rem;
+    font-size: var(--at-font-md);
     font-weight: 700;
 }
 
@@ -545,8 +556,8 @@ html {
 
 .at-details-collapsible > summary {
     cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 750;
+    font-size: var(--at-font-base);
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-action-toolbar {
@@ -579,12 +590,12 @@ html {
     color: #334155;
     border-radius: 999px;
     padding: 0.2rem 0.6rem;
-    font-size: 0.78rem;
+    font-size: var(--at-font-sm);
     font-weight: 700;
 }
 
 .at-filter-clear {
-    font-size: 0.8rem;
+    font-size: var(--at-font-md);
     font-weight: 600;
     color: #64748b;
     text-decoration: none;
@@ -598,7 +609,7 @@ html {
 .at-badge {
     border-radius: 999px;
     padding: 0.15rem 0.45rem;
-    font-size: 0.72rem;
+    font-size: var(--at-font-sm);
     font-weight: 700;
     border: 1px solid transparent;
 }
@@ -658,7 +669,7 @@ html {
 }
 
 .at-board-grid.at-board-grid-sprint {
-    grid-template-columns: repeat(4, minmax(260px, 1fr));
+    grid-template-columns: repeat(4, minmax(185px, 1fr));
 }
 
 .at-board-grid.is-kanban {
@@ -670,7 +681,7 @@ html {
 }
 
 .at-board-column h2 {
-    font-size: 0.95rem;
+    font-size: var(--at-font-base);
     margin-bottom: 0;
 }
 
@@ -695,15 +706,15 @@ html {
     display: block;
     text-decoration: none;
     color: inherit;
-    padding: .65rem;
+    padding: 0.55rem 0.6rem;
     cursor: pointer;
 }
 
 .at-card-subject {
     margin: 0;
     color: var(--at-text);
-    font-size: 0.98rem;
-    font-weight: 760;
+    font-size: var(--at-font-base);
+    font-weight: var(--at-weight-semibold);
     line-height: 1.3;
 }
 
@@ -715,7 +726,7 @@ html {
 
 .at-card-due {
     margin-top: 0.2rem;
-    font-size: 0.82rem;
+    font-size: var(--at-font-md);
     color: #334155;
     font-weight: 600;
 }
@@ -731,7 +742,7 @@ html {
 .at-card-status {
     margin-top: 0.18rem;
     color: #64748b;
-    font-size: 0.78rem;
+    font-size: var(--at-font-sm);
     font-weight: 600;
 }
 .at-sort-link {
@@ -741,11 +752,11 @@ html {
 .at-sort-link:hover { text-decoration: underline; }
 .at-command-focus-strip {
     padding: 0.65rem 0.9rem;
-    font-size: 0.84rem;
+    font-size: var(--at-font-md);
     color: #334155;
 }
 .at-select-search-wrap { display: grid; gap: 0.35rem; }
-.at-select-search-input { font-size: 0.78rem; }
+.at-select-search-input { font-size: var(--at-font-sm); }
 
 .at-task-card.is-selected,
 .at-mini-row.is-selected,
@@ -771,7 +782,7 @@ html {
 
 .at-panel-note {
     color: var(--at-muted);
-    font-size: 0.8rem;
+    font-size: var(--at-font-md);
     margin-top: -0.35rem;
 }
 
@@ -813,7 +824,7 @@ html {
     border-radius: 10px;
     background: #f8fafc;
     color: var(--at-muted);
-    font-size: 0.81rem;
+    font-size: var(--at-font-md);
 }
 
 .at-metric-row {
@@ -821,7 +832,7 @@ html {
     grid-template-columns: minmax(100px, auto) 1fr auto;
     gap: 0.5rem;
     align-items: center;
-    font-size: 0.84rem;
+    font-size: var(--at-font-md);
 }
 
 .at-metric-track {
@@ -860,9 +871,9 @@ html {
 }
 
 .at-empty-state-compact {
-    padding: 0.5rem 0.6rem;
+    padding: 0.45rem 0.5rem;
     min-height: auto;
-    font-size: 0.82rem;
+    font-size: var(--at-font-md);
 }
 
 .at-empty-icon {
@@ -875,12 +886,12 @@ html {
     margin-bottom: 0.3rem;
     color: var(--at-muted);
     background: #e2e8f0;
-    font-weight: 800;
+    font-weight: var(--at-weight-bold);
 }
 
 .at-empty-inline {
     margin: 0.1rem 0 0.2rem;
-    font-size: 0.78rem;
+    font-size: var(--at-font-sm);
     color: var(--at-muted);
     line-height: 1.35;
 }
@@ -1044,7 +1055,7 @@ html {
     border: 1px solid var(--at-border);
     border-radius: var(--at-radius-md);
     background: #fff;
-    padding: 0.5rem 0.6rem;
+    padding: 0.45rem 0.5rem;
 }
 
 .at-activity-system-row {
@@ -1066,8 +1077,8 @@ html {
     max-width: 100%;
     border-radius: 999px;
     padding: 0.12rem 0.45rem;
-    font-size: 0.72rem;
-    font-weight: 750;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
     line-height: 1.25;
     border: 1px solid transparent;
 }
@@ -1132,8 +1143,8 @@ html {
 
 .at-sprint-date-range {
     color: var(--at-muted);
-    font-size: 0.86rem;
-    font-weight: 650;
+    font-size: var(--at-font-md);
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-sprint-status-pill {
@@ -1142,8 +1153,8 @@ html {
     color: #0f172a;
     background: #e0f2fe;
     border: 1px solid #bae6fd;
-    font-size: 0.78rem;
-    font-weight: 800;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
 }
 
 .at-sprint-summary-grid {
@@ -1166,8 +1177,8 @@ html {
 }
 
 .at-sprint-summary-grid span {
-    font-size: 1.1rem;
-    font-weight: 800;
+    font-size: 1rem;
+    font-weight: var(--at-weight-bold);
     color: var(--at-text);
 }
 
@@ -1177,7 +1188,7 @@ html {
 }
 
 .at-board-grid.is-sprints {
-    grid-template-columns: repeat(5, minmax(260px, 1fr));
+    grid-template-columns: repeat(5, minmax(185px, 1fr));
 }
 
 .at-card-action-form {
@@ -1215,8 +1226,8 @@ html {
     color: #1e40af;
     border-radius: 10px;
     padding: 0.45rem 0.55rem;
-    font-size: 0.8rem;
-    font-weight: 750;
+    font-size: var(--at-font-md);
+    font-weight: var(--at-weight-semibold);
     margin-bottom: 0.55rem;
 }
 
@@ -1249,15 +1260,15 @@ html {
 .at-sprint-health-grid strong {
     display: block;
     color: var(--at-text);
-    font-size: 1.25rem;
-    font-weight: 850;
+    font-size: 0.98rem;
+    font-weight: var(--at-weight-bold);
 }
 
 .at-closure-metrics small,
 .at-sprint-health-grid h3 {
     color: var(--at-muted);
-    font-size: 0.78rem;
-    font-weight: 750;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
     margin: 0;
 }
 
@@ -1308,8 +1319,8 @@ html {
 .at-closure-task-head {
     background: #f8fafc;
     color: var(--at-muted);
-    font-size: 0.78rem;
-    font-weight: 800;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
@@ -1317,14 +1328,14 @@ html {
 .at-closure-task-row small {
     display: block;
     color: var(--at-muted);
-    font-weight: 650;
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-closure-choice {
     display: inline-flex;
     gap: 0.4rem;
     align-items: center;
-    font-weight: 750;
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-closure-actions {
@@ -1368,8 +1379,8 @@ html {
 
 .at-sprint-command-form {
     display: grid;
-    gap: 0.55rem;
-    padding: 0.75rem;
+    gap: 0.45rem;
+    padding: 0.65rem;
     border: 1px solid var(--at-border);
     border-radius: 12px;
     background: var(--at-surface-soft);
@@ -1378,16 +1389,16 @@ html {
 .at-sprint-command-form .form-label {
     margin-bottom: -0.25rem;
     color: var(--at-muted);
-    font-size: 0.78rem;
-    font-weight: 800;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
 }
 
 .at-sprint-action-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.55rem;
-    margin-top: 0.85rem;
+    gap: 0.45rem;
+    margin-top: 0.7rem;
 }
 
 .at-sprint-action-row form {
@@ -1396,13 +1407,13 @@ html {
 
 /* SECTION: Compact sprint lifecycle history */
 .at-sprint-history-panel {
-    padding: 0.85rem 1rem;
+    padding: 0.7rem 0.85rem;
 }
 
 .at-sprint-history-panel > summary {
     cursor: pointer;
     color: var(--at-text);
-    font-weight: 850;
+    font-weight: var(--at-weight-bold);
 }
 
 .at-sprint-history-list {
@@ -1452,10 +1463,10 @@ html {
 
 .at-sprint-command-strip {
     display: grid;
-    grid-template-columns: minmax(280px, 1.3fr) minmax(360px, 1fr) auto;
-    gap: 0.85rem;
+    grid-template-columns: minmax(250px, 1.25fr) minmax(320px, 1fr) auto;
+    gap: 0.75rem;
     align-items: center;
-    padding: 0.85rem 1rem;
+    padding: 0.7rem 0.85rem;
 }
 
 .at-sprint-command-main {
@@ -1467,7 +1478,7 @@ html {
 
 .at-sprint-command-main h2 {
     margin-bottom: 0.1rem;
-    font-size: 1.08rem;
+    font-size: 0.98rem;
 }
 
 .at-sprint-command-focus {
@@ -1484,7 +1495,7 @@ html {
 }
 
 .at-sprint-summary-grid-compact div {
-    padding: 0.5rem 0.6rem;
+    padding: 0.45rem 0.5rem;
 }
 
 .at-sprint-action-row-strip {
@@ -1516,8 +1527,8 @@ html {
 
 .at-sprint-list-heading {
     color: var(--at-muted);
-    font-size: 0.72rem;
-    font-weight: 850;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
     letter-spacing: 0.05em;
     text-transform: uppercase;
 }
@@ -1534,14 +1545,14 @@ html {
 }
 
 .at-sprint-list-item strong {
-    font-size: 0.82rem;
+    font-size: var(--at-font-md);
     line-height: 1.25;
 }
 
 .at-sprint-list-item span {
     color: var(--at-muted);
     font-size: 0.76rem;
-    font-weight: 650;
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-sprint-list-item.is-active {
@@ -1581,8 +1592,8 @@ html {
     gap: 0.5rem;
     margin-bottom: 0.45rem;
     color: var(--at-muted);
-    font-size: 0.78rem;
-    font-weight: 850;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
@@ -1601,14 +1612,14 @@ html {
 }
 
 .at-sprint-task-card .at-card-subject {
-    font-size: 0.9rem;
+    font-size: var(--at-font-base);
 }
 
 .at-card-facts {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.45rem;
-    margin: 0.55rem 0;
+    gap: 0.35rem;
+    margin: 0.45rem 0;
 }
 
 .at-card-facts div {
@@ -1617,23 +1628,23 @@ html {
 
 .at-card-facts dt {
     color: var(--at-muted);
-    font-size: 0.68rem;
-    font-weight: 800;
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-bold);
     text-transform: uppercase;
 }
 
 .at-card-facts dd {
     margin: 0;
     color: var(--at-text);
-    font-size: 0.8rem;
+    font-size: var(--at-font-md);
     font-weight: 700;
     overflow-wrap: anywhere;
 }
 
 .at-open-details-label {
     color: var(--at-blue);
-    font-size: 0.74rem;
-    font-weight: 800;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
 }
 
 .at-overdue-marker {
@@ -1642,8 +1653,8 @@ html {
     background: #fee2e2;
     color: #991b1b;
     padding: 0.12rem 0.45rem;
-    font-size: 0.72rem;
-    font-weight: 800;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
 }
 
 /* SECTION: Phase 2A backlog planning summary and compact task metadata */
@@ -1668,14 +1679,14 @@ html {
 
 .at-backlog-summary-grid strong {
     color: var(--at-text);
-    font-size: 1.25rem;
-    font-weight: 850;
+    font-size: 0.98rem;
+    font-weight: var(--at-weight-bold);
 }
 
 .at-backlog-summary-grid span {
     color: var(--at-muted);
-    font-size: 0.78rem;
-    font-weight: 750;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-backlog-task-meta {
@@ -1687,7 +1698,7 @@ html {
 
 .at-cell-primary {
     color: var(--at-text);
-    font-size: 0.86rem;
+    font-size: var(--at-font-md);
     font-weight: 700;
 }
 
@@ -1711,7 +1722,7 @@ html {
 }
 
 .at-inspector-header .at-panel-title {
-    font-size: 1.08rem;
+    font-size: 0.98rem;
     line-height: 1.25;
 }
 
@@ -1737,8 +1748,8 @@ html {
 .at-progress-timeline h3 {
     margin: 0;
     color: var(--at-text);
-    font-size: 0.98rem;
-    font-weight: 800;
+    font-size: var(--at-font-base);
+    font-weight: var(--at-weight-bold);
 }
 
 .at-progress-timeline {
@@ -1803,6 +1814,59 @@ html {
     }
 }
 
+
+/* SECTION: Phase 2A typography and density pass */
+.at-shell .btn-sm,
+.at-shell .form-control-sm,
+.at-shell .form-select-sm {
+    font-size: var(--at-font-sm);
+}
+
+.at-shell .btn {
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-shell .form-label,
+.at-shell .form-control,
+.at-shell .form-select {
+    font-size: var(--at-font-base);
+}
+
+.at-sprint-task-card .at-task-card-link {
+    padding: 0.55rem 0.6rem;
+}
+
+.at-sprint-task-card .at-card-subject {
+    font-size: var(--at-font-md);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-sprint-task-card .at-card-meta,
+.at-sprint-task-card .at-card-due {
+    font-size: var(--at-font-sm);
+}
+
+.at-sprint-summary-grid-compact span {
+    font-size: 0.96rem;
+}
+
+.at-sprint-summary-grid-compact small,
+.at-sprint-command-focus,
+.at-card-action-form {
+    font-size: var(--at-font-sm);
+}
+
+.at-sprint-health-grid strong,
+.at-backlog-summary-grid strong {
+    font-size: 1.08rem;
+    font-weight: var(--at-weight-bold);
+}
+
+.at-open-details-label {
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-bold);
+}
+
 /* SECTION: Phase 2A sprint workspace cleanup and inspector-safe board layout */
 .at-sprint-empty-command {
     grid-column: 1 / -1;
@@ -1852,8 +1916,8 @@ html {
 }
 
 .at-board-grid.is-sprints {
-    grid-auto-columns: minmax(220px, 1fr);
-    grid-template-columns: repeat(5, minmax(220px, 1fr));
+    grid-auto-columns: minmax(185px, 1fr);
+    grid-template-columns: repeat(5, minmax(185px, 1fr));
 }
 
 .at-sprint-execution-main .at-board-scroll {
@@ -1885,8 +1949,8 @@ html {
 }
 
 .at-shell.has-selection .at-board-grid.is-sprints {
-    grid-auto-columns: minmax(205px, 1fr);
-    grid-template-columns: repeat(5, minmax(205px, 1fr));
+    grid-auto-columns: minmax(175px, 1fr);
+    grid-template-columns: repeat(5, minmax(175px, 1fr));
 }
 
 @media (max-width: 1399px) {
