@@ -47,6 +47,15 @@ public class ActionSprintService
             .ThenByDescending(x => x.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
+    public async Task<List<ActionSprintAuditLog>> GetSprintAuditHistoryAsync(int sprintId, CancellationToken cancellationToken = default)
+        => await _context.ActionSprintAuditLogs
+            .AsNoTracking()
+            .Where(x => x.SprintId == sprintId)
+            .Where(x => x.ActionType == "SprintCreated" || x.ActionType == "SprintUpdated" || x.ActionType == "SprintActivated" || x.ActionType == "SprintClosed")
+            .OrderByDescending(x => x.PerformedAt)
+            .ThenByDescending(x => x.Id)
+            .ToListAsync(cancellationToken);
+
     // SECTION: Sprint mutation APIs
     public async Task<ActionSprint> CreateSprintAsync(ActionSprint sprint, string userId, string role, CancellationToken cancellationToken = default)
     {
@@ -55,6 +64,7 @@ public class ActionSprintService
 
         var performedAt = DateTime.UtcNow;
         sprint.Status = ActionSprintStatus.Planned;
+        sprint.RowVersion = NewSprintRowVersion();
         sprint.CreatedByUserId = userId;
         sprint.CreatedByRole = role;
         sprint.CreatedAtUtc = performedAt;
@@ -90,6 +100,7 @@ public class ActionSprintService
         sprint.UpdatedByUserId = userId;
         sprint.UpdatedByRole = role;
         sprint.UpdatedAtUtc = performedAt;
+        sprint.RowVersion = NewSprintRowVersion();
 
         AddSprintAudit(sprint.Id, "SprintUpdated", userId, role, performedAt, oldValue, DescribeSprint(sprint), $"Updated sprint: {sprint.Name}");
         await SaveSprintChangesAsync(cancellationToken);
@@ -122,6 +133,7 @@ public class ActionSprintService
         sprint.UpdatedByUserId = userId;
         sprint.UpdatedByRole = role;
         sprint.UpdatedAtUtc = performedAt;
+        sprint.RowVersion = NewSprintRowVersion();
 
         AddSprintAudit(sprint.Id, "SprintActivated", userId, role, performedAt, oldStatus, sprint.Status.ToString(), $"Activated sprint: {sprint.Name}");
         await SaveSprintChangesAsync(cancellationToken);
@@ -152,6 +164,7 @@ public class ActionSprintService
         sprint.UpdatedByUserId = userId;
         sprint.UpdatedByRole = role;
         sprint.UpdatedAtUtc = performedAt;
+        sprint.RowVersion = NewSprintRowVersion();
 
         AddSprintAudit(sprint.Id, "SprintClosed", userId, role, performedAt, oldStatus, sprint.Status.ToString(), $"Closed sprint: {sprint.Name}");
         await SaveSprintChangesAsync(cancellationToken);
@@ -230,6 +243,7 @@ public class ActionSprintService
         sprint.UpdatedByUserId = userId;
         sprint.UpdatedByRole = role;
         sprint.UpdatedAtUtc = performedAt;
+        sprint.RowVersion = NewSprintRowVersion();
 
         var detail = $"Closed sprint: {sprint.Name}. Carried forward: {carryIds.Count}. Moved to backlog: {backIds.Count}. Remarks: {remarks.Trim()}";
         AddSprintAudit(sprint.Id, "SprintClosed", userId, role, performedAt, oldStatus, sprint.Status.ToString(), detail);
@@ -403,6 +417,8 @@ public class ActionSprintService
             Remarks = TrimAuditRemarks(remarks)
         });
     }
+
+    private static byte[] NewSprintRowVersion() => Guid.NewGuid().ToByteArray();
 
     private static string TrimAuditRemarks(string remarks)
     {

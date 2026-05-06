@@ -212,6 +212,221 @@ public class ActionTaskPageTests
         Assert.False(page.CanMoveTaskToBacklog(sprintTask));
     }
 
+
+
+    [Fact]
+    public async Task CreateSprintPageHandler_WithPlanningAuthority_CreatesSprint()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.Comdt);
+        var page = setup.Page;
+        page.ViewMode = "Sprints";
+        page.SprintInput = new IndexModel.CreateSprintInput
+        {
+            Name = "Command Sprint",
+            StartDate = DateTime.UtcNow.Date,
+            EndDate = DateTime.UtcNow.Date.AddDays(14),
+            Goal = "Command focus"
+        };
+
+        // SECTION: Act
+        var result = await page.OnPostCreateSprintAsync();
+
+        // SECTION: Assert
+        Assert.IsType<RedirectToPageResult>(result);
+        var sprint = await setup.Db.ActionSprints.SingleAsync(s => s.Name == "Command Sprint");
+        Assert.Equal(ActionSprintStatus.Planned, sprint.Status);
+    }
+
+    [Fact]
+    public async Task CreateSprintPageHandler_WithNonAuthority_ReturnsPageAndDoesNotCreateSprint()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.ProjectOfficer);
+        var page = setup.Page;
+        page.ViewMode = "Sprints";
+        page.SprintInput = new IndexModel.CreateSprintInput
+        {
+            Name = "Unauthorized Sprint",
+            StartDate = DateTime.UtcNow.Date,
+            EndDate = DateTime.UtcNow.Date.AddDays(14)
+        };
+
+        // SECTION: Act
+        var result = await page.OnPostCreateSprintAsync();
+
+        // SECTION: Assert
+        Assert.IsType<PageResult>(result);
+        Assert.True(page.ShowCreateSprintPanel);
+        Assert.Empty(await setup.Db.ActionSprints.Where(s => s.Name == "Unauthorized Sprint").ToListAsync());
+        Assert.False(page.ModelState.IsValid);
+    }
+
+    [Fact]
+    public async Task CreateSprintPageHandler_WithInvalidDateRange_ReturnsPageError()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var page = setup.Page;
+        page.ViewMode = "Sprints";
+        page.SprintInput = new IndexModel.CreateSprintInput
+        {
+            Name = "Invalid Sprint",
+            StartDate = DateTime.UtcNow.Date.AddDays(5),
+            EndDate = DateTime.UtcNow.Date
+        };
+
+        // SECTION: Act
+        var result = await page.OnPostCreateSprintAsync();
+
+        // SECTION: Assert
+        Assert.IsType<PageResult>(result);
+        Assert.True(page.ShowCreateSprintPanel);
+        Assert.False(page.ModelState.IsValid);
+        Assert.Empty(await setup.Db.ActionSprints.Where(s => s.Name == "Invalid Sprint").ToListAsync());
+    }
+
+    [Fact]
+    public async Task UpdateSprintPageHandler_WithPlannedSprint_UpdatesDetails()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var sprint = AddSprint(setup.Db, "Planned Sprint", ActionSprintStatus.Planned);
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.SprintEditInput = new IndexModel.UpdateSprintInput
+        {
+            SprintId = sprint.Id,
+            RowVersion = Convert.ToBase64String(sprint.RowVersion),
+            Name = "Updated Sprint",
+            Goal = "Updated focus",
+            StartDate = sprint.StartDate,
+            EndDate = sprint.EndDate.AddDays(1)
+        };
+
+        // SECTION: Act
+        var result = await page.OnPostUpdateSprintAsync();
+
+        // SECTION: Assert
+        Assert.IsType<RedirectToPageResult>(result);
+        var updated = await setup.Db.ActionSprints.SingleAsync(s => s.Id == sprint.Id);
+        Assert.Equal("Updated Sprint", updated.Name);
+        Assert.Equal("Updated focus", updated.Goal);
+    }
+
+    [Fact]
+    public async Task UpdateSprintPageHandler_WithClosedSprint_ReturnsPageError()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.Comdt);
+        var sprint = AddSprint(setup.Db, "Closed Sprint", ActionSprintStatus.Closed);
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.SprintEditInput = new IndexModel.UpdateSprintInput
+        {
+            SprintId = sprint.Id,
+            RowVersion = Convert.ToBase64String(sprint.RowVersion),
+            Name = "Should Not Update",
+            StartDate = sprint.StartDate,
+            EndDate = sprint.EndDate
+        };
+
+        // SECTION: Act
+        var result = await page.OnPostUpdateSprintAsync();
+
+        // SECTION: Assert
+        Assert.IsType<PageResult>(result);
+        Assert.True(page.ShowEditSprintPanel);
+        var unchanged = await setup.Db.ActionSprints.SingleAsync(s => s.Id == sprint.Id);
+        Assert.Equal("Closed Sprint", unchanged.Name);
+    }
+
+    [Fact]
+    public async Task ActivateSprintPageHandler_WithPlannedSprint_ActivatesSprint()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.Comdt);
+        var sprint = AddSprint(setup.Db, "Planned Sprint", ActionSprintStatus.Planned);
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+
+        // SECTION: Act
+        var result = await page.OnPostActivateSprintAsync(sprint.Id, Convert.ToBase64String(sprint.RowVersion));
+
+        // SECTION: Assert
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal(ActionSprintStatus.Active, (await setup.Db.ActionSprints.SingleAsync(s => s.Id == sprint.Id)).Status);
+    }
+
+    [Fact]
+    public async Task ActivateSprintPageHandler_WhenAnotherSprintActive_ShowsError()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        AddSprint(setup.Db, "Active Sprint", ActionSprintStatus.Active);
+        var planned = AddSprint(setup.Db, "Planned Sprint", ActionSprintStatus.Planned, startOffsetDays: 20);
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+
+        // SECTION: Act
+        var result = await page.OnPostActivateSprintAsync(planned.Id, Convert.ToBase64String(planned.RowVersion));
+
+        // SECTION: Assert
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal(ActionSprintStatus.Planned, (await setup.Db.ActionSprints.SingleAsync(s => s.Id == planned.Id)).Status);
+        Assert.Contains("Only one active sprint", page.TempData["ToastError"]?.ToString());
+    }
+
+    [Fact]
+    public async Task CreateNextSprintPageHandler_UsesDayAfterSourceEndDateAndBecomesCarryTarget()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.Comdt);
+        var source = AddSprint(setup.Db, "Active Source", ActionSprintStatus.Active, startOffsetDays: 0);
+        setup.Db.ActionTasks.Add(NewTask("Carry me", ActionTaskStatuses.Assigned, source.Id));
+        await setup.Db.SaveChangesAsync();
+        var expectedStart = source.EndDate.Date.AddDays(1);
+        var page = setup.Page;
+        page.NextSprintInput = IndexModel.CreateNextSprintInput.FromSourceSprint(source);
+
+        // SECTION: Act
+        var result = await page.OnPostCreateNextSprintAsync();
+
+        // SECTION: Assert
+        Assert.IsType<RedirectToPageResult>(result);
+        var next = await setup.Db.ActionSprints.SingleAsync(s => s.Name == page.NextSprintInput.Name);
+        Assert.Equal(expectedStart, next.StartDate.Date);
+        page.SelectedSprintId = source.Id;
+        page.ViewMode = "Sprints";
+        await page.OnGetAsync();
+        Assert.Contains(page.ClosureTargetSprints, s => s.Id == next.Id);
+    }
+
+    [Fact]
+    public async Task SprintHistoryReadModel_ReturnsAuditEventsWithActorVisibility()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.Comdt);
+        var page = setup.Page;
+        page.SprintInput = new IndexModel.CreateSprintInput
+        {
+            Name = "Audited Sprint",
+            StartDate = DateTime.UtcNow.Date,
+            EndDate = DateTime.UtcNow.Date.AddDays(14)
+        };
+        await page.OnPostCreateSprintAsync();
+        var sprint = await setup.Db.ActionSprints.SingleAsync(s => s.Name == "Audited Sprint");
+        page.ViewMode = "Sprints";
+        page.SelectedSprintId = sprint.Id;
+
+        // SECTION: Act
+        await page.OnGetAsync();
+
+        // SECTION: Assert
+        Assert.Contains(page.SprintAuditHistory, x => x.ActionType == "SprintCreated");
+        Assert.Equal("User One", page.ResolveSprintActorName("user-1"));
+    }
+
     [Fact]
     public void AuditLogModel_DoesNotCreateShadowTaskIdRelationship()
     {
@@ -288,7 +503,8 @@ public class ActionTaskPageTests
             Status = status,
             CreatedByUserId = "creator",
             CreatedByRole = RoleNames.HoD,
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = DateTime.UtcNow,
+            RowVersion = Guid.NewGuid().ToByteArray()
         };
         db.ActionSprints.Add(sprint);
         return sprint;

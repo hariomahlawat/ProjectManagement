@@ -48,6 +48,29 @@
                     <div class="form-text">Next sprint is required only for tasks marked to move to next sprint.</div>
                 </div>
 
+                @if (Model.ShouldShowCreateNextSprint)
+                {
+                    @* SECTION: Closure-context next sprint creation when no later carry-forward target exists. *@
+                    <details class="at-next-sprint-panel" open="@Model.ShowCreateNextSprintPanel">
+                        <summary class="btn btn-outline-primary btn-sm">Create Next Sprint</summary>
+                        <div class="at-panel-note">Create a planned sprint after this sprint; it will then appear as a carry-forward target.</div>
+                        <form method="post" asp-page-handler="CreateNextSprint" class="at-sprint-command-form">
+                            <input type="hidden" name="ViewMode" value="Sprints" />
+                            <input type="hidden" asp-for="NextSprintInput.SourceSprintId" value="@Model.SelectedSprint.Id" />
+                            <div asp-validation-summary="All" class="text-danger small"></div>
+                            <label class="form-label" asp-for="NextSprintInput.Name"></label>
+                            <input class="form-control" asp-for="NextSprintInput.Name" maxlength="160" />
+                            <label class="form-label" asp-for="NextSprintInput.StartDate"></label>
+                            <input class="form-control" asp-for="NextSprintInput.StartDate" type="date" />
+                            <label class="form-label" asp-for="NextSprintInput.EndDate"></label>
+                            <input class="form-control" asp-for="NextSprintInput.EndDate" type="date" />
+                            <label class="form-label" asp-for="NextSprintInput.Goal"></label>
+                            <textarea class="form-control" asp-for="NextSprintInput.Goal" rows="2" maxlength="2000"></textarea>
+                            <button type="submit" class="btn btn-primary btn-sm">Create Planned Next Sprint</button>
+                        </form>
+                    </details>
+                }
+
                 <p class="at-panel-note">Each unfinished task must be moved either to next sprint or backlog before this sprint can close.</p>
 
                 <div class="at-closure-task-table" role="table" aria-label="Unfinished sprint tasks requiring disposition">

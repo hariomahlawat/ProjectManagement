@@ -12,6 +12,25 @@
         {
             <div class="at-active-sprint-note">Active: @Model.ActiveSprint.Name</div>
         }
+        @if (Model.CanPlanSprints)
+        {
+            <details class="at-sprint-form-disclosure" open="@Model.ShowCreateSprintPanel">
+                <summary class="btn btn-primary btn-sm">Create Sprint</summary>
+                <form method="post" asp-page-handler="CreateSprint" class="at-sprint-command-form">
+                    <input type="hidden" name="ViewMode" value="Sprints" />
+                    <div asp-validation-summary="All" class="text-danger small"></div>
+                    <label class="form-label" asp-for="SprintInput.Name"></label>
+                    <input class="form-control" asp-for="SprintInput.Name" maxlength="160" />
+                    <label class="form-label" asp-for="SprintInput.StartDate"></label>
+                    <input class="form-control" asp-for="SprintInput.StartDate" type="date" />
+                    <label class="form-label" asp-for="SprintInput.EndDate"></label>
+                    <input class="form-control" asp-for="SprintInput.EndDate" type="date" />
+                    <label class="form-label" asp-for="SprintInput.Goal"></label>
+                    <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this planning window"></textarea>
+                    <button type="submit" class="btn btn-primary btn-sm">Create Planned Sprint</button>
+                </form>
+            </details>
+        }
         @if (!Model.Sprints.Any())
         {
             <div class="at-empty-state at-empty-state-compact">No sprints are available yet.</div>
@@ -66,6 +85,55 @@
                     <div><span>@Model.SprintSummary.SubmittedCount</span><small>Submitted</small></div>
                     <div><span>@Model.SprintSummary.BacklogCount</span><small>Backlog</small></div>
                 </div>
+
+                @if (Model.CanPlanSprints)
+                {
+                    @* SECTION: Sprint lifecycle actions remain service-backed through page handlers. *@
+                    <div class="at-sprint-action-row">
+                        @if (Model.CanActivateSelectedSprint)
+                        {
+                            <form method="post" asp-page-handler="ActivateSprint">
+                                <input type="hidden" name="sprintId" value="@Model.SelectedSprint.Id" />
+                                <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedSprint.RowVersion)" />
+                                <button type="submit" class="btn btn-success btn-sm">Activate Sprint</button>
+                            </form>
+                        }
+                        @if (Model.CanCloseSelectedSprintDirectly)
+                        {
+                            <form method="post" asp-page-handler="CloseSprint">
+                                <input type="hidden" name="sprintId" value="@Model.SelectedSprint.Id" />
+                                <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedSprint.RowVersion)" />
+                                <button type="submit" class="btn btn-danger btn-sm">Close Sprint</button>
+                            </form>
+                        }
+                        else if (Model.CanReviewSprintClosure && Model.SprintClosureReview.UnfinishedTasks.Any())
+                        {
+                            <span class="at-panel-note">Unfinished tasks require closure review before close.</span>
+                        }
+                    </div>
+                }
+
+                @if (Model.CanEditSelectedSprint)
+                {
+                    <details class="at-sprint-form-disclosure" open="@Model.ShowEditSprintPanel">
+                        <summary class="btn btn-outline-primary btn-sm">Edit Sprint Details</summary>
+                        <form method="post" asp-page-handler="UpdateSprint" class="at-sprint-command-form">
+                            <input type="hidden" name="ViewMode" value="Sprints" />
+                            <input type="hidden" asp-for="SprintEditInput.SprintId" value="@Model.SelectedSprint.Id" />
+                            <input type="hidden" asp-for="SprintEditInput.RowVersion" value="@Convert.ToBase64String(Model.SelectedSprint.RowVersion)" />
+                            <div asp-validation-summary="All" class="text-danger small"></div>
+                            <label class="form-label" asp-for="SprintEditInput.Name"></label>
+                            <input class="form-control" asp-for="SprintEditInput.Name" maxlength="160" />
+                            <label class="form-label" asp-for="SprintEditInput.StartDate"></label>
+                            <input class="form-control" asp-for="SprintEditInput.StartDate" type="date" />
+                            <label class="form-label" asp-for="SprintEditInput.EndDate"></label>
+                            <input class="form-control" asp-for="SprintEditInput.EndDate" type="date" />
+                            <label class="form-label" asp-for="SprintEditInput.Goal"></label>
+                            <textarea class="form-control" asp-for="SprintEditInput.Goal" rows="3" maxlength="2000"></textarea>
+                            <button type="submit" class="btn btn-primary btn-sm">Save Sprint</button>
+                        </form>
+                    </details>
+                }
             }
         </section>
 
@@ -94,6 +162,38 @@
         }
 
         <partial name="_SprintClosureReview" model="Model" />
+
+        @* SECTION: Compact sprint lifecycle audit history. *@
+        @if (Model.SelectedSprint is not null)
+        {
+            <details class="at-panel at-sprint-history-panel">
+                <summary>Sprint History <span class="at-count-chip">@Model.SprintAuditHistory.Count</span></summary>
+                @if (!Model.SprintAuditHistory.Any())
+                {
+                    <p class="at-empty-inline">No sprint lifecycle history is recorded yet.</p>
+                }
+                else
+                {
+                    <ol class="at-sprint-history-list">
+                        @foreach (var entry in Model.SprintAuditHistory)
+                        {
+                            <li>
+                                <div><strong>@entry.ActionType.Replace("Sprint", string.Empty)</strong> by @Model.ResolveSprintActorName(entry.PerformedByUserId)</div>
+                                <small>@entry.PerformedAt.ToString("dd MMM yyyy HH:mm") UTC</small>
+                                @if (!string.IsNullOrWhiteSpace(entry.Remarks))
+                                {
+                                    <p>@entry.Remarks</p>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(entry.OldValue) || !string.IsNullOrWhiteSpace(entry.NewValue))
+                                {
+                                    <code>@entry.OldValue → @entry.NewValue</code>
+                                }
+                            </li>
+                        }
+                    </ol>
+                }
+            </details>
+        }
 
         @* SECTION: Status-grouped sprint task board. *@
         <section class="at-board-scroll" aria-label="Selected sprint task board">
