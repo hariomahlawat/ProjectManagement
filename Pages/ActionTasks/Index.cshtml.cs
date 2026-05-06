@@ -74,7 +74,7 @@ public class IndexModel : PageModel
     public IReadOnlyList<CountSummary> OverdueAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
 
     [BindProperty(SupportsGet = true)]
-    public string? ViewMode { get; set; } = "Dashboard";
+    public string? ViewMode { get; set; } = "CommandCentre";
 
     [BindProperty(SupportsGet = true)]
     public int? TaskId { get; set; }
@@ -130,33 +130,33 @@ public class IndexModel : PageModel
     public bool CanCreate => _permission.CanCreate(CurrentRole);
     public bool CanClose => _permission.CanClose(CurrentRole);
     public string ResolvedViewMode => ResolveViewMode();
-    public bool IsDashboardView => string.Equals(ResolvedViewMode, "Dashboard", StringComparison.OrdinalIgnoreCase);
-    public bool IsMyTasksView => string.Equals(ResolvedViewMode, "MyTasks", StringComparison.OrdinalIgnoreCase);
-    public bool IsTaskListView => string.Equals(ResolvedViewMode, "TaskList", StringComparison.OrdinalIgnoreCase);
-    public bool IsKanbanView => string.Equals(ResolvedViewMode, "Kanban", StringComparison.OrdinalIgnoreCase);
-    public bool IsSprintBoardView => string.Equals(ResolvedViewMode, "Sprint", StringComparison.OrdinalIgnoreCase);
-    public bool IsBacklogView => string.Equals(ResolvedViewMode, "Backlog", StringComparison.OrdinalIgnoreCase);
-    public bool IsSprintsView => string.Equals(ResolvedViewMode, "Sprints", StringComparison.OrdinalIgnoreCase);
+    public bool IsCommandCentreView => string.Equals(ResolvedViewMode, "CommandCentre", StringComparison.OrdinalIgnoreCase);
+    public bool IsPlanningView => string.Equals(ResolvedViewMode, "Planning", StringComparison.OrdinalIgnoreCase);
+    public bool IsMyWorkView => string.Equals(ResolvedViewMode, "MyWork", StringComparison.OrdinalIgnoreCase);
+    public bool IsRegisterView => string.Equals(ResolvedViewMode, "Register", StringComparison.OrdinalIgnoreCase);
     public bool IsReportsView => string.Equals(ResolvedViewMode, "Reports", StringComparison.OrdinalIgnoreCase);
+
+    // SECTION: Legacy view-state aliases retained for existing partials and links.
+    public bool IsDashboardView => IsCommandCentreView;
+    public bool IsMyTasksView => IsMyWorkView;
+    public bool IsTaskListView => IsRegisterView;
+    public bool IsKanbanView => false;
+    public bool IsSprintBoardView => false;
+    public bool IsBacklogView => false;
+    public bool IsSprintsView => IsPlanningView;
     public string PageHeading => ResolvedViewMode switch
     {
-        "MyTasks" => "My Tasks",
-        "Sprint" => "Due Board",
-        "Backlog" => "Task Backlog",
-        "Sprints" => "Sprint Board",
-        "Kanban" => "Task Kanban Board",
-        "TaskList" => "Command Task Register",
+        "Planning" => "Planning Board",
+        "MyWork" => "My Work",
+        "Register" => "Command Task Register",
         "Reports" => "Task Command Summary",
-        _ => "Command Task Dashboard"
+        _ => "Command Centre"
     };
     public string PageSubtitle => ResolvedViewMode switch
     {
-        "MyTasks" => "Tasks assigned to the logged-in user.",
-        "Sprint" => "Existing due-bucket view grouped by due date and urgency.",
-        "Backlog" => "Tasks not assigned to a sprint.",
-        "Sprints" => "Real sprint task view with controlled planning actions.",
-        "Kanban" => "Tasks grouped by current workflow status.",
-        "TaskList" => "Filterable register of all visible tasks.",
+        "Planning" => "Real sprint task view with controlled planning actions.",
+        "MyWork" => "Tasks assigned to the logged-in user.",
+        "Register" => "Filterable register of all visible tasks.",
         "Reports" => "Summary of pending, critical, blocked and closed tasks.",
         _ => "Command-level visibility of active, delayed and critical tasks."
     };
@@ -360,11 +360,11 @@ public class IndexModel : PageModel
 
 
 
-    // SECTION: Create sprint from Sprints workspace through sprint service boundary.
+    // SECTION: Create sprint from Planning Board workspace through sprint service boundary.
     public async Task<IActionResult> OnPostCreateSprintAsync()
     {
         await ResolveIdentityAsync();
-        ViewMode = "Sprints";
+        ViewMode = "Planning";
         ModelState.Clear();
         TryValidateModel(SprintInput, nameof(SprintInput));
         ValidateSprintDateRange(SprintInput.StartDate, SprintInput.EndDate, nameof(SprintInput));
@@ -386,7 +386,7 @@ public class IndexModel : PageModel
                 EndDate = SprintInput.EndDate
             }, CurrentUserId, CurrentRole);
             TempData["ToastMessage"] = "Sprint created.";
-            return RedirectToPage(new { ViewMode = "Sprints", SelectedSprintId = sprint.Id });
+            return RedirectToPage(new { ViewMode = "Planning", SelectedSprintId = sprint.Id });
         }
         catch (InvalidOperationException ex)
         {
@@ -401,7 +401,7 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnPostUpdateSprintAsync()
     {
         await ResolveIdentityAsync();
-        ViewMode = "Sprints";
+        ViewMode = "Planning";
         SelectedSprintId = SprintEditInput.SprintId;
         ModelState.Clear();
         TryValidateModel(SprintEditInput, nameof(SprintEditInput));
@@ -426,7 +426,7 @@ public class IndexModel : PageModel
                 CurrentUserId,
                 CurrentRole);
             TempData["ToastMessage"] = "Sprint updated.";
-            return RedirectToPage(new { ViewMode = "Sprints", SelectedSprintId = SprintEditInput.SprintId });
+            return RedirectToPage(new { ViewMode = "Planning", SelectedSprintId = SprintEditInput.SprintId });
         }
         catch (ActionTaskConcurrencyException ex)
         {
@@ -460,7 +460,7 @@ public class IndexModel : PageModel
             TempData["ToastError"] = ex.Message;
         }
 
-        return RedirectToPage(new { ViewMode = "Sprints", SelectedSprintId = sprintId });
+        return RedirectToPage(new { ViewMode = "Planning", SelectedSprintId = sprintId });
     }
 
     // SECTION: Direct close for active sprints that have no unfinished task disposition requirement.
@@ -481,14 +481,14 @@ public class IndexModel : PageModel
             TempData["ToastError"] = ex.Message;
         }
 
-        return RedirectToPage(new { ViewMode = "Sprints", SelectedSprintId = sprintId });
+        return RedirectToPage(new { ViewMode = "Planning", SelectedSprintId = sprintId });
     }
 
     // SECTION: Create next planned sprint from closure context through sprint service boundary.
     public async Task<IActionResult> OnPostCreateNextSprintAsync()
     {
         await ResolveIdentityAsync();
-        ViewMode = "Sprints";
+        ViewMode = "Planning";
         SelectedSprintId = NextSprintInput.SourceSprintId;
         ModelState.Clear();
         TryValidateModel(NextSprintInput, nameof(NextSprintInput));
@@ -512,7 +512,7 @@ public class IndexModel : PageModel
                 EndDate = NextSprintInput.EndDate
             }, CurrentUserId, CurrentRole);
             TempData["ToastMessage"] = "Next sprint created and is available for carry-forward.";
-            return RedirectToPage(new { ViewMode = "Sprints", SelectedSprintId = NextSprintInput.SourceSprintId });
+            return RedirectToPage(new { ViewMode = "Planning", SelectedSprintId = NextSprintInput.SourceSprintId });
         }
         catch (InvalidOperationException ex)
         {
@@ -671,7 +671,7 @@ public class IndexModel : PageModel
             TempData["ToastError"] = ex.Message;
         }
 
-        return RedirectToPage(new { ViewMode = "Sprints", SelectedSprintId = ClosureInput.SprintId });
+        return RedirectToPage(new { ViewMode = "Planning", SelectedSprintId = ClosureInput.SprintId });
     }
 
     // SECTION: Post task progress update with optional attachments
@@ -1244,31 +1244,27 @@ public class IndexModel : PageModel
         var normalized = (ViewMode ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(normalized))
         {
-            return "Dashboard";
+            return "CommandCentre";
         }
 
         // SECTION: Normalize known aliases first so legacy links remain valid.
-        if (string.Equals(normalized, "SprintBoard", StringComparison.OrdinalIgnoreCase))
-        {
-            normalized = "Sprint";
-        }
-        else if (string.Equals(normalized, "My Tasks", StringComparison.OrdinalIgnoreCase))
-        {
-            normalized = "MyTasks";
-        }
-
-        // SECTION: Explicitly whitelist supported view modes and default unsupported inputs.
         return normalized switch
         {
-            _ when string.Equals(normalized, "Dashboard", StringComparison.OrdinalIgnoreCase) => "Dashboard",
-            _ when string.Equals(normalized, "MyTasks", StringComparison.OrdinalIgnoreCase) => "MyTasks",
-            _ when string.Equals(normalized, "TaskList", StringComparison.OrdinalIgnoreCase) => "TaskList",
-            _ when string.Equals(normalized, "Kanban", StringComparison.OrdinalIgnoreCase) => "Kanban",
-            _ when string.Equals(normalized, "Sprint", StringComparison.OrdinalIgnoreCase) => "Sprint",
-            _ when string.Equals(normalized, "Backlog", StringComparison.OrdinalIgnoreCase) => "Backlog",
-            _ when string.Equals(normalized, "Sprints", StringComparison.OrdinalIgnoreCase) => "Sprints",
+            _ when string.Equals(normalized, "Dashboard", StringComparison.OrdinalIgnoreCase) => "CommandCentre",
+            _ when string.Equals(normalized, "Sprints", StringComparison.OrdinalIgnoreCase) => "Planning",
+            _ when string.Equals(normalized, "Backlog", StringComparison.OrdinalIgnoreCase) => "Planning",
+            _ when string.Equals(normalized, "Sprint", StringComparison.OrdinalIgnoreCase) => "Planning",
+            _ when string.Equals(normalized, "SprintBoard", StringComparison.OrdinalIgnoreCase) => "Planning",
+            _ when string.Equals(normalized, "Kanban", StringComparison.OrdinalIgnoreCase) => "Planning",
+            _ when string.Equals(normalized, "MyTasks", StringComparison.OrdinalIgnoreCase) => "MyWork",
+            _ when string.Equals(normalized, "My Tasks", StringComparison.OrdinalIgnoreCase) => "MyWork",
+            _ when string.Equals(normalized, "TaskList", StringComparison.OrdinalIgnoreCase) => "Register",
+            _ when string.Equals(normalized, "CommandCentre", StringComparison.OrdinalIgnoreCase) => "CommandCentre",
+            _ when string.Equals(normalized, "Planning", StringComparison.OrdinalIgnoreCase) => "Planning",
+            _ when string.Equals(normalized, "MyWork", StringComparison.OrdinalIgnoreCase) => "MyWork",
+            _ when string.Equals(normalized, "Register", StringComparison.OrdinalIgnoreCase) => "Register",
             _ when string.Equals(normalized, "Reports", StringComparison.OrdinalIgnoreCase) => "Reports",
-            _ => "Dashboard"
+            _ => "CommandCentre"
         };
     }
 
