@@ -1443,3 +1443,362 @@ html {
     white-space: pre-wrap;
     word-break: break-word;
 }
+
+/* SECTION: Phase 2A refined sprint workspace layout */
+.at-sprints-workspace {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.at-sprint-command-strip {
+    display: grid;
+    grid-template-columns: minmax(280px, 1.3fr) minmax(360px, 1fr) auto;
+    gap: 0.85rem;
+    align-items: center;
+    padding: 0.85rem 1rem;
+}
+
+.at-sprint-command-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.65rem;
+    align-items: start;
+}
+
+.at-sprint-command-main h2 {
+    margin-bottom: 0.1rem;
+    font-size: 1.08rem;
+}
+
+.at-sprint-command-focus {
+    grid-column: 1 / -1;
+    margin: 0;
+    background: #f8fafc;
+    border: 1px solid var(--at-border);
+    border-radius: 10px;
+}
+
+.at-sprint-summary-grid-compact {
+    grid-template-columns: repeat(5, minmax(72px, 1fr));
+    margin-top: 0;
+}
+
+.at-sprint-summary-grid-compact div {
+    padding: 0.5rem 0.6rem;
+}
+
+.at-sprint-action-row-strip {
+    justify-content: flex-end;
+    margin-top: 0;
+}
+
+.at-sprint-layout-refined {
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(240px, 300px);
+}
+
+.at-sprint-execution-main {
+    display: grid;
+    gap: 0.85rem;
+    min-width: 0;
+}
+
+.at-sprint-selector-compact {
+    border-bottom: 1px solid var(--at-border);
+    margin-bottom: 0.7rem;
+    padding-bottom: 0.75rem;
+}
+
+.at-sprint-list-group {
+    display: grid;
+    gap: 0.35rem;
+    margin-top: 0.7rem;
+}
+
+.at-sprint-list-heading {
+    color: var(--at-muted);
+    font-size: 0.72rem;
+    font-weight: 850;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.at-sprint-list-item {
+    display: grid;
+    gap: 0.1rem;
+    border: 1px solid var(--at-border);
+    border-radius: 10px;
+    color: var(--at-text);
+    padding: 0.55rem 0.65rem;
+    text-decoration: none;
+    background: #ffffff;
+}
+
+.at-sprint-list-item strong {
+    font-size: 0.82rem;
+    line-height: 1.25;
+}
+
+.at-sprint-list-item span {
+    color: var(--at-muted);
+    font-size: 0.76rem;
+    font-weight: 650;
+}
+
+.at-sprint-list-item.is-active {
+    border-color: #93c5fd;
+    background: #eff6ff;
+}
+
+.at-sprint-list-item.is-selected {
+    border-left: 4px solid var(--at-blue);
+}
+
+.at-sprint-list-group.is-closed .at-sprint-list-item,
+.at-sprint-list-item.is-closed {
+    opacity: 0.72;
+    background: #f8fafc;
+}
+
+.at-sprint-attention-lane {
+    position: sticky;
+    top: 5rem;
+    display: grid;
+    gap: 0.75rem;
+}
+
+.at-attention-group,
+.at-attention-panel {
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: #f8fafc;
+    padding: 0.65rem;
+}
+
+.at-attention-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.45rem;
+    color: var(--at-muted);
+    font-size: 0.78rem;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.at-attention-heading strong {
+    min-width: 1.8rem;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: var(--at-text);
+    padding: 0.1rem 0.45rem;
+    text-align: center;
+}
+
+.at-sprint-board-column {
+    min-height: 12rem;
+}
+
+.at-sprint-task-card .at-card-subject {
+    font-size: 0.9rem;
+}
+
+.at-card-facts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+    margin: 0.55rem 0;
+}
+
+.at-card-facts div {
+    min-width: 0;
+}
+
+.at-card-facts dt {
+    color: var(--at-muted);
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.at-card-facts dd {
+    margin: 0;
+    color: var(--at-text);
+    font-size: 0.8rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.at-open-details-label {
+    color: var(--at-blue);
+    font-size: 0.74rem;
+    font-weight: 800;
+}
+
+.at-overdue-marker {
+    border: 1px solid #fecaca;
+    border-radius: 999px;
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 0.12rem 0.45rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+/* SECTION: Phase 2A backlog planning summary and compact task metadata */
+.at-backlog-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
+    gap: 0.65rem;
+    margin-bottom: 0.85rem;
+}
+
+.at-backlog-summary-grid article {
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: #f8fafc;
+    padding: 0.65rem 0.75rem;
+}
+
+.at-backlog-summary-grid strong,
+.at-backlog-summary-grid span {
+    display: block;
+}
+
+.at-backlog-summary-grid strong {
+    color: var(--at-text);
+    font-size: 1.25rem;
+    font-weight: 850;
+}
+
+.at-backlog-summary-grid span {
+    color: var(--at-muted);
+    font-size: 0.78rem;
+    font-weight: 750;
+}
+
+.at-backlog-task-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.35rem;
+}
+
+.at-cell-primary {
+    color: var(--at-text);
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+/* SECTION: Phase 2A task inspector prominence and collapsed audit affordances */
+.at-task-details-panel {
+    padding: 0;
+    overflow: hidden;
+}
+
+.at-inspector-shell {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    max-height: calc(100vh - 7rem);
+}
+
+.at-inspector-header {
+    margin-bottom: 0;
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid var(--at-border);
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.at-inspector-header .at-panel-title {
+    font-size: 1.08rem;
+    line-height: 1.25;
+}
+
+.at-inspector-body {
+    overflow: auto;
+    padding: 0.85rem 1rem;
+}
+
+.at-inspector-footer {
+    border-top: 1px solid var(--at-border);
+    background: #ffffff;
+    padding: 0.75rem 1rem;
+}
+
+.at-inspector-section-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.at-inspector-section-heading h3,
+.at-progress-timeline h3 {
+    margin: 0;
+    color: var(--at-text);
+    font-size: 0.98rem;
+    font-weight: 800;
+}
+
+.at-progress-timeline {
+    margin-bottom: 0.8rem;
+}
+
+.at-audit-collapsible,
+.at-details-collapsible {
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 0.65rem 0.75rem;
+}
+
+.at-audit-list {
+    display: grid;
+    gap: 0.5rem;
+}
+
+/* SECTION: Phase 2A dashboard active sprint readability */
+.at-sprint-health-grid-readable article.is-primary {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+}
+
+.at-sprint-health-grid-readable article span {
+    display: block;
+    color: var(--at-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-top: 0.15rem;
+}
+
+.at-dashboard-attention-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 0.9rem;
+}
+
+@media (max-width: 1200px) {
+    .at-sprint-command-strip,
+    .at-sprint-layout-refined,
+    .at-dashboard-attention-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .at-sprint-attention-lane {
+        position: static;
+    }
+}
+
+@media (max-width: 767px) {
+    .at-backlog-summary-grid,
+    .at-sprint-summary-grid-compact,
+    .at-card-facts {
+        grid-template-columns: 1fr;
+    }
+
+    .at-inspector-shell {
+        max-height: none;
+    }
+}

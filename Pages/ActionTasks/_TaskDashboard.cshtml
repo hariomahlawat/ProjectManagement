@@ -27,14 +27,29 @@
             }
         </div>
     </div>
-    <div class="at-sprint-health-grid" aria-label="Active sprint health metrics">
-        <article><h3>Total in active sprint</h3><strong>@Model.ActiveSprintMetrics.TotalTasks</strong></article>
+    <div class="at-sprint-health-grid at-sprint-health-grid-readable" aria-label="Active sprint health metrics">
+        <article class="is-primary"><h3>Total in active sprint</h3><strong>@Model.ActiveSprintMetrics.TotalTasks</strong><span>Current execution scope</span></article>
         <article><h3>Completed</h3><strong>@Model.ActiveSprintMetrics.CompletedTasks</strong></article>
         <article><h3>In progress</h3><strong>@Model.ActiveSprintMetrics.InProgressTasks</strong></article>
         <article><h3>Blocked</h3><strong>@Model.ActiveSprintMetrics.BlockedTasks</strong></article>
         <article><h3>Overdue in sprint</h3><strong>@Model.ActiveSprintMetrics.OverdueTasks</strong></article>
         <article><h3>Backlog</h3><strong>@Model.ActiveSprintMetrics.BacklogTasks</strong></article>
         <article><h3>Carry-forward candidates</h3><strong>@Model.ActiveSprintMetrics.CarryForwardCandidateTasks</strong></article>
+    </div>
+    @* SECTION: Command attention grouping for active sprint exceptions. *@
+    <div class="at-dashboard-attention-grid" aria-label="Active sprint command attention">
+        <article class="at-attention-panel">
+            <div class="at-attention-heading"><span>Overdue</span><strong>@Model.ActiveSprintOverdueTaskDisplays.Count</strong></div>
+            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintOverdueTaskDisplays, "No overdue tasks in the active sprint.")' />
+        </article>
+        <article class="at-attention-panel">
+            <div class="at-attention-heading"><span>Blocked</span><strong>@Model.ActiveSprintBlockedTaskDisplays.Count</strong></div>
+            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintBlockedTaskDisplays, "No blocked tasks in the active sprint.")' />
+        </article>
+        <article class="at-attention-panel">
+            <div class="at-attention-heading"><span>Submitted pending closure</span><strong>@Model.ActiveSprintSubmittedTaskDisplays.Count</strong></div>
+            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintSubmittedTaskDisplays, "No submitted tasks pending closure in the active sprint.")' />
+        </article>
     </div>
 </section>
 

@@ -10,6 +10,12 @@
         </div>
         <span class="at-count-chip">@Model.BacklogTaskDisplays.Count tasks</span>
     </div>
+    @* SECTION: Compact backlog planning signals preserve the SprintId == null backlog definition. *@
+    <div class="at-backlog-summary-grid" aria-label="Backlog summary">
+        <article><strong>@Model.BacklogTotalCount</strong><span>Total backlog</span></article>
+        <article><strong>@Model.BacklogHighPriorityCount</strong><span>High priority</span></article>
+        <article><strong>@Model.BacklogOverdueCount</strong><span>Overdue</span></article>
+    </div>
     <form method="get" class="row g-2" data-at-task-filter-form="true">
         <input type="hidden" name="viewMode" value="Backlog" />
         <div class="col-md-2">
@@ -115,12 +121,18 @@
                         <tr class="@(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)">
                             <td>
                                 <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Backlog">AT-@task.Id · @task.Title</a>
-                                <div class="mt-1"><span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span></div>
+                                <div class="at-backlog-task-meta">
+                                    <span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span>
+                                    @if (Model.IsTaskOverdue(task))
+                                    {
+                                        <span class="at-overdue-marker">Overdue</span>
+                                    }
+                                </div>
                             </td>
-                            <td>@item.AssigneeName</td>
+                            <td><span class="at-cell-primary">@item.AssigneeName</span></td>
                             <td><span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span></td>
                             <td><span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span></td>
-                            <td>@task.DueDate.ToString("dd MMM yyyy")</td>
+                            <td><span class="at-cell-primary">@task.DueDate.ToString("dd MMM yyyy")</span></td>
                             @if (Model.CanPlanSprints)
                             {
                                 <td>

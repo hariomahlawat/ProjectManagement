@@ -910,6 +910,64 @@ public class IndexModel : PageModel
             .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
             .ToList());
 
+    // SECTION: Phase 2A layout helper projections for sprint, backlog, and dashboard UX.
+    public IReadOnlyList<ActionSprint> PlannedSprints =>
+        Sprints.Where(s => s.Status == ActionSprintStatus.Planned).OrderBy(s => s.StartDate).ThenBy(s => s.Id).ToList();
+
+    public IReadOnlyList<ActionSprint> ClosedSprints =>
+        Sprints.Where(s => s.Status == ActionSprintStatus.Closed).OrderByDescending(s => s.EndDate).ThenByDescending(s => s.Id).ToList();
+
+    public int SelectedSprintOverdueCount =>
+        SelectedSprintTasks.Count(IsTaskOverdue);
+
+    public IReadOnlyList<TaskDisplayItem> SprintAttentionOverdueTaskDisplays =>
+        ToDisplayItems(SelectedSprintTasks.Where(IsTaskOverdue).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList());
+
+    public IReadOnlyList<TaskDisplayItem> SprintAttentionBlockedTaskDisplays =>
+        ToDisplayItems(SelectedSprintTasks
+            .Where(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(t => t.DueDate)
+            .ThenBy(t => t.Id)
+            .ToList());
+
+    public IReadOnlyList<TaskDisplayItem> SprintAttentionSubmittedTaskDisplays =>
+        ToDisplayItems(SelectedSprintTasks
+            .Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(t => t.SubmittedOn ?? t.DueDate)
+            .ThenBy(t => t.Id)
+            .ToList());
+
+    public IReadOnlyList<TaskDisplayItem> SprintCarryForwardCandidateDisplays =>
+        ToDisplayItems(SprintClosureReview.UnfinishedTasks.OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList());
+
+    public int BacklogTotalCount => BacklogTasks.Count;
+
+    public int BacklogHighPriorityCount =>
+        BacklogTasks.Count(t => string.Equals(t.Priority, "High", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(t.Priority, "Critical", StringComparison.OrdinalIgnoreCase));
+
+    public int BacklogOverdueCount =>
+        BacklogTasks.Count(IsTaskOverdue);
+
+    public IReadOnlyList<TaskDisplayItem> ActiveSprintOverdueTaskDisplays =>
+        ToDisplayItems(GetActiveSprintTasks().Where(IsTaskOverdue).OrderBy(t => t.DueDate).ThenBy(t => t.Id).Take(5).ToList());
+
+    public IReadOnlyList<TaskDisplayItem> ActiveSprintBlockedTaskDisplays =>
+        ToDisplayItems(GetActiveSprintTasks()
+            .Where(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(t => t.DueDate)
+            .ThenBy(t => t.Id)
+            .Take(5)
+            .ToList());
+
+    public IReadOnlyList<TaskDisplayItem> ActiveSprintSubmittedTaskDisplays =>
+        ToDisplayItems(GetActiveSprintTasks()
+            .Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(t => t.SubmittedOn ?? t.DueDate)
+            .ThenBy(t => t.Id)
+            .Take(5)
+            .ToList());
+
     // SECTION: KPI helpers for dashboard and reports.
     public int ActiveCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
     public int OverdueCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase) && t.DueDate.Date < DateTime.UtcNow.Date);
@@ -1347,6 +1405,15 @@ public class IndexModel : PageModel
 
     private int CountByStatus(string status) =>
         Tasks.Count(t => string.Equals(t.Status, status, StringComparison.OrdinalIgnoreCase));
+
+    public bool IsTaskOverdue(ActionTaskItem task) =>
+        !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+        && task.DueDate.Date < DateTime.UtcNow.Date;
+
+    private IReadOnlyList<ActionTaskItem> GetActiveSprintTasks() =>
+        ActiveSprint is null
+            ? Array.Empty<ActionTaskItem>()
+            : Tasks.Where(t => t.SprintId == ActiveSprint.Id).ToList();
 
     private IReadOnlyList<TaskDisplayItem> ToDisplayItems(IReadOnlyList<ActionTaskItem> tasks) =>
         tasks.Select(task => new TaskDisplayItem
