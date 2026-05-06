@@ -896,8 +896,46 @@ public class IndexModel : PageModel
     public IReadOnlyList<TaskDisplayItem> SprintOverdueTaskDisplays =>
         ToDisplayItems(SprintOverdueTasks);
 
+    // SECTION: My Work display projections keep the personal workspace independent from dashboard limits.
+    public IReadOnlyList<TaskDisplayItem> MyOverdueTaskDisplays =>
+        ToDisplayItems(Tasks
+            .Where(IsTaskOverdue)
+            .OrderBy(t => t.DueDate)
+            .ThenBy(t => t.Id)
+            .ToList());
+
+    public IReadOnlyList<TaskDisplayItem> MyDueTodayTaskDisplays =>
+        ToDisplayItems(Tasks
+            .Where(t => IsOpenTask(t) && t.DueDate.Date == DateTime.UtcNow.Date)
+            .OrderBy(t => StatusOrder(t.Status))
+            .ThenBy(t => t.DueDate)
+            .ThenBy(t => t.Id)
+            .ToList());
+
+    public IReadOnlyList<TaskDisplayItem> MyInProgressTaskDisplays =>
+        ToDisplayItems(Tasks
+            .Where(t => string.Equals(t.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(t => t.DueDate)
+            .ThenBy(t => t.Id)
+            .ToList());
+
+    public IReadOnlyList<TaskDisplayItem> MySubmittedTaskDisplays =>
+        ToDisplayItems(Tasks
+            .Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(t => t.SubmittedOn ?? t.DueDate)
+            .ThenBy(t => t.Id)
+            .ToList());
+
+    public IReadOnlyList<TaskDisplayItem> MyActiveSprintTaskDisplays =>
+        ToDisplayItems(GetActiveSprintTasks()
+            .OrderBy(t => StatusOrder(t.Status))
+            .ThenBy(t => t.DueDate)
+            .ThenBy(t => t.Id)
+            .ToList());
+
+    // SECTION: Legacy My Tasks display alias retained for older partial references.
     public IReadOnlyList<TaskDisplayItem> MyWorkOverdueTaskDisplays =>
-        ToDisplayItems(SprintOverdueTasks);
+        MyOverdueTaskDisplays;
 
     public IReadOnlyList<TaskDisplayItem> BacklogTaskDisplays =>
         ToDisplayItems(BacklogTasks);
@@ -1424,8 +1462,12 @@ public class IndexModel : PageModel
     };
 
     public bool IsTaskOverdue(ActionTaskItem task) =>
-        !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+        IsOpenTask(task)
         && task.DueDate.Date < DateTime.UtcNow.Date;
+
+    // SECTION: Shared open-task predicate keeps personal and command projections aligned.
+    private static bool IsOpenTask(ActionTaskItem task) =>
+        !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
 
     private IReadOnlyList<ActionTaskItem> GetActiveSprintTasks() =>
         ActiveSprint is null
