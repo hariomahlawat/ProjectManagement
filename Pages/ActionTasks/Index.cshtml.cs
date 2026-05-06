@@ -158,7 +158,7 @@ public class IndexModel : PageModel
         "MyWork" => "Tasks assigned to the logged-in user.",
         "Register" => "Filterable register of all visible tasks.",
         "Reports" => "Summary of pending, critical, blocked and closed tasks.",
-        _ => "Command-level visibility of active, delayed and critical tasks."
+        _ => "Command workspace for overdue, blocked, submitted and critical task action."
     };
 
     public IReadOnlyList<string> AssignmentRoles => ActionTaskRoleResolver.AllowedAssignmentRoles();
@@ -1006,7 +1006,7 @@ public class IndexModel : PageModel
          || FilterDueDate.HasValue
          || !string.IsNullOrWhiteSpace(FilterSearch));
     public string DashboardCommandFocusSummary =>
-        $"{ActiveCount} active tasks. {CriticalOpenCount} critical. {OverdueCount} overdue. {InProgressCount} in progress. {SubmittedCount} pending closure.";
+        $"{OverdueCount} overdue. {BlockedCount} blocked. {SubmittedPendingClosureCount} submitted pending closure. {CriticalOpenCount} critical open. {ActiveSprintMetrics.CarryForwardCandidateTasks} carry-forward candidates.";
     public IReadOnlyList<CountSummary> SubmittedPendingClosureAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<TaskDisplayItem> TopAttentionTaskDisplays => BuildTopAttentionItems();
 
