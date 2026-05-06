@@ -147,7 +147,7 @@ public class IndexModel : PageModel
     public bool IsTaskListView => IsRegisterView;
     public bool IsKanbanView => IsPlanningView && string.Equals(ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase);
     public bool IsSprintBoardView => IsPlanningView && string.Equals(ResolvedPlanningView, "DueExceptions", StringComparison.OrdinalIgnoreCase);
-    public bool IsBacklogView => IsLegacyViewMode("Backlog");
+    public bool IsBacklogView => IsLegacyViewMode("Backlog") || IsPlanningBacklogFilterContext();
     public bool IsSprintsView => IsPlanningView;
     public string PageHeading => ResolvedViewMode switch
     {
@@ -360,7 +360,7 @@ public class IndexModel : PageModel
         });
 
         TempData["ToastMessage"] = "Task created.";
-        return RedirectToPage("/ActionTasks/Index", new { viewMode = ResolveViewMode() });
+        return RedirectToPage("/ActionTasks/Index", BuildTaskWorkspaceRouteValues(TaskId, SelectedSprintId));
     }
 
 
@@ -1323,8 +1323,15 @@ public class IndexModel : PageModel
         };
     }
 
-    // SECTION: Shared task redirect route preserves Planning Board sub-view state from inspector actions.
+    // SECTION: Shared task redirect route preserves workspace, selection, and relevant list state from inspector actions.
     private RedirectToPageResult RedirectToTaskPage(int? taskId, int? selectedSprintId)
+    {
+        var routeValues = BuildTaskWorkspaceRouteValues(taskId, selectedSprintId);
+        return RedirectToPage(routeValues);
+    }
+
+    // SECTION: Canonical workspace route values keep legacy view aliases working without forcing GET redirects.
+    private RouteValueDictionary BuildTaskWorkspaceRouteValues(int? taskId, int? selectedSprintId)
     {
         var routeValues = new RouteValueDictionary
         {
@@ -1338,7 +1345,64 @@ public class IndexModel : PageModel
             routeValues[nameof(PlanningView)] = ResolvedPlanningView;
         }
 
-        return RedirectToPage(routeValues);
+        if (ShouldPreserveTaskFilters())
+        {
+            AddTaskFilterRouteValues(routeValues);
+        }
+
+        return routeValues;
+    }
+
+    // SECTION: Task-list filter route preservation supports legacy TaskList and Backlog bookmarks after required postback redirects.
+    private bool ShouldPreserveTaskFilters()
+    {
+        return IsTaskListView || IsBacklogView;
+    }
+
+    // SECTION: Filter route values are added only when populated so canonical links stay compact.
+    private void AddTaskFilterRouteValues(RouteValueDictionary routeValues)
+    {
+        AddRouteValueIfPresent(routeValues, nameof(FilterStatus), FilterStatus);
+        AddRouteValueIfPresent(routeValues, nameof(FilterPriority), FilterPriority);
+        AddRouteValueIfPresent(routeValues, nameof(FilterAssigneeUserId), FilterAssigneeUserId);
+        if (FilterDueDate.HasValue)
+        {
+            routeValues[nameof(FilterDueDate)] = FilterDueDate.Value.ToString("yyyy-MM-dd");
+        }
+
+        AddRouteValueIfPresent(routeValues, nameof(FilterSearch), FilterSearch);
+        AddRouteValueIfPresent(routeValues, nameof(SortBy), SortBy);
+        AddRouteValueIfPresent(routeValues, nameof(SortDir), SortDir);
+    }
+
+    // SECTION: Route value helper avoids emitting empty query-string keys for offline-safe generated URLs.
+    private static void AddRouteValueIfPresent(RouteValueDictionary routeValues, string key, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            routeValues[key] = value.Trim();
+        }
+    }
+
+
+    // SECTION: Planning backlog filter detection keeps canonical Planning routes compatible with legacy Backlog filtered views.
+    private bool IsPlanningBacklogFilterContext()
+    {
+        return IsPlanningView
+            && string.Equals(ResolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase)
+            && HasTaskFilterRouteState();
+    }
+
+    // SECTION: Shared filter-state detection covers GET bookmarks and required postback route preservation.
+    private bool HasTaskFilterRouteState()
+    {
+        return !string.IsNullOrWhiteSpace(FilterStatus)
+            || !string.IsNullOrWhiteSpace(FilterPriority)
+            || !string.IsNullOrWhiteSpace(FilterAssigneeUserId)
+            || FilterDueDate.HasValue
+            || !string.IsNullOrWhiteSpace(FilterSearch)
+            || !string.IsNullOrWhiteSpace(SortBy)
+            || !string.IsNullOrWhiteSpace(SortDir);
     }
 
     // SECTION: Legacy view-state matching isolates backward-compatible aliases from canonical workspace names.
@@ -1355,25 +1419,31 @@ public class IndexModel : PageModel
             return "CommandCentre";
         }
 
-        // SECTION: Normalize known aliases first so legacy links remain valid.
+        // SECTION: Normalize known aliases in-place so legacy links render the correct modern workspace without GET redirects.
         return normalized switch
         {
-            _ when string.Equals(normalized, "Dashboard", StringComparison.OrdinalIgnoreCase) => "CommandCentre",
-            _ when string.Equals(normalized, "Sprints", StringComparison.OrdinalIgnoreCase) => "Planning",
-            _ when string.Equals(normalized, "Backlog", StringComparison.OrdinalIgnoreCase) => "Planning",
-            _ when string.Equals(normalized, "Sprint", StringComparison.OrdinalIgnoreCase) => "Planning",
-            _ when string.Equals(normalized, "SprintBoard", StringComparison.OrdinalIgnoreCase) => "Planning",
-            _ when string.Equals(normalized, "Kanban", StringComparison.OrdinalIgnoreCase) => "Planning",
-            _ when string.Equals(normalized, "MyTasks", StringComparison.OrdinalIgnoreCase) => "MyWork",
-            _ when string.Equals(normalized, "My Tasks", StringComparison.OrdinalIgnoreCase) => "MyWork",
-            _ when string.Equals(normalized, "TaskList", StringComparison.OrdinalIgnoreCase) => "Register",
-            _ when string.Equals(normalized, "CommandCentre", StringComparison.OrdinalIgnoreCase) => "CommandCentre",
-            _ when string.Equals(normalized, "Planning", StringComparison.OrdinalIgnoreCase) => "Planning",
-            _ when string.Equals(normalized, "MyWork", StringComparison.OrdinalIgnoreCase) => "MyWork",
-            _ when string.Equals(normalized, "Register", StringComparison.OrdinalIgnoreCase) => "Register",
-            _ when string.Equals(normalized, "Reports", StringComparison.OrdinalIgnoreCase) => "Reports",
+            _ when IsViewModeAlias(normalized, "Dashboard") => "CommandCentre",
+            _ when IsViewModeAlias(normalized, "Sprints") => "Planning",
+            _ when IsViewModeAlias(normalized, "Backlog") => "Planning",
+            _ when IsViewModeAlias(normalized, "Sprint") => "Planning",
+            _ when IsViewModeAlias(normalized, "SprintBoard") => "Planning",
+            _ when IsViewModeAlias(normalized, "Kanban") => "Planning",
+            _ when IsViewModeAlias(normalized, "MyTasks") => "MyWork",
+            _ when IsViewModeAlias(normalized, "My Tasks") => "MyWork",
+            _ when IsViewModeAlias(normalized, "TaskList") => "Register",
+            _ when IsViewModeAlias(normalized, "CommandCentre") => "CommandCentre",
+            _ when IsViewModeAlias(normalized, "Planning") => "Planning",
+            _ when IsViewModeAlias(normalized, "MyWork") => "MyWork",
+            _ when IsViewModeAlias(normalized, "Register") => "Register",
+            _ when IsViewModeAlias(normalized, "Reports") => "Reports",
             _ => "CommandCentre"
         };
+    }
+
+    // SECTION: Alias comparison centralizes case-insensitive matching for old and canonical view modes.
+    private static bool IsViewModeAlias(string normalizedViewMode, string candidate)
+    {
+        return string.Equals(normalizedViewMode, candidate, StringComparison.OrdinalIgnoreCase);
     }
 
     public sealed class CreateTaskInput
