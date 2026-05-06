@@ -69,7 +69,7 @@
             }
         </section>
 
-        @if (Model.CanPlanSprints && Model.SelectedSprint is not null)
+        @if (Model.CanModifySelectedSprint)
         {
             @* SECTION: Controlled backlog-to-sprint assignment without drag-and-drop planning. *@
             <section class="at-panel at-sprint-planning-panel">
@@ -83,12 +83,12 @@
                     <input type="hidden" name="sprintId" value="@Model.SelectedSprint.Id" />
                     <select class="form-select" name="id" aria-label="Select backlog task" required>
                         <option value="">Select backlog task</option>
-                        @foreach (var item in Model.SprintBacklogTaskDisplays)
+                        @foreach (var item in Model.AssignableBacklogTaskDisplays)
                         {
                             <option value="@item.Task.Id">AT-@item.Task.Id · @item.Task.Title (@item.AssigneeName)</option>
                         }
                     </select>
-                    <button type="submit" class="btn btn-primary" @(Model.SprintBacklogTaskDisplays.Any() ? null : "disabled")>Assign to Sprint</button>
+                    <button type="submit" class="btn btn-primary" @(Model.AssignableBacklogTaskDisplays.Any() ? null : "disabled")>Assign to Sprint</button>
                 </form>
             </section>
         }
@@ -121,7 +121,7 @@
                                             <div class="at-card-due">Due @task.DueDate.ToString("dd MMM yyyy")</div>
                                             <div class="mt-1"><span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span></div>
                                         </a>
-                                        @if (Model.CanPlanSprints && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+                                        @if (Model.CanMoveTaskToBacklog(task))
                                         {
                                             <form method="post" asp-page-handler="MoveToBacklog" class="at-card-action-form">
                                                 <input type="hidden" name="ViewMode" value="Sprints" />
