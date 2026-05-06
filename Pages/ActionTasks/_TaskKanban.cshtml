@@ -25,9 +25,11 @@
         </div>
         <span class="at-count-chip">@kanbanTaskCount</span>
     </div>
+    <p class="at-panel-note at-kanban-view-note">Kanban is a wide alternate workflow view.</p>
 
-    @* SECTION: Existing Kanban columns continue to group tasks by current workflow status names. *@
-    <div class="at-board-grid is-kanban at-planning-secondary-grid" aria-label="Planning Board Kanban alternate view">
+    @* SECTION: Existing Kanban columns continue to group tasks by current workflow status names inside an internal scroll area. *@
+    <div class="at-kanban-scroll" tabindex="0">
+        <div class="at-board-grid is-kanban at-planning-secondary-grid" aria-label="Planning Board Kanban alternate view">
         @foreach (var column in kanbanColumns)
         {
             <article class="at-panel at-board-column">
@@ -64,6 +66,7 @@
                 }
             </article>
         }
+        </div>
     </div>
 </section>
 }

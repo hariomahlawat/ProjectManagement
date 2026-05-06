@@ -1,6 +1,6 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Views tab keeps due/exception and Kanban alternate views selectable instead of competing with execution. *@
+@* SECTION: Views tab exposes exactly one selected alternate view at a time. *@
 <section class="at-planning-tab-panel at-planning-views-panel" aria-label="Planning Board Views tab">
     <nav class="at-panel at-planning-view-toggle" aria-label="Planning Board alternate view selector">
         <span class="at-section-eyebrow">Alternate views</span>
@@ -13,17 +13,9 @@
     @if (string.Equals(Model.ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase))
     {
         <partial name="_TaskKanban" model="Model" />
-        <details class="at-planning-secondary-view">
-            <summary>Due / exceptions <span class="at-count-chip">@(Model.DueTodayTaskDisplays.Count + Model.DueThisWeekTaskDisplays.Count + Model.DueLaterTaskDisplays.Count + Model.SprintOverdueTaskDisplays.Count)</span></summary>
-            <partial name="_TaskSprintBoard" model="Model" />
-        </details>
     }
     else
     {
-        <partial name="_TaskSprintBoard" model="Model" />
-        <details class="at-planning-secondary-view">
-            <summary>Kanban alternate view <span class="at-count-chip">@(Model.KanbanAssignedTaskDisplays.Count + Model.KanbanInProgressTaskDisplays.Count + Model.KanbanBlockedTaskDisplays.Count + Model.KanbanSubmittedTaskDisplays.Count + Model.KanbanClosedTaskDisplays.Count)</span></summary>
-            <p class="at-panel-note">Open Kanban from the selector above to review all workflow columns.</p>
-        </details>
+        <partial name="_PlanningDueExceptionsView" model="Model" />
     }
 </section>

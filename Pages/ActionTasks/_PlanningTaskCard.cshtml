@@ -14,10 +14,7 @@
             <h3 class="at-card-subject">AT-@task.Id · @task.Title</h3>
             <span class="@pageModel.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
         </div>
-        <dl class="at-card-facts">
-            <div><dt>Owner</dt><dd>@item.AssigneeName</dd></div>
-            <div><dt>Due</dt><dd>@task.DueDate.ToString("dd MMM yyyy")</dd></div>
-        </dl>
+        <div class="at-card-compact-meta">@item.AssigneeName <span aria-hidden="true">·</span> @task.DueDate.ToString("dd MMM yyyy")</div>
         <div class="at-card-footer">
             <span class="@pageModel.GetStatusBadgeClass(task.Status)">@task.Status</span>
             @if (pageModel.IsTaskOverdue(task))

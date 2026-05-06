@@ -2593,3 +2593,182 @@ html {
         white-space: normal;
     }
 }
+
+/* SECTION: Phase 3A-3 exclusive Planning views and card-density refinement. */
+.at-planning-due-exceptions-view,
+.at-planning-kanban-view {
+    min-width: 0;
+    margin-top: 0;
+    overflow: hidden;
+}
+
+.at-planning-due-exceptions-header {
+    padding: 0.85rem 0.9rem 0;
+}
+
+.at-planning-due-exceptions-header .at-panel-note,
+.at-kanban-view-note {
+    margin: 0.15rem 0 0;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-planning-due-exceptions-view .at-planning-due-exceptions-grid {
+    border-top: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding-top: 0.75rem;
+}
+
+.at-kanban-view-note {
+    padding: 0 0.9rem 0.7rem;
+}
+
+.at-kanban-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding: 0 0.9rem 0.9rem;
+}
+
+.at-kanban-scroll .at-planning-secondary-grid {
+    border-top: 1px solid var(--at-border);
+    padding: 0.9rem 0 0;
+}
+
+.at-shell.is-planning-board.has-selection .at-planning-kanban-view {
+    max-width: calc(100vw - 88px - 2rem);
+}
+
+.at-shell.is-planning-board.has-selection .at-kanban-scroll {
+    padding-right: min(29rem, calc(100vw - 1rem));
+}
+
+.at-sprint-task-card .at-task-card-link {
+    padding: 0.42rem 0.5rem;
+}
+
+.at-sprint-task-card .at-card-top-row {
+    align-items: flex-start;
+}
+
+.at-sprint-task-card .at-card-subject {
+    font-size: var(--at-font-sm);
+    line-height: 1.2;
+}
+
+.at-card-compact-meta {
+    margin-top: 0.25rem;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: 400;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.at-sprint-task-card .at-card-footer {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.35rem;
+    margin-top: 0.35rem;
+}
+
+.at-sprint-task-card .at-card-footer .at-open-details-label {
+    margin-left: auto;
+}
+
+.at-sprint-task-card .at-card-action-form {
+    padding: 0 0.5rem 0.5rem;
+}
+
+.at-sprint-task-card .at-card-action-form .btn-sm {
+    padding: 0.18rem 0.45rem;
+    font-size: var(--at-font-xs);
+}
+
+.at-execute-board-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-width: 0;
+    padding: 0.65rem 0.75rem;
+}
+
+.at-execute-board-title {
+    min-width: 0;
+}
+
+.at-execute-board-title h2 {
+    margin: 0.05rem 0 0;
+    font-size: 1rem;
+    line-height: 1.2;
+}
+
+.at-execute-quick-add-inline {
+    min-width: min(24rem, 100%);
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.at-execute-attention > summary {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+
+.at-execute-attention-summary {
+    display: inline-flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.at-execute-attention-summary span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 1px solid var(--at-border);
+    border-radius: 999px;
+    background: #f8fafc;
+    color: var(--at-muted);
+    padding: 0.12rem 0.45rem;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
+    white-space: nowrap;
+}
+
+.at-execute-attention-summary strong {
+    color: var(--at-text);
+    font-weight: var(--at-weight-bold);
+}
+
+@media (max-width: 1200px) {
+    .at-planning-due-exceptions-view .at-planning-due-exceptions-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .at-shell.is-planning-board.has-selection .at-planning-kanban-view {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 767px) {
+    .at-planning-due-exceptions-view .at-planning-due-exceptions-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .at-execute-board-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .at-execute-quick-add-inline {
+        min-width: 0;
+    }
+
+    .at-shell.is-planning-board.has-selection .at-kanban-scroll {
+        padding-right: 0.9rem;
+    }
+}
