@@ -125,8 +125,36 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
 
         // SECTION: Assert
+        Assert.Contains("name=\"PlanningTab\" value=\"Views\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"PlanningView\" value=\"Kanban\"", html, StringComparison.Ordinal);
+        Assert.Contains("PlanningTab=Views", html, StringComparison.Ordinal);
         Assert.Contains("PlanningView=Kanban", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PlanningDueExceptionsTaskCards_PreserveViewsRouteState()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var sprint = AddSprint(setup.Db, "Due Exceptions Sprint", ActionSprintStatus.Active);
+        await setup.Db.SaveChangesAsync();
+        var task = await setup.Db.ActionTasks.SingleAsync();
+        task.SprintId = sprint.Id;
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Planning";
+        page.PlanningTab = "Views";
+        page.PlanningView = "DueExceptions";
+        page.SelectedSprintId = sprint.Id;
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_PlanningDueExceptionsView.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("PlanningTab=Views", html, StringComparison.Ordinal);
+        Assert.Contains("PlanningView=DueExceptions", html, StringComparison.Ordinal);
+        Assert.Contains($"SelectedSprintId={sprint.Id}", html, StringComparison.Ordinal);
     }
 
     [Fact]
