@@ -1,12 +1,12 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 @using ProjectManagement.Models
 
-@* SECTION: Planning Board backlog queue filters reuse the module's controlled register-style filtering. *@
+@* SECTION: Sprint Board backlog queue filters reuse the module's controlled register-style filtering. *@
 <section class="at-panel mb-3">
     <div class="at-panel-heading">
         <div>
-            <h2>Planning Board Backlog Filters</h2>
-            <p class="at-panel-note">Backlog queue shows only tasks that are not assigned to a Planning Window.</p>
+            <h2>Sprint Board Backlog Filters</h2>
+            <p class="at-panel-note">Backlog queue shows only tasks that are not assigned to a sprint.</p>
         </div>
         <span class="at-count-chip">@Model.BacklogTaskDisplays.Count tasks</span>
     </div>
@@ -83,13 +83,13 @@
     </form>
 </section>
 
-@* SECTION: Planning Board backlog task list and controlled AssignToSprint action. *@
+@* SECTION: Sprint Board backlog task list and controlled AssignToSprint action. *@
 <section class="at-panel">
     <div class="at-panel-heading">
-        <h2>Planning Board Backlog Queue</h2>
+        <h2>Sprint Board Backlog Queue</h2>
         @if (Model.CanPlanSprints)
         {
-            <span class="at-panel-note">Comdt and HoD can assign open backlog tasks into open Planning Windows.</span>
+            <span class="at-panel-note">Comdt and HoD can assign open backlog tasks into open sprints.</span>
         }
     </div>
 
@@ -110,7 +110,7 @@
                         <th>Due Date</th>
                         @if (Model.CanPlanSprints)
                         {
-                            <th>Assign to Planning Window</th>
+                            <th>Assign to Sprint</th>
                         }
                     </tr>
                 </thead>
@@ -141,11 +141,11 @@
                                     <form method="post" asp-page-handler="AssignToSprint" class="at-inline-sprint-form">
                                         <input type="hidden" name="ViewMode" value="Planning" />
                                         <input type="hidden" name="id" value="@task.Id" />
-                                        <select class="form-select form-select-sm" name="sprintId" aria-label="Select Planning Window for AT-@task.Id" required>
-                                            <option value="">Select Planning Window</option>
+                                        <select class="form-select form-select-sm" name="sprintId" aria-label="Select Sprint for AT-@task.Id" required>
+                                            <option value="">Select Sprint</option>
                                             @foreach (var sprint in Model.AssignableSprints)
                                             {
-                                                <option value="@sprint.Id">@Model.DisplayPlanningWindowName(sprint) (@sprint.Status)</option>
+                                                <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>
                                             }
                                         </select>
                                         <button type="submit" class="btn btn-primary btn-sm">Assign</button>

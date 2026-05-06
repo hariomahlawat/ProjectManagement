@@ -1,10 +1,10 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
 @* SECTION: Close tab groups closure review, carry-forward, next-window creation, and history. *@
-<section class="at-planning-tab-panel at-sprint-execution-main" aria-label="Planning Board Close tab">
+<section class="at-planning-tab-panel at-sprint-execution-main" aria-label="Sprint Board Close tab">
     @if (Model.SelectedSprint is null)
     {
-        <div class="at-panel at-empty-state at-empty-state-compact">Select a Planning Window in Plan before reviewing closure.</div>
+        <div class="at-panel at-empty-state at-empty-state-compact">Select a sprint in Plan before reviewing closure.</div>
     }
     else
     {
@@ -21,7 +21,7 @@
         @if (Model.SelectedSprint is not null)
         {
             <details class="at-panel at-sprint-history-panel">
-                <summary>Planning Window History <span class="at-count-chip">@Model.SprintAuditHistory.Count</span></summary>
+                <summary>Sprint History <span class="at-count-chip">@Model.SprintAuditHistory.Count</span></summary>
                 @if (!Model.SprintAuditHistory.Any())
                 {
                     <p class="at-empty-inline">No planning lifecycle history is recorded yet.</p>

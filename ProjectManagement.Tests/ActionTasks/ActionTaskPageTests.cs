@@ -47,6 +47,32 @@ public class ActionTaskPageTests
         Assert.Null(page.SelectedTask);
     }
 
+
+    [Fact]
+    public async Task DisplaySprintName_PreservesSprintTerminologyForGeneratedAndCustomNames()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var generated = new ActionSprint
+        {
+            Id = 7,
+            Name = "Sprint 01 May - 15 May"
+        };
+        var custom = new ActionSprint
+        {
+            Id = 8,
+            Name = "Command focus alpha"
+        };
+
+        // SECTION: Act
+        var generatedName = setup.Page.DisplaySprintName(generated);
+        var customName = setup.Page.DisplaySprintName(custom);
+
+        // SECTION: Assert
+        Assert.Equal("Sprint 01 May - 15 May", generatedName);
+        Assert.Equal("Command focus alpha", customName);
+    }
+
     [Fact]
     public async Task MyWorkView_StaysActiveWhenSortingRegister()
     {
@@ -105,7 +131,7 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.Contains("Assigned to me", html, StringComparison.Ordinal);
         Assert.Contains("Needs action now", html, StringComparison.Ordinal);
-        Assert.Contains("Active Planning Window", html, StringComparison.Ordinal);
+        Assert.Contains("Active Sprint", html, StringComparison.Ordinal);
         Assert.Contains("Action Required", html, StringComparison.Ordinal);
         Assert.Contains("Current Work", html, StringComparison.Ordinal);
         Assert.Contains("Submitted / Awaiting Closure", html, StringComparison.Ordinal);
@@ -636,8 +662,9 @@ public class ActionTaskPageTests
 
         // SECTION: Assert
         Assert.Null(page.SelectedSprint);
-        Assert.Contains("No planning window has been created yet", html, StringComparison.Ordinal);
-        Assert.Contains("Create Planning Window", html, StringComparison.Ordinal);
+        Assert.Contains("No sprint has been created yet", html, StringComparison.Ordinal);
+        Assert.Contains("Create Sprint", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Create " + "Planning " + "Window", html, StringComparison.Ordinal);
         Assert.Contains("handler=CreateSprint", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Select a sprint to view sprint command details.", html, StringComparison.Ordinal);
     }
@@ -658,8 +685,8 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskSprints.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("Create Planning Window", html, StringComparison.Ordinal);
-        Assert.Contains("Edit Window", html, StringComparison.Ordinal);
+        Assert.Contains("Create Sprint", html, StringComparison.Ordinal);
+        Assert.Contains("Edit Sprint", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Create</summary>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Edit</summary>", html, StringComparison.Ordinal);
     }
@@ -683,12 +710,12 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.NotNull(page.SelectedSprint);
         Assert.Contains("Execution Sprint", html, StringComparison.Ordinal);
-        Assert.Contains("Selected Planning Board task board", html, StringComparison.Ordinal);
+        Assert.Contains("Selected Sprint Board task board", html, StringComparison.Ordinal);
         Assert.Contains("Sprint board task", html, StringComparison.Ordinal);
         Assert.Contains("at-execute-status-grid", html, StringComparison.Ordinal);
         Assert.Contains("at-execute-status-section", html, StringComparison.Ordinal);
         Assert.DoesNotContain("at-board-grid is-sprints", html, StringComparison.Ordinal);
-        Assert.True(html.IndexOf("Selected Planning Board task board", StringComparison.Ordinal) < html.IndexOf("Add Backlog Task", StringComparison.Ordinal));
+        Assert.True(html.IndexOf("Selected Sprint Board task board", StringComparison.Ordinal) < html.IndexOf("Add Backlog Task", StringComparison.Ordinal));
         Assert.DoesNotContain("Backlog Queue", html, StringComparison.Ordinal);
     }
 
@@ -719,7 +746,7 @@ public class ActionTaskPageTests
 
     [Theory]
     [InlineData("CommandCentre", "Command Centre")]
-    [InlineData("Planning", "Planning Board")]
+    [InlineData("Planning", "Sprint Board")]
     [InlineData("MyWork", "My Work")]
     [InlineData("Register", "Register")]
     [InlineData("Reports", "Reports")]

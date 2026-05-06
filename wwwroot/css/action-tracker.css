@@ -2167,7 +2167,7 @@ html {
 }
 
 
-/* SECTION: Planning Board due/exception section stays nested and avoids horizontal-first interaction. */
+/* SECTION: Sprint Board due/exception section stays nested and avoids horizontal-first interaction. */
 .at-planning-due-exceptions-section {
     display: grid;
     gap: 0;
@@ -2239,7 +2239,7 @@ html {
     }
 }
 
-/* SECTION: Planning Board integrated backlog and alternate views */
+/* SECTION: Sprint Board integrated backlog and alternate views */
 .at-planning-backlog-queue,
 .at-planning-secondary-view {
     border: 1px solid var(--at-border);
@@ -2312,7 +2312,7 @@ html {
     min-width: 0;
 }
 
-/* SECTION: Phase 3A-1 Planning Board internal tabs and simplified panes */
+/* SECTION: Phase 3A-1 Sprint Board internal tabs and simplified panes */
 .at-planning-tabs {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2481,7 +2481,7 @@ html {
     min-width: 0;
 }
 
-/* SECTION: Phase 3A-2 Planning Board compact command strip and overlay-safe workspace. */
+/* SECTION: Phase 3A-2 Sprint Board compact command strip and overlay-safe workspace. */
 .at-shell.is-planning-board.has-selection {
     grid-template-columns: 88px minmax(0, 1fr);
 }
@@ -2583,7 +2583,7 @@ html {
     grid-column: 1 / -1;
 }
 
-/* SECTION: Phase 3A-2 compact internal Planning Board tabs. */
+/* SECTION: Phase 3A-2 compact internal Sprint Board tabs. */
 .at-planning-tabs-compact {
     display: flex;
     gap: 0;
@@ -2911,7 +2911,7 @@ html {
     }
 }
 
-/* SECTION: Phase 3A-4 Planning Board polish, contained Kanban scrolling, and compact empty states. */
+/* SECTION: Phase 3A-4 Sprint Board polish, contained Kanban scrolling, and compact empty states. */
 .at-shell.is-planning-board {
     overflow-x: clip;
 }
@@ -3005,7 +3005,7 @@ html {
     }
 }
 
-/* SECTION: Phase 3A-5 Planning Board final polish, compact backlog filters, and contained close panels. */
+/* SECTION: Phase 3A-5 Sprint Board final polish, compact backlog filters, and contained close panels. */
 .at-planning-board-workspace,
 .at-planning-tab-panel,
 .at-planning-plan-grid,

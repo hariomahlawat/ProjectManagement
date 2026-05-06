@@ -18,7 +18,7 @@
         <nav class="at-nav">
             @* SECTION: Icon-led rail links for compact enterprise navigation. *@
             <a title="Command Centre" asp-page="/ActionTasks/Index" asp-route-viewMode="CommandCentre" class="@(Model.IsCommandCentreView ? "active" : string.Empty)"><i class="bi bi-speedometer2" aria-hidden="true"></i><span>Command Centre</span></a>
-            <a title="Planning Board" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" class="@(Model.IsPlanningView ? "active" : string.Empty)"><i class="bi bi-calendar-range" aria-hidden="true"></i><span>Planning Board</span></a>
+            <a title="Sprint Board" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" class="@(Model.IsPlanningView ? "active" : string.Empty)"><i class="bi bi-calendar-range" aria-hidden="true"></i><span>Sprint Board</span></a>
             <a title="My Work" asp-page="/ActionTasks/Index" asp-route-viewMode="MyWork" class="@(Model.IsMyWorkView ? "active" : string.Empty)"><i class="bi bi-check2-circle" aria-hidden="true"></i><span>My Work</span></a>
             <a title="Register" asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="@(Model.IsRegisterView ? "active" : string.Empty)"><i class="bi bi-list-task" aria-hidden="true"></i><span>Register</span></a>
             <a title="Reports" asp-page="/ActionTasks/Index" asp-route-viewMode="Reports" class="@(Model.IsReportsView ? "active" : string.Empty)"><i class="bi bi-bar-chart" aria-hidden="true"></i><span>Reports</span></a>
@@ -49,7 +49,7 @@
         }
         else if (Model.IsPlanningView)
         {
-            @* SECTION: Planning Board internal tabs are rendered inside the board partial to avoid competing major sections. *@
+            @* SECTION: Sprint Board internal tabs are rendered inside the board partial to avoid competing major sections. *@
             <partial name="_TaskSprints" model="Model" />
         }
         else if (Model.IsMyWorkView)

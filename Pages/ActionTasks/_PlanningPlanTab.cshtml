@@ -4,16 +4,16 @@
     var hasBacklogFilters = Model.HasBacklogFilterRouteState;
 }
 
-@* SECTION: Plan tab contains planning-window list, backlog filters, backlog queue, and assignment. *@
-<section class="at-planning-tab-panel at-planning-plan-grid" aria-label="Planning Board Plan tab">
+@* SECTION: Plan tab contains sprint list, backlog filters, backlog queue, and assignment. *@
+<section class="at-planning-tab-panel at-planning-plan-grid" aria-label="Sprint Board Plan tab">
     <aside class="at-panel at-sprint-list-panel at-planning-plan-card">
         <div class="at-panel-heading">
-            <h2>Planning Windows</h2>
+            <h2>Sprints</h2>
             <span class="at-count-chip">@Model.Sprints.Count</span>
         </div>
         @if (!Model.Sprints.Any())
         {
-            <div class="at-empty-state at-empty-state-compact">No Planning Window has been created yet.</div>
+            <div class="at-empty-state at-empty-state-compact">No sprint has been created yet.</div>
         }
         else
         {
@@ -26,27 +26,27 @@
                     {
                         if (Model.SelectedSprint?.Id == sprint.Id)
                         {
-                            <option value="@sprint.Id" selected>@Model.DisplayPlanningWindowName(sprint) (@sprint.Status)</option>
+                            <option value="@sprint.Id" selected>@Model.DisplaySprintName(sprint) (@sprint.Status)</option>
                         }
                         else
                         {
-                            <option value="@sprint.Id">@Model.DisplayPlanningWindowName(sprint) (@sprint.Status)</option>
+                            <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>
                         }
                     }
                 </select>
-                <button type="submit" class="btn btn-outline-primary btn-sm">Open Planning Window</button>
+                <button type="submit" class="btn btn-outline-primary btn-sm">Open Sprint</button>
             </form>
 
             <div class="at-sprint-list-group">
                 <div class="at-sprint-list-heading">Active</div>
                 @if (Model.ActiveSprint is null)
                 {
-                    <div class="at-empty-inline">No active Planning Window.</div>
+                    <div class="at-empty-inline">No active sprint.</div>
                 }
                 else
                 {
                     <a class="at-sprint-list-item is-active @(Model.SelectedSprint?.Id == Model.ActiveSprint.Id ? "is-selected" : string.Empty)" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Execute" asp-route-SelectedSprintId="@Model.ActiveSprint.Id">
-                        <strong>@Model.DisplayPlanningWindowName(Model.ActiveSprint)</strong>
+                        <strong>@Model.DisplaySprintName(Model.ActiveSprint)</strong>
                         <span>@Model.ActiveSprint.StartDate.ToString("dd MMM") – @Model.ActiveSprint.EndDate.ToString("dd MMM yyyy")</span>
                     </a>
                 }
@@ -56,12 +56,12 @@
                 <div class="at-sprint-list-heading">Planned</div>
                 @if (!Model.PlannedSprints.Any())
                 {
-                    <div class="at-empty-inline">No planned Planning Windows.</div>
+                    <div class="at-empty-inline">No planned sprints.</div>
                 }
                 @foreach (var sprint in Model.PlannedSprints)
                 {
                     <a class="at-sprint-list-item @(Model.SelectedSprint?.Id == sprint.Id ? "is-selected" : string.Empty)" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Execute" asp-route-SelectedSprintId="@sprint.Id">
-                        <strong>@Model.DisplayPlanningWindowName(sprint)</strong>
+                        <strong>@Model.DisplaySprintName(sprint)</strong>
                         <span>@sprint.StartDate.ToString("dd MMM") – @sprint.EndDate.ToString("dd MMM yyyy")</span>
                     </a>
                 }
@@ -71,12 +71,12 @@
                 <summary class="at-sprint-list-heading">Closed <span class="at-count-chip">@Model.ClosedSprints.Count</span></summary>
                 @if (!Model.ClosedSprints.Any())
                 {
-                    <div class="at-empty-inline">No closed Planning Windows.</div>
+                    <div class="at-empty-inline">No closed sprints.</div>
                 }
                 @foreach (var sprint in Model.ClosedSprints.Take(8))
                 {
                     <a class="at-sprint-list-item is-closed @(Model.SelectedSprint?.Id == sprint.Id ? "is-selected" : string.Empty)" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Close" asp-route-SelectedSprintId="@sprint.Id">
-                        <strong>@Model.DisplayPlanningWindowName(sprint)</strong>
+                        <strong>@Model.DisplaySprintName(sprint)</strong>
                         <span>@sprint.EndDate.ToString("dd MMM yyyy")</span>
                     </a>
                 }
@@ -86,7 +86,7 @@
         @if (Model.CanPlanSprints)
         {
             <details class="at-sprint-form-disclosure at-plan-create-panel" open="@Model.ShowCreateSprintPanel">
-                <summary class="btn btn-primary btn-sm">Create Planning Window</summary>
+                <summary class="btn btn-primary btn-sm">Create Sprint</summary>
                 <form method="post" asp-page-handler="CreateSprint" class="at-sprint-command-form at-sprint-command-form-static">
                     <input type="hidden" name="ViewMode" value="Planning" />
                     <input type="hidden" name="PlanningTab" value="Plan" />
@@ -98,8 +98,8 @@
                     <label class="form-label" asp-for="SprintInput.EndDate"></label>
                     <input class="form-control" asp-for="SprintInput.EndDate" type="date" />
                     <label class="form-label" asp-for="SprintInput.Goal"></label>
-                    <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this Planning Window"></textarea>
-                    <button type="submit" class="btn btn-primary btn-sm">Create Planning Window</button>
+                    <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this sprint"></textarea>
+                    <button type="submit" class="btn btn-primary btn-sm">Create Sprint</button>
                 </form>
             </details>
         }
@@ -109,7 +109,7 @@
         <div class="at-panel-heading">
             <div>
                 <h2>Backlog Queue</h2>
-                <p class="at-panel-note">Filter backlog tasks and assign eligible work into a Planning Window.</p>
+                <p class="at-panel-note">Filter backlog tasks and assign eligible work into a sprint.</p>
             </div>
             <span class="at-count-chip">@Model.BacklogTaskDisplays.Count</span>
         </div>
@@ -205,11 +205,11 @@
                                         <input type="hidden" name="PlanningTab" value="Execute" />
                                         <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
                                         <input type="hidden" name="id" value="@task.Id" />
-                                        <select class="form-select form-select-sm" name="sprintId" aria-label="Select Planning Window for AT-@task.Id" required>
-                                            <option value="">Select Planning Window</option>
+                                        <select class="form-select form-select-sm" name="sprintId" aria-label="Select Sprint for AT-@task.Id" required>
+                                            <option value="">Select Sprint</option>
                                             @foreach (var sprint in Model.AssignableSprints)
                                             {
-                                                <option value="@sprint.Id">@Model.DisplayPlanningWindowName(sprint) (@sprint.Status)</option>
+                                                <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>
                                             }
                                         </select>
                                         <button type="submit" class="btn btn-primary btn-sm">Assign</button>

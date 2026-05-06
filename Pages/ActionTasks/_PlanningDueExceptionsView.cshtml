@@ -1,7 +1,7 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
 @{
-    // SECTION: Full Views tab due/exception view renders directly without the nested Planning Board disclosure.
+    // SECTION: Full Views tab due/exception view renders directly without the nested Sprint Board disclosure.
     var dueExceptionCount = Model.DueTodayTaskDisplays.Count
         + Model.DueThisWeekTaskDisplays.Count
         + Model.DueLaterTaskDisplays.Count
@@ -12,15 +12,15 @@
 <section class="at-panel at-planning-due-exceptions-view" aria-labelledby="planning-due-exceptions-heading">
     <div class="at-panel-heading at-planning-due-exceptions-header">
         <div>
-            <div class="at-section-eyebrow">Planning Board</div>
+            <div class="at-section-eyebrow">Sprint Board</div>
             <h2 id="planning-due-exceptions-heading">Due / exceptions</h2>
-            <p class="at-panel-note">Review upcoming and overdue task buckets without leaving the Planning Board.</p>
+            <p class="at-panel-note">Review upcoming and overdue task buckets without leaving the Sprint Board.</p>
         </div>
         <span class="at-count-chip">@dueExceptionCount</span>
     </div>
 
     @* SECTION: Due buckets remain responsive so this view does not create page-level horizontal scrolling. *@
-    <div class="at-planning-due-exceptions-grid" aria-label="Planning Board due and exceptions">
+    <div class="at-planning-due-exceptions-grid" aria-label="Sprint Board due and exceptions">
         <article class="at-panel at-board-column at-due-exception-column">
             <div class="at-panel-heading"><h2>Due Today</h2><span class="at-count-chip">@Model.DueTodayTaskDisplays.Count</span></div>
             <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueTodayTaskDisplays, "No tasks due today.", false)' />

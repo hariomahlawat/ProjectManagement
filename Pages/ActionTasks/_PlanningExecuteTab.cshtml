@@ -8,10 +8,10 @@
 }
 
 @* SECTION: Execute tab starts with a compact board header before status work sections. *@
-<section class="at-planning-tab-panel at-sprint-execution-main at-planning-execute-panel" aria-label="Planning Board Execute tab">
+<section class="at-planning-tab-panel at-sprint-execution-main at-planning-execute-panel" aria-label="Sprint Board Execute tab">
     @if (Model.SelectedSprint is null)
     {
-        <div class="at-panel at-empty-state at-empty-state-compact">Select or create a Planning Window in Plan before using Execute.</div>
+        <div class="at-panel at-empty-state at-empty-state-compact">Select or create a sprint in Plan before using Execute.</div>
     }
     else
     {
@@ -77,7 +77,7 @@
             </div>
         </details>
 
-        <section class="at-sprint-board-stack at-execute-status-board" aria-label="Selected Planning Board task board">
+        <section class="at-sprint-board-stack at-execute-status-board" aria-label="Selected Sprint Board task board">
             <div class="at-execute-status-grid">
                 @foreach (var status in activeStatuses)
                 {

@@ -7,16 +7,16 @@
         + Model.SprintOverdueTaskDisplays.Count;
 }
 
-@* SECTION: Collapsible Planning Board due and exception review stays nested below the primary sprint workflow. *@
+@* SECTION: Collapsible Sprint Board due and exception review stays nested below the primary sprint workflow. *@
 <details class="at-planning-due-exceptions-section">
     <summary class="at-planning-due-exceptions-summary">
         <span class="at-planning-due-exceptions-title">Due / exceptions</span>
-        <span class="at-planning-due-exceptions-meta">Review upcoming and overdue task buckets without leaving the Planning Board.</span>
+        <span class="at-planning-due-exceptions-meta">Review upcoming and overdue task buckets without leaving the Sprint Board.</span>
         <span class="at-count-chip">@dueExceptionCount</span>
     </summary>
 
     @* SECTION: Due buckets stack by default and only become lateral review columns on wider screens. *@
-    <div class="at-planning-due-exceptions-grid" aria-label="Planning Board due and exceptions">
+    <div class="at-planning-due-exceptions-grid" aria-label="Sprint Board due and exceptions">
         <article class="at-panel at-board-column at-due-exception-column">
             <div class="at-panel-heading"><h2>Due Today</h2><span class="at-count-chip">@Model.DueTodayTaskDisplays.Count</span></div>
             <partial name="_TaskCards" model='@Tuple.Create(Model, Model.DueTodayTaskDisplays, "No tasks due today.", false)' />
