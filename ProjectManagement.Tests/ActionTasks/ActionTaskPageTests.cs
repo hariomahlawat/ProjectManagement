@@ -1,4 +1,12 @@
 using System.Security.Claims;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.Mvc.Razor;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Hosting;
+using System.IO;
+using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -403,6 +411,56 @@ public class ActionTaskPageTests
     }
 
     [Fact]
+    public async Task CreateNextSprintPageHandler_WhenStartDateOnSourceEndDate_ReopensPanelAndShowsModelError()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.Comdt);
+        var source = AddSprint(setup.Db, "Active Source", ActionSprintStatus.Active, startOffsetDays: 0);
+        setup.Db.ActionTasks.Add(NewTask("Carry me", ActionTaskStatuses.Assigned, source.Id));
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.NextSprintInput = IndexModel.CreateNextSprintInput.FromSourceSprint(source);
+        page.NextSprintInput.StartDate = source.EndDate.Date;
+        page.NextSprintInput.EndDate = source.EndDate.Date.AddDays(14);
+
+        // SECTION: Act
+        var result = await page.OnPostCreateNextSprintAsync();
+
+        // SECTION: Assert
+        Assert.IsType<PageResult>(result);
+        Assert.True(page.ShowCreateNextSprintPanel);
+        Assert.False(page.ModelState.IsValid);
+        Assert.Contains(page.ModelState[$"{nameof(page.NextSprintInput)}.{nameof(IndexModel.CreateNextSprintInput.StartDate)}"]!.Errors, e => e.ErrorMessage.Contains("later than the source sprint end date", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(await setup.Db.ActionSprints.ToListAsync(), s => s.Name == page.NextSprintInput.Name && s.Id != source.Id);
+    }
+
+    [Fact]
+    public async Task SprintClosureReviewPartial_RendersCreateNextSprintFormOutsideClosureDispositionForm()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.Comdt);
+        var source = AddSprint(setup.Db, "Active Source", ActionSprintStatus.Active, startOffsetDays: 0);
+        setup.Db.ActionTasks.Add(NewTask("Carry me", ActionTaskStatuses.Assigned, source.Id));
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Sprints";
+        page.SelectedSprintId = source.Id;
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderSprintClosureReviewAsync(page);
+
+        // SECTION: Assert
+        var createFormStart = html.IndexOf("at-sprint-command-form", StringComparison.Ordinal);
+        var closureFormStart = html.IndexOf("at-closure-form", StringComparison.Ordinal);
+        var closureFormEnd = html.IndexOf("</form>", closureFormStart, StringComparison.Ordinal);
+        Assert.Contains("handler=CreateNextSprint", html, StringComparison.Ordinal);
+        Assert.True(createFormStart >= 0, "Create next sprint form should render.");
+        Assert.True(closureFormStart >= 0, "Closure disposition form should render.");
+        Assert.True(createFormStart < closureFormStart || createFormStart > closureFormEnd, "Create next sprint form must not be nested inside the closure disposition form.");
+    }
+
+    [Fact]
     public async Task SprintHistoryReadModel_ReturnsAuditEventsWithActorVisibility()
     {
         // SECTION: Arrange
@@ -443,6 +501,68 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.Null(taskId1);
         Assert.Single(entityType.GetForeignKeys().Where(fk => fk.PrincipalEntityType.ClrType == typeof(ActionTaskItem)));
+    }
+
+    private static async Task<string> RenderSprintClosureReviewAsync(IndexModel page)
+    {
+        // SECTION: Razor partial rendering helper for closure-review markup checks.
+        await using var writer = new StringWriter();
+        using var provider = BuildRazorServiceProvider();
+        using var scope = provider.CreateScope();
+        var scopedProvider = scope.ServiceProvider;
+        var viewEngine = scopedProvider.GetRequiredService<IRazorViewEngine>();
+        var tempDataProvider = scopedProvider.GetRequiredService<ITempDataProvider>();
+        var httpContext = new DefaultHttpContext
+        {
+            RequestServices = scopedProvider,
+            User = page.PageContext.HttpContext.User
+        };
+        var routeData = new RouteData();
+        routeData.Values["page"] = "/ActionTasks/Index";
+        var actionDescriptor = new ActionDescriptor();
+        actionDescriptor.RouteValues["page"] = "/ActionTasks/Index";
+        var actionContext = new ActionContext(httpContext, routeData, actionDescriptor);
+        var viewResult = viewEngine.GetView(executingFilePath: null, viewPath: "/Pages/ActionTasks/_SprintClosureReview.cshtml", isMainPage: false);
+        if (!viewResult.Success)
+        {
+            throw new InvalidOperationException("Unable to locate _SprintClosureReview partial view.");
+        }
+
+        var viewData = new ViewDataDictionary<IndexModel>(new EmptyModelMetadataProvider(), page.ModelState)
+        {
+            Model = page
+        };
+        var tempData = new TempDataDictionary(httpContext, tempDataProvider);
+        var viewContext = new ViewContext(actionContext, viewResult.View, viewData, tempData, writer, new HtmlHelperOptions());
+        await viewResult.View.RenderAsync(viewContext);
+        return writer.ToString();
+    }
+
+    private static ServiceProvider BuildRazorServiceProvider()
+    {
+        // SECTION: Minimal MVC services required to render Razor partials in tests.
+        var contentRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var webRoot = Path.Combine(contentRoot, "wwwroot");
+        var environment = new TestWebHostEnvironment
+        {
+            ApplicationName = typeof(Program).Assembly.GetName().Name!,
+            ContentRootPath = contentRoot,
+            WebRootPath = webRoot,
+            ContentRootFileProvider = new PhysicalFileProvider(contentRoot),
+            WebRootFileProvider = Directory.Exists(webRoot) ? new PhysicalFileProvider(webRoot) : new NullFileProvider(),
+            EnvironmentName = Environments.Development
+        };
+        var services = new ServiceCollection();
+        var diagnosticListener = new DiagnosticListener("Microsoft.AspNetCore");
+        services.AddSingleton<DiagnosticListener>(diagnosticListener);
+        services.AddSingleton<DiagnosticSource>(diagnosticListener);
+        services.AddSingleton<IWebHostEnvironment>(environment);
+        services.AddSingleton<IHostEnvironment>(environment);
+        services.AddLogging();
+        services.AddRouting();
+        services.AddRazorPages();
+        services.AddControllersWithViews();
+        return services.BuildServiceProvider();
     }
 
     private static async Task<(IndexModel Page, ApplicationDbContext Db)> CreateSetupAsync(string currentRole = RoleNames.HoD)
@@ -527,6 +647,17 @@ public class ActionTaskPageTests
             Status = status,
             SprintId = sprintId
         };
+    }
+
+    private sealed class TestWebHostEnvironment : IWebHostEnvironment
+    {
+        // SECTION: Test host environment for Razor partial rendering.
+        public string ApplicationName { get; set; } = string.Empty;
+        public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
+        public string WebRootPath { get; set; } = string.Empty;
+        public string EnvironmentName { get; set; } = Environments.Development;
+        public string ContentRootPath { get; set; } = string.Empty;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 
     private sealed class StubCollabService : IActionTaskCollaborationService

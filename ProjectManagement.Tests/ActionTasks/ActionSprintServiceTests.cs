@@ -417,7 +417,8 @@ public class ActionSprintServiceTests
     [Theory]
     [InlineData(-15, 0)]
     [InlineData(0, 14)]
-    public async Task CloseSprintWithDispositionAsync_RejectsCarryForwardIntoOlderOrNonLaterSprint(int targetStartOffsetDays, int targetEndOffsetDays)
+    [InlineData(7, 21)]
+    public async Task CloseSprintWithDispositionAsync_RejectsCarryForwardIntoOverlappingOrNonLaterSprint(int targetStartOffsetDays, int targetEndOffsetDays)
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -431,7 +432,7 @@ public class ActionSprintServiceTests
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.CloseSprintWithDispositionAsync(source.Id, source.RowVersion, new[] { task.Id }, target.Id, Array.Empty<int>(), "Invalid target timing", "planner", RoleNames.Comdt));
-        Assert.Contains("must be later", ex.Message.ToLowerInvariant());
+        Assert.Contains("must start after", ex.Message.ToLowerInvariant());
     }
 
     [Fact]

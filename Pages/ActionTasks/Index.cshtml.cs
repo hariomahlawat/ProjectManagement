@@ -493,6 +493,7 @@ public class IndexModel : PageModel
         ModelState.Clear();
         TryValidateModel(NextSprintInput, nameof(NextSprintInput));
         ValidateSprintDateRange(NextSprintInput.StartDate, NextSprintInput.EndDate, nameof(NextSprintInput));
+        await ValidateNextSprintStartsAfterSourceSprintAsync();
 
         if (!ModelState.IsValid)
         {
@@ -1118,6 +1119,23 @@ public class IndexModel : PageModel
     }
 
     // SECTION: Resolve a safe, standardized view mode value for postback and redirects
+
+
+    private async Task ValidateNextSprintStartsAfterSourceSprintAsync()
+    {
+        // SECTION: Closure-review next sprint sequencing validation.
+        var sourceSprint = (await _sprintService.GetSprintsAsync()).FirstOrDefault(s => s.Id == NextSprintInput.SourceSprintId);
+        if (sourceSprint is null)
+        {
+            ModelState.AddModelError($"{nameof(NextSprintInput)}.{nameof(CreateNextSprintInput.SourceSprintId)}", "Source sprint was not found. Reload the sprint closure review and try again.");
+            return;
+        }
+
+        if (NextSprintInput.StartDate.Date <= sourceSprint.EndDate.Date)
+        {
+            ModelState.AddModelError($"{nameof(NextSprintInput)}.{nameof(CreateNextSprintInput.StartDate)}", $"Next sprint start date must be later than the source sprint end date ({sourceSprint.EndDate:dd MMM yyyy}).");
+        }
+    }
 
     private void ValidateSprintDateRange(DateTime startDate, DateTime endDate, string prefix)
     {

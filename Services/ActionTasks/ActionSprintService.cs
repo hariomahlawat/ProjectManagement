@@ -285,8 +285,7 @@ public class ActionSprintService
 
         var oldValue = task.SprintId?.ToString();
         task.SprintId = null;
-        AddTaskSprintAudit(task.Id, "TaskRemovedFromSprint", userId, role, oldValue, null, "Removed from sprint and moved to backlog.");
-        AddTaskSprintAudit(task.Id, "TaskMovedToBacklog", userId, role, oldValue, null, "Moved to backlog.");
+        AddTaskSprintAudit(task.Id, "TaskMovedToBacklog", userId, role, oldValue, null, "Removed from sprint and moved to backlog.");
 
         await _context.SaveChangesAsync(cancellationToken);
         return task;
