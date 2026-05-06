@@ -1802,3 +1802,116 @@ html {
         max-height: none;
     }
 }
+
+/* SECTION: Phase 2A sprint workspace cleanup and inspector-safe board layout */
+.at-sprint-empty-command {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem;
+}
+
+.at-sprint-empty-command .at-empty-state {
+    display: grid;
+    gap: 0.2rem;
+    margin: 0;
+    text-align: left;
+}
+
+.at-sprint-empty-command .at-empty-state strong,
+.at-sprint-empty-command .at-empty-state span {
+    display: block;
+}
+
+.at-sprint-command-strip,
+.at-sprint-layout-refined,
+.at-sprint-execution-main,
+.at-board-scroll {
+    min-width: 0;
+}
+
+.at-sprint-action-row-strip {
+    align-items: flex-start;
+}
+
+.at-sprint-action-row-strip .at-sprint-form-disclosure {
+    position: relative;
+    margin: 0;
+}
+
+.at-sprint-action-row-strip .at-sprint-command-form {
+    display: grid;
+    position: absolute;
+    top: calc(100% + 0.45rem);
+    right: 0;
+    z-index: 5;
+    width: min(24rem, calc(100vw - 2rem));
+    box-shadow: var(--at-shadow-sm);
+}
+
+.at-board-grid.is-sprints {
+    grid-auto-columns: minmax(220px, 1fr);
+    grid-template-columns: repeat(5, minmax(220px, 1fr));
+}
+
+.at-sprint-execution-main .at-board-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+}
+
+.at-sprint-task-card {
+    min-width: 0;
+}
+
+.at-sprint-task-card .at-card-footer {
+    gap: 0.35rem;
+}
+
+.at-shell.has-selection .at-sprint-layout-refined {
+    grid-template-columns: minmax(190px, 230px) minmax(0, 1fr);
+}
+
+.at-shell.has-selection .at-sprint-attention-lane {
+    grid-column: 2;
+    position: static;
+}
+
+.at-shell.has-selection .at-sprint-board-column {
+    min-width: 0;
+}
+
+.at-shell.has-selection .at-board-grid.is-sprints {
+    grid-auto-columns: minmax(205px, 1fr);
+    grid-template-columns: repeat(5, minmax(205px, 1fr));
+}
+
+@media (max-width: 1399px) {
+    .at-shell.has-selection .at-sprint-layout-refined {
+        grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 1200px) {
+    .at-shell.has-selection .at-sprint-layout-refined,
+    .at-shell.has-selection .at-sprint-attention-lane {
+        grid-template-columns: 1fr;
+        grid-column: auto;
+    }
+}
+
+@media (max-width: 767px) {
+    .at-sprint-empty-command {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .at-sprint-action-row-strip .at-sprint-command-form {
+        left: 0;
+        right: auto;
+        width: min(100%, calc(100vw - 2rem));
+    }
+}
