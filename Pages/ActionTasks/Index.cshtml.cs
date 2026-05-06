@@ -195,6 +195,15 @@ public class IndexModel : PageModel
             return Page();
         }
 
+        // SECTION: Business validation for due-date discipline
+        if (Input.DueDate.Date < DateTime.UtcNow.Date)
+        {
+            ModelState.AddModelError(nameof(Input.DueDate), "Due date cannot be in the past.");
+            ShowCreateModal = true;
+            await LoadDataAsync();
+            return Page();
+        }
+
         var assignedUser = await _users.FindByIdAsync(Input.AssignedToUserId);
         if (assignedUser is null)
         {
@@ -423,7 +432,7 @@ public class IndexModel : PageModel
         }
 
         // SECTION: Selected detail read-model boundary
-        SelectedTask = _queryService.SelectTask(Tasks, TaskId);
+        SelectedTask = _queryService.SelectTask(readModel.ScopeTasks, TaskId);
         if (SelectedTask is null)
         {
             TaskId = null;
@@ -562,206 +571,6 @@ public class IndexModel : PageModel
     public int ToPercent(int value, int max) =>
         max <= 0 ? 0 : (int)Math.Round((double)value / max * 100);
 
-    private IReadOnlyList<ActionTaskItem> ApplyTaskListFilters(IReadOnlyList<ActionTaskItem> tasks)
-    {
-        var query = tasks.AsEnumerable();
-
-        if (!string.IsNullOrWhiteSpace(FilterStatus))
-        {
-            query = query.Where(t => string.Equals(t.Status, FilterStatus, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (!string.IsNullOrWhiteSpace(FilterPriority))
-        {
-            query = query.Where(t => string.Equals(t.Priority, FilterPriority, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (!string.IsNullOrWhiteSpace(FilterAssigneeUserId))
-        {
-            query = query.Where(t => string.Equals(t.AssignedToUserId, FilterAssigneeUserId, StringComparison.Ordinal));
-        }
-
-        if (FilterDueDate.HasValue)
-        {
-            var dueDate = FilterDueDate.Value.Date;
-            query = query.Where(t => t.DueDate.Date == dueDate);
-        }
-
-        if (!string.IsNullOrWhiteSpace(FilterSearch))
-        {
-            var search = FilterSearch.Trim();
-            query = query.Where(t => t.Title.Contains(search, StringComparison.OrdinalIgnoreCase));
-        }
-        return ApplyTaskListSorting(query).ToList();
-    }
-    // SECTION: Task list sorting after filters.
-    private IEnumerable<ActionTaskItem> ApplyTaskListSorting(IEnumerable<ActionTaskItem> query)
-    {
-        var sortBy = (SortBy ?? "due").Trim().ToLowerInvariant();
-        var descending = string.Equals(SortDir, "desc", StringComparison.OrdinalIgnoreCase);
-        Func<ActionTaskItem, int> statusOrder = task => task.Status switch
-        {
-            ActionTaskStatuses.Assigned => 1,
-            ActionTaskStatuses.InProgress => 2,
-            ActionTaskStatuses.Blocked => 3,
-            ActionTaskStatuses.Submitted => 4,
-            ActionTaskStatuses.Closed => 5,
-            _ => 99
-        };
-        Func<ActionTaskItem, int> priorityOrder = task => task.Priority switch
-        {
-            "Critical" => 1,
-            "High" => 2,
-            "Normal" => 3,
-            "Low" => 4,
-            _ => 99
-        };
-        var ordered = sortBy switch
-        {
-            "title" => descending ? query.OrderByDescending(t => t.Title) : query.OrderBy(t => t.Title),
-            "assignee" => descending ? query.OrderByDescending(t => ResolveAssigneeName(t.AssignedToUserId)) : query.OrderBy(t => ResolveAssigneeName(t.AssignedToUserId)),
-            "status" => descending ? query.OrderByDescending(statusOrder).ThenBy(t => t.DueDate) : query.OrderBy(statusOrder).ThenBy(t => t.DueDate),
-            "priority" => descending ? query.OrderByDescending(priorityOrder).ThenBy(t => t.DueDate) : query.OrderBy(priorityOrder).ThenBy(t => t.DueDate),
-            "id" => descending ? query.OrderByDescending(t => t.Id) : query.OrderBy(t => t.Id),
-            _ => descending ? query.OrderByDescending(t => t.DueDate) : query.OrderBy(t => t.DueDate)
-        };
-        return ordered.ThenBy(t => t.Id);
-    }
-
-    private void BuildDashboardCollections(IReadOnlyList<ActionTaskItem> tasks, IReadOnlyDictionary<int, DateTime?> activityByTaskId)
-    {
-        var utcNow = DateTime.UtcNow;
-
-        CriticalOpenTasks = tasks
-            .Where(t => string.Equals(t.Priority, "Critical", StringComparison.OrdinalIgnoreCase)
-                        && !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(t => t.DueDate)
-            .Take(5)
-            .ToList();
-
-        OverdueTasks = tasks
-            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
-                        && t.DueDate.Date < utcNow.Date)
-            .OrderBy(t => t.DueDate)
-            .Take(5)
-            .ToList();
-
-        RecentlySubmittedTasks = tasks
-            .Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(t => t.SubmittedOn ?? DateTime.MinValue)
-            .Take(5)
-            .ToList();
-
-        // SECTION: Dashboard Recently Updated Projection
-        RecentlyUpdatedTasks = tasks
-            .OrderByDescending(t => ResolveLastActivityUtc(t, activityByTaskId) ?? DateTime.MinValue)
-            .ThenByDescending(t => t.Id)
-            .Take(5)
-            .ToList();
-    }
-
-    // SECTION: Activity Timestamp Derivation
-    private static DateTime? ResolveLastActivityUtc(ActionTaskItem task, IReadOnlyDictionary<int, DateTime?> activityByTaskId)
-    {
-        activityByTaskId.TryGetValue(task.Id, out var activityTimestampUtc);
-        return activityTimestampUtc
-            ?? task.SubmittedOn
-            ?? task.AssignedOn;
-    }
-
-    private void BuildKanbanCollections(IReadOnlyList<ActionTaskItem> tasks)
-    {
-        KanbanAssignedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase)).ToList();
-        KanbanInProgressTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase)).ToList();
-        KanbanBlockedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)).ToList();
-        KanbanSubmittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).ToList();
-        KanbanClosedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)).ToList();
-    }
-
-    private void BuildSprintCollections(IReadOnlyList<ActionTaskItem> tasks)
-    {
-        var utcToday = DateTime.UtcNow.Date;
-        var endOfWeek = utcToday.AddDays(7);
-
-        SprintOverdueTasks = tasks
-            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
-                        && t.DueDate.Date < utcToday)
-            .OrderBy(t => t.DueDate)
-            .ToList();
-
-        DueTodayTasks = tasks
-            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
-                        && t.DueDate.Date == utcToday)
-            .OrderBy(t => t.DueDate)
-            .ToList();
-
-        DueThisWeekTasks = tasks
-            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
-                        && t.DueDate.Date > utcToday
-                        && t.DueDate.Date <= endOfWeek)
-            .OrderBy(t => t.DueDate)
-            .ToList();
-
-        DueLaterTasks = tasks
-            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
-                        && t.DueDate.Date > endOfWeek)
-            .OrderBy(t => t.DueDate)
-            .ToList();
-    }
-
-    private void BuildReportCollections(IReadOnlyList<ActionTaskItem> tasks)
-    {
-        var utcToday = DateTime.UtcNow.Date;
-        var openTasks = tasks
-            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        AssigneePendingCounts = tasks
-            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
-            .GroupBy(t => ResolveAssigneeName(t.AssignedToUserId))
-            .OrderByDescending(group => group.Count())
-            .ThenBy(group => group.Key)
-            .Select(group => new CountSummary(group.Key, group.Count()))
-            .ToList();
-
-        PriorityCounts = tasks
-            .GroupBy(t => t.Priority)
-            .OrderByDescending(group => group.Count())
-            .ThenBy(group => group.Key)
-            .Select(group => new CountSummary(group.Key, group.Count()))
-            .ToList();
-
-        StatusCounts = tasks
-            .GroupBy(t => t.Status)
-            .OrderByDescending(group => group.Count())
-            .ThenBy(group => group.Key)
-            .Select(group => new CountSummary(group.Key, group.Count()))
-            .ToList();
-
-        // SECTION: Open-task ageing buckets for command trend analysis.
-        OpenAgeingBuckets = new[]
-        {
-            new CountSummary("0 to 3 days", openTasks.Count(t => (utcToday - t.AssignedOn.Date).TotalDays is >= 0 and <= 3)),
-            new CountSummary("4 to 7 days", openTasks.Count(t => (utcToday - t.AssignedOn.Date).TotalDays is >= 4 and <= 7)),
-            new CountSummary("8 to 14 days", openTasks.Count(t => (utcToday - t.AssignedOn.Date).TotalDays is >= 8 and <= 14)),
-            new CountSummary("15+ days", openTasks.Count(t => (utcToday - t.AssignedOn.Date).TotalDays >= 15))
-        };
-
-        // SECTION: Overdue ageing buckets for late-task exposure.
-        OverdueAgeingBuckets = new[]
-        {
-            new CountSummary("1 to 3 days overdue", openTasks.Count(t => (utcToday - t.DueDate.Date).TotalDays is >= 1 and <= 3)),
-            new CountSummary("4 to 7 days overdue", openTasks.Count(t => (utcToday - t.DueDate.Date).TotalDays is >= 4 and <= 7)),
-            new CountSummary("8+ days overdue", openTasks.Count(t => (utcToday - t.DueDate.Date).TotalDays >= 8))
-        };
-        var submittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).ToList();
-        SubmittedPendingClosureAgeingBuckets = new[]
-        {
-            new CountSummary("0 to 1 day", submittedTasks.Count(t => (utcToday - (t.SubmittedOn ?? t.AssignedOn).Date).TotalDays is >= 0 and <= 1)),
-            new CountSummary("2 to 3 days", submittedTasks.Count(t => (utcToday - (t.SubmittedOn ?? t.AssignedOn).Date).TotalDays is >= 2 and <= 3)),
-            new CountSummary("4+ days", submittedTasks.Count(t => (utcToday - (t.SubmittedOn ?? t.AssignedOn).Date).TotalDays >= 4))
-        };
-    }
     // SECTION: Report top-attention prioritization.
     private IReadOnlyList<TaskDisplayItem> BuildTopAttentionItems()
     {

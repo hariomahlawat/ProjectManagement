@@ -219,6 +219,11 @@ public class ActionTaskService : IActionTaskService
             throw new InvalidOperationException("Closed tasks cannot be submitted.");
         }
 
+        if (!CanSubmitFromStatus(task.Status))
+        {
+            throw new InvalidOperationException("Only assigned, in-progress, or blocked tasks can be submitted.");
+        }
+
         // SECTION: Remarks validation for submit action
         if (IsBlank(remarks))
         {
@@ -342,6 +347,14 @@ public class ActionTaskService : IActionTaskService
     }
 
     private static bool IsBlank(string? value) => string.IsNullOrWhiteSpace(value);
+
+    // SECTION: Submit workflow guard
+    private static bool CanSubmitFromStatus(string currentStatus)
+    {
+        return string.Equals(currentStatus, ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentStatus, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentStatus, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
+    }
 
     // SECTION: Workflow transition guard
     private static bool IsAllowedTransition(string currentStatus, string nextStatus)
