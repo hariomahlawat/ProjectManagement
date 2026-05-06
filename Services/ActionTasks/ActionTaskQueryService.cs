@@ -21,6 +21,7 @@ public sealed class ActionTaskQueryService
         var taskList = request.IsTaskListView ? ApplyTaskListFilters(tasks, request, assigneeNames).ToList() : tasks;
         var backlogTasks = BuildBacklogTasks(tasks, request, assigneeNames);
         var sprintReadModel = BuildSprintReadModel(tasks, request.Sprints, request.SelectedSprintId, assigneeNames);
+        var activeSprintMetrics = BuildActiveSprintMetrics(tasks, sprintReadModel.ActiveSprint);
 
         return new ActionTaskReadModel
         {
@@ -28,6 +29,7 @@ public sealed class ActionTaskQueryService
             TaskListTasks = taskList,
             BacklogTasks = backlogTasks,
             SprintReadModel = sprintReadModel,
+            ActiveSprintMetrics = activeSprintMetrics,
             CriticalOpenTasks = tasks.Where(t => IsCriticalOpen(t)).OrderBy(t => t.DueDate).Take(5).ToList(),
             OverdueTasks = tasks.Where(t => IsOpen(t) && t.DueDate.Date < DateTime.UtcNow.Date).OrderBy(t => t.DueDate).Take(5).ToList(),
             RecentlySubmittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).OrderByDescending(t => t.SubmittedOn ?? DateTime.MinValue).Take(5).ToList(),
@@ -92,7 +94,10 @@ public sealed class ActionTaskQueryService
             BacklogTasks = backlogTasks,
             Summary = selectedSprint is null
                 ? ActionSprintSummary.Empty
-                : BuildSprintSummary(selectedSprint, selectedTasks, backlogTasks.Count, assigneeNames)
+                : BuildSprintSummary(selectedSprint, selectedTasks, backlogTasks.Count, assigneeNames),
+            ClosureReview = selectedSprint is null
+                ? ActionSprintClosureReview.Empty
+                : BuildClosureReview(selectedSprint, selectedTasks, orderedSprints)
         };
     }
 
@@ -119,6 +124,67 @@ public sealed class ActionTaskQueryService
             SubmittedCount = submittedTasks,
             BacklogCount = backlogCount,
             AssigneeCount = assigneeCount
+        };
+    }
+
+    // SECTION: Closure review read model for explicit end-of-sprint disposition.
+    private static ActionSprintClosureReview BuildClosureReview(ActionSprint sprint, IReadOnlyList<ActionTaskItem> sprintTasks, IReadOnlyList<ActionSprint> sprints)
+    {
+        var unfinishedTasks = sprintTasks.Where(IsOpen).OrderBy(t => StatusOrder(t)).ThenBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
+        var targetOptions = sprints
+            .Where(s => s.Id != sprint.Id && s.Status != ActionSprintStatus.Closed)
+            .OrderBy(s => s.StartDate)
+            .ThenBy(s => s.Id)
+            .ToList();
+
+        return new ActionSprintClosureReview
+        {
+            SprintId = sprint.Id,
+            CanCloseDirectly = sprint.Status == ActionSprintStatus.Active && unfinishedTasks.Count == 0,
+            CompletedTasks = sprintTasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList(),
+            UnfinishedTasks = unfinishedTasks,
+            BlockedTasks = sprintTasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList(),
+            SubmittedPendingClosureTasks = sprintTasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).OrderBy(t => t.SubmittedOn ?? t.DueDate).ThenBy(t => t.Id).ToList(),
+            TargetSprintOptions = targetOptions,
+            RecommendedDispositionOptions = BuildRecommendedDispositionOptions(unfinishedTasks, targetOptions)
+        };
+    }
+
+    private static IReadOnlyList<string> BuildRecommendedDispositionOptions(IReadOnlyList<ActionTaskItem> unfinishedTasks, IReadOnlyList<ActionSprint> targetOptions)
+    {
+        if (unfinishedTasks.Count == 0)
+        {
+            return new[] { "Close sprint after recording closure remarks." };
+        }
+
+        var options = new List<string> { "Move unfinished tasks with continuing operational value to the next open sprint.", "Move deferred or unscheduled tasks to backlog." };
+        if (targetOptions.Count == 0)
+        {
+            options.Add("Create or reopen a planned sprint before carrying tasks forward.");
+        }
+
+        return options;
+    }
+
+    // SECTION: Active sprint dashboard metrics scoped to operational task health.
+    private static ActiveSprintOperationalMetrics BuildActiveSprintMetrics(IReadOnlyList<ActionTaskItem> tasks, ActionSprint? activeSprint)
+    {
+        var activeSprintTasks = activeSprint is null
+            ? new List<ActionTaskItem>()
+            : tasks.Where(t => t.SprintId == activeSprint.Id).ToList();
+        var today = DateTime.UtcNow.Date;
+
+        return new ActiveSprintOperationalMetrics
+        {
+            ActiveSprintName = activeSprint?.Name,
+            ActiveSprintDateRange = activeSprint is null ? null : $"{activeSprint.StartDate:dd MMM yyyy} – {activeSprint.EndDate:dd MMM yyyy}",
+            TotalTasks = activeSprintTasks.Count,
+            CompletedTasks = activeSprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)),
+            InProgressTasks = activeSprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase)),
+            BlockedTasks = activeSprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)),
+            OverdueTasks = activeSprintTasks.Count(t => IsOpen(t) && t.DueDate.Date < today),
+            BacklogTasks = tasks.Count(t => t.SprintId is null),
+            CarryForwardCandidateTasks = activeSprintTasks.Count(t => IsOpen(t))
         };
     }
 
@@ -211,6 +277,7 @@ public sealed class ActionTaskQueryService
         public IReadOnlyList<ActionTaskItem> TaskListTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> BacklogTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public ActionSprintReadModel SprintReadModel { get; init; } = new();
+        public ActiveSprintOperationalMetrics ActiveSprintMetrics { get; init; } = ActiveSprintOperationalMetrics.Empty;
         public IReadOnlyList<ActionTaskItem> CriticalOpenTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> OverdueTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> RecentlySubmittedTasks { get; init; } = Array.Empty<ActionTaskItem>();
@@ -240,6 +307,7 @@ public sealed class ActionTaskQueryService
         public IReadOnlyList<ActionTaskItem> SelectedSprintTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> BacklogTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public ActionSprintSummary Summary { get; init; } = ActionSprintSummary.Empty;
+        public ActionSprintClosureReview ClosureReview { get; init; } = ActionSprintClosureReview.Empty;
     }
 
     public sealed class ActionSprintSummary
@@ -257,6 +325,33 @@ public sealed class ActionTaskQueryService
         public int SubmittedCount { get; init; }
         public int BacklogCount { get; init; }
         public int AssigneeCount { get; init; }
+    }
+
+    public sealed class ActionSprintClosureReview
+    {
+        public static ActionSprintClosureReview Empty { get; } = new();
+        public int? SprintId { get; init; }
+        public bool CanCloseDirectly { get; init; }
+        public IReadOnlyList<ActionTaskItem> CompletedTasks { get; init; } = Array.Empty<ActionTaskItem>();
+        public IReadOnlyList<ActionTaskItem> UnfinishedTasks { get; init; } = Array.Empty<ActionTaskItem>();
+        public IReadOnlyList<ActionTaskItem> BlockedTasks { get; init; } = Array.Empty<ActionTaskItem>();
+        public IReadOnlyList<ActionTaskItem> SubmittedPendingClosureTasks { get; init; } = Array.Empty<ActionTaskItem>();
+        public IReadOnlyList<ActionSprint> TargetSprintOptions { get; init; } = Array.Empty<ActionSprint>();
+        public IReadOnlyList<string> RecommendedDispositionOptions { get; init; } = Array.Empty<string>();
+    }
+
+    public sealed class ActiveSprintOperationalMetrics
+    {
+        public static ActiveSprintOperationalMetrics Empty { get; } = new();
+        public string? ActiveSprintName { get; init; }
+        public string? ActiveSprintDateRange { get; init; }
+        public int TotalTasks { get; init; }
+        public int CompletedTasks { get; init; }
+        public int InProgressTasks { get; init; }
+        public int BlockedTasks { get; init; }
+        public int OverdueTasks { get; init; }
+        public int BacklogTasks { get; init; }
+        public int CarryForwardCandidateTasks { get; init; }
     }
 
     public sealed class ActionTaskReportReadModel

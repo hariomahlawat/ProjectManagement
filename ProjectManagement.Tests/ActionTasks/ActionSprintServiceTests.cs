@@ -308,6 +308,87 @@ public class ActionSprintServiceTests
         Assert.Contains("not authorized", ex.Message.ToLowerInvariant());
     }
 
+
+    [Fact]
+    public async Task CloseSprintAsync_WithUnfinishedTasks_RequiresClosureReview()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.Comdt);
+        await service.ActivateSprintAsync(sprint.Id, sprint.RowVersion, "planner", RoleNames.Comdt);
+        var task = await SeedTaskAsync(db);
+        await service.AssignTaskToSprintAsync(task.Id, sprint.Id, "planner", RoleNames.Comdt);
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CloseSprintAsync(sprint.Id, sprint.RowVersion, "planner", RoleNames.Comdt));
+        Assert.Contains("closure review", ex.Message.ToLowerInvariant());
+    }
+
+    [Fact]
+    public async Task CloseSprintWithDispositionAsync_CarriesForwardSelectedTaskWithoutCloningAndAuditsMove()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var source = await service.CreateSprintAsync(NewSprint("Source"), "planner", RoleNames.Comdt);
+        var target = await service.CreateSprintAsync(NewSprint("Next", 15, 30), "planner", RoleNames.Comdt);
+        await service.ActivateSprintAsync(source.Id, source.RowVersion, "planner", RoleNames.Comdt);
+        var task = await SeedTaskAsync(db);
+        await service.AssignTaskToSprintAsync(task.Id, source.Id, "planner", RoleNames.Comdt);
+
+        // SECTION: Act
+        await service.CloseSprintWithDispositionAsync(source.Id, source.RowVersion, new[] { task.Id }, target.Id, Array.Empty<int>(), "Continue next cycle", "planner", RoleNames.Comdt);
+
+        // SECTION: Assert
+        var movedTask = await db.ActionTasks.SingleAsync(t => t.Id == task.Id);
+        Assert.Equal(target.Id, movedTask.SprintId);
+        Assert.Equal(1, await db.ActionTasks.CountAsync());
+        Assert.Contains(await db.ActionTaskAuditLogs.ToListAsync(), x => x.TaskId == task.Id && x.ActionType == "TaskCarriedForward");
+        Assert.Contains(await db.ActionSprintAuditLogs.ToListAsync(), x => x.SprintId == source.Id && x.ActionType == "SprintClosed" && x.Remarks!.Contains("Carried forward: 1"));
+    }
+
+    [Fact]
+    public async Task CloseSprintWithDispositionAsync_MovesSelectedTaskToBacklog()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var source = await service.CreateSprintAsync(NewSprint("Source"), "planner", RoleNames.HoD);
+        await service.ActivateSprintAsync(source.Id, source.RowVersion, "planner", RoleNames.HoD);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Blocked);
+        await service.AssignTaskToSprintAsync(task.Id, source.Id, "planner", RoleNames.HoD);
+
+        // SECTION: Act
+        await service.CloseSprintWithDispositionAsync(source.Id, source.RowVersion, Array.Empty<int>(), null, new[] { task.Id }, "Return to backlog", "planner", RoleNames.HoD);
+
+        // SECTION: Assert
+        var movedTask = await db.ActionTasks.SingleAsync(t => t.Id == task.Id);
+        Assert.Null(movedTask.SprintId);
+        Assert.Contains(await db.ActionTaskAuditLogs.ToListAsync(), x => x.TaskId == task.Id && x.ActionType == "TaskRemovedFromSprint");
+    }
+
+    [Fact]
+    public async Task CloseSprintWithDispositionAsync_RejectsMovementIntoClosedSprint()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var source = await service.CreateSprintAsync(NewSprint("Source"), "planner", RoleNames.Comdt);
+        var target = await service.CreateSprintAsync(NewSprint("Closed Target", 15, 30), "planner", RoleNames.Comdt);
+        await service.ActivateSprintAsync(target.Id, target.RowVersion, "planner", RoleNames.Comdt);
+        await service.CloseSprintAsync(target.Id, target.RowVersion, "planner", RoleNames.Comdt);
+        await service.ActivateSprintAsync(source.Id, source.RowVersion, "planner", RoleNames.Comdt);
+        var task = await SeedTaskAsync(db);
+        await service.AssignTaskToSprintAsync(task.Id, source.Id, "planner", RoleNames.Comdt);
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CloseSprintWithDispositionAsync(source.Id, source.RowVersion, new[] { task.Id }, target.Id, Array.Empty<int>(), "Invalid carry", "planner", RoleNames.Comdt));
+        Assert.Contains("closed sprint", ex.Message.ToLowerInvariant());
+    }
+
     // SECTION: Test helpers
     private static ActionSprintService CreateService(ApplicationDbContext db)
         => new(db, new ActionTaskPermissionService(), new ActionSprintWorkflowPolicy());

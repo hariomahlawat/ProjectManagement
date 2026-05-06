@@ -46,4 +46,18 @@ public class ActionSprintWorkflowPolicy
             throw new InvalidOperationException("Tasks cannot be assigned to a closed sprint.");
         }
     }
+
+    public void EnsureCanCarryForward(ActionSprint sourceSprint, ActionSprint targetSprint)
+    {
+        EnsureCanClose(sourceSprint);
+        if (targetSprint.Id == sourceSprint.Id)
+        {
+            throw new InvalidOperationException("Carry-forward target sprint must be different from the sprint being closed.");
+        }
+
+        if (targetSprint.Status == ActionSprintStatus.Closed)
+        {
+            throw new InvalidOperationException("Tasks cannot be carried forward into a closed sprint.");
+        }
+    }
 }

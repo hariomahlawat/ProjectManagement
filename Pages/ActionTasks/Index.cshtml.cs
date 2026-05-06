@@ -57,6 +57,8 @@ public class IndexModel : PageModel
     public ActionSprint? ActiveSprint { get; private set; }
     public ActionSprint? SelectedSprint { get; private set; }
     public ActionTaskQueryService.ActionSprintSummary SprintSummary { get; private set; } = ActionTaskQueryService.ActionSprintSummary.Empty;
+    public ActionTaskQueryService.ActionSprintClosureReview SprintClosureReview { get; private set; } = ActionTaskQueryService.ActionSprintClosureReview.Empty;
+    public ActionTaskQueryService.ActiveSprintOperationalMetrics ActiveSprintMetrics { get; private set; } = ActionTaskQueryService.ActiveSprintOperationalMetrics.Empty;
     public IReadOnlyList<ActionTaskAuditLog> SelectedTaskLogs { get; private set; } = Array.Empty<ActionTaskAuditLog>();
     public IReadOnlyList<ActionTaskUpdate> SelectedTaskUpdates { get; private set; } = Array.Empty<ActionTaskUpdate>();
     public IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>> UpdateAttachments { get; private set; } = new Dictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>();
@@ -107,6 +109,9 @@ public class IndexModel : PageModel
     [BindProperty]
     public AddTaskUpdateInput UpdateInput { get; set; } = new();
 
+    [BindProperty]
+    public SprintClosureInput ClosureInput { get; set; } = new();
+
     // SECTION: UI state projections
     public bool CanCreate => _permission.CanCreate(CurrentRole);
     public bool CanClose => _permission.CanClose(CurrentRole);
@@ -146,6 +151,7 @@ public class IndexModel : PageModel
     public IReadOnlyList<string> AllowedStatusOptions => _workflowPolicy.AllowedStatusOptions;
     public bool CanPlanSprints => _permission.CanManageSprints(CurrentRole);
     public IReadOnlyList<ActionSprint> AssignableSprints => Sprints.Where(s => s.Status != ActionSprintStatus.Closed).ToList();
+    public IReadOnlyList<ActionSprint> ClosureTargetSprints => SprintClosureReview.TargetSprintOptions;
 
     // SECTION: Sprint planning visibility helpers for lifecycle-aware UI actions.
     public bool CanAssignTaskToSprint(ActionTaskItem task)
@@ -166,6 +172,11 @@ public class IndexModel : PageModel
         CanPlanSprints
         && SelectedSprint is not null
         && SelectedSprint.Status != ActionSprintStatus.Closed;
+
+    public bool CanReviewSprintClosure =>
+        CanPlanSprints
+        && SelectedSprint is not null
+        && SelectedSprint.Status == ActionSprintStatus.Active;
 
     // SECTION: Selected-task projection helper
     public bool IsSelectedTask(ActionTaskItem task)
@@ -444,6 +455,35 @@ public class IndexModel : PageModel
         return RedirectToPage(new { ViewMode = ResolveViewMode(), TaskId = id, SelectedSprintId });
     }
 
+    // SECTION: Close active sprint after explicit closure review disposition.
+    public async Task<IActionResult> OnPostCloseSprintWithDispositionAsync()
+    {
+        await ResolveIdentityAsync();
+        try
+        {
+            await _sprintService.CloseSprintWithDispositionAsync(
+                ClosureInput.SprintId,
+                DecodeRowVersion(ClosureInput.RowVersion),
+                ClosureInput.CarryForwardTaskIds,
+                ClosureInput.TargetSprintId,
+                ClosureInput.BacklogTaskIds,
+                ClosureInput.Remarks,
+                CurrentUserId,
+                CurrentRole);
+            TempData["ToastMessage"] = "Sprint closed after closure review.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
+        return RedirectToPage(new { ViewMode = "Sprints", SelectedSprintId = ClosureInput.SprintId });
+    }
+
     // SECTION: Post task progress update with optional attachments
     public async Task<IActionResult> OnPostAddUpdateAsync()
     {
@@ -519,6 +559,8 @@ public class IndexModel : PageModel
         SelectedSprint = readModel.SprintReadModel.SelectedSprint;
         SelectedSprintId = SelectedSprint?.Id ?? SelectedSprintId;
         SprintSummary = readModel.SprintReadModel.Summary;
+        SprintClosureReview = readModel.SprintReadModel.ClosureReview;
+        ActiveSprintMetrics = readModel.ActiveSprintMetrics;
         DueTodayTasks = readModel.DueBuckets.Today;
         DueThisWeekTasks = readModel.DueBuckets.ThisWeek;
         DueLaterTasks = readModel.DueBuckets.Later;
@@ -909,6 +951,24 @@ public class IndexModel : PageModel
 
         [Required, StringLength(24)]
         public string Priority { get; set; } = "Normal";
+    }
+
+    public sealed class SprintClosureInput
+    {
+        [Required]
+        public int SprintId { get; set; }
+
+        [Required]
+        public string RowVersion { get; set; } = string.Empty;
+
+        public int? TargetSprintId { get; set; }
+
+        public List<int> CarryForwardTaskIds { get; set; } = new();
+
+        public List<int> BacklogTaskIds { get; set; } = new();
+
+        [Required, StringLength(2000)]
+        public string Remarks { get; set; } = string.Empty;
     }
 
     public sealed class AddTaskUpdateInput
