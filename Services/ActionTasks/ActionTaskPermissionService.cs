@@ -6,12 +6,21 @@ namespace ProjectManagement.Services.ActionTasks;
 
 public class ActionTaskPermissionService
 {
-    private static readonly string[] AssignmentTargets =
+    private static readonly string[] ComdtAssignmentTargets =
     {
         RoleNames.HoD,
         RoleNames.ProjectOfficer,
         RoleNames.Mco,
-        RoleNames.Ta
+        RoleNames.Ta,
+        RoleNames.Ito
+    };
+
+    private static readonly string[] HoDAssignmentTargets =
+    {
+        RoleNames.ProjectOfficer,
+        RoleNames.Mco,
+        RoleNames.Ta,
+        RoleNames.Ito
     };
 
     // SECTION: Role capability checks
@@ -20,16 +29,27 @@ public class ActionTaskPermissionService
 
     public bool CanAssign(string assignerRole, string assigneeRole)
     {
-        if (assignerRole != RoleNames.Comdt && assignerRole != RoleNames.HoD)
+        if (string.Equals(assignerRole, RoleNames.Comdt, StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            return ComdtAssignmentTargets.Contains(assigneeRole, StringComparer.OrdinalIgnoreCase);
         }
 
-        return AssignmentTargets.Contains(assigneeRole, StringComparer.OrdinalIgnoreCase);
+        if (string.Equals(assignerRole, RoleNames.HoD, StringComparison.OrdinalIgnoreCase))
+        {
+            return HoDAssignmentTargets.Contains(assigneeRole, StringComparer.OrdinalIgnoreCase);
+        }
+
+        return false;
     }
 
     public bool CanClose(string role)
         => role == RoleNames.Comdt || role == RoleNames.HoD;
+
+    public bool CanManageSprints(string role)
+        => role == RoleNames.Comdt || role == RoleNames.HoD;
+
+    public bool CanMoveTasksInSprint(string role)
+        => CanManageSprints(role);
 
     public bool CanViewAll(string role)
         => role == RoleNames.Comdt || role == RoleNames.HoD;
@@ -53,5 +73,5 @@ public class ActionTaskPermissionService
         => CanViewAll(role) || string.Equals(currentUserId, ownerUserId, StringComparison.Ordinal);
 
     public bool CanSubmit(string role)
-        => role is RoleNames.Comdt or RoleNames.HoD or RoleNames.ProjectOfficer or RoleNames.Mco or RoleNames.Ta;
+        => role is RoleNames.Comdt or RoleNames.HoD or RoleNames.ProjectOfficer or RoleNames.Mco or RoleNames.Ta or RoleNames.Ito;
 }

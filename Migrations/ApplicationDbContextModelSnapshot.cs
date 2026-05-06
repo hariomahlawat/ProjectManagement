@@ -2232,6 +2232,80 @@ namespace ProjectManagement.Migrations
                     b.ToTable("ActionTaskAuditLogs");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ActionSprint", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ActivatedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("ClosedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("CreatedByRole")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Goal")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("UpdatedByRole")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("StartDate", "EndDate");
+
+                    b.ToTable("ActionSprints");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ActionTaskItem", b =>
                 {
                     b.Property<int>("Id")
@@ -2289,6 +2363,9 @@ namespace ProjectManagement.Migrations
                         .IsRequired()
                         .HasColumnType("bytea");
 
+                    b.Property<int?>("SprintId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -2305,6 +2382,8 @@ namespace ProjectManagement.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("IsDeleted");
+
+                    b.HasIndex("SprintId");
 
                     b.HasIndex("AssignedToUserId", "Status");
 
@@ -6596,6 +6675,11 @@ namespace ProjectManagement.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ActionSprint", b =>
+                {
+                    b.Navigation("Tasks");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ActionTaskAuditLog", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ActionTaskItem", "Task")
@@ -6605,6 +6689,16 @@ namespace ProjectManagement.Migrations
                         .IsRequired();
 
                     b.Navigation("Task");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ActionTaskItem", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ActionSprint", "Sprint")
+                        .WithMany("Tasks")
+                        .HasForeignKey("SprintId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Sprint");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ActionTaskUpdate", b =>
