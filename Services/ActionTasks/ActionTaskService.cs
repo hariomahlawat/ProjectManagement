@@ -84,10 +84,26 @@ public class ActionTaskService : IActionTaskService
         {
             updateActivity.TryGetValue(taskId, out var lastUpdateUtc);
             auditActivity.TryGetValue(taskId, out var lastAuditUtc);
-            result[taskId] = lastUpdateUtc ?? lastAuditUtc;
+
+            result[taskId] = MaxNullableUtc(lastUpdateUtc, lastAuditUtc);
         }
 
         return result;
+    }
+
+    private static DateTime? MaxNullableUtc(DateTime? firstUtc, DateTime? secondUtc)
+    {
+        if (!firstUtc.HasValue)
+        {
+            return secondUtc;
+        }
+
+        if (!secondUtc.HasValue)
+        {
+            return firstUtc;
+        }
+
+        return firstUtc.Value >= secondUtc.Value ? firstUtc : secondUtc;
     }
 
     // SECTION: Task mutation APIs
