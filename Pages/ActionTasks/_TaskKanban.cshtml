@@ -1,31 +1,69 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Planning Board Kanban is an alternate review toggle, not the default primary work mode. *@
-<details class="at-panel at-planning-secondary-view at-planning-kanban-view">
-    <summary>
-        <span>Kanban Alternate View</span>
-        <span class="at-count-chip">@(Model.KanbanAssignedTaskDisplays.Count + Model.KanbanInProgressTaskDisplays.Count + Model.KanbanBlockedTaskDisplays.Count + Model.KanbanSubmittedTaskDisplays.Count + Model.KanbanClosedTaskDisplays.Count)</span>
-    </summary>
-    <div class="at-board-grid is-kanban at-planning-secondary-grid" aria-label="Planning Board Kanban alternate view">
-        <article class="at-panel at-board-column">
-            <div class="at-panel-heading"><h2>Assigned</h2><span class="at-count-chip">@Model.KanbanAssignedTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanAssignedTaskDisplays, "No assigned tasks.", true)' />
-        </article>
-        <article class="at-panel at-board-column">
-            <div class="at-panel-heading"><h2>In Progress</h2><span class="at-count-chip">@Model.KanbanInProgressTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanInProgressTaskDisplays, "No in progress tasks.", true)' />
-        </article>
-        <article class="at-panel at-board-column">
-            <div class="at-panel-heading"><h2>Blocked</h2><span class="at-count-chip">@Model.KanbanBlockedTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanBlockedTaskDisplays, "No blocked tasks.", true)' />
-        </article>
-        <article class="at-panel at-board-column">
-            <div class="at-panel-heading"><h2>Submitted</h2><span class="at-count-chip">@Model.KanbanSubmittedTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanSubmittedTaskDisplays, "No submitted tasks.", true)' />
-        </article>
-        <article class="at-panel at-board-column">
-            <div class="at-panel-heading"><h2>Closed</h2><span class="at-count-chip">@Model.KanbanClosedTaskDisplays.Count</span></div>
-            <partial name="_TaskCards" model='@Tuple.Create(Model, Model.KanbanClosedTaskDisplays, "No closed tasks.", true)' />
-        </article>
+@{
+    // SECTION: Kanban is scoped to the Planning Board view toggle and is not a primary navigation mode.
+    var isKanbanPlanningView = string.Equals(Context.Request.Query["PlanningView"].ToString(), "Kanban", StringComparison.OrdinalIgnoreCase);
+    var kanbanColumns = new[]
+    {
+        (Title: "Assigned", Tasks: Model.KanbanAssignedTaskDisplays, EmptyMessage: "No assigned tasks."),
+        (Title: "In Progress", Tasks: Model.KanbanInProgressTaskDisplays, EmptyMessage: "No in progress tasks."),
+        (Title: "Blocked", Tasks: Model.KanbanBlockedTaskDisplays, EmptyMessage: "No blocked tasks."),
+        (Title: "Submitted", Tasks: Model.KanbanSubmittedTaskDisplays, EmptyMessage: "No submitted tasks."),
+        (Title: "Closed", Tasks: Model.KanbanClosedTaskDisplays, EmptyMessage: "No closed tasks.")
+    };
+    var kanbanTaskCount = kanbanColumns.Sum(column => column.Tasks.Count);
+}
+
+@if (isKanbanPlanningView)
+{
+@* SECTION: Planning Board Kanban preserves existing workflow-status grouping without introducing a top-level Kanban mode. *@
+<section class="at-panel at-planning-secondary-view at-planning-kanban-view" aria-labelledby="planning-kanban-heading">
+    <div class="at-panel-heading">
+        <div>
+            <div class="at-section-eyebrow">Planning Board</div>
+            <h2 id="planning-kanban-heading">Kanban</h2>
+        </div>
+        <span class="at-count-chip">@kanbanTaskCount</span>
     </div>
-</details>
+
+    @* SECTION: Existing Kanban columns continue to group tasks by current workflow status names. *@
+    <div class="at-board-grid is-kanban at-planning-secondary-grid" aria-label="Planning Board Kanban alternate view">
+        @foreach (var column in kanbanColumns)
+        {
+            <article class="at-panel at-board-column">
+                <div class="at-panel-heading"><h2>@column.Title</h2><span class="at-count-chip">@column.Tasks.Count</span></div>
+                @if (!column.Tasks.Any())
+                {
+                    <p class="at-empty-inline">@column.EmptyMessage</p>
+                }
+                else
+                {
+                    <div class="at-task-cards">
+                        @foreach (var item in column.Tasks)
+                        {
+                            var task = item.Task;
+                            <article class="at-task-card @(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)">
+                                <a class="at-task-card-link"
+                                   asp-page="/ActionTasks/Index"
+                                   asp-route-taskId="@task.Id"
+                                   asp-route-viewMode="Planning"
+                                   asp-route-PlanningView="Kanban"
+                                   asp-route-SelectedSprintId="@Model.SelectedSprintId"
+                                   aria-label="Open task AT-@task.Id details">
+                                    <div class="at-card-top-row">
+                                        <h3 class="at-card-subject">@task.Title</h3>
+                                        <span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
+                                    </div>
+                                    <div class="at-card-meta">AT-@task.Id · @item.AssigneeName</div>
+                                    <div class="at-card-due">Due @task.DueDate.ToString("dd MMM yyyy")</div>
+                                    <div class="mt-1"><span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span></div>
+                                </a>
+                            </article>
+                        }
+                    </div>
+                }
+            </article>
+        }
+    </div>
+</section>
+}
