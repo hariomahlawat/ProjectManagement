@@ -138,6 +138,63 @@
         });
     }
 
+    // SECTION: Reports filter auto-apply keeps management analysis low-friction.
+    function initReportsFilters() {
+        const form = document.querySelector("[data-at-reports-filter-form='true']");
+        if (!form) {
+            return;
+        }
+
+        let isSubmitting = false;
+        const loadingIndicator = form.querySelector("[data-at-reports-filter-loading='true']");
+
+        function showLoadingState() {
+            form.classList.add("is-loading");
+            form.setAttribute("aria-busy", "true");
+            if (loadingIndicator) {
+                loadingIndicator.classList.add("is-visible");
+            }
+        }
+
+        function submitReportsFilters() {
+            if (isSubmitting) {
+                return;
+            }
+
+            isSubmitting = true;
+            showLoadingState();
+            if (typeof form.requestSubmit === "function") {
+                form.requestSubmit();
+                return;
+            }
+
+            form.submit();
+        }
+
+        const dropdownControls = form.querySelectorAll("select[data-at-reports-filter-control='true']");
+        dropdownControls.forEach((control) => {
+            control.addEventListener("change", submitReportsFilters);
+        });
+
+        const dateControls = form.querySelectorAll("input[data-at-reports-date-filter='true']");
+        dateControls.forEach((control) => {
+            let lastAppliedValue = control.value || "";
+
+            function applyDateFilter() {
+                const currentValue = control.value || "";
+                if (currentValue === lastAppliedValue) {
+                    return;
+                }
+
+                lastAppliedValue = currentValue;
+                submitReportsFilters();
+            }
+
+            control.addEventListener("change", applyDateFilter);
+            control.addEventListener("blur", applyDateFilter);
+        });
+    }
+
     // SECTION: Sprint selector opens selected sprint through safe GET navigation.
     function initSprintSelector() {
         const form = document.querySelector("[data-at-sprint-selector='true']");
@@ -242,6 +299,7 @@
         initSearchableSelects();
         initStatusUpdateGuard();
         initTaskRegisterFilters();
+        initReportsFilters();
         initSprintSelector();
         initSprintClosureReview();
         initInspectorActionPanels();

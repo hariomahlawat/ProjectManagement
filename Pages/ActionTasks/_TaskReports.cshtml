@@ -20,7 +20,7 @@
 
 @* SECTION: Compact reports filter bar for management analysis. *@
 <section class="at-section-group">
-    <form method="get" class="at-panel at-reports-filter-panel" aria-label="Reports filters">
+    <form method="get" class="at-panel at-reports-filter-panel" aria-label="Reports filters" data-at-reports-filter-form="true">
         <input type="hidden" name="ViewMode" value="Reports" />
         <div class="at-reports-filter-heading">
             <div>
@@ -32,7 +32,7 @@
         <div class="at-reports-filter-grid">
             <label>
                 <span>Sprint</span>
-                <select class="form-select form-select-sm" name="ReportSprintId">
+                <select class="form-select form-select-sm" name="ReportSprintId" data-at-reports-filter-control="true">
                     <option value="">All Sprints &amp; Backlog</option>
                     @if (Model.ReportSprintId == 0)
                     {
@@ -57,7 +57,7 @@
             </label>
             <label>
                 <span>Responsible Person</span>
-                <select class="form-select form-select-sm" name="ReportAssigneeUserId">
+                <select class="form-select form-select-sm" name="ReportAssigneeUserId" data-at-reports-filter-control="true">
                     <option value="">All people</option>
                     @foreach (var user in Model.AssignableUsers)
                     {
@@ -74,15 +74,15 @@
             </label>
             <label>
                 <span>From</span>
-                <input class="form-control form-control-sm" type="date" name="ReportFromDate" value="@reportFromDateValue" />
+                <input class="form-control form-control-sm" type="date" name="ReportFromDate" value="@reportFromDateValue" data-at-reports-date-filter="true" />
             </label>
             <label>
                 <span>To</span>
-                <input class="form-control form-control-sm" type="date" name="ReportToDate" value="@reportToDateValue" />
+                <input class="form-control form-control-sm" type="date" name="ReportToDate" value="@reportToDateValue" data-at-reports-date-filter="true" />
             </label>
             <label>
                 <span>Status</span>
-                <select class="form-select form-select-sm" name="ReportStatus">
+                <select class="form-select form-select-sm" name="ReportStatus" data-at-reports-filter-control="true">
                     <option value="">All statuses</option>
                     @foreach (var status in Model.AllowedStatusOptions)
                     {
@@ -99,7 +99,7 @@
             </label>
             <label>
                 <span>Priority</span>
-                <select class="form-select form-select-sm" name="ReportPriority">
+                <select class="form-select form-select-sm" name="ReportPriority" data-at-reports-filter-control="true">
                     <option value="">All priorities</option>
                     @foreach (var priority in Model.PriorityOptions)
                     {
@@ -116,7 +116,10 @@
             </label>
         </div>
         <div class="at-reports-filter-actions">
-            <button type="submit" class="btn btn-sm btn-primary">Apply filters</button>
+            <span class="at-reports-filter-loading" data-at-reports-filter-loading="true" role="status" aria-live="polite">
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <span>Updating reports...</span>
+            </span>
             <a class="btn btn-sm btn-outline-secondary" asp-page="/ActionTasks/Index" asp-route-viewMode="Reports">Reset / Clear all</a>
         </div>
     </form>
