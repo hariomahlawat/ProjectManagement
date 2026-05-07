@@ -388,6 +388,8 @@ builder.Services.AddScoped<ActionTaskPermissionService>();
 builder.Services.AddScoped<ActionTaskReportBuilder>();
 builder.Services.AddScoped<ActionTaskRouteStateHelper>();
 builder.Services.AddScoped<ActionTaskDisplayBuilder>();
+builder.Services.AddScoped<ActionTaskMyWorkBuilder>();
+builder.Services.AddScoped<ActionTaskCommandCentreBuilder>();
 builder.Services.AddScoped<ActionTaskQueryService>();
 builder.Services.AddScoped<ActionTaskWorkspaceBuilder>();
 builder.Services.AddScoped<ActionTaskWorkflowPolicy>();

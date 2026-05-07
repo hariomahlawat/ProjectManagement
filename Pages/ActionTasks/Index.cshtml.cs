@@ -29,10 +29,12 @@ public class IndexModel : PageModel
     private readonly ActionTaskWorkflowPolicy _workflowPolicy;
     private readonly ActionTaskRouteStateHelper _routeStateHelper;
     private readonly ActionTaskDisplayBuilder _displayBuilder;
+    private readonly ActionTaskMyWorkBuilder _myWorkBuilder;
+    private readonly ActionTaskCommandCentreBuilder _commandCentreBuilder;
     private readonly IActionTrackerClock _clock;
     private readonly UserManager<ApplicationUser> _users;
 
-    public IndexModel(IActionTaskService service, IActionTaskCollaborationService collaborationService, ActionTaskPermissionService permission, ActionSprintService sprintService, ActionTaskQueryService queryService, ActionTaskWorkspaceBuilder workspaceBuilder, ActionTaskWorkflowPolicy workflowPolicy, ActionTaskRouteStateHelper routeStateHelper, ActionTaskDisplayBuilder displayBuilder, IActionTrackerClock clock, UserManager<ApplicationUser> users)
+    public IndexModel(IActionTaskService service, IActionTaskCollaborationService collaborationService, ActionTaskPermissionService permission, ActionSprintService sprintService, ActionTaskQueryService queryService, ActionTaskWorkspaceBuilder workspaceBuilder, ActionTaskWorkflowPolicy workflowPolicy, ActionTaskRouteStateHelper routeStateHelper, ActionTaskDisplayBuilder displayBuilder, ActionTaskMyWorkBuilder myWorkBuilder, ActionTaskCommandCentreBuilder commandCentreBuilder, IActionTrackerClock clock, UserManager<ApplicationUser> users)
     {
         _service = service;
         _collaborationService = collaborationService;
@@ -43,6 +45,8 @@ public class IndexModel : PageModel
         _workflowPolicy = workflowPolicy;
         _routeStateHelper = routeStateHelper;
         _displayBuilder = displayBuilder;
+        _myWorkBuilder = myWorkBuilder;
+        _commandCentreBuilder = commandCentreBuilder;
         _clock = clock;
         _users = users;
         Input.DueDate = _clock.UtcToday.AddDays(7);
@@ -88,6 +92,8 @@ public class IndexModel : PageModel
     public IReadOnlyList<CountSummary> BacklogAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> CarryForwardBySprint { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> BlockedAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
+    public ActionTaskMyWorkQueues MyWorkQueues { get; private set; } = ActionTaskMyWorkQueues.Empty;
+    public ActionTaskCommandCentreSummary CommandCentreSummary { get; private set; } = ActionTaskCommandCentreSummary.Empty;
     public int ReportFilteredTaskCount { get; private set; }
     public int ReportTotalTaskCount { get; private set; }
 
@@ -816,6 +822,8 @@ public class IndexModel : PageModel
         PrepareSprintForms();
         await LoadSprintAuditHistoryAsync();
         ActiveSprintMetrics = readModel.ActiveSprintMetrics;
+        MyWorkQueues = _myWorkBuilder.Build(Tasks, ActiveSprint);
+        CommandCentreSummary = _commandCentreBuilder.Build(Tasks, CriticalOpenTasks.Count, ActiveSprintMetrics.CarryForwardCandidateTasks);
         DueTodayTasks = readModel.DueBuckets.Today;
         DueThisWeekTasks = readModel.DueBuckets.ThisWeek;
         DueLaterTasks = readModel.DueBuckets.Later;
@@ -987,58 +995,37 @@ public class IndexModel : PageModel
     public IReadOnlyList<TaskDisplayItem> SprintOverdueTaskDisplays =>
         ToDisplayItems(SprintOverdueTasks);
 
-    // SECTION: My Work display projections keep the personal workspace independent from dashboard limits.
+    // SECTION: My Work display projections are composed by a focused queue builder and rendered by the page.
     public IReadOnlyList<TaskDisplayItem> MyOverdueTaskDisplays =>
-        ToDisplayItems(Tasks
-            .Where(IsTaskOverdue)
-            .OrderBy(t => t.DueDate)
-            .ThenBy(t => t.Id)
-            .ToList());
+        ToDisplayItems(MyWorkQueues.Overdue);
 
     public IReadOnlyList<TaskDisplayItem> MyDueTodayTaskDisplays =>
-        ToDisplayItems(Tasks
-            .Where(t => IsOpenTask(t) && t.DueDate.Date == _clock.UtcToday)
-            .OrderBy(t => StatusOrder(t.Status))
-            .ThenBy(t => t.DueDate)
-            .ThenBy(t => t.Id)
-            .ToList());
+        ToDisplayItems(MyWorkQueues.DueToday);
 
     public IReadOnlyList<TaskDisplayItem> MyInProgressTaskDisplays =>
-        ToDisplayItems(Tasks
-            .Where(t => string.Equals(t.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(t => t.DueDate)
-            .ThenBy(t => t.Id)
-            .ToList());
+        ToDisplayItems(MyWorkQueues.InProgress);
 
     public IReadOnlyList<TaskDisplayItem> MySubmittedTaskDisplays =>
-        ToDisplayItems(Tasks
-            .Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(t => t.SubmittedOn ?? t.DueDate)
-            .ThenBy(t => t.Id)
-            .ToList());
+        ToDisplayItems(MyWorkQueues.Submitted);
 
     public IReadOnlyList<TaskDisplayItem> MyActiveSprintTaskDisplays =>
-        ToDisplayItems(GetActiveSprintTasks()
-            .OrderBy(t => StatusOrder(t.Status))
-            .ThenBy(t => t.DueDate)
-            .ThenBy(t => t.Id)
-            .ToList());
+        ToDisplayItems(MyWorkQueues.ActiveSprint);
 
     public IReadOnlyList<TaskDisplayItem> MyRemainingAssignedTaskDisplays =>
         MyWorkAllMyTasksDisplays;
 
-    // SECTION: My Work queue projections de-duplicate tasks by urgency before rendering primary workspace sections.
+    // SECTION: My Work primary queues preserve service-owned precedence and de-duplication.
     public IReadOnlyList<TaskDisplayItem> MyWorkActionRequiredDisplays =>
-        ToDisplayItems(BuildMyWorkQueueSection(ActionTaskMyWorkQueueSection.ActionRequired));
+        ToDisplayItems(MyWorkQueues.ActionRequired);
 
     public IReadOnlyList<TaskDisplayItem> MyWorkCurrentWorkDisplays =>
-        ToDisplayItems(BuildMyWorkQueueSection(ActionTaskMyWorkQueueSection.CurrentWork));
+        ToDisplayItems(MyWorkQueues.CurrentWork);
 
     public IReadOnlyList<TaskDisplayItem> MyWorkSubmittedAwaitingClosureDisplays =>
-        ToDisplayItems(BuildMyWorkQueueSection(ActionTaskMyWorkQueueSection.SubmittedAwaitingClosure));
+        ToDisplayItems(MyWorkQueues.SubmittedAwaitingClosure);
 
     public IReadOnlyList<TaskDisplayItem> MyWorkAllMyTasksDisplays =>
-        ToDisplayItems(BuildMyWorkQueueSection(ActionTaskMyWorkQueueSection.AllMyTasks));
+        ToDisplayItems(MyWorkQueues.AllMyTasks);
 
     // SECTION: Legacy My Tasks display alias retained for older partial references.
     public IReadOnlyList<TaskDisplayItem> MyWorkOverdueTaskDisplays =>
@@ -1124,13 +1111,13 @@ public class IndexModel : PageModel
             .ToList());
 
     // SECTION: KPI helpers for dashboard and reports.
-    public int ActiveCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
-    public int OverdueCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase) && t.DueDate.Date < _clock.UtcToday);
+    public int ActiveCount => CommandCentreSummary.ActiveCount;
+    public int OverdueCount => CommandCentreSummary.OverdueCount;
     public int InProgressCount => CountByStatus(ActionTaskStatuses.InProgress);
     public int SubmittedCount => CountByStatus(ActionTaskStatuses.Submitted);
-    public int BlockedCount => CountByStatus(ActionTaskStatuses.Blocked);
+    public int BlockedCount => CommandCentreSummary.BlockedCount;
     public int ClosedCount => CountByStatus(ActionTaskStatuses.Closed);
-    public int CriticalOpenCount => CriticalOpenTasks.Count;
+    public int CriticalOpenCount => CommandCentreSummary.CriticalOpenCount;
     public int StatusCountsMax => StatusCounts.Count == 0 ? 0 : StatusCounts.Max(x => x.Count);
     public int PriorityCountsMax => PriorityCounts.Count == 0 ? 0 : PriorityCounts.Max(x => x.Count);
     public int AssigneePendingCountsMax => AssigneePendingCounts.Count == 0 ? 0 : AssigneePendingCounts.Max(x => x.Count);
@@ -1139,30 +1126,15 @@ public class IndexModel : PageModel
     public int BacklogAgeingBucketsMax => BacklogAgeingBuckets.Count == 0 ? 0 : BacklogAgeingBuckets.Max(x => x.Count);
     public int CarryForwardBySprintMax => CarryForwardBySprint.Count == 0 ? 0 : CarryForwardBySprint.Max(x => x.Count);
     public int BlockedAgeingBucketsMax => BlockedAgeingBuckets.Count == 0 ? 0 : BlockedAgeingBuckets.Max(x => x.Count);
-    public int ActiveCriticalCount => Tasks.Count(t =>
-        !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
-        && string.Equals(t.Priority, "Critical", StringComparison.OrdinalIgnoreCase));
+    public int ActiveCriticalCount => CommandCentreSummary.ActiveCriticalCount;
 
-    public int SubmittedPendingClosureCount => Tasks.Count(t =>
-        string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase));
+    public int SubmittedPendingClosureCount => CommandCentreSummary.SubmittedPendingClosureCount;
 
     public bool HasActiveFilters =>
-        (IsTaskListView || IsBacklogView) &&
-        (!string.IsNullOrWhiteSpace(FilterStatus)
-         || !string.IsNullOrWhiteSpace(FilterPriority)
-         || !string.IsNullOrWhiteSpace(FilterAssigneeUserId)
-         || FilterDueDate.HasValue
-         || !string.IsNullOrWhiteSpace(FilterSearch));
-
+        _routeStateHelper.HasActiveTaskFilters(BuildRouteInputs(), ResolvedViewMode, IsBacklogView);
 
     public bool HasReportFilters =>
-        IsReportsView &&
-        (ReportSprintId.HasValue
-         || !string.IsNullOrWhiteSpace(ReportAssigneeUserId)
-         || ReportFromDate.HasValue
-         || ReportToDate.HasValue
-         || !string.IsNullOrWhiteSpace(ReportStatus)
-         || !string.IsNullOrWhiteSpace(ReportPriority));
+        _routeStateHelper.HasReportFilters(BuildRouteInputs(), ResolvedViewMode);
 
     public string ReportFilterSummary =>
         HasReportFilters
@@ -1172,33 +1144,12 @@ public class IndexModel : PageModel
     // SECTION: Planning backlog disclosure mirrors every route value that can alter the backlog read model.
     public bool HasBacklogFilterRouteState => HasTaskFilterRouteState();
     public string DashboardCommandFocusSummary =>
-        $"{OverdueCount} overdue. {BlockedCount} blocked. {SubmittedPendingClosureCount} submitted pending closure. {CriticalOpenCount} critical open. {ActiveSprintMetrics.CarryForwardCandidateTasks} carry-forward candidates.";
+        CommandCentreSummary.DashboardCommandFocusSummary;
     public IReadOnlyList<CountSummary> SubmittedPendingClosureAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<TaskDisplayItem> TopAttentionTaskDisplays => BuildTopAttentionItems();
 
-    public string CommandSummary
-    {
-        get
-        {
-            var activeTasksText = $"There {(ActiveCount == 1 ? "is" : "are")} {ActiveCount} active {(ActiveCount == 1 ? "task" : "tasks")}";
-            var criticalText = $", including {ActiveCriticalCount} critical {(ActiveCriticalCount == 1 ? "task" : "tasks")}.";
-            var overdueText = OverdueCount switch
-            {
-                0 => "No tasks are overdue.",
-                1 => "1 task is overdue.",
-                _ => $"{OverdueCount} tasks are overdue."
-            };
-
-            var submittedPendingText = SubmittedPendingClosureCount switch
-            {
-                0 => "No submitted task is pending closure.",
-                1 => "1 submitted task is pending closure.",
-                _ => $"{SubmittedPendingClosureCount} submitted tasks are pending closure."
-            };
-
-            return $"{activeTasksText}{criticalText} {overdueText} {submittedPendingText}";
-        }
-    }
+    public string CommandSummary =>
+        CommandCentreSummary.CommandSummary;
 
     // SECTION: Percentage helper for CSS bar-width calculations.
     public int ToPercent(int value, int max) =>
@@ -1388,73 +1339,6 @@ public class IndexModel : PageModel
         }
     }
 
-    // SECTION: Sprint Board sub-view normalization keeps secondary view state safe across links and postbacks.
-    private string ResolvePlanningView()
-    {
-        var normalized = (PlanningView ?? string.Empty).Trim();
-        if (!string.IsNullOrWhiteSpace(normalized))
-        {
-            return normalized switch
-            {
-                _ when string.Equals(normalized, "DueExceptions", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
-                _ when string.Equals(normalized, "Due / exceptions", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
-                _ when string.Equals(normalized, "Due Board", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
-                _ when string.Equals(normalized, "Sprint Board", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
-                _ when string.Equals(normalized, "Kanban", StringComparison.OrdinalIgnoreCase) => "Kanban",
-                _ => "Default"
-            };
-        }
-
-        // SECTION: Promote legacy top-level planning aliases to their closest secondary Planning view.
-        return (ViewMode ?? string.Empty).Trim() switch
-        {
-            var legacyView when string.Equals(legacyView, "Kanban", StringComparison.OrdinalIgnoreCase) => "Kanban",
-            var legacyView when string.Equals(legacyView, "Due Board", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
-            var legacyView when string.Equals(legacyView, "SprintBoard", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
-            var legacyView when string.Equals(legacyView, "Sprint Board", StringComparison.OrdinalIgnoreCase) => "DueExceptions",
-            _ => "Default"
-        };
-    }
-
-
-    // SECTION: Sprint Board internal tab normalization keeps planning, execution, closure, and alternate views separated.
-    private string ResolvePlanningTab()
-    {
-        var normalized = (PlanningTab ?? string.Empty).Trim();
-        if (!string.IsNullOrWhiteSpace(normalized))
-        {
-            return normalized switch
-            {
-                _ when string.Equals(normalized, "Plan", StringComparison.OrdinalIgnoreCase) => "Plan",
-                _ when string.Equals(normalized, "Planning", StringComparison.OrdinalIgnoreCase) => "Plan",
-                _ when string.Equals(normalized, "Backlog", StringComparison.OrdinalIgnoreCase) => "Plan",
-                _ when string.Equals(normalized, "Execute", StringComparison.OrdinalIgnoreCase) => "Execute",
-                _ when string.Equals(normalized, "Execution", StringComparison.OrdinalIgnoreCase) => "Execute",
-                _ when string.Equals(normalized, "Close", StringComparison.OrdinalIgnoreCase) => "Close",
-                _ when string.Equals(normalized, "Closure", StringComparison.OrdinalIgnoreCase) => "Close",
-                _ when string.Equals(normalized, "Views", StringComparison.OrdinalIgnoreCase) => "Views",
-                _ when string.Equals(normalized, "View", StringComparison.OrdinalIgnoreCase) => "Views",
-                _ => GetDefaultPlanningTab()
-            };
-        }
-
-        // SECTION: Legacy PlanningView aliases open the new Views tab while keeping old links functional.
-        if (!string.Equals(ResolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Views";
-        }
-
-        return GetDefaultPlanningTab();
-    }
-
-    // SECTION: Planning tab default follows selected sprint availability.
-    private string GetDefaultPlanningTab()
-    {
-        return SelectedSprintId.HasValue || SelectedSprint is not null || ActiveSprint is not null
-            ? "Execute"
-            : "Plan";
-    }
-
     // SECTION: Shared task redirect route preserves workspace, selection, and relevant list state from inspector actions.
     private RedirectToPageResult RedirectToTaskPage(int? taskId, int? selectedSprintId)
     {
@@ -1466,87 +1350,50 @@ public class IndexModel : PageModel
     private object BuildTaskWorkspaceRouteValues(int? taskId, int? selectedSprintId)
         => _routeStateHelper.BuildTaskWorkspaceRouteValues(BuildRouteState(), taskId, selectedSprintId);
 
-    // SECTION: Task-list filter route preservation supports legacy Register and Backlog bookmarks after postback redirects.
+    // SECTION: Route/filter inputs isolate query-string state before centralized route helper decisions.
     private ActionTaskRouteState BuildRouteState()
+        => _routeStateHelper.BuildRouteState(BuildRouteInputs(), TaskId, SelectedSprintId, SelectedSprint, ActiveSprint);
+
+    private ActionTaskRouteInputs BuildRouteInputs()
         => new(
-            ResolveViewMode(),
-            ResolvedPlanningTab,
-            ResolvedPlanningView,
-            GetDefaultPlanningTab(),
-            IsPlanningView,
-            IsTaskListView || IsBacklogView,
-            TaskId,
-            SelectedSprintId,
+            ViewMode,
+            PlanningView,
+            PlanningTab,
             FilterStatus,
             FilterPriority,
             FilterAssigneeUserId,
             FilterDueDate,
             FilterSearch,
             SortBy,
-            SortDir);
+            SortDir,
+            ReportSprintId,
+            ReportAssigneeUserId,
+            ReportFromDate,
+            ReportToDate,
+            ReportStatus,
+            ReportPriority);
 
-    // SECTION: Planning backlog filter detection keeps canonical Planning routes compatible with legacy Backlog filtered views.
-    private bool IsPlanningBacklogFilterContext()
-    {
-        return IsPlanningView
-            && string.Equals(ResolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase)
-            && HasTaskFilterRouteState();
-    }
+    private string ResolvePlanningView()
+        => _routeStateHelper.ResolvePlanningView(ViewMode, PlanningView);
 
-    // SECTION: Shared filter-state detection covers GET bookmarks and required postback route preservation.
+    private string ResolvePlanningTab()
+        => _routeStateHelper.ResolvePlanningTab(PlanningTab, ResolvedPlanningView, GetDefaultPlanningTab());
+
+    private string GetDefaultPlanningTab()
+        => _routeStateHelper.GetDefaultPlanningTab(SelectedSprintId, SelectedSprint, ActiveSprint);
+
     private bool HasTaskFilterRouteState()
-    {
-        return !string.IsNullOrWhiteSpace(FilterStatus)
-            || !string.IsNullOrWhiteSpace(FilterPriority)
-            || !string.IsNullOrWhiteSpace(FilterAssigneeUserId)
-            || FilterDueDate.HasValue
-            || !string.IsNullOrWhiteSpace(FilterSearch)
-            || !string.IsNullOrWhiteSpace(SortBy)
-            || !string.IsNullOrWhiteSpace(SortDir);
-    }
+        => _routeStateHelper.HasTaskFilterRouteState(BuildRouteInputs());
 
-    // SECTION: Legacy view-state matching isolates backward-compatible aliases from canonical workspace names.
+    private bool IsPlanningBacklogFilterContext()
+        => _routeStateHelper.IsBacklogView(BuildRouteInputs(), ResolvedViewMode, ResolvedPlanningView)
+            && !IsLegacyViewMode("Backlog");
+
     private bool IsLegacyViewMode(string legacyViewMode)
-    {
-        return string.Equals((ViewMode ?? string.Empty).Trim(), legacyViewMode, StringComparison.OrdinalIgnoreCase);
-    }
+        => _routeStateHelper.IsLegacyViewMode(ViewMode, legacyViewMode);
 
     private string ResolveViewMode()
-    {
-        var normalized = (ViewMode ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            return "CommandCentre";
-        }
-
-        // SECTION: Normalize known aliases in-place so legacy links render the correct modern workspace without GET redirects.
-        return normalized switch
-        {
-            _ when IsViewModeAlias(normalized, "Dashboard") => "CommandCentre",
-            _ when IsViewModeAlias(normalized, "Sprints") => "Planning",
-            _ when IsViewModeAlias(normalized, "Backlog") => "Planning",
-            _ when IsViewModeAlias(normalized, "Sprint") => "Planning",
-            _ when IsViewModeAlias(normalized, "Due Board") => "Planning",
-            _ when IsViewModeAlias(normalized, "SprintBoard") => "Planning",
-            _ when IsViewModeAlias(normalized, "Sprint Board") => "Planning",
-            _ when IsViewModeAlias(normalized, "Kanban") => "Planning",
-            _ when IsViewModeAlias(normalized, "MyTasks") => "MyWork",
-            _ when IsViewModeAlias(normalized, "My Tasks") => "MyWork",
-            _ when IsViewModeAlias(normalized, "TaskList") => "Register",
-            _ when IsViewModeAlias(normalized, "CommandCentre") => "CommandCentre",
-            _ when IsViewModeAlias(normalized, "Planning") => "Planning",
-            _ when IsViewModeAlias(normalized, "MyWork") => "MyWork",
-            _ when IsViewModeAlias(normalized, "Register") => "Register",
-            _ when IsViewModeAlias(normalized, "Reports") => "Reports",
-            _ => "CommandCentre"
-        };
-    }
-
-    // SECTION: Alias comparison centralizes case-insensitive matching for old and canonical view modes.
-    private static bool IsViewModeAlias(string normalizedViewMode, string candidate)
-    {
-        return string.Equals(normalizedViewMode, candidate, StringComparison.OrdinalIgnoreCase);
-    }
+        => _routeStateHelper.ResolveViewMode(ViewMode);
 
     public sealed class CreateTaskInput
     {
@@ -1705,10 +1552,6 @@ public class IndexModel : PageModel
         ActiveSprint is null
             ? Array.Empty<ActionTaskItem>()
             : Tasks.Where(t => t.SprintId == ActiveSprint.Id).ToList();
-
-    // SECTION: My Work queue sections are delegated to the display builder for reusable presentation grouping.
-    private IReadOnlyList<ActionTaskItem> BuildMyWorkQueueSection(ActionTaskMyWorkQueueSection section)
-        => _displayBuilder.BuildMyWorkQueueSection(Tasks, section);
 
     private IReadOnlyList<TaskDisplayItem> ToDisplayItems(IReadOnlyList<ActionTaskItem> tasks) =>
         tasks.Select(task => new TaskDisplayItem
