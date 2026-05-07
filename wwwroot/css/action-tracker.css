@@ -889,6 +889,11 @@ html {
     gap: .75rem;
 }
 
+/* SECTION: Command queue cards retain the four-column desktop layout */
+.at-card-grid.at-command-queue-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .at-card-grid-reports {
     margin-top: 0.6rem;
 }
