@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Models;
 using ProjectManagement.Services.ActionTasks;
 
@@ -30,10 +29,12 @@ public class IndexModel : PageModel
     private readonly ActionTaskRouteStateHelper _routeStateHelper;
     private readonly ActionTaskMyWorkQueueBuilder _myWorkQueueBuilder;
     private readonly ActionTaskCommandCentreSummaryBuilder _commandCentreSummaryBuilder;
+    private readonly ActionTaskSprintWorkspaceSummaryBuilder _sprintWorkspaceSummaryBuilder;
     private readonly IActionTrackerClock _clock;
+    private readonly ActionTaskUserLookupService _userLookup;
     private readonly UserManager<ApplicationUser> _users;
 
-    public IndexModel(IActionTaskService service, IActionTaskCollaborationService collaborationService, ActionTaskPermissionService permission, ActionSprintService sprintService, ActionTaskQueryService queryService, ActionTaskWorkspaceBuilder workspaceBuilder, ActionTaskWorkflowPolicy workflowPolicy, ActionTaskRouteStateHelper routeStateHelper, ActionTaskMyWorkQueueBuilder myWorkQueueBuilder, ActionTaskCommandCentreSummaryBuilder commandCentreSummaryBuilder, IActionTrackerClock clock, UserManager<ApplicationUser> users)
+    public IndexModel(IActionTaskService service, IActionTaskCollaborationService collaborationService, ActionTaskPermissionService permission, ActionSprintService sprintService, ActionTaskQueryService queryService, ActionTaskWorkspaceBuilder workspaceBuilder, ActionTaskWorkflowPolicy workflowPolicy, ActionTaskRouteStateHelper routeStateHelper, ActionTaskMyWorkQueueBuilder myWorkQueueBuilder, ActionTaskCommandCentreSummaryBuilder commandCentreSummaryBuilder, ActionTaskSprintWorkspaceSummaryBuilder sprintWorkspaceSummaryBuilder, ActionTaskUserLookupService userLookup, IActionTrackerClock clock, UserManager<ApplicationUser> users)
     {
         _service = service;
         _collaborationService = collaborationService;
@@ -45,6 +46,8 @@ public class IndexModel : PageModel
         _routeStateHelper = routeStateHelper;
         _myWorkQueueBuilder = myWorkQueueBuilder;
         _commandCentreSummaryBuilder = commandCentreSummaryBuilder;
+        _sprintWorkspaceSummaryBuilder = sprintWorkspaceSummaryBuilder;
+        _userLookup = userLookup;
         _clock = clock;
         _users = users;
         Input.DueDate = _clock.UtcToday.AddDays(7);
@@ -790,8 +793,8 @@ public class IndexModel : PageModel
         var sourceTasks = await _service.GetTasksAsync(CurrentUserId, CurrentRole);
 
         // SECTION: Query read-model dependencies
-        AssignableUsers = await LoadAssignableUsersAsync();
-        TaskAssigneeNames = await LoadTaskAssigneeNamesAsync(sourceTasks);
+        AssignableUsers = await _userLookup.LoadAssignableUsersAsync(CurrentRole);
+        TaskAssigneeNames = await _userLookup.LoadTaskAssigneeNamesAsync(sourceTasks);
 
         // SECTION: Workspace read-model orchestration boundary
         var workspaceReadModel = await _workspaceBuilder.BuildAsync(BuildWorkspaceRequest(), sourceTasks, TaskAssigneeNames);
@@ -823,6 +826,7 @@ public class IndexModel : PageModel
         ActiveSprintMetrics = readModel.ActiveSprintMetrics;
         MyWorkQueue = _myWorkQueueBuilder.Build(Tasks, ActiveSprint);
         CommandCentreSummary = _commandCentreSummaryBuilder.Build(Tasks, CriticalOpenTasks.Count, ActiveSprintMetrics.CarryForwardCandidateTasks);
+        SprintWorkspaceSummary = _sprintWorkspaceSummaryBuilder.Build(new ActionTaskSprintWorkspaceSummaryRequest(Tasks, BacklogTasks, SelectedSprintTasks, SprintClosureReview.UnfinishedTasks, Sprints, ActiveSprint));
         DueTodayTasks = readModel.DueBuckets.Today;
         DueThisWeekTasks = readModel.DueBuckets.ThisWeek;
         DueLaterTasks = readModel.DueBuckets.Later;
@@ -861,8 +865,8 @@ public class IndexModel : PageModel
         SelectedTaskLogs = await _service.GetTaskLogsAsync(SelectedTask.Id, CurrentUserId, CurrentRole);
         SelectedTaskUpdates = await _collaborationService.GetUpdatesAsync(SelectedTask.Id, CurrentUserId, CurrentRole);
         UpdateAttachments = await _collaborationService.GetAttachmentMetadataByUpdateAsync(SelectedTask.Id, CurrentUserId, CurrentRole);
-        TaskActorNames = await LoadTaskActorNamesAsync(SelectedTaskLogs);
-        TaskActorNames = await MergeActorNamesAsync(TaskActorNames, SelectedTaskUpdates);
+        TaskActorNames = await _userLookup.LoadTaskActorNamesAsync(SelectedTaskLogs);
+        TaskActorNames = await _userLookup.MergeUpdateActorNamesAsync(TaskActorNames, SelectedTaskUpdates);
     }
 
     // SECTION: Workspace request isolates GET filter, report and sprint state before builder orchestration.
@@ -900,7 +904,7 @@ public class IndexModel : PageModel
         }
 
         SprintAuditHistory = await _sprintService.GetSprintAuditHistoryAsync(SelectedSprint.Id);
-        SprintActorNames = await LoadSprintActorNamesAsync(SprintAuditHistory);
+        SprintActorNames = await _userLookup.LoadSprintActorNamesAsync(SprintAuditHistory);
     }
 
     private void PrepareSprintForms()
@@ -1040,11 +1044,7 @@ public class IndexModel : PageModel
         ToDisplayItems(SprintBacklogTasks);
 
     public IReadOnlyList<TaskDisplayItem> ActiveSprintTaskDisplays =>
-        ToDisplayItems(GetActiveSprintTasks()
-            .OrderBy(t => StatusOrder(t.Status))
-            .ThenBy(t => t.DueDate)
-            .ThenBy(t => t.Id)
-            .ToList());
+        ToDisplayItems(SprintWorkspaceSummary.ActiveSprintTasks);
 
     public IReadOnlyList<TaskDisplayItem> AssignableBacklogTaskDisplays =>
         ToDisplayItems(SprintBacklogTasks
@@ -1053,61 +1053,40 @@ public class IndexModel : PageModel
 
     // SECTION: Phase 2A layout helper projections for sprint, backlog, and dashboard UX.
     public IReadOnlyList<ActionSprint> PlannedSprints =>
-        Sprints.Where(s => s.Status == ActionSprintStatus.Planned).OrderBy(s => s.StartDate).ThenBy(s => s.Id).ToList();
+        SprintWorkspaceSummary.PlannedSprints;
 
     public IReadOnlyList<ActionSprint> ClosedSprints =>
-        Sprints.Where(s => s.Status == ActionSprintStatus.Closed).OrderByDescending(s => s.EndDate).ThenByDescending(s => s.Id).ToList();
+        SprintWorkspaceSummary.ClosedSprints;
 
     public int SelectedSprintOverdueCount =>
-        SelectedSprintTasks.Count(IsTaskOverdue);
+        SprintWorkspaceSummary.SelectedSprintOverdueCount;
 
     public IReadOnlyList<TaskDisplayItem> SprintAttentionOverdueTaskDisplays =>
-        ToDisplayItems(SelectedSprintTasks.Where(IsTaskOverdue).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList());
+        ToDisplayItems(SprintWorkspaceSummary.SprintAttentionOverdueTasks);
 
     public IReadOnlyList<TaskDisplayItem> SprintAttentionBlockedTaskDisplays =>
-        ToDisplayItems(SelectedSprintTasks
-            .Where(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(t => t.DueDate)
-            .ThenBy(t => t.Id)
-            .ToList());
+        ToDisplayItems(SprintWorkspaceSummary.SprintAttentionBlockedTasks);
 
     public IReadOnlyList<TaskDisplayItem> SprintAttentionSubmittedTaskDisplays =>
-        ToDisplayItems(SelectedSprintTasks
-            .Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(t => t.SubmittedOn ?? t.DueDate)
-            .ThenBy(t => t.Id)
-            .ToList());
+        ToDisplayItems(SprintWorkspaceSummary.SprintAttentionSubmittedTasks);
 
     public IReadOnlyList<TaskDisplayItem> SprintCarryForwardCandidateDisplays =>
-        ToDisplayItems(SprintClosureReview.UnfinishedTasks.OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList());
+        ToDisplayItems(SprintWorkspaceSummary.SprintCarryForwardCandidateTasks);
 
-    public int BacklogTotalCount => BacklogTasks.Count;
+    public int BacklogTotalCount => SprintWorkspaceSummary.BacklogTotalCount;
 
-    public int BacklogHighPriorityCount =>
-        BacklogTasks.Count(t => string.Equals(t.Priority, "High", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(t.Priority, "Critical", StringComparison.OrdinalIgnoreCase));
+    public int BacklogHighPriorityCount => SprintWorkspaceSummary.BacklogHighPriorityCount;
 
-    public int BacklogOverdueCount =>
-        BacklogTasks.Count(IsTaskOverdue);
+    public int BacklogOverdueCount => SprintWorkspaceSummary.BacklogOverdueCount;
 
     public IReadOnlyList<TaskDisplayItem> ActiveSprintOverdueTaskDisplays =>
-        ToDisplayItems(GetActiveSprintTasks().Where(IsTaskOverdue).OrderBy(t => t.DueDate).ThenBy(t => t.Id).Take(5).ToList());
+        ToDisplayItems(SprintWorkspaceSummary.ActiveSprintOverdueTasks);
 
     public IReadOnlyList<TaskDisplayItem> ActiveSprintBlockedTaskDisplays =>
-        ToDisplayItems(GetActiveSprintTasks()
-            .Where(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(t => t.DueDate)
-            .ThenBy(t => t.Id)
-            .Take(5)
-            .ToList());
+        ToDisplayItems(SprintWorkspaceSummary.ActiveSprintBlockedTasks);
 
     public IReadOnlyList<TaskDisplayItem> ActiveSprintSubmittedTaskDisplays =>
-        ToDisplayItems(GetActiveSprintTasks()
-            .Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(t => t.SubmittedOn ?? t.DueDate)
-            .ThenBy(t => t.Id)
-            .Take(5)
-            .ToList());
+        ToDisplayItems(SprintWorkspaceSummary.ActiveSprintSubmittedTasks);
 
     // SECTION: KPI helpers for dashboard and reports.
     public int ActiveCount => CommandCentreSummary.ActiveCount;
@@ -1139,13 +1118,7 @@ public class IndexModel : PageModel
 
 
     public bool HasReportFilters =>
-        IsReportsView &&
-        (ReportSprintId.HasValue
-         || !string.IsNullOrWhiteSpace(ReportAssigneeUserId)
-         || ReportFromDate.HasValue
-         || ReportToDate.HasValue
-         || !string.IsNullOrWhiteSpace(ReportStatus)
-         || !string.IsNullOrWhiteSpace(ReportPriority));
+        IsReportsView && _routeStateHelper.HasReportFilterRouteState(BuildReportFilterRouteState());
 
     public string ReportFilterSummary =>
         HasReportFilters
@@ -1171,115 +1144,6 @@ public class IndexModel : PageModel
         CurrentRole = ActionTaskRoleResolver.Resolve(User) ?? string.Empty;
 
         await Task.CompletedTask;
-    }
-
-    private async Task<IReadOnlyList<UserOption>> LoadAssignableUsersAsync()
-    {
-        // SECTION: Stabilize user snapshot to avoid overlapping data-reader operations
-        var utcNow = new DateTimeOffset(_clock.UtcNow, TimeSpan.Zero);
-        var users = await _users.Users
-            .Where(u => !u.IsDisabled)
-            .Where(u => !u.PendingDeletion)
-            .Where(u => !u.LockoutEnd.HasValue || u.LockoutEnd <= utcNow)
-            .OrderBy(u => u.Rank)
-            .ThenBy(u => u.FullName)
-            .ThenBy(u => u.UserName)
-            .Take(200)
-            .ToListAsync();
-
-        // SECTION: Resolve assignable users with role checks
-        var list = new List<UserOption>();
-        foreach (var user in users)
-        {
-            var roles = await _users.GetRolesAsync(user);
-            var matchedRole = ActionTaskRoleResolver.ResolveAssignableRoleFromRoles(roles);
-            if (matchedRole is null || !_permission.CanAssign(CurrentRole, matchedRole))
-            {
-                continue;
-            }
-
-            list.Add(new UserOption(user.Id, BuildPersonDisplayName(user), matchedRole));
-        }
-
-        return list;
-    }
-
-    // SECTION: Resolve assignee display names for task register rendering
-    private async Task<IReadOnlyDictionary<string, string>> LoadTaskAssigneeNamesAsync(IReadOnlyList<ActionTaskItem> tasks)
-    {
-        var userIds = tasks
-            .Select(t => t.AssignedToUserId)
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-
-        if (userIds.Count == 0)
-        {
-            return new Dictionary<string, string>(StringComparer.Ordinal);
-        }
-
-        var users = await _users.Users
-            .Where(u => userIds.Contains(u.Id))
-            .Select(u => new { u.Id, u.Rank, u.FullName, u.UserName, u.Email })
-            .ToListAsync();
-
-        return users.ToDictionary(
-            u => u.Id,
-            u => BuildPersonDisplayName(u.Rank, u.FullName, u.UserName, u.Email),
-            StringComparer.Ordinal);
-    }
-
-    // SECTION: Resolve inspector actor names for audit visibility.
-    private async Task<IReadOnlyDictionary<string, string>> LoadTaskActorNamesAsync(IReadOnlyList<ActionTaskAuditLog> logs)
-    {
-        var actorIds = logs
-            .Select(log => log.PerformedByUserId)
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-
-        if (actorIds.Count == 0)
-        {
-            return new Dictionary<string, string>(StringComparer.Ordinal);
-        }
-
-        var users = await _users.Users
-            .Where(u => actorIds.Contains(u.Id))
-            .Select(u => new { u.Id, u.Rank, u.FullName, u.UserName, u.Email })
-            .ToListAsync();
-
-        return users.ToDictionary(
-            u => u.Id,
-            u => BuildPersonDisplayName(u.Rank, u.FullName, u.UserName, u.Email),
-            StringComparer.Ordinal);
-    }
-
-    // SECTION: Person display helper for rank and full-name-first rendering.
-    private static string BuildPersonDisplayName(ApplicationUser user) =>
-        BuildPersonDisplayName(user.Rank, user.FullName, user.UserName, user.Email);
-
-    // SECTION: Person display helper for query projections.
-    private static string BuildPersonDisplayName(string? rank, string? fullName, string? userName, string? email)
-    {
-        var trimmedRank = rank?.Trim();
-        var trimmedFullName = fullName?.Trim();
-
-        if (!string.IsNullOrWhiteSpace(trimmedRank) && !string.IsNullOrWhiteSpace(trimmedFullName))
-        {
-            return $"{trimmedRank} {trimmedFullName}";
-        }
-
-        if (!string.IsNullOrWhiteSpace(trimmedFullName))
-        {
-            return trimmedFullName;
-        }
-
-        if (!string.IsNullOrWhiteSpace(userName))
-        {
-            return userName;
-        }
-
-        return string.IsNullOrWhiteSpace(email) ? "User" : email;
     }
 
     // SECTION: Resolve a safe, standardized view mode value for postback and redirects
@@ -1394,11 +1258,12 @@ public class IndexModel : PageModel
     private ActionTaskFilterRouteState BuildFilterRouteState()
         => new(FilterStatus, FilterPriority, FilterAssigneeUserId, FilterDueDate, FilterSearch, SortBy, SortDir);
 
+    private ActionTaskReportFilterRouteState BuildReportFilterRouteState()
+        => new(ReportSprintId, ReportAssigneeUserId, ReportFromDate, ReportToDate, ReportStatus, ReportPriority);
+
     // SECTION: Planning backlog filter detection keeps canonical Planning routes compatible with legacy Backlog filtered views.
     private bool IsPlanningBacklogFilterContext()
-        => IsPlanningView
-            && string.Equals(ResolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase)
-            && HasTaskFilterRouteState();
+        => _routeStateHelper.IsPlanningBacklogFilterContext(ResolvedViewMode, ResolvedPlanningView, BuildFilterRouteState());
 
     // SECTION: Shared filter-state detection is delegated to the shared route-state helper.
     private bool HasTaskFilterRouteState()
@@ -1546,25 +1411,12 @@ public class IndexModel : PageModel
         public List<IFormFile> Files { get; set; } = new();
     }
 
-    public sealed record UserOption(string UserId, string DisplayName, string Role);
     public sealed record CountSummary(string Name, int Count);
     public sealed class TaskDisplayItem
     {
         public ActionTaskItem Task { get; init; } = default!;
         public string AssigneeName { get; init; } = string.Empty;
     }
-
-
-    // SECTION: Reusable status ordering for page-level task projections.
-    private static int StatusOrder(string status) => status switch
-    {
-        ActionTaskStatuses.Assigned => 1,
-        ActionTaskStatuses.InProgress => 2,
-        ActionTaskStatuses.Blocked => 3,
-        ActionTaskStatuses.Submitted => 4,
-        ActionTaskStatuses.Closed => 5,
-        _ => 99
-    };
 
     public bool IsTaskOverdue(ActionTaskItem task) =>
         IsOpenTask(task)
@@ -1573,11 +1425,6 @@ public class IndexModel : PageModel
     // SECTION: Shared open-task predicate keeps personal and command projections aligned.
     private static bool IsOpenTask(ActionTaskItem task) =>
         !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
-
-    private IReadOnlyList<ActionTaskItem> GetActiveSprintTasks() =>
-        ActiveSprint is null
-            ? Array.Empty<ActionTaskItem>()
-            : Tasks.Where(t => t.SprintId == ActiveSprint.Id).ToList();
 
 
     private IReadOnlyList<TaskDisplayItem> ToDisplayItems(IReadOnlyList<ActionTaskItem> tasks) =>

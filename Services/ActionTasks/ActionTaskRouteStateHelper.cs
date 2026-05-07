@@ -100,6 +100,22 @@ public sealed class ActionTaskRouteStateHelper
             || !string.IsNullOrWhiteSpace(state.SortBy)
             || !string.IsNullOrWhiteSpace(state.SortDir);
 
+
+    // SECTION: Planning backlog filter detection keeps canonical Planning routes compatible with legacy Backlog filtered views.
+    public bool IsPlanningBacklogFilterContext(string resolvedViewMode, string resolvedPlanningView, ActionTaskFilterRouteState filterState)
+        => string.Equals(resolvedViewMode, "Planning", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(resolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase)
+            && HasTaskFilterRouteState(filterState);
+
+    // SECTION: Shared report filter-state detection covers auto-applied report GET filters.
+    public bool HasReportFilterRouteState(ActionTaskReportFilterRouteState state)
+        => state.ReportSprintId.HasValue
+            || !string.IsNullOrWhiteSpace(state.ReportAssigneeUserId)
+            || state.ReportFromDate.HasValue
+            || state.ReportToDate.HasValue
+            || !string.IsNullOrWhiteSpace(state.ReportStatus)
+            || !string.IsNullOrWhiteSpace(state.ReportPriority);
+
     public bool IsLegacyViewMode(string? viewMode, string legacyViewMode)
         => string.Equals((viewMode ?? string.Empty).Trim(), legacyViewMode, StringComparison.OrdinalIgnoreCase);
 
@@ -185,3 +201,11 @@ public sealed record ActionTaskFilterRouteState(
     string? FilterSearch,
     string? SortBy,
     string? SortDir);
+
+public sealed record ActionTaskReportFilterRouteState(
+    int? ReportSprintId,
+    string? ReportAssigneeUserId,
+    DateTime? ReportFromDate,
+    DateTime? ReportToDate,
+    string? ReportStatus,
+    string? ReportPriority);
