@@ -3291,3 +3291,77 @@ html {
         margin-top: 0.35rem;
     }
 }
+
+/* SECTION: Phase 3D compact analytical Reports filters and decision-support cards. */
+.at-reports-filter-panel {
+    display: flex;
+    flex-direction: column;
+    gap: .85rem;
+}
+
+.at-reports-filter-heading {
+    align-items: flex-start;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+}
+
+.at-report-filter-summary {
+    background: rgba(15, 23, 42, .05);
+    border: 1px solid rgba(15, 23, 42, .08);
+    border-radius: 999px;
+    color: #475569;
+    font-size: .78rem;
+    font-weight: 700;
+    padding: .35rem .7rem;
+    white-space: nowrap;
+}
+
+.at-reports-filter-grid {
+    display: grid;
+    gap: .65rem;
+    grid-template-columns: minmax(13rem, 1.35fr) minmax(13rem, 1.35fr) repeat(4, minmax(8.5rem, 1fr));
+}
+
+.at-reports-filter-grid label {
+    color: #475569;
+    display: flex;
+    flex-direction: column;
+    font-size: .74rem;
+    font-weight: 800;
+    gap: .25rem;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+}
+
+.at-reports-filter-actions {
+    align-items: center;
+    display: flex;
+    gap: .5rem;
+    justify-content: flex-end;
+}
+
+@media (max-width: 1199.98px) {
+    .at-reports-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .at-reports-filter-heading {
+        flex-direction: column;
+    }
+
+    .at-report-filter-summary {
+        white-space: normal;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .at-reports-filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .at-reports-filter-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}

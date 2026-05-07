@@ -76,6 +76,11 @@ public class IndexModel : PageModel
     public IReadOnlyList<CountSummary> StatusCounts { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> OpenAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> OverdueAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
+    public IReadOnlyList<CountSummary> BacklogAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
+    public IReadOnlyList<CountSummary> CarryForwardBySprint { get; private set; } = Array.Empty<CountSummary>();
+    public IReadOnlyList<CountSummary> BlockedAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
+    public int ReportFilteredTaskCount { get; private set; }
+    public int ReportTotalTaskCount { get; private set; }
 
     [BindProperty(SupportsGet = true)]
     public string? ViewMode { get; set; } = "CommandCentre";
@@ -110,6 +115,24 @@ public class IndexModel : PageModel
     public string? SortBy { get; set; }
     [BindProperty(SupportsGet = true)]
     public string? SortDir { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public int? ReportSprintId { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? ReportAssigneeUserId { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public DateTime? ReportFromDate { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public DateTime? ReportToDate { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? ReportStatus { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? ReportPriority { get; set; }
 
     public string CurrentRole { get; private set; } = string.Empty;
     public string CurrentUserId { get; private set; } = string.Empty;
@@ -761,7 +784,7 @@ public class IndexModel : PageModel
         var activityByTaskId = await _service.GetLastActivityUtcByTaskIdsAsync(tasks.Select(t => t.Id).ToArray());
         var readModel = _queryService.BuildReadModel(
             tasks,
-            new ActionTaskQueryService.ActionTaskQueryRequest(CurrentUserId, IsMyTasksView, IsTaskListView, IsBacklogView, SelectedSprintId, sprints, FilterStatus, FilterPriority, FilterAssigneeUserId, FilterDueDate, FilterSearch, SortBy, SortDir),
+            new ActionTaskQueryService.ActionTaskQueryRequest(CurrentUserId, IsMyTasksView, IsTaskListView, IsBacklogView, SelectedSprintId, sprints, FilterStatus, FilterPriority, FilterAssigneeUserId, FilterDueDate, FilterSearch, SortBy, SortDir, ReportSprintId, ReportAssigneeUserId, ReportFromDate, ReportToDate, ReportStatus, ReportPriority),
             TaskAssigneeNames,
             activityByTaskId);
 
@@ -798,6 +821,11 @@ public class IndexModel : PageModel
         OpenAgeingBuckets = readModel.Reports.OpenAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         OverdueAgeingBuckets = readModel.Reports.OverdueAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         SubmittedPendingClosureAgeingBuckets = readModel.Reports.SubmittedPendingClosureAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
+        BacklogAgeingBuckets = readModel.Reports.BacklogAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
+        CarryForwardBySprint = readModel.Reports.CarryForwardBySprint.Select(x => new CountSummary(x.Name, x.Count)).ToList();
+        BlockedAgeingBuckets = readModel.Reports.BlockedAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
+        ReportFilteredTaskCount = readModel.Reports.FilteredTaskCount;
+        ReportTotalTaskCount = readModel.Reports.TotalTaskCount;
 
         // SECTION: Selected Task Resolution
         if (!TaskId.HasValue)
@@ -1081,6 +1109,9 @@ public class IndexModel : PageModel
     public int AssigneePendingCountsMax => AssigneePendingCounts.Count == 0 ? 0 : AssigneePendingCounts.Max(x => x.Count);
     public int OpenAgeingBucketsMax => OpenAgeingBuckets.Count == 0 ? 0 : OpenAgeingBuckets.Max(x => x.Count);
     public int OverdueAgeingBucketsMax => OverdueAgeingBuckets.Count == 0 ? 0 : OverdueAgeingBuckets.Max(x => x.Count);
+    public int BacklogAgeingBucketsMax => BacklogAgeingBuckets.Count == 0 ? 0 : BacklogAgeingBuckets.Max(x => x.Count);
+    public int CarryForwardBySprintMax => CarryForwardBySprint.Count == 0 ? 0 : CarryForwardBySprint.Max(x => x.Count);
+    public int BlockedAgeingBucketsMax => BlockedAgeingBuckets.Count == 0 ? 0 : BlockedAgeingBuckets.Max(x => x.Count);
     public int ActiveCriticalCount => Tasks.Count(t =>
         !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
         && string.Equals(t.Priority, "Critical", StringComparison.OrdinalIgnoreCase));
@@ -1095,6 +1126,21 @@ public class IndexModel : PageModel
          || !string.IsNullOrWhiteSpace(FilterAssigneeUserId)
          || FilterDueDate.HasValue
          || !string.IsNullOrWhiteSpace(FilterSearch));
+
+
+    public bool HasReportFilters =>
+        IsReportsView &&
+        (ReportSprintId.HasValue
+         || !string.IsNullOrWhiteSpace(ReportAssigneeUserId)
+         || ReportFromDate.HasValue
+         || ReportToDate.HasValue
+         || !string.IsNullOrWhiteSpace(ReportStatus)
+         || !string.IsNullOrWhiteSpace(ReportPriority));
+
+    public string ReportFilterSummary =>
+        HasReportFilters
+            ? $"Showing {ReportFilteredTaskCount} of {ReportTotalTaskCount} tasks matching the selected report filters."
+            : $"Showing all {ReportTotalTaskCount} tasks available to the reports workspace.";
 
     // SECTION: Planning backlog disclosure mirrors every route value that can alter the backlog read model.
     public bool HasBacklogFilterRouteState => HasTaskFilterRouteState();
