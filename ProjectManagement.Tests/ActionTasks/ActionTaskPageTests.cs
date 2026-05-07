@@ -778,6 +778,68 @@ public class ActionTaskPageTests
         Assert.DoesNotContain("Backlog Queue", html, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public async Task ReportsPartial_RendersCompactFilterBarAndSprintOptions()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var sprint = AddSprint(setup.Db, "Decision Sprint", ActionSprintStatus.Active);
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Reports";
+        page.ReportSprintId = sprint.Id;
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskReports.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("Report Filters", html, StringComparison.Ordinal);
+        Assert.Contains(@"name=""ReportSprintId""", html, StringComparison.Ordinal);
+        Assert.Contains("Decision Sprint", html, StringComparison.Ordinal);
+        Assert.Contains("Reset / Clear all", html, StringComparison.Ordinal);
+        Assert.Contains("selected", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReportsFilters_PersistStateAndFilterSections()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var sprint = AddSprint(setup.Db, "Filtered Report Sprint", ActionSprintStatus.Active);
+        var matching = await setup.Db.ActionTasks.SingleAsync();
+        matching.SprintId = sprint.Id;
+        matching.Priority = "High";
+        matching.Status = ActionTaskStatuses.Blocked;
+        matching.AssignedOn = DateTime.UtcNow.Date.AddDays(-9);
+        matching.DueDate = DateTime.UtcNow.Date.AddDays(1);
+        setup.Db.ActionTasks.Add(NewTask("Outside report scope", ActionTaskStatuses.Assigned));
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Reports";
+        page.ReportSprintId = sprint.Id;
+        page.ReportAssigneeUserId = "user-1";
+        page.ReportFromDate = DateTime.UtcNow.Date;
+        page.ReportToDate = DateTime.UtcNow.Date.AddDays(2);
+        page.ReportStatus = ActionTaskStatuses.Blocked;
+        page.ReportPriority = "High";
+
+        // SECTION: Act
+        await page.OnGetAsync();
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskReports.cshtml");
+
+        // SECTION: Assert
+        Assert.True(page.HasReportFilters);
+        Assert.Equal(1, page.ReportFilteredTaskCount);
+        Assert.Equal(1, page.StatusCounts.Single(x => x.Name == ActionTaskStatuses.Blocked).Count);
+        Assert.Equal(1, page.PriorityCounts.Single(x => x.Name == "High").Count);
+        Assert.Equal(1, page.BlockedAgeingBuckets.Single(x => x.Name == "8 to 14 days").Count);
+        Assert.Contains("Showing 1 of 2 tasks", html, StringComparison.Ordinal);
+        Assert.Contains(@"value=""High"" selected", html, StringComparison.Ordinal);
+        Assert.Contains(@"value=""user-1"" selected", html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task SprintHistoryReadModel_ReturnsAuditEventsWithActorVisibility()
     {

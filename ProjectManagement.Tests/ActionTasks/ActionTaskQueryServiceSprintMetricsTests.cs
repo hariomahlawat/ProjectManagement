@@ -46,20 +46,80 @@ public class ActionTaskQueryServiceSprintMetricsTests
         Assert.Equal(nextSprint.Id, model.SprintReadModel.ClosureReview.TargetSprintOptions.Single().Id);
     }
 
+
+    [Fact]
+    public void BuildReadModel_AppliesReportsFiltersAcrossAnalyticalSections()
+    {
+        // SECTION: Arrange
+        var today = DateTime.UtcNow.Date;
+        var sprint = new ActionSprint { Id = 21, Name = "Filtered Sprint", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
+        var otherSprint = new ActionSprint { Id = 22, Name = "Other Sprint", Status = ActionSprintStatus.Planned, StartDate = today.AddDays(8), EndDate = today.AddDays(14) };
+        var tasks = new[]
+        {
+            NewTask(11, sprint.Id, ActionTaskStatuses.Blocked, today.AddDays(2), "High", "assignee", today.AddDays(-9)),
+            NewTask(12, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(4), "Normal", "assignee", today.AddDays(-1)),
+            NewTask(13, otherSprint.Id, ActionTaskStatuses.Blocked, today.AddDays(2), "High", "other", today.AddDays(-16)),
+            NewTask(14, null, ActionTaskStatuses.Assigned, today.AddDays(2), "High", "assignee", today.AddDays(-5))
+        };
+        var service = new ActionTaskQueryService();
+
+        // SECTION: Act
+        var model = service.BuildReadModel(
+            tasks,
+            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, false, false, sprint.Id, new[] { sprint, otherSprint }, null, null, null, null, null, null, null, sprint.Id, "assignee", today, today.AddDays(3), ActionTaskStatuses.Blocked, "High"),
+            new Dictionary<string, string> { ["assignee"] = "Responsible One", ["other"] = "Other Person" },
+            new Dictionary<int, DateTime?>());
+
+        // SECTION: Assert
+        Assert.Equal(4, model.Reports.TotalTaskCount);
+        Assert.Equal(1, model.Reports.FilteredTaskCount);
+        Assert.Equal(new[] { new ActionTaskQueryService.CountSummary("Responsible One", 1) }, model.Reports.AssigneePendingCounts);
+        Assert.Equal(new[] { new ActionTaskQueryService.CountSummary("High", 1) }, model.Reports.PriorityCounts);
+        Assert.Equal(new[] { new ActionTaskQueryService.CountSummary(ActionTaskStatuses.Blocked, 1) }, model.Reports.StatusCounts);
+        Assert.Equal(1, model.Reports.BlockedAgeingBuckets.Single(x => x.Name == "8 to 14 days").Count);
+        Assert.Equal(new[] { new ActionTaskQueryService.CountSummary("Filtered Sprint", 1) }, model.Reports.CarryForwardBySprint);
+    }
+
+    [Fact]
+    public void BuildReadModel_ReportBacklogSprintFilter_RendersBacklogAgeingOnly()
+    {
+        // SECTION: Arrange
+        var today = DateTime.UtcNow.Date;
+        var sprint = new ActionSprint { Id = 31, Name = "Sprint Scope", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
+        var tasks = new[]
+        {
+            NewTask(21, null, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", "assignee", today.AddDays(-5)),
+            NewTask(22, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", "assignee", today.AddDays(-12))
+        };
+        var service = new ActionTaskQueryService();
+
+        // SECTION: Act
+        var model = service.BuildReadModel(
+            tasks,
+            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, false, false, sprint.Id, new[] { sprint }, null, null, null, null, null, null, null, 0),
+            new Dictionary<string, string> { ["assignee"] = "Assignee" },
+            new Dictionary<int, DateTime?>());
+
+        // SECTION: Assert
+        Assert.Equal(1, model.Reports.FilteredTaskCount);
+        Assert.Equal(1, model.Reports.BacklogAgeingBuckets.Single(x => x.Name == "4 to 7 days").Count);
+        Assert.All(model.Reports.CarryForwardBySprint, item => Assert.Equal(0, item.Count));
+    }
+
     // SECTION: Test data helper
-    private static ActionTaskItem NewTask(int id, int? sprintId, string status, DateTime dueDate)
+    private static ActionTaskItem NewTask(int id, int? sprintId, string status, DateTime dueDate, string priority = "Normal", string assignedToUserId = "assignee", DateTime? assignedOn = null)
         => new()
         {
             Id = id,
             Title = $"Task {id}",
             Description = "Task",
             CreatedByUserId = "creator",
-            AssignedToUserId = "assignee",
+            AssignedToUserId = assignedToUserId,
             CreatedByRole = "HoD",
             AssignedToRole = "TA",
-            AssignedOn = dueDate.AddDays(-2),
+            AssignedOn = assignedOn ?? dueDate.AddDays(-2),
             DueDate = dueDate,
-            Priority = "Normal",
+            Priority = priority,
             Status = status,
             SprintId = sprintId,
             ClosedOn = status == ActionTaskStatuses.Closed ? dueDate : null,

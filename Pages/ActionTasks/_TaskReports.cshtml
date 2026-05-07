@@ -1,4 +1,9 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
+@{
+    // SECTION: Date filter display values are preformatted for CSP-safe server rendering.
+    var reportFromDateValue = Model.ReportFromDate?.ToString("yyyy-MM-dd");
+    var reportToDateValue = Model.ReportToDate?.ToString("yyyy-MM-dd");
+}
 
 @* SECTION: Reports introduction and scope. *@
 <section class="at-section-group">
@@ -11,6 +16,110 @@
         </div>
         <p class="at-empty-state-note">This page intentionally excludes the Command Centre KPI strip so reports remain focused on analysis rather than operational command cards.</p>
     </article>
+</section>
+
+@* SECTION: Compact reports filter bar for management analysis. *@
+<section class="at-section-group">
+    <form method="get" class="at-panel at-reports-filter-panel" aria-label="Reports filters">
+        <input type="hidden" name="ViewMode" value="Reports" />
+        <div class="at-reports-filter-heading">
+            <div>
+                <h2>Report Filters</h2>
+                <p class="at-panel-note">Narrow every report section by Sprint, responsible person, due-date range, workflow status and priority.</p>
+            </div>
+            <span class="at-report-filter-summary">@Model.ReportFilterSummary</span>
+        </div>
+        <div class="at-reports-filter-grid">
+            <label>
+                <span>Sprint</span>
+                <select class="form-select form-select-sm" name="ReportSprintId">
+                    <option value="">All Sprints &amp; Backlog</option>
+                    @if (Model.ReportSprintId == 0)
+                    {
+                        <option value="0" selected>Backlog only</option>
+                    }
+                    else
+                    {
+                        <option value="0">Backlog only</option>
+                    }
+                    @foreach (var sprint in Model.Sprints)
+                    {
+                        @if (Model.ReportSprintId == sprint.Id)
+                        {
+                            <option value="@sprint.Id" selected>@Model.DisplaySprintName(sprint)</option>
+                        }
+                        else
+                        {
+                            <option value="@sprint.Id">@Model.DisplaySprintName(sprint)</option>
+                        }
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Responsible Person</span>
+                <select class="form-select form-select-sm" name="ReportAssigneeUserId">
+                    <option value="">All people</option>
+                    @foreach (var user in Model.AssignableUsers)
+                    {
+                        @if (string.Equals(Model.ReportAssigneeUserId, user.UserId, StringComparison.Ordinal))
+                        {
+                            <option value="@user.UserId" selected>@user.DisplayName</option>
+                        }
+                        else
+                        {
+                            <option value="@user.UserId">@user.DisplayName</option>
+                        }
+                    }
+                </select>
+            </label>
+            <label>
+                <span>From</span>
+                <input class="form-control form-control-sm" type="date" name="ReportFromDate" value="@reportFromDateValue" />
+            </label>
+            <label>
+                <span>To</span>
+                <input class="form-control form-control-sm" type="date" name="ReportToDate" value="@reportToDateValue" />
+            </label>
+            <label>
+                <span>Status</span>
+                <select class="form-select form-select-sm" name="ReportStatus">
+                    <option value="">All statuses</option>
+                    @foreach (var status in Model.AllowedStatusOptions)
+                    {
+                        @if (string.Equals(Model.ReportStatus, status, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@status" selected>@status</option>
+                        }
+                        else
+                        {
+                            <option value="@status">@status</option>
+                        }
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Priority</span>
+                <select class="form-select form-select-sm" name="ReportPriority">
+                    <option value="">All priorities</option>
+                    @foreach (var priority in Model.PriorityOptions)
+                    {
+                        @if (string.Equals(Model.ReportPriority, priority, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@priority" selected>@priority</option>
+                        }
+                        else
+                        {
+                            <option value="@priority">@priority</option>
+                        }
+                    }
+                </select>
+            </label>
+        </div>
+        <div class="at-reports-filter-actions">
+            <button type="submit" class="btn btn-sm btn-primary">Apply filters</button>
+            <a class="btn btn-sm btn-outline-secondary" asp-page="/ActionTasks/Index" asp-route-viewMode="Reports">Reset / Clear all</a>
+        </div>
+    </form>
 </section>
 
 @* SECTION: Current-state analytical reports with proportional bars. *@
@@ -61,7 +170,7 @@
         </div>
         @if (Model.SubmittedPendingClosureAgeingBuckets.All(item => item.Count == 0))
         {
-            <p class="at-empty-state-note">No submitted tasks are awaiting closure.</p>
+            <p class="at-empty-state-note">No submitted tasks are awaiting closure in the selected report scope.</p>
         }
         else
         {
@@ -70,7 +179,7 @@
                 {
                     <div class="at-metric-row">
                         <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                        <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-amber" style="width:@Model.ToPercent(item.Count, Model.SubmittedCount == 0 ? 1 : Model.SubmittedCount)%"></div></div>
+                        <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-amber" style="width:@Model.ToPercent(item.Count, Model.SubmittedPendingClosureAgeingBuckets.Max(x => x.Count))%"></div></div>
                         <strong>@item.Count</strong>
                     </div>
                 }
@@ -129,6 +238,71 @@
                 <div class="at-metric-row">
                     <span class="at-metric-label" title="@item.Name">@item.Name</span>
                     <div class="at-metric-track"><div class="at-metric-fill" style="width:@Model.ToPercent(item.Count, Model.StatusCountsMax)%"></div></div>
+                    <strong>@item.Count</strong>
+                </div>
+            }
+        </div>
+    </article>
+
+    @* SECTION: Decision-support summaries derived from the existing task and Sprint read model. *@
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <div>
+                <h2>Backlog Ageing Summary</h2>
+                <p class="at-panel-note">Highlights unscheduled open work by age so stale backlog items can be triaged.</p>
+            </div>
+        </div>
+        <div class="at-metric-bars">
+            @foreach (var item in Model.BacklogAgeingBuckets)
+            {
+                <div class="at-metric-row">
+                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
+                    <div class="at-metric-track"><div class="at-metric-fill" style="width:@Model.ToPercent(item.Count, Model.BacklogAgeingBucketsMax)%"></div></div>
+                    <strong>@item.Count</strong>
+                </div>
+            }
+        </div>
+    </article>
+
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <div>
+                <h2>Carry-forward by Sprint</h2>
+                <p class="at-panel-note">Safely derived from unfinished tasks that remain assigned to non-closed Sprints.</p>
+            </div>
+        </div>
+        @if (Model.CarryForwardBySprint.All(item => item.Count == 0))
+        {
+            <p class="at-empty-state-note">No carry-forward candidates are visible in the selected report scope.</p>
+        }
+        else
+        {
+            <div class="at-metric-bars">
+                @foreach (var item in Model.CarryForwardBySprint)
+                {
+                    <div class="at-metric-row">
+                        <span class="at-metric-label" title="@item.Name">@item.Name</span>
+                        <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-amber" style="width:@Model.ToPercent(item.Count, Model.CarryForwardBySprintMax)%"></div></div>
+                        <strong>@item.Count</strong>
+                    </div>
+                }
+            </div>
+        }
+    </article>
+
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <div>
+                <h2>Blocked Task Ageing</h2>
+                <p class="at-panel-note">Ages blocked tasks by time since assignment to support unblock decisions without changing backend workflow.</p>
+            </div>
+        </div>
+        <div class="at-metric-bars">
+            @foreach (var item in Model.BlockedAgeingBuckets)
+            {
+                <div class="at-metric-row">
+                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
+                    <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-danger" style="width:@Model.ToPercent(item.Count, Model.BlockedAgeingBucketsMax)%"></div></div>
                     <strong>@item.Count</strong>
                 </div>
             }
