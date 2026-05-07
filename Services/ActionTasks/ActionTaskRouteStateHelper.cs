@@ -90,6 +90,41 @@ public sealed class ActionTaskRouteStateHelper
             : "Views";
     }
 
+
+    // SECTION: Planning tab default follows selected or active sprint availability without page-model branching.
+    public string ResolveDefaultPlanningTab(int? selectedSprintId, bool hasSelectedSprint, bool hasActiveSprint)
+        => selectedSprintId.HasValue || hasSelectedSprint || hasActiveSprint ? "Execute" : "Plan";
+
+    // SECTION: Page route-state assembly centralizes postback query preservation in the route helper.
+    public ActionTaskRouteState BuildRouteState(ActionTaskRouteStateRequest request)
+    {
+        var viewMode = ResolveViewMode(request.ViewMode);
+        var planningView = ResolvePlanningView(request.PlanningView, request.ViewMode);
+        var defaultPlanningTab = ResolveDefaultPlanningTab(request.SelectedSprintId, request.HasSelectedSprint, request.HasActiveSprint);
+        var planningTab = ResolvePlanningTab(request.PlanningTab, planningView, defaultPlanningTab);
+        var isPlanningView = string.Equals(viewMode, "Planning", StringComparison.OrdinalIgnoreCase);
+        var shouldPreserveTaskFilters = string.Equals(viewMode, "Register", StringComparison.OrdinalIgnoreCase)
+            || IsLegacyViewMode(request.ViewMode, "Backlog")
+            || IsPlanningBacklogFilterContext(viewMode, planningView, request.FilterState);
+
+        return new ActionTaskRouteState(
+            viewMode,
+            planningTab,
+            planningView,
+            defaultPlanningTab,
+            isPlanningView,
+            shouldPreserveTaskFilters,
+            request.TaskId,
+            request.SelectedSprintId,
+            request.FilterState.FilterStatus,
+            request.FilterState.FilterPriority,
+            request.FilterState.FilterAssigneeUserId,
+            request.FilterState.FilterDueDate,
+            request.FilterState.FilterSearch,
+            request.FilterState.SortBy,
+            request.FilterState.SortDir);
+    }
+
     // SECTION: Shared filter-state detection covers GET bookmarks and postback route preservation.
     public bool HasTaskFilterRouteState(ActionTaskFilterRouteState state)
         => !string.IsNullOrWhiteSpace(state.FilterStatus)
@@ -175,6 +210,17 @@ public sealed class ActionTaskRouteStateHelper
         }
     }
 }
+
+
+public sealed record ActionTaskRouteStateRequest(
+    string? ViewMode,
+    string? PlanningTab,
+    string? PlanningView,
+    int? TaskId,
+    int? SelectedSprintId,
+    bool HasSelectedSprint,
+    bool HasActiveSprint,
+    ActionTaskFilterRouteState FilterState);
 
 public sealed record ActionTaskRouteState(
     string ViewMode,

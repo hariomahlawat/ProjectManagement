@@ -59,6 +59,38 @@ public class ActionTaskCompositionBuilderTests
         Assert.Equal(new[] { "Critical overdue", "Blocked critical", "Submitted" }, summary.TopAttentionTasks.Select(t => t.Title));
     }
 
+
+    [Fact]
+    public void RouteStateHelper_CentralizesPlanningViewAndFilterPreservation()
+    {
+        // SECTION: Arrange
+        var helper = new ActionTaskRouteStateHelper();
+        var request = new ActionTaskRouteStateRequest(
+            ViewMode: "Planning",
+            PlanningTab: null,
+            PlanningView: "Kanban",
+            TaskId: 42,
+            SelectedSprintId: 7,
+            HasSelectedSprint: true,
+            HasActiveSprint: false,
+            FilterState: new ActionTaskFilterRouteState("Blocked", null, null, null, null, null, null));
+
+        // SECTION: Act
+        var state = helper.BuildRouteState(request);
+        var routeValues = helper.BuildTaskWorkspaceRouteValues(state, request.TaskId, request.SelectedSprintId);
+
+        // SECTION: Assert
+        Assert.Equal("Planning", state.ViewMode);
+        Assert.Equal("Views", state.PlanningTab);
+        Assert.Equal("Kanban", state.PlanningView);
+        Assert.Equal("Execute", state.DefaultPlanningTab);
+        Assert.False(state.ShouldPreserveTaskFilters);
+        Assert.Equal("Planning", routeValues[nameof(ActionTaskRouteState.ViewMode)]);
+        Assert.Equal("Views", routeValues[nameof(ActionTaskRouteState.PlanningTab)]);
+        Assert.Equal("Kanban", routeValues[nameof(ActionTaskRouteState.PlanningView)]);
+        Assert.False(routeValues.ContainsKey(nameof(ActionTaskRouteState.FilterStatus)));
+    }
+
     // SECTION: Shared Action Tracker task fixture keeps builder tests focused on composition rules.
     private static ActionTaskItem CreateTask(int id, string title, string status, DateTime dueDate, string priority = "Normal", DateTime? submittedOn = null, int? sprintId = null)
         => new()
