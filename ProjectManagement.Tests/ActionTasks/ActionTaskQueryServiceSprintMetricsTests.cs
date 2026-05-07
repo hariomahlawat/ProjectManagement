@@ -23,7 +23,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
             NewTask(4, activeSprint.Id, ActionTaskStatuses.Submitted, today.AddDays(2)),
             NewTask(5, null, ActionTaskStatuses.Assigned, today.AddDays(3))
         };
-        var service = new ActionTaskQueryService();
+        var service = CreateQueryService();
 
         // SECTION: Act
         var model = service.BuildReadModel(
@@ -61,7 +61,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
             NewTask(13, otherSprint.Id, ActionTaskStatuses.Blocked, today.AddDays(2), "High", "other", today.AddDays(-16)),
             NewTask(14, null, ActionTaskStatuses.Assigned, today.AddDays(2), "High", "assignee", today.AddDays(-5))
         };
-        var service = new ActionTaskQueryService();
+        var service = CreateQueryService();
 
         // SECTION: Act
         var model = service.BuildReadModel(
@@ -91,7 +91,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
             NewTask(21, null, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", "assignee", today.AddDays(-5)),
             NewTask(22, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", "assignee", today.AddDays(-12))
         };
-        var service = new ActionTaskQueryService();
+        var service = CreateQueryService();
 
         // SECTION: Act
         var model = service.BuildReadModel(
@@ -104,6 +104,13 @@ public class ActionTaskQueryServiceSprintMetricsTests
         Assert.Equal(1, model.Reports.FilteredTaskCount);
         Assert.Equal(1, model.Reports.BacklogAgeingBuckets.Single(x => x.Name == "4 to 7 days").Count);
         Assert.All(model.Reports.CarryForwardBySprint, item => Assert.Equal(0, item.Count));
+    }
+
+    // SECTION: Test query service helper
+    private static ActionTaskQueryService CreateQueryService()
+    {
+        var clock = new SystemActionTrackerClock();
+        return new ActionTaskQueryService(clock, new ActionTaskReportBuilder(clock));
     }
 
     // SECTION: Test data helper
