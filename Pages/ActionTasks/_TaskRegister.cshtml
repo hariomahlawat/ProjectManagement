@@ -27,14 +27,18 @@
     }
 }
 
-@* SECTION: Register filters keep task records searchable and auditable. *@
-<section class="at-panel at-register-filter-panel mb-3">
+@* SECTION: Register filters are promoted to the primary control surface for master-list review. *@
+<section class="at-panel at-register-filter-panel at-register-command-surface mb-3">
     <div class="at-register-filter-heading">
         <div>
+            <span class="at-section-eyebrow">Control surface</span>
             <h2>Register Filters</h2>
-            <p class="at-panel-note">Refine the master task register without leaving the workspace.</p>
+            <p class="at-panel-note">Refine the master task register with auto-applied controls that preserve server-rendered routes.</p>
         </div>
-        <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="btn btn-outline-secondary btn-sm">Reset</a>
+        <div class="at-register-filter-actions">
+            <span class="at-register-result-pill">@Model.Tasks.Count visible</span>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="btn btn-outline-secondary btn-sm">Reset</a>
+        </div>
     </div>
     <form id="taskFilterForm" method="get" class="at-register-filter-toolbar" data-at-task-filter-form="true">
         <input type="hidden" name="viewMode" value="Register" />
@@ -120,9 +124,10 @@
         </div>
     </form>
 
+    <div class="at-active-filters at-register-active-filters @(Model.HasActiveFilters ? "" : "is-empty")" aria-label="Active filters">
+        <span class="at-active-filter-label">Active filters</span>
     @if (Model.HasActiveFilters)
     {
-        <div class="at-active-filters at-register-active-filters" aria-label="Active filters">
             @if (!string.IsNullOrWhiteSpace(Model.FilterStatus))
             {
                 <span class="at-filter-chip">Status: @Model.FilterStatus</span>
@@ -144,17 +149,28 @@
                 <span class="at-filter-chip">Search: @Model.FilterSearch</span>
             }
             <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="at-filter-clear">Clear all</a>
-        </div>
     }
+    else
+    {
+        <span class="at-filter-chip at-filter-chip-muted">None — showing the full register.</span>
+    }
+    </div>
 </section>
 
-@* SECTION: Auditable task register table. *@
-<section class="at-panel">
-    <h2>Register</h2>
+@* SECTION: Auditable task register table focuses on dense row scanability. *@
+<section class="at-panel at-register-results-panel">
+    <div class="at-register-results-heading">
+        <div>
+            <h2>Register</h2>
+            <p class="at-panel-note">Scan ID, owner, scope, due date, status, and priority without opening the inspector.</p>
+        </div>
+        <span class="at-register-result-pill">@Model.Tasks.Count rows</span>
+    </div>
     @if (!Model.Tasks.Any())
     {
-        <div class="at-empty-state">
-            <div class="fw-semibold">No tasks found for the current filters.</div>
+        <div class="at-empty-state at-register-no-results">
+            <strong>No register rows match the current controls.</strong>
+            <span>Clear filters or broaden the search term to return tasks to this operational register.</span>
         </div>
     }
     else
@@ -176,10 +192,12 @@
                 <tbody>
                     @foreach (var task in Model.Tasks)
                     {
-                        <tr class="@(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)">
+                        <tr class="at-register-data-row @(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)">
                             <td><a class="at-task-id-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Register">AT-@task.Id</a></td>
                             <td class="at-register-task-cell">
-                                <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Register">@task.Title</a>
+                                <div class="at-register-task-line">
+                                    <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Register">@task.Title</a>
+                                </div>
                                 <div class="at-task-desc-preview">@task.Description</div>
                             </td>
                             <td class="at-register-person-cell">@Model.ResolveAssigneeName(task.AssignedToUserId)</td>
