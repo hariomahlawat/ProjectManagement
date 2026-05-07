@@ -1,24 +1,29 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Sprint Board workspace composes Phase 3A-2 partials without changing handlers or workflow rules. *@
-<section class="at-sprints-workspace at-planning-board-workspace">
-    <partial name="_PlanningCommandStrip" model="Model" />
-    <partial name="_PlanningTabs" model="Model" />
+@* SECTION: Sprint Board cockpit composition root preserves route-driven tab partials and existing handlers. *@
+<section class="at-sprints-workspace at-planning-board-workspace at-sprint-cockpit" aria-label="Sprint Board cockpit">
+    <div class="at-sprint-cockpit-topbar">
+        <partial name="_PlanningCommandStrip" model="Model" />
+        <partial name="_PlanningTabs" model="Model" />
+    </div>
 
-    @if (Model.IsPlanningPlanTab)
-    {
-        <partial name="_PlanningPlanTab" model="Model" />
-    }
-    else if (Model.IsPlanningExecuteTab)
-    {
-        <partial name="_PlanningExecuteTab" model="Model" />
-    }
-    else if (Model.IsPlanningCloseTab)
-    {
-        <partial name="_PlanningCloseTab" model="Model" />
-    }
-    else if (Model.IsPlanningViewsTab)
-    {
-        <partial name="_PlanningViewsTab" model="Model" />
-    }
+    @* SECTION: Sprint Board tab host renders one cockpit surface without changing tab route parameters. *@
+    <div class="at-sprint-cockpit-body">
+        @if (Model.IsPlanningPlanTab)
+        {
+            <partial name="_PlanningPlanTab" model="Model" />
+        }
+        else if (Model.IsPlanningExecuteTab)
+        {
+            <partial name="_PlanningExecuteTab" model="Model" />
+        }
+        else if (Model.IsPlanningCloseTab)
+        {
+            <partial name="_PlanningCloseTab" model="Model" />
+        }
+        else if (Model.IsPlanningViewsTab)
+        {
+            <partial name="_PlanningViewsTab" model="Model" />
+        }
+    </div>
 </section>

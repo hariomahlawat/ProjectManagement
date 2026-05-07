@@ -3396,3 +3396,352 @@ html {
         flex-direction: column;
     }
 }
+
+/* SECTION: Sprint Board cockpit shell and shared three-zone tab structure. */
+.at-sprint-cockpit {
+    gap: 1rem;
+}
+
+.at-sprint-cockpit-topbar,
+.at-sprint-cockpit-body {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+.at-cockpit-tab {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+    grid-template-areas:
+        "main support"
+        "main secondary";
+    align-items: start;
+    gap: 0.85rem;
+}
+
+.at-cockpit-main {
+    grid-area: main;
+    min-width: 0;
+}
+
+.at-cockpit-support {
+    grid-area: support;
+    min-width: 0;
+}
+
+.at-cockpit-secondary {
+    grid-area: secondary;
+    min-width: 0;
+}
+
+/* SECTION: Sprint Board top band identity, signals, and dominant next action. */
+.at-sprint-top-band {
+    grid-template-columns: minmax(260px, 1.35fr) minmax(360px, 1fr) minmax(220px, 0.8fr) auto;
+    align-items: stretch;
+    border-color: #bfdbfe;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fbff 58%, #eff6ff 100%);
+}
+
+.at-sprint-top-band-empty {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 0.55fr) auto;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.at-sprint-top-band-identity,
+.at-sprint-next-action {
+    display: grid;
+    align-content: start;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.at-sprint-top-band-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.at-sprint-top-band-title h2 {
+    margin: 0;
+    color: var(--at-text);
+    font-size: 1.05rem;
+    font-weight: var(--at-weight-bold);
+    letter-spacing: -0.02em;
+}
+
+.at-sprint-top-band-signals {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(5.1rem, 1fr));
+    gap: 0.45rem;
+    align-content: stretch;
+}
+
+.at-sprint-signal {
+    display: grid;
+    align-content: center;
+    gap: 0.08rem;
+    border: 1px solid #dbeafe;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.78);
+    padding: 0.52rem 0.58rem;
+    min-width: 0;
+}
+
+.at-sprint-signal strong {
+    color: var(--at-text);
+    font-size: 1rem;
+    font-weight: var(--at-weight-bold);
+    line-height: 1;
+}
+
+.at-sprint-signal small {
+    color: var(--at-muted);
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-bold);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.at-sprint-signal.is-risk,
+.at-sprint-signal.is-warning {
+    border-color: #fed7aa;
+    background: #fffbeb;
+}
+
+.at-sprint-signal.is-danger {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.at-sprint-next-action {
+    border: 1px solid #bfdbfe;
+    border-left: 4px solid var(--at-blue);
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 0.65rem 0.75rem;
+}
+
+.at-sprint-next-action strong {
+    color: var(--at-text);
+    font-size: var(--at-font-lg);
+    line-height: 1.1;
+}
+
+.at-sprint-next-action span:last-child {
+    color: var(--at-muted);
+    font-size: var(--at-font-md);
+    line-height: 1.35;
+}
+
+/* SECTION: Plan cockpit makes scope cards dominant and supporting sprint modules slimmer. */
+.at-plan-scope-board {
+    padding: 0.9rem;
+}
+
+.at-plan-scope-list {
+    display: grid;
+    gap: 0.55rem;
+    max-height: min(66vh, 52rem);
+}
+
+.at-plan-scope-card {
+    border-left: 4px solid #bfdbfe;
+    padding: 0.7rem 0.75rem;
+}
+
+.at-plan-sprint-rail,
+.at-plan-secondary-rail .at-panel {
+    box-shadow: none;
+}
+
+.at-plan-sprint-rail .at-sprint-list-item,
+.at-plan-history-lite .at-sprint-list-item {
+    padding: 0.48rem 0.58rem;
+}
+
+.at-plan-history-lite {
+    margin-top: 0.75rem;
+    padding: 0.72rem 0.85rem;
+}
+
+/* SECTION: Execute cockpit emphasizes the board and moves interventions to a right-side rail. */
+.at-planning-execute-panel {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+}
+
+.at-planning-execute-panel .at-execute-status-grid {
+    grid-template-columns: repeat(4, minmax(180px, 1fr));
+}
+
+.at-execute-intervention-rail {
+    position: sticky;
+    top: 5rem;
+    padding: 0.85rem;
+}
+
+.at-execute-rail-groups {
+    grid-template-columns: 1fr;
+}
+
+.at-execute-secondary-rail .at-execute-quick-add-inline {
+    width: 100%;
+}
+
+/* SECTION: Close cockpit promotes closure disposition while making history secondary. */
+.at-planning-close-panel {
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 320px);
+}
+
+.at-close-review-surface .at-closure-review {
+    border-color: #fed7aa;
+    box-shadow: 0 12px 30px rgba(146, 64, 14, 0.08);
+}
+
+.at-close-warning-rail .at-close-carry-forward-panel {
+    border-color: #fed7aa;
+    background: #fffbeb;
+}
+
+.at-sprint-history-secondary {
+    opacity: 0.78;
+    box-shadow: none;
+}
+
+.at-sprint-history-secondary:not([open]) {
+    background: #f8fafc;
+}
+
+/* SECTION: Views cockpit is subdued as secondary analysis. */
+.at-planning-analysis-panel {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+}
+
+.at-analysis-main-surface {
+    opacity: 0.92;
+}
+
+.at-analysis-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-style: dashed;
+    box-shadow: none;
+}
+
+.at-analysis-toggle h2 {
+    margin: 0;
+    font-size: var(--at-font-lg);
+}
+
+.at-analysis-context-panel {
+    border-style: dashed;
+    background: #f8fafc;
+    box-shadow: none;
+    color: var(--at-muted);
+    font-size: var(--at-font-md);
+}
+
+.at-analysis-context-panel p {
+    margin: 0.35rem 0 0;
+}
+
+/* SECTION: Dense Sprint Board task cards reduce chrome and keep task facts scannable. */
+.at-sprint-task-card-dense {
+    border-radius: 10px;
+    box-shadow: none;
+}
+
+.at-sprint-task-card-dense .at-task-card-link {
+    gap: 0.32rem;
+    padding: 0.55rem 0.62rem;
+}
+
+.at-card-scan-row,
+.at-card-scan-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.28rem 0.4rem;
+}
+
+.at-sprint-task-card-dense .at-card-subject {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    color: var(--at-text);
+    font-size: var(--at-font-md);
+    font-weight: var(--at-weight-bold);
+    line-height: 1.28;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.at-card-scan-meta {
+    color: var(--at-muted);
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-due-marker {
+    border: 1px solid #dbe4f0;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: var(--at-muted);
+    padding: 0.12rem 0.45rem;
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-bold);
+}
+
+/* SECTION: Sprint Board cockpit responsive containment. */
+@media (max-width: 1399px) {
+    .at-sprint-top-band {
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 0.85fr);
+    }
+
+    .at-sprint-top-band-signals,
+    .at-planning-command-actions {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 1199px) {
+    .at-cockpit-tab,
+    .at-planning-execute-panel,
+    .at-planning-close-panel,
+    .at-planning-analysis-panel {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "main"
+            "support"
+            "secondary";
+    }
+
+    .at-execute-intervention-rail {
+        position: static;
+    }
+
+    .at-planning-execute-panel .at-execute-status-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    .at-sprint-top-band,
+    .at-sprint-top-band-empty {
+        grid-template-columns: 1fr;
+    }
+
+    .at-sprint-top-band-signals,
+    .at-planning-execute-panel .at-execute-status-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .at-analysis-toggle {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}
