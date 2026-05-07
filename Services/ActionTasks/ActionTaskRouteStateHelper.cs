@@ -5,6 +5,104 @@ namespace ProjectManagement.Services.ActionTasks;
 
 public sealed class ActionTaskRouteStateHelper
 {
+
+    // SECTION: Canonical top-level workspace normalization keeps legacy bookmarks working without redirects.
+    public string ResolveViewMode(string? viewMode)
+    {
+        var normalized = (viewMode ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return "CommandCentre";
+        }
+
+        return normalized switch
+        {
+            _ when IsAlias(normalized, "Dashboard") => "CommandCentre",
+            _ when IsAlias(normalized, "Sprints") => "Planning",
+            _ when IsAlias(normalized, "Backlog") => "Planning",
+            _ when IsAlias(normalized, "Sprint") => "Planning",
+            _ when IsAlias(normalized, "Due Board") => "Planning",
+            _ when IsAlias(normalized, "SprintBoard") => "Planning",
+            _ when IsAlias(normalized, "Sprint Board") => "Planning",
+            _ when IsAlias(normalized, "Kanban") => "Planning",
+            _ when IsAlias(normalized, "MyTasks") => "MyWork",
+            _ when IsAlias(normalized, "My Tasks") => "MyWork",
+            _ when IsAlias(normalized, "TaskList") => "Register",
+            _ when IsAlias(normalized, "CommandCentre") => "CommandCentre",
+            _ when IsAlias(normalized, "Planning") => "Planning",
+            _ when IsAlias(normalized, "MyWork") => "MyWork",
+            _ when IsAlias(normalized, "Register") => "Register",
+            _ when IsAlias(normalized, "Reports") => "Reports",
+            _ => "CommandCentre"
+        };
+    }
+
+    // SECTION: Sprint Board sub-view normalization keeps secondary view state safe across links and postbacks.
+    public string ResolvePlanningView(string? planningView, string? viewMode)
+    {
+        var normalized = (planningView ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(normalized))
+        {
+            return normalized switch
+            {
+                _ when IsAlias(normalized, "DueExceptions") => "DueExceptions",
+                _ when IsAlias(normalized, "Due / exceptions") => "DueExceptions",
+                _ when IsAlias(normalized, "Due Board") => "DueExceptions",
+                _ when IsAlias(normalized, "Sprint Board") => "DueExceptions",
+                _ when IsAlias(normalized, "Kanban") => "Kanban",
+                _ => "Default"
+            };
+        }
+
+        return (viewMode ?? string.Empty).Trim() switch
+        {
+            var legacyView when IsAlias(legacyView, "Kanban") => "Kanban",
+            var legacyView when IsAlias(legacyView, "Due Board") => "DueExceptions",
+            var legacyView when IsAlias(legacyView, "SprintBoard") => "DueExceptions",
+            var legacyView when IsAlias(legacyView, "Sprint Board") => "DueExceptions",
+            _ => "Default"
+        };
+    }
+
+    // SECTION: Sprint Board internal tab normalization separates planning, execution, closure, and alternate views.
+    public string ResolvePlanningTab(string? planningTab, string resolvedPlanningView, string defaultPlanningTab)
+    {
+        var normalized = (planningTab ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(normalized))
+        {
+            return normalized switch
+            {
+                _ when IsAlias(normalized, "Plan") => "Plan",
+                _ when IsAlias(normalized, "Planning") => "Plan",
+                _ when IsAlias(normalized, "Backlog") => "Plan",
+                _ when IsAlias(normalized, "Execute") => "Execute",
+                _ when IsAlias(normalized, "Execution") => "Execute",
+                _ when IsAlias(normalized, "Close") => "Close",
+                _ when IsAlias(normalized, "Closure") => "Close",
+                _ when IsAlias(normalized, "Views") => "Views",
+                _ when IsAlias(normalized, "View") => "Views",
+                _ => defaultPlanningTab
+            };
+        }
+
+        return string.Equals(resolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase)
+            ? defaultPlanningTab
+            : "Views";
+    }
+
+    // SECTION: Shared filter-state detection covers GET bookmarks and postback route preservation.
+    public bool HasTaskFilterRouteState(ActionTaskFilterRouteState state)
+        => !string.IsNullOrWhiteSpace(state.FilterStatus)
+            || !string.IsNullOrWhiteSpace(state.FilterPriority)
+            || !string.IsNullOrWhiteSpace(state.FilterAssigneeUserId)
+            || state.FilterDueDate.HasValue
+            || !string.IsNullOrWhiteSpace(state.FilterSearch)
+            || !string.IsNullOrWhiteSpace(state.SortBy)
+            || !string.IsNullOrWhiteSpace(state.SortDir);
+
+    public bool IsLegacyViewMode(string? viewMode, string legacyViewMode)
+        => string.Equals((viewMode ?? string.Empty).Trim(), legacyViewMode, StringComparison.OrdinalIgnoreCase);
+
     // SECTION: Shared task redirect route preserves workspace, selection, and relevant list state from inspector actions.
     public RouteValueDictionary BuildTaskWorkspaceRouteValues(ActionTaskRouteState state, int? taskId, int? selectedSprintId)
     {
@@ -50,6 +148,9 @@ public sealed class ActionTaskRouteStateHelper
     }
 
     // SECTION: Route value helper avoids emitting empty query-string keys for offline-safe generated URLs.
+    private static bool IsAlias(string normalizedValue, string candidate)
+        => string.Equals(normalizedValue, candidate, StringComparison.OrdinalIgnoreCase);
+
     private static void AddRouteValueIfPresent(RouteValueDictionary routeValues, string key, string? value)
     {
         if (!string.IsNullOrWhiteSpace(value))
@@ -68,6 +169,15 @@ public sealed record ActionTaskRouteState(
     bool ShouldPreserveTaskFilters,
     int? TaskId,
     int? SelectedSprintId,
+    string? FilterStatus,
+    string? FilterPriority,
+    string? FilterAssigneeUserId,
+    DateTime? FilterDueDate,
+    string? FilterSearch,
+    string? SortBy,
+    string? SortDir);
+
+public sealed record ActionTaskFilterRouteState(
     string? FilterStatus,
     string? FilterPriority,
     string? FilterAssigneeUserId,
