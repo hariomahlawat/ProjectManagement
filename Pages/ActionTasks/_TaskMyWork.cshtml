@@ -1,3 +1,4 @@
+@using System.Collections.Generic
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
 @{
@@ -5,7 +6,7 @@
     var overdueTasks = Model.MyOverdueTaskDisplays;
     var todayTasks = Model.MyDueTodayTaskDisplays;
     var submittedTasks = Model.MyWorkSubmittedAwaitingClosureDisplays;
-    var nextUpTasks = Model.MyWorkCurrentWorkDisplays
+    IReadOnlyList<ProjectManagement.Pages.ActionTasks.IndexModel.TaskDisplayItem> nextUpTasks = Model.MyWorkCurrentWorkDisplays
         .Concat(Model.MyWorkAllMyTasksDisplays)
         .ToList();
     var assignedTaskCount = Model.Tasks.Count;
