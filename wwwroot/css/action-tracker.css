@@ -3341,6 +3341,25 @@ html {
     justify-content: flex-end;
 }
 
+.at-reports-filter-loading {
+    align-items: center;
+    color: #64748b;
+    display: none;
+    font-size: .78rem;
+    font-weight: 700;
+    gap: .4rem;
+}
+
+.at-reports-filter-loading.is-visible,
+.at-reports-filter-panel.is-loading .at-reports-filter-loading {
+    display: inline-flex;
+}
+
+.at-reports-filter-panel.is-loading .form-control,
+.at-reports-filter-panel.is-loading .form-select {
+    opacity: .72;
+}
+
 @media (max-width: 1199.98px) {
     .at-reports-filter-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
