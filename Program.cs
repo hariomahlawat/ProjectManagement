@@ -389,6 +389,8 @@ builder.Services.AddScoped<ActionTaskReportBuilder>();
 builder.Services.AddScoped<ActionTaskRouteStateHelper>();
 builder.Services.AddScoped<ActionTaskMyWorkQueueBuilder>();
 builder.Services.AddScoped<ActionTaskCommandCentreSummaryBuilder>();
+builder.Services.AddScoped<ActionTaskUserLookupService>();
+builder.Services.AddScoped<ActionTaskSprintWorkspaceSummaryBuilder>();
 builder.Services.AddScoped<ActionTaskQueryService>();
 builder.Services.AddScoped<ActionTaskWorkspaceBuilder>();
 builder.Services.AddScoped<ActionTaskWorkflowPolicy>();

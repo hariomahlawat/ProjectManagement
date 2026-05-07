@@ -1058,7 +1058,8 @@ public class ActionTaskPageTests
         var sprintWorkflowPolicy = new ActionSprintWorkflowPolicy();
         var sprintService = new ActionSprintService(db, permission, sprintWorkflowPolicy);
         var workspaceBuilder = new ActionTaskWorkspaceBuilder(service, sprintService, queryService);
-        var page = new IndexModel(service, collab, permission, sprintService, queryService, workspaceBuilder, workflowPolicy, new ActionTaskRouteStateHelper(), new ActionTaskMyWorkQueueBuilder(clock), new ActionTaskCommandCentreSummaryBuilder(clock), clock, userManager);
+        var userLookup = new ActionTaskUserLookupService(userManager, permission, clock);
+        var page = new IndexModel(service, collab, permission, sprintService, queryService, workspaceBuilder, workflowPolicy, new ActionTaskRouteStateHelper(), new ActionTaskMyWorkQueueBuilder(clock), new ActionTaskCommandCentreSummaryBuilder(clock), new ActionTaskSprintWorkspaceSummaryBuilder(clock), userLookup, clock, userManager);
 
         var httpContext = new DefaultHttpContext
         {
