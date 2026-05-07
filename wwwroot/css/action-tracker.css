@@ -1718,11 +1718,13 @@ html {
 }
 
 @media (max-width: 1199px) {
+    /* SECTION: Responsive grid collapse rules */
     .at-kpis,
     .at-kpis-reports,
     .at-card-grid,
     .at-command-exception-grid,
-    .at-command-queue-grid {
+    .at-command-queue-grid,
+    .at-card-grid.at-command-queue-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
@@ -1756,11 +1758,13 @@ html {
         border: none;
     }
 
+    /* SECTION: Mobile single-column grid collapse rules */
     .at-kpis,
     .at-kpis-reports,
     .at-card-grid,
     .at-command-exception-grid,
     .at-command-queue-grid,
+    .at-card-grid.at-command-queue-grid,
     .at-sprint-health-surface {
         grid-template-columns: 1fr;
     }
