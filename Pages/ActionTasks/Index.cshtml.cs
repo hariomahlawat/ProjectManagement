@@ -789,7 +789,7 @@ public class IndexModel : PageModel
         TaskAssigneeNames = await LoadTaskAssigneeNamesAsync(sourceTasks);
 
         // SECTION: Workspace read-model orchestration boundary
-        var workspaceReadModel = await _workspaceBuilder.BuildAsync(BuildWorkspaceRequest(), TaskAssigneeNames);
+        var workspaceReadModel = await _workspaceBuilder.BuildAsync(BuildWorkspaceRequest(), sourceTasks, TaskAssigneeNames);
         var readModel = workspaceReadModel.ReadModel;
 
         // SECTION: Read-model projections assignment boundary

@@ -19,12 +19,11 @@ public sealed class ActionTaskWorkspaceBuilder
         _queryService = queryService;
     }
 
-    // SECTION: Workspace composition boundary gathers task, sprint and activity inputs before read-model projection.
-    public async Task<ActionTaskWorkspaceReadModel> BuildAsync(ActionTaskWorkspaceRequest request, IReadOnlyDictionary<string, string> assigneeNames)
+    // SECTION: Workspace composition boundary uses the caller-provided task snapshot before read-model projection.
+    public async Task<ActionTaskWorkspaceReadModel> BuildAsync(ActionTaskWorkspaceRequest request, IReadOnlyList<ActionTaskItem> sourceTasks, IReadOnlyDictionary<string, string> assigneeNames)
     {
-        var tasks = await _taskService.GetTasksAsync(request.CurrentUserId, request.CurrentRole);
         var sprints = await _sprintService.GetSprintsAsync();
-        var activityByTaskId = await _taskService.GetLastActivityUtcByTaskIdsAsync(tasks.Select(t => t.Id).ToArray());
+        var activityByTaskId = await _taskService.GetLastActivityUtcByTaskIdsAsync(sourceTasks.Select(t => t.Id).ToArray());
         var queryRequest = new ActionTaskQueryService.ActionTaskQueryRequest(
             request.CurrentUserId,
             request.IsMyTasksView,
@@ -46,7 +45,7 @@ public sealed class ActionTaskWorkspaceBuilder
             request.ReportStatus,
             request.ReportPriority);
 
-        return new ActionTaskWorkspaceReadModel(tasks, _queryService.BuildReadModel(tasks, queryRequest, assigneeNames, activityByTaskId));
+        return new ActionTaskWorkspaceReadModel(sourceTasks, _queryService.BuildReadModel(sourceTasks, queryRequest, assigneeNames, activityByTaskId));
     }
 }
 
