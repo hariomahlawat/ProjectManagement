@@ -1,12 +1,10 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
-@using ProjectManagement.Models
-
-@* SECTION: Sprint Board backlog queue filters reuse the module's controlled register-style filtering. *@
+@* SECTION: Sprint Board backlog queue filters reuse controlled open-status filtering for actionable unscheduled work. *@
 <section class="at-panel mb-3">
     <div class="at-panel-heading">
         <div>
             <h2>Sprint Board Backlog Filters</h2>
-            <p class="at-panel-note">Backlog queue shows only tasks that are not assigned to a sprint.</p>
+            <p class="at-panel-note">Backlog queue shows only open tasks that are not assigned to a sprint.</p>
         </div>
         <span class="at-count-chip">@Model.BacklogTaskDisplays.Count tasks</span>
     </div>
@@ -21,8 +19,8 @@
         <div class="col-md-2">
             <label class="form-label">Status</label>
             <select class="form-select" name="FilterStatus">
-                <option value="">All</option>
-                @foreach (var status in Model.AllowedStatusOptions.Append(ActionTaskStatuses.Closed))
+                <option value="">All open statuses</option>
+                @foreach (var status in Model.AllowedStatusOptions)
                 {
                     if (string.Equals(Model.FilterStatus, status, StringComparison.OrdinalIgnoreCase))
                     {

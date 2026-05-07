@@ -396,7 +396,7 @@ public class ActionTaskPageTests
         Assert.NotEmpty(page.BacklogTasks);
         Assert.All(page.BacklogTasks, task => Assert.Null(task.SprintId));
         Assert.Contains(page.BacklogTasks, task => task.Title == "Mine");
-        Assert.Contains(page.BacklogTasks, task => task.Title == "Closed backlog");
+        Assert.DoesNotContain(page.BacklogTasks, task => task.Title == "Closed backlog");
         Assert.DoesNotContain(page.BacklogTasks, task => task.Title == "Sprint task");
     }
 
@@ -436,10 +436,11 @@ public class ActionTaskPageTests
         await page.OnGetAsync();
 
         // SECTION: Assert
-        Assert.Contains(page.SprintBacklogTasks, task => task.Title == "Closed backlog");
+        Assert.DoesNotContain(page.SprintBacklogTasks, task => task.Title == "Closed backlog");
         Assert.DoesNotContain(page.AssignableBacklogTaskDisplays, item => item.Task.Title == "Closed backlog");
         Assert.All(page.AssignableBacklogTaskDisplays, item => Assert.NotEqual(ActionTaskStatuses.Closed, item.Task.Status));
-        Assert.False(page.CanAssignTaskToSprint(page.SprintBacklogTasks.Single(task => task.Title == "Closed backlog")));
+        Assert.Contains(page.Tasks, task => task.Title == "Closed backlog");
+        Assert.False(page.CanAssignTaskToSprint(page.Tasks.Single(task => task.Title == "Closed backlog")));
     }
 
     [Fact]
