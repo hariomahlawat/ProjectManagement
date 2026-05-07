@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Models;
 using ProjectManagement.Services.ActionTasks;
 
@@ -98,6 +99,7 @@ public class IndexModel : PageModel
     public int ReportTotalTaskCount { get; private set; }
     public ActionTaskMyWorkQueueReadModel MyWorkQueue { get; private set; } = EmptyMyWorkQueue;
     public ActionTaskCommandCentreSummary CommandCentreSummary { get; private set; } = ActionTaskCommandCentreSummary.Empty;
+    public ActionTaskSprintWorkspaceSummary SprintWorkspaceSummary { get; private set; } = ActionTaskSprintWorkspaceSummary.Empty;
 
 
     [BindProperty(SupportsGet = true)]
@@ -971,6 +973,30 @@ public class IndexModel : PageModel
         }
 
         return merged;
+    }
+
+    // SECTION: Person display formatting preserves rank-first names for locally merged actor dictionaries.
+    private static string BuildPersonDisplayName(string? rank, string? fullName, string? userName, string? email)
+    {
+        var trimmedRank = rank?.Trim();
+        var trimmedFullName = fullName?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(trimmedRank) && !string.IsNullOrWhiteSpace(trimmedFullName))
+        {
+            return $"{trimmedRank} {trimmedFullName}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(trimmedFullName))
+        {
+            return trimmedFullName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(userName))
+        {
+            return userName;
+        }
+
+        return string.IsNullOrWhiteSpace(email) ? "User" : email;
     }
 
     // SECTION: Task display projections for richer UI cards and mini-lists.
