@@ -57,6 +57,7 @@ public sealed class ActionTaskQueryService
         => !taskId.HasValue ? null : visibleTasks.FirstOrDefault(t => t.Id == taskId.Value);
 
     private static bool IsOpen(ActionTaskItem task) => !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
+    private static bool IsActionableBacklog(ActionTaskItem task) => task.SprintId is null && IsOpen(task);
     private static bool IsCriticalOpen(ActionTaskItem task) => IsOpen(task) && string.Equals(task.Priority, "Critical", StringComparison.OrdinalIgnoreCase);
 
     private static DateTime? ResolveLastActivityUtc(ActionTaskItem task, IReadOnlyDictionary<int, DateTime?> activityByTaskId)
@@ -65,10 +66,10 @@ public sealed class ActionTaskQueryService
         return activityTimestampUtc ?? task.SubmittedOn ?? task.AssignedOn;
     }
 
-    // SECTION: Backlog read-model projection where null SprintId is the backlog contract.
+    // SECTION: Backlog read-model projection where null SprintId plus open status is the actionable backlog contract.
     private static IReadOnlyList<ActionTaskItem> BuildBacklogTasks(IReadOnlyList<ActionTaskItem> tasks, ActionTaskQueryRequest request, IReadOnlyDictionary<string, string> assigneeNames)
     {
-        var backlogTasks = tasks.Where(t => t.SprintId is null).ToList();
+        var backlogTasks = tasks.Where(IsActionableBacklog).ToList();
         return request.IsBacklogView
             ? ApplyTaskListFilters(backlogTasks, request, assigneeNames).ToList()
             : backlogTasks.OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
@@ -92,7 +93,7 @@ public sealed class ActionTaskQueryService
             ? new List<ActionTaskItem>()
             : tasks.Where(t => t.SprintId == selectedSprint.Id).OrderBy(t => StatusOrder(t)).ThenBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
 
-        var backlogTasks = tasks.Where(t => t.SprintId is null).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
+        var backlogTasks = tasks.Where(IsActionableBacklog).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
 
         return new ActionSprintReadModel
         {
@@ -192,7 +193,7 @@ public sealed class ActionTaskQueryService
             InProgressTasks = activeSprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase)),
             BlockedTasks = activeSprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)),
             OverdueTasks = activeSprintTasks.Count(t => IsOpen(t) && t.DueDate.Date < today),
-            BacklogTasks = tasks.Count(t => t.SprintId is null),
+            BacklogTasks = tasks.Count(IsActionableBacklog),
             CarryForwardCandidateTasks = activeSprintTasks.Count(t => IsOpen(t))
         };
     }

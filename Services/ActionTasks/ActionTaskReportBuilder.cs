@@ -21,7 +21,7 @@ public sealed class ActionTaskReportBuilder
         var reportTasks = ApplyReportFilters(tasks, request).ToList();
         var openTasks = reportTasks.Where(IsOpen).ToList();
         var submittedTasks = reportTasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).ToList();
-        var backlogOpenTasks = openTasks.Where(t => t.SprintId is null).ToList();
+        var backlogOpenTasks = openTasks.Where(IsActionableBacklog).ToList();
         var blockedTasks = reportTasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)).ToList();
         string Assignee(string id) => assigneeNames.TryGetValue(id, out var name) ? name : "User";
 
@@ -48,7 +48,7 @@ public sealed class ActionTaskReportBuilder
         if (request.ReportSprintId.HasValue)
         {
             query = request.ReportSprintId.Value == 0
-                ? query.Where(t => t.SprintId is null)
+                ? query.Where(IsActionableBacklog)
                 : query.Where(t => t.SprintId == request.ReportSprintId.Value);
         }
 
@@ -76,6 +76,9 @@ public sealed class ActionTaskReportBuilder
             .Select(g => new ActionTaskQueryService.CountSummary(g.Key.Name, g.Count()))
             .ToList();
     }
+
+    // SECTION: Backlog analytics use the actionable backlog definition without changing general reports.
+    private static bool IsActionableBacklog(ActionTaskItem task) => task.SprintId is null && IsOpen(task);
 
     private static bool IsOpen(ActionTaskItem task) => !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
 }

@@ -21,7 +21,8 @@ public class ActionTaskQueryServiceSprintMetricsTests
             NewTask(2, activeSprint.Id, ActionTaskStatuses.InProgress, today.AddDays(1)),
             NewTask(3, activeSprint.Id, ActionTaskStatuses.Blocked, today.AddDays(-2)),
             NewTask(4, activeSprint.Id, ActionTaskStatuses.Submitted, today.AddDays(2)),
-            NewTask(5, null, ActionTaskStatuses.Assigned, today.AddDays(3))
+            NewTask(5, null, ActionTaskStatuses.Assigned, today.AddDays(3)),
+            NewTask(6, null, ActionTaskStatuses.Closed, today.AddDays(4))
         };
         var service = CreateQueryService();
 
@@ -41,6 +42,8 @@ public class ActionTaskQueryServiceSprintMetricsTests
         Assert.Equal(1, model.ActiveSprintMetrics.OverdueTasks);
         Assert.Equal(1, model.ActiveSprintMetrics.BacklogTasks);
         Assert.Equal(3, model.ActiveSprintMetrics.CarryForwardCandidateTasks);
+        Assert.Equal(new[] { 5 }, model.BacklogTasks.Select(t => t.Id));
+        Assert.Equal(new[] { 5 }, model.SprintReadModel.BacklogTasks.Select(t => t.Id));
         Assert.Equal(1, model.SprintReadModel.ClosureReview.CompletedTasks.Count);
         Assert.Equal(3, model.SprintReadModel.ClosureReview.UnfinishedTasks.Count);
         Assert.Equal(nextSprint.Id, model.SprintReadModel.ClosureReview.TargetSprintOptions.Single().Id);
@@ -89,7 +92,8 @@ public class ActionTaskQueryServiceSprintMetricsTests
         var tasks = new[]
         {
             NewTask(21, null, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", "assignee", today.AddDays(-5)),
-            NewTask(22, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", "assignee", today.AddDays(-12))
+            NewTask(22, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", "assignee", today.AddDays(-12)),
+            NewTask(23, null, ActionTaskStatuses.Closed, today.AddDays(2), "Normal", "assignee", today.AddDays(-20))
         };
         var service = CreateQueryService();
 
@@ -102,7 +106,9 @@ public class ActionTaskQueryServiceSprintMetricsTests
 
         // SECTION: Assert
         Assert.Equal(1, model.Reports.FilteredTaskCount);
+        Assert.DoesNotContain(model.Reports.StatusCounts, item => string.Equals(item.Name, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
         Assert.Equal(1, model.Reports.BacklogAgeingBuckets.Single(x => x.Name == "4 to 7 days").Count);
+        Assert.Equal(0, model.Reports.BacklogAgeingBuckets.Single(x => x.Name == "15+ days").Count);
         Assert.All(model.Reports.CarryForwardBySprint, item => Assert.Equal(0, item.Count));
     }
 
