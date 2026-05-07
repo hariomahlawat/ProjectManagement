@@ -15,26 +15,40 @@
 <div class="at-shell @(Model.TaskId.HasValue ? "has-selection" : string.Empty) @(Model.IsPlanningView ? "is-planning-board" : string.Empty)">
     @* SECTION: Compact left rail navigation. *@
     <aside class="at-rail" aria-label="Task tracker navigation">
-        <nav class="at-nav">
-            @* SECTION: Icon-led rail links for compact enterprise navigation. *@
-            <a title="Command Centre" asp-page="/ActionTasks/Index" asp-route-viewMode="CommandCentre" class="@(Model.IsCommandCentreView ? "active" : string.Empty)"><i class="bi bi-speedometer2" aria-hidden="true"></i><span>Command Centre</span></a>
-            <a title="Sprint Board" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" class="@(Model.IsPlanningView ? "active" : string.Empty)"><i class="bi bi-calendar-range" aria-hidden="true"></i><span>Sprint Board</span></a>
-            <a title="My Work" asp-page="/ActionTasks/Index" asp-route-viewMode="MyWork" class="@(Model.IsMyWorkView ? "active" : string.Empty)"><i class="bi bi-check2-circle" aria-hidden="true"></i><span>My Work</span></a>
-            <a title="Register" asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="@(Model.IsRegisterView ? "active" : string.Empty)"><i class="bi bi-list-task" aria-hidden="true"></i><span>Register</span></a>
-            <a title="Reports" asp-page="/ActionTasks/Index" asp-route-viewMode="Reports" class="@(Model.IsReportsView ? "active" : string.Empty)"><i class="bi bi-bar-chart" aria-hidden="true"></i><span>Reports</span></a>
+        <nav class="at-nav" aria-label="Task tracker operating layers">
+            @* SECTION: Grouped rail - Monitor layer. *@
+            <section class="at-nav-group" aria-labelledby="at-nav-monitor-label">
+                <h2 id="at-nav-monitor-label" class="at-nav-group-label">Monitor</h2>
+                <a title="Command Centre" asp-page="/ActionTasks/Index" asp-route-viewMode="CommandCentre" class="at-nav-link @(Model.IsCommandCentreView ? "active" : string.Empty)"><i class="bi bi-speedometer2" aria-hidden="true"></i><span>Command Centre</span></a>
+                <a title="Reports" asp-page="/ActionTasks/Index" asp-route-viewMode="Reports" class="at-nav-link @(Model.IsReportsView ? "active" : string.Empty)"><i class="bi bi-bar-chart" aria-hidden="true"></i><span>Reports</span></a>
+            </section>
+
+            @* SECTION: Grouped rail - Execute layer. *@
+            <section class="at-nav-group" aria-labelledby="at-nav-execute-label">
+                <h2 id="at-nav-execute-label" class="at-nav-group-label">Execute</h2>
+                <a title="My Work" asp-page="/ActionTasks/Index" asp-route-viewMode="MyWork" class="at-nav-link @(Model.IsMyWorkView ? "active" : string.Empty)"><i class="bi bi-check2-circle" aria-hidden="true"></i><span>My Work</span></a>
+            </section>
+
+            @* SECTION: Grouped rail - Plan layer. *@
+            <section class="at-nav-group" aria-labelledby="at-nav-plan-label">
+                <h2 id="at-nav-plan-label" class="at-nav-group-label">Plan</h2>
+                <a title="Sprint Board" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" class="at-nav-link at-nav-link-flagship @(Model.IsPlanningView ? "active" : string.Empty)"><i class="bi bi-calendar-range" aria-hidden="true"></i><span>Sprint Board</span></a>
+                <a title="Register" asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="at-nav-link @(Model.IsRegisterView ? "active" : string.Empty)"><i class="bi bi-list-task" aria-hidden="true"></i><span>Register</span></a>
+            </section>
         </nav>
     </aside>
 
     @* SECTION: Main workspace column. *@
     <section class="at-workspace">
+        @* SECTION: Shell header and global actions. *@
         <header class="at-header">
-            <div>
+            <div class="at-header-copy">
                 <h1>@Model.PageHeading</h1>
                 <p>@Model.PageSubtitle</p>
             </div>
             @if (Model.CanCreate)
             {
-                <button class="btn btn-primary at-create-trigger" type="button" data-bs-toggle="modal" data-bs-target="#createTaskModal"><i class="bi bi-plus-lg" aria-hidden="true"></i><span>Create Task</span></button>
+                <button class="btn btn-outline-primary at-create-trigger" type="button" data-bs-toggle="modal" data-bs-target="#createTaskModal"><i class="bi bi-plus-lg" aria-hidden="true"></i><span>Create Task</span></button>
             }
         </header>
 
