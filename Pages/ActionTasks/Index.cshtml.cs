@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Models;
 using ProjectManagement.Services.ActionTasks;
@@ -26,18 +25,28 @@ public class IndexModel : PageModel
     private readonly ActionTaskPermissionService _permission;
     private readonly ActionSprintService _sprintService;
     private readonly ActionTaskQueryService _queryService;
+    private readonly ActionTaskWorkspaceBuilder _workspaceBuilder;
     private readonly ActionTaskWorkflowPolicy _workflowPolicy;
+    private readonly ActionTaskRouteStateHelper _routeStateHelper;
+    private readonly ActionTaskDisplayBuilder _displayBuilder;
+    private readonly IActionTrackerClock _clock;
     private readonly UserManager<ApplicationUser> _users;
 
-    public IndexModel(IActionTaskService service, IActionTaskCollaborationService collaborationService, ActionTaskPermissionService permission, ActionSprintService sprintService, ActionTaskQueryService queryService, ActionTaskWorkflowPolicy workflowPolicy, UserManager<ApplicationUser> users)
+    public IndexModel(IActionTaskService service, IActionTaskCollaborationService collaborationService, ActionTaskPermissionService permission, ActionSprintService sprintService, ActionTaskQueryService queryService, ActionTaskWorkspaceBuilder workspaceBuilder, ActionTaskWorkflowPolicy workflowPolicy, ActionTaskRouteStateHelper routeStateHelper, ActionTaskDisplayBuilder displayBuilder, IActionTrackerClock clock, UserManager<ApplicationUser> users)
     {
         _service = service;
         _collaborationService = collaborationService;
         _permission = permission;
         _sprintService = sprintService;
         _queryService = queryService;
+        _workspaceBuilder = workspaceBuilder;
         _workflowPolicy = workflowPolicy;
+        _routeStateHelper = routeStateHelper;
+        _displayBuilder = displayBuilder;
+        _clock = clock;
         _users = users;
+        Input.DueDate = _clock.UtcToday.AddDays(7);
+        SprintInput = CreateSprintInput.FromSprint(_clock.UtcToday);
     }
 
     public IReadOnlyList<ActionTaskItem> Tasks { get; private set; } = Array.Empty<ActionTaskItem>();
@@ -148,7 +157,7 @@ public class IndexModel : PageModel
     public AddTaskUpdateInput UpdateInput { get; set; } = new();
 
     [BindProperty]
-    public CreateSprintInput SprintInput { get; set; } = CreateSprintInput.FromSprint(DateTime.UtcNow.Date);
+    public CreateSprintInput SprintInput { get; set; } = new();
 
     [BindProperty]
     public UpdateSprintInput SprintEditInput { get; set; } = new();
@@ -350,7 +359,7 @@ public class IndexModel : PageModel
         }
 
         // SECTION: Business validation for due-date discipline
-        if (Input.DueDate.Date < DateTime.UtcNow.Date)
+        if (Input.DueDate.Date < _clock.UtcToday)
         {
             ModelState.AddModelError(nameof(Input.DueDate), "Due date cannot be in the past.");
             ShowCreateModal = true;
@@ -375,7 +384,7 @@ public class IndexModel : PageModel
             return Page();
         }
 
-        if (assignedUser.LockoutEnd.HasValue && assignedUser.LockoutEnd > DateTimeOffset.UtcNow)
+        if (assignedUser.LockoutEnd.HasValue && assignedUser.LockoutEnd > new DateTimeOffset(_clock.UtcNow, TimeSpan.Zero))
         {
             ModelState.AddModelError(nameof(Input.AssignedToUserId), "Selected user is locked and cannot be assigned a task.");
             ShowCreateModal = true;
@@ -773,20 +782,15 @@ public class IndexModel : PageModel
     {
         await ResolveIdentityAsync();
 
-        var tasks = await _service.GetTasksAsync(CurrentUserId, CurrentRole);
-        var sprints = await _sprintService.GetSprintsAsync();
+        var sourceTasks = await _service.GetTasksAsync(CurrentUserId, CurrentRole);
 
         // SECTION: Query read-model dependencies
         AssignableUsers = await LoadAssignableUsersAsync();
-        TaskAssigneeNames = await LoadTaskAssigneeNamesAsync(tasks);
+        TaskAssigneeNames = await LoadTaskAssigneeNamesAsync(sourceTasks);
 
-        // SECTION: Query read-model orchestration boundary
-        var activityByTaskId = await _service.GetLastActivityUtcByTaskIdsAsync(tasks.Select(t => t.Id).ToArray());
-        var readModel = _queryService.BuildReadModel(
-            tasks,
-            new ActionTaskQueryService.ActionTaskQueryRequest(CurrentUserId, IsMyTasksView, IsTaskListView, IsBacklogView, SelectedSprintId, sprints, FilterStatus, FilterPriority, FilterAssigneeUserId, FilterDueDate, FilterSearch, SortBy, SortDir, ReportSprintId, ReportAssigneeUserId, ReportFromDate, ReportToDate, ReportStatus, ReportPriority),
-            TaskAssigneeNames,
-            activityByTaskId);
+        // SECTION: Workspace read-model orchestration boundary
+        var workspaceReadModel = await _workspaceBuilder.BuildAsync(BuildWorkspaceRequest(), TaskAssigneeNames);
+        var readModel = workspaceReadModel.ReadModel;
 
         // SECTION: Read-model projections assignment boundary
         Tasks = readModel.TaskListTasks;
@@ -854,6 +858,29 @@ public class IndexModel : PageModel
         TaskActorNames = await MergeActorNamesAsync(TaskActorNames, SelectedTaskUpdates);
     }
 
+    // SECTION: Workspace request isolates GET filter, report and sprint state before builder orchestration.
+    private ActionTaskWorkspaceRequest BuildWorkspaceRequest()
+        => new(
+            CurrentUserId,
+            CurrentRole,
+            IsMyTasksView,
+            IsTaskListView,
+            IsBacklogView,
+            SelectedSprintId,
+            FilterStatus,
+            FilterPriority,
+            FilterAssigneeUserId,
+            FilterDueDate,
+            FilterSearch,
+            SortBy,
+            SortDir,
+            ReportSprintId,
+            ReportAssigneeUserId,
+            ReportFromDate,
+            ReportToDate,
+            ReportStatus,
+            ReportPriority);
+
 
     private async Task LoadSprintAuditHistoryAsync()
     {
@@ -874,7 +901,7 @@ public class IndexModel : PageModel
         // SECTION: Keep create defaults editable while deriving current sprint.
         if (!ShowCreateSprintPanel)
         {
-            SprintInput = CreateSprintInput.FromSprint(DateTime.UtcNow.Date);
+            SprintInput = CreateSprintInput.FromSprint(_clock.UtcToday);
         }
 
         if (SelectedSprint is not null && !ShowEditSprintPanel)
@@ -970,7 +997,7 @@ public class IndexModel : PageModel
 
     public IReadOnlyList<TaskDisplayItem> MyDueTodayTaskDisplays =>
         ToDisplayItems(Tasks
-            .Where(t => IsOpenTask(t) && t.DueDate.Date == DateTime.UtcNow.Date)
+            .Where(t => IsOpenTask(t) && t.DueDate.Date == _clock.UtcToday)
             .OrderBy(t => StatusOrder(t.Status))
             .ThenBy(t => t.DueDate)
             .ThenBy(t => t.Id)
@@ -1002,16 +1029,16 @@ public class IndexModel : PageModel
 
     // SECTION: My Work queue projections de-duplicate tasks by urgency before rendering primary workspace sections.
     public IReadOnlyList<TaskDisplayItem> MyWorkActionRequiredDisplays =>
-        ToDisplayItems(BuildMyWorkQueueSection(MyWorkQueueSection.ActionRequired));
+        ToDisplayItems(BuildMyWorkQueueSection(ActionTaskMyWorkQueueSection.ActionRequired));
 
     public IReadOnlyList<TaskDisplayItem> MyWorkCurrentWorkDisplays =>
-        ToDisplayItems(BuildMyWorkQueueSection(MyWorkQueueSection.CurrentWork));
+        ToDisplayItems(BuildMyWorkQueueSection(ActionTaskMyWorkQueueSection.CurrentWork));
 
     public IReadOnlyList<TaskDisplayItem> MyWorkSubmittedAwaitingClosureDisplays =>
-        ToDisplayItems(BuildMyWorkQueueSection(MyWorkQueueSection.SubmittedAwaitingClosure));
+        ToDisplayItems(BuildMyWorkQueueSection(ActionTaskMyWorkQueueSection.SubmittedAwaitingClosure));
 
     public IReadOnlyList<TaskDisplayItem> MyWorkAllMyTasksDisplays =>
-        ToDisplayItems(BuildMyWorkQueueSection(MyWorkQueueSection.AllMyTasks));
+        ToDisplayItems(BuildMyWorkQueueSection(ActionTaskMyWorkQueueSection.AllMyTasks));
 
     // SECTION: Legacy My Tasks display alias retained for older partial references.
     public IReadOnlyList<TaskDisplayItem> MyWorkOverdueTaskDisplays =>
@@ -1098,7 +1125,7 @@ public class IndexModel : PageModel
 
     // SECTION: KPI helpers for dashboard and reports.
     public int ActiveCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
-    public int OverdueCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase) && t.DueDate.Date < DateTime.UtcNow.Date);
+    public int OverdueCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase) && t.DueDate.Date < _clock.UtcToday);
     public int InProgressCount => CountByStatus(ActionTaskStatuses.InProgress);
     public int SubmittedCount => CountByStatus(ActionTaskStatuses.Submitted);
     public int BlockedCount => CountByStatus(ActionTaskStatuses.Blocked);
@@ -1177,36 +1204,9 @@ public class IndexModel : PageModel
     public int ToPercent(int value, int max) =>
         max <= 0 ? 0 : (int)Math.Round((double)value / max * 100);
 
-    // SECTION: Report top-attention prioritization.
+    // SECTION: Report top-attention prioritization is delegated to the display builder.
     private IReadOnlyList<TaskDisplayItem> BuildTopAttentionItems()
-    {
-        var today = DateTime.UtcNow.Date;
-        var top = Tasks
-            .Where(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
-            .Select(t => new
-            {
-                Task = t,
-                Score = GetAttentionScore(t, today)
-            })
-            .OrderBy(x => x.Score)
-            .ThenBy(x => x.Task.DueDate)
-            .ThenBy(x => x.Task.Id)
-            .Take(3)
-            .Select(x => x.Task)
-            .ToList();
-        return ToDisplayItems(top);
-    }
-    private static int GetAttentionScore(ActionTaskItem task, DateTime today)
-    {
-        var isOverdue = task.DueDate.Date < today;
-        var isCritical = string.Equals(task.Priority, "Critical", StringComparison.OrdinalIgnoreCase);
-        if (isOverdue && isCritical) return 1;
-        if (isOverdue) return 2;
-        if (string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase) && isCritical) return 3;
-        if (isCritical) return 4;
-        if (string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)) return 5;
-        return 6;
-    }
+        => ToDisplayItems(_displayBuilder.BuildTopAttentionItems(Tasks));
 
     private async Task ResolveIdentityAsync()
     {
@@ -1219,7 +1219,7 @@ public class IndexModel : PageModel
     private async Task<IReadOnlyList<UserOption>> LoadAssignableUsersAsync()
     {
         // SECTION: Stabilize user snapshot to avoid overlapping data-reader operations
-        var utcNow = DateTimeOffset.UtcNow;
+        var utcNow = new DateTimeOffset(_clock.UtcNow, TimeSpan.Zero);
         var users = await _users.Users
             .Where(u => !u.IsDisabled)
             .Where(u => !u.PendingDeletion)
@@ -1462,65 +1462,28 @@ public class IndexModel : PageModel
         return RedirectToPage(routeValues);
     }
 
-    // SECTION: Canonical workspace route values keep legacy view aliases working without forcing GET redirects.
-    private RouteValueDictionary BuildTaskWorkspaceRouteValues(int? taskId, int? selectedSprintId)
-    {
-        var routeValues = new RouteValueDictionary
-        {
-            [nameof(ViewMode)] = ResolveViewMode(),
-            [nameof(TaskId)] = taskId,
-            [nameof(SelectedSprintId)] = selectedSprintId
-        };
+    // SECTION: Canonical workspace route values are delegated to the shared route-state helper.
+    private object BuildTaskWorkspaceRouteValues(int? taskId, int? selectedSprintId)
+        => _routeStateHelper.BuildTaskWorkspaceRouteValues(BuildRouteState(), taskId, selectedSprintId);
 
-        if (IsPlanningView && !string.Equals(ResolvedPlanningTab, GetDefaultPlanningTab(), StringComparison.OrdinalIgnoreCase))
-        {
-            routeValues[nameof(PlanningTab)] = ResolvedPlanningTab;
-        }
-
-        if (IsPlanningView && !string.Equals(ResolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase))
-        {
-            routeValues[nameof(PlanningView)] = ResolvedPlanningView;
-        }
-
-        if (ShouldPreserveTaskFilters())
-        {
-            AddTaskFilterRouteValues(routeValues);
-        }
-
-        return routeValues;
-    }
-
-    // SECTION: Task-list filter route preservation supports legacy TaskList and Backlog bookmarks after required postback redirects.
-    private bool ShouldPreserveTaskFilters()
-    {
-        return IsTaskListView || IsBacklogView;
-    }
-
-    // SECTION: Filter route values are added only when populated so canonical links stay compact.
-    private void AddTaskFilterRouteValues(RouteValueDictionary routeValues)
-    {
-        AddRouteValueIfPresent(routeValues, nameof(FilterStatus), FilterStatus);
-        AddRouteValueIfPresent(routeValues, nameof(FilterPriority), FilterPriority);
-        AddRouteValueIfPresent(routeValues, nameof(FilterAssigneeUserId), FilterAssigneeUserId);
-        if (FilterDueDate.HasValue)
-        {
-            routeValues[nameof(FilterDueDate)] = FilterDueDate.Value.ToString("yyyy-MM-dd");
-        }
-
-        AddRouteValueIfPresent(routeValues, nameof(FilterSearch), FilterSearch);
-        AddRouteValueIfPresent(routeValues, nameof(SortBy), SortBy);
-        AddRouteValueIfPresent(routeValues, nameof(SortDir), SortDir);
-    }
-
-    // SECTION: Route value helper avoids emitting empty query-string keys for offline-safe generated URLs.
-    private static void AddRouteValueIfPresent(RouteValueDictionary routeValues, string key, string? value)
-    {
-        if (!string.IsNullOrWhiteSpace(value))
-        {
-            routeValues[key] = value.Trim();
-        }
-    }
-
+    // SECTION: Task-list filter route preservation supports legacy Register and Backlog bookmarks after postback redirects.
+    private ActionTaskRouteState BuildRouteState()
+        => new(
+            ResolveViewMode(),
+            ResolvedPlanningTab,
+            ResolvedPlanningView,
+            GetDefaultPlanningTab(),
+            IsPlanningView,
+            IsTaskListView || IsBacklogView,
+            TaskId,
+            SelectedSprintId,
+            FilterStatus,
+            FilterPriority,
+            FilterAssigneeUserId,
+            FilterDueDate,
+            FilterSearch,
+            SortBy,
+            SortDir);
 
     // SECTION: Planning backlog filter detection keeps canonical Planning routes compatible with legacy Backlog filtered views.
     private bool IsPlanningBacklogFilterContext()
@@ -1600,7 +1563,7 @@ public class IndexModel : PageModel
 
         [Display(Name = "Due Date")]
         [Required]
-        public DateTime DueDate { get; set; } = DateTime.UtcNow.Date.AddDays(7);
+        public DateTime DueDate { get; set; }
 
         [Required, StringLength(24)]
         public string Priority { get; set; } = "Normal";
@@ -1732,7 +1695,7 @@ public class IndexModel : PageModel
 
     public bool IsTaskOverdue(ActionTaskItem task) =>
         IsOpenTask(task)
-        && task.DueDate.Date < DateTime.UtcNow.Date;
+        && task.DueDate.Date < _clock.UtcToday;
 
     // SECTION: Shared open-task predicate keeps personal and command projections aligned.
     private static bool IsOpenTask(ActionTaskItem task) =>
@@ -1743,76 +1706,9 @@ public class IndexModel : PageModel
             ? Array.Empty<ActionTaskItem>()
             : Tasks.Where(t => t.SprintId == ActiveSprint.Id).ToList();
 
-    // SECTION: My Work queue section identifiers keep the presentation grouping explicit and replaceable.
-    private enum MyWorkQueueSection
-    {
-        ActionRequired,
-        CurrentWork,
-        SubmittedAwaitingClosure,
-        AllMyTasks
-    }
-
-    // SECTION: Remaining personal work keeps assigned tasks visible when they do not fit a priority lane.
-    private IReadOnlyList<ActionTaskItem> GetRemainingAssignedTasks() =>
-        BuildMyWorkQueueSection(MyWorkQueueSection.AllMyTasks);
-
-    // SECTION: Priority-based My Work queue assigns each task to exactly one primary section.
-    private IReadOnlyList<ActionTaskItem> BuildMyWorkQueueSection(MyWorkQueueSection section) =>
-        Tasks
-            .Select(task => new { Task = task, Section = ResolveMyWorkQueueSection(task) })
-            .Where(item => item.Section == section)
-            .Select(item => item.Task)
-            .OrderBy(task => ResolveMyWorkPriorityRank(task))
-            .ThenBy(task => StatusOrder(task.Status))
-            .ThenBy(task => task.DueDate)
-            .ThenBy(task => task.Id)
-            .ToList();
-
-    // SECTION: My Work precedence prevents repeated cards across action, execution, submitted, and remaining sections.
-    private MyWorkQueueSection ResolveMyWorkQueueSection(ActionTaskItem task)
-    {
-        if (IsTaskOverdue(task) || IsTaskDueToday(task) || IsTaskBlocked(task))
-        {
-            return MyWorkQueueSection.ActionRequired;
-        }
-
-        if (IsTaskInProgress(task))
-        {
-            return MyWorkQueueSection.CurrentWork;
-        }
-
-        if (IsTaskSubmitted(task))
-        {
-            return MyWorkQueueSection.SubmittedAwaitingClosure;
-        }
-
-        return MyWorkQueueSection.AllMyTasks;
-    }
-
-    // SECTION: My Work row ordering follows the required urgency precedence inside compact sections.
-    private int ResolveMyWorkPriorityRank(ActionTaskItem task)
-    {
-        if (IsTaskOverdue(task)) return 1;
-        if (IsTaskDueToday(task)) return 2;
-        if (IsTaskBlocked(task)) return 3;
-        if (IsTaskInProgress(task)) return 4;
-        if (IsTaskSubmitted(task)) return 5;
-        return 6;
-    }
-
-    // SECTION: My Work status predicates keep grouping readable without changing workflow rules.
-    private static bool IsTaskBlocked(ActionTaskItem task) =>
-        string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsTaskInProgress(ActionTaskItem task) =>
-        string.Equals(task.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsTaskSubmitted(ActionTaskItem task) =>
-        string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsTaskDueToday(ActionTaskItem task) =>
-        IsOpenTask(task)
-        && task.DueDate.Date == DateTime.UtcNow.Date;
+    // SECTION: My Work queue sections are delegated to the display builder for reusable presentation grouping.
+    private IReadOnlyList<ActionTaskItem> BuildMyWorkQueueSection(ActionTaskMyWorkQueueSection section)
+        => _displayBuilder.BuildMyWorkQueueSection(Tasks, section);
 
     private IReadOnlyList<TaskDisplayItem> ToDisplayItems(IReadOnlyList<ActionTaskItem> tasks) =>
         tasks.Select(task => new TaskDisplayItem

@@ -1051,11 +1051,13 @@ public class ActionTaskPageTests
         var permission = new ActionTaskPermissionService();
         var service = new ActionTaskService(db, permission);
         var collab = new StubCollabService();
-        var queryService = new ActionTaskQueryService();
+        var clock = new SystemActionTrackerClock();
+        var queryService = new ActionTaskQueryService(clock, new ActionTaskReportBuilder(clock));
         var workflowPolicy = new ActionTaskWorkflowPolicy(permission);
         var sprintWorkflowPolicy = new ActionSprintWorkflowPolicy();
         var sprintService = new ActionSprintService(db, permission, sprintWorkflowPolicy);
-        var page = new IndexModel(service, collab, permission, sprintService, queryService, workflowPolicy, userManager);
+        var workspaceBuilder = new ActionTaskWorkspaceBuilder(service, sprintService, queryService);
+        var page = new IndexModel(service, collab, permission, sprintService, queryService, workspaceBuilder, workflowPolicy, new ActionTaskRouteStateHelper(), new ActionTaskDisplayBuilder(clock), clock, userManager);
 
         var httpContext = new DefaultHttpContext
         {
