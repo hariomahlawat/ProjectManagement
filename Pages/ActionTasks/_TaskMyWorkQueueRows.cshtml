@@ -4,12 +4,13 @@
     var tasks = Model.Item2;
 }
 
-@* SECTION: Compact My Work rows preserve inspector routing without large task-card bodies. *@
+@* SECTION: Compact My Work rows preserve inspector routing with high-signal task metadata. *@
 <div class="at-mywork-rows">
     @foreach (var item in tasks)
     {
         var task = item.Task;
-        <a class="at-mywork-row @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)"
+        var dueClass = pageModel.IsTaskOverdue(task) ? "is-overdue" : string.Empty;
+        <a class="at-mywork-row @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty) @dueClass"
            asp-page="/ActionTasks/Index"
            asp-route-taskId="@task.Id"
            asp-route-viewMode="@pageModel.ResolvedViewMode"
@@ -19,7 +20,7 @@
                 <span class="at-mywork-title">@task.Title</span>
             </div>
             <div class="at-mywork-row-meta" aria-label="Task metadata">
-                <span>Due @task.DueDate.ToString("dd MMM yyyy")</span>
+                <span class="at-mywork-due-chip @dueClass">Due @task.DueDate.ToString("dd MMM yyyy")</span>
                 <span class="@pageModel.GetStatusBadgeClass(task.Status)">@task.Status</span>
                 <span class="@pageModel.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
                 <span class="@pageModel.GetSprintBadgeClass(task)">@pageModel.GetSprintBadgeText(task)</span>
