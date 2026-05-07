@@ -4,7 +4,7 @@
     <div class="at-panel-heading">
         <div>
             <h2>Sprint Board Backlog Filters</h2>
-            <p class="at-panel-note">Backlog queue shows only open tasks that are not assigned to a sprint.</p>
+            <p class="at-panel-note">Backlog queue shows only open tasks that are not in a Sprint and not assigned to a user.</p>
         </div>
         <span class="at-count-chip">@Model.BacklogTaskDisplays.Count tasks</span>
     </div>
@@ -87,7 +87,7 @@
         <h2>Sprint Board Backlog Queue</h2>
         @if (Model.CanPlanSprints)
         {
-            <span class="at-panel-note">Comdt and HoD can assign open backlog tasks into open sprints.</span>
+            <span class="at-panel-note">Comdt and HoD can assign true backlog tasks into open Sprints.</span>
         }
     </div>
 

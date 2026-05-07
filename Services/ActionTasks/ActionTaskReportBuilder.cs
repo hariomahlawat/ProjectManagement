@@ -21,7 +21,8 @@ public sealed class ActionTaskReportBuilder
         var reportTasks = ApplyReportFilters(tasks, request).ToList();
         var openTasks = reportTasks.Where(IsOpen).ToList();
         var submittedTasks = reportTasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).ToList();
-        var backlogOpenTasks = openTasks.Where(IsActionableBacklog).ToList();
+        var backlogOpenTasks = openTasks.Where(ActionTaskCategorization.IsBacklogTask).ToList();
+        var nonSprintOpenTasks = openTasks.Where(ActionTaskCategorization.IsAssignedNonSprintTask).ToList();
         var blockedTasks = reportTasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)).ToList();
         string Assignee(string id) => assigneeNames.TryGetValue(id, out var name) ? name : "User";
 
@@ -36,6 +37,7 @@ public sealed class ActionTaskReportBuilder
             OverdueAgeingBuckets = new[] { new ActionTaskQueryService.CountSummary("1 to 3 days overdue", openTasks.Count(t => (utcToday - t.DueDate.Date).TotalDays is >= 1 and <= 3)), new ActionTaskQueryService.CountSummary("4 to 7 days overdue", openTasks.Count(t => (utcToday - t.DueDate.Date).TotalDays is >= 4 and <= 7)), new ActionTaskQueryService.CountSummary("8+ days overdue", openTasks.Count(t => (utcToday - t.DueDate.Date).TotalDays >= 8)) },
             SubmittedPendingClosureAgeingBuckets = new[] { new ActionTaskQueryService.CountSummary("0 to 1 day", submittedTasks.Count(t => (utcToday - (t.SubmittedOn ?? t.AssignedOn).Date).TotalDays is >= 0 and <= 1)), new ActionTaskQueryService.CountSummary("2 to 3 days", submittedTasks.Count(t => (utcToday - (t.SubmittedOn ?? t.AssignedOn).Date).TotalDays is >= 2 and <= 3)), new ActionTaskQueryService.CountSummary("4+ days", submittedTasks.Count(t => (utcToday - (t.SubmittedOn ?? t.AssignedOn).Date).TotalDays >= 4)) },
             BacklogAgeingBuckets = BuildAssignedAgeingBuckets(backlogOpenTasks, utcToday),
+            NonSprintAssignedWorkloadCounts = BuildNonSprintAssignedWorkloadCounts(nonSprintOpenTasks, assigneeNames),
             BlockedAgeingBuckets = BuildAssignedAgeingBuckets(blockedTasks, utcToday),
             CarryForwardBySprint = BuildCarryForwardBySprint(openTasks, request.Sprints)
         };
@@ -48,7 +50,7 @@ public sealed class ActionTaskReportBuilder
         if (request.ReportSprintId.HasValue)
         {
             query = request.ReportSprintId.Value == 0
-                ? query.Where(IsActionableBacklog)
+                ? query.Where(ActionTaskCategorization.IsBacklogTask)
                 : query.Where(t => t.SprintId == request.ReportSprintId.Value);
         }
 
@@ -77,8 +79,14 @@ public sealed class ActionTaskReportBuilder
             .ToList();
     }
 
-    // SECTION: Backlog analytics use the actionable backlog definition without changing general reports.
-    private static bool IsActionableBacklog(ActionTaskItem task) => task.SprintId is null && IsOpen(task);
+    // SECTION: Non-sprint assigned workload remains separate from backlog ageing and sprint workload.
+    private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildNonSprintAssignedWorkloadCounts(IReadOnlyList<ActionTaskItem> tasks, IReadOnlyDictionary<string, string> assigneeNames)
+        => tasks
+            .GroupBy(t => assigneeNames.TryGetValue(t.AssignedToUserId, out var name) ? name : "User")
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key)
+            .Select(g => new ActionTaskQueryService.CountSummary(g.Key, g.Count()))
+            .ToList();
 
-    private static bool IsOpen(ActionTaskItem task) => !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
+    private static bool IsOpen(ActionTaskItem task) => ActionTaskCategorization.IsOpenTask(task);
 }

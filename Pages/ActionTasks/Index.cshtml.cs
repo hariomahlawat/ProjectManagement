@@ -91,6 +91,7 @@ public class IndexModel : PageModel
     public IReadOnlyList<CountSummary> OpenAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> OverdueAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> BacklogAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
+    public IReadOnlyList<CountSummary> NonSprintAssignedWorkloadCounts { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> CarryForwardBySprint { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> BlockedAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
     public int ReportFilteredTaskCount { get; private set; }
@@ -321,11 +322,24 @@ public class IndexModel : PageModel
             : name;
     }
 
+    // SECTION: Task scope badges use official Sprint / Backlog / Non-sprint categorisation.
     public string GetSprintBadgeText(ActionTaskItem task)
-        => task.SprintId.HasValue ? ResolveSprintName(task.SprintId) : "Backlog";
+        => ActionTaskCategorization.ResolveCategory(task) switch
+        {
+            ActionTaskWorkCategory.Sprint => ResolveSprintName(task.SprintId),
+            ActionTaskWorkCategory.NonSprint => "Non-sprint",
+            ActionTaskWorkCategory.Closed => "Closed",
+            _ => "Backlog"
+        };
 
     public string GetSprintBadgeClass(ActionTaskItem task)
-        => task.SprintId.HasValue ? "at-scope-badge at-scope-badge-sprint" : "at-scope-badge at-scope-badge-backlog";
+        => ActionTaskCategorization.ResolveCategory(task) switch
+        {
+            ActionTaskWorkCategory.Sprint => "at-scope-badge at-scope-badge-sprint",
+            ActionTaskWorkCategory.NonSprint => "at-scope-badge at-scope-badge-non-sprint",
+            ActionTaskWorkCategory.Closed => "at-scope-badge at-scope-badge-closed",
+            _ => "at-scope-badge at-scope-badge-backlog"
+        };
 
     public IReadOnlyList<TaskDisplayItem> GetSprintTasksByStatus(string status)
         => ToDisplayItems(SelectedSprintTasks.Where(t => string.Equals(t.Status, status, StringComparison.OrdinalIgnoreCase)).ToList());
@@ -837,6 +851,7 @@ public class IndexModel : PageModel
         OverdueAgeingBuckets = readModel.Reports.OverdueAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         SubmittedPendingClosureAgeingBuckets = readModel.Reports.SubmittedPendingClosureAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         BacklogAgeingBuckets = readModel.Reports.BacklogAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
+        NonSprintAssignedWorkloadCounts = readModel.Reports.NonSprintAssignedWorkloadCounts.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         CarryForwardBySprint = readModel.Reports.CarryForwardBySprint.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         BlockedAgeingBuckets = readModel.Reports.BlockedAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         ReportFilteredTaskCount = readModel.Reports.FilteredTaskCount;
@@ -1102,6 +1117,7 @@ public class IndexModel : PageModel
     public int OpenAgeingBucketsMax => OpenAgeingBuckets.Count == 0 ? 0 : OpenAgeingBuckets.Max(x => x.Count);
     public int OverdueAgeingBucketsMax => OverdueAgeingBuckets.Count == 0 ? 0 : OverdueAgeingBuckets.Max(x => x.Count);
     public int BacklogAgeingBucketsMax => BacklogAgeingBuckets.Count == 0 ? 0 : BacklogAgeingBuckets.Max(x => x.Count);
+    public int NonSprintAssignedWorkloadCountsMax => NonSprintAssignedWorkloadCounts.Count == 0 ? 0 : NonSprintAssignedWorkloadCounts.Max(x => x.Count);
     public int CarryForwardBySprintMax => CarryForwardBySprint.Count == 0 ? 0 : CarryForwardBySprint.Max(x => x.Count);
     public int BlockedAgeingBucketsMax => BlockedAgeingBuckets.Count == 0 ? 0 : BlockedAgeingBuckets.Max(x => x.Count);
     public int ActiveCriticalCount => CommandCentreSummary.ActiveCriticalCount;
