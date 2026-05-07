@@ -1,11 +1,48 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
+@{
+    // SECTION: Sprint Board top-band signal math is presentation-only and keeps existing handlers untouched.
+    var completedCount = Model.SelectedSprint is null ? 0 : Model.SprintSummary.ClosedCount;
+    var totalCount = Model.SelectedSprint is null ? 0 : Model.SprintSummary.TaskCount;
+    var completionPercent = totalCount == 0 ? 0 : (int)Math.Round((double)completedCount / totalCount * 100);
+    var nextActionLabel = "Plan sprint scope";
+    var nextActionDetail = "Create or select a sprint, then shape backlog into a realistic commitment.";
 
-@* SECTION: Compact selected sprint command strip keeps existing sprint handlers intact. *@
-<section class="at-panel at-sprint-command-strip at-planning-command-strip">
+    if (Model.SelectedSprint is not null)
+    {
+        if (Model.CanActivateSelectedSprint)
+        {
+            nextActionLabel = "Activate sprint";
+            nextActionDetail = "Scope is planned; activation will move the sprint into execution.";
+        }
+        else if (Model.CanReviewSprintClosure && Model.SprintClosureReview.UnfinishedTasks.Any())
+        {
+            nextActionLabel = "Resolve closure";
+            nextActionDetail = "Review unfinished work and choose carry-forward or backlog disposition.";
+        }
+        else if (Model.CanCloseSelectedSprintDirectly)
+        {
+            nextActionLabel = "Close sprint";
+            nextActionDetail = "All required work is ready for closure review completion.";
+        }
+        else if (Model.SprintSummary.BlockedCount > 0 || Model.SelectedSprintOverdueCount > 0)
+        {
+            nextActionLabel = "Intervene now";
+            nextActionDetail = "Clear blocked or overdue work before it threatens the sprint outcome.";
+        }
+        else
+        {
+            nextActionLabel = "Drive execution";
+            nextActionDetail = string.IsNullOrWhiteSpace(Model.SelectedSprint.Goal) ? "Keep status movement visible and record a command focus when available." : Model.SelectedSprint.Goal;
+        }
+    }
+}
+
+@* SECTION: Sprint Board top command band summarizes identity, health signals, and the dominant next action. *@
+<section class="at-panel at-sprint-command-strip at-planning-command-strip at-sprint-top-band" aria-label="Selected sprint command band">
     @if (Model.SelectedSprint is null)
     {
-        @* SECTION: First-sprint empty command line preserves the existing create action. *@
-        <div class="at-sprint-empty-command at-planning-empty-command">
+        @* SECTION: Empty top-band state keeps first-sprint creation route-driven and handler-compatible. *@
+        <div class="at-sprint-empty-command at-planning-empty-command at-sprint-top-band-empty">
             <div class="at-empty-state at-empty-state-compact">
                 @if (!Model.Sprints.Any())
                 {
@@ -17,6 +54,11 @@
                     <strong>No sprint is selected.</strong>
                     <span>Select an existing sprint from Plan to open Execute.</span>
                 }
+            </div>
+            <div class="at-sprint-next-action">
+                <span class="at-section-eyebrow">Next action</span>
+                <strong>@nextActionLabel</strong>
+                <span>@nextActionDetail</span>
             </div>
             @if (Model.CanPlanSprints)
             {
@@ -44,29 +86,38 @@
     }
     else
     {
-        @* SECTION: Single-line command summary reduces visual load while retaining counts and actions. *@
-        <div class="at-planning-command-main">
-            <div class="at-planning-command-title">
-                <span class="at-section-eyebrow">Selected Sprint</span>
+        @* SECTION: Selected-sprint identity block presents name, lifecycle status, dates, and command focus. *@
+        <div class="at-sprint-top-band-identity">
+            <span class="at-section-eyebrow">Selected Sprint</span>
+            <div class="at-sprint-top-band-title">
                 <h2>@Model.DisplaySprintName(Model.SelectedSprint)</h2>
                 <span class="at-sprint-status-pill">@Model.SelectedSprint.Status</span>
-                <span class="at-sprint-date-range">@Model.SelectedSprint.StartDate.ToString("dd MMM yyyy") – @Model.SelectedSprint.EndDate.ToString("dd MMM yyyy")</span>
             </div>
-            <div class="at-planning-command-pills" aria-label="Sprint summary">
-                <span class="at-compact-counter"><strong>@Model.SprintSummary.OpenCount</strong> Open</span>
-                <span class="at-compact-counter"><strong>@Model.SelectedSprintOverdueCount</strong> Overdue</span>
-                <span class="at-compact-counter"><strong>@Model.SprintSummary.BlockedCount</strong> Blocked</span>
-                <span class="at-compact-counter"><strong>@Model.SprintSummary.ClosedCount</strong> Closed</span>
-                <span class="at-compact-counter"><strong>@Model.SprintSummary.TaskCount</strong> Total</span>
-            </div>
-            <div class="at-command-focus-strip at-sprint-command-focus at-planning-command-focus">
-                <strong>Command focus:</strong> @(string.IsNullOrWhiteSpace(Model.SelectedSprint.Goal) ? "No command focus recorded." : Model.SelectedSprint.Goal)
-            </div>
+            <span class="at-sprint-date-range">@Model.SelectedSprint.StartDate.ToString("dd MMM yyyy") – @Model.SelectedSprint.EndDate.ToString("dd MMM yyyy")</span>
+            <p class="at-command-focus-strip at-sprint-command-focus at-planning-command-focus">
+                <strong>Focus:</strong> @(string.IsNullOrWhiteSpace(Model.SelectedSprint.Goal) ? "No command focus recorded." : Model.SelectedSprint.Goal)
+            </p>
+        </div>
+
+        @* SECTION: Top-band signal counters expose completion, open, blocked, overdue, and carry-forward risk at a glance. *@
+        <div class="at-sprint-top-band-signals" aria-label="Sprint health signals">
+            <span class="at-sprint-signal is-completion"><strong>@completionPercent%</strong><small>Complete</small></span>
+            <span class="at-sprint-signal"><strong>@Model.SprintSummary.OpenCount</strong><small>Open</small></span>
+            <span class="at-sprint-signal @(Model.SprintSummary.BlockedCount > 0 ? "is-risk" : string.Empty)"><strong>@Model.SprintSummary.BlockedCount</strong><small>Blocked</small></span>
+            <span class="at-sprint-signal @(Model.SelectedSprintOverdueCount > 0 ? "is-danger" : string.Empty)"><strong>@Model.SelectedSprintOverdueCount</strong><small>Overdue</small></span>
+            <span class="at-sprint-signal @(Model.SprintCarryForwardCandidateDisplays.Any() ? "is-warning" : string.Empty)"><strong>@Model.SprintCarryForwardCandidateDisplays.Count</strong><small>Carry-forward</small></span>
+        </div>
+
+        @* SECTION: Command focus keeps one dominant next-action summary above the detailed tab content. *@
+        <div class="at-sprint-next-action">
+            <span class="at-section-eyebrow">Next action</span>
+            <strong>@nextActionLabel</strong>
+            <span>@nextActionDetail</span>
         </div>
 
         @if (Model.CanPlanSprints || Model.CanEditSelectedSprint)
         {
-            @* SECTION: Lifecycle and edit actions continue to post to existing handlers. *@
+            @* SECTION: Lifecycle and edit actions continue to post to existing sprint handlers. *@
             <div class="at-sprint-action-row at-sprint-action-row-strip at-planning-command-actions">
                 @if (Model.CanPlanSprints)
                 {

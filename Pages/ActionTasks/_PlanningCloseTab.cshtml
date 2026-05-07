@@ -1,26 +1,32 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Close tab groups closure review, carry-forward, next-window creation, and history. *@
-<section class="at-planning-tab-panel at-sprint-execution-main" aria-label="Sprint Board Close tab">
+@* SECTION: Close tab cockpit makes closure review and carry-forward resolution the dominant review surface. *@
+<section class="at-planning-tab-panel at-cockpit-tab at-sprint-execution-main at-planning-close-panel" aria-label="Sprint Board Close tab">
     @if (Model.SelectedSprint is null)
     {
         <div class="at-panel at-empty-state at-empty-state-compact">Select a sprint in Plan before reviewing closure.</div>
     }
     else
     {
-        <partial name="_SprintClosureReview" model="Model" />
+        @* SECTION: Close main zone contains the existing closure review workflow and disposition form. *@
+        <section class="at-cockpit-main at-close-review-surface">
+            <partial name="_SprintClosureReview" model="Model" />
+        </section>
 
-        <details class="at-panel at-sprint-attention-lane at-close-carry-forward-panel">
-            <summary>
-                <span>Carry-forward candidates</span>
-                <span class="at-count-chip">@Model.SprintCarryForwardCandidateDisplays.Count</span>
-            </summary>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintCarryForwardCandidateDisplays, "No carry-forward candidates.")' />
-        </details>
+        @* SECTION: Close support zone highlights carry-forward candidates and closure warnings. *@
+        <aside class="at-cockpit-support at-close-warning-rail">
+            <details class="at-panel at-sprint-attention-lane at-close-carry-forward-panel" open>
+                <summary>
+                    <span>Carry-forward candidates</span>
+                    <span class="at-count-chip">@Model.SprintCarryForwardCandidateDisplays.Count</span>
+                </summary>
+                <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintCarryForwardCandidateDisplays, "No carry-forward candidates.")' />
+            </details>
+        </aside>
 
-        @if (Model.SelectedSprint is not null)
-        {
-            <details class="at-panel at-sprint-history-panel">
+        @* SECTION: Close secondary zone keeps sprint history collapsed and visually subordinate. *@
+        <aside class="at-cockpit-secondary at-close-history-rail">
+            <details class="at-panel at-sprint-history-panel at-sprint-history-secondary">
                 <summary>Sprint History <span class="at-count-chip">@Model.SprintAuditHistory.Count</span></summary>
                 @if (!Model.SprintAuditHistory.Any())
                 {
@@ -47,6 +53,6 @@
                     </ol>
                 }
             </details>
-        }
+        </aside>
     }
 </section>

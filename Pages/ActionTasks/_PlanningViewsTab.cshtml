@@ -1,21 +1,34 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Views tab exposes exactly one selected alternate view at a time. *@
-<section class="at-planning-tab-panel at-planning-views-panel" aria-label="Sprint Board Views tab">
-    <nav class="at-panel at-planning-view-toggle" aria-label="Sprint Board alternate view selector">
-        <span class="at-section-eyebrow">Alternate views</span>
-        <div class="btn-group" role="group" aria-label="Sprint Board view options">
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Views" asp-route-PlanningView="DueExceptions" asp-route-SelectedSprintId="@Model.SelectedSprintId" asp-route-taskId="@Model.TaskId" class="btn btn-sm @(string.Equals(Model.ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase) ? "btn-outline-primary" : "btn-primary")">Due / exceptions</a>
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Views" asp-route-PlanningView="Kanban" asp-route-SelectedSprintId="@Model.SelectedSprintId" asp-route-taskId="@Model.TaskId" class="btn btn-sm @(string.Equals(Model.ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase) ? "btn-primary" : "btn-outline-primary")">Kanban</a>
-        </div>
-    </nav>
+@* SECTION: Views tab cockpit is explicitly secondary analysis and does not compete with Plan, Execute, or Close. *@
+<section class="at-planning-tab-panel at-cockpit-tab at-planning-views-panel at-planning-analysis-panel" aria-label="Sprint Board Views tab">
+    @* SECTION: Views main zone presents the selected analysis surface with subdued styling. *@
+    <section class="at-cockpit-main at-analysis-main-surface">
+        <nav class="at-panel at-planning-view-toggle at-analysis-toggle" aria-label="Sprint Board alternate view selector">
+            <div>
+                <span class="at-section-eyebrow">Secondary analysis</span>
+                <h2>Views</h2>
+                <p class="at-panel-note">Use these views to inspect exceptions or historical flow after primary planning decisions.</p>
+            </div>
+            <div class="btn-group" role="group" aria-label="Sprint Board view options">
+                <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Views" asp-route-PlanningView="DueExceptions" asp-route-SelectedSprintId="@Model.SelectedSprintId" asp-route-taskId="@Model.TaskId" class="btn btn-sm @(string.Equals(Model.ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase) ? "btn-outline-primary" : "btn-primary")">Due / exceptions</a>
+                <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Views" asp-route-PlanningView="Kanban" asp-route-SelectedSprintId="@Model.SelectedSprintId" asp-route-taskId="@Model.TaskId" class="btn btn-sm @(string.Equals(Model.ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase) ? "btn-primary" : "btn-outline-primary")">Kanban</a>
+            </div>
+        </nav>
 
-    @if (string.Equals(Model.ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase))
-    {
-        <partial name="_TaskKanban" model="Model" />
-    }
-    else
-    {
-        <partial name="_PlanningDueExceptionsView" model="Model" />
-    }
+        @if (string.Equals(Model.ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase))
+        {
+            <partial name="_TaskKanban" model="Model" />
+        }
+        else
+        {
+            <partial name="_PlanningDueExceptionsView" model="Model" />
+        }
+    </section>
+
+    @* SECTION: Views secondary zone explains this tab's support role without adding new state. *@
+    <aside class="at-cockpit-secondary at-analysis-context-panel at-panel">
+        <span class="at-section-eyebrow">Context</span>
+        <p>Analysis views are read-only navigation aids for due risk and status distribution. Use Plan, Execute, or Close for sprint decisions.</p>
+    </aside>
 </section>
