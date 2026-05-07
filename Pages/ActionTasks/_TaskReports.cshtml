@@ -25,13 +25,13 @@
         <div class="at-reports-filter-heading">
             <div>
                 <h2>Report Filters</h2>
-                <p class="at-panel-note">Narrow every report section by Sprint, responsible person, due-date range, workflow status and priority.</p>
+                <p class="at-panel-note">Narrow every report section by scope, responsible person, due-date range, workflow status and priority.</p>
             </div>
             <span class="at-report-filter-summary">@Model.ReportFilterSummary</span>
         </div>
         <div class="at-reports-filter-grid">
             <label>
-                <span>Sprint</span>
+                <span>Scope</span>
                 <select class="form-select form-select-sm" name="ReportSprintId" data-at-reports-filter-control="true">
                     <option value="">All Sprint, Backlog &amp; Non-sprint work</option>
                     @if (Model.ReportSprintId == 0)

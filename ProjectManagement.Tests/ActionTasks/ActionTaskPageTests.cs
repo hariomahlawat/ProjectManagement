@@ -131,7 +131,7 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.Contains("Assigned to me", html, StringComparison.Ordinal);
         Assert.Contains("Needs action now", html, StringComparison.Ordinal);
-        Assert.Contains("Active Sprint", html, StringComparison.Ordinal);
+        Assert.Contains("Tasks in Active Sprint", html, StringComparison.Ordinal);
         Assert.Contains("Action Required", html, StringComparison.Ordinal);
         Assert.Contains("Current Work", html, StringComparison.Ordinal);
         Assert.Contains("Submitted / Awaiting Closure", html, StringComparison.Ordinal);
@@ -273,7 +273,7 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task RegisterPartial_RendersDedicatedSprintColumn()
+    public async Task RegisterPartial_RendersDedicatedScopeColumn()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
@@ -289,7 +289,8 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskRegister.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("<th scope=\"col\" class=\"at-register-sprint-heading\">Sprint</th>", html, StringComparison.Ordinal);
+        Assert.Contains("<th scope=\"col\" class=\"at-register-sprint-heading\">Scope</th>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<th scope=\"col\" class=\"at-register-sprint-heading\">Sprint</th>", html, StringComparison.Ordinal);
         Assert.Contains("at-register-sprint-cell", html, StringComparison.Ordinal);
         Assert.Contains("Enterprise Sprint", html, StringComparison.Ordinal);
     }
@@ -758,6 +759,7 @@ public class ActionTaskPageTests
         Assert.Null(page.SelectedSprint);
         Assert.Contains("No sprint has been created yet", html, StringComparison.Ordinal);
         Assert.Contains("Create Sprint", html, StringComparison.Ordinal);
+        Assert.Contains("Non-sprint means assigned work outside sprint commitment.", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Create " + "Planning " + "Window", html, StringComparison.Ordinal);
         Assert.Contains("handler=CreateSprint", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Select a sprint to view sprint command details.", html, StringComparison.Ordinal);
@@ -809,7 +811,8 @@ public class ActionTaskPageTests
         Assert.Contains("at-execute-status-grid", html, StringComparison.Ordinal);
         Assert.Contains("at-execute-status-section", html, StringComparison.Ordinal);
         Assert.DoesNotContain("at-board-grid is-sprints", html, StringComparison.Ordinal);
-        Assert.True(html.IndexOf("Selected Sprint Board task board", StringComparison.Ordinal) < html.IndexOf("Add Backlog Task", StringComparison.Ordinal));
+        Assert.True(html.IndexOf("Selected Sprint Board task board", StringComparison.Ordinal) < html.IndexOf("Pull from Backlog", StringComparison.Ordinal));
+        Assert.DoesNotContain("Add Backlog Task", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Backlog Queue", html, StringComparison.Ordinal);
     }
 
@@ -834,6 +837,7 @@ public class ActionTaskPageTests
         Assert.Contains(@"name=""ReportSprintId""", html, StringComparison.Ordinal);
         Assert.Contains("Decision Sprint", html, StringComparison.Ordinal);
         Assert.Contains("Reset / Clear all", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Scope</span>", html, StringComparison.Ordinal);
         Assert.Contains(@"data-at-reports-filter-form=""true""", html, StringComparison.Ordinal);
         Assert.Contains(@"data-at-reports-filter-control=""true""", html, StringComparison.Ordinal);
         Assert.Contains(@"data-at-reports-date-filter=""true""", html, StringComparison.Ordinal);
