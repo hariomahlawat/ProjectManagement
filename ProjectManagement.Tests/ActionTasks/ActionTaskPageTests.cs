@@ -273,6 +273,65 @@ public class ActionTaskPageTests
     }
 
     [Fact]
+    public async Task RegisterPartial_RendersDedicatedSprintColumn()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var sprint = AddSprint(setup.Db, "Enterprise Sprint", ActionSprintStatus.Active);
+        var task = await setup.Db.ActionTasks.SingleAsync();
+        task.SprintId = sprint.Id;
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Register";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskRegister.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("<th scope=\"col\" class=\"at-register-sprint-heading\">Sprint</th>", html, StringComparison.Ordinal);
+        Assert.Contains("at-register-sprint-cell", html, StringComparison.Ordinal);
+        Assert.Contains("Enterprise Sprint", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RegisterPartial_ActiveFiltersRemainVisibleAndSortLinksPreserveFilters()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var taskDueDate = (await setup.Db.ActionTasks.SingleAsync()).DueDate.Date;
+        var page = setup.Page;
+        page.ViewMode = "Register";
+        page.FilterStatus = ActionTaskStatuses.Assigned;
+        page.FilterPriority = "Normal";
+        page.FilterAssigneeUserId = "user-1";
+        page.FilterDueDate = taskDueDate;
+        page.FilterSearch = "Mine";
+        page.SortBy = "due";
+        page.SortDir = "desc";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskRegister.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("at-register-active-filters", html, StringComparison.Ordinal);
+        Assert.Contains("Status: Assigned", html, StringComparison.Ordinal);
+        Assert.Contains("Priority: Normal", html, StringComparison.Ordinal);
+        Assert.Contains("Responsible Person: User One", html, StringComparison.Ordinal);
+        Assert.Contains($"Due: {taskDueDate:dd MMM yyyy}", html, StringComparison.Ordinal);
+        Assert.Contains("Search: Mine", html, StringComparison.Ordinal);
+        Assert.Contains("FilterStatus=Assigned", html, StringComparison.Ordinal);
+        Assert.Contains("FilterPriority=Normal", html, StringComparison.Ordinal);
+        Assert.Contains("FilterAssigneeUserId=user-1", html, StringComparison.Ordinal);
+        Assert.Contains($"FilterDueDate={taskDueDate:yyyy-MM-dd}", html, StringComparison.Ordinal);
+        Assert.Contains("FilterSearch=Mine", html, StringComparison.Ordinal);
+        Assert.Contains("SortBy=id", html, StringComparison.Ordinal);
+        Assert.Contains("class=\"at-sort-link is-active\"", html, StringComparison.Ordinal);
+        Assert.Contains("aria-sort=\"descending\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CreateValidationFailure_ReopensPanel()
     {
         // SECTION: Arrange

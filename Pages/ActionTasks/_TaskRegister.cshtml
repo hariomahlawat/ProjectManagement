@@ -1,121 +1,150 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 @using ProjectManagement.Models
 
-@* SECTION: Register filters keep task records searchable and auditable. *@
-<section class="at-panel mb-3">
-    <h2>Register Filters</h2>
-    <form id="taskFilterForm" method="get" class="row g-2" data-at-task-filter-form="true">
-        <input type="hidden" name="viewMode" value="Register" />
-            <div class="col-md-2">
-                <label class="form-label">Status</label>
-                <select class="form-select" name="FilterStatus">
-                    <option value="">All</option>
-                    @foreach (var status in Model.AllowedStatusOptions.Append(ActionTaskStatuses.Closed))
-                    {
-                        @if (string.Equals(Model.FilterStatus, status, StringComparison.OrdinalIgnoreCase))
-                        {
-                            <option value="@status" selected>@status</option>
-                        }
-                        else
-                        {
-                            <option value="@status">@status</option>
-                        }
-                    }
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Priority</label>
-                <select class="form-select" name="FilterPriority">
-                    <option value="">All</option>
-                    @foreach (var priority in new[] { "Low", "Normal", "High", "Critical" })
-                    {
-                        @if (string.Equals(Model.FilterPriority, priority, StringComparison.OrdinalIgnoreCase))
-                        {
-                            <option value="@priority" selected>@priority</option>
-                        }
-                        else
-                        {
-                            <option value="@priority">@priority</option>
-                        }
-                    }
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Responsible Person</label>
-                <input type="hidden" name="FilterAssigneeUserId" id="FilterAssigneeUserId" value="@Model.FilterAssigneeUserId" />
-                @{
-                    // SECTION: Build unique, user-readable datalist labels even when display names collide.
-                    var duplicateDisplayNames = Model.AssignableUsers
-                        .Where(u => !string.IsNullOrWhiteSpace(u.DisplayName))
-                        .GroupBy(u => u.DisplayName.Trim(), StringComparer.OrdinalIgnoreCase)
-                        .Where(g => g.Count() > 1)
-                        .Select(g => g.Key)
-                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+@{
+    // SECTION: Register sort affordances keep active ordering visible without changing query behavior.
+    string SortIndicator(string sortKey)
+    {
+        if (!string.Equals(Model.SortBy, sortKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
 
-                    var selectedAssignee = string.IsNullOrWhiteSpace(Model.FilterAssigneeUserId)
-                        ? null
-                        : Model.AssignableUsers.FirstOrDefault(u => string.Equals(u.UserId, Model.FilterAssigneeUserId, StringComparison.Ordinal));
-                    var selectedDisplayName = (selectedAssignee?.DisplayName ?? string.Empty).Trim();
-                    var selectedUserId = (selectedAssignee?.UserId ?? string.Empty).Trim();
-                    var selectedAssigneeLabel = string.IsNullOrWhiteSpace(selectedDisplayName)
-                        ? selectedUserId
-                        : (duplicateDisplayNames.Contains(selectedDisplayName) ? $"{selectedDisplayName} ({selectedUserId})" : selectedDisplayName);
-                }
-                <input
-                    type="search"
-                    class="form-control"
-                    id="FilterAssigneePicker"
-                    list="FilterAssigneeOptions"
-                    autocomplete="off"
-                    placeholder="All Responsible Persons"
-                    value="@selectedAssigneeLabel"
-                    data-at-assignee-picker="true"
-                    data-at-assignee-target="FilterAssigneeUserId" />
-                <datalist id="FilterAssigneeOptions">
-                    @foreach (var assignee in Model.AssignableUsers)
+        return string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "↓" : "↑";
+    }
+
+    string SortLinkClass(string sortKey)
+        => string.Equals(Model.SortBy, sortKey, StringComparison.OrdinalIgnoreCase) ? "at-sort-link is-active" : "at-sort-link";
+
+    string SortAriaSort(string sortKey)
+    {
+        if (!string.Equals(Model.SortBy, sortKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return "none";
+        }
+
+        return string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "descending" : "ascending";
+    }
+}
+
+@* SECTION: Register filters keep task records searchable and auditable. *@
+<section class="at-panel at-register-filter-panel mb-3">
+    <div class="at-register-filter-heading">
+        <div>
+            <h2>Register Filters</h2>
+            <p class="at-panel-note">Refine the master task register without leaving the workspace.</p>
+        </div>
+        <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="btn btn-outline-secondary btn-sm">Reset</a>
+    </div>
+    <form id="taskFilterForm" method="get" class="at-register-filter-toolbar" data-at-task-filter-form="true">
+        <input type="hidden" name="viewMode" value="Register" />
+        <div class="at-register-filter-field at-register-filter-field-narrow">
+            <label class="form-label" for="RegisterFilterStatus">Status</label>
+            <select class="form-select form-select-sm" id="RegisterFilterStatus" name="FilterStatus">
+                <option value="">All</option>
+                @foreach (var status in Model.AllowedStatusOptions.Append(ActionTaskStatuses.Closed))
+                {
+                    @if (string.Equals(Model.FilterStatus, status, StringComparison.OrdinalIgnoreCase))
                     {
-                        <option value="@((duplicateDisplayNames.Contains((assignee.DisplayName ?? string.Empty).Trim()) ? $"{assignee.DisplayName} ({assignee.UserId})" : assignee.DisplayName) ?? assignee.UserId)" data-user-id="@assignee.UserId"></option>
+                        <option value="@status" selected>@status</option>
                     }
-                </datalist>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Due Date</label>
-                <input type="date" class="form-control" name="FilterDueDate" value="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Search by title</label>
-                <input type="text" class="form-control" name="FilterSearch" value="@Model.FilterSearch" data-at-filter-search="true" />
-            </div>
-            <div class="col-12 d-flex gap-2">
-                <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="btn btn-outline-secondary btn-sm">Reset</a>
-            </div>
-        </form>
+                    else
+                    {
+                        <option value="@status">@status</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="at-register-filter-field at-register-filter-field-narrow">
+            <label class="form-label" for="RegisterFilterPriority">Priority</label>
+            <select class="form-select form-select-sm" id="RegisterFilterPriority" name="FilterPriority">
+                <option value="">All</option>
+                @foreach (var priority in new[] { "Low", "Normal", "High", "Critical" })
+                {
+                    @if (string.Equals(Model.FilterPriority, priority, StringComparison.OrdinalIgnoreCase))
+                    {
+                        <option value="@priority" selected>@priority</option>
+                    }
+                    else
+                    {
+                        <option value="@priority">@priority</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="at-register-filter-field at-register-filter-field-person">
+            <label class="form-label" for="FilterAssigneePicker">Responsible Person</label>
+            <input type="hidden" name="FilterAssigneeUserId" id="FilterAssigneeUserId" value="@Model.FilterAssigneeUserId" />
+            @{
+                // SECTION: Build unique, user-readable datalist labels even when display names collide.
+                var duplicateDisplayNames = Model.AssignableUsers
+                    .Where(u => !string.IsNullOrWhiteSpace(u.DisplayName))
+                    .GroupBy(u => u.DisplayName.Trim(), StringComparer.OrdinalIgnoreCase)
+                    .Where(g => g.Count() > 1)
+                    .Select(g => g.Key)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var selectedAssignee = string.IsNullOrWhiteSpace(Model.FilterAssigneeUserId)
+                    ? null
+                    : Model.AssignableUsers.FirstOrDefault(u => string.Equals(u.UserId, Model.FilterAssigneeUserId, StringComparison.Ordinal));
+                var selectedDisplayName = (selectedAssignee?.DisplayName ?? string.Empty).Trim();
+                var selectedUserId = (selectedAssignee?.UserId ?? string.Empty).Trim();
+                var selectedAssigneeLabel = string.IsNullOrWhiteSpace(selectedDisplayName)
+                    ? selectedUserId
+                    : (duplicateDisplayNames.Contains(selectedDisplayName) ? $"{selectedDisplayName} ({selectedUserId})" : selectedDisplayName);
+            }
+            <input
+                type="search"
+                class="form-control form-control-sm"
+                id="FilterAssigneePicker"
+                list="FilterAssigneeOptions"
+                autocomplete="off"
+                placeholder="All Responsible Persons"
+                value="@selectedAssigneeLabel"
+                data-at-assignee-picker="true"
+                data-at-assignee-target="FilterAssigneeUserId" />
+            <datalist id="FilterAssigneeOptions">
+                @foreach (var assignee in Model.AssignableUsers)
+                {
+                    <option value="@((duplicateDisplayNames.Contains((assignee.DisplayName ?? string.Empty).Trim()) ? $"{assignee.DisplayName} ({assignee.UserId})" : assignee.DisplayName) ?? assignee.UserId)" data-user-id="@assignee.UserId"></option>
+                }
+            </datalist>
+        </div>
+        <div class="at-register-filter-field at-register-filter-field-date">
+            <label class="form-label" for="RegisterFilterDueDate">Due Date</label>
+            <input type="date" class="form-control form-control-sm" id="RegisterFilterDueDate" name="FilterDueDate" value="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" />
+        </div>
+        <div class="at-register-filter-field at-register-filter-field-search">
+            <label class="form-label" for="RegisterFilterSearch">Search by title</label>
+            <input type="text" class="form-control form-control-sm" id="RegisterFilterSearch" name="FilterSearch" value="@Model.FilterSearch" data-at-filter-search="true" />
+        </div>
+    </form>
 
     @if (Model.HasActiveFilters)
     {
-            <div class="at-active-filters" aria-label="Active filters">
-                @if (!string.IsNullOrWhiteSpace(Model.FilterStatus))
-                {
-                    <span class="at-filter-chip">Status: @Model.FilterStatus</span>
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.FilterPriority))
-                {
-                    <span class="at-filter-chip">Priority: @Model.FilterPriority</span>
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.FilterAssigneeUserId))
-                {
-                    <span class="at-filter-chip">Responsible Person: @Model.ResolveAssigneeName(Model.FilterAssigneeUserId)</span>
-                }
-                @if (Model.FilterDueDate.HasValue)
-                {
-                    <span class="at-filter-chip">Due: @Model.FilterDueDate.Value.ToString("dd MMM yyyy")</span>
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.FilterSearch))
-                {
-                    <span class="at-filter-chip">Search: @Model.FilterSearch</span>
-                }
-                <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="at-filter-clear">Clear all</a>
-            </div>
+        <div class="at-active-filters at-register-active-filters" aria-label="Active filters">
+            @if (!string.IsNullOrWhiteSpace(Model.FilterStatus))
+            {
+                <span class="at-filter-chip">Status: @Model.FilterStatus</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.FilterPriority))
+            {
+                <span class="at-filter-chip">Priority: @Model.FilterPriority</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.FilterAssigneeUserId))
+            {
+                <span class="at-filter-chip">Responsible Person: @Model.ResolveAssigneeName(Model.FilterAssigneeUserId)</span>
+            }
+            @if (Model.FilterDueDate.HasValue)
+            {
+                <span class="at-filter-chip">Due: @Model.FilterDueDate.Value.ToString("dd MMM yyyy")</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.FilterSearch))
+            {
+                <span class="at-filter-chip">Search: @Model.FilterSearch</span>
+            }
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="at-filter-clear">Clear all</a>
+        </div>
     }
 </section>
 
@@ -130,17 +159,18 @@
     }
     else
     {
-        <div class="table-responsive">
-            <table class="table table-sm at-table">
+        <div class="table-responsive at-register-table-scroll">
+            <table class="table table-sm at-table at-register-table align-middle">
                 <thead>
                     <tr>
                         @* SECTION: Register sorting links preserve active filters for audit-friendly review. *@
-                        <th><a class="at-sort-link" asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="id" asp-route-SortDir="@(Model.SortBy == "id" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">ID</a></th>
-                        <th><a class="at-sort-link" asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="title" asp-route-SortDir="@(Model.SortBy == "title" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Task</a></th>
-                        <th><a class="at-sort-link" asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="assignee" asp-route-SortDir="@(Model.SortBy == "assignee" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Responsible Person</a></th>
-                        <th><a class="at-sort-link" asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="due" asp-route-SortDir="@(Model.SortBy == "due" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Due Date</a></th>
-                        <th><a class="at-sort-link" asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="status" asp-route-SortDir="@(Model.SortBy == "status" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Status</a></th>
-                        <th><a class="at-sort-link" asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="priority" asp-route-SortDir="@(Model.SortBy == "priority" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Priority</a></th>
+                        <th scope="col" aria-sort='@SortAriaSort("id")'><a class='@SortLinkClass("id")' asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="id" asp-route-SortDir="@(Model.SortBy == "id" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">ID<span class="at-sort-indicator" aria-hidden="true">@SortIndicator("id")</span></a></th>
+                        <th scope="col" aria-sort='@SortAriaSort("title")'><a class='@SortLinkClass("title")' asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="title" asp-route-SortDir="@(Model.SortBy == "title" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Task<span class="at-sort-indicator" aria-hidden="true">@SortIndicator("title")</span></a></th>
+                        <th scope="col" aria-sort='@SortAriaSort("assignee")'><a class='@SortLinkClass("assignee")' asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="assignee" asp-route-SortDir="@(Model.SortBy == "assignee" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Responsible Person<span class="at-sort-indicator" aria-hidden="true">@SortIndicator("assignee")</span></a></th>
+                        <th scope="col" class="at-register-sprint-heading">Sprint</th>
+                        <th scope="col" aria-sort='@SortAriaSort("due")'><a class='@SortLinkClass("due")' asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="due" asp-route-SortDir="@(Model.SortBy == "due" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Due Date<span class="at-sort-indicator" aria-hidden="true">@SortIndicator("due")</span></a></th>
+                        <th scope="col" aria-sort='@SortAriaSort("status")'><a class='@SortLinkClass("status")' asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="status" asp-route-SortDir="@(Model.SortBy == "status" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Status<span class="at-sort-indicator" aria-hidden="true">@SortIndicator("status")</span></a></th>
+                        <th scope="col" aria-sort='@SortAriaSort("priority")'><a class='@SortLinkClass("priority")' asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-FilterStatus="@Model.FilterStatus" asp-route-FilterPriority="@Model.FilterPriority" asp-route-FilterAssigneeUserId="@Model.FilterAssigneeUserId" asp-route-FilterDueDate="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" asp-route-FilterSearch="@Model.FilterSearch" asp-route-SortBy="priority" asp-route-SortDir="@(Model.SortBy == "priority" && !string.Equals(Model.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc")">Priority<span class="at-sort-indicator" aria-hidden="true">@SortIndicator("priority")</span></a></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -148,15 +178,13 @@
                     {
                         <tr class="@(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)">
                             <td><a class="at-task-id-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Register">AT-@task.Id</a></td>
-                            <td>
+                            <td class="at-register-task-cell">
                                 <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Register">@task.Title</a>
                                 <div class="at-task-desc-preview">@task.Description</div>
-                                <div class="mt-1"><span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span></div>
                             </td>
-                            <td>
-                                <div class="fw-semibold">@Model.ResolveAssigneeName(task.AssignedToUserId)</div>
-                            </td>
-                            <td>@task.DueDate.ToString("dd MMM yyyy")</td>
+                            <td class="at-register-person-cell">@Model.ResolveAssigneeName(task.AssignedToUserId)</td>
+                            <td class="at-register-sprint-cell"><span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span></td>
+                            <td class="at-register-date-cell">@task.DueDate.ToString("dd MMM yyyy")</td>
                             <td><span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span></td>
                             <td><span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span></td>
                         </tr>
