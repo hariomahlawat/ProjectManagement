@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Models;
 using ProjectManagement.Services.ActionTasks;
 
@@ -24,30 +23,32 @@ public class IndexModel : PageModel
     private readonly IActionTaskCollaborationService _collaborationService;
     private readonly ActionTaskPermissionService _permission;
     private readonly ActionSprintService _sprintService;
-    private readonly ActionTaskQueryService _queryService;
     private readonly ActionTaskWorkspaceBuilder _workspaceBuilder;
     private readonly ActionTaskWorkflowPolicy _workflowPolicy;
     private readonly ActionTaskRouteStateHelper _routeStateHelper;
     private readonly ActionTaskMyWorkQueueBuilder _myWorkQueueBuilder;
     private readonly ActionTaskCommandCentreSummaryBuilder _commandCentreSummaryBuilder;
     private readonly ActionTaskSprintWorkspaceSummaryBuilder _sprintWorkspaceSummaryBuilder;
+    private readonly ActionTaskSprintBoardStateBuilder _sprintBoardStateBuilder;
+    private readonly ActionTaskInspectorReadModelBuilder _inspectorBuilder;
     private readonly IActionTrackerClock _clock;
     private readonly ActionTaskUserLookupService _userLookup;
     private readonly UserManager<ApplicationUser> _users;
 
-    public IndexModel(IActionTaskService service, IActionTaskCollaborationService collaborationService, ActionTaskPermissionService permission, ActionSprintService sprintService, ActionTaskQueryService queryService, ActionTaskWorkspaceBuilder workspaceBuilder, ActionTaskWorkflowPolicy workflowPolicy, ActionTaskRouteStateHelper routeStateHelper, ActionTaskMyWorkQueueBuilder myWorkQueueBuilder, ActionTaskCommandCentreSummaryBuilder commandCentreSummaryBuilder, ActionTaskSprintWorkspaceSummaryBuilder sprintWorkspaceSummaryBuilder, ActionTaskUserLookupService userLookup, IActionTrackerClock clock, UserManager<ApplicationUser> users)
+    public IndexModel(IActionTaskService service, IActionTaskCollaborationService collaborationService, ActionTaskPermissionService permission, ActionSprintService sprintService, ActionTaskWorkspaceBuilder workspaceBuilder, ActionTaskWorkflowPolicy workflowPolicy, ActionTaskRouteStateHelper routeStateHelper, ActionTaskMyWorkQueueBuilder myWorkQueueBuilder, ActionTaskCommandCentreSummaryBuilder commandCentreSummaryBuilder, ActionTaskSprintWorkspaceSummaryBuilder sprintWorkspaceSummaryBuilder, ActionTaskSprintBoardStateBuilder sprintBoardStateBuilder, ActionTaskInspectorReadModelBuilder inspectorBuilder, ActionTaskUserLookupService userLookup, IActionTrackerClock clock, UserManager<ApplicationUser> users)
     {
         _service = service;
         _collaborationService = collaborationService;
         _permission = permission;
         _sprintService = sprintService;
-        _queryService = queryService;
         _workspaceBuilder = workspaceBuilder;
         _workflowPolicy = workflowPolicy;
         _routeStateHelper = routeStateHelper;
         _myWorkQueueBuilder = myWorkQueueBuilder;
         _commandCentreSummaryBuilder = commandCentreSummaryBuilder;
         _sprintWorkspaceSummaryBuilder = sprintWorkspaceSummaryBuilder;
+        _sprintBoardStateBuilder = sprintBoardStateBuilder;
+        _inspectorBuilder = inspectorBuilder;
         _userLookup = userLookup;
         _clock = clock;
         _users = users;
@@ -837,8 +838,7 @@ public class IndexModel : PageModel
         SelectedSprintId = SelectedSprint?.Id ?? SelectedSprintId;
         SprintSummary = readModel.SprintReadModel.Summary;
         SprintClosureReview = readModel.SprintReadModel.ClosureReview;
-        PrepareSprintForms();
-        await LoadSprintAuditHistoryAsync();
+        await PrepareSprintBoardStateAsync();
         ActiveSprintMetrics = readModel.ActiveSprintMetrics;
         MyWorkQueue = _myWorkQueueBuilder.Build(Tasks, ActiveSprint);
         CommandCentreSummary = _commandCentreSummaryBuilder.Build(Tasks, CriticalOpenTasks.Count, ActiveSprintMetrics.CarryForwardCandidateTasks);
@@ -859,31 +859,25 @@ public class IndexModel : PageModel
         ReportFilteredTaskCount = readModel.Reports.FilteredTaskCount;
         ReportTotalTaskCount = readModel.Reports.TotalTaskCount;
 
-        // SECTION: Selected Task Resolution
-        if (!TaskId.HasValue)
-        {
-            return;
-        }
+        await PrepareSelectedTaskInspectorAsync(readModel.ScopeTasks);
+    }
 
-        // SECTION: Selected detail read-model boundary
-        SelectedTask = _queryService.SelectTask(readModel.ScopeTasks, TaskId);
-        if (SelectedTask is null)
+
+    // SECTION: Selected task inspector state is composed by a focused builder to preserve drawer/deep-link behaviour.
+    private async Task PrepareSelectedTaskInspectorAsync(IReadOnlyList<ActionTaskItem> scopeTasks)
+    {
+        var inspector = await _inspectorBuilder.BuildAsync(new ActionTaskInspectorReadModelRequest(TaskId, scopeTasks, CurrentUserId, CurrentRole));
+        if (inspector.IsUnavailable)
         {
             TaskId = null;
-            SelectedTask = null;
-            SelectedTaskLogs = Array.Empty<ActionTaskAuditLog>();
-            SelectedTaskUpdates = Array.Empty<ActionTaskUpdate>();
-            UpdateAttachments = new Dictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>();
             TempData["ToastError"] = "The selected task is no longer available in the current view.";
-            return;
         }
 
-        // SECTION: Selected Task Detail Loading
-        SelectedTaskLogs = await _service.GetTaskLogsAsync(SelectedTask.Id, CurrentUserId, CurrentRole);
-        SelectedTaskUpdates = await _collaborationService.GetUpdatesAsync(SelectedTask.Id, CurrentUserId, CurrentRole);
-        UpdateAttachments = await _collaborationService.GetAttachmentMetadataByUpdateAsync(SelectedTask.Id, CurrentUserId, CurrentRole);
-        TaskActorNames = await _userLookup.LoadTaskActorNamesAsync(SelectedTaskLogs);
-        TaskActorNames = await _userLookup.MergeUpdateActorNamesAsync(TaskActorNames, SelectedTaskUpdates);
+        SelectedTask = inspector.SelectedTask;
+        SelectedTaskLogs = inspector.Logs;
+        SelectedTaskUpdates = inspector.Updates;
+        UpdateAttachments = inspector.UpdateAttachments;
+        TaskActorNames = inspector.ActorNames;
     }
 
     // SECTION: Workspace request isolates GET filter, report and sprint state before builder orchestration.
@@ -910,93 +904,53 @@ public class IndexModel : PageModel
             ReportPriority);
 
 
-    private async Task LoadSprintAuditHistoryAsync()
+    // SECTION: Sprint Board panel defaults and audit state are composed by the Sprint Board state builder.
+    private async Task PrepareSprintBoardStateAsync()
     {
-        // SECTION: Selected sprint audit read-model loading.
-        if (SelectedSprint is null)
+        var state = await _sprintBoardStateBuilder.BuildAsync(new ActionTaskSprintBoardStateRequest(
+            SelectedSprint,
+            ShowCreateSprintPanel,
+            ShowEditSprintPanel,
+            ShowCreateNextSprintPanel));
+
+        if (state.CreateDefaults is not null)
         {
-            SprintAuditHistory = Array.Empty<ActionSprintAuditLog>();
-            SprintActorNames = new Dictionary<string, string>(StringComparer.Ordinal);
-            return;
+            SprintInput = new CreateSprintInput
+            {
+                Name = state.CreateDefaults.Name,
+                Goal = state.CreateDefaults.Goal,
+                StartDate = state.CreateDefaults.StartDate,
+                EndDate = state.CreateDefaults.EndDate
+            };
         }
 
-        SprintAuditHistory = await _sprintService.GetSprintAuditHistoryAsync(SelectedSprint.Id);
-        SprintActorNames = await _userLookup.LoadSprintActorNamesAsync(SprintAuditHistory);
-    }
-
-    private void PrepareSprintForms()
-    {
-        // SECTION: Keep create defaults editable while deriving current sprint.
-        if (!ShowCreateSprintPanel)
+        if (state.EditDefaults is not null)
         {
-            SprintInput = CreateSprintInput.FromSprint(_clock.UtcToday);
+            SprintEditInput = new UpdateSprintInput
+            {
+                SprintId = state.EditDefaults.SprintId,
+                RowVersion = state.EditDefaults.RowVersion,
+                Name = state.EditDefaults.Name,
+                Goal = state.EditDefaults.Goal,
+                StartDate = state.EditDefaults.StartDate,
+                EndDate = state.EditDefaults.EndDate
+            };
         }
 
-        if (SelectedSprint is not null && !ShowEditSprintPanel)
+        if (state.NextDefaults is not null)
         {
-            SprintEditInput = UpdateSprintInput.FromSprint(SelectedSprint);
+            NextSprintInput = new CreateNextSprintInput
+            {
+                SourceSprintId = state.NextDefaults.SourceSprintId,
+                Name = state.NextDefaults.Name,
+                Goal = state.NextDefaults.Goal,
+                StartDate = state.NextDefaults.StartDate,
+                EndDate = state.NextDefaults.EndDate
+            };
         }
 
-        if (SelectedSprint is not null && !ShowCreateNextSprintPanel)
-        {
-            NextSprintInput = CreateNextSprintInput.FromSourceSprint(SelectedSprint);
-        }
-    }
-
-    private async Task<IReadOnlyDictionary<string, string>> LoadSprintActorNamesAsync(IReadOnlyList<ActionSprintAuditLog> logs)
-    {
-        // SECTION: Resolve sprint lifecycle actor display names without changing audit schema.
-        var userIds = logs.Select(x => x.PerformedByUserId).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal).ToList();
-        if (userIds.Count == 0)
-        {
-            return new Dictionary<string, string>(StringComparer.Ordinal);
-        }
-
-        var users = await _users.Users.Where(u => userIds.Contains(u.Id)).Select(u => new { u.Id, u.Rank, u.FullName, u.UserName, u.Email }).ToListAsync();
-        return users.ToDictionary(x => x.Id, x => BuildPersonDisplayName(x.Rank, x.FullName, x.UserName, x.Email), StringComparer.Ordinal);
-    }
-
-    private async Task<IReadOnlyDictionary<string, string>> MergeActorNamesAsync(IReadOnlyDictionary<string, string> current, IReadOnlyList<ActionTaskUpdate> updates)
-    {
-        var userIds = updates.Select(x => x.CreatedByUserId).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.Ordinal).ToList();
-        var missingIds = userIds.Where(x => !current.ContainsKey(x)).ToList();
-        if (missingIds.Count == 0)
-        {
-            return current;
-        }
-
-        var users = await _users.Users.Where(u => missingIds.Contains(u.Id)).Select(u => new { u.Id, u.Rank, u.FullName, u.UserName, u.Email }).ToListAsync();
-        var merged = new Dictionary<string, string>(current, StringComparer.Ordinal);
-        foreach (var user in users)
-        {
-            merged[user.Id] = BuildPersonDisplayName(user.Rank, user.FullName, user.UserName, user.Email);
-        }
-
-        return merged;
-    }
-
-    // SECTION: Person display formatting preserves rank-first names for locally merged actor dictionaries.
-    private static string BuildPersonDisplayName(string? rank, string? fullName, string? userName, string? email)
-    {
-        var trimmedRank = rank?.Trim();
-        var trimmedFullName = fullName?.Trim();
-
-        if (!string.IsNullOrWhiteSpace(trimmedRank) && !string.IsNullOrWhiteSpace(trimmedFullName))
-        {
-            return $"{trimmedRank} {trimmedFullName}";
-        }
-
-        if (!string.IsNullOrWhiteSpace(trimmedFullName))
-        {
-            return trimmedFullName;
-        }
-
-        if (!string.IsNullOrWhiteSpace(userName))
-        {
-            return userName;
-        }
-
-        return string.IsNullOrWhiteSpace(email) ? "User" : email;
+        SprintAuditHistory = state.AuditHistory;
+        SprintActorNames = state.ActorNames;
     }
 
     // SECTION: Task display projections for richer UI cards and mini-lists.
@@ -1251,21 +1205,12 @@ public class IndexModel : PageModel
         }
     }
 
-    // SECTION: Sprint Board sub-view normalization is delegated to the shared route-state helper.
+    // SECTION: Sprint Board route normalization is delegated to the shared route-state helper.
     private string ResolvePlanningView()
-        => _routeStateHelper.ResolvePlanningView(PlanningView, ViewMode);
+        => BuildRouteState().PlanningView;
 
-    // SECTION: Sprint Board internal tab normalization is delegated to the shared route-state helper.
     private string ResolvePlanningTab()
-        => _routeStateHelper.ResolvePlanningTab(PlanningTab, ResolvedPlanningView, GetDefaultPlanningTab());
-
-    // SECTION: Planning tab default follows selected sprint availability.
-    private string GetDefaultPlanningTab()
-    {
-        return SelectedSprintId.HasValue || SelectedSprint is not null || ActiveSprint is not null
-            ? "Execute"
-            : "Plan";
-    }
+        => BuildRouteState().PlanningTab;
 
     // SECTION: Shared task redirect route preserves workspace, selection, and relevant list state from inspector actions.
     private RedirectToPageResult RedirectToTaskPage(int? taskId, int? selectedSprintId)
@@ -1278,24 +1223,17 @@ public class IndexModel : PageModel
     private object BuildTaskWorkspaceRouteValues(int? taskId, int? selectedSprintId)
         => _routeStateHelper.BuildTaskWorkspaceRouteValues(BuildRouteState(), taskId, selectedSprintId);
 
-    // SECTION: Task-list filter route preservation supports legacy Register and Backlog bookmarks after postback redirects.
+    // SECTION: Task-list filter route preservation is centralized in the shared route-state helper.
     private ActionTaskRouteState BuildRouteState()
-        => new(
-            ResolveViewMode(),
-            ResolvedPlanningTab,
-            ResolvedPlanningView,
-            GetDefaultPlanningTab(),
-            IsPlanningView,
-            IsTaskListView || IsBacklogView,
+        => _routeStateHelper.BuildRouteState(new ActionTaskRouteStateRequest(
+            ViewMode,
+            PlanningTab,
+            PlanningView,
             TaskId,
             SelectedSprintId,
-            FilterStatus,
-            FilterPriority,
-            FilterAssigneeUserId,
-            FilterDueDate,
-            FilterSearch,
-            SortBy,
-            SortDir);
+            SelectedSprint is not null,
+            ActiveSprint is not null,
+            BuildFilterRouteState()));
 
     private ActionTaskFilterRouteState BuildFilterRouteState()
         => new(FilterStatus, FilterPriority, FilterAssigneeUserId, FilterDueDate, FilterSearch, SortBy, SortDir);
@@ -1305,7 +1243,8 @@ public class IndexModel : PageModel
 
     // SECTION: Planning backlog filter detection keeps canonical Planning routes compatible with legacy Backlog filtered views.
     private bool IsPlanningBacklogFilterContext()
-        => _routeStateHelper.IsPlanningBacklogFilterContext(ResolvedViewMode, ResolvedPlanningView, BuildFilterRouteState());
+        => BuildRouteState().ShouldPreserveTaskFilters
+            && string.Equals(BuildRouteState().ViewMode, "Planning", StringComparison.OrdinalIgnoreCase);
 
     // SECTION: Shared filter-state detection is delegated to the shared route-state helper.
     private bool HasTaskFilterRouteState()
@@ -1316,7 +1255,7 @@ public class IndexModel : PageModel
         => _routeStateHelper.IsLegacyViewMode(ViewMode, legacyViewMode);
 
     private string ResolveViewMode()
-        => _routeStateHelper.ResolveViewMode(ViewMode);
+        => BuildRouteState().ViewMode;
 
 
     private static readonly ActionTaskMyWorkQueueReadModel EmptyMyWorkQueue = new(
