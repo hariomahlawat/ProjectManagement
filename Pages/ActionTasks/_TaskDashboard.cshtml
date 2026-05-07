@@ -1,75 +1,124 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Command-attention strip for command-centre exceptions. *@
-<section class="at-kpis" aria-label="Command attention metrics">
-    <article><h3>Overdue</h3><strong>@Model.OverdueCount</strong><p>Past due and open</p></article>
-    <article><h3>Blocked</h3><strong>@Model.BlockedCount</strong><p>Needs unblock action</p></article>
-    <article><h3>Pending Closure</h3><strong>@Model.SubmittedPendingClosureCount</strong><p>Submitted for close-out</p></article>
-    <article><h3>Critical Open</h3><strong>@Model.CriticalOpenCount</strong><p>Critical priority, not closed</p></article>
-    <article><h3>Carry Forward</h3><strong>@Model.ActiveSprintMetrics.CarryForwardCandidateTasks</strong><p>Active sprint candidates</p></article>
-</section>
-<section class="at-panel at-command-focus-strip mb-3">
-    <strong>Command Attention:</strong> @Model.DashboardCommandFocusSummary
+@* SECTION: Executive command brief with integrated exception severity. *@
+<section class="at-command-brief" aria-label="Command Centre executive brief">
+    <div class="at-command-brief-lead">
+        <div>
+            <span class="at-section-eyebrow">Command Centre</span>
+            <h2>Exception command surface</h2>
+        </div>
+        <p class="at-command-sentence"><strong>Command Attention:</strong> @Model.DashboardCommandFocusSummary</p>
+    </div>
+    <div class="at-command-exception-grid" aria-label="Command exception metrics">
+        <article class="at-command-exception at-command-exception-major">
+            <span class="at-command-exception-label">Critical Open</span>
+            <strong>@Model.CriticalOpenCount</strong>
+            <p>Critical priority, not closed</p>
+        </article>
+        <article class="at-command-exception is-danger">
+            <span class="at-command-exception-label">Overdue</span>
+            <strong>@Model.OverdueCount</strong>
+            <p>Past due and open</p>
+        </article>
+        <article class="at-command-exception is-warning">
+            <span class="at-command-exception-label">Blocked</span>
+            <strong>@Model.BlockedCount</strong>
+            <p>Needs unblock action</p>
+        </article>
+        <article class="at-command-exception is-amber">
+            <span class="at-command-exception-label">Submitted Pending Closure</span>
+            <strong>@Model.SubmittedPendingClosureCount</strong>
+            <p>Submitted for close-out</p>
+        </article>
+        <article class="at-command-exception is-neutral">
+            <span class="at-command-exception-label">Carry-Forward Risk</span>
+            <strong>@Model.ActiveSprintMetrics.CarryForwardCandidateTasks</strong>
+            <p>Active sprint candidates</p>
+        </article>
+    </div>
 </section>
 
-@* SECTION: Active sprint operational health metrics. *@
-<section class="at-panel at-active-sprint-dashboard">
-    <div class="at-panel-heading">
+@* SECTION: Band A - active sprint health and current operational signal. *@
+<section class="at-command-health-band" aria-labelledby="active-sprint-health-title">
+    <div class="at-command-band-heading">
         <div>
-            <h2>Active Sprint Health</h2>
-            @if (Model.ActiveSprint is not null)
-            {
-                <p class="at-panel-note">@Model.DisplaySprintName(Model.ActiveSprint) · @Model.ActiveSprintMetrics.ActiveSprintDateRange</p>
-            }
-            else
-            {
-                <p class="at-panel-note">No active sprint is currently set.</p>
-            }
+            <span class="at-section-eyebrow">Band A</span>
+            <h2 id="active-sprint-health-title">Active Sprint Health &amp; Operational Signal</h2>
+        </div>
+        @if (Model.ActiveSprint is not null)
+        {
+            <p class="at-panel-note">@Model.DisplaySprintName(Model.ActiveSprint) · @Model.ActiveSprintMetrics.ActiveSprintDateRange</p>
+        }
+        else
+        {
+            <p class="at-panel-note">No active sprint is currently set.</p>
+        }
+    </div>
+    <div class="at-command-health-layout">
+        <div class="at-sprint-health-surface" aria-label="Active Sprint health metrics">
+            <article class="is-primary"><h3>Total in active sprint</h3><strong>@Model.ActiveSprintMetrics.TotalTasks</strong><span>Current execution scope</span></article>
+            <article><h3>Completed</h3><strong>@Model.ActiveSprintMetrics.CompletedTasks</strong></article>
+            <article><h3>In progress</h3><strong>@Model.ActiveSprintMetrics.InProgressTasks</strong></article>
+            <article><h3>Backlog</h3><strong>@Model.ActiveSprintMetrics.BacklogTasks</strong></article>
+            <article class="is-warning"><h3>Blocked</h3><strong>@Model.ActiveSprintMetrics.BlockedTasks</strong></article>
+            <article class="is-danger"><h3>Overdue in sprint</h3><strong>@Model.ActiveSprintMetrics.OverdueTasks</strong></article>
+            <article class="is-amber"><h3>Carry-forward candidates</h3><strong>@Model.ActiveSprintMetrics.CarryForwardCandidateTasks</strong></article>
+        </div>
+        @* SECTION: Slim active Sprint operational signals using existing mini-list partials. *@
+        <div class="at-operational-signal-stack" aria-label="Active Sprint operational signals">
+            <article class="at-attention-panel at-attention-panel-slim is-danger">
+                <div class="at-attention-heading"><span>Overdue</span><strong>@Model.ActiveSprintOverdueTaskDisplays.Count</strong></div>
+                <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintOverdueTaskDisplays, "No overdue tasks in the active sprint.")' />
+            </article>
+            <article class="at-attention-panel at-attention-panel-slim is-warning">
+                <div class="at-attention-heading"><span>Blocked</span><strong>@Model.ActiveSprintBlockedTaskDisplays.Count</strong></div>
+                <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintBlockedTaskDisplays, "No blocked tasks in the active sprint.")' />
+            </article>
+            <article class="at-attention-panel at-attention-panel-slim is-amber">
+                <div class="at-attention-heading"><span>Submitted pending closure</span><strong>@Model.ActiveSprintSubmittedTaskDisplays.Count</strong></div>
+                <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintSubmittedTaskDisplays, "No submitted tasks pending closure in the active sprint.")' />
+            </article>
         </div>
     </div>
-    <div class="at-sprint-health-grid at-sprint-health-grid-readable" aria-label="Active Sprint health metrics">
-        <article class="is-primary"><h3>Total in active sprint</h3><strong>@Model.ActiveSprintMetrics.TotalTasks</strong><span>Current execution scope</span></article>
-        <article><h3>Completed</h3><strong>@Model.ActiveSprintMetrics.CompletedTasks</strong></article>
-        <article><h3>In progress</h3><strong>@Model.ActiveSprintMetrics.InProgressTasks</strong></article>
-        <article><h3>Blocked</h3><strong>@Model.ActiveSprintMetrics.BlockedTasks</strong></article>
-        <article><h3>Overdue in sprint</h3><strong>@Model.ActiveSprintMetrics.OverdueTasks</strong></article>
-        <article><h3>Backlog</h3><strong>@Model.ActiveSprintMetrics.BacklogTasks</strong></article>
-        <article><h3>Carry-forward candidates</h3><strong>@Model.ActiveSprintMetrics.CarryForwardCandidateTasks</strong></article>
-    </div>
-    @* SECTION: Command attention grouping for active Sprint exceptions. *@
-    <div class="at-dashboard-attention-grid" aria-label="Active Sprint command attention">
-        <article class="at-attention-panel">
-            <div class="at-attention-heading"><span>Overdue</span><strong>@Model.ActiveSprintOverdueTaskDisplays.Count</strong></div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintOverdueTaskDisplays, "No overdue tasks in the active sprint.")' />
-        </article>
-        <article class="at-attention-panel">
-            <div class="at-attention-heading"><span>Blocked</span><strong>@Model.ActiveSprintBlockedTaskDisplays.Count</strong></div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintBlockedTaskDisplays, "No blocked tasks in the active sprint.")' />
-        </article>
-        <article class="at-attention-panel">
-            <div class="at-attention-heading"><span>Submitted pending closure</span><strong>@Model.ActiveSprintSubmittedTaskDisplays.Count</strong></div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintSubmittedTaskDisplays, "No submitted tasks pending closure in the active sprint.")' />
-        </article>
-    </div>
 </section>
 
-@* SECTION: Attention-required panels with compact task rows. *@
-<section class="at-section-group">
-    <h2 class="at-section-title">Attention Required</h2>
-    <div class="at-card-grid">
-        <article class="at-panel">
+@* SECTION: Band B - attention-required queues with compact task rows. *@
+<section class="at-command-attention-band" aria-labelledby="attention-required-title">
+    <div class="at-command-band-heading">
+        <div>
+            <span class="at-section-eyebrow">Band B</span>
+            <h2 id="attention-required-title">Attention-Required Queues</h2>
+        </div>
+        <p class="at-panel-note">Command queues remain server-rendered and compact for fast triage.</p>
+    </div>
+    <div class="at-card-grid at-command-queue-grid">
+        <article class="at-panel at-attention-queue is-danger">
             <div class="at-panel-heading">
                 <h3>Critical Open Tasks</h3>
                 <span class="at-count-chip">@Model.CriticalOpenTaskDisplays.Count</span>
             </div>
             <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.CriticalOpenTaskDisplays, "No critical open tasks.")' />
         </article>
-        <article class="at-panel">
+        <article class="at-panel at-attention-queue is-danger">
             <div class="at-panel-heading">
                 <h3>Overdue Tasks</h3>
                 <span class="at-count-chip">@Model.OverdueTaskDisplays.Count</span>
             </div>
             <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.OverdueTaskDisplays, "No overdue tasks.")' />
+        </article>
+        <article class="at-panel at-attention-queue is-warning">
+            <div class="at-panel-heading">
+                <h3>Blocked Tasks</h3>
+                <span class="at-count-chip">@Model.KanbanBlockedTaskDisplays.Count</span>
+            </div>
+            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.KanbanBlockedTaskDisplays, "No blocked tasks.")' />
+        </article>
+        <article class="at-panel at-attention-queue is-amber">
+            <div class="at-panel-heading">
+                <h3>Submitted Pending Closure</h3>
+                <span class="at-count-chip">@Model.KanbanSubmittedTaskDisplays.Count</span>
+            </div>
+            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.KanbanSubmittedTaskDisplays, "No submitted tasks awaiting closure.")' />
         </article>
     </div>
 </section>
