@@ -22,9 +22,9 @@
             </div>
             @if (Model.CanModifySelectedSprint)
             {
-                @* SECTION: Add Backlog Task remains a secondary collapsed action, now discoverable at the top of Execute. *@
+                @* SECTION: Pull from Backlog remains a secondary collapsed action, discoverable at the top of Execute. *@
                 <details class="at-execute-quick-add at-execute-quick-add-inline @(Model.AssignableBacklogTaskDisplays.Any() ? string.Empty : "is-empty")">
-                    <summary>Add Backlog Task <span class="at-count-chip">@Model.AssignableBacklogTaskDisplays.Count</span></summary>
+                    <summary>Pull from Backlog <span class="at-count-chip">@Model.AssignableBacklogTaskDisplays.Count</span></summary>
                     @if (!Model.AssignableBacklogTaskDisplays.Any())
                     {
                         <p class="at-empty-inline at-execute-quick-add-empty">No assignable backlog tasks are available.</p>
