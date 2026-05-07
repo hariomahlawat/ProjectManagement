@@ -1222,7 +1222,7 @@ html {
     background: #f1f5f9;
 }
 
-/* SECTION: Sprint and backlog scope badges */
+/* SECTION: Sprint, backlog, non-sprint, and closed scope badges */
 .at-scope-badge {
     display: inline-flex;
     align-items: center;
@@ -1244,6 +1244,18 @@ html {
 .at-scope-badge-backlog {
     color: #475569;
     background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.at-scope-badge-non-sprint {
+    color: #7c2d12;
+    background: #ffedd5;
+    border-color: #fed7aa;
+}
+
+.at-scope-badge-closed {
+    color: #334155;
+    background: #e2e8f0;
     border-color: #cbd5e1;
 }
 

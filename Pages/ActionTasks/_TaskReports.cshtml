@@ -33,14 +33,14 @@
             <label>
                 <span>Sprint</span>
                 <select class="form-select form-select-sm" name="ReportSprintId" data-at-reports-filter-control="true">
-                    <option value="">All Sprints &amp; Backlog</option>
+                    <option value="">All Sprint, Backlog &amp; Non-sprint work</option>
                     @if (Model.ReportSprintId == 0)
                     {
-                        <option value="0" selected>Backlog only</option>
+                        <option value="0" selected>True backlog only</option>
                     }
                     else
                     {
-                        <option value="0">Backlog only</option>
+                        <option value="0">True backlog only</option>
                     }
                     @foreach (var sprint in Model.Sprints)
                     {
@@ -252,7 +252,7 @@
         <div class="at-panel-heading">
             <div>
                 <h2>Backlog Ageing Summary</h2>
-                <p class="at-panel-note">Highlights unscheduled open work by age so stale backlog items can be triaged.</p>
+                <p class="at-panel-note">Highlights true backlog only: open, not in a Sprint, and not assigned to a user.</p>
             </div>
         </div>
         <div class="at-metric-bars">
@@ -265,6 +265,32 @@
                 </div>
             }
         </div>
+    </article>
+
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <div>
+                <h2>Non-sprint Assigned Workload</h2>
+                <p class="at-panel-note">Counts open assigned work that is not part of Sprint commitment and is excluded from backlog ageing.</p>
+            </div>
+        </div>
+        @if (!Model.NonSprintAssignedWorkloadCounts.Any())
+        {
+            <p class="at-empty-state-note">No open non-sprint assigned work is visible in the selected report scope.</p>
+        }
+        else
+        {
+            <div class="at-metric-bars at-metric-bars-tight">
+                @foreach (var item in Model.NonSprintAssignedWorkloadCounts)
+                {
+                    <div class="at-metric-row">
+                        <span class="at-metric-label" title="@item.Name">@item.Name</span>
+                        <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-amber" style="width:@Model.ToPercent(item.Count, Model.NonSprintAssignedWorkloadCountsMax)%"></div></div>
+                        <strong>@item.Count</strong>
+                    </div>
+                }
+            </div>
+        }
     </article>
 
     <article class="at-panel">

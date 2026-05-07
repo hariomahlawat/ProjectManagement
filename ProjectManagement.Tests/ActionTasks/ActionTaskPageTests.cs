@@ -384,6 +384,9 @@ public class ActionTaskPageTests
         var sprint = AddSprint(setup.Db, "Active Sprint", ActionSprintStatus.Active);
         await setup.Db.SaveChangesAsync();
         setup.Db.ActionTasks.Add(NewTask("Sprint task", ActionTaskStatuses.Assigned, sprint.Id));
+        var trueBacklog = NewTask("True backlog", ActionTaskStatuses.Assigned);
+        trueBacklog.AssignedToUserId = string.Empty;
+        setup.Db.ActionTasks.Add(trueBacklog);
         setup.Db.ActionTasks.Add(NewTask("Closed backlog", ActionTaskStatuses.Closed));
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
@@ -395,9 +398,40 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.NotEmpty(page.BacklogTasks);
         Assert.All(page.BacklogTasks, task => Assert.Null(task.SprintId));
-        Assert.Contains(page.BacklogTasks, task => task.Title == "Mine");
+        Assert.All(page.BacklogTasks, task => Assert.True(string.IsNullOrWhiteSpace(task.AssignedToUserId)));
+        Assert.Contains(page.BacklogTasks, task => task.Title == "True backlog");
+        Assert.DoesNotContain(page.BacklogTasks, task => task.Title == "Mine");
         Assert.DoesNotContain(page.BacklogTasks, task => task.Title == "Closed backlog");
         Assert.DoesNotContain(page.BacklogTasks, task => task.Title == "Sprint task");
+    }
+
+    [Fact]
+    public async Task TaskScopeBadges_UseSprintBacklogNonSprintAndClosedLabels()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var sprint = AddSprint(setup.Db, "Badge Sprint", ActionSprintStatus.Active);
+        var sprintTask = NewTask("Sprint scoped", ActionTaskStatuses.Assigned, sprint.Id);
+        var backlogTask = NewTask("Backlog scoped", ActionTaskStatuses.Assigned);
+        backlogTask.AssignedToUserId = string.Empty;
+        var nonSprintTask = NewTask("Non sprint scoped", ActionTaskStatuses.Assigned);
+        var closedTask = NewTask("Closed scoped", ActionTaskStatuses.Closed);
+        setup.Db.ActionTasks.AddRange(sprintTask, backlogTask, nonSprintTask, closedTask);
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+
+        // SECTION: Act
+        await page.OnGetAsync();
+
+        // SECTION: Assert
+        Assert.Equal("Badge Sprint", page.GetSprintBadgeText(sprintTask));
+        Assert.Equal("Backlog", page.GetSprintBadgeText(backlogTask));
+        Assert.Equal("Non-sprint", page.GetSprintBadgeText(nonSprintTask));
+        Assert.Equal("Closed", page.GetSprintBadgeText(closedTask));
+        Assert.Contains("at-scope-badge-sprint", page.GetSprintBadgeClass(sprintTask), StringComparison.Ordinal);
+        Assert.Contains("at-scope-badge-backlog", page.GetSprintBadgeClass(backlogTask), StringComparison.Ordinal);
+        Assert.Contains("at-scope-badge-non-sprint", page.GetSprintBadgeClass(nonSprintTask), StringComparison.Ordinal);
+        Assert.Contains("at-scope-badge-closed", page.GetSprintBadgeClass(closedTask), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -857,6 +891,7 @@ public class ActionTaskPageTests
         Assert.Contains("Priority Exposure", html, StringComparison.Ordinal);
         Assert.Contains("Workflow Distribution", html, StringComparison.Ordinal);
         Assert.Contains("Backlog Ageing Summary", html, StringComparison.Ordinal);
+        Assert.Contains("Non-sprint Assigned Workload", html, StringComparison.Ordinal);
         Assert.Contains("Carry-forward by Sprint", html, StringComparison.Ordinal);
         Assert.Contains("Blocked Task Ageing", html, StringComparison.Ordinal);
     }

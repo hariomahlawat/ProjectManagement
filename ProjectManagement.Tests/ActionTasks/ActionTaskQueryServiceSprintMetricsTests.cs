@@ -21,8 +21,9 @@ public class ActionTaskQueryServiceSprintMetricsTests
             NewTask(2, activeSprint.Id, ActionTaskStatuses.InProgress, today.AddDays(1)),
             NewTask(3, activeSprint.Id, ActionTaskStatuses.Blocked, today.AddDays(-2)),
             NewTask(4, activeSprint.Id, ActionTaskStatuses.Submitted, today.AddDays(2)),
-            NewTask(5, null, ActionTaskStatuses.Assigned, today.AddDays(3)),
-            NewTask(6, null, ActionTaskStatuses.Closed, today.AddDays(4))
+            NewTask(5, null, ActionTaskStatuses.Assigned, today.AddDays(3), assignedToUserId: string.Empty),
+            NewTask(6, null, ActionTaskStatuses.Closed, today.AddDays(4)),
+            NewTask(7, null, ActionTaskStatuses.Assigned, today.AddDays(5))
         };
         var service = CreateQueryService();
 
@@ -44,6 +45,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
         Assert.Equal(3, model.ActiveSprintMetrics.CarryForwardCandidateTasks);
         Assert.Equal(new[] { 5 }, model.BacklogTasks.Select(t => t.Id));
         Assert.Equal(new[] { 5 }, model.SprintReadModel.BacklogTasks.Select(t => t.Id));
+        Assert.Equal(new[] { new ActionTaskQueryService.CountSummary("Assignee", 1) }, model.Reports.NonSprintAssignedWorkloadCounts);
         Assert.Equal(1, model.SprintReadModel.ClosureReview.CompletedTasks.Count);
         Assert.Equal(3, model.SprintReadModel.ClosureReview.UnfinishedTasks.Count);
         Assert.Equal(nextSprint.Id, model.SprintReadModel.ClosureReview.TargetSprintOptions.Single().Id);
@@ -62,7 +64,8 @@ public class ActionTaskQueryServiceSprintMetricsTests
             NewTask(11, sprint.Id, ActionTaskStatuses.Blocked, today.AddDays(2), "High", "assignee", today.AddDays(-9)),
             NewTask(12, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(4), "Normal", "assignee", today.AddDays(-1)),
             NewTask(13, otherSprint.Id, ActionTaskStatuses.Blocked, today.AddDays(2), "High", "other", today.AddDays(-16)),
-            NewTask(14, null, ActionTaskStatuses.Assigned, today.AddDays(2), "High", "assignee", today.AddDays(-5))
+            NewTask(14, null, ActionTaskStatuses.Assigned, today.AddDays(2), "High", string.Empty, today.AddDays(-5)),
+            NewTask(15, null, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", "assignee", today.AddDays(-3))
         };
         var service = CreateQueryService();
 
@@ -74,7 +77,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
             new Dictionary<int, DateTime?>());
 
         // SECTION: Assert
-        Assert.Equal(4, model.Reports.TotalTaskCount);
+        Assert.Equal(5, model.Reports.TotalTaskCount);
         Assert.Equal(1, model.Reports.FilteredTaskCount);
         Assert.Equal(new[] { new ActionTaskQueryService.CountSummary("Responsible One", 1) }, model.Reports.AssigneePendingCounts);
         Assert.Equal(new[] { new ActionTaskQueryService.CountSummary("High", 1) }, model.Reports.PriorityCounts);
@@ -91,9 +94,10 @@ public class ActionTaskQueryServiceSprintMetricsTests
         var sprint = new ActionSprint { Id = 31, Name = "Sprint Scope", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
         var tasks = new[]
         {
-            NewTask(21, null, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", "assignee", today.AddDays(-5)),
+            NewTask(21, null, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", string.Empty, today.AddDays(-5)),
             NewTask(22, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", "assignee", today.AddDays(-12)),
-            NewTask(23, null, ActionTaskStatuses.Closed, today.AddDays(2), "Normal", "assignee", today.AddDays(-20))
+            NewTask(23, null, ActionTaskStatuses.Closed, today.AddDays(2), "Normal", "assignee", today.AddDays(-20)),
+            NewTask(24, null, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", "assignee", today.AddDays(-20))
         };
         var service = CreateQueryService();
 
@@ -109,6 +113,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
         Assert.DoesNotContain(model.Reports.StatusCounts, item => string.Equals(item.Name, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
         Assert.Equal(1, model.Reports.BacklogAgeingBuckets.Single(x => x.Name == "4 to 7 days").Count);
         Assert.Equal(0, model.Reports.BacklogAgeingBuckets.Single(x => x.Name == "15+ days").Count);
+        Assert.Empty(model.Reports.NonSprintAssignedWorkloadCounts);
         Assert.All(model.Reports.CarryForwardBySprint, item => Assert.Equal(0, item.Count));
     }
 

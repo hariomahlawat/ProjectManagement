@@ -109,13 +109,13 @@
         <div class="at-panel-heading">
             <div>
                 <h2>Backlog Queue</h2>
-                <p class="at-panel-note">Filter backlog tasks and assign eligible work into a sprint.</p>
+                <p class="at-panel-note">Filter true backlog tasks and assign eligible work into a Sprint.</p>
             </div>
             <span class="at-count-chip">@Model.BacklogTaskDisplays.Count</span>
         </div>
         <div class="at-planning-backlog-body">
             <div class="at-backlog-summary-grid" aria-label="Backlog summary">
-                <article><strong>@Model.BacklogTotalCount</strong><span>Total backlog</span></article>
+                <article><strong>@Model.BacklogTotalCount</strong><span>True backlog</span></article>
                 <article><strong>@Model.BacklogHighPriorityCount</strong><span>High priority</span></article>
                 <article><strong>@Model.BacklogOverdueCount</strong><span>Overdue</span></article>
             </div>
@@ -124,7 +124,7 @@
             <details class="at-planning-backlog-filter-shell" open="@hasBacklogFilters">
                 <summary>
                     <span>Filter Backlog</span>
-                    <span class="at-filter-state">@(hasBacklogFilters ? "Custom backlog view" : "All open backlog")</span>
+                    <span class="at-filter-state">@(hasBacklogFilters ? "Custom backlog view" : "All true backlog")</span>
                 </summary>
                 <form method="get" class="at-planning-backlog-filter">
                     <input type="hidden" name="viewMode" value="Planning" />
