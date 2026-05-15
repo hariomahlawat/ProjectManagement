@@ -21,7 +21,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
             NewTask(2, activeSprint.Id, ActionTaskStatuses.InProgress, today.AddDays(1)),
             NewTask(3, activeSprint.Id, ActionTaskStatuses.Blocked, today.AddDays(-2)),
             NewTask(4, activeSprint.Id, ActionTaskStatuses.Submitted, today.AddDays(2)),
-            NewTask(5, null, ActionTaskStatuses.Assigned, today.AddDays(3), assignedToUserId: string.Empty),
+            NewTask(5, null, ActionTaskStatuses.Backlog, today.AddDays(3), assignedToUserId: string.Empty),
             NewTask(6, null, ActionTaskStatuses.Closed, today.AddDays(4)),
             NewTask(7, null, ActionTaskStatuses.Assigned, today.AddDays(5))
         };
@@ -64,7 +64,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
             NewTask(11, sprint.Id, ActionTaskStatuses.Blocked, today.AddDays(2), "High", "assignee", today.AddDays(-9)),
             NewTask(12, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(4), "Normal", "assignee", today.AddDays(-1)),
             NewTask(13, otherSprint.Id, ActionTaskStatuses.Blocked, today.AddDays(2), "High", "other", today.AddDays(-16)),
-            NewTask(14, null, ActionTaskStatuses.Assigned, today.AddDays(2), "High", string.Empty, today.AddDays(-5)),
+            NewTask(14, null, ActionTaskStatuses.Backlog, today.AddDays(2), "High", string.Empty, today.AddDays(-5)),
             NewTask(15, null, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", "assignee", today.AddDays(-3))
         };
         var service = CreateQueryService();
@@ -94,7 +94,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
         var sprint = new ActionSprint { Id = 31, Name = "Sprint Scope", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
         var tasks = new[]
         {
-            NewTask(21, null, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", string.Empty, today.AddDays(-5)),
+            NewTask(21, null, ActionTaskStatuses.Backlog, today.AddDays(2), "Normal", string.Empty, today.AddDays(-5)),
             NewTask(22, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", "assignee", today.AddDays(-12)),
             NewTask(23, null, ActionTaskStatuses.Closed, today.AddDays(2), "Normal", "assignee", today.AddDays(-20)),
             NewTask(24, null, ActionTaskStatuses.Assigned, today.AddDays(2), "Normal", "assignee", today.AddDays(-20))

@@ -241,11 +241,12 @@ public class IndexModel : PageModel
     public bool CanAssignTaskToSprint(ActionTaskItem task)
     {
         return _permission.CanAssignTaskToSprint(CurrentRole)
-               && string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
-               && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+               && IsBacklogTask(task)
                && AssignableSprints.Any();
     }
 
+    public bool IsBacklogTask(ActionTaskItem task)
+        => ActionTaskCategorization.IsBacklogTask(task);
 
     public bool CanAddOutsideSprintTaskToSprint(ActionTaskItem task)
     {
