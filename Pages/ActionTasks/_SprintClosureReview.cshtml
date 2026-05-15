@@ -71,15 +71,15 @@
                     <div class="form-text">Next sprint is required only for tasks marked to carry forward to the next sprint.</div>
                 </div>
 
-                <p class="at-panel-note">Each unfinished task must be carried forward, removed from sprint while keeping its assignee, or moved to backlog with the assignee removed before this sprint can close.</p>
+                <p class="at-panel-note">Select exactly one disposition for each unfinished task: carry forward, keep assigned outside sprint, or move to backlog with the assignee removed.</p>
 
                 <div class="at-closure-task-table" role="table" aria-label="Unfinished Sprint tasks requiring disposition">
                     <div class="at-closure-task-row at-closure-task-head" role="row">
                         <span>Task</span>
                         <span>Status</span>
                         <span>Carry forward</span>
-                        <span>Remove from Sprint</span>
-                        <span>Move to Backlog</span>
+                        <span>Outside Sprint</span>
+                        <span>Backlog</span>
                     </div>
                     @foreach (var task in review.UnfinishedTasks)
                     {
@@ -90,16 +90,16 @@
                             </span>
                             <span><span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span></span>
                             <label class="at-closure-choice">
-                                <input type="checkbox" name="ClosureInput.CarryForwardTaskIds" value="@task.Id" data-at-closure-choice="carry" />
+                                <input type="radio" name="ClosureInput.Dispositions[@task.Id]" value="carry" data-at-closure-choice="carry" required />
                                 <span>Next Sprint</span>
                             </label>
                             <label class="at-closure-choice">
-                                <input type="checkbox" name="ClosureInput.OutsideSprintTaskIds" value="@task.Id" data-at-closure-choice="outside" />
-                                <span>Keep Assigned</span>
+                                <input type="radio" name="ClosureInput.Dispositions[@task.Id]" value="outside" data-at-closure-choice="outside" required />
+                                <span>Keep Assigned Outside Sprint</span>
                             </label>
                             <label class="at-closure-choice">
-                                <input type="checkbox" name="ClosureInput.BacklogTaskIds" value="@task.Id" data-at-closure-choice="backlog" />
-                                <span>Remove Assignee</span>
+                                <input type="radio" name="ClosureInput.Dispositions[@task.Id]" value="backlog" data-at-closure-choice="backlog" required />
+                                <span>Move to Backlog, Remove Assignee</span>
                             </label>
                         </div>
                     }

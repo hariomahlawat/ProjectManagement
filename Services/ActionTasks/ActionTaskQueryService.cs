@@ -29,6 +29,7 @@ public sealed class ActionTaskQueryService
 
         var taskList = request.IsTaskListView ? ApplyTaskListFilters(tasks, request, assigneeNames).ToList() : tasks;
         var backlogTasks = BuildBacklogTasks(tasks, request, assigneeNames);
+        var outsideSprintTasks = BuildOutsideSprintTasks(tasks);
         var sprintReadModel = BuildSprintReadModel(tasks, request.Sprints, request.SelectedSprintId, assigneeNames);
         var activeSprintMetrics = BuildActiveSprintMetrics(tasks, sprintReadModel.ActiveSprint);
 
@@ -37,6 +38,7 @@ public sealed class ActionTaskQueryService
             ScopeTasks = tasks,
             TaskListTasks = taskList,
             BacklogTasks = backlogTasks,
+            OutsideSprintTasks = outsideSprintTasks,
             SprintReadModel = sprintReadModel,
             ActiveSprintMetrics = activeSprintMetrics,
             CriticalOpenTasks = tasks.Where(t => IsCriticalOpen(t)).OrderBy(t => t.DueDate).Take(5).ToList(),
@@ -74,6 +76,10 @@ public sealed class ActionTaskQueryService
             ? ApplyTaskListFilters(backlogTasks, request, assigneeNames).ToList()
             : backlogTasks.OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
     }
+
+    // SECTION: Outside Sprint projection keeps assigned non-sprint work separate from true backlog.
+    private static IReadOnlyList<ActionTaskItem> BuildOutsideSprintTasks(IReadOnlyList<ActionTaskItem> tasks)
+        => tasks.Where(ActionTaskCategorization.IsOutsideSprintTask).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
 
     // SECTION: Sprint read-model projection for selected sprint operational rendering.
     private static ActionSprintReadModel BuildSprintReadModel(IReadOnlyList<ActionTaskItem> tasks, IReadOnlyList<ActionSprint> sprints, int? selectedSprintId, IReadOnlyDictionary<string, string> assigneeNames)
@@ -274,6 +280,7 @@ public sealed class ActionTaskQueryService
         public IReadOnlyList<ActionTaskItem> ScopeTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> TaskListTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> BacklogTasks { get; init; } = Array.Empty<ActionTaskItem>();
+        public IReadOnlyList<ActionTaskItem> OutsideSprintTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public ActionSprintReadModel SprintReadModel { get; init; } = new();
         public ActiveSprintOperationalMetrics ActiveSprintMetrics { get; init; } = ActiveSprintOperationalMetrics.Empty;
         public IReadOnlyList<ActionTaskItem> CriticalOpenTasks { get; init; } = Array.Empty<ActionTaskItem>();

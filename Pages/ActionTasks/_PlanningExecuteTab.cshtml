@@ -40,10 +40,17 @@
                                 <option value="">Select backlog task</option>
                                 @foreach (var item in Model.AssignableBacklogTaskDisplays)
                                 {
-                                    <option value="@item.Task.Id">AT-@item.Task.Id · @item.Task.Title (@item.AssigneeName)</option>
+                                    <option value="@item.Task.Id">AT-@item.Task.Id · @item.Task.Title</option>
                                 }
                             </select>
-                            <button type="submit" class="btn btn-primary btn-sm">Assign</button>
+                            <select class="form-select form-select-sm" name="responsibleUserId" aria-label="Select responsible person" required>
+                                <option value="">Responsible person</option>
+                                @foreach (var user in Model.AssignableUsers)
+                                {
+                                    <option value="@user.UserId">@user.DisplayName</option>
+                                }
+                            </select>
+                            <button type="submit" class="btn btn-primary btn-sm">Add to Selected Sprint</button>
                         </form>
                     }
                 </details>
