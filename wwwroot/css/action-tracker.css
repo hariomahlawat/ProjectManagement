@@ -1222,7 +1222,7 @@ html {
     background: #f1f5f9;
 }
 
-/* SECTION: Sprint, backlog, non-sprint, and closed scope badges */
+/* SECTION: Sprint, backlog, outside-sprint, and closed scope badges */
 .at-scope-badge {
     display: inline-flex;
     align-items: center;
@@ -1469,7 +1469,7 @@ html {
 
 .at-closure-task-row {
     display: grid;
-    grid-template-columns: minmax(220px, 1fr) 150px 150px 130px;
+    grid-template-columns: minmax(220px, 1fr) 140px 130px 150px 150px;
     gap: 0.75rem;
     align-items: center;
     padding: 0.7rem 0.8rem;

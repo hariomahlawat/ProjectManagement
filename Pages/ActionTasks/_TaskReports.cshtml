@@ -33,7 +33,7 @@
             <label>
                 <span>Scope</span>
                 <select class="form-select form-select-sm" name="ReportSprintId" data-at-reports-filter-control="true">
-                    <option value="">All Sprint, Backlog &amp; Non-sprint work</option>
+                    <option value="">All Sprint, Backlog &amp; Outside Sprint work</option>
                     @if (Model.ReportSprintId == 0)
                     {
                         <option value="0" selected>True backlog only</option>
@@ -270,13 +270,13 @@
     <article class="at-panel">
         <div class="at-panel-heading">
             <div>
-                <h2>Non-sprint Assigned Workload</h2>
+                <h2>Assigned Tasks Outside Sprint</h2>
                 <p class="at-panel-note">Counts open assigned work that is not part of Sprint commitment and is excluded from backlog ageing.</p>
             </div>
         </div>
         @if (!Model.NonSprintAssignedWorkloadCounts.Any())
         {
-            <p class="at-empty-state-note">No open non-sprint assigned work is visible in the selected report scope.</p>
+            <p class="at-empty-state-note">No open assigned work outside sprint is visible in the selected report scope.</p>
         }
         else
         {
