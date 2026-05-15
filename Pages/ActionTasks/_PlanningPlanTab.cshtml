@@ -234,4 +234,56 @@
             }
         </div>
     </section>
+
+    @* SECTION: Outside Sprint list makes assigned non-sprint work explicit and separate from true backlog. *@
+    <section class="at-panel at-planning-outside-sprint at-planning-plan-card">
+        <div class="at-panel-heading">
+            <div>
+                <h2>Outside Sprint</h2>
+                <p class="at-panel-note">Assigned work that is not committed to any sprint. Move it to backlog only when the assignee should be removed.</p>
+            </div>
+            <span class="at-count-chip">@Model.OutsideSprintTaskDisplays.Count</span>
+        </div>
+
+        @if (!Model.OutsideSprintTaskDisplays.Any())
+        {
+            <div class="at-empty-state at-empty-state-compact">No assigned work is currently outside sprint.</div>
+        }
+        else
+        {
+            <div class="at-planning-backlog-list">
+                @foreach (var item in Model.OutsideSprintTaskDisplays)
+                {
+                    var task = item.Task;
+                    <article class="at-planning-backlog-card @(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)">
+                        <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Planning" asp-route-PlanningTab="Plan" asp-route-SelectedSprintId="@Model.SelectedSprintId">AT-@task.Id · @task.Title</a>
+                        <div class="at-backlog-task-meta">
+                            <span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span>
+                            <span class="at-cell-primary">@item.AssigneeName</span>
+                            <span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
+                            @if (Model.IsTaskOverdue(task))
+                            {
+                                <span class="at-overdue-marker">Overdue</span>
+                            }
+                        </div>
+                        <div class="at-backlog-task-meta">
+                            <span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span>
+                            <span class="at-cell-primary">Due @task.DueDate.ToString("dd MMM yyyy")</span>
+                        </div>
+                        @if (Model.CanPlanSprints && Model.CanMoveTaskToBacklog(task))
+                        {
+                            <form method="post" asp-page-handler="MoveToBacklogRemoveAssignee" class="at-card-action-form">
+                                <input type="hidden" name="ViewMode" value="Planning" />
+                                <input type="hidden" name="PlanningTab" value="Plan" />
+                                <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                <input type="hidden" name="id" value="@task.Id" />
+                                <button type="submit" class="btn btn-link btn-sm at-card-subtle-action">Move to Backlog, Remove Assignee</button>
+                            </form>
+                        }
+                    </article>
+                }
+            </div>
+        }
+    </section>
+
 </section>

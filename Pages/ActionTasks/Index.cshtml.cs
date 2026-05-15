@@ -71,6 +71,7 @@ public class IndexModel : PageModel
     public IReadOnlyList<ActionTaskItem> DueLaterTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> SprintOverdueTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> BacklogTasks { get; private set; } = Array.Empty<ActionTaskItem>();
+    public IReadOnlyList<ActionTaskItem> OutsideSprintTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> SelectedSprintTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> SprintBacklogTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionSprint> Sprints { get; private set; } = Array.Empty<ActionSprint>();
@@ -242,9 +243,19 @@ public class IndexModel : PageModel
 
     public bool CanMoveTaskToBacklog(ActionTaskItem task)
     {
-        return _permission.CanMoveTaskToBacklog(CurrentRole)
-               && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
-               && CanModifySelectedSprint;
+        if (!_permission.CanMoveTaskToBacklog(CurrentRole)
+            || string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!task.SprintId.HasValue)
+        {
+            return ActionTaskCategorization.IsOutsideSprintTask(task);
+        }
+
+        var sprint = Sprints.FirstOrDefault(s => s.Id == task.SprintId.Value);
+        return sprint is not null && sprint.Status != ActionSprintStatus.Closed;
     }
 
     public bool CanModifySelectedSprint =>
@@ -825,10 +836,10 @@ public class IndexModel : PageModel
             await _sprintService.CloseSprintWithDispositionAsync(
                 ClosureInput.SprintId,
                 DecodeRowVersion(ClosureInput.RowVersion),
-                ClosureInput.CarryForwardTaskIds,
+                ResolveClosureTaskIds("carry"),
                 ClosureInput.TargetSprintId,
-                ClosureInput.OutsideSprintTaskIds,
-                ClosureInput.BacklogTaskIds,
+                ResolveClosureTaskIds("outside"),
+                ResolveClosureTaskIds("backlog"),
                 ClosureInput.Remarks,
                 CurrentUserId,
                 CurrentRole);
@@ -909,6 +920,7 @@ public class IndexModel : PageModel
         KanbanClosedTasks = readModel.KanbanClosedTasks;
         SprintOverdueTasks = readModel.DueBuckets.Overdue;
         BacklogTasks = readModel.BacklogTasks;
+        OutsideSprintTasks = readModel.OutsideSprintTasks;
         SelectedSprintTasks = readModel.SprintReadModel.SelectedSprintTasks;
         SprintBacklogTasks = readModel.SprintReadModel.BacklogTasks;
         Sprints = readModel.SprintReadModel.Sprints;
@@ -1111,6 +1123,9 @@ public class IndexModel : PageModel
     public IReadOnlyList<TaskDisplayItem> BacklogTaskDisplays =>
         ToDisplayItems(BacklogTasks);
 
+    public IReadOnlyList<TaskDisplayItem> OutsideSprintTaskDisplays =>
+        ToDisplayItems(OutsideSprintTasks);
+
     public IReadOnlyList<TaskDisplayItem> SelectedSprintTaskDisplays =>
         ToDisplayItems(SelectedSprintTasks);
 
@@ -1212,6 +1227,26 @@ public class IndexModel : PageModel
     public int ToPercent(int value, int max) =>
         max <= 0 ? 0 : (int)Math.Round((double)value / max * 100);
 
+
+    // SECTION: Closure-review radio choices are converted to service disposition collections without client script.
+    private IReadOnlyCollection<int> ResolveClosureTaskIds(string disposition)
+    {
+        if (ClosureInput.Dispositions.Count > 0)
+        {
+            return ClosureInput.Dispositions
+                .Where(item => string.Equals(item.Value, disposition, StringComparison.OrdinalIgnoreCase))
+                .Select(item => item.Key)
+                .ToList();
+        }
+
+        return disposition switch
+        {
+            "carry" => ClosureInput.CarryForwardTaskIds,
+            "outside" => ClosureInput.OutsideSprintTaskIds,
+            "backlog" => ClosureInput.BacklogTaskIds,
+            _ => Array.Empty<int>()
+        };
+    }
 
     private async Task ResolveIdentityAsync()
     {
@@ -1456,6 +1491,8 @@ public class IndexModel : PageModel
         public List<int> OutsideSprintTaskIds { get; set; } = new();
 
         public List<int> BacklogTaskIds { get; set; } = new();
+
+        public Dictionary<int, string> Dispositions { get; set; } = new();
 
         [Required, StringLength(2000)]
         public string Remarks { get; set; } = string.Empty;
