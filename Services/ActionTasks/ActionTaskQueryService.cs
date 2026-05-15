@@ -167,7 +167,7 @@ public sealed class ActionTaskQueryService
             return new[] { "Close the sprint after recording closure remarks." };
         }
 
-        var options = new List<string> { "Move unfinished tasks with continuing operational value to the next open sprint.", "Move deferred or unscheduled tasks to backlog." };
+        var options = new List<string> { "Carry unfinished tasks with continuing operational value forward to the next open sprint.", "Remove still-owned work from the sprint to keep it assigned outside sprint, or move deferred work to backlog and remove the assignee." };
         if (targetOptions.Count == 0)
         {
             options.Add("Create or reopen a planned sprint before carrying tasks forward.");

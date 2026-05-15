@@ -153,7 +153,7 @@ public class ActionSprintService
         var unfinishedTaskCount = await CountUnfinishedSprintTasksAsync(sprint.Id, cancellationToken);
         if (unfinishedTaskCount > 0)
         {
-            throw new InvalidOperationException("Sprint contains unfinished tasks. Use the closure review to move unfinished tasks to the next sprint or backlog before closing.");
+            throw new InvalidOperationException("Sprint contains unfinished tasks. Use the closure review to carry forward, remove from sprint while keeping assignee, or move unfinished tasks to backlog before closing.");
         }
 
         var performedAt = DateTime.UtcNow;
@@ -171,7 +171,10 @@ public class ActionSprintService
         return sprint;
     }
 
-    public async Task<ActionSprint> CloseSprintWithDispositionAsync(int sprintId, byte[] rowVersion, IReadOnlyCollection<int> carryForwardTaskIds, int? targetSprintId, IReadOnlyCollection<int> backlogTaskIds, string remarks, string userId, string role, CancellationToken cancellationToken = default)
+    public Task<ActionSprint> CloseSprintWithDispositionAsync(int sprintId, byte[] rowVersion, IReadOnlyCollection<int> carryForwardTaskIds, int? targetSprintId, IReadOnlyCollection<int> backlogTaskIds, string remarks, string userId, string role, CancellationToken cancellationToken = default)
+        => CloseSprintWithDispositionAsync(sprintId, rowVersion, carryForwardTaskIds, targetSprintId, Array.Empty<int>(), backlogTaskIds, remarks, userId, role, cancellationToken);
+
+    public async Task<ActionSprint> CloseSprintWithDispositionAsync(int sprintId, byte[] rowVersion, IReadOnlyCollection<int> carryForwardTaskIds, int? targetSprintId, IReadOnlyCollection<int> outsideSprintTaskIds, IReadOnlyCollection<int> backlogTaskIds, string remarks, string userId, string role, CancellationToken cancellationToken = default)
     {
         EnsureCanCloseSprint(role);
         EnsureSprintRowVersionSupplied(rowVersion);
@@ -181,8 +184,13 @@ public class ActionSprintService
         }
 
         var carryIds = (carryForwardTaskIds ?? Array.Empty<int>()).Distinct().ToList();
+        var outsideIds = (outsideSprintTaskIds ?? Array.Empty<int>()).Distinct().ToList();
         var backIds = (backlogTaskIds ?? Array.Empty<int>()).Distinct().ToList();
-        var duplicateDispositionIds = carryIds.Intersect(backIds).ToList();
+        var duplicateDispositionIds = carryIds.Concat(outsideIds).Concat(backIds)
+            .GroupBy(id => id)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToList();
         if (duplicateDispositionIds.Count > 0)
         {
             throw new InvalidOperationException("Each unfinished task can have only one closure disposition.");
@@ -209,11 +217,11 @@ public class ActionSprintService
             .OrderBy(t => t.Id)
             .ToListAsync(cancellationToken);
 
-        var dispositionedIds = carryIds.Concat(backIds).Distinct().ToHashSet();
+        var dispositionedIds = carryIds.Concat(outsideIds).Concat(backIds).Distinct().ToHashSet();
         var missingDispositionIds = unfinishedTasks.Select(t => t.Id).Where(id => !dispositionedIds.Contains(id)).ToList();
         if (missingDispositionIds.Count > 0)
         {
-            throw new InvalidOperationException("All unfinished tasks must be moved to the next sprint or backlog before the sprint can close.");
+            throw new InvalidOperationException("All unfinished tasks must be carried forward, removed from sprint while assigned, or moved to backlog before the sprint can close.");
         }
 
         var invalidDispositionIds = dispositionedIds.Except(unfinishedTasks.Select(t => t.Id)).ToList();
@@ -230,11 +238,20 @@ public class ActionSprintService
             AddTaskSprintAudit(task.Id, "TaskCarriedForward", userId, role, oldValue, targetSprint.Id.ToString(), $"Carried forward from sprint {sprint.Name} to {targetSprint.Name}. Closure remarks: {remarks.Trim()}", performedAt);
         }
 
-        foreach (var task in unfinishedTasks.Where(t => backIds.Contains(t.Id)))
+        foreach (var task in unfinishedTasks.Where(t => outsideIds.Contains(t.Id)))
         {
             var oldValue = task.SprintId?.ToString();
             task.SprintId = null;
-            AddTaskSprintAudit(task.Id, "TaskRemovedFromSprint", userId, role, oldValue, null, $"Moved from sprint {sprint.Name} to backlog during closure. Closure remarks: {remarks.Trim()}", performedAt);
+            AddTaskSprintAudit(task.Id, "TaskRemovedFromSprintKeepAssigned", userId, role, oldValue, null, $"Removed from sprint {sprint.Name} and kept assigned during closure. Closure remarks: {remarks.Trim()}", performedAt);
+        }
+
+        foreach (var task in unfinishedTasks.Where(t => backIds.Contains(t.Id)))
+        {
+            var oldValue = DescribeTaskBucket(task);
+            task.SprintId = null;
+            task.AssignedToUserId = string.Empty;
+            task.AssignedToRole = string.Empty;
+            AddTaskSprintAudit(task.Id, "TaskMovedToBacklogRemoveAssignee", userId, role, oldValue, DescribeTaskBucket(task), $"Moved from sprint {sprint.Name} to backlog and removed assignee during closure. Closure remarks: {remarks.Trim()}", performedAt);
         }
 
         var oldStatus = sprint.Status.ToString();
@@ -245,7 +262,7 @@ public class ActionSprintService
         sprint.UpdatedAtUtc = performedAt;
         sprint.RowVersion = NewSprintRowVersion();
 
-        var detail = $"Closed sprint: {sprint.Name}. Carried forward: {carryIds.Count}. Moved to backlog: {backIds.Count}. Remarks: {remarks.Trim()}";
+        var detail = $"Closed sprint: {sprint.Name}. Carried forward: {carryIds.Count}. Removed from sprint, kept assigned: {outsideIds.Count}. Moved to backlog, assignee removed: {backIds.Count}. Remarks: {remarks.Trim()}";
         AddSprintAudit(sprint.Id, "SprintClosed", userId, role, performedAt, oldStatus, sprint.Status.ToString(), detail);
         await SaveSprintChangesAsync(cancellationToken);
         return sprint;
@@ -254,42 +271,84 @@ public class ActionSprintService
     // SECTION: Sprint task assignment APIs
     public async Task<ActionTaskItem> AssignTaskToSprintAsync(int taskId, int sprintId, string userId, string role, CancellationToken cancellationToken = default)
     {
+        var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
+        return await AssignTaskToSprintAsync(taskId, sprintId, task.AssignedToUserId, task.AssignedToRole, userId, role, cancellationToken);
+    }
+
+    public async Task<ActionTaskItem> AssignTaskToSprintAsync(int taskId, int sprintId, string responsibleUserId, string responsibleRole, string userId, string role, CancellationToken cancellationToken = default)
+    {
         EnsureCanAssignTaskToSprint(role);
 
         var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
         EnsureTaskIsNotClosed(task, "Closed tasks cannot be assigned to a sprint.");
+        if (string.IsNullOrWhiteSpace(responsibleUserId) || string.IsNullOrWhiteSpace(responsibleRole))
+        {
+            throw new InvalidOperationException("Select a responsible person before adding a backlog item to a sprint.");
+        }
 
         var sprint = await GetSprintForUpdateAsync(sprintId, cancellationToken);
         _workflow.EnsureCanAcceptTask(sprint);
 
-        var oldValue = task.SprintId?.ToString();
+        var oldValue = DescribeTaskBucket(task);
+        task.AssignedToUserId = responsibleUserId;
+        task.AssignedToRole = responsibleRole;
+        task.AssignedOn = DateTime.UtcNow;
         task.SprintId = sprint.Id;
-        AddTaskSprintAudit(task.Id, "TaskAssignedToSprint", userId, role, oldValue, sprint.Id.ToString(), $"Assigned to sprint: {sprint.Name}");
+        AddTaskSprintAudit(task.Id, "TaskAssignedToSprint", userId, role, oldValue, DescribeTaskBucket(task), $"Assigned to sprint: {sprint.Name}; responsible person selected.");
 
         await _context.SaveChangesAsync(cancellationToken);
         return task;
     }
 
-    public async Task<ActionTaskItem> MoveTaskToBacklogAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default)
+    public async Task<ActionTaskItem> RemoveTaskFromSprintKeepAssignedAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default)
     {
         EnsureCanMoveTaskToBacklog(role);
 
         var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
-        EnsureTaskIsNotClosed(task, "Closed tasks cannot be moved between a sprint and backlog.");
+        EnsureTaskIsNotClosed(task, "Closed tasks cannot be moved between sprint buckets.");
+        await EnsureCurrentSprintCanChangeAsync(task, cancellationToken);
 
+        var oldValue = DescribeTaskBucket(task);
+        task.SprintId = null;
+        AddTaskSprintAudit(task.Id, "TaskRemovedFromSprintKeepAssigned", userId, role, oldValue, DescribeTaskBucket(task), "Removed from sprint and kept assigned as Outside Sprint work.");
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return task;
+    }
+
+    public Task<ActionTaskItem> MoveTaskToBacklogAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default)
+        => MoveTaskToBacklogRemoveAssigneeAsync(taskId, userId, role, cancellationToken);
+
+    public async Task<ActionTaskItem> MoveTaskToBacklogRemoveAssigneeAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default)
+    {
+        EnsureCanMoveTaskToBacklog(role);
+
+        var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
+        EnsureTaskIsNotClosed(task, "Closed tasks cannot be moved between sprint buckets.");
+        await EnsureCurrentSprintCanChangeAsync(task, cancellationToken);
+
+        var oldValue = DescribeTaskBucket(task);
+        task.SprintId = null;
+        task.AssignedToUserId = string.Empty;
+        task.AssignedToRole = string.Empty;
+        AddTaskSprintAudit(task.Id, "TaskMovedToBacklogRemoveAssignee", userId, role, oldValue, DescribeTaskBucket(task), "Moved to backlog and removed assignee.");
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return task;
+    }
+
+    // SECTION: Sprint bucket mutation helpers
+    private async Task EnsureCurrentSprintCanChangeAsync(ActionTaskItem task, CancellationToken cancellationToken)
+    {
         if (task.SprintId.HasValue)
         {
             var currentSprint = await GetSprintForUpdateAsync(task.SprintId.Value, cancellationToken);
             _workflow.EnsureCanUpdate(currentSprint);
         }
-
-        var oldValue = task.SprintId?.ToString();
-        task.SprintId = null;
-        AddTaskSprintAudit(task.Id, "TaskMovedToBacklog", userId, role, oldValue, null, "Removed from sprint and moved to backlog.");
-
-        await _context.SaveChangesAsync(cancellationToken);
-        return task;
     }
+
+    private static string DescribeTaskBucket(ActionTaskItem task)
+        => $"Bucket={ActionTaskBucketClassifier.ResolveBucket(task)}; SprintId={task.SprintId?.ToString() ?? "none"}; Assignee={(string.IsNullOrWhiteSpace(task.AssignedToUserId) ? "none" : task.AssignedToUserId)}";
 
     // SECTION: Authorization helpers
     private async Task<int> CountUnfinishedSprintTasksAsync(int sprintId, CancellationToken cancellationToken)

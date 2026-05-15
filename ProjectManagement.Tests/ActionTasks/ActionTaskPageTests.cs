@@ -407,7 +407,7 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task TaskScopeBadges_UseSprintBacklogNonSprintAndClosedLabels()
+    public async Task TaskScopeBadges_UseSprintBacklogOutsideSprintAndClosedLabels()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
@@ -427,7 +427,7 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.Equal("Badge Sprint", page.GetSprintBadgeText(sprintTask));
         Assert.Equal("Backlog", page.GetSprintBadgeText(backlogTask));
-        Assert.Equal("Non-sprint", page.GetSprintBadgeText(nonSprintTask));
+        Assert.Equal("Outside Sprint", page.GetSprintBadgeText(nonSprintTask));
         Assert.Equal("Closed", page.GetSprintBadgeText(closedTask));
         Assert.Contains("at-scope-badge-sprint", page.GetSprintBadgeClass(sprintTask), StringComparison.Ordinal);
         Assert.Contains("at-scope-badge-backlog", page.GetSprintBadgeClass(backlogTask), StringComparison.Ordinal);
@@ -759,7 +759,7 @@ public class ActionTaskPageTests
         Assert.Null(page.SelectedSprint);
         Assert.Contains("No sprint has been created yet", html, StringComparison.Ordinal);
         Assert.Contains("Create Sprint", html, StringComparison.Ordinal);
-        Assert.Contains("Non-sprint means assigned work outside sprint commitment.", html, StringComparison.Ordinal);
+        Assert.Contains("Assigned Tasks Outside Sprint are assigned work not included in a sprint commitment.", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Create " + "Planning " + "Window", html, StringComparison.Ordinal);
         Assert.Contains("handler=CreateSprint", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Select a sprint to view sprint command details.", html, StringComparison.Ordinal);
@@ -895,7 +895,7 @@ public class ActionTaskPageTests
         Assert.Contains("Priority Exposure", html, StringComparison.Ordinal);
         Assert.Contains("Workflow Distribution", html, StringComparison.Ordinal);
         Assert.Contains("Backlog Ageing Summary", html, StringComparison.Ordinal);
-        Assert.Contains("Non-sprint Assigned Workload", html, StringComparison.Ordinal);
+        Assert.Contains("Assigned Tasks Outside Sprint", html, StringComparison.Ordinal);
         Assert.Contains("Carry-forward by Sprint", html, StringComparison.Ordinal);
         Assert.Contains("Blocked Task Ageing", html, StringComparison.Ordinal);
     }

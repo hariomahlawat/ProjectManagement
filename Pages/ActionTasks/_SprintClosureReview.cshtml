@@ -71,14 +71,15 @@
                     <div class="form-text">Next sprint is required only for tasks marked to carry forward to the next sprint.</div>
                 </div>
 
-                <p class="at-panel-note">Each unfinished task must be carried forward to the next sprint or moved to backlog before this sprint can close.</p>
+                <p class="at-panel-note">Each unfinished task must be carried forward, removed from sprint while keeping its assignee, or moved to backlog with the assignee removed before this sprint can close.</p>
 
                 <div class="at-closure-task-table" role="table" aria-label="Unfinished Sprint tasks requiring disposition">
                     <div class="at-closure-task-row at-closure-task-head" role="row">
                         <span>Task</span>
                         <span>Status</span>
                         <span>Carry forward</span>
-                        <span>Move to backlog</span>
+                        <span>Remove from Sprint</span>
+                        <span>Move to Backlog</span>
                     </div>
                     @foreach (var task in review.UnfinishedTasks)
                     {
@@ -93,8 +94,12 @@
                                 <span>Next Sprint</span>
                             </label>
                             <label class="at-closure-choice">
+                                <input type="checkbox" name="ClosureInput.OutsideSprintTaskIds" value="@task.Id" data-at-closure-choice="outside" />
+                                <span>Keep Assigned</span>
+                            </label>
+                            <label class="at-closure-choice">
                                 <input type="checkbox" name="ClosureInput.BacklogTaskIds" value="@task.Id" data-at-closure-choice="backlog" />
-                                <span>Backlog</span>
+                                <span>Remove Assignee</span>
                             </label>
                         </div>
                     }

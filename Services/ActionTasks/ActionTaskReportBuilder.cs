@@ -24,7 +24,7 @@ public sealed class ActionTaskReportBuilder
         var backlogOpenTasks = openTasks.Where(ActionTaskCategorization.IsBacklogTask).ToList();
         var nonSprintOpenTasks = openTasks.Where(ActionTaskCategorization.IsAssignedNonSprintTask).ToList();
         var blockedTasks = reportTasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)).ToList();
-        string Assignee(string id) => assigneeNames.TryGetValue(id, out var name) ? name : "User";
+        string Assignee(string id) => string.IsNullOrWhiteSpace(id) ? "Unassigned" : assigneeNames.TryGetValue(id, out var name) ? name : "User";
 
         return new ActionTaskQueryService.ActionTaskReportReadModel
         {
@@ -79,10 +79,10 @@ public sealed class ActionTaskReportBuilder
             .ToList();
     }
 
-    // SECTION: Non-sprint assigned workload remains separate from backlog ageing and sprint workload.
+    // SECTION: Outside Sprint assigned workload remains separate from backlog ageing and sprint workload.
     private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildNonSprintAssignedWorkloadCounts(IReadOnlyList<ActionTaskItem> tasks, IReadOnlyDictionary<string, string> assigneeNames)
         => tasks
-            .GroupBy(t => assigneeNames.TryGetValue(t.AssignedToUserId, out var name) ? name : "User")
+            .GroupBy(t => string.IsNullOrWhiteSpace(t.AssignedToUserId) ? "Unassigned" : assigneeNames.TryGetValue(t.AssignedToUserId, out var name) ? name : "User")
             .OrderByDescending(g => g.Count())
             .ThenBy(g => g.Key)
             .Select(g => new ActionTaskQueryService.CountSummary(g.Key, g.Count()))

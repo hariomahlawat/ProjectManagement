@@ -1,68 +1,111 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Create-task modal for focused task capture workflow. *@
+@* SECTION: Create-task modal separates Agile backlog capture from assigned outside-sprint work. *@
 <div class="modal fade" id="createTaskModal" tabindex="-1" aria-labelledby="createTaskModalLabel" aria-hidden="true" data-bs-backdrop="static" data-at-open-on-load="@(Model.ShowCreateModal ? "true" : "false")">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <form method="post" asp-page-handler="Create">
-                <div class="modal-header">
-                    <h2 class="modal-title h5 mb-0" id="createTaskModalLabel">Create Task</h2>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    @if (!ViewData.ModelState.IsValid)
-                    {
-                        <div asp-validation-summary="All" class="alert alert-danger mb-3"></div>
-                    }
-                    @* SECTION: Preserve selected view mode during postbacks. *@
-                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                    <div class="row g-3">
-                        <div class="col-md-5">
-                            <label asp-for="Input.Title" class="form-label">Task Title</label>
-                            <input asp-for="Input.Title" class="form-control" />
-                            <span asp-validation-for="Input.Title" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-7">
-                            <label asp-for="Input.Description" class="form-label">Description / Instructions</label>
-                            <textarea asp-for="Input.Description"
-                                      class="form-control"
-                                      rows="4"
-                                      placeholder="Enter task instructions, background and expected output"></textarea>
-                            <span asp-validation-for="Input.Description" class="text-danger small"></span>
-                        </div>
-                        <div class="col-12">
-                            <label asp-for="Input.AssignedToUserId" class="form-label">Assign To</label>
-                            <select asp-for="Input.AssignedToUserId" class="form-select at-searchable-select" data-at-searchable-select="true" data-at-placeholder="Select responsible person">
-                                <option value="">Select user</option>
-                                @foreach (var user in Model.AssignableUsers)
-                                {
-                                    <option value="@user.UserId">@user.DisplayName</option>
-                                }
-                            </select>
-                            <span asp-validation-for="Input.AssignedToUserId" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-3">
-                            <label asp-for="Input.Priority" class="form-label">Priority</label>
-                            <select asp-for="Input.Priority" class="form-select">
-                                <option>Low</option>
-                                <option selected>Normal</option>
-                                <option>High</option>
-                                <option>Critical</option>
-                            </select>
-                            <span asp-validation-for="Input.Priority" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-4">
-                            <label asp-for="Input.DueDate" class="form-label">Due Date</label>
-                            <input asp-for="Input.DueDate" type="date" class="form-control" />
-                            <span asp-validation-for="Input.DueDate" class="text-danger small"></span>
+            <div class="modal-header">
+                <h2 class="modal-title h5 mb-0" id="createTaskModalLabel">Create Action Tracker Work</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div asp-validation-summary="All" class="alert alert-danger mb-3"></div>
+                }
+
+                @* SECTION: Direct task creation keeps assigned work outside sprint until planners add it to a sprint. *@
+                <section class="at-create-flow-panel">
+                    <div class="at-panel-heading at-panel-heading-compact">
+                        <div>
+                            <h3 class="h6 mb-1">Create Direct Task</h3>
+                            <p class="at-panel-note mb-0">Assigned to a responsible person now. It remains Outside Sprint until added to a sprint.</p>
                         </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create Task</button>
-                </div>
-            </form>
+                    <form method="post" asp-page-handler="CreateDirectTask" class="at-create-flow-form">
+                        <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                        <div class="row g-3">
+                            <div class="col-md-5">
+                                <label asp-for="Input.Title" class="form-label">Task Title</label>
+                                <input asp-for="Input.Title" class="form-control" />
+                                <span asp-validation-for="Input.Title" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-7">
+                                <label asp-for="Input.Description" class="form-label">Description / Instructions</label>
+                                <textarea asp-for="Input.Description" class="form-control" rows="4" placeholder="Enter task instructions, background and expected output"></textarea>
+                                <span asp-validation-for="Input.Description" class="text-danger small"></span>
+                            </div>
+                            <div class="col-12">
+                                <label asp-for="Input.AssignedToUserId" class="form-label">Responsible Person</label>
+                                <select asp-for="Input.AssignedToUserId" class="form-select at-searchable-select" data-at-searchable-select="true" data-at-placeholder="Select responsible person" required>
+                                    <option value="">Select user</option>
+                                    @foreach (var user in Model.AssignableUsers)
+                                    {
+                                        <option value="@user.UserId">@user.DisplayName</option>
+                                    }
+                                </select>
+                                <span asp-validation-for="Input.AssignedToUserId" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="Input.Priority" class="form-label">Priority</label>
+                                <select asp-for="Input.Priority" class="form-select">
+                                    <option>Low</option>
+                                    <option selected>Normal</option>
+                                    <option>High</option>
+                                    <option>Critical</option>
+                                </select>
+                                <span asp-validation-for="Input.Priority" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Input.DueDate" class="form-label">Due Date</label>
+                                <input asp-for="Input.DueDate" type="date" class="form-control" />
+                                <span asp-validation-for="Input.DueDate" class="text-danger small"></span>
+                            </div>
+                        </div>
+                        <div class="at-create-flow-actions">
+                            <button type="submit" class="btn btn-primary">Create Direct Task</button>
+                        </div>
+                    </form>
+                </section>
+
+                @* SECTION: Backlog item creation intentionally omits assignee and sprint fields. *@
+                <details class="at-create-flow-panel at-create-backlog-panel mt-3">
+                    <summary class="btn btn-outline-primary btn-sm">Create Backlog Item</summary>
+                    <p class="at-panel-note mt-2">Capture future work without assigning a responsible person or sprint.</p>
+                    <form method="post" asp-page-handler="CreateBacklogItem" class="at-create-flow-form">
+                        <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                        <div class="row g-3">
+                            <div class="col-md-5">
+                                <label asp-for="Input.Title" class="form-label">Backlog Item Title</label>
+                                <input asp-for="Input.Title" class="form-control" />
+                            </div>
+                            <div class="col-md-7">
+                                <label asp-for="Input.Description" class="form-label">Description / Planning Notes</label>
+                                <textarea asp-for="Input.Description" class="form-control" rows="4" placeholder="Enter the work idea, context and planning notes"></textarea>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="Input.Priority" class="form-label">Priority</label>
+                                <select asp-for="Input.Priority" class="form-select">
+                                    <option>Low</option>
+                                    <option selected>Normal</option>
+                                    <option>High</option>
+                                    <option>Critical</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Input.DueDate" class="form-label">Planning Due Date</label>
+                                <input asp-for="Input.DueDate" type="date" class="form-control" />
+                            </div>
+                        </div>
+                        <div class="at-create-flow-actions">
+                            <button type="submit" class="btn btn-outline-primary">Create Backlog Item</button>
+                        </div>
+                    </form>
+                </details>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
         </div>
     </div>
 </div>

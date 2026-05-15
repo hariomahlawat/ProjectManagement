@@ -289,6 +289,11 @@ public class IndexModel : PageModel
 
     public string ResolveAssigneeName(string assignedToUserId)
     {
+        if (string.IsNullOrWhiteSpace(assignedToUserId))
+        {
+            return "Unassigned";
+        }
+
         return TaskAssigneeNames.TryGetValue(assignedToUserId, out var assigneeName)
             ? assigneeName
             : "User";
@@ -325,12 +330,12 @@ public class IndexModel : PageModel
             : name;
     }
 
-    // SECTION: Task scope badges use official Sprint / Backlog / Non-sprint categorisation.
+    // SECTION: Task scope badges use official Sprint / Backlog / Outside Sprint bucket classification.
     public string GetSprintBadgeText(ActionTaskItem task)
         => ActionTaskCategorization.ResolveCategory(task) switch
         {
             ActionTaskWorkCategory.Sprint => ResolveSprintName(task.SprintId),
-            ActionTaskWorkCategory.NonSprint => "Non-sprint",
+            ActionTaskWorkCategory.OutsideSprint or ActionTaskWorkCategory.NonSprint => "Outside Sprint",
             ActionTaskWorkCategory.Closed => "Closed",
             _ => "Backlog"
         };
@@ -339,7 +344,7 @@ public class IndexModel : PageModel
         => ActionTaskCategorization.ResolveCategory(task) switch
         {
             ActionTaskWorkCategory.Sprint => "at-scope-badge at-scope-badge-sprint",
-            ActionTaskWorkCategory.NonSprint => "at-scope-badge at-scope-badge-non-sprint",
+            ActionTaskWorkCategory.OutsideSprint or ActionTaskWorkCategory.NonSprint => "at-scope-badge at-scope-badge-non-sprint",
             ActionTaskWorkCategory.Closed => "at-scope-badge at-scope-badge-closed",
             _ => "at-scope-badge at-scope-badge-backlog"
         };
@@ -366,8 +371,11 @@ public class IndexModel : PageModel
         await LoadDataAsync();
     }
 
-    // SECTION: Create action task
-    public async Task<IActionResult> OnPostCreateAsync()
+    // SECTION: Backward-compatible direct-task handler preserves existing Create posts.
+    public Task<IActionResult> OnPostCreateAsync() => OnPostCreateDirectTaskAsync();
+
+    // SECTION: Create assigned work outside a sprint.
+    public async Task<IActionResult> OnPostCreateDirectTaskAsync()
     {
         await ResolveIdentityAsync();
 
@@ -376,60 +384,16 @@ public class IndexModel : PageModel
             return Forbid();
         }
 
-        if (!ModelState.IsValid)
+        if (!ValidateCreateTaskCore(requireAssignee: true))
         {
             ShowCreateModal = true;
             await LoadDataAsync();
             return Page();
         }
 
-        // SECTION: Business validation for due-date discipline
-        if (Input.DueDate.Date < _clock.UtcToday)
-        {
-            ModelState.AddModelError(nameof(Input.DueDate), "Due date cannot be in the past.");
-            ShowCreateModal = true;
-            await LoadDataAsync();
-            return Page();
-        }
-
-        var assignedUser = await _users.FindByIdAsync(Input.AssignedToUserId);
-        if (assignedUser is null)
-        {
-            ModelState.AddModelError(nameof(Input.AssignedToUserId), "Selected user was not found.");
-            ShowCreateModal = true;
-            await LoadDataAsync();
-            return Page();
-        }
-
-        if (assignedUser.IsDisabled || assignedUser.PendingDeletion)
-        {
-            ModelState.AddModelError(nameof(Input.AssignedToUserId), "Selected user is inactive and cannot be assigned a task.");
-            ShowCreateModal = true;
-            await LoadDataAsync();
-            return Page();
-        }
-
-        if (assignedUser.LockoutEnd.HasValue && assignedUser.LockoutEnd > new DateTimeOffset(_clock.UtcNow, TimeSpan.Zero))
-        {
-            ModelState.AddModelError(nameof(Input.AssignedToUserId), "Selected user is locked and cannot be assigned a task.");
-            ShowCreateModal = true;
-            await LoadDataAsync();
-            return Page();
-        }
-
-        var assignedRoles = await _users.GetRolesAsync(assignedUser);
-        var assignedRole = ActionTaskRoleResolver.ResolveAssignableRoleFromRoles(assignedRoles);
+        var assignedRole = await ResolveAssignableRoleForInputAsync(Input.AssignedToUserId);
         if (assignedRole is null)
         {
-            ModelState.AddModelError(string.Empty, "Selected user does not have an assignable Task Tracker role.");
-            ShowCreateModal = true;
-            await LoadDataAsync();
-            return Page();
-        }
-
-        if (!_permission.CanAssign(CurrentRole, assignedRole))
-        {
-            ModelState.AddModelError(string.Empty, $"Current role is not permitted to assign tasks to {assignedRole}.");
             ShowCreateModal = true;
             await LoadDataAsync();
             return Page();
@@ -447,9 +411,98 @@ public class IndexModel : PageModel
             Priority = Input.Priority
         });
 
-        TempData["ToastMessage"] = "Task created.";
+        TempData["ToastMessage"] = "Direct task created outside sprint.";
         return RedirectToPage("/ActionTasks/Index", BuildTaskWorkspaceRouteValues(TaskId, SelectedSprintId));
     }
+
+    // SECTION: Create unassigned backlog work for future planning.
+    public async Task<IActionResult> OnPostCreateBacklogItemAsync()
+    {
+        await ResolveIdentityAsync();
+
+        if (!_permission.CanCreate(CurrentRole))
+        {
+            return Forbid();
+        }
+
+        if (!ValidateCreateTaskCore(requireAssignee: false))
+        {
+            ShowCreateModal = true;
+            await LoadDataAsync();
+            return Page();
+        }
+
+        await _service.CreateTaskAsync(new ActionTaskItem
+        {
+            Title = Input.Title.Trim(),
+            Description = Input.Description.Trim(),
+            CreatedByUserId = CurrentUserId,
+            AssignedToUserId = string.Empty,
+            CreatedByRole = CurrentRole,
+            AssignedToRole = string.Empty,
+            DueDate = Input.DueDate,
+            Priority = Input.Priority
+        });
+
+        TempData["ToastMessage"] = "Backlog item created.";
+        return RedirectToPage("/ActionTasks/Index", BuildTaskWorkspaceRouteValues(TaskId, SelectedSprintId));
+    }
+
+    // SECTION: Create-task validation helpers keep backlog and direct-task flows aligned without requiring inline scripts.
+    private bool ValidateCreateTaskCore(bool requireAssignee)
+    {
+        ModelState.Clear();
+        TryValidateModel(Input, nameof(Input));
+
+        if (requireAssignee && string.IsNullOrWhiteSpace(Input.AssignedToUserId))
+        {
+            ModelState.AddModelError(nameof(Input.AssignedToUserId), "Select a responsible person for a direct task.");
+        }
+
+        if (Input.DueDate.Date < _clock.UtcToday)
+        {
+            ModelState.AddModelError(nameof(Input.DueDate), "Due date cannot be in the past.");
+        }
+
+        return ModelState.IsValid;
+    }
+
+    private async Task<string?> ResolveAssignableRoleForInputAsync(string assignedToUserId)
+    {
+        var assignedRole = await ResolveAssignableRoleForUserAsync(assignedToUserId);
+        if (assignedRole is null)
+        {
+            ModelState.AddModelError(nameof(Input.AssignedToUserId), "Selected user cannot be assigned this task.");
+        }
+
+        return assignedRole;
+    }
+
+    private async Task<string?> ResolveAssignableRoleForUserAsync(string assignedToUserId)
+    {
+        if (string.IsNullOrWhiteSpace(assignedToUserId))
+        {
+            return null;
+        }
+
+        var assignedUser = await _users.FindByIdAsync(assignedToUserId);
+        if (assignedUser is null || assignedUser.IsDisabled || assignedUser.PendingDeletion)
+        {
+            return null;
+        }
+
+        if (assignedUser.LockoutEnd.HasValue && assignedUser.LockoutEnd > new DateTimeOffset(_clock.UtcNow, TimeSpan.Zero))
+        {
+            return null;
+        }
+
+        var assignedRoles = await _users.GetRolesAsync(assignedUser);
+        var assignedRole = ActionTaskRoleResolver.ResolveAssignableRoleFromRoles(assignedRoles);
+        return assignedRole is not null && _permission.CanAssign(CurrentRole, assignedRole)
+            ? assignedRole
+            : null;
+    }
+
 
 
 
@@ -703,14 +756,21 @@ public class IndexModel : PageModel
     }
 
     // SECTION: Assign backlog or visible task into an available sprint.
-    public async Task<IActionResult> OnPostAssignToSprintAsync(int id, int sprintId)
+    public async Task<IActionResult> OnPostAssignToSprintAsync(int id, int sprintId, string responsibleUserId)
     {
         await ResolveIdentityAsync();
 
         try
         {
-            await _sprintService.AssignTaskToSprintAsync(id, sprintId, CurrentUserId, CurrentRole);
-            TempData["ToastMessage"] = "Task assigned to sprint.";
+            var responsibleRole = await ResolveAssignableRoleForUserAsync(responsibleUserId);
+            if (responsibleRole is null)
+            {
+                TempData["ToastError"] = "Select an active responsible person before adding the backlog item to a sprint.";
+                return RedirectToTaskPage(id, SelectedSprintId);
+            }
+
+            await _sprintService.AssignTaskToSprintAsync(id, sprintId, responsibleUserId, responsibleRole, CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Backlog item added to sprint with a responsible person.";
         }
         catch (InvalidOperationException ex)
         {
@@ -720,15 +780,33 @@ public class IndexModel : PageModel
         return RedirectToTaskPage(id, sprintId);
     }
 
-    // SECTION: Move a sprint task back to backlog without altering task lifecycle state.
-    public async Task<IActionResult> OnPostMoveToBacklogAsync(int id)
+    // SECTION: Remove a sprint task from sprint scope while preserving the responsible person.
+    public async Task<IActionResult> OnPostRemoveFromSprintKeepAssignedAsync(int id)
     {
         await ResolveIdentityAsync();
 
         try
         {
-            await _sprintService.MoveTaskToBacklogAsync(id, CurrentUserId, CurrentRole);
-            TempData["ToastMessage"] = "Task moved to backlog.";
+            await _sprintService.RemoveTaskFromSprintKeepAssignedAsync(id, CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Task removed from sprint and kept assigned.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
+        return RedirectToTaskPage(id, SelectedSprintId);
+    }
+
+    // SECTION: Move a sprint or outside-sprint task to backlog by clearing sprint and assignee.
+    public async Task<IActionResult> OnPostMoveToBacklogRemoveAssigneeAsync(int id)
+    {
+        await ResolveIdentityAsync();
+
+        try
+        {
+            await _sprintService.MoveTaskToBacklogRemoveAssigneeAsync(id, CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Task moved to backlog and assignee removed.";
         }
         catch (InvalidOperationException ex)
         {
@@ -749,6 +827,7 @@ public class IndexModel : PageModel
                 DecodeRowVersion(ClosureInput.RowVersion),
                 ClosureInput.CarryForwardTaskIds,
                 ClosureInput.TargetSprintId,
+                ClosureInput.OutsideSprintTaskIds,
                 ClosureInput.BacklogTaskIds,
                 ClosureInput.Remarks,
                 CurrentUserId,
@@ -1279,7 +1358,6 @@ public class IndexModel : PageModel
         [Required, StringLength(4000)]
         public string Description { get; set; } = string.Empty;
 
-        [Required]
         public string AssignedToUserId { get; set; } = string.Empty;
 
         [Display(Name = "Due Date")]
@@ -1374,6 +1452,8 @@ public class IndexModel : PageModel
         public int? TargetSprintId { get; set; }
 
         public List<int> CarryForwardTaskIds { get; set; } = new();
+
+        public List<int> OutsideSprintTaskIds { get; set; } = new();
 
         public List<int> BacklogTaskIds { get; set; } = new();
 

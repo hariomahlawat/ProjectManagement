@@ -110,7 +110,7 @@
             <div>
                 <h2>Backlog Queue</h2>
                 <p class="at-panel-note">Filter true backlog tasks and assign eligible work into a Sprint.</p>
-                <p class="at-panel-note">Non-sprint means assigned work outside sprint commitment.</p>
+                <p class="at-panel-note">Assigned Tasks Outside Sprint are assigned work not included in a sprint commitment.</p>
             </div>
             <span class="at-count-chip">@Model.BacklogTaskDisplays.Count</span>
         </div>
@@ -206,6 +206,13 @@
                                         <input type="hidden" name="PlanningTab" value="Execute" />
                                         <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
                                         <input type="hidden" name="id" value="@task.Id" />
+                                        <select class="form-select form-select-sm" name="responsibleUserId" aria-label="Select responsible person for AT-@task.Id" required>
+                                            <option value="">Responsible person</option>
+                                            @foreach (var user in Model.AssignableUsers)
+                                            {
+                                                <option value="@user.UserId">@user.DisplayName</option>
+                                            }
+                                        </select>
                                         <select class="form-select form-select-sm" name="sprintId" aria-label="Select Sprint for AT-@task.Id" required>
                                             <option value="">Select Sprint</option>
                                             @foreach (var sprint in Model.AssignableSprints)
@@ -213,7 +220,7 @@
                                                 <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>
                                             }
                                         </select>
-                                        <button type="submit" class="btn btn-primary btn-sm">Assign</button>
+                                        <button type="submit" class="btn btn-primary btn-sm">Add to Sprint</button>
                                     </form>
                                 }
                                 else

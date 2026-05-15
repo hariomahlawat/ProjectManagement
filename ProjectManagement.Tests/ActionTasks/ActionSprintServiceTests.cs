@@ -258,7 +258,7 @@ public class ActionSprintServiceTests
     }
 
     [Fact]
-    public async Task MoveTaskToBacklogAsync_ClearsSprintIdAndAuditsMove()
+    public async Task MoveTaskToBacklogAsync_ClearsSprintAndAssigneeAndAuditsMove()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -272,7 +272,8 @@ public class ActionSprintServiceTests
 
         // SECTION: Assert
         Assert.Null(backlogTask.SprintId);
-        Assert.Contains(await db.ActionTaskAuditLogs.ToListAsync(), x => x.TaskId == task.Id && x.ActionType == "TaskMovedToBacklog");
+        Assert.Equal(string.Empty, backlogTask.AssignedToUserId);
+        Assert.Contains(await db.ActionTaskAuditLogs.ToListAsync(), x => x.TaskId == task.Id && x.ActionType == "TaskMovedToBacklogRemoveAssignee");
     }
 
     [Fact]
@@ -375,7 +376,7 @@ public class ActionSprintServiceTests
     }
 
     [Fact]
-    public async Task CloseSprintWithDispositionAsync_MovesSelectedTaskToBacklog()
+    public async Task CloseSprintWithDispositionAsync_MovesSelectedTaskToBacklogAndRemovesAssignee()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -391,7 +392,8 @@ public class ActionSprintServiceTests
         // SECTION: Assert
         var movedTask = await db.ActionTasks.SingleAsync(t => t.Id == task.Id);
         Assert.Null(movedTask.SprintId);
-        Assert.Contains(await db.ActionTaskAuditLogs.ToListAsync(), x => x.TaskId == task.Id && x.ActionType == "TaskRemovedFromSprint");
+        Assert.Equal(string.Empty, movedTask.AssignedToUserId);
+        Assert.Contains(await db.ActionTaskAuditLogs.ToListAsync(), x => x.TaskId == task.Id && x.ActionType == "TaskMovedToBacklogRemoveAssignee");
     }
 
     [Fact]
