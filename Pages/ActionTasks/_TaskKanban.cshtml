@@ -1,8 +1,7 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
 @{
-    // SECTION: Kanban is scoped to the Sprint Board view toggle and is not a primary navigation mode.
-    var isKanbanPlanningView = string.Equals(Model.ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase);
+    // SECTION: Kanban columns render whenever this legacy partial is explicitly included.
     var kanbanColumns = new[]
     {
         (Title: "Assigned", Tasks: Model.KanbanAssignedTaskDisplays, EmptyMessage: "No assigned tasks."),
@@ -14,8 +13,6 @@
     var kanbanTaskCount = kanbanColumns.Sum(column => column.Tasks.Count);
 }
 
-@if (isKanbanPlanningView)
-{
 @* SECTION: Sprint Board Kanban preserves existing workflow-status grouping without introducing a top-level Kanban mode. *@
 <section class="at-panel at-planning-secondary-view at-planning-kanban-view" aria-labelledby="planning-kanban-heading">
     <div class="at-panel-heading">
@@ -70,4 +67,3 @@
         </div>
     </div>
 </section>
-}

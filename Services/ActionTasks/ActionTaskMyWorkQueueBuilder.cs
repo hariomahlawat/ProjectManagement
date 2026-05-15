@@ -17,16 +17,17 @@ public sealed class ActionTaskMyWorkQueueBuilder
     // SECTION: My Work queue composition centralizes section precedence and de-duplication.
     public ActionTaskMyWorkQueueReadModel Build(IReadOnlyList<ActionTaskItem> tasks, ActionSprint? activeSprint)
     {
-        var sectionedTasks = tasks
+        var openTasks = tasks.Where(IsOpenTask).ToList();
+        var sectionedTasks = openTasks
             .Select(task => new SectionedTask(task, ResolveMyWorkQueueSection(task)))
             .ToList();
 
         return new ActionTaskMyWorkQueueReadModel(
-            BuildOverdueTasks(tasks),
-            BuildDueTodayTasks(tasks),
-            BuildInProgressTasks(tasks),
-            BuildSubmittedTasks(tasks),
-            BuildActiveSprintTasks(tasks, activeSprint),
+            BuildOverdueTasks(openTasks),
+            BuildDueTodayTasks(openTasks),
+            BuildInProgressTasks(openTasks),
+            BuildSubmittedTasks(openTasks),
+            BuildActiveSprintTasks(openTasks, activeSprint),
             BuildQueueSection(sectionedTasks, ActionTaskMyWorkQueueSection.ActionRequired),
             BuildQueueSection(sectionedTasks, ActionTaskMyWorkQueueSection.CurrentWork),
             BuildQueueSection(sectionedTasks, ActionTaskMyWorkQueueSection.SubmittedAwaitingClosure),
@@ -36,7 +37,7 @@ public sealed class ActionTaskMyWorkQueueBuilder
     // SECTION: My Work queue sections assign each task to exactly one primary section.
     public IReadOnlyList<ActionTaskItem> BuildMyWorkQueueSection(IReadOnlyList<ActionTaskItem> tasks, ActionTaskMyWorkQueueSection section)
         => BuildQueueSection(
-            tasks.Select(task => new SectionedTask(task, ResolveMyWorkQueueSection(task))).ToList(),
+            tasks.Where(IsOpenTask).Select(task => new SectionedTask(task, ResolveMyWorkQueueSection(task))).ToList(),
             section);
 
     // SECTION: Legacy personal list projections remain available for existing partials.

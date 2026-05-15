@@ -1,13 +1,19 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 @using ProjectManagement.Models
 @{
-    // SECTION: Execute tab status sections intentionally avoid the old horizontal primary board class.
-    var activeStatuses = new[] { ActionTaskStatuses.Assigned, ActionTaskStatuses.InProgress, ActionTaskStatuses.Blocked, ActionTaskStatuses.Submitted };
-    var closedTasks = Model.GetSprintTasksByStatus(ActionTaskStatuses.Closed);
+    // SECTION: Execute tab is the primary sprint Kanban/status board.
+    var kanbanStatuses = new[]
+    {
+        ActionTaskStatuses.Assigned,
+        ActionTaskStatuses.InProgress,
+        ActionTaskStatuses.Blocked,
+        ActionTaskStatuses.Submitted,
+        ActionTaskStatuses.Closed
+    };
     var attentionCount = Model.SprintAttentionOverdueTaskDisplays.Count + Model.SprintAttentionBlockedTaskDisplays.Count + Model.SprintAttentionSubmittedTaskDisplays.Count;
 }
 
-@* SECTION: Execute tab starts with a compact board header before status work sections. *@
+@* SECTION: Execute tab opens directly into the selected sprint status board. *@
 <section class="at-planning-tab-panel at-sprint-execution-main at-planning-execute-panel" aria-label="Sprint Board Execute tab">
     @if (Model.SelectedSprint is null)
     {
@@ -15,49 +21,42 @@
     }
     else
     {
-        <header class="at-panel at-execute-board-header" aria-label="Execution board header">
-            <div class="at-execute-board-title">
-                <span class="at-section-eyebrow">Execute</span>
-                <h2>Execution board</h2>
+        @* SECTION: Primary visible Kanban board keeps all execution status columns in one responsive row. *@
+        <section class="at-sprint-board-stack at-execute-status-board" aria-label="Selected Sprint Board task board">
+            <header class="at-panel at-execute-board-header" aria-label="Sprint Board header">
+                <div class="at-execute-board-title">
+                    <span class="at-section-eyebrow">Execute</span>
+                    <h2>Sprint Kanban Board</h2>
+                    <p class="at-panel-note">Move work through status columns for the selected sprint.</p>
+                </div>
+            </header>
+            <div class="at-execute-status-grid" aria-label="Sprint Kanban status columns">
+                @foreach (var status in kanbanStatuses)
+                {
+                    var groupedTasks = Model.GetSprintTasksByStatus(status);
+                    var statusSectionClass = status.ToLowerInvariant().Replace(" ", "-");
+                    <article class="at-panel at-board-column at-sprint-board-column at-execute-status-section at-execute-status-@statusSectionClass @(groupedTasks.Any() ? string.Empty : "is-empty")">
+                        <div class="at-panel-heading"><h2>@status</h2><span class="at-count-chip">@groupedTasks.Count</span></div>
+                        @if (!groupedTasks.Any())
+                        {
+                            <p class="at-empty-inline">No @status.ToLowerInvariant() tasks.</p>
+                        }
+                        else
+                        {
+                            <div class="at-task-cards">
+                                @foreach (var item in groupedTasks)
+                                {
+                                    var canProgressFromColumn = !string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
+                                    <partial name="_PlanningTaskCard" model='@Tuple.Create(Model, item, "Execute", canProgressFromColumn)' />
+                                }
+                            </div>
+                        }
+                    </article>
+                }
             </div>
-            @if (Model.CanModifySelectedSprint)
-            {
-                @* SECTION: Add from Backlog remains a secondary collapsed action, discoverable at the top of Execute. *@
-                <details class="at-execute-quick-add at-execute-quick-add-inline @(Model.AssignableBacklogTaskDisplays.Any() ? string.Empty : "is-empty")">
-                    <summary>Add from Backlog <span class="at-count-chip">@Model.AssignableBacklogTaskDisplays.Count</span></summary>
-                    @if (!Model.AssignableBacklogTaskDisplays.Any())
-                    {
-                        <p class="at-empty-inline at-execute-quick-add-empty">No assignable backlog tasks are available.</p>
-                    }
-                    else
-                    {
-                        <form method="post" asp-page-handler="AssignToSprint" class="at-sprint-add-form">
-                            <input type="hidden" name="ViewMode" value="Planning" />
-                            <input type="hidden" name="PlanningTab" value="Execute" />
-                            <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprint?.Id" />
-                            <input type="hidden" name="sprintId" value="@Model.SelectedSprint?.Id" />
-                            <select class="form-select form-select-sm" name="id" aria-label="Select backlog task" required>
-                                <option value="">Select backlog task</option>
-                                @foreach (var item in Model.AssignableBacklogTaskDisplays)
-                                {
-                                    <option value="@item.Task.Id">AT-@item.Task.Id · @item.Task.Title</option>
-                                }
-                            </select>
-                            <select class="form-select form-select-sm" name="responsibleUserId" aria-label="Select responsible person" required>
-                                <option value="">Responsible person</option>
-                                @foreach (var user in Model.AssignableUsers)
-                                {
-                                    <option value="@user.UserId">@user.DisplayName</option>
-                                }
-                            </select>
-                            <button type="submit" class="btn btn-primary btn-sm">Add to Selected Sprint</button>
-                        </form>
-                    }
-                </details>
-            }
-        </header>
+        </section>
 
-        @* SECTION: Compact attention summary is default; task mini-lists stay inside the collapsed details panel. *@
+        @* SECTION: Attention and due-exception lists are secondary to the visible status board. *@
         <details class="at-panel at-sprint-attention-lane at-execute-attention">
             <summary>
                 <span>Execution attention</span>
@@ -84,61 +83,12 @@
             </div>
         </details>
 
-
-
-        @* SECTION: Due / Exceptions and Kanban are secondary Execute views, collapsed to keep the main board primary. *@
+        @* SECTION: Due / Exceptions is collapsed and contains only the exception view. *@
         <details class="at-panel at-execute-secondary-views">
-            <summary>Due / Exceptions and Kanban</summary>
+            <summary>Due / Exceptions</summary>
             <div class="at-execute-secondary-view-stack mt-3">
                 <partial name="_PlanningDueExceptionsView" model="Model" />
-                <details class="at-execute-kanban-view mt-3">
-                    <summary>Kanban</summary>
-                    <partial name="_TaskKanban" model="Model" />
-                </details>
             </div>
         </details>
-
-        <section class="at-sprint-board-stack at-execute-status-board" aria-label="Selected Sprint Board task board">
-            <div class="at-execute-status-grid">
-                @foreach (var status in activeStatuses)
-                {
-                    var groupedTasks = Model.GetSprintTasksByStatus(status);
-                    var statusSectionClass = status.ToLowerInvariant().Replace(" ", "-");
-                    <article class="at-panel at-board-column at-sprint-board-column at-execute-status-section at-execute-status-@statusSectionClass @(groupedTasks.Any() ? string.Empty : "is-empty")">
-                        <div class="at-panel-heading"><h2>@status</h2><span class="at-count-chip">@groupedTasks.Count</span></div>
-                        @if (!groupedTasks.Any())
-                        {
-                            <p class="at-empty-inline">No @status.ToLowerInvariant() tasks.</p>
-                        }
-                        else
-                        {
-                            <div class="at-task-cards">
-                                @foreach (var item in groupedTasks)
-                                {
-                                    <partial name="_PlanningTaskCard" model='@Tuple.Create(Model, item, "Execute", true)' />
-                                }
-                            </div>
-                        }
-                    </article>
-                }
-            </div>
-
-            <details class="at-panel at-board-column at-sprint-board-column at-sprint-closed-section at-execute-closed-section @(closedTasks.Any() ? string.Empty : "is-empty")">
-                <summary>@(ActionTaskStatuses.Closed) <span class="at-count-chip">@closedTasks.Count</span></summary>
-                @if (!closedTasks.Any())
-                {
-                    <p class="at-empty-inline">No @(ActionTaskStatuses.Closed.ToLowerInvariant()) tasks.</p>
-                }
-                else
-                {
-                    <div class="at-task-cards at-sprint-closed-cards">
-                        @foreach (var item in closedTasks)
-                        {
-                            <partial name="_PlanningTaskCard" model='@Tuple.Create(Model, item, "Execute", false)' />
-                        }
-                    </div>
-                }
-            </details>
-        </section>
     }
 </section>

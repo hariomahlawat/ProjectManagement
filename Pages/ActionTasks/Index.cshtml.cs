@@ -209,7 +209,6 @@ public class IndexModel : PageModel
     public bool IsPlanningPlanTab => IsPlanningView && string.Equals(ResolvedPlanningTab, "Plan", StringComparison.OrdinalIgnoreCase);
     public bool IsPlanningExecuteTab => IsPlanningView && string.Equals(ResolvedPlanningTab, "Execute", StringComparison.OrdinalIgnoreCase);
     public bool IsPlanningCloseTab => IsPlanningView && string.Equals(ResolvedPlanningTab, "Close", StringComparison.OrdinalIgnoreCase);
-    public bool IsPlanningViewsTab => IsPlanningView && string.Equals(ResolvedPlanningTab, "Views", StringComparison.OrdinalIgnoreCase);
     public bool IsBacklogView => IsLegacyViewMode("Backlog") || IsPlanningBacklogFilterContext();
     public bool IsSprintsView => IsPlanningView;
     public string PageHeading => ResolvedViewMode switch
@@ -222,7 +221,7 @@ public class IndexModel : PageModel
     };
     public string PageSubtitle => ResolvedViewMode switch
     {
-        "Planning" => "Coordinate sprint work, review due exceptions and manage Kanban flow.",
+        "Planning" => "Plan sprint work, monitor execution and review closure.",
         "MyWork" => "Focus on the work assigned to you.",
         "Register" => "Search, filter and review every task you can access.",
         "Reports" => "Review pending, critical, blocked and closed task trends.",

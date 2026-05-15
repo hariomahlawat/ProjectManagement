@@ -2,7 +2,7 @@
 
 @{
     // SECTION: My Work read-model aliases keep personal task presentation consistent and CSP-safe.
-    var assignedTaskCount = Model.Tasks.Count;
+    var assignedTaskCount = Model.MyWorkQueue.ActionRequiredTasks.Count + Model.MyWorkQueue.CurrentWorkTasks.Count + Model.MyWorkQueue.SubmittedAwaitingClosureTasks.Count + Model.MyWorkQueue.AllMyTasks.Count;
     var actionRequiredTasks = Model.MyWorkActionRequiredDisplays;
     var currentWorkTasks = Model.MyWorkCurrentWorkDisplays;
     var submittedTasks = Model.MyWorkSubmittedAwaitingClosureDisplays;
@@ -19,7 +19,7 @@
     <article>
         <h3>Assigned to me</h3>
         <strong>@assignedTaskCount</strong>
-        <p>Total tasks in your personal queue.</p>
+        <p>Open tasks in your personal queue.</p>
     </article>
     <article>
         <h3>Needs action now</h3>
