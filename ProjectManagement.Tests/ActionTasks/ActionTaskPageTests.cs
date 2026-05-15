@@ -121,6 +121,8 @@ public class ActionTaskPageTests
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
+        setup.Db.ActionTasks.Add(NewTask("Closed personal task", ActionTaskStatuses.Closed));
+        await setup.Db.SaveChangesAsync();
         var page = setup.Page;
         page.ViewMode = "MyWork";
         await page.OnGetAsync();
@@ -138,7 +140,9 @@ public class ActionTaskPageTests
         Assert.Contains("All My Tasks", html, StringComparison.Ordinal);
         Assert.Contains("Open details", html, StringComparison.Ordinal);
         Assert.Contains("Mine", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Closed personal task", html, StringComparison.Ordinal);
         Assert.Single(page.MyWorkAllMyTasksDisplays);
+        Assert.DoesNotContain(page.MyWorkAllMyTasksDisplays, item => string.Equals(item.Task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -253,7 +257,7 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task PlanningPlanTab_BacklogQueueHeader_DoesNotMentionOutsideSprint()
+    public async Task PlanningPlanTab_BacklogItemsHeader_UsesTargetLanguageAndDoesNotMentionOutsideSprint()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync(RoleNames.HoD);
@@ -264,12 +268,14 @@ public class ActionTaskPageTests
 
         // SECTION: Act
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_PlanningPlanTab.cshtml");
-        var headerStart = html.IndexOf("<h2>Backlog Queue</h2>", StringComparison.Ordinal);
+        var headerStart = html.IndexOf("<h2>Backlog Items</h2>", StringComparison.Ordinal);
         var headerEnd = html.IndexOf("<div class=\"at-planning-backlog-body\">", StringComparison.Ordinal);
         var backlogHeader = html[headerStart..headerEnd];
 
         // SECTION: Assert
         Assert.Contains("Unassigned future work awaiting sprint planning.", backlogHeader, StringComparison.Ordinal);
+        Assert.Contains("Past Target", backlogHeader, StringComparison.Ordinal);
+        Assert.DoesNotContain("<span>Overdue</span>", backlogHeader, StringComparison.Ordinal);
         Assert.DoesNotContain("Outside Sprint", backlogHeader, StringComparison.Ordinal);
         Assert.DoesNotContain("Assigned Tasks Outside Sprint", backlogHeader, StringComparison.Ordinal);
     }
@@ -328,6 +334,12 @@ public class ActionTaskPageTests
         var sprint = AddSprint(setup.Db, "Enterprise Sprint", ActionSprintStatus.Active);
         var task = await setup.Db.ActionTasks.SingleAsync();
         task.SprintId = sprint.Id;
+        task.DueDate = new DateTime(2026, 5, 21);
+        var backlogTask = NewTask("Register backlog target", ActionTaskStatuses.Backlog);
+        backlogTask.AssignedToUserId = string.Empty;
+        backlogTask.AssignedToRole = string.Empty;
+        backlogTask.DueDate = new DateTime(2026, 5, 20);
+        setup.Db.ActionTasks.Add(backlogTask);
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
         page.ViewMode = "Register";
@@ -338,9 +350,12 @@ public class ActionTaskPageTests
 
         // SECTION: Assert
         Assert.Contains("<th scope=\"col\" class=\"at-register-sprint-heading\">Scope</th>", html, StringComparison.Ordinal);
+        Assert.Contains("Due / Target Date", html, StringComparison.Ordinal);
         Assert.DoesNotContain("<th scope=\"col\" class=\"at-register-sprint-heading\">Sprint</th>", html, StringComparison.Ordinal);
         Assert.Contains("at-register-sprint-cell", html, StringComparison.Ordinal);
         Assert.Contains("Enterprise Sprint", html, StringComparison.Ordinal);
+        Assert.Contains("Target 20 May 2026", html, StringComparison.Ordinal);
+        Assert.Contains("Due 21 May 2026", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -857,13 +872,67 @@ public class ActionTaskPageTests
         Assert.NotNull(page.SelectedSprint);
         Assert.Contains("Execution Sprint", html, StringComparison.Ordinal);
         Assert.Contains("Selected Sprint Board task board", html, StringComparison.Ordinal);
+        Assert.Contains("Sprint Kanban Board", html, StringComparison.Ordinal);
         Assert.Contains("Sprint board task", html, StringComparison.Ordinal);
         Assert.Contains("at-execute-status-grid", html, StringComparison.Ordinal);
         Assert.Contains("at-execute-status-section", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("at-board-grid is-sprints", html, StringComparison.Ordinal);
-        Assert.True(html.IndexOf("Selected Sprint Board task board", StringComparison.Ordinal) < html.IndexOf("Add from Backlog", StringComparison.Ordinal));
+        Assert.Contains($"<h2>{ActionTaskStatuses.Assigned}</h2>", html, StringComparison.Ordinal);
+        Assert.Contains($"<h2>{ActionTaskStatuses.InProgress}</h2>", html, StringComparison.Ordinal);
+        Assert.Contains($"<h2>{ActionTaskStatuses.Blocked}</h2>", html, StringComparison.Ordinal);
+        Assert.Contains($"<h2>{ActionTaskStatuses.Submitted}</h2>", html, StringComparison.Ordinal);
+        Assert.Contains($"<h2>{ActionTaskStatuses.Closed}</h2>", html, StringComparison.Ordinal);
+        Assert.True(html.IndexOf("Selected Sprint Board task board", StringComparison.Ordinal) < html.IndexOf("Execution attention", StringComparison.Ordinal));
+        Assert.DoesNotContain("Due / Exceptions and Kanban", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Add from Backlog", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Add Backlog Task", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Backlog Queue", html, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public async Task TaskKanbanPartial_RendersWithoutPlanningViewGate()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var sprint = AddSprint(setup.Db, "Legacy Kanban Sprint", ActionSprintStatus.Active);
+        setup.Db.ActionTasks.Add(NewTask("Legacy kanban card", ActionTaskStatuses.Assigned, sprint.Id));
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Planning";
+        page.PlanningTab = "Execute";
+        page.SelectedSprintId = sprint.Id;
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskKanban.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("Legacy kanban card", html, StringComparison.Ordinal);
+        Assert.Contains("Sprint Board Kanban alternate view", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("isKanbanPlanningView", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DashboardPartial_ActiveSprintHealth_DoesNotShowBacklogMetric()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var sprint = AddSprint(setup.Db, "Health Sprint", ActionSprintStatus.Active);
+        setup.Db.ActionTasks.Add(NewTask("Health sprint task", ActionTaskStatuses.Assigned, sprint.Id));
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "CommandCentre";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDashboard.cshtml");
+        var healthStart = html.IndexOf("<h2>Active Sprint Health</h2>", StringComparison.Ordinal);
+        var attentionStart = html.IndexOf("Active Sprint command attention", StringComparison.Ordinal);
+        var activeSprintHealth = html[healthStart..attentionStart];
+
+        // SECTION: Assert
+        Assert.Contains("Total in active sprint", activeSprintHealth, StringComparison.Ordinal);
+        Assert.DoesNotContain("<h3>Backlog</h3>", activeSprintHealth, StringComparison.Ordinal);
     }
 
 

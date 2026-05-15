@@ -18,7 +18,8 @@ public class ActionTaskCompositionBuilderTests
             CreateTask(1, "Overdue in progress", ActionTaskStatuses.InProgress, today.AddDays(-1), sprintId: 10),
             CreateTask(2, "Later in progress", ActionTaskStatuses.InProgress, today.AddDays(2), sprintId: 10),
             CreateTask(3, "Submitted", ActionTaskStatuses.Submitted, today.AddDays(3), submittedOn: today.AddDays(-1)),
-            CreateTask(4, "Assigned later", ActionTaskStatuses.Assigned, today.AddDays(4))
+            CreateTask(4, "Assigned later", ActionTaskStatuses.Assigned, today.AddDays(4)),
+            CreateTask(5, "Closed sprint task", ActionTaskStatuses.Closed, today.AddDays(-1), sprintId: 10)
         };
 
         // SECTION: Act
@@ -29,7 +30,9 @@ public class ActionTaskCompositionBuilderTests
         Assert.Equal(new[] { "Later in progress" }, queue.CurrentWorkTasks.Select(t => t.Title));
         Assert.Equal(new[] { "Submitted" }, queue.SubmittedAwaitingClosureTasks.Select(t => t.Title));
         Assert.Equal(new[] { "Assigned later" }, queue.AllMyTasks.Select(t => t.Title));
+        Assert.DoesNotContain(queue.AllMyTasks, task => string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
         Assert.Equal(new[] { "Overdue in progress", "Later in progress" }, queue.ActiveSprintTasks.Select(t => t.Title));
+        Assert.DoesNotContain(queue.ActiveSprintTasks, task => string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

@@ -108,7 +108,7 @@
     <section class="at-panel at-planning-backlog-queue at-planning-plan-card">
         <div class="at-panel-heading">
             <div>
-                <h2>Backlog Queue</h2>
+                <h2>Backlog Items</h2>
                 <p class="at-panel-note">Unassigned future work awaiting sprint planning.</p>
             </div>
             <span class="at-count-chip">@Model.BacklogTaskDisplays.Count</span>
@@ -117,7 +117,7 @@
             <div class="at-backlog-summary-grid" aria-label="Backlog summary">
                 <article><strong>@Model.BacklogTotalCount</strong><span>Backlog items</span></article>
                 <article><strong>@Model.BacklogHighPriorityCount</strong><span>High priority</span></article>
-                <article><strong>@Model.BacklogOverdueCount</strong><span>Overdue</span></article>
+                <article><strong>@Model.BacklogOverdueCount</strong><span>Past Target</span></article>
             </div>
 
             @* SECTION: Backlog filters remain GET-based, CSP-safe, and collapsed so low counts keep the queue prominent. *@
@@ -175,7 +175,7 @@
                                 <span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
                                 @if (Model.IsTaskOverdue(task))
                                 {
-                                    <span class="at-overdue-marker">Overdue</span>
+                                    <span class="at-overdue-marker">Past Target</span>
                                 }
                             </div>
                             <div class="at-backlog-task-meta">
