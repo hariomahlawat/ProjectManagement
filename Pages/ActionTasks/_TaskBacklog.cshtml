@@ -17,23 +17,6 @@
     <form method="get" class="row g-2" data-at-task-filter-form="true">
         <input type="hidden" name="viewMode" value="Planning" />
         <div class="col-md-2">
-            <label class="form-label">Status</label>
-            <select class="form-select" name="FilterStatus">
-                <option value="">All open statuses</option>
-                @foreach (var status in Model.AllowedStatusOptions)
-                {
-                    if (string.Equals(Model.FilterStatus, status, StringComparison.OrdinalIgnoreCase))
-                    {
-                        <option value="@status" selected>@status</option>
-                    }
-                    else
-                    {
-                        <option value="@status">@status</option>
-                    }
-                }
-            </select>
-        </div>
-        <div class="col-md-2">
             <label class="form-label">Priority</label>
             <select class="form-select" name="FilterPriority">
                 <option value="">All</option>
@@ -51,24 +34,7 @@
             </select>
         </div>
         <div class="col-md-2">
-            <label class="form-label">Responsible Person</label>
-            <select class="form-select" name="FilterAssigneeUserId">
-                <option value="">All</option>
-                @foreach (var assignee in Model.TaskAssigneeNames.OrderBy(x => x.Value))
-                {
-                    if (string.Equals(Model.FilterAssigneeUserId, assignee.Key, StringComparison.Ordinal))
-                    {
-                        <option value="@assignee.Key" selected>@assignee.Value</option>
-                    }
-                    else
-                    {
-                        <option value="@assignee.Key">@assignee.Value</option>
-                    }
-                }
-            </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label">Due Date</label>
+            <label class="form-label">Target Date</label>
             <input type="date" class="form-control" name="FilterDueDate" value="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" />
         </div>
         <div class="col-md-2">
@@ -87,7 +53,7 @@
         <h2>Sprint Board Backlog Queue</h2>
         @if (Model.CanPlanSprints)
         {
-            <span class="at-panel-note">Comdt and HoD can assign true backlog tasks into open Sprints.</span>
+            <span class="at-panel-note">Comdt and HoD can assign backlog items into open Sprints.</span>
         }
     </div>
 
@@ -102,10 +68,8 @@
                 <thead>
                     <tr>
                         <th>Task</th>
-                        <th>Responsible Person</th>
                         <th>Priority</th>
-                        <th>Status</th>
-                        <th>Due Date</th>
+                        <th>Target Date</th>
                         @if (Model.CanPlanSprints)
                         {
                             <th>Assign to Sprint</th>
@@ -127,9 +91,7 @@
                                     }
                                 </div>
                             </td>
-                            <td><span class="at-cell-primary">@item.AssigneeName</span></td>
                             <td><span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span></td>
-                            <td><span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span></td>
                             <td><span class="at-cell-primary">@task.DueDate.ToString("dd MMM yyyy")</span></td>
                             @if (Model.CanPlanSprints)
                             {

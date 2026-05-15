@@ -238,6 +238,49 @@
         });
     }
 
+    // SECTION: Create modal choice flow keeps only one selected form open at a time.
+    function initCreateTaskChoiceFlow() {
+        const group = document.querySelector("[data-at-create-choice-group='true']");
+        if (!group) {
+            return;
+        }
+
+        const choices = Array.from(group.querySelectorAll("details[data-at-create-choice='true']"));
+        choices.forEach((choice) => {
+            choice.addEventListener("toggle", () => {
+                if (!choice.open) {
+                    return;
+                }
+
+                choices.forEach((candidate) => {
+                    if (candidate !== choice) {
+                        candidate.removeAttribute("open");
+                    }
+                });
+            });
+        });
+    }
+
+    // SECTION: Confirmation prompts for destructive bucket moves remain CSP-safe through data attributes.
+    function initActionConfirmations() {
+        const triggers = document.querySelectorAll("[data-at-confirm]");
+        triggers.forEach((trigger) => {
+            const form = trigger.closest("form");
+            if (!form || form.dataset.atConfirmReady === "true") {
+                return;
+            }
+
+            form.addEventListener("submit", (event) => {
+                const submitter = event.submitter || trigger;
+                const message = submitter.getAttribute("data-at-confirm") || trigger.getAttribute("data-at-confirm");
+                if (message && !window.confirm(message)) {
+                    event.preventDefault();
+                }
+            });
+            form.dataset.atConfirmReady = "true";
+        });
+    }
+
 
     // SECTION: Sticky inspector action panel orchestration and keyboard behavior.
     function initInspectorActionPanels() {
@@ -297,11 +340,13 @@
     document.addEventListener("DOMContentLoaded", function () {
         openCreateTaskModalOnLoad();
         initSearchableSelects();
+        initCreateTaskChoiceFlow();
         initStatusUpdateGuard();
         initTaskRegisterFilters();
         initReportsFilters();
         initSprintSelector();
         initSprintClosureReview();
+        initActionConfirmations();
         initInspectorActionPanels();
     });
 })();

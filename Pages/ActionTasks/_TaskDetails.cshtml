@@ -8,7 +8,9 @@
         : null;
     var selectedSprintRouteValue = Model.IsPlanningView ? Model.SelectedSprintId : null;
     var selectedTaskIsBacklog = Model.SelectedTask is not null && Model.IsBacklogTask(Model.SelectedTask);
-    var updateButtonText = selectedTaskIsBacklog ? "Add Planning Note" : "+ Update";
+    var selectedTaskStatus = Model.SelectedTask?.Status ?? string.Empty;
+    var selectedTaskDateLabel = selectedTaskIsBacklog ? "Target" : "Due";
+    var updateButtonText = selectedTaskIsBacklog ? "Add Planning Note" : "Add Update";
     var updatePanelTitle = selectedTaskIsBacklog ? "Add Planning Note" : "Add Update";
     var updatePlaceholder = selectedTaskIsBacklog ? "Add planning note or clarification" : "Add progress details or clarification notes";
 }
@@ -23,11 +25,14 @@
                 <h2 class="at-panel-title mb-0">AT-@(Model.SelectedTask?.Id.ToString() ?? Model.TaskId?.ToString() ?? "—") · @(Model.SelectedTask?.Title ?? "Task")</h2>
                 @if (Model.SelectedTask is not null)
                 {
-                    <div class="at-detail-assignee">@Model.ResolveAssigneeName(Model.SelectedTask.AssignedToUserId)</div>
+                    @if (!selectedTaskIsBacklog)
+                    {
+                        <div class="at-detail-assignee">@Model.ResolveAssigneeName(Model.SelectedTask.AssignedToUserId)</div>
+                    }
                     <div class="d-flex gap-2 flex-wrap at-detail-meta">
                         <span class="@Model.GetStatusBadgeClass(Model.SelectedTask.Status)">@Model.SelectedTask.Status</span>
                         <span class="@Model.GetPriorityBadgeClass(Model.SelectedTask.Priority)">@Model.SelectedTask.Priority</span>
-                        <span class="at-detail-due">Due @Model.SelectedTask.DueDate.ToString("dd MMM yyyy")</span>
+                        <span class="at-detail-due">@selectedTaskDateLabel @Model.SelectedTask.DueDate.ToString("dd MMM yyyy")</span>
                         <span class="@Model.GetSprintBadgeClass(Model.SelectedTask)">@Model.GetSprintBadgeText(Model.SelectedTask)</span>
                     </div>
                     <div class="at-inspector-snapshot">
@@ -170,6 +175,45 @@
                         </form>
                     </details>
 
+
+                    @if (selectedTaskIsBacklog && Model.CanAssignTaskToSprint(Model.SelectedTask))
+                    {
+                        <details class="at-action-drawer" data-at-action-panel="add-to-sprint">
+                            <summary class="visually-hidden">Open add to sprint panel</summary>
+                            <form method="post" asp-page-handler="AssignToSprint" class="at-action-card at-action-card-compact">
+                                <input type="hidden" name="ViewMode" value="Planning" />
+                                <input type="hidden" name="PlanningTab" value="Execute" />
+                                <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
+                                <div class="at-action-title">Add to Sprint</div>
+                                <div class="mb-2">
+                                    <label class="form-label at-small">Responsible Person</label>
+                                    <select class="form-select form-select-sm" name="responsibleUserId" required>
+                                        <option value="">Select responsible person</option>
+                                        @foreach (var user in Model.AssignableUsers)
+                                        {
+                                            <option value="@user.UserId">@user.DisplayName</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label at-small">Sprint</label>
+                                    <select class="form-select form-select-sm" name="sprintId" required>
+                                        <option value="">Select Sprint</option>
+                                        @foreach (var sprint in Model.AssignableSprints)
+                                        {
+                                            <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="at-action-buttons">
+                                    <button type="submit" class="btn btn-primary btn-sm">Add to Sprint</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="add-to-sprint">Cancel</button>
+                                </div>
+                            </form>
+                        </details>
+                    }
+
                     @if (Model.CanUpdateTaskStatus(Model.SelectedTask))
                     {
                         <details class="at-action-drawer" data-at-action-panel="status">
@@ -223,13 +267,13 @@
                                 <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" />
-                                <div class="at-action-title">Submit Task</div>
+                                <div class="at-action-title">Submit for Closure</div>
                                 <div class="mb-2">
                                     <label class="form-label at-small">Submission Remarks</label>
                                     <textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Add submission notes"></textarea>
                                 </div>
                                 <div class="at-action-buttons">
-                                    <button type="submit" class="btn btn-warning btn-sm">Submit Task</button>
+                                    <button type="submit" class="btn btn-warning btn-sm">Submit for Closure</button>
                                     <button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="submit">Cancel</button>
                                 </div>
                             </form>
@@ -262,19 +306,64 @@
                     }
                 </div>
 
+                @* SECTION: Primary action rail exposes the next useful action for the task state and tucks other actions away. *@
                 <div class="at-action-toolbar" aria-label="Task actions">
-                    <button type="button" class="btn btn-primary btn-sm" data-at-open-action="update">@updateButtonText</button>
-                    @if (Model.CanUpdateTaskStatus(Model.SelectedTask))
+                    @if (selectedTaskIsBacklog)
                     {
-                        <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="status">Change Status</button>
+                        <button type="button" class="btn btn-primary btn-sm" data-at-open-action="update">Add Planning Note</button>
+                        @if (Model.CanAssignTaskToSprint(Model.SelectedTask))
+                        {
+                            <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="add-to-sprint">Add to Sprint</button>
+                        }
                     }
-                    @if (Model.CanSubmitTask(Model.SelectedTask))
+                    else if (string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
                     {
-                        <button type="button" class="btn btn-outline-warning btn-sm" data-at-open-action="submit">Submit</button>
+                        @if (Model.CanCloseTask(Model.SelectedTask))
+                        {
+                            <button type="button" class="btn btn-success btn-sm" data-at-open-action="close">Close Task</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="status">Return for Rework</button>
+                        }
+                        else
+                        {
+                            <span class="text-muted small">Submitted for closure</span>
+                        }
                     }
-                    @if (Model.CanCloseTask(Model.SelectedTask))
+                    else if (string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
                     {
-                        <button type="button" class="btn btn-outline-success btn-sm" data-at-open-action="close">Close</button>
+                        <span class="text-muted small">View only</span>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-primary btn-sm" data-at-open-action="update">Add Update</button>
+                        @if (Model.CanUpdateTaskStatus(Model.SelectedTask) && !string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="status">Mark In Progress</button>
+                        }
+                        @if (Model.CanSubmitTask(Model.SelectedTask) && string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <button type="button" class="btn btn-warning btn-sm" data-at-open-action="submit">Submit for Closure</button>
+                        }
+                    }
+
+                    @if (!string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+                    {
+                        <details class="at-action-more-menu">
+                            <summary class="btn btn-outline-secondary btn-sm">More</summary>
+                            <div class="at-action-more-list">
+                            @if (!selectedTaskIsBacklog && Model.CanUpdateTaskStatus(Model.SelectedTask))
+                            {
+                                <button type="button" class="btn btn-link btn-sm" data-at-open-action="status">Change Status</button>
+                            }
+                            @if (!string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase) && Model.CanSubmitTask(Model.SelectedTask))
+                            {
+                                <button type="button" class="btn btn-link btn-sm" data-at-open-action="submit">Submit for Closure</button>
+                            }
+                            @if (!string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase) && Model.CanCloseTask(Model.SelectedTask))
+                            {
+                                <button type="button" class="btn btn-link btn-sm" data-at-open-action="close">Close Task</button>
+                            }
+                            </div>
+                        </details>
                     }
                 </div>
             </footer>

@@ -211,7 +211,7 @@ public class ActionSprintServiceTests
     }
 
     [Fact]
-    public async Task AssignTaskToSprintAsync_WhenSprintClosed_RejectsRequest()
+    public async Task AssignBacklogItemToSprintAsync_WhenSprintClosed_RejectsRequest()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -223,12 +223,12 @@ public class ActionSprintServiceTests
 
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.AssignTaskToSprintAsync(task.Id, sprint.Id, "assignee", RoleNames.Ta, "planner", RoleNames.Comdt));
+            service.AssignBacklogItemToSprintAsync(task.Id, sprint.Id, "assignee", RoleNames.Ta, "planner", RoleNames.Comdt));
         Assert.Contains("closed sprint", ex.Message.ToLowerInvariant());
     }
 
     [Fact]
-    public async Task AssignTaskToSprintAsync_WhenTaskClosed_RejectsRequest()
+    public async Task AssignBacklogItemToSprintAsync_WhenTaskClosed_RejectsRequest()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -238,12 +238,12 @@ public class ActionSprintServiceTests
 
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.AssignTaskToSprintAsync(task.Id, sprint.Id, "planner", RoleNames.Comdt));
+            service.AssignBacklogItemToSprintAsync(task.Id, sprint.Id, "assignee", RoleNames.Ta, "planner", RoleNames.Comdt));
         Assert.Contains("closed tasks cannot be assigned", ex.Message.ToLowerInvariant());
     }
 
     [Fact]
-    public async Task AssignTaskToSprintAsync_WithNonAuthority_RejectsRequest()
+    public async Task AssignBacklogItemToSprintAsync_WithNonAuthority_RejectsRequest()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -253,7 +253,7 @@ public class ActionSprintServiceTests
 
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.AssignTaskToSprintAsync(task.Id, sprint.Id, "actor", RoleNames.ProjectOfficer));
+            service.AssignBacklogItemToSprintAsync(task.Id, sprint.Id, "assignee", RoleNames.Ta, "actor", RoleNames.ProjectOfficer));
         Assert.Contains("not authorized", ex.Message.ToLowerInvariant());
     }
 
@@ -489,7 +489,7 @@ public class ActionSprintServiceTests
     }
 
     [Fact]
-    public async Task AssignTaskToSprintAsync_BacklogItem_SetsAssigneeAndAssignedStatus()
+    public async Task AssignBacklogItemToSprintAsync_BacklogItem_SetsAssigneeAndAssignedStatus()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -501,7 +501,7 @@ public class ActionSprintServiceTests
         await db.SaveChangesAsync();
 
         // SECTION: Act
-        var sprintTask = await service.AssignTaskToSprintAsync(task.Id, sprint.Id, "assignee", RoleNames.Ta, "planner", RoleNames.HoD);
+        var sprintTask = await service.AssignBacklogItemToSprintAsync(task.Id, sprint.Id, "assignee", RoleNames.Ta, "planner", RoleNames.HoD);
 
         // SECTION: Assert
         Assert.Equal(sprint.Id, sprintTask.SprintId);
@@ -512,7 +512,7 @@ public class ActionSprintServiceTests
     }
 
     [Fact]
-    public async Task AssignExistingAssignedTaskToSprintAsync_OutsideSprintTask_RetainsAssignee()
+    public async Task AssignOutsideSprintTaskToSprintAsync_OutsideSprintTask_RetainsAssignee()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -521,7 +521,7 @@ public class ActionSprintServiceTests
         var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress);
 
         // SECTION: Act
-        var sprintTask = await service.AssignExistingAssignedTaskToSprintAsync(task.Id, sprint.Id, "planner", RoleNames.HoD);
+        var sprintTask = await service.AssignOutsideSprintTaskToSprintAsync(task.Id, sprint.Id, "planner", RoleNames.HoD);
 
         // SECTION: Assert
         Assert.Equal(sprint.Id, sprintTask.SprintId);
@@ -532,7 +532,7 @@ public class ActionSprintServiceTests
 
 
     [Fact]
-    public async Task AssignExistingAssignedTaskToSprintAsync_SubmittedOutsideSprintTask_RetainsStatusAndSubmittedOn()
+    public async Task AssignOutsideSprintTaskToSprintAsync_SubmittedOutsideSprintTask_RetainsStatusAndSubmittedOn()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -544,7 +544,7 @@ public class ActionSprintServiceTests
         await db.SaveChangesAsync();
 
         // SECTION: Act
-        var sprintTask = await service.AssignExistingAssignedTaskToSprintAsync(task.Id, sprint.Id, "planner", RoleNames.HoD);
+        var sprintTask = await service.AssignOutsideSprintTaskToSprintAsync(task.Id, sprint.Id, "planner", RoleNames.HoD);
 
         // SECTION: Assert
         Assert.Equal(sprint.Id, sprintTask.SprintId);
@@ -555,7 +555,7 @@ public class ActionSprintServiceTests
     }
 
     [Fact]
-    public async Task AssignTaskToSprintAsync_OutsideSprintTask_RejectsRequest()
+    public async Task AssignBacklogItemToSprintAsync_OutsideSprintTask_RejectsRequest()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -565,12 +565,12 @@ public class ActionSprintServiceTests
 
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.AssignTaskToSprintAsync(task.Id, sprint.Id, "assignee", RoleNames.Ta, "planner", RoleNames.HoD));
+            service.AssignBacklogItemToSprintAsync(task.Id, sprint.Id, "assignee", RoleNames.Ta, "planner", RoleNames.HoD));
         Assert.Equal("Only backlog items can be assigned to sprint through this action.", ex.Message);
     }
 
     [Fact]
-    public async Task AssignTaskToSprintAsync_AlreadySprintAssignedTask_RejectsRequest()
+    public async Task AssignBacklogItemToSprintAsync_AlreadySprintAssignedTask_RejectsRequest()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -582,12 +582,12 @@ public class ActionSprintServiceTests
 
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.AssignTaskToSprintAsync(task.Id, target.Id, "assignee", RoleNames.Ta, "planner", RoleNames.HoD));
+            service.AssignBacklogItemToSprintAsync(task.Id, target.Id, "assignee", RoleNames.Ta, "planner", RoleNames.HoD));
         Assert.Equal("Only backlog items can be assigned to sprint through this action.", ex.Message);
     }
 
     [Fact]
-    public async Task AssignExistingAssignedTaskToSprintAsync_BacklogTask_RejectsRequest()
+    public async Task AssignOutsideSprintTaskToSprintAsync_BacklogTask_RejectsRequest()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -597,12 +597,12 @@ public class ActionSprintServiceTests
 
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.AssignExistingAssignedTaskToSprintAsync(task.Id, sprint.Id, "planner", RoleNames.HoD));
+            service.AssignOutsideSprintTaskToSprintAsync(task.Id, sprint.Id, "planner", RoleNames.HoD));
         Assert.Equal("Only assigned tasks outside sprint can be added to sprint through this action.", ex.Message);
     }
 
     [Fact]
-    public async Task AssignExistingAssignedTaskToSprintAsync_AlreadySprintAssignedTask_RejectsRequest()
+    public async Task AssignOutsideSprintTaskToSprintAsync_AlreadySprintAssignedTask_RejectsRequest()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -614,7 +614,7 @@ public class ActionSprintServiceTests
 
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.AssignExistingAssignedTaskToSprintAsync(task.Id, target.Id, "planner", RoleNames.HoD));
+            service.AssignOutsideSprintTaskToSprintAsync(task.Id, target.Id, "planner", RoleNames.HoD));
         Assert.Equal("Only assigned tasks outside sprint can be added to sprint through this action.", ex.Message);
     }
 
@@ -717,7 +717,7 @@ public class ActionSprintServiceTests
 
     private static async Task<ActionTaskItem> AssignBacklogTaskToSprintAsync(ApplicationDbContext db, ActionSprintService service, ActionTaskItem task, int sprintId, string userId, string role)
     {
-        // SECTION: Prepare true backlog source state before exercising Backlog -> Sprint movement.
+        // SECTION: Prepare backlog item source state before exercising Backlog -> Sprint movement.
         task.SprintId = null;
         task.AssignedToUserId = string.Empty;
         task.AssignedToRole = string.Empty;
@@ -726,7 +726,7 @@ public class ActionSprintServiceTests
         task.ClosedOn = null;
         await db.SaveChangesAsync();
 
-        return await service.AssignTaskToSprintAsync(task.Id, sprintId, "assignee", RoleNames.Ta, userId, role);
+        return await service.AssignBacklogItemToSprintAsync(task.Id, sprintId, "assignee", RoleNames.Ta, userId, role);
     }
 
     private static async Task<ActionTaskItem> SeedBacklogTaskAsync(ApplicationDbContext db)

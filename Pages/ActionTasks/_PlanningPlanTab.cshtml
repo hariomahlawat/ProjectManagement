@@ -115,7 +115,7 @@
         </div>
         <div class="at-planning-backlog-body">
             <div class="at-backlog-summary-grid" aria-label="Backlog summary">
-                <article><strong>@Model.BacklogTotalCount</strong><span>True backlog</span></article>
+                <article><strong>@Model.BacklogTotalCount</strong><span>Backlog items</span></article>
                 <article><strong>@Model.BacklogHighPriorityCount</strong><span>High priority</span></article>
                 <article><strong>@Model.BacklogOverdueCount</strong><span>Overdue</span></article>
             </div>
@@ -124,28 +124,12 @@
             <details class="at-planning-backlog-filter-shell" open="@hasBacklogFilters">
                 <summary>
                     <span>Filter Backlog</span>
-                    <span class="at-filter-state">@(hasBacklogFilters ? "Custom backlog view" : "All true backlog")</span>
+                    <span class="at-filter-state">@(hasBacklogFilters ? "Custom backlog view" : "All backlog items")</span>
                 </summary>
                 <form method="get" class="at-planning-backlog-filter">
                     <input type="hidden" name="viewMode" value="Planning" />
                     <input type="hidden" name="PlanningTab" value="Plan" />
                     <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                    <label class="form-label at-small" for="PlanningFilterStatus">Status</label>
-                    <select class="form-select form-select-sm" id="PlanningFilterStatus" name="FilterStatus">
-                        <option value="">All open statuses</option>
-                        @foreach (var status in Model.AllowedStatusOptions)
-                        {
-                            if (string.Equals(Model.FilterStatus, status, StringComparison.OrdinalIgnoreCase))
-                            {
-                                <option value="@status" selected>@status</option>
-                            }
-                            else
-                            {
-                                <option value="@status">@status</option>
-                            }
-                        }
-                    </select>
-
                     <label class="form-label at-small" for="PlanningFilterPriority">Priority</label>
                     <select class="form-select form-select-sm" id="PlanningFilterPriority" name="FilterPriority">
                         <option value="">All priorities</option>
@@ -161,6 +145,9 @@
                             }
                         }
                     </select>
+
+                    <label class="form-label at-small" for="PlanningFilterDueDate">Target Date</label>
+                    <input type="date" class="form-control form-control-sm" id="PlanningFilterDueDate" name="FilterDueDate" value="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" />
 
                     <label class="form-label at-small" for="PlanningFilterSearch">Search by title</label>
                     <input type="text" class="form-control form-control-sm" id="PlanningFilterSearch" name="FilterSearch" value="@Model.FilterSearch" data-at-filter-search="true" />
@@ -185,7 +172,6 @@
                         <article class="at-planning-backlog-card @(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)">
                             <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Planning" asp-route-PlanningTab="Plan" asp-route-SelectedSprintId="@Model.SelectedSprintId">AT-@task.Id · @task.Title</a>
                             <div class="at-backlog-task-meta">
-                                <span class="at-cell-primary">@item.AssigneeName</span>
                                 <span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
                                 @if (Model.IsTaskOverdue(task))
                                 {
@@ -193,8 +179,7 @@
                                 }
                             </div>
                             <div class="at-backlog-task-meta">
-                                <span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span>
-                                <span class="at-cell-primary">Due @task.DueDate.ToString("dd MMM yyyy")</span>
+                                <span class="at-cell-primary">Target @task.DueDate.ToString("dd MMM yyyy")</span>
                             </div>
                             @if (Model.CanPlanSprints)
                             {
@@ -234,7 +219,7 @@
         </div>
     </section>
 
-    @* SECTION: Outside Sprint list makes assigned non-sprint work explicit and separate from true backlog. *@
+    @* SECTION: Outside Sprint list makes assigned work outside sprint explicit and separate from backlog items. *@
     <details class="at-panel at-planning-outside-sprint at-planning-plan-card">
         <summary class="at-panel-heading">
             <div>
@@ -294,7 +279,7 @@
                                 <input type="hidden" name="PlanningTab" value="Plan" />
                                 <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
                                 <input type="hidden" name="id" value="@task.Id" />
-                                <button type="submit" class="btn btn-link btn-sm at-card-subtle-action">Move to Backlog, Remove Assignee</button>
+                                <button type="submit" class="btn btn-link btn-sm at-card-subtle-action" data-at-confirm="This will remove the responsible person and return the work to Backlog. Continue?">Move to Backlog, Remove Assignee</button>
                             </form>
                         }
                     </article>

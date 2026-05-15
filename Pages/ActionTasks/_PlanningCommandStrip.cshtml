@@ -4,7 +4,7 @@
 <section class="at-panel at-sprint-command-strip at-planning-command-strip">
     @if (Model.SelectedSprint is null)
     {
-        @* SECTION: First-sprint empty command line preserves the existing create action. *@
+        @* SECTION: Empty command line points users back to the Plan tab where sprint creation lives. *@
         <div class="at-sprint-empty-command at-planning-empty-command">
             <div class="at-empty-state at-empty-state-compact">
                 @if (!Model.Sprints.Any())
@@ -18,28 +18,6 @@
                     <span>Select an existing sprint from Plan to open Execute.</span>
                 }
             </div>
-            @if (Model.CanPlanSprints)
-            {
-                <div class="at-sprint-action-row at-sprint-action-row-strip">
-                    <details class="at-sprint-form-disclosure" open="@Model.ShowCreateSprintPanel">
-                        <summary class="btn btn-primary btn-sm">Create Sprint</summary>
-                        <form method="post" asp-page-handler="CreateSprint" class="at-sprint-command-form">
-                            <input type="hidden" name="ViewMode" value="Planning" />
-                            <input type="hidden" name="PlanningTab" value="Plan" />
-                            <div asp-validation-summary="All" class="text-danger small"></div>
-                            <label class="form-label" asp-for="SprintInput.Name"></label>
-                            <input class="form-control" asp-for="SprintInput.Name" maxlength="160" />
-                            <label class="form-label" asp-for="SprintInput.StartDate"></label>
-                            <input class="form-control" asp-for="SprintInput.StartDate" type="date" />
-                            <label class="form-label" asp-for="SprintInput.EndDate"></label>
-                            <input class="form-control" asp-for="SprintInput.EndDate" type="date" />
-                            <label class="form-label" asp-for="SprintInput.Goal"></label>
-                            <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this sprint"></textarea>
-                            <button type="submit" class="btn btn-primary btn-sm">Create Sprint</button>
-                        </form>
-                    </details>
-                </div>
-            }
         </div>
     }
     else
@@ -64,30 +42,10 @@
             </div>
         </div>
 
-        @if (Model.CanPlanSprints || Model.CanEditSelectedSprint)
+        @if (Model.CanEditSelectedSprint || Model.CanActivateSelectedSprint || Model.CanCloseSelectedSprintDirectly || (Model.CanReviewSprintClosure && Model.SprintClosureReview.UnfinishedTasks.Any()))
         {
             @* SECTION: Lifecycle and edit actions continue to post to existing handlers. *@
             <div class="at-sprint-action-row at-sprint-action-row-strip at-planning-command-actions">
-                @if (Model.CanPlanSprints)
-                {
-                    <details class="at-sprint-form-disclosure" open="@Model.ShowCreateSprintPanel">
-                        <summary class="btn btn-primary btn-sm">Create Sprint</summary>
-                        <form method="post" asp-page-handler="CreateSprint" class="at-sprint-command-form">
-                            <input type="hidden" name="ViewMode" value="Planning" />
-                            <input type="hidden" name="PlanningTab" value="Plan" />
-                            <div asp-validation-summary="All" class="text-danger small"></div>
-                            <label class="form-label" asp-for="SprintInput.Name"></label>
-                            <input class="form-control" asp-for="SprintInput.Name" maxlength="160" />
-                            <label class="form-label" asp-for="SprintInput.StartDate"></label>
-                            <input class="form-control" asp-for="SprintInput.StartDate" type="date" />
-                            <label class="form-label" asp-for="SprintInput.EndDate"></label>
-                            <input class="form-control" asp-for="SprintInput.EndDate" type="date" />
-                            <label class="form-label" asp-for="SprintInput.Goal"></label>
-                            <textarea class="form-control" asp-for="SprintInput.Goal" rows="3" maxlength="2000" placeholder="Command focus for this sprint"></textarea>
-                            <button type="submit" class="btn btn-primary btn-sm">Create Sprint</button>
-                        </form>
-                    </details>
-                }
                 @if (Model.CanEditSelectedSprint)
                 {
                     <details class="at-sprint-form-disclosure" open="@Model.ShowEditSprintPanel">

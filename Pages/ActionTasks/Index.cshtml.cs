@@ -52,7 +52,8 @@ public class IndexModel : PageModel
         _userLookup = userLookup;
         _clock = clock;
         _users = users;
-        Input.DueDate = _clock.UtcToday.AddDays(7);
+        DirectTaskInput.DueDate = _clock.UtcToday.AddDays(7);
+        BacklogItemInput.TargetDate = _clock.UtcToday.AddDays(7);
         SprintInput = CreateSprintInput.FromSprint(_clock.UtcToday);
     }
 
@@ -168,7 +169,10 @@ public class IndexModel : PageModel
     public ActionTaskItem? SelectedTask { get; private set; }
 
     [BindProperty]
-    public CreateTaskInput Input { get; set; } = new();
+    public CreateDirectTaskInput DirectTaskInput { get; set; } = new();
+
+    [BindProperty]
+    public CreateBacklogItemInput BacklogItemInput { get; set; } = new();
     [BindProperty]
     public AddTaskUpdateInput UpdateInput { get; set; } = new();
 
@@ -418,14 +422,14 @@ public class IndexModel : PageModel
             return Forbid();
         }
 
-        if (!ValidateCreateTaskCore(requireAssignee: true))
+        if (!ValidateCreateDirectTaskInput())
         {
             ShowCreateModal = true;
             await LoadDataAsync();
             return Page();
         }
 
-        var assignedRole = await ResolveAssignableRoleForInputAsync(Input.AssignedToUserId);
+        var assignedRole = await ResolveAssignableRoleForInputAsync(DirectTaskInput.AssignedToUserId);
         if (assignedRole is null)
         {
             ShowCreateModal = true;
@@ -435,14 +439,14 @@ public class IndexModel : PageModel
 
         await _service.CreateTaskAsync(new ActionTaskItem
         {
-            Title = Input.Title.Trim(),
-            Description = Input.Description.Trim(),
+            Title = DirectTaskInput.Title.Trim(),
+            Description = DirectTaskInput.Description.Trim(),
             CreatedByUserId = CurrentUserId,
-            AssignedToUserId = Input.AssignedToUserId,
+            AssignedToUserId = DirectTaskInput.AssignedToUserId,
             CreatedByRole = CurrentRole,
             AssignedToRole = assignedRole,
-            DueDate = Input.DueDate,
-            Priority = Input.Priority
+            DueDate = DirectTaskInput.DueDate,
+            Priority = DirectTaskInput.Priority
         });
 
         TempData["ToastMessage"] = "Direct task created outside sprint.";
@@ -459,7 +463,7 @@ public class IndexModel : PageModel
             return Forbid();
         }
 
-        if (!ValidateCreateTaskCore(requireAssignee: false))
+        if (!ValidateCreateBacklogItemInput())
         {
             ShowCreateModal = true;
             await LoadDataAsync();
@@ -468,34 +472,47 @@ public class IndexModel : PageModel
 
         await _service.CreateBacklogItemAsync(new ActionTaskItem
         {
-            Title = Input.Title.Trim(),
-            Description = Input.Description.Trim(),
+            Title = BacklogItemInput.Title.Trim(),
+            Description = BacklogItemInput.Description.Trim(),
             CreatedByUserId = CurrentUserId,
             AssignedToUserId = string.Empty,
             CreatedByRole = CurrentRole,
             AssignedToRole = string.Empty,
-            DueDate = Input.DueDate,
-            Priority = Input.Priority
+            DueDate = BacklogItemInput.TargetDate,
+            Priority = BacklogItemInput.Priority
         });
 
         TempData["ToastMessage"] = "Backlog item created.";
         return RedirectToPage("/ActionTasks/Index", BuildTaskWorkspaceRouteValues(TaskId, SelectedSprintId));
     }
 
-    // SECTION: Create-task validation helpers keep backlog and direct-task flows aligned without requiring inline scripts.
-    private bool ValidateCreateTaskCore(bool requireAssignee)
+    // SECTION: Create-task validation helpers keep backlog and direct-task flows isolated without duplicate form fields.
+    private bool ValidateCreateDirectTaskInput()
     {
         ModelState.Clear();
-        TryValidateModel(Input, nameof(Input));
+        TryValidateModel(DirectTaskInput, nameof(DirectTaskInput));
 
-        if (requireAssignee && string.IsNullOrWhiteSpace(Input.AssignedToUserId))
+        if (string.IsNullOrWhiteSpace(DirectTaskInput.AssignedToUserId))
         {
-            ModelState.AddModelError(nameof(Input.AssignedToUserId), "Select a responsible person for a direct task.");
+            ModelState.AddModelError(nameof(DirectTaskInput.AssignedToUserId), "Select a responsible person for a direct task.");
         }
 
-        if (Input.DueDate.Date < _clock.UtcToday)
+        if (DirectTaskInput.DueDate.Date < _clock.UtcToday)
         {
-            ModelState.AddModelError(nameof(Input.DueDate), "Due date cannot be in the past.");
+            ModelState.AddModelError(nameof(DirectTaskInput.DueDate), "Due date cannot be in the past.");
+        }
+
+        return ModelState.IsValid;
+    }
+
+    private bool ValidateCreateBacklogItemInput()
+    {
+        ModelState.Clear();
+        TryValidateModel(BacklogItemInput, nameof(BacklogItemInput));
+
+        if (BacklogItemInput.TargetDate.Date < _clock.UtcToday)
+        {
+            ModelState.AddModelError(nameof(BacklogItemInput.TargetDate), "Target date cannot be in the past.");
         }
 
         return ModelState.IsValid;
@@ -506,7 +523,7 @@ public class IndexModel : PageModel
         var assignedRole = await ResolveAssignableRoleForUserAsync(assignedToUserId);
         if (assignedRole is null)
         {
-            ModelState.AddModelError(nameof(Input.AssignedToUserId), "Selected user cannot be assigned this task.");
+            ModelState.AddModelError(nameof(DirectTaskInput.AssignedToUserId), "Selected user cannot be assigned this task.");
         }
 
         return assignedRole;
@@ -710,7 +727,7 @@ public class IndexModel : PageModel
         try
         {
             await _service.SubmitTaskAsync(id, DecodeRowVersion(rowVersion), CurrentUserId, CurrentRole, remarks);
-            TempData["ToastMessage"] = "Task submitted.";
+            TempData["ToastMessage"] = "Task submitted for closure.";
         }
         catch (ActionTaskConcurrencyException ex)
         {
@@ -803,7 +820,7 @@ public class IndexModel : PageModel
                 return RedirectToTaskPage(id, SelectedSprintId);
             }
 
-            await _sprintService.AssignTaskToSprintAsync(id, sprintId, responsibleUserId, responsibleRole, CurrentUserId, CurrentRole);
+            await _sprintService.AssignBacklogItemToSprintAsync(id, sprintId, responsibleUserId, responsibleRole, CurrentUserId, CurrentRole);
             TempData["ToastMessage"] = "Backlog item added to sprint with a responsible person.";
         }
         catch (InvalidOperationException ex)
@@ -821,7 +838,7 @@ public class IndexModel : PageModel
 
         try
         {
-            await _sprintService.AssignExistingAssignedTaskToSprintAsync(id, sprintId, CurrentUserId, CurrentRole);
+            await _sprintService.AssignOutsideSprintTaskToSprintAsync(id, sprintId, CurrentUserId, CurrentRole);
             TempData["ToastMessage"] = "Outside Sprint task added to sprint.";
         }
         catch (InvalidOperationException ex)
@@ -1426,7 +1443,7 @@ public class IndexModel : PageModel
         Array.Empty<ActionTaskItem>(),
         Array.Empty<ActionTaskItem>());
 
-    public sealed class CreateTaskInput
+    public sealed class CreateDirectTaskInput
     {
         [Display(Name = "Task Title")]
         [Required, StringLength(200)]
@@ -1436,11 +1453,30 @@ public class IndexModel : PageModel
         [Required, StringLength(4000)]
         public string Description { get; set; } = string.Empty;
 
+        [Display(Name = "Responsible Person")]
         public string AssignedToUserId { get; set; } = string.Empty;
 
         [Display(Name = "Due Date")]
         [Required]
         public DateTime DueDate { get; set; }
+
+        [Required, StringLength(24)]
+        public string Priority { get; set; } = "Normal";
+    }
+
+    public sealed class CreateBacklogItemInput
+    {
+        [Display(Name = "Backlog Item Title")]
+        [Required, StringLength(200)]
+        public string Title { get; set; } = string.Empty;
+
+        [Display(Name = "Description / Planning Notes")]
+        [Required, StringLength(4000)]
+        public string Description { get; set; } = string.Empty;
+
+        [Display(Name = "Target Date")]
+        [Required]
+        public DateTime TargetDate { get; set; }
 
         [Required, StringLength(24)]
         public string Priority { get; set; } = "Normal";

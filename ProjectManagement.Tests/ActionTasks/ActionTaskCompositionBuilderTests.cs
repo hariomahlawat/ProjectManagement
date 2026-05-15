@@ -81,12 +81,12 @@ public class ActionTaskCompositionBuilderTests
 
         // SECTION: Assert
         Assert.Equal("Planning", state.ViewMode);
-        Assert.Equal("Views", state.PlanningTab);
+        Assert.Equal("Execute", state.PlanningTab);
         Assert.Equal("Kanban", state.PlanningView);
         Assert.Equal("Execute", state.DefaultPlanningTab);
         Assert.False(state.ShouldPreserveTaskFilters);
         Assert.Equal("Planning", routeValues[nameof(ActionTaskRouteState.ViewMode)]);
-        Assert.Equal("Views", routeValues[nameof(ActionTaskRouteState.PlanningTab)]);
+        Assert.False(routeValues.ContainsKey(nameof(ActionTaskRouteState.PlanningTab)));
         Assert.Equal("Kanban", routeValues[nameof(ActionTaskRouteState.PlanningView)]);
         Assert.False(routeValues.ContainsKey(nameof(ActionTaskRouteState.FilterStatus)));
     }

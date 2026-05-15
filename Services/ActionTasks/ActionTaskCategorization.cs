@@ -30,26 +30,27 @@ public static class ActionTaskBucketClassifier
             return ActionTaskBucket.Closed;
         }
 
-        if (IsSprintTask(task))
+        if (IsSprintTask(task) || task.SprintId.HasValue)
         {
             return ActionTaskBucket.Sprint;
         }
 
-        return HasAssignedUser(task)
+        return HasAssignedUser(task) && HasAssignedRole(task)
             ? ActionTaskBucket.OutsideSprint
             : ActionTaskBucket.Backlog;
     }
 
     public static bool IsSprintTask(ActionTaskItem task)
-        => task.SprintId.HasValue && HasAssignedUser(task) && IsSprintStatus(task.Status);
+        => task.SprintId.HasValue && HasAssignedUser(task) && HasAssignedRole(task) && IsSprintStatus(task.Status);
 
     public static bool IsBacklogTask(ActionTaskItem task)
         => task.SprintId is null
            && !HasAssignedUser(task)
+           && !HasAssignedRole(task)
            && string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase);
 
     public static bool IsOutsideSprintTask(ActionTaskItem task)
-        => task.SprintId is null && HasAssignedUser(task) && IsAssignedWorkStatus(task.Status);
+        => task.SprintId is null && HasAssignedUser(task) && HasAssignedRole(task) && IsAssignedWorkStatus(task.Status);
 
     public static bool IsAssignedNonSprintTask(ActionTaskItem task)
         => IsOutsideSprintTask(task);
@@ -62,6 +63,9 @@ public static class ActionTaskBucketClassifier
 
     public static bool HasAssignedUser(ActionTaskItem task)
         => !string.IsNullOrWhiteSpace(task.AssignedToUserId);
+
+    public static bool HasAssignedRole(ActionTaskItem task)
+        => !string.IsNullOrWhiteSpace(task.AssignedToRole);
 
     // SECTION: Official Agile Backlog execution statuses for assigned work buckets.
     private static bool IsSprintStatus(string status)
@@ -110,4 +114,7 @@ public static class ActionTaskCategorization
 
     public static bool HasAssignedUser(ActionTaskItem task)
         => ActionTaskBucketClassifier.HasAssignedUser(task);
+
+    public static bool HasAssignedRole(ActionTaskItem task)
+        => ActionTaskBucketClassifier.HasAssignedRole(task);
 }

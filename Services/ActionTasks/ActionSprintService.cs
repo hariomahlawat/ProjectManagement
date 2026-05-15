@@ -275,13 +275,7 @@ public class ActionSprintService
     }
 
     // SECTION: Sprint task assignment APIs
-    public async Task<ActionTaskItem> AssignTaskToSprintAsync(int taskId, int sprintId, string userId, string role, CancellationToken cancellationToken = default)
-    {
-        var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
-        return await AssignTaskToSprintAsync(taskId, sprintId, task.AssignedToUserId, task.AssignedToRole, userId, role, cancellationToken);
-    }
-
-    public async Task<ActionTaskItem> AssignTaskToSprintAsync(int taskId, int sprintId, string responsibleUserId, string responsibleRole, string userId, string role, CancellationToken cancellationToken = default)
+    public async Task<ActionTaskItem> AssignBacklogItemToSprintAsync(int taskId, int sprintId, string responsibleUserId, string responsibleRole, string userId, string role, CancellationToken cancellationToken = default)
     {
         EnsureCanAssignTaskToSprint(role);
 
@@ -315,7 +309,7 @@ public class ActionSprintService
         return task;
     }
 
-    public async Task<ActionTaskItem> AssignExistingAssignedTaskToSprintAsync(int taskId, int sprintId, string userId, string role, CancellationToken cancellationToken = default)
+    public async Task<ActionTaskItem> AssignOutsideSprintTaskToSprintAsync(int taskId, int sprintId, string userId, string role, CancellationToken cancellationToken = default)
     {
         // SECTION: Outside Sprint movement reuses the existing responsible person and only selects a target sprint.
         EnsureCanAssignTaskToSprint(role);

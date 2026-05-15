@@ -36,7 +36,7 @@ else
                         <span class="@pageModel.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
                     </div>
                     <div class="at-card-meta">AT-@task.Id · @item.AssigneeName</div>
-                    <div class="at-card-due">Due @task.DueDate.ToString("dd MMM yyyy")</div>
+                    <div class="at-card-due">@(pageModel.IsBacklogTask(task) ? "Target" : "Due") @task.DueDate.ToString("dd MMM yyyy")</div>
                     <div class="mt-1"><span class="@pageModel.GetSprintBadgeClass(task)">@pageModel.GetSprintBadgeText(task)</span></div>
                     @if (!hideStatusBadge)
                     {

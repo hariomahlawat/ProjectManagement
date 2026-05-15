@@ -79,15 +79,15 @@ public sealed class ActionTaskRouteStateHelper
                 _ when IsAlias(normalized, "Execution") => "Execute",
                 _ when IsAlias(normalized, "Close") => "Close",
                 _ when IsAlias(normalized, "Closure") => "Close",
-                _ when IsAlias(normalized, "Views") => "Views",
-                _ when IsAlias(normalized, "View") => "Views",
+                _ when IsAlias(normalized, "Views") => "Execute",
+                _ when IsAlias(normalized, "View") => "Execute",
                 _ => defaultPlanningTab
             };
         }
 
         return string.Equals(resolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase)
             ? defaultPlanningTab
-            : "Views";
+            : "Execute";
     }
 
 

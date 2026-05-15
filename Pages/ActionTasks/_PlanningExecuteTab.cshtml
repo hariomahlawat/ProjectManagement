@@ -84,6 +84,20 @@
             </div>
         </details>
 
+
+
+        @* SECTION: Due / Exceptions and Kanban are secondary Execute views, collapsed to keep the main board primary. *@
+        <details class="at-panel at-execute-secondary-views">
+            <summary>Due / Exceptions and Kanban</summary>
+            <div class="at-execute-secondary-view-stack mt-3">
+                <partial name="_PlanningDueExceptionsView" model="Model" />
+                <details class="at-execute-kanban-view mt-3">
+                    <summary>Kanban</summary>
+                    <partial name="_TaskKanban" model="Model" />
+                </details>
+            </div>
+        </details>
+
         <section class="at-sprint-board-stack at-execute-status-board" aria-label="Selected Sprint Board task board">
             <div class="at-execute-status-grid">
                 @foreach (var status in activeStatuses)
