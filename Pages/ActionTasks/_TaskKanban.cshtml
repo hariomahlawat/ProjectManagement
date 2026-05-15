@@ -49,7 +49,7 @@
                                    asp-page="/ActionTasks/Index"
                                    asp-route-taskId="@task.Id"
                                    asp-route-viewMode="Planning"
-                                   asp-route-PlanningTab="Views"
+                                   asp-route-PlanningTab="Execute"
                                    asp-route-PlanningView="Kanban"
                                    asp-route-SelectedSprintId="@Model.SelectedSprintId"
                                    aria-label="Open task AT-@task.Id details">
@@ -58,7 +58,7 @@
                                         <span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
                                     </div>
                                     <div class="at-card-meta">AT-@task.Id · @item.AssigneeName</div>
-                                    <div class="at-card-due">Due @task.DueDate.ToString("dd MMM yyyy")</div>
+                                    <div class="at-card-due">@(Model.IsBacklogTask(task) ? "Target" : "Due") @task.DueDate.ToString("dd MMM yyyy")</div>
                                     <div class="mt-1"><span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span></div>
                                 </a>
                             </article>

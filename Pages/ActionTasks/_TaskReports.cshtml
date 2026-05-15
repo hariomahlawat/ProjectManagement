@@ -36,11 +36,11 @@
                     <option value="">All Sprint, Backlog &amp; Outside Sprint work</option>
                     @if (Model.ReportSprintId == 0)
                     {
-                        <option value="0" selected>True backlog only</option>
+                        <option value="0" selected>Backlog items only</option>
                     }
                     else
                     {
-                        <option value="0">True backlog only</option>
+                        <option value="0">Backlog items only</option>
                     }
                     @foreach (var sprint in Model.Sprints)
                     {
@@ -252,7 +252,7 @@
         <div class="at-panel-heading">
             <div>
                 <h2>Backlog Ageing Summary</h2>
-                <p class="at-panel-note">Highlights true backlog only: open, not in a Sprint, and not assigned to a user.</p>
+                <p class="at-panel-note">Highlights backlog items only: open, not in a Sprint, and not assigned to a user.</p>
             </div>
         </div>
         <div class="at-metric-bars">

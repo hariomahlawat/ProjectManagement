@@ -144,7 +144,7 @@ public class ActionTaskService : IActionTaskService
 
     public async Task<ActionTaskItem> CreateBacklogItemAsync(ActionTaskItem task, CancellationToken cancellationToken = default)
     {
-        // SECTION: Backlog creation enforces true backlog state rather than generic assigned-task defaults.
+        // SECTION: Backlog creation enforces backlog items state rather than generic assigned-task defaults.
         task.AssignedOn = DateTime.UtcNow;
         task.Status = ActionTaskStatuses.Backlog;
         task.SprintId = null;

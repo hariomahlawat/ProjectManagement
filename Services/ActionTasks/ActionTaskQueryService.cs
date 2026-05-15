@@ -77,7 +77,7 @@ public sealed class ActionTaskQueryService
             : backlogTasks.OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
     }
 
-    // SECTION: Outside Sprint projection keeps assigned non-sprint work separate from true backlog.
+    // SECTION: Outside Sprint projection keeps assigned outside sprint work separate from backlog items.
     private static IReadOnlyList<ActionTaskItem> BuildOutsideSprintTasks(IReadOnlyList<ActionTaskItem> tasks)
         => tasks.Where(ActionTaskCategorization.IsOutsideSprintTask).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
 

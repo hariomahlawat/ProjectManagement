@@ -39,7 +39,7 @@
                 <input type="hidden" name="PlanningTab" value="Execute" />
                 <input type="hidden" name="SelectedSprintId" value="@pageModel.SelectedSprintId" />
                 <input type="hidden" name="id" value="@task.Id" />
-                <button type="submit" class="btn btn-link btn-sm at-card-subtle-action">Move to Backlog, Remove Assignee</button>
+                <button type="submit" class="btn btn-link btn-sm at-card-subtle-action" data-at-confirm="This will remove the responsible person and return the work to Backlog. Continue?">Move to Backlog, Remove Assignee</button>
             </form>
         </div>
     }

@@ -11,7 +11,7 @@ namespace ProjectManagement.Migrations
     [Migration("20261125200000_NormalizeActionTaskBacklogRows")]
     public partial class NormalizeActionTaskBacklogRows : Migration
     {
-        // SECTION: Normalize legacy unassigned open no-sprint rows into true backlog records
+        // SECTION: Normalize legacy unassigned open no-sprint rows into backlog item records
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             if (ActiveProvider.Contains("Npgsql", StringComparison.OrdinalIgnoreCase)
@@ -21,6 +21,7 @@ namespace ProjectManagement.Migrations
                     """
                     UPDATE "ActionTasks"
                     SET "Status" = 'Backlog',
+                        "AssignedToRole" = '',
                         "SubmittedOn" = NULL,
                         "ClosedOn" = NULL
                     WHERE "IsDeleted" = FALSE
@@ -29,16 +30,19 @@ namespace ProjectManagement.Migrations
                       AND "Status" <> 'Closed';
                     """);
 
-                // SECTION: Defensive check for invalid sprint rows retained for manual business correction
-                // Rows returned by this query have a SprintId but no assignee. Do not auto-fix them here because
-                // the correct responsible person needs a business decision before the sprint bucket can be trusted.
+                // SECTION: Invalid sprint rows with no assignee cannot remain normal sprint work; return them to Backlog explicitly.
                 migrationBuilder.Sql(
                     """
-                    SELECT *
-                    FROM "ActionTasks"
+                    UPDATE "ActionTasks"
+                    SET "Status" = 'Backlog',
+                        "SprintId" = NULL,
+                        "AssignedToRole" = '',
+                        "SubmittedOn" = NULL,
+                        "ClosedOn" = NULL
                     WHERE "IsDeleted" = FALSE
                       AND "SprintId" IS NOT NULL
-                      AND ("AssignedToUserId" IS NULL OR "AssignedToUserId" = '');
+                      AND ("AssignedToUserId" IS NULL OR "AssignedToUserId" = '')
+                      AND "Status" <> 'Closed';
                     """);
             }
             else if (ActiveProvider.Contains("SqlServer", StringComparison.OrdinalIgnoreCase))
@@ -47,6 +51,7 @@ namespace ProjectManagement.Migrations
                     """
                     UPDATE [ActionTasks]
                     SET [Status] = N'Backlog',
+                        [AssignedToRole] = N'',
                         [SubmittedOn] = NULL,
                         [ClosedOn] = NULL
                     WHERE [IsDeleted] = CAST(0 AS bit)
@@ -55,16 +60,19 @@ namespace ProjectManagement.Migrations
                       AND [Status] <> N'Closed';
                     """);
 
-                // SECTION: Defensive check for invalid sprint rows retained for manual business correction
-                // Rows returned by this query have a SprintId but no assignee. Do not auto-fix them here because
-                // the correct responsible person needs a business decision before the sprint bucket can be trusted.
+                // SECTION: Invalid sprint rows with no assignee cannot remain normal sprint work; return them to Backlog explicitly.
                 migrationBuilder.Sql(
                     """
-                    SELECT *
-                    FROM [ActionTasks]
+                    UPDATE [ActionTasks]
+                    SET [Status] = N'Backlog',
+                        [SprintId] = NULL,
+                        [AssignedToRole] = N'',
+                        [SubmittedOn] = NULL,
+                        [ClosedOn] = NULL
                     WHERE [IsDeleted] = CAST(0 AS bit)
                       AND [SprintId] IS NOT NULL
-                      AND ([AssignedToUserId] IS NULL OR [AssignedToUserId] = N'');
+                      AND ([AssignedToUserId] IS NULL OR [AssignedToUserId] = N'')
+                      AND [Status] <> N'Closed';
                     """);
             }
         }

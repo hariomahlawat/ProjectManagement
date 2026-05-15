@@ -220,9 +220,9 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("name=\"PlanningTab\" value=\"Views\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"PlanningTab\" value=\"Execute\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"PlanningView\" value=\"Kanban\"", html, StringComparison.Ordinal);
-        Assert.Contains("PlanningTab=Views", html, StringComparison.Ordinal);
+        Assert.Contains("PlanningTab=Execute", html, StringComparison.Ordinal);
         Assert.Contains("PlanningView=Kanban", html, StringComparison.Ordinal);
     }
 
@@ -275,7 +275,7 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task PlanningDueExceptionsTaskCards_PreserveViewsRouteState()
+    public async Task PlanningDueExceptionsTaskCards_PreserveExecuteRouteState()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
@@ -286,7 +286,7 @@ public class ActionTaskPageTests
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
         page.ViewMode = "Planning";
-        page.PlanningTab = "Views";
+        page.PlanningTab = "Execute";
         page.PlanningView = "DueExceptions";
         page.SelectedSprintId = sprint.Id;
         await page.OnGetAsync();
@@ -295,7 +295,7 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_PlanningDueExceptionsView.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("PlanningTab=Views", html, StringComparison.Ordinal);
+        Assert.Contains("PlanningTab=Execute", html, StringComparison.Ordinal);
         Assert.Contains("PlanningView=DueExceptions", html, StringComparison.Ordinal);
         Assert.Contains($"SelectedSprintId={sprint.Id}", html, StringComparison.Ordinal);
     }
@@ -386,8 +386,8 @@ public class ActionTaskPageTests
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
         var page = setup.Page;
-        page.Input = new IndexModel.CreateTaskInput();
-        page.ModelState.AddModelError("Input.Title", "required");
+        page.DirectTaskInput = new IndexModel.CreateDirectTaskInput();
+        page.ModelState.AddModelError("DirectTaskInput.Title", "required");
 
         // SECTION: Act
         var result = await page.OnPostCreateAsync();
@@ -404,7 +404,7 @@ public class ActionTaskPageTests
         var setup = await CreateSetupAsync();
         var page = setup.Page;
         var existingTaskCount = await setup.Db.ActionTasks.CountAsync();
-        page.Input = new IndexModel.CreateTaskInput
+        page.DirectTaskInput = new IndexModel.CreateDirectTaskInput
         {
             Title = "Late task",
             Description = "Should be rejected",
@@ -421,7 +421,7 @@ public class ActionTaskPageTests
         Assert.True(page.ShowCreateModal);
         Assert.False(page.ModelState.IsValid);
         Assert.Equal(existingTaskCount, await setup.Db.ActionTasks.CountAsync());
-        Assert.Contains(page.ModelState[nameof(IndexModel.CreateTaskInput.DueDate)]!.Errors, e => e.ErrorMessage == "Due date cannot be in the past.");
+        Assert.Contains(page.ModelState[nameof(IndexModel.CreateDirectTaskInput.DueDate)]!.Errors, e => e.ErrorMessage == "Due date cannot be in the past.");
     }
 
 
@@ -433,8 +433,9 @@ public class ActionTaskPageTests
         var sprint = AddSprint(setup.Db, "Active Sprint", ActionSprintStatus.Active);
         await setup.Db.SaveChangesAsync();
         setup.Db.ActionTasks.Add(NewTask("Sprint task", ActionTaskStatuses.Assigned, sprint.Id));
-        var trueBacklog = NewTask("True backlog", ActionTaskStatuses.Backlog);
+        var trueBacklog = NewTask("Backlog item", ActionTaskStatuses.Backlog);
         trueBacklog.AssignedToUserId = string.Empty;
+        trueBacklog.AssignedToRole = string.Empty;
         setup.Db.ActionTasks.Add(trueBacklog);
         setup.Db.ActionTasks.Add(NewTask("Closed backlog", ActionTaskStatuses.Closed));
         await setup.Db.SaveChangesAsync();
@@ -448,7 +449,7 @@ public class ActionTaskPageTests
         Assert.NotEmpty(page.BacklogTasks);
         Assert.All(page.BacklogTasks, task => Assert.Null(task.SprintId));
         Assert.All(page.BacklogTasks, task => Assert.True(string.IsNullOrWhiteSpace(task.AssignedToUserId)));
-        Assert.Contains(page.BacklogTasks, task => task.Title == "True backlog");
+        Assert.Contains(page.BacklogTasks, task => task.Title == "Backlog item");
         Assert.DoesNotContain(page.BacklogTasks, task => task.Title == "Mine");
         Assert.DoesNotContain(page.BacklogTasks, task => task.Title == "Closed backlog");
         Assert.DoesNotContain(page.BacklogTasks, task => task.Title == "Sprint task");
@@ -463,6 +464,7 @@ public class ActionTaskPageTests
         var sprintTask = NewTask("Sprint scoped", ActionTaskStatuses.Assigned, sprint.Id);
         var backlogTask = NewTask("Backlog scoped", ActionTaskStatuses.Backlog);
         backlogTask.AssignedToUserId = string.Empty;
+        backlogTask.AssignedToRole = string.Empty;
         var nonSprintTask = NewTask("Non sprint scoped", ActionTaskStatuses.Assigned);
         var closedTask = NewTask("Closed scoped", ActionTaskStatuses.Closed);
         setup.Db.ActionTasks.AddRange(sprintTask, backlogTask, nonSprintTask, closedTask);
