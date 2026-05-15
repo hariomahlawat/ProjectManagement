@@ -5,6 +5,7 @@ namespace ProjectManagement.Models;
 
 public static class ActionTaskStatuses
 {
+    public const string Backlog = "Backlog";
     public const string Assigned = "Assigned";
     public const string InProgress = "In Progress";
     public const string Submitted = "Submitted";
@@ -13,6 +14,7 @@ public static class ActionTaskStatuses
 
     public static readonly string[] All =
     {
+        Backlog,
         Assigned,
         InProgress,
         Submitted,

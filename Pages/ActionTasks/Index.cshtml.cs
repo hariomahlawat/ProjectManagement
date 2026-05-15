@@ -123,6 +123,9 @@ public class IndexModel : PageModel
     public string? FilterStatus { get; set; }
 
     [BindProperty(SupportsGet = true)]
+    public string? FilterBucket { get; set; }
+
+    [BindProperty(SupportsGet = true)]
     public string? FilterPriority { get; set; }
 
     [BindProperty(SupportsGet = true)]
@@ -224,6 +227,7 @@ public class IndexModel : PageModel
 
     public IReadOnlyList<string> AssignmentRoles => ActionTaskRoleResolver.AllowedAssignmentRoles();
     public IReadOnlyList<string> AllowedStatusOptions => _workflowPolicy.AllowedStatusOptions;
+    public IReadOnlyList<string> RegisterStatusOptions => _workflowPolicy.AllowedStatusOptions.Concat(new[] { ActionTaskStatuses.Submitted, ActionTaskStatuses.Closed, ActionTaskStatuses.Backlog }).ToList();
     public IReadOnlyList<string> PriorityOptions => _workflowPolicy.PriorityOptions;
     public bool CanPlanSprints => _permission.CanManageSprints(CurrentRole);
     public IReadOnlyList<ActionSprint> AssignableSprints => Sprints.Where(s => s.Status != ActionSprintStatus.Closed).ToList();
@@ -237,10 +241,28 @@ public class IndexModel : PageModel
     public bool CanAssignTaskToSprint(ActionTaskItem task)
     {
         return _permission.CanAssignTaskToSprint(CurrentRole)
+               && string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
                && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
                && AssignableSprints.Any();
     }
 
+
+    public bool CanAddOutsideSprintTaskToSprint(ActionTaskItem task)
+    {
+        return _permission.CanAssignTaskToSprint(CurrentRole)
+               && ActionTaskCategorization.IsOutsideSprintTask(task)
+               && AssignableSprints.Any();
+    }
+
+    public string DisplayBucketFilter(string bucket)
+        => bucket switch
+        {
+            "Backlog" => "Backlog",
+            "OutsideSprint" => "Outside Sprint",
+            "Sprint" => "Sprint",
+            "Closed" => "Closed",
+            _ => bucket
+        };
     public bool CanMoveTaskToBacklog(ActionTaskItem task)
     {
         if (!_permission.CanMoveTaskToBacklog(CurrentRole)
@@ -443,7 +465,7 @@ public class IndexModel : PageModel
             return Page();
         }
 
-        await _service.CreateTaskAsync(new ActionTaskItem
+        await _service.CreateBacklogItemAsync(new ActionTaskItem
         {
             Title = Input.Title.Trim(),
             Description = Input.Description.Trim(),
@@ -791,6 +813,24 @@ public class IndexModel : PageModel
         return RedirectToTaskPage(id, sprintId);
     }
 
+    // SECTION: Add Outside Sprint work to a sprint while retaining its responsible person.
+    public async Task<IActionResult> OnPostAddOutsideSprintTaskToSprintAsync(int id, int sprintId)
+    {
+        await ResolveIdentityAsync();
+
+        try
+        {
+            await _sprintService.AssignExistingAssignedTaskToSprintAsync(id, sprintId, CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Outside Sprint task added to sprint.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
+        return RedirectToTaskPage(id, sprintId);
+    }
+
     // SECTION: Remove a sprint task from sprint scope while preserving the responsible person.
     public async Task<IActionResult> OnPostRemoveFromSprintKeepAssignedAsync(int id)
     {
@@ -987,6 +1027,7 @@ public class IndexModel : PageModel
             FilterSearch,
             SortBy,
             SortDir,
+            FilterBucket,
             ReportSprintId,
             ReportAssigneeUserId,
             ReportFromDate,
@@ -1201,6 +1242,7 @@ public class IndexModel : PageModel
     public bool HasActiveFilters =>
         (IsTaskListView || IsBacklogView) &&
         (!string.IsNullOrWhiteSpace(FilterStatus)
+            || !string.IsNullOrWhiteSpace(FilterBucket)
          || !string.IsNullOrWhiteSpace(FilterPriority)
          || !string.IsNullOrWhiteSpace(FilterAssigneeUserId)
          || FilterDueDate.HasValue
@@ -1350,7 +1392,7 @@ public class IndexModel : PageModel
             BuildFilterRouteState()));
 
     private ActionTaskFilterRouteState BuildFilterRouteState()
-        => new(FilterStatus, FilterPriority, FilterAssigneeUserId, FilterDueDate, FilterSearch, SortBy, SortDir);
+        => new(FilterStatus, FilterPriority, FilterAssigneeUserId, FilterDueDate, FilterSearch, SortBy, SortDir, FilterBucket);
 
     private ActionTaskReportFilterRouteState BuildReportFilterRouteState()
         => new(ReportSprintId, ReportAssigneeUserId, ReportFromDate, ReportToDate, ReportStatus, ReportPriority);

@@ -117,6 +117,35 @@ public class ActionTaskQueryServiceSprintMetricsTests
         Assert.All(model.Reports.CarryForwardBySprint, item => Assert.Equal(0, item.Count));
     }
 
+
+    [Fact]
+    public void BuildReadModel_RegisterBucketFilter_ReturnsMatchingBuckets()
+    {
+        // SECTION: Arrange
+        var today = DateTime.UtcNow.Date;
+        var sprint = new ActionSprint { Id = 41, Name = "Sprint", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
+        var tasks = new[]
+        {
+            NewTask(31, null, ActionTaskStatuses.Backlog, today.AddDays(2), assignedToUserId: string.Empty),
+            NewTask(32, null, ActionTaskStatuses.Assigned, today.AddDays(2), assignedToUserId: "assignee"),
+            NewTask(33, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), assignedToUserId: "assignee"),
+            NewTask(34, null, ActionTaskStatuses.Closed, today.AddDays(2), assignedToUserId: "assignee")
+        };
+        var service = CreateQueryService();
+
+        // SECTION: Act
+        var backlog = BuildWithBucket(service, tasks, sprint, "Backlog");
+        var outside = BuildWithBucket(service, tasks, sprint, "OutsideSprint");
+        var sprintItems = BuildWithBucket(service, tasks, sprint, "Sprint");
+        var closed = BuildWithBucket(service, tasks, sprint, "Closed");
+
+        // SECTION: Assert
+        Assert.Equal(new[] { 31 }, backlog.TaskListTasks.Select(t => t.Id));
+        Assert.Equal(new[] { 32 }, outside.TaskListTasks.Select(t => t.Id));
+        Assert.Equal(new[] { 33 }, sprintItems.TaskListTasks.Select(t => t.Id));
+        Assert.Equal(new[] { 34 }, closed.TaskListTasks.Select(t => t.Id));
+    }
+
     // SECTION: Test query service helper
     private static ActionTaskQueryService CreateQueryService()
     {
@@ -124,6 +153,13 @@ public class ActionTaskQueryServiceSprintMetricsTests
         return new ActionTaskQueryService(clock, new ActionTaskReportBuilder(clock));
     }
 
+
+    private static ActionTaskQueryService.ActionTaskReadModel BuildWithBucket(ActionTaskQueryService service, IReadOnlyList<ActionTaskItem> tasks, ActionSprint sprint, string bucket)
+        => service.BuildReadModel(
+            tasks,
+            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, true, false, sprint.Id, new[] { sprint }, null, null, null, null, null, null, null, FilterBucket: bucket),
+            new Dictionary<string, string> { ["assignee"] = "Assignee" },
+            new Dictionary<int, DateTime?>());
     // SECTION: Test data helper
     private static ActionTaskItem NewTask(int id, int? sprintId, string status, DateTime dueDate, string priority = "Normal", string assignedToUserId = "assignee", DateTime? assignedOn = null)
         => new()
@@ -134,7 +170,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
             CreatedByUserId = "creator",
             AssignedToUserId = assignedToUserId,
             CreatedByRole = "HoD",
-            AssignedToRole = "TA",
+            AssignedToRole = string.IsNullOrWhiteSpace(assignedToUserId) ? string.Empty : "TA",
             AssignedOn = assignedOn ?? dueDate.AddDays(-2),
             DueDate = dueDate,
             Priority = priority,

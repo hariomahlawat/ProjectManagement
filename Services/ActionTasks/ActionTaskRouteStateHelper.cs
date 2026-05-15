@@ -122,12 +122,14 @@ public sealed class ActionTaskRouteStateHelper
             request.FilterState.FilterDueDate,
             request.FilterState.FilterSearch,
             request.FilterState.SortBy,
-            request.FilterState.SortDir);
+            request.FilterState.SortDir,
+            request.FilterState.FilterBucket);
     }
 
     // SECTION: Shared filter-state detection covers GET bookmarks and postback route preservation.
     public bool HasTaskFilterRouteState(ActionTaskFilterRouteState state)
         => !string.IsNullOrWhiteSpace(state.FilterStatus)
+            || !string.IsNullOrWhiteSpace(state.FilterBucket)
             || !string.IsNullOrWhiteSpace(state.FilterPriority)
             || !string.IsNullOrWhiteSpace(state.FilterAssigneeUserId)
             || state.FilterDueDate.HasValue
@@ -186,6 +188,7 @@ public sealed class ActionTaskRouteStateHelper
     private static void AddTaskFilterRouteValues(RouteValueDictionary routeValues, ActionTaskRouteState state)
     {
         AddRouteValueIfPresent(routeValues, nameof(ActionTaskRouteState.FilterStatus), state.FilterStatus);
+        AddRouteValueIfPresent(routeValues, nameof(ActionTaskRouteState.FilterBucket), state.FilterBucket);
         AddRouteValueIfPresent(routeValues, nameof(ActionTaskRouteState.FilterPriority), state.FilterPriority);
         AddRouteValueIfPresent(routeValues, nameof(ActionTaskRouteState.FilterAssigneeUserId), state.FilterAssigneeUserId);
         if (state.FilterDueDate.HasValue)
@@ -237,7 +240,8 @@ public sealed record ActionTaskRouteState(
     DateTime? FilterDueDate,
     string? FilterSearch,
     string? SortBy,
-    string? SortDir);
+    string? SortDir,
+    string? FilterBucket = null);
 
 public sealed record ActionTaskFilterRouteState(
     string? FilterStatus,
@@ -246,7 +250,8 @@ public sealed record ActionTaskFilterRouteState(
     DateTime? FilterDueDate,
     string? FilterSearch,
     string? SortBy,
-    string? SortDir);
+    string? SortDir,
+    string? FilterBucket = null);
 
 public sealed record ActionTaskReportFilterRouteState(
     int? ReportSprintId,
