@@ -236,14 +236,14 @@
     </section>
 
     @* SECTION: Outside Sprint list makes assigned non-sprint work explicit and separate from true backlog. *@
-    <section class="at-panel at-planning-outside-sprint at-planning-plan-card">
-        <div class="at-panel-heading">
+    <details class="at-panel at-planning-outside-sprint at-planning-plan-card">
+        <summary class="at-panel-heading">
             <div>
-                <h2>Outside Sprint</h2>
-                <p class="at-panel-note">Assigned work that is not committed to any sprint. Move it to backlog only when the assignee should be removed.</p>
+                <h2>Assigned Tasks Outside Sprint</h2>
+                <p class="at-panel-note">Tasks already assigned to a responsible person but not included in any sprint.</p>
             </div>
             <span class="at-count-chip">@Model.OutsideSprintTaskDisplays.Count</span>
-        </div>
+        </summary>
 
         @if (!Model.OutsideSprintTaskDisplays.Any())
         {
@@ -270,6 +270,24 @@
                             <span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span>
                             <span class="at-cell-primary">Due @task.DueDate.ToString("dd MMM yyyy")</span>
                         </div>
+                        @if (Model.CanPlanSprints && Model.CanAddOutsideSprintTaskToSprint(task))
+                        {
+                            <form method="post" asp-page-handler="AddOutsideSprintTaskToSprint" class="at-inline-sprint-form at-planning-backlog-assign-form">
+                                <input type="hidden" name="ViewMode" value="Planning" />
+                                <input type="hidden" name="PlanningTab" value="Execute" />
+                                <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                <input type="hidden" name="id" value="@task.Id" />
+                                <select class="form-select form-select-sm" name="sprintId" aria-label="Select Sprint for AT-@task.Id" required>
+                                    <option value="">Select Sprint</option>
+                                    @foreach (var sprint in Model.AssignableSprints)
+                                    {
+                                        <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>
+                                    }
+                                </select>
+                                <button type="submit" class="btn btn-primary btn-sm">Add to Sprint</button>
+                            </form>
+                        }
+
                         @if (Model.CanPlanSprints && Model.CanMoveTaskToBacklog(task))
                         {
                             <form method="post" asp-page-handler="MoveToBacklogRemoveAssignee" class="at-card-action-form">
@@ -284,6 +302,6 @@
                 }
             </div>
         }
-    </section>
+    </details>
 
 </section>

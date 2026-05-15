@@ -221,6 +221,7 @@ public sealed class ActionTaskQueryService
     {
         var query = tasks.AsEnumerable();
         if (!string.IsNullOrWhiteSpace(request.FilterStatus)) query = query.Where(t => string.Equals(t.Status, request.FilterStatus, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(request.FilterBucket)) query = query.Where(t => MatchesBucketFilter(t, request.FilterBucket));
         if (!string.IsNullOrWhiteSpace(request.FilterPriority)) query = query.Where(t => string.Equals(t.Priority, request.FilterPriority, StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrWhiteSpace(request.FilterAssigneeUserId)) query = query.Where(t => string.Equals(t.AssignedToUserId, request.FilterAssigneeUserId, StringComparison.Ordinal));
         if (request.FilterDueDate.HasValue) { var d = request.FilterDueDate.Value.Date; query = query.Where(t => t.DueDate.Date == d); }
@@ -243,9 +244,21 @@ public sealed class ActionTaskQueryService
         return ordered.ThenBy(t => t.Id);
     }
 
+    // SECTION: Register bucket filtering maps user-facing buckets to central task classification.
+    private static bool MatchesBucketFilter(ActionTaskItem task, string filterBucket)
+        => filterBucket.Trim() switch
+        {
+            "Backlog" => ActionTaskBucketClassifier.ResolveBucket(task) == ActionTaskBucket.Backlog,
+            "OutsideSprint" => ActionTaskBucketClassifier.ResolveBucket(task) == ActionTaskBucket.OutsideSprint,
+            "Sprint" => ActionTaskBucketClassifier.ResolveBucket(task) == ActionTaskBucket.Sprint,
+            "Closed" => ActionTaskBucketClassifier.ResolveBucket(task) == ActionTaskBucket.Closed,
+            _ => true
+        };
+
     // SECTION: Shared operational status ordering for boards and filtered lists.
     private static int StatusOrder(ActionTaskItem task) => task.Status switch
     {
+        ActionTaskStatuses.Backlog => 0,
         ActionTaskStatuses.Assigned => 1,
         ActionTaskStatuses.InProgress => 2,
         ActionTaskStatuses.Blocked => 3,
@@ -273,7 +286,8 @@ public sealed class ActionTaskQueryService
         DateTime? ReportFromDate = null,
         DateTime? ReportToDate = null,
         string? ReportStatus = null,
-        string? ReportPriority = null);
+        string? ReportPriority = null,
+        string? FilterBucket = null);
 
     public sealed class ActionTaskReadModel
     {

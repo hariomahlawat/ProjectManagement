@@ -18,8 +18,7 @@ public sealed class ActionTaskWorkflowPolicy
     {
         ActionTaskStatuses.Assigned,
         ActionTaskStatuses.InProgress,
-        ActionTaskStatuses.Blocked,
-        ActionTaskStatuses.Submitted
+        ActionTaskStatuses.Blocked
     };
 
     public IReadOnlyList<string> PriorityOptions => new[]
@@ -33,7 +32,8 @@ public sealed class ActionTaskWorkflowPolicy
     // SECTION: Action availability guards.
     public bool CanSubmitTask(ActionTaskItem task, string currentUserId)
     {
-        return !string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
+        return !string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
             && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
             && string.Equals(task.AssignedToUserId, currentUserId, StringComparison.Ordinal);
     }
@@ -41,12 +41,14 @@ public sealed class ActionTaskWorkflowPolicy
     public bool CanCloseTask(ActionTaskItem task, string currentRole)
     {
         return _permission.CanClose(currentRole)
+            && !string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
             && string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
     }
 
     public bool CanUpdateTaskStatus(ActionTaskItem task, string currentRole, string currentUserId)
     {
-        return !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+        return !string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
             && (_permission.CanViewAll(currentRole) || string.Equals(task.AssignedToUserId, currentUserId, StringComparison.Ordinal));
     }
 
@@ -74,6 +76,7 @@ public sealed class ActionTaskWorkflowPolicy
     // SECTION: UI style mapping helpers.
     public string GetStatusBadgeClass(string status)
     {
+        if (string.Equals(status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)) return "at-badge at-badge-status-backlog";
         if (string.Equals(status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase)) return "at-badge at-badge-status-progress";
         if (string.Equals(status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)) return "at-badge at-badge-status-blocked";
         if (string.Equals(status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)) return "at-badge at-badge-status-submitted";

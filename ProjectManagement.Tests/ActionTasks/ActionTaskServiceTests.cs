@@ -112,6 +112,111 @@ public class ActionTaskServiceTests
             service.UpdateStatusAsync(task.Id, task.RowVersion, ActionTaskStatuses.InProgress, "other", RoleNames.Ta));
     }
 
+
+    [Fact]
+    public async Task CreateBacklogItemAsync_CreatesTrueBacklogState()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+
+        // SECTION: Act
+        var task = await service.CreateBacklogItemAsync(new ActionTaskItem
+        {
+            Title = "Backlog",
+            Description = "Future work",
+            AssignedToUserId = "should-clear",
+            CreatedByUserId = "creator",
+            CreatedByRole = RoleNames.HoD,
+            AssignedToRole = RoleNames.Ta,
+            DueDate = DateTime.UtcNow.AddDays(2),
+            Priority = "Normal",
+            SprintId = 123,
+            SubmittedOn = DateTime.UtcNow,
+            ClosedOn = DateTime.UtcNow
+        });
+
+        // SECTION: Assert
+        Assert.Equal(ActionTaskStatuses.Backlog, task.Status);
+        Assert.Null(task.SprintId);
+        Assert.Equal(string.Empty, task.AssignedToUserId);
+        Assert.Equal(string.Empty, task.AssignedToRole);
+        Assert.Null(task.SubmittedOn);
+        Assert.Null(task.ClosedOn);
+    }
+
+    [Fact]
+    public async Task CreateTaskAsync_RequiresResponsiblePersonAndCreatesAssignedOutsideSprintTask()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+
+        // SECTION: Act
+        var task = await service.CreateTaskAsync(new ActionTaskItem
+        {
+            Title = "Direct",
+            Description = "Assigned now",
+            AssignedToUserId = "assignee",
+            CreatedByUserId = "creator",
+            CreatedByRole = RoleNames.HoD,
+            AssignedToRole = RoleNames.Ta,
+            DueDate = DateTime.UtcNow.AddDays(2),
+            Priority = "Normal",
+            SprintId = 456
+        });
+
+        // SECTION: Assert
+        Assert.Equal(ActionTaskStatuses.Assigned, task.Status);
+        Assert.Equal("assignee", task.AssignedToUserId);
+        Assert.Null(task.SprintId);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateTaskAsync(new ActionTaskItem
+        {
+            Title = "Invalid",
+            Description = "No assignee",
+            CreatedByUserId = "creator",
+            CreatedByRole = RoleNames.HoD,
+            DueDate = DateTime.UtcNow.AddDays(2),
+            Priority = "Normal"
+        }));
+    }
+
+    [Fact]
+    public async Task BacklogItem_CannotBeSubmittedOrChangedThroughGenericStatusUpdate()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var task = await service.CreateBacklogItemAsync(new ActionTaskItem
+        {
+            Title = "Backlog",
+            Description = "Future work",
+            CreatedByUserId = "creator",
+            CreatedByRole = RoleNames.HoD,
+            DueDate = DateTime.UtcNow.AddDays(2),
+            Priority = "Normal"
+        });
+
+        // SECTION: Act + Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.SubmitTaskAsync(task.Id, task.RowVersion, string.Empty, RoleNames.Ta, "submit"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.UpdateStatusAsync(task.Id, task.RowVersion, ActionTaskStatuses.InProgress, "creator", RoleNames.HoD, "start"));
+    }
+
+    [Fact]
+    public async Task UpdateStatusAsync_RejectsSubmittedTargetFromGenericChangeStatus()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress, "assignee");
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateStatusAsync(task.Id, task.RowVersion, ActionTaskStatuses.Submitted, "assignee", RoleNames.Ta, "ready"));
+        Assert.Contains("submit for closure", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static ApplicationDbContext CreateDb()
         => CreateDb(Guid.NewGuid().ToString(), new InMemoryDatabaseRoot());
 

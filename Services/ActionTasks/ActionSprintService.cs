@@ -233,16 +233,18 @@ public class ActionSprintService
         var performedAt = DateTime.UtcNow;
         foreach (var task in unfinishedTasks.Where(t => carryIds.Contains(t.Id)))
         {
-            var oldValue = task.SprintId?.ToString();
+            var oldValue = DescribeTaskBucket(task);
             task.SprintId = targetSprint!.Id;
-            AddTaskSprintAudit(task.Id, "TaskCarriedForward", userId, role, oldValue, targetSprint.Id.ToString(), $"Carried forward from sprint {sprint.Name} to {targetSprint.Name}. Closure remarks: {remarks.Trim()}", performedAt);
+            ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
+            AddTaskSprintAudit(task.Id, "TaskCarriedForward", userId, role, oldValue, DescribeTaskBucket(task), $"Carried forward from sprint {sprint.Name} to {targetSprint.Name}. Closure remarks: {remarks.Trim()}", performedAt);
         }
 
         foreach (var task in unfinishedTasks.Where(t => outsideIds.Contains(t.Id)))
         {
-            var oldValue = task.SprintId?.ToString();
+            var oldValue = DescribeTaskBucket(task);
             task.SprintId = null;
-            AddTaskSprintAudit(task.Id, "TaskRemovedFromSprintKeepAssigned", userId, role, oldValue, null, $"Removed from sprint {sprint.Name} and kept assigned during closure. Closure remarks: {remarks.Trim()}", performedAt);
+            ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
+            AddTaskSprintAudit(task.Id, "TaskRemovedFromSprintKeepAssigned", userId, role, oldValue, DescribeTaskBucket(task), $"Removed from sprint {sprint.Name} and kept assigned during closure. Closure remarks: {remarks.Trim()}", performedAt);
         }
 
         foreach (var task in unfinishedTasks.Where(t => backIds.Contains(t.Id)))
@@ -251,6 +253,10 @@ public class ActionSprintService
             task.SprintId = null;
             task.AssignedToUserId = string.Empty;
             task.AssignedToRole = string.Empty;
+            task.Status = ActionTaskStatuses.Backlog;
+            task.SubmittedOn = null;
+            task.ClosedOn = null;
+            ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
             AddTaskSprintAudit(task.Id, "TaskMovedToBacklogRemoveAssignee", userId, role, oldValue, DescribeTaskBucket(task), $"Moved from sprint {sprint.Name} to backlog and removed assignee during closure. Closure remarks: {remarks.Trim()}", performedAt);
         }
 
@@ -294,7 +300,36 @@ public class ActionSprintService
         task.AssignedToRole = responsibleRole;
         task.AssignedOn = DateTime.UtcNow;
         task.SprintId = sprint.Id;
+        task.Status = ActionTaskStatuses.Assigned;
+        task.SubmittedOn = null;
+        task.ClosedOn = null;
+        ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
         AddTaskSprintAudit(task.Id, "TaskAssignedToSprint", userId, role, oldValue, DescribeTaskBucket(task), $"Assigned to sprint: {sprint.Name}; responsible person selected.");
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return task;
+    }
+
+    public async Task<ActionTaskItem> AssignExistingAssignedTaskToSprintAsync(int taskId, int sprintId, string userId, string role, CancellationToken cancellationToken = default)
+    {
+        // SECTION: Outside Sprint movement reuses the existing responsible person and only selects a target sprint.
+        EnsureCanAssignTaskToSprint(role);
+
+        var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
+        EnsureTaskIsNotClosed(task, "Closed tasks cannot be assigned to a sprint.");
+        if (string.IsNullOrWhiteSpace(task.AssignedToUserId) || string.IsNullOrWhiteSpace(task.AssignedToRole))
+        {
+            throw new InvalidOperationException("Outside Sprint tasks must have a responsible person before adding to a sprint.");
+        }
+
+        var sprint = await GetSprintForUpdateAsync(sprintId, cancellationToken);
+        _workflow.EnsureCanAcceptTask(sprint);
+
+        var oldValue = DescribeTaskBucket(task);
+        task.SprintId = sprint.Id;
+        task.ClosedOn = null;
+        ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
+        AddTaskSprintAudit(task.Id, "OutsideSprintTaskAssignedToSprint", userId, role, oldValue, DescribeTaskBucket(task), $"Added Outside Sprint task to sprint: {sprint.Name}; responsible person retained.");
 
         await _context.SaveChangesAsync(cancellationToken);
         return task;
@@ -310,6 +345,7 @@ public class ActionSprintService
 
         var oldValue = DescribeTaskBucket(task);
         task.SprintId = null;
+        ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
         AddTaskSprintAudit(task.Id, "TaskRemovedFromSprintKeepAssigned", userId, role, oldValue, DescribeTaskBucket(task), "Removed from sprint and kept assigned as Outside Sprint work.");
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -331,6 +367,10 @@ public class ActionSprintService
         task.SprintId = null;
         task.AssignedToUserId = string.Empty;
         task.AssignedToRole = string.Empty;
+        task.Status = ActionTaskStatuses.Backlog;
+        task.SubmittedOn = null;
+        task.ClosedOn = null;
+        ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
         AddTaskSprintAudit(task.Id, "TaskMovedToBacklogRemoveAssignee", userId, role, oldValue, DescribeTaskBucket(task), "Moved to backlog and removed assignee.");
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -348,7 +388,7 @@ public class ActionSprintService
     }
 
     private static string DescribeTaskBucket(ActionTaskItem task)
-        => $"Bucket={ActionTaskBucketClassifier.ResolveBucket(task)}; SprintId={task.SprintId?.ToString() ?? "none"}; Assignee={(string.IsNullOrWhiteSpace(task.AssignedToUserId) ? "none" : task.AssignedToUserId)}";
+        => $"Bucket={ActionTaskBucketClassifier.ResolveBucket(task)}; Status={task.Status}; SprintId={task.SprintId?.ToString() ?? "none"}; Assignee={(string.IsNullOrWhiteSpace(task.AssignedToUserId) ? "none" : task.AssignedToUserId)}";
 
     // SECTION: Authorization helpers
     private async Task<int> CountUnfinishedSprintTasksAsync(int sprintId, CancellationToken cancellationToken)

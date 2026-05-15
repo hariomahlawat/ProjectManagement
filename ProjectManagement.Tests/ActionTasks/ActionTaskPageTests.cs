@@ -811,7 +811,7 @@ public class ActionTaskPageTests
         Assert.Contains("at-execute-status-grid", html, StringComparison.Ordinal);
         Assert.Contains("at-execute-status-section", html, StringComparison.Ordinal);
         Assert.DoesNotContain("at-board-grid is-sprints", html, StringComparison.Ordinal);
-        Assert.True(html.IndexOf("Selected Sprint Board task board", StringComparison.Ordinal) < html.IndexOf("Pull from Backlog", StringComparison.Ordinal));
+        Assert.True(html.IndexOf("Selected Sprint Board task board", StringComparison.Ordinal) < html.IndexOf("Add from Backlog", StringComparison.Ordinal));
         Assert.DoesNotContain("Add Backlog Task", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Backlog Queue", html, StringComparison.Ordinal);
     }

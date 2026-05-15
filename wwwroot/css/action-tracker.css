@@ -766,6 +766,11 @@ html {
     border: 1px solid transparent;
 }
 
+.at-badge-status-backlog {
+    color: #334155;
+    background: #e2e8f0;
+}
+
 .at-badge-status-assigned {
     color: #1f2937;
     background: #e5e7eb;

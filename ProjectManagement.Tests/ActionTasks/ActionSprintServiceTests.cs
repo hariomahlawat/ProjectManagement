@@ -273,7 +273,10 @@ public class ActionSprintServiceTests
         // SECTION: Assert
         Assert.Null(backlogTask.SprintId);
         Assert.Equal(string.Empty, backlogTask.AssignedToUserId);
-        Assert.Contains(await db.ActionTaskAuditLogs.ToListAsync(), x => x.TaskId == task.Id && x.ActionType == "TaskMovedToBacklogRemoveAssignee");
+        Assert.Equal(ActionTaskStatuses.Backlog, backlogTask.Status);
+        Assert.Null(backlogTask.SubmittedOn);
+        Assert.Null(backlogTask.ClosedOn);
+        Assert.Contains(await db.ActionTaskAuditLogs.ToListAsync(), x => x.TaskId == task.Id && x.ActionType == "TaskMovedToBacklogRemoveAssignee" && x.OldValue!.Contains("Status=Assigned") && x.NewValue!.Contains("Status=Backlog"));
     }
 
     [Fact]
@@ -458,6 +461,100 @@ public class ActionSprintServiceTests
     }
 
 
+
+
+    [Fact]
+    public async Task MoveTaskToBacklogAsync_FromSubmittedTask_ResetsStatusToBacklog()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.HoD);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Submitted);
+        task.SubmittedOn = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        await service.AssignTaskToSprintAsync(task.Id, sprint.Id, "planner", RoleNames.HoD);
+        task.Status = ActionTaskStatuses.Submitted;
+        task.SubmittedOn = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
+        // SECTION: Act
+        var backlogTask = await service.MoveTaskToBacklogRemoveAssigneeAsync(task.Id, "planner", RoleNames.HoD);
+
+        // SECTION: Assert
+        Assert.Equal(ActionTaskStatuses.Backlog, backlogTask.Status);
+        Assert.Null(backlogTask.SprintId);
+        Assert.Equal(string.Empty, backlogTask.AssignedToUserId);
+        Assert.Null(backlogTask.SubmittedOn);
+    }
+
+    [Fact]
+    public async Task AssignTaskToSprintAsync_BacklogItem_SetsAssigneeAndAssignedStatus()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.HoD);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Backlog);
+        task.AssignedToUserId = string.Empty;
+        task.AssignedToRole = string.Empty;
+        await db.SaveChangesAsync();
+
+        // SECTION: Act
+        var sprintTask = await service.AssignTaskToSprintAsync(task.Id, sprint.Id, "assignee", RoleNames.Ta, "planner", RoleNames.HoD);
+
+        // SECTION: Assert
+        Assert.Equal(sprint.Id, sprintTask.SprintId);
+        Assert.Equal("assignee", sprintTask.AssignedToUserId);
+        Assert.Equal(ActionTaskStatuses.Assigned, sprintTask.Status);
+        Assert.Null(sprintTask.SubmittedOn);
+        Assert.Null(sprintTask.ClosedOn);
+    }
+
+    [Fact]
+    public async Task AssignExistingAssignedTaskToSprintAsync_OutsideSprintTask_RetainsAssignee()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.HoD);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress);
+
+        // SECTION: Act
+        var sprintTask = await service.AssignExistingAssignedTaskToSprintAsync(task.Id, sprint.Id, "planner", RoleNames.HoD);
+
+        // SECTION: Assert
+        Assert.Equal(sprint.Id, sprintTask.SprintId);
+        Assert.Equal("assignee", sprintTask.AssignedToUserId);
+        Assert.Equal(ActionTaskStatuses.InProgress, sprintTask.Status);
+    }
+
+    [Fact]
+    public async Task CloseSprintWithDispositionAsync_BacklogDisposition_ResetsTaskToBacklogStatus()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var source = await service.CreateSprintAsync(NewSprint("Source"), "planner", RoleNames.Comdt);
+        await service.ActivateSprintAsync(source.Id, source.RowVersion, "planner", RoleNames.Comdt);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Submitted);
+        task.SubmittedOn = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        await service.AssignTaskToSprintAsync(task.Id, source.Id, "planner", RoleNames.Comdt);
+        task.Status = ActionTaskStatuses.Submitted;
+        task.SubmittedOn = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
+        // SECTION: Act
+        await service.CloseSprintWithDispositionAsync(source.Id, source.RowVersion, Array.Empty<int>(), null, Array.Empty<int>(), new[] { task.Id }, "Move back", "planner", RoleNames.Comdt);
+
+        // SECTION: Assert
+        var backlogTask = await db.ActionTasks.SingleAsync(t => t.Id == task.Id);
+        Assert.Equal(ActionTaskStatuses.Backlog, backlogTask.Status);
+        Assert.Null(backlogTask.SprintId);
+        Assert.Equal(string.Empty, backlogTask.AssignedToUserId);
+        Assert.Null(backlogTask.SubmittedOn);
+    }
 
     [Fact]
     public async Task GetSprintAuditHistoryAsync_ReturnsLifecycleAuditEvents()
