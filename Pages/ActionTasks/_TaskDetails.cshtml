@@ -7,6 +7,10 @@
         ? Model.ResolvedPlanningView
         : null;
     var selectedSprintRouteValue = Model.IsPlanningView ? Model.SelectedSprintId : null;
+    var selectedTaskIsBacklog = Model.SelectedTask is not null && Model.IsBacklogTask(Model.SelectedTask);
+    var updateButtonText = selectedTaskIsBacklog ? "Add Planning Note" : "+ Update";
+    var updatePanelTitle = selectedTaskIsBacklog ? "Add Planning Note" : "Add Update";
+    var updatePlaceholder = selectedTaskIsBacklog ? "Add planning note or clarification" : "Add progress details or clarification notes";
 }
 
 @* SECTION: Right-side task inspector drawer content. *@
@@ -149,10 +153,10 @@
                             <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
                             <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />
                             <input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" />
-                            <div class="at-action-title">Add Update</div>
+                            <div class="at-action-title">@updatePanelTitle</div>
                             <div class="mb-2">
                                 <label class="form-label at-small" asp-for="UpdateInput.Body">Update details</label>
-                                <textarea class="form-control form-control-sm" rows="4" asp-for="UpdateInput.Body" maxlength="4000" placeholder="Add progress details or clarification notes"></textarea>
+                                <textarea class="form-control form-control-sm" rows="4" asp-for="UpdateInput.Body" maxlength="4000" placeholder="@updatePlaceholder"></textarea>
                             </div>
                             <div class="mb-2">
                                 <label class="form-label at-small" asp-for="UpdateInput.Files">Supporting files</label>
@@ -259,7 +263,7 @@
                 </div>
 
                 <div class="at-action-toolbar" aria-label="Task actions">
-                    <button type="button" class="btn btn-primary btn-sm" data-at-open-action="update">+ Update</button>
+                    <button type="button" class="btn btn-primary btn-sm" data-at-open-action="update">@updateButtonText</button>
                     @if (Model.CanUpdateTaskStatus(Model.SelectedTask))
                     {
                         <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="status">Change Status</button>

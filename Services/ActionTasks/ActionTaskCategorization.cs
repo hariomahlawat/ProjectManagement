@@ -41,13 +41,15 @@ public static class ActionTaskBucketClassifier
     }
 
     public static bool IsSprintTask(ActionTaskItem task)
-        => task.SprintId.HasValue && IsOpenTask(task);
+        => task.SprintId.HasValue && HasAssignedUser(task) && IsSprintStatus(task.Status);
 
     public static bool IsBacklogTask(ActionTaskItem task)
-        => task.SprintId is null && !HasAssignedUser(task) && IsOpenTask(task);
+        => task.SprintId is null
+           && !HasAssignedUser(task)
+           && string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase);
 
     public static bool IsOutsideSprintTask(ActionTaskItem task)
-        => task.SprintId is null && HasAssignedUser(task) && IsOpenTask(task);
+        => task.SprintId is null && HasAssignedUser(task) && IsAssignedWorkStatus(task.Status);
 
     public static bool IsAssignedNonSprintTask(ActionTaskItem task)
         => IsOutsideSprintTask(task);
@@ -60,6 +62,17 @@ public static class ActionTaskBucketClassifier
 
     public static bool HasAssignedUser(ActionTaskItem task)
         => !string.IsNullOrWhiteSpace(task.AssignedToUserId);
+
+    // SECTION: Official Agile Backlog execution statuses for assigned work buckets.
+    private static bool IsSprintStatus(string status)
+        => IsAssignedWorkStatus(status)
+           || string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsAssignedWorkStatus(string status)
+        => string.Equals(status, ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase)
+           || string.Equals(status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase)
+           || string.Equals(status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)
+           || string.Equals(status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
 }
 
 public static class ActionTaskCategorization

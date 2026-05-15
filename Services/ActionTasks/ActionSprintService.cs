@@ -287,6 +287,11 @@ public class ActionSprintService
 
         var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
         EnsureTaskIsNotClosed(task, "Closed tasks cannot be assigned to a sprint.");
+        if (!ActionTaskCategorization.IsBacklogTask(task))
+        {
+            throw new InvalidOperationException("Only backlog items can be assigned to sprint through this action.");
+        }
+
         if (string.IsNullOrWhiteSpace(responsibleUserId) || string.IsNullOrWhiteSpace(responsibleRole))
         {
             throw new InvalidOperationException("Select a responsible person before adding a backlog item to a sprint.");
@@ -317,6 +322,11 @@ public class ActionSprintService
 
         var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
         EnsureTaskIsNotClosed(task, "Closed tasks cannot be assigned to a sprint.");
+        if (!ActionTaskCategorization.IsOutsideSprintTask(task))
+        {
+            throw new InvalidOperationException("Only assigned tasks outside sprint can be added to sprint through this action.");
+        }
+
         if (string.IsNullOrWhiteSpace(task.AssignedToUserId) || string.IsNullOrWhiteSpace(task.AssignedToRole))
         {
             throw new InvalidOperationException("Outside Sprint tasks must have a responsible person before adding to a sprint.");
@@ -341,6 +351,11 @@ public class ActionSprintService
 
         var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
         EnsureTaskIsNotClosed(task, "Closed tasks cannot be moved between sprint buckets.");
+        if (!ActionTaskCategorization.IsSprintTask(task))
+        {
+            throw new InvalidOperationException("Only sprint tasks can be removed from sprint.");
+        }
+
         await EnsureCurrentSprintCanChangeAsync(task, cancellationToken);
 
         var oldValue = DescribeTaskBucket(task);
@@ -361,6 +376,11 @@ public class ActionSprintService
 
         var task = await GetTaskForUpdateAsync(taskId, cancellationToken);
         EnsureTaskIsNotClosed(task, "Closed tasks cannot be moved between sprint buckets.");
+        if (ActionTaskCategorization.IsBacklogTask(task))
+        {
+            throw new InvalidOperationException("Task is already in backlog.");
+        }
+
         await EnsureCurrentSprintCanChangeAsync(task, cancellationToken);
 
         var oldValue = DescribeTaskBucket(task);

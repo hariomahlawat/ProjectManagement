@@ -226,6 +226,54 @@ public class ActionTaskPageTests
         Assert.Contains("PlanningView=Kanban", html, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public async Task TaskDetailsPartial_BacklogInspector_UsesPlanningNoteLabels()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var task = await setup.Db.ActionTasks.SingleAsync();
+        task.Status = ActionTaskStatuses.Backlog;
+        task.AssignedToUserId = string.Empty;
+        task.AssignedToRole = string.Empty;
+        task.SprintId = null;
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.TaskId = task.Id;
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("Add Planning Note", html, StringComparison.Ordinal);
+        Assert.Contains("placeholder=\"Add planning note or clarification\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">+ Update</button>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<div class=\"at-action-title\">Add Update</div>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PlanningPlanTab_BacklogQueueHeader_DoesNotMentionOutsideSprint()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var page = setup.Page;
+        page.ViewMode = "Planning";
+        page.PlanningTab = "Plan";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_PlanningPlanTab.cshtml");
+        var headerStart = html.IndexOf("<h2>Backlog Queue</h2>", StringComparison.Ordinal);
+        var headerEnd = html.IndexOf("<div class=\"at-planning-backlog-body\">", StringComparison.Ordinal);
+        var backlogHeader = html[headerStart..headerEnd];
+
+        // SECTION: Assert
+        Assert.Contains("Unassigned future work awaiting sprint planning.", backlogHeader, StringComparison.Ordinal);
+        Assert.DoesNotContain("Outside Sprint", backlogHeader, StringComparison.Ordinal);
+        Assert.DoesNotContain("Assigned Tasks Outside Sprint", backlogHeader, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task PlanningDueExceptionsTaskCards_PreserveViewsRouteState()
     {
@@ -385,7 +433,7 @@ public class ActionTaskPageTests
         var sprint = AddSprint(setup.Db, "Active Sprint", ActionSprintStatus.Active);
         await setup.Db.SaveChangesAsync();
         setup.Db.ActionTasks.Add(NewTask("Sprint task", ActionTaskStatuses.Assigned, sprint.Id));
-        var trueBacklog = NewTask("True backlog", ActionTaskStatuses.Assigned);
+        var trueBacklog = NewTask("True backlog", ActionTaskStatuses.Backlog);
         trueBacklog.AssignedToUserId = string.Empty;
         setup.Db.ActionTasks.Add(trueBacklog);
         setup.Db.ActionTasks.Add(NewTask("Closed backlog", ActionTaskStatuses.Closed));
@@ -413,7 +461,7 @@ public class ActionTaskPageTests
         var setup = await CreateSetupAsync();
         var sprint = AddSprint(setup.Db, "Badge Sprint", ActionSprintStatus.Active);
         var sprintTask = NewTask("Sprint scoped", ActionTaskStatuses.Assigned, sprint.Id);
-        var backlogTask = NewTask("Backlog scoped", ActionTaskStatuses.Assigned);
+        var backlogTask = NewTask("Backlog scoped", ActionTaskStatuses.Backlog);
         backlogTask.AssignedToUserId = string.Empty;
         var nonSprintTask = NewTask("Non sprint scoped", ActionTaskStatuses.Assigned);
         var closedTask = NewTask("Closed scoped", ActionTaskStatuses.Closed);
