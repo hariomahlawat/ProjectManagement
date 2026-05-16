@@ -31,7 +31,7 @@
     else
     {
         <p class="at-active-sprint-summary">
-            @Model.ActiveSprintMetrics.TotalTasks tasks · @Model.ActiveSprintMetrics.InProgressTasks in progress · @Model.ActiveSprintMetrics.OverdueTasks overdue · @Model.ActiveSprintMetrics.BlockedTasks blocked · @Model.ActiveSprintSubmittedTaskCount pending closure · @Model.ActiveSprintMetrics.InvalidStateTasks invalid state
+            @Model.ActiveSprintMetrics.TotalTasks tasks · @Model.ActiveSprintMetrics.InProgressTasks in progress · @Model.ActiveSprintMetrics.OverdueTasks overdue · @Model.ActiveSprintMetrics.BlockedTasks blocked · @Model.ActiveSprintSubmittedTaskCount pending closure@if (Model.ActiveSprintMetrics.InvalidStateTasks > 0) { <text> · @Model.ActiveSprintMetrics.InvalidStateTasks invalid state</text> }
         </p>
 
         @* SECTION: Active sprint exception lists render only when they contain command-relevant tasks. *@

@@ -149,7 +149,8 @@ public sealed class ActionTaskRouteStateHelper
 
     // SECTION: Shared report filter-state detection covers auto-applied report GET filters.
     public bool HasReportFilterRouteState(ActionTaskReportFilterRouteState state)
-        => state.ReportSprintId.HasValue
+        => !string.IsNullOrWhiteSpace(state.ReportBucket)
+            || state.ReportSprintId.HasValue
             || !string.IsNullOrWhiteSpace(state.ReportAssigneeUserId)
             || state.ReportFromDate.HasValue
             || state.ReportToDate.HasValue
@@ -257,6 +258,7 @@ public sealed record ActionTaskFilterRouteState(
     string? FilterBucket = null);
 
 public sealed record ActionTaskReportFilterRouteState(
+    string? ReportBucket,
     int? ReportSprintId,
     string? ReportAssigneeUserId,
     DateTime? ReportFromDate,

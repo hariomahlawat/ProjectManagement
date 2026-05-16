@@ -2,15 +2,15 @@
 
 @{
     // SECTION: My Work read-model aliases keep personal task presentation focused on actionable open work.
-    var assignedTaskCount = Model.MyWorkQueue.ActionRequiredTasks.Count + Model.MyWorkQueue.CurrentWorkTasks.Count + Model.MyWorkQueue.SubmittedAwaitingClosureTasks.Count + Model.MyWorkQueue.AllMyTasks.Count;
+    var assignedTaskCount = Model.MyWorkQueue.OpenAssignedTaskCount;
     var actionRequiredTasks = Model.MyWorkActionRequiredDisplays;
     var currentWorkTasks = Model.MyWorkCurrentWorkDisplays;
     var submittedTasks = Model.MyWorkSubmittedAwaitingClosureDisplays;
     var otherAssignedWorkDisplays = Model.MyWorkAllMyTasksDisplays;
-    var actionRequiredCount = actionRequiredTasks.Count + otherAssignedWorkDisplays.Count(item => string.Equals(item.Task.Status, ProjectManagement.Models.ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase));
-    var overdueCount = Model.MyOverdueTaskDisplays.Count;
-    var inProgressCount = Model.MyInProgressTaskDisplays.Count;
-    var submittedCount = Model.MySubmittedTaskDisplays.Count;
+    var actionRequiredCount = Model.MyWorkQueue.NeedsActionCount;
+    var overdueCount = Model.MyWorkQueue.OverdueCount;
+    var inProgressCount = Model.MyWorkQueue.InProgressCount;
+    var submittedCount = Model.MyWorkQueue.SubmittedCount;
 }
 
 @* SECTION: Compact personal execution count line. *@

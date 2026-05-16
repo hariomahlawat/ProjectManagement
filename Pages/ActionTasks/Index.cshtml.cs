@@ -144,6 +144,9 @@ public class IndexModel : PageModel
     public string? SortDir { get; set; }
 
     [BindProperty(SupportsGet = true)]
+    public string? ReportBucket { get; set; }
+
+    [BindProperty(SupportsGet = true)]
     public int? ReportSprintId { get; set; }
 
     [BindProperty(SupportsGet = true)]
@@ -404,7 +407,7 @@ public class IndexModel : PageModel
         => ActionTaskCategorization.ResolveCategory(task) == ActionTaskWorkCategory.Invalid;
 
     public bool MustReturnInvalidTaskToBacklogDuringClosure(ActionTaskItem task)
-        => IsInvalidTaskState(task) && !ActionTaskCategorization.HasAssignedUser(task);
+        => IsInvalidTaskState(task);
 
     public IReadOnlyList<TaskDisplayItem> GetSprintTasksByStatus(string status)
         => ToDisplayItems(SelectedSprintTasks.Where(t => string.Equals(t.Status, status, StringComparison.OrdinalIgnoreCase)).ToList());
@@ -931,7 +934,7 @@ public class IndexModel : PageModel
             TempData["ToastError"] = ex.Message;
         }
 
-        return RedirectToPage(new { ViewMode = "Planning", SelectedSprintId = ClosureInput.SprintId });
+        return RedirectToPage(new { ViewMode = "Planning", PlanningTab = "Close", SelectedSprintId = ClosureInput.SprintId });
     }
 
     // SECTION: Post task progress update with optional attachments
@@ -1004,7 +1007,7 @@ public class IndexModel : PageModel
         await PrepareSprintBoardStateAsync();
         ActiveSprintMetrics = readModel.ActiveSprintMetrics;
         MyWorkQueue = _myWorkQueueBuilder.Build(Tasks, ActiveSprint);
-        CommandCentreSummary = _commandCentreSummaryBuilder.Build(Tasks, CriticalOpenTasks.Count, ActiveSprintMetrics.CarryForwardCandidateTasks);
+        CommandCentreSummary = _commandCentreSummaryBuilder.Build(Tasks, CriticalOpenTasks.Count);
         SprintWorkspaceSummary = _sprintWorkspaceSummaryBuilder.Build(new ActionTaskSprintWorkspaceSummaryRequest(Tasks, BacklogTasks, SelectedSprintTasks, SprintClosureReview.UnfinishedTasks, Sprints, ActiveSprint));
         DueTodayTasks = readModel.DueBuckets.Today;
         DueThisWeekTasks = readModel.DueBuckets.ThisWeek;
@@ -1020,7 +1023,7 @@ public class IndexModel : PageModel
         BucketDistribution = readModel.Reports.BucketDistribution.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         ResponsiblePersonWorkloads = readModel.Reports.ResponsiblePersonWorkloads.Select(x => new ResponsibleWorkloadSummary(x.ResponsiblePerson, x.Open, x.Overdue, x.Blocked, x.InProgress, x.Submitted, x.Critical)).ToList();
         OutsideSprintWorkloadCounts = readModel.Reports.OutsideSprintWorkloadCounts.Select(x => new CountSummary(x.Name, x.Count)).ToList();
-        SprintPerformanceRows = readModel.Reports.SprintPerformanceRows.Select(x => new SprintPerformanceSummary(x.Sprint, x.Status, x.Open, x.Closed, x.CarriedForward, x.OverdueAtClosure)).ToList();
+        SprintPerformanceRows = readModel.Reports.SprintPerformanceRows.Select(x => new SprintPerformanceSummary(x.Sprint, x.Status, x.Open, x.Closed, x.CarriedForward, x.ClosedLate)).ToList();
         InvalidStateRows = readModel.Reports.InvalidStateRows.Select(x => new InvalidTaskStateSummary(x.Task, x.Issue, x.SuggestedCorrection)).ToList();
         WorkloadSummary = new ActionTaskReportSummary(readModel.Reports.WorkloadSummary.OpenTasks, readModel.Reports.WorkloadSummary.Overdue, readModel.Reports.WorkloadSummary.Blocked, readModel.Reports.WorkloadSummary.PendingClosure, readModel.Reports.WorkloadSummary.BacklogItems);
         CarryForwardBySprint = readModel.Reports.CarryForwardBySprint.Select(x => new CountSummary(x.Name, x.Count)).ToList();
@@ -1066,6 +1069,7 @@ public class IndexModel : PageModel
             SortBy,
             SortDir,
             FilterBucket,
+            ReportBucket,
             ReportSprintId,
             ReportAssigneeUserId,
             ReportFromDate,
@@ -1451,7 +1455,7 @@ public class IndexModel : PageModel
         => new(FilterStatus, FilterPriority, FilterAssigneeUserId, FilterDueDate, FilterSearch, SortBy, SortDir, FilterBucket);
 
     private ActionTaskReportFilterRouteState BuildReportFilterRouteState()
-        => new(ReportSprintId, ReportAssigneeUserId, ReportFromDate, ReportToDate, ReportStatus, ReportPriority);
+        => new(ReportBucket, ReportSprintId, ReportAssigneeUserId, ReportFromDate, ReportToDate, ReportStatus, ReportPriority);
 
     // SECTION: Planning backlog filter detection keeps canonical Planning routes compatible with legacy Backlog filtered views.
     private bool IsPlanningBacklogFilterContext()
@@ -1479,7 +1483,12 @@ public class IndexModel : PageModel
         Array.Empty<ActionTaskItem>(),
         Array.Empty<ActionTaskItem>(),
         Array.Empty<ActionTaskItem>(),
-        Array.Empty<ActionTaskItem>());
+        Array.Empty<ActionTaskItem>(),
+        0,
+        0,
+        0,
+        0,
+        0);
 
     public sealed class CreateDirectTaskInput
     {
@@ -1629,7 +1638,7 @@ public class IndexModel : PageModel
     public sealed record CountSummary(string Name, int Count);
     public sealed record ActionTaskReportSummary(int OpenTasks = 0, int Overdue = 0, int Blocked = 0, int PendingClosure = 0, int BacklogItems = 0);
     public sealed record ResponsibleWorkloadSummary(string ResponsiblePerson, int Open, int Overdue, int Blocked, int InProgress, int Submitted, int Critical);
-    public sealed record SprintPerformanceSummary(string Sprint, string Status, int Open, int Closed, int CarriedForward, int OverdueAtClosure);
+    public sealed record SprintPerformanceSummary(string Sprint, string Status, int Open, int Closed, int CarriedForward, int ClosedLate);
     public sealed record InvalidTaskStateSummary(string Task, string Issue, string SuggestedCorrection);
     public sealed class TaskDisplayItem
     {

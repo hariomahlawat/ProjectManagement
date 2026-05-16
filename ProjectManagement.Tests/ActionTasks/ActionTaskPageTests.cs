@@ -1304,10 +1304,13 @@ public class ActionTaskPageTests
 
         // SECTION: Assert
         Assert.Contains("Report Filters", html, StringComparison.Ordinal);
+        Assert.Contains(@"name=""ReportBucket""", html, StringComparison.Ordinal);
         Assert.Contains(@"name=""ReportSprintId""", html, StringComparison.Ordinal);
         Assert.Contains("Decision Sprint", html, StringComparison.Ordinal);
         Assert.Contains("Reset / Clear all", html, StringComparison.Ordinal);
-        Assert.Contains("<span>Bucket / Sprint</span>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<span>Bucket / Sprint</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Bucket</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Sprint</span>", html, StringComparison.Ordinal);
         Assert.Contains(@"data-at-reports-filter-form=""true""", html, StringComparison.Ordinal);
         Assert.Contains(@"data-at-reports-filter-control=""true""", html, StringComparison.Ordinal);
         Assert.Contains(@"data-at-reports-date-filter=""true""", html, StringComparison.Ordinal);
@@ -1332,6 +1335,7 @@ public class ActionTaskPageTests
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
         page.ViewMode = "Reports";
+        page.ReportBucket = "Sprint";
         page.ReportSprintId = sprint.Id;
         page.ReportAssigneeUserId = "user-1";
         page.ReportFromDate = DateTime.UtcNow.Date;
@@ -1352,6 +1356,7 @@ public class ActionTaskPageTests
         Assert.Contains("Showing 1 of 2 tasks", html, StringComparison.Ordinal);
         Assert.Contains(@"method=""get""", html, StringComparison.Ordinal);
         Assert.Contains(@"name=""ViewMode"" value=""Reports""", html, StringComparison.Ordinal);
+        Assert.Contains(@"name=""ReportBucket""", html, StringComparison.Ordinal);
         Assert.Contains(@"name=""ReportSprintId""", html, StringComparison.Ordinal);
         Assert.Contains(@"name=""ReportAssigneeUserId""", html, StringComparison.Ordinal);
         Assert.Contains(@"name=""ReportFromDate"" value=""", html, StringComparison.Ordinal);

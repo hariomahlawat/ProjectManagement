@@ -38,6 +38,7 @@
                         <input type="hidden" name="id" value="@task.Id" />
                         <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
                         <input type="hidden" name="status" value="@ProjectManagement.Models.ActionTaskStatuses.InProgress" />
+                        <input type="hidden" name="remarks" value="Work started from My Work quick action." />
                         <button type="submit" class="btn btn-primary btn-sm at-mywork-primary-action">Start Work</button>
                     </form>
                 }

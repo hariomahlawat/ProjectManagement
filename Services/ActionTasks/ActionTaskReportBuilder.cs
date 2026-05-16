@@ -55,11 +55,14 @@ public sealed class ActionTaskReportBuilder
     private static IEnumerable<ActionTaskItem> ApplyReportFilters(IReadOnlyList<ActionTaskItem> tasks, ActionTaskQueryService.ActionTaskQueryRequest request)
     {
         var query = tasks.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(request.ReportBucket))
+        {
+            query = query.Where(t => MatchesReportBucket(t, request.ReportBucket));
+        }
+
         if (request.ReportSprintId.HasValue)
         {
-            query = request.ReportSprintId.Value == 0
-                ? query.Where(t => ActionTaskCategorization.ResolveBucket(t) == ActionTaskBucket.Backlog)
-                : query.Where(t => t.SprintId == request.ReportSprintId.Value);
+            query = query.Where(t => t.SprintId == request.ReportSprintId.Value);
         }
 
         if (!string.IsNullOrWhiteSpace(request.ReportAssigneeUserId)) query = query.Where(t => string.Equals(t.AssignedToUserId, request.ReportAssigneeUserId, StringComparison.Ordinal));
@@ -69,6 +72,18 @@ public sealed class ActionTaskReportBuilder
         if (!string.IsNullOrWhiteSpace(request.ReportPriority)) query = query.Where(t => string.Equals(t.Priority, request.ReportPriority, StringComparison.OrdinalIgnoreCase));
         return query;
     }
+
+    // SECTION: Report bucket filtering stays independent from sprint identity filtering.
+    private static bool MatchesReportBucket(ActionTaskItem task, string reportBucket)
+        => reportBucket.Trim() switch
+        {
+            "Backlog" => ActionTaskCategorization.ResolveBucket(task) == ActionTaskBucket.Backlog,
+            "OutsideSprint" => ActionTaskCategorization.ResolveBucket(task) == ActionTaskBucket.OutsideSprint,
+            "Sprint" => ActionTaskCategorization.ResolveBucket(task) == ActionTaskBucket.Sprint,
+            "Closed" => ActionTaskCategorization.ResolveBucket(task) == ActionTaskBucket.Closed,
+            "Invalid" => ActionTaskCategorization.ResolveBucket(task) == ActionTaskBucket.Invalid,
+            _ => true
+        };
 
     // SECTION: Workload summary cards keep Reports at management level rather than duplicating operational boards.
     private static ActionTaskQueryService.ActionTaskReportSummary BuildWorkloadSummary(
@@ -193,7 +208,7 @@ public sealed class ActionTaskReportBuilder
                     Open = assignedOpen.Count,
                     Closed = scopedTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)),
                     CarriedForward = s.Status == ActionSprintStatus.Closed ? 0 : assignedOpen.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)),
-                    OverdueAtClosure = s.Status == ActionSprintStatus.Closed
+                    ClosedLate = s.Status == ActionSprintStatus.Closed
                         ? scopedTasks.Count(IsClosedLate)
                         : assignedOpen.Count(t => IsAssignedTaskOverdue(t, utcToday))
                 };

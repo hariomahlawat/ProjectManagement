@@ -105,7 +105,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
         // SECTION: Act
         var model = service.BuildReadModel(
             tasks,
-            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, false, false, sprint.Id, new[] { sprint }, null, null, null, null, null, null, null, 0),
+            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, false, false, sprint.Id, new[] { sprint }, null, null, null, null, null, null, null, ReportBucket: "Backlog"),
             new Dictionary<string, string> { ["assignee"] = "Assignee" },
             new Dictionary<int, DateTime?>());
 
@@ -231,7 +231,8 @@ public class ActionTaskQueryServiceSprintMetricsTests
             NewTask(51, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(3), assignedToUserId: "assignee", title: "Monthly readiness review"),
             NewTask(52, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(1), assignedToUserId: "assignee", title: "Fleet compliance check"),
             NewTask(53, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), assignedToUserId: "assignee", title: "Inventory audit"),
-            NewTask(152, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(4), assignedToUserId: "assignee", title: "Engine room inspection")
+            NewTask(152, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(4), assignedToUserId: "assignee", title: "Engine room inspection"),
+            NewTask(520, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(5), assignedToUserId: "assignee", title: "AT-52 reference notes")
         };
         var service = CreateQueryService();
 
@@ -293,7 +294,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
             new Dictionary<int, DateTime?>());
 
         // SECTION: Assert
-        Assert.Equal(1, model.Reports.SprintPerformanceRows.Single().OverdueAtClosure);
+        Assert.Equal(1, model.Reports.SprintPerformanceRows.Single().ClosedLate);
     }
 
     // SECTION: Test query service helper

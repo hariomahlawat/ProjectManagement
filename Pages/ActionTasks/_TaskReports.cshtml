@@ -26,23 +26,32 @@
         <div class="at-reports-filter-heading">
             <div>
                 <h2>Report Filters</h2>
-                <p class="at-panel-note">Keep reports focused with date range, responsible person, bucket or sprint scope, status and priority.</p>
+                <p class="at-panel-note">Keep reports focused with date range, responsible person, bucket, sprint, status and priority.</p>
             </div>
             <span class="at-report-filter-summary">@Model.ReportFilterSummary</span>
         </div>
         <div class="at-reports-filter-grid">
             <label>
-                <span>Bucket / Sprint</span>
+                <span>Bucket</span>
+                <select class="form-select form-select-sm" name="ReportBucket" data-at-reports-filter-control="true">
+                    <option value="">All buckets</option>
+                    @foreach (var bucket in new[] { (Value: "Backlog", Label: "Backlog"), (Value: "OutsideSprint", Label: "Outside Sprint"), (Value: "Sprint", Label: "Sprint"), (Value: "Closed", Label: "Closed"), (Value: "Invalid", Label: "Invalid State") })
+                    {
+                        @if (string.Equals(Model.ReportBucket, bucket.Value, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@bucket.Value" selected>@bucket.Label</option>
+                        }
+                        else
+                        {
+                            <option value="@bucket.Value">@bucket.Label</option>
+                        }
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Sprint</span>
                 <select class="form-select form-select-sm" name="ReportSprintId" data-at-reports-filter-control="true">
-                    <option value="">All Backlog, Outside Sprint and Sprint work</option>
-                    @if (Model.ReportSprintId == 0)
-                    {
-                        <option value="0" selected>Backlog items only</option>
-                    }
-                    else
-                    {
-                        <option value="0">Backlog items only</option>
-                    }
+                    <option value="">All sprints</option>
                     @foreach (var sprint in Model.Sprints)
                     {
                         @if (Model.ReportSprintId == sprint.Id)
@@ -314,7 +323,7 @@
                                 <td>@item.Open</td>
                                 <td>@item.Closed</td>
                                 <td>@item.CarriedForward</td>
-                                <td>@item.OverdueAtClosure</td>
+                                <td>@item.ClosedLate</td>
                             </tr>
                         }
                     </tbody>
