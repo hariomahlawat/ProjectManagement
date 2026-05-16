@@ -1453,6 +1453,8 @@ public class ActionTaskPageTests
 
         // SECTION: Assert
         Assert.DoesNotContain("<h2>Report Filters</h2>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Report Filters", html, StringComparison.Ordinal);
+        Assert.Contains("Workload by Assignee", html, StringComparison.Ordinal);
         Assert.Contains(@"name=""ReportBucket""", html, StringComparison.Ordinal);
         Assert.Contains(@"name=""ReportSprintId""", html, StringComparison.Ordinal);
         Assert.Contains("Decision Sprint", html, StringComparison.Ordinal);
@@ -1522,6 +1524,7 @@ public class ActionTaskPageTests
         Assert.Contains("Ageing and Overdue Analysis", html, StringComparison.Ordinal);
         Assert.Contains("Pending Closure", html, StringComparison.Ordinal);
         Assert.Contains("Workload by Assignee", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Report Filters", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Responsible Person Workload", html, StringComparison.Ordinal);
         Assert.DoesNotContain(@"<th class=""text-center"">Critical</th>", html, StringComparison.Ordinal);
         Assert.Contains(@"<th class=""text-center"">Unfinished</th>", html, StringComparison.Ordinal);
