@@ -2756,7 +2756,7 @@ html {
     right: 1rem;
     bottom: 1rem;
     z-index: 1040;
-    width: min(28rem, calc(100vw - 2rem));
+    width: min(34rem, calc(100vw - 2rem));
     box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
 }
 
@@ -2948,7 +2948,7 @@ html {
 }
 
 .at-shell.is-planning-board.has-selection .at-planning-view-toggle {
-    padding-right: min(29rem, calc(100vw - 1rem));
+    padding-right: min(35rem, calc(100vw - 1rem));
 }
 
 .at-planning-views-panel .at-planning-due-exceptions-grid,
@@ -3047,7 +3047,7 @@ html {
 }
 
 .at-shell.is-planning-board.has-selection .at-kanban-scroll {
-    padding-right: min(29rem, calc(100vw - 1rem));
+    padding-right: min(35rem, calc(100vw - 1rem));
 }
 
 .at-sprint-task-card .at-task-card-link {
@@ -3217,7 +3217,7 @@ html {
 }
 
 .at-shell.is-planning-board.has-selection .at-planning-kanban-view {
-    max-width: min(100%, calc(100vw - 88px - 31rem));
+    max-width: min(100%, calc(100vw - 88px - 37rem));
 }
 
 .at-shell.is-planning-board.has-selection .at-kanban-scroll {
