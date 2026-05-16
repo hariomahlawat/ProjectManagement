@@ -79,3 +79,62 @@ test('reports date filters submit on change or blur but not every typed input ev
     fromDate.dispatchEvent(new window.Event('change', { bubbles: true }));
     assert.equal(submissions.length, 1);
 });
+
+// SECTION: Inspector status action fixture.
+function createInspectorActionDom(currentStatus = 'Open') {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <div data-at-action-shell="true">
+            <details data-at-action-panel="status">
+                <summary>Status</summary>
+                <select name="status" data-at-status-select data-current-status="${currentStatus}">
+                    <option value="Open">Open</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Submitted">Submitted</option>
+                </select>
+                <button type="submit" data-at-status-submit>Save Status</button>
+            </details>
+            <button type="button" data-at-open-action="status" data-at-target-status="In Progress" data-test-action="mark-progress">Mark In Progress</button>
+            <button type="button" data-at-open-action="status" data-at-target-status="In Progress" data-test-action="return-rework">Return for Rework</button>
+        </div>
+    </body></html>`, { url: 'https://example.test/ActionTasks?TaskId=1', runScripts: 'dangerously' });
+
+    const { window } = dom;
+    const document = window.document;
+    document.querySelector('[data-at-status-select]').value = currentStatus;
+    const scriptEl = document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    document.body.appendChild(scriptEl);
+    document.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
+
+    return { window, document };
+}
+
+// SECTION: Status intent action behavior.
+test('intent-specific status actions preselect In Progress and refresh save guard', () => {
+    [
+        { action: 'mark-progress', currentStatus: 'Open' },
+        { action: 'return-rework', currentStatus: 'Submitted' }
+    ].forEach(({ action, currentStatus }) => {
+        const { window, document } = createInspectorActionDom(currentStatus);
+        const shell = document.querySelector('[data-at-action-shell]');
+        const panel = document.querySelector('[data-at-action-panel="status"]');
+        const select = document.querySelector('[data-at-status-select]');
+        const saveButton = document.querySelector('[data-at-status-submit]');
+        const openButton = document.querySelector(`[data-test-action="${action}"]`);
+        let bubbledChangeCount = 0;
+
+        assert.equal(select.value, currentStatus);
+        assert.equal(saveButton.disabled, true);
+
+        shell.addEventListener('change', () => {
+            bubbledChangeCount += 1;
+        });
+
+        openButton.dispatchEvent(new window.Event('click', { bubbles: true }));
+
+        assert.equal(panel.hasAttribute('open'), true);
+        assert.equal(select.value, 'In Progress');
+        assert.equal(saveButton.disabled, false);
+        assert.equal(bubbledChangeCount, 1);
+    });
+});
