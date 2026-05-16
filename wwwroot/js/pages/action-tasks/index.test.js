@@ -126,10 +126,9 @@ function createInspectorActionDom(currentStatus = 'Open') {
             </details>
             <button type="button" data-at-open-action="status" data-at-target-status="In Progress" data-test-action="mark-progress">Mark In Progress</button>
             <button type="button" data-at-open-action="status" data-at-target-status="In Progress" data-test-action="return-rework">Return for Rework</button>
-            <details class="at-action-more-menu" data-test-menu>
-                <summary>More</summary>
+            <section class="at-more-actions-panel" data-test-more-panel>
                 <button type="button">Other action</button>
-            </details>
+            </section>
         </div>
     </body></html>`, { url: 'https://example.test/ActionTasks?TaskId=1', runScripts: 'dangerously' });
 
@@ -145,25 +144,23 @@ function createInspectorActionDom(currentStatus = 'Open') {
 }
 
 
-// SECTION: Inspector action panel and More menu exclusivity.
-test('inspector actions close More menus when panels open or Escape is pressed', () => {
+// SECTION: Inspector action panel behavior with inline More Actions panel.
+test('inspector actions keep inline More Actions visible while Escape closes action panels', () => {
     const { window, document } = createInspectorActionDom();
     const shell = document.querySelector('[data-at-action-shell]');
     const panel = document.querySelector('[data-at-action-panel="status"]');
-    const moreMenu = document.querySelector('[data-test-menu]');
+    const morePanel = document.querySelector('[data-test-more-panel]');
     const openButton = document.querySelector('[data-test-action="mark-progress"]');
 
-    moreMenu.setAttribute('open', 'open');
     openButton.dispatchEvent(new window.Event('click', { bubbles: true }));
 
     assert.equal(panel.hasAttribute('open'), true);
-    assert.equal(moreMenu.hasAttribute('open'), false);
+    assert.ok(morePanel);
 
-    moreMenu.setAttribute('open', 'open');
     shell.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
     assert.equal(panel.hasAttribute('open'), false);
-    assert.equal(moreMenu.hasAttribute('open'), false);
+    assert.ok(morePanel);
 });
 
 // SECTION: Status intent action behavior.

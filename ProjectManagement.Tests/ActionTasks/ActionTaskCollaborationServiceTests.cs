@@ -50,8 +50,24 @@ public class ActionTaskCollaborationServiceTests
             service.AddUpdateAsync(task.Id, "body", ActionTaskUpdateTypes.Progress, "other", RoleNames.Ta, Array.Empty<IFormFile>()));
     }
 
+
+    [Fact]
+    public async Task AddUpdateAsync_UsesClockUtcNowForUpdateTimestamp()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner");
+
+        // SECTION: Act
+        var update = await service.AddUpdateAsync(task.Id, "body", ActionTaskUpdateTypes.Progress, "owner", RoleNames.Ta, Array.Empty<IFormFile>());
+
+        // SECTION: Assert
+        Assert.Equal(TestActionTrackerClock.FixedUtcNow, update.CreatedAtUtc);
+    }
+
     private static ActionTaskCollaborationService CreateService(ApplicationDbContext db)
-        => new(db, new ActionTaskPermissionService(), new TestUploadRootProvider(), new PassFileSecurityValidator(), new StubUrlBuilder());
+        => new(db, new ActionTaskPermissionService(), new TestUploadRootProvider(), new PassFileSecurityValidator(), new StubUrlBuilder(), new TestActionTrackerClock());
 
     private static ApplicationDbContext CreateDb()
     {
@@ -85,6 +101,17 @@ public class ActionTaskCollaborationServiceTests
     {
         var stream = new MemoryStream(new byte[bytes]);
         return new FormFile(stream, 0, bytes, "files", name) { Headers = new HeaderDictionary(), ContentType = contentType };
+    }
+
+
+    private sealed class TestActionTrackerClock : IActionTrackerClock
+    {
+        public static readonly DateTime FixedUtcNow = new(2030, 1, 15, 6, 30, 0);
+
+        public DateTime UtcNow => FixedUtcNow;
+        public DateTime UtcToday => UtcNow.Date;
+        public DateTime IstNow => FixedUtcNow.AddHours(5.5);
+        public DateTime IstToday => IstNow.Date;
     }
 
     private sealed class TestUploadRootProvider : IUploadRootProvider

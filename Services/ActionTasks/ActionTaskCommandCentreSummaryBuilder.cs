@@ -71,7 +71,7 @@ public sealed class ActionTaskCommandCentreSummaryBuilder
     // SECTION: Report top-attention prioritization keeps urgent overdue and critical work first.
     private IReadOnlyList<ActionTaskItem> BuildTopAttentionItems(IReadOnlyList<ActionTaskItem> tasks)
     {
-        var today = _clock.UtcToday;
+        var today = _clock.IstToday;
         return tasks
             .Where(IsOpenTask)
             .Select(t => new
@@ -117,7 +117,7 @@ public sealed class ActionTaskCommandCentreSummaryBuilder
            && ActionTaskCategorization.HasAssignedUser(task)
            && !ActionTaskCategorization.IsBacklogTask(task)
            && ActionTaskBucketClassifier.ResolveBucket(task) != ActionTaskBucket.Invalid
-           && task.DueDate.Date < _clock.UtcToday;
+           && task.DueDate.Date < _clock.IstToday;
 
     private static int CountByStatus(IReadOnlyList<ActionTaskItem> tasks, string status)
         => tasks.Count(t => string.Equals(t.Status, status, StringComparison.OrdinalIgnoreCase));

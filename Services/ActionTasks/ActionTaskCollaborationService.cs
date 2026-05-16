@@ -35,14 +35,16 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
     private readonly IUploadRootProvider _uploadRootProvider;
     private readonly IFileSecurityValidator _fileSecurityValidator;
     private readonly IProtectedFileUrlBuilder _urlBuilder;
+    private readonly IActionTrackerClock _clock;
 
-    public ActionTaskCollaborationService(ApplicationDbContext context, ActionTaskPermissionService permission, IUploadRootProvider uploadRootProvider, IFileSecurityValidator fileSecurityValidator, IProtectedFileUrlBuilder urlBuilder)
+    public ActionTaskCollaborationService(ApplicationDbContext context, ActionTaskPermissionService permission, IUploadRootProvider uploadRootProvider, IFileSecurityValidator fileSecurityValidator, IProtectedFileUrlBuilder urlBuilder, IActionTrackerClock clock)
     {
         _context = context;
         _permission = permission;
         _uploadRootProvider = uploadRootProvider;
         _fileSecurityValidator = fileSecurityValidator;
         _urlBuilder = urlBuilder;
+        _clock = clock;
     }
 
     // SECTION: Add update with optional attachments
@@ -91,7 +93,7 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             {
                 TaskId = taskId,
                 CreatedByUserId = userId,
-                CreatedAtUtc = DateTime.UtcNow,
+                CreatedAtUtc = _clock.UtcNow,
                 UpdateType = ActionTaskUpdateTypes.All.First(x => string.Equals(x, updateType, StringComparison.OrdinalIgnoreCase)),
                 Body = hasBody ? body.Trim() : "Attachment update",
                 IsDeleted = false
@@ -172,7 +174,7 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         }
 
         var sanitizedFileName = Path.GetFileName(file.FileName);
-        var storageKey = BuildStorageKey(taskId, sanitizedFileName);
+        var storageKey = BuildStorageKey(taskId, sanitizedFileName, _clock.UtcNow);
         var absolutePath = ResolveAbsolutePath(storageKey);
         var tempFile = Path.GetTempFileName();
 
@@ -202,7 +204,7 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             TaskId = taskId,
             UpdateId = updateId,
             UploadedByUserId = userId,
-            UploadedAtUtc = DateTime.UtcNow,
+            UploadedAtUtc = _clock.UtcNow,
             OriginalFileName = sanitizedFileName,
             StorageKey = storageKey,
             ContentType = file.ContentType,
@@ -255,9 +257,9 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             attachment.UploadedByUserId);
     }
 
-    private static string BuildStorageKey(int taskId, string fileName)
+    private static string BuildStorageKey(int taskId, string fileName, DateTime utcNow)
     {
-        var token = $"{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}-{fileName}";
+        var token = $"{utcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}-{fileName}";
         return Path.Combine("action-tasks", taskId.ToString(CultureInfo.InvariantCulture), token).Replace('\\', '/');
     }
 

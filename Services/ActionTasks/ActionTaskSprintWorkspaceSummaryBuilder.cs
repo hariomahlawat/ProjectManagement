@@ -43,11 +43,11 @@ public sealed class ActionTaskSprintWorkspaceSummaryBuilder
            && !IsSubmitted(task)
            && ActionTaskCategorization.HasAssignedUser(task)
            && ActionTaskBucketClassifier.ResolveBucket(task) != ActionTaskBucket.Invalid
-           && task.DueDate.Date < _clock.UtcToday;
+           && task.DueDate.Date < _clock.IstToday;
 
     private bool IsBacklogPastTarget(ActionTaskItem task)
         => ActionTaskCategorization.IsBacklogTask(task)
-           && task.DueDate.Date < _clock.UtcToday;
+           && task.DueDate.Date < _clock.IstToday;
 
     private static bool IsHighPriorityBacklogTask(ActionTaskItem task) => string.Equals(task.Priority, "High", StringComparison.OrdinalIgnoreCase) || string.Equals(task.Priority, "Critical", StringComparison.OrdinalIgnoreCase);
     private static bool IsBlocked(ActionTaskItem task) => string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
