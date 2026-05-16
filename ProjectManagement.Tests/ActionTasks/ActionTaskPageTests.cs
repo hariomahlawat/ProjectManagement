@@ -1115,7 +1115,7 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task TaskDetails_KeepsMovementActionsAndBacklogConfirmationInInspector()
+    public async Task TaskDetails_KeepsMovementActionsWithAppStyledConfirmationMetadataInInspector()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync(RoleNames.HoD);
@@ -1137,7 +1137,28 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.Contains("Remove from Sprint, Keep Assigned", html, StringComparison.Ordinal);
         Assert.Contains("Move to Backlog, Remove Assignee", html, StringComparison.Ordinal);
-        Assert.Contains("This will remove the responsible person and return the work to Backlog. Continue?", html, StringComparison.Ordinal);
+        Assert.Contains(@"data-at-confirm=""true""", html, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(html, @"data-at-confirm-cancel-label=""Cancel"""));
+        Assert.Contains(@"data-at-confirm-title=""Remove task from Sprint?""", html, StringComparison.Ordinal);
+        Assert.Contains(@"data-at-confirm-body=""This will keep the assignee but remove the task from the selected sprint.""", html, StringComparison.Ordinal);
+        Assert.Contains(@"data-at-confirm-accept-label=""Remove from Sprint""", html, StringComparison.Ordinal);
+        Assert.Contains(@"data-at-confirm-title=""Return task to Backlog?""", html, StringComparison.Ordinal);
+        Assert.Contains(@"data-at-confirm-body=""This will remove the assignee and return the task to Backlog.""", html, StringComparison.Ordinal);
+        Assert.Contains(@"data-at-confirm-accept-label=""Return to Backlog""", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("This will remove the responsible person and return the work to Backlog. Continue?", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ActionTasksScript_UsesAppStyledConfirmationModalWithoutBrowserConfirm()
+    {
+        // SECTION: Arrange
+        var script = File.ReadAllText(Path.Combine(GetContentRoot(), "wwwroot", "js", "pages", "action-tasks", "index.js"));
+
+        // SECTION: Assert
+        Assert.Contains("ensureActionConfirmationModal", script, StringComparison.Ordinal);
+        Assert.Contains("actionTaskConfirmModal", script, StringComparison.Ordinal);
+        Assert.Contains("requestSubmit", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("window.confirm", script, StringComparison.Ordinal);
     }
 
 

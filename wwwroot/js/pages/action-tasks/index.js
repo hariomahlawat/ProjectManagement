@@ -285,9 +285,32 @@
         activateMode(initiallySelected.getAttribute("data-at-create-mode-button"));
     }
 
-    // SECTION: Confirmation prompts for destructive bucket moves remain CSP-safe through data attributes.
+    // SECTION: Application-styled confirmation modal for destructive Action Tracker form submissions.
     function initActionConfirmations() {
-        const triggers = document.querySelectorAll("[data-at-confirm]");
+        const triggers = document.querySelectorAll("[data-at-confirm='true']");
+        if (!triggers.length) {
+            return;
+        }
+
+        const modalElement = ensureActionConfirmationModal();
+        if (!modalElement) {
+            return;
+        }
+
+        const titleElement = modalElement.querySelector("[data-at-confirm-modal-title]");
+        const bodyElement = modalElement.querySelector("[data-at-confirm-modal-body]");
+        const cancelButton = modalElement.querySelector("[data-at-confirm-modal-cancel]");
+        const acceptButton = modalElement.querySelector("[data-at-confirm-modal-accept]");
+        const modal = typeof window.bootstrap !== "undefined" && window.bootstrap.Modal
+            ? window.bootstrap.Modal.getOrCreateInstance(modalElement)
+            : null;
+        let pendingForm = null;
+        let pendingSubmitter = null;
+
+        if (!titleElement || !bodyElement || !cancelButton || !acceptButton || !modal) {
+            return;
+        }
+
         triggers.forEach((trigger) => {
             const form = trigger.closest("form");
             if (!form || form.dataset.atConfirmReady === "true") {
@@ -295,14 +318,122 @@
             }
 
             form.addEventListener("submit", (event) => {
-                const submitter = event.submitter || trigger;
-                const message = submitter.getAttribute("data-at-confirm") || trigger.getAttribute("data-at-confirm");
-                if (message && !window.confirm(message)) {
-                    event.preventDefault();
+                if (form.dataset.atConfirmAccepted === "true") {
+                    delete form.dataset.atConfirmAccepted;
+                    return;
                 }
+
+                const submitter = event.submitter || trigger;
+                if (submitter.getAttribute("data-at-confirm") !== "true") {
+                    return;
+                }
+
+                event.preventDefault();
+                pendingForm = form;
+                pendingSubmitter = submitter;
+                titleElement.textContent = submitter.getAttribute("data-at-confirm-title") || "Confirm action";
+                bodyElement.textContent = submitter.getAttribute("data-at-confirm-body") || "Please confirm that you want to continue.";
+                cancelButton.textContent = submitter.getAttribute("data-at-confirm-cancel-label") || "Cancel";
+                acceptButton.textContent = submitter.getAttribute("data-at-confirm-accept-label") || "Continue";
+                modal.show();
             });
             form.dataset.atConfirmReady = "true";
         });
+
+        acceptButton.addEventListener("click", () => {
+            if (!pendingForm) {
+                return;
+            }
+
+            const formToSubmit = pendingForm;
+            const submitterToUse = pendingSubmitter;
+            pendingForm = null;
+            pendingSubmitter = null;
+            formToSubmit.dataset.atConfirmAccepted = "true";
+            modal.hide();
+
+            if (typeof formToSubmit.requestSubmit === "function" && submitterToUse) {
+                formToSubmit.requestSubmit(submitterToUse);
+                return;
+            }
+
+            formToSubmit.submit();
+        });
+
+        modalElement.addEventListener("hidden.bs.modal", () => {
+            pendingForm = null;
+            pendingSubmitter = null;
+        });
+    }
+
+    // SECTION: Build the shared confirmation modal without inline scripts to preserve CSP compliance.
+    function ensureActionConfirmationModal() {
+        const existingModal = document.getElementById("actionTaskConfirmModal");
+        if (existingModal) {
+            return existingModal;
+        }
+
+        const modalElement = document.createElement("div");
+        modalElement.className = "modal fade";
+        modalElement.id = "actionTaskConfirmModal";
+        modalElement.tabIndex = -1;
+        modalElement.setAttribute("aria-labelledby", "actionTaskConfirmModalTitle");
+        modalElement.setAttribute("aria-hidden", "true");
+
+        const dialog = document.createElement("div");
+        dialog.className = "modal-dialog modal-dialog-centered";
+
+        const content = document.createElement("div");
+        content.className = "modal-content";
+
+        const header = document.createElement("div");
+        header.className = "modal-header";
+
+        const title = document.createElement("h2");
+        title.className = "modal-title h5 mb-0";
+        title.id = "actionTaskConfirmModalTitle";
+        title.setAttribute("data-at-confirm-modal-title", "true");
+
+        const closeButton = document.createElement("button");
+        closeButton.type = "button";
+        closeButton.className = "btn-close";
+        closeButton.setAttribute("data-bs-dismiss", "modal");
+        closeButton.setAttribute("aria-label", "Close");
+
+        const body = document.createElement("div");
+        body.className = "modal-body";
+
+        const bodyText = document.createElement("p");
+        bodyText.className = "mb-0";
+        bodyText.setAttribute("data-at-confirm-modal-body", "true");
+
+        const footer = document.createElement("div");
+        footer.className = "modal-footer";
+
+        const cancelButton = document.createElement("button");
+        cancelButton.type = "button";
+        cancelButton.className = "btn btn-outline-secondary";
+        cancelButton.setAttribute("data-bs-dismiss", "modal");
+        cancelButton.setAttribute("data-at-confirm-modal-cancel", "true");
+
+        const acceptButton = document.createElement("button");
+        acceptButton.type = "button";
+        acceptButton.className = "btn btn-danger";
+        acceptButton.setAttribute("data-at-confirm-modal-accept", "true");
+
+        header.appendChild(title);
+        header.appendChild(closeButton);
+        body.appendChild(bodyText);
+        footer.appendChild(cancelButton);
+        footer.appendChild(acceptButton);
+        content.appendChild(header);
+        content.appendChild(body);
+        content.appendChild(footer);
+        dialog.appendChild(content);
+        modalElement.appendChild(dialog);
+        document.body.appendChild(modalElement);
+
+        return modalElement;
     }
 
 
