@@ -208,7 +208,7 @@ public sealed class ActionTaskReportBuilder
                     Open = assignedOpen.Count,
                     Closed = scopedTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)),
                     OverdueNow = s.Status == ActionSprintStatus.Closed ? 0 : assignedOpen.Count(t => IsAssignedTaskOverdue(t, utcToday)),
-                    Unfinished = s.Status == ActionSprintStatus.Closed ? 0 : assignedOpen.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)),
+                    Unfinished = s.Status == ActionSprintStatus.Closed ? 0 : assignedOpen.Count,
                     ClosedLate = s.Status == ActionSprintStatus.Closed ? scopedTasks.Count(IsClosedLate) : 0
                 };
             })
