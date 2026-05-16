@@ -217,6 +217,123 @@ public class ActionTaskServiceTests
         Assert.Contains("submit for closure", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData(RoleNames.Comdt)]
+    [InlineData(RoleNames.HoD)]
+    public async Task UpdateTaskDateAsync_AllowsPlanningAuthorities(string role)
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
+        var newDate = DateTime.UtcNow.Date.AddDays(5);
+
+        // SECTION: Act
+        await service.UpdateTaskDateAsync(task.Id, task.RowVersion, newDate, "planner", role);
+
+        // SECTION: Assert
+        var updated = await db.ActionTasks.SingleAsync(x => x.Id == task.Id);
+        Assert.Equal(newDate, updated.DueDate.Date);
+    }
+
+    [Fact]
+    public async Task UpdateTaskDateAsync_RejectsAssigneeRole()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateTaskDateAsync(task.Id, task.RowVersion, DateTime.UtcNow.Date.AddDays(3), "assignee", RoleNames.Ta));
+        Assert.Contains("not authorized", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task UpdateTaskDateAsync_RejectsClosedTasks()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Closed, "assignee");
+        task.ClosedOn = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateTaskDateAsync(task.Id, task.RowVersion, DateTime.UtcNow.Date.AddDays(3), "planner", RoleNames.HoD));
+        Assert.Contains("Closed tasks", ex.Message);
+    }
+
+    [Fact]
+    public async Task UpdateTaskDateAsync_RejectsPastDates()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateTaskDateAsync(task.Id, task.RowVersion, DateTime.UtcNow.Date.AddDays(-1), "planner", RoleNames.Comdt));
+        Assert.Contains("past", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task UpdateTaskDateAsync_AuditsTargetDateForBacklogAndDueDateForAssignedTasks()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var backlog = await service.CreateBacklogItemAsync(new ActionTaskItem
+        {
+            Title = "Backlog",
+            Description = "Future work",
+            CreatedByUserId = "creator",
+            CreatedByRole = RoleNames.HoD,
+            DueDate = DateTime.UtcNow.Date.AddDays(2),
+            Priority = "Normal"
+        });
+        var assigned = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
+
+        // SECTION: Act
+        await service.UpdateTaskDateAsync(backlog.Id, backlog.RowVersion, DateTime.UtcNow.Date.AddDays(6), "planner", RoleNames.HoD);
+        await service.UpdateTaskDateAsync(assigned.Id, assigned.RowVersion, DateTime.UtcNow.Date.AddDays(7), "planner", RoleNames.Comdt);
+
+        // SECTION: Assert
+        var logs = await db.ActionTaskAuditLogs.ToListAsync();
+        Assert.Contains(logs, x => x.TaskId == backlog.Id && x.ActionType == "TargetDateChanged");
+        Assert.Contains(logs, x => x.TaskId == assigned.Id && x.ActionType == "DueDateChanged");
+    }
+
+    [Fact]
+    public async Task UpdateTaskDateAsync_WithStaleRowVersion_ThrowsConcurrencyException()
+    {
+        // SECTION: Arrange
+        var databaseName = Guid.NewGuid().ToString();
+        var databaseRoot = new InMemoryDatabaseRoot();
+        await using var staleDb = CreateDb(databaseName, databaseRoot);
+        var task = await SeedTaskAsync(staleDb, ActionTaskStatuses.Assigned, "assignee");
+        var staleRowVersion = task.RowVersion.ToArray();
+        staleDb.ChangeTracker.Clear();
+        _ = await staleDb.ActionTasks.SingleAsync(x => x.Id == task.Id);
+
+        await using (var concurrentDb = CreateDb(databaseName, databaseRoot))
+        {
+            var concurrentTask = await concurrentDb.ActionTasks.SingleAsync(x => x.Id == task.Id);
+            concurrentTask.RowVersion = [9, 9, 9];
+            concurrentTask.Priority = "High";
+            await concurrentDb.SaveChangesAsync();
+        }
+
+        var service = new ActionTaskService(staleDb, new ActionTaskPermissionService());
+
+        // SECTION: Act + Assert
+        await Assert.ThrowsAsync<ActionTaskConcurrencyException>(() =>
+            service.UpdateTaskDateAsync(task.Id, staleRowVersion, DateTime.UtcNow.Date.AddDays(8), "planner", RoleNames.HoD));
+    }
+
     private static ApplicationDbContext CreateDb()
         => CreateDb(Guid.NewGuid().ToString(), new InMemoryDatabaseRoot());
 

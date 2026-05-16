@@ -75,6 +75,7 @@ public class ActionTaskPermissionServiceTests
         var canCloseSprint = service.CanCloseSprint(role);
         var canAssignTaskToSprint = service.CanAssignTaskToSprint(role);
         var canMoveTaskToBacklog = service.CanMoveTaskToBacklog(role);
+        var canChangeTaskDate = service.CanChangeTaskDate(role);
 
         // SECTION: Assert
         Assert.Equal(expected, canManageSprints);
@@ -85,6 +86,7 @@ public class ActionTaskPermissionServiceTests
         Assert.Equal(expected, canCloseSprint);
         Assert.Equal(expected, canAssignTaskToSprint);
         Assert.Equal(expected, canMoveTaskToBacklog);
+        Assert.Equal(expected, canChangeTaskDate);
     }
 
 }

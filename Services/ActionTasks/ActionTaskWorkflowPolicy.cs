@@ -52,6 +52,12 @@ public sealed class ActionTaskWorkflowPolicy
             && (_permission.CanViewAll(currentRole) || string.Equals(task.AssignedToUserId, currentUserId, StringComparison.Ordinal));
     }
 
+    public bool CanChangeTaskDate(ActionTaskItem task, string currentRole)
+    {
+        return _permission.CanChangeTaskDate(currentRole)
+            && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
+    }
+
     // SECTION: Transition and remarks validation for command handlers.
     public string? ValidateStatusUpdate(ActionTaskItem task, string targetStatus)
     {

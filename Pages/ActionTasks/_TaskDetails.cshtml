@@ -283,6 +283,32 @@
                         </details>
                     }
 
+
+                    @if (Model.CanChangeTaskDate(Model.SelectedTask))
+                    {
+                        <details class="at-action-drawer" data-at-action-panel="change-date">
+                            <summary class="visually-hidden">Open date change panel</summary>
+                            <form method="post" asp-page-handler="ChangeTaskDate" class="at-action-card at-action-card-compact">
+                                <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                                <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />
+                                <input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" />
+                                <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
+                                <input type="hidden" asp-for="ChangeDateInput.TaskId" value="@Model.SelectedTask.Id" />
+                                <input type="hidden" asp-for="ChangeDateInput.RowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" />
+                                <div class="at-action-title">Change @selectedTaskDateLabel Date</div>
+                                <div class="mb-2">
+                                    <label class="form-label at-small" asp-for="ChangeDateInput.NewDate">New @selectedTaskDateLabel Date</label>
+                                    <input class="form-control form-control-sm" asp-for="ChangeDateInput.NewDate" type="date" value="@Model.SelectedTask.DueDate.ToString("yyyy-MM-dd")" min="@DateTime.UtcNow.Date.ToString("yyyy-MM-dd")" />
+                                </div>
+                                <div class="at-action-buttons">
+                                    <button type="submit" class="btn btn-primary btn-sm">Save Date</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="change-date">Cancel</button>
+                                </div>
+                            </form>
+                        </details>
+                    }
+
                     @if (Model.CanSubmitTask(Model.SelectedTask))
                     {
                         <details class="at-action-drawer" data-at-action-panel="submit">
@@ -394,6 +420,11 @@
                             @if (!string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase) && Model.CanCloseTask(Model.SelectedTask))
                             {
                                 <button type="button" class="btn btn-link btn-sm" data-at-open-action="close">Close Task</button>
+                            }
+
+                            @if (Model.CanChangeTaskDate(Model.SelectedTask))
+                            {
+                                <button type="button" class="btn btn-link btn-sm" data-at-open-action="change-date">Change @selectedTaskDateLabel Date</button>
                             }
                             @if (Model.CanMoveTaskToBacklog(Model.SelectedTask))
                             {

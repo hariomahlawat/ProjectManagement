@@ -181,6 +181,9 @@ public class IndexModel : PageModel
     public AddTaskUpdateInput UpdateInput { get; set; } = new();
 
     [BindProperty]
+    public ChangeTaskDateInput ChangeDateInput { get; set; } = new();
+
+    [BindProperty]
     public CreateSprintInput SprintInput { get; set; } = new();
 
     [BindProperty]
@@ -327,6 +330,11 @@ public class IndexModel : PageModel
     public bool CanUpdateTaskStatus(ActionTaskItem task)
     {
         return _workflowPolicy.CanUpdateTaskStatus(task, CurrentRole, CurrentUserId);
+    }
+
+    public bool CanChangeTaskDate(ActionTaskItem task)
+    {
+        return _workflowPolicy.CanChangeTaskDate(task, CurrentRole);
     }
 
     public string GetStatusBadgeClass(string status)
@@ -535,6 +543,20 @@ public class IndexModel : PageModel
         if (BacklogItemInput.TargetDate.Date < _clock.UtcToday)
         {
             ModelState.AddModelError(nameof(BacklogItemInput.TargetDate), "Target date cannot be in the past.");
+        }
+
+        return ModelState.IsValid;
+    }
+
+    private bool ValidateChangeTaskDateInput()
+    {
+        // SECTION: Page-level date-change validation gives immediate feedback before service-level enforcement.
+        ModelState.Clear();
+        TryValidateModel(ChangeDateInput, nameof(ChangeDateInput));
+
+        if (ChangeDateInput.NewDate.Date < _clock.UtcToday)
+        {
+            ModelState.AddModelError(nameof(ChangeDateInput.NewDate), "Task date cannot be in the past.");
         }
 
         return ModelState.IsValid;
@@ -826,6 +848,44 @@ public class IndexModel : PageModel
         }
 
         return RedirectToTaskPage(id, SelectedSprintId);
+    }
+
+    // SECTION: Change a backlog target date or assigned task due date.
+    public async Task<IActionResult> OnPostChangeTaskDateAsync()
+    {
+        await ResolveIdentityAsync();
+
+        try
+        {
+            if (!ValidateChangeTaskDateInput())
+            {
+                TempData["ToastError"] = ModelState.Values
+                    .SelectMany(value => value.Errors)
+                    .Select(error => error.ErrorMessage)
+                    .FirstOrDefault(error => !string.IsNullOrWhiteSpace(error))
+                    ?? "Enter a valid task date.";
+                return RedirectToTaskPage(ChangeDateInput.TaskId, SelectedSprintId);
+            }
+
+            await _service.UpdateTaskDateAsync(
+                ChangeDateInput.TaskId,
+                DecodeRowVersion(ChangeDateInput.RowVersion),
+                ChangeDateInput.NewDate,
+                CurrentUserId,
+                CurrentRole);
+
+            TempData["ToastMessage"] = "Task date updated.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
+        return RedirectToTaskPage(ChangeDateInput.TaskId, SelectedSprintId);
     }
 
     // SECTION: Assign backlog or visible task into an available sprint.
@@ -1630,6 +1690,20 @@ public class IndexModel : PageModel
 
         [Required, StringLength(2000)]
         public string Remarks { get; set; } = string.Empty;
+    }
+
+
+    public sealed class ChangeTaskDateInput
+    {
+        [Required]
+        public int TaskId { get; set; }
+
+        [Required]
+        public string RowVersion { get; set; } = string.Empty;
+
+        [Display(Name = "New Date")]
+        [Required]
+        public DateTime NewDate { get; set; }
     }
 
     public sealed class AddTaskUpdateInput
