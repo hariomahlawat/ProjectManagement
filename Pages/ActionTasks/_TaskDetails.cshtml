@@ -389,7 +389,7 @@
                         @if (Model.CanCloseTask(Model.SelectedTask))
                         {
                             <button type="button" class="btn btn-success btn-sm" data-at-open-action="close">Close Task</button>
-                            <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="status">Return for Rework</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="status" data-at-target-status="In Progress">Return for Rework</button>
                         }
                         else
                         {
@@ -405,7 +405,7 @@
                         <button type="button" class="btn btn-primary btn-sm" data-at-open-action="update">Add Update</button>
                         @if (Model.CanUpdateTaskStatus(Model.SelectedTask) && !string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
                         {
-                            <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="status">Mark In Progress</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="status" data-at-target-status="In Progress">Mark In Progress</button>
                         }
                         @if (Model.CanSubmitTask(Model.SelectedTask) && string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
                         {

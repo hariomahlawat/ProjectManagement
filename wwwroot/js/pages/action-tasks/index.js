@@ -452,13 +452,29 @@
             panels.forEach((panel) => panel.removeAttribute("open"));
         };
 
-        const openPanel = (name) => {
+        // SECTION: Intent-specific status actions can seed the status panel selection.
+        const applyStatusActionTarget = (name, targetStatus) => {
+            if (name !== "status" || !targetStatus) {
+                return;
+            }
+
+            const statusSelect = shell.querySelector("[data-at-status-select]");
+            if (!statusSelect) {
+                return;
+            }
+
+            statusSelect.value = targetStatus;
+            statusSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        };
+
+        const openPanel = (name, targetStatus) => {
             closeAllPanels();
             const panel = shell.querySelector(`[data-at-action-panel='${name}']`);
             if (!panel) {
                 return;
             }
             panel.setAttribute("open", "open");
+            applyStatusActionTarget(name, targetStatus);
             const focusTarget = panel.querySelector("textarea, select, input, button");
             if (focusTarget) {
                 focusTarget.focus();
@@ -468,7 +484,8 @@
         openButtons.forEach((button) => {
             button.addEventListener("click", () => {
                 const target = button.getAttribute("data-at-open-action");
-                openPanel(target);
+                const targetStatus = button.getAttribute("data-at-target-status");
+                openPanel(target, targetStatus);
             });
         });
 
