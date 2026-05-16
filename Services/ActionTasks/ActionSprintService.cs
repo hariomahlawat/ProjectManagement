@@ -231,12 +231,12 @@ public class ActionSprintService
         }
 
         var unsafeAssignedDispositionIds = unfinishedTasks
-            .Where(t => (carryIds.Contains(t.Id) || outsideIds.Contains(t.Id)) && !ActionTaskCategorization.HasAssignedUser(t))
+            .Where(t => (carryIds.Contains(t.Id) || outsideIds.Contains(t.Id)) && ActionTaskCategorization.ResolveBucket(t) == ActionTaskBucket.Invalid)
             .Select(t => t.Id)
             .ToList();
         if (unsafeAssignedDispositionIds.Count > 0)
         {
-            throw new InvalidOperationException("Tasks with invalid sprint assignment and no responsible person must be returned to backlog or corrected before sprint closure.");
+            throw new InvalidOperationException("Tasks with invalid sprint assignment must be returned to backlog or corrected before sprint closure.");
         }
 
         var performedAt = DateTime.UtcNow;

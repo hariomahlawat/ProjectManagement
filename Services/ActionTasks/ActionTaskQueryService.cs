@@ -270,9 +270,7 @@ public sealed class ActionTaskQueryService
 
         if (isAtNumber || isBareNumber)
         {
-            return matchesExactTaskId
-                || task.Title.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
-                || (!string.IsNullOrWhiteSpace(task.Description) && task.Description.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
+            return matchesExactTaskId;
         }
 
         var taskNumber = $"AT-{task.Id}";
@@ -328,6 +326,7 @@ public sealed class ActionTaskQueryService
         DateTime? ReportToDate = null,
         string? ReportStatus = null,
         string? ReportPriority = null,
+        string? ReportBucket = null,
         string? FilterBucket = null);
 
     public sealed class ActionTaskReadModel
@@ -461,7 +460,7 @@ public sealed class ActionTaskQueryService
         public int Open { get; init; }
         public int Closed { get; init; }
         public int CarriedForward { get; init; }
-        public int OverdueAtClosure { get; init; }
+        public int ClosedLate { get; init; }
     }
 
     public sealed class InvalidTaskStateSummary

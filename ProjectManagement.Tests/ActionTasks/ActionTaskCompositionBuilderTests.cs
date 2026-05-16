@@ -50,14 +50,14 @@ public class ActionTaskCompositionBuilderTests
         };
 
         // SECTION: Act
-        var summary = builder.Build(tasks, criticalOpenCount: 2, carryForwardCandidateTasks: 1);
+        var summary = builder.Build(tasks, criticalOpenCount: 2);
 
         // SECTION: Assert
         Assert.Equal(3, summary.ActiveCount);
         Assert.Equal(1, summary.OverdueCount);
         Assert.Equal(1, summary.BlockedCount);
         Assert.Equal(1, summary.SubmittedCount);
-        Assert.Equal("1 overdue. 1 blocked. 1 submitted pending closure. 2 critical open. 1 carry-forward candidates.", summary.DashboardCommandFocusSummary);
+        Assert.Equal("1 overdue. 1 blocked. 1 submitted pending closure. 2 critical open.", summary.DashboardCommandFocusSummary);
         Assert.Equal("There are 3 active tasks, including 2 critical tasks. 1 task is overdue. 1 submitted task is pending closure.", summary.CommandSummary);
         Assert.Equal(new[] { "Critical overdue", "Blocked critical", "Submitted" }, summary.TopAttentionTasks.Select(t => t.Title));
     }

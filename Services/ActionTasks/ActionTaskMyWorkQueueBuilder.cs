@@ -22,16 +22,29 @@ public sealed class ActionTaskMyWorkQueueBuilder
             .Select(task => new SectionedTask(task, ResolveMyWorkQueueSection(task)))
             .ToList();
 
+        var actionRequiredTasks = BuildQueueSection(sectionedTasks, ActionTaskMyWorkQueueSection.ActionRequired);
+        var currentWorkTasks = BuildQueueSection(sectionedTasks, ActionTaskMyWorkQueueSection.CurrentWork);
+        var submittedAwaitingClosureTasks = BuildQueueSection(sectionedTasks, ActionTaskMyWorkQueueSection.SubmittedAwaitingClosure);
+        var allMyTasks = BuildQueueSection(sectionedTasks, ActionTaskMyWorkQueueSection.AllMyTasks);
+        var overdueTasks = BuildOverdueTasks(openTasks);
+        var inProgressTasks = BuildInProgressTasks(openTasks);
+        var submittedTasks = BuildSubmittedTasks(openTasks);
+
         return new ActionTaskMyWorkQueueReadModel(
-            BuildOverdueTasks(openTasks),
+            overdueTasks,
             BuildDueTodayTasks(openTasks),
-            BuildInProgressTasks(openTasks),
-            BuildSubmittedTasks(openTasks),
+            inProgressTasks,
+            submittedTasks,
             BuildActiveSprintTasks(openTasks, activeSprint),
-            BuildQueueSection(sectionedTasks, ActionTaskMyWorkQueueSection.ActionRequired),
-            BuildQueueSection(sectionedTasks, ActionTaskMyWorkQueueSection.CurrentWork),
-            BuildQueueSection(sectionedTasks, ActionTaskMyWorkQueueSection.SubmittedAwaitingClosure),
-            BuildQueueSection(sectionedTasks, ActionTaskMyWorkQueueSection.AllMyTasks));
+            actionRequiredTasks,
+            currentWorkTasks,
+            submittedAwaitingClosureTasks,
+            allMyTasks,
+            actionRequiredTasks.Count + currentWorkTasks.Count + submittedAwaitingClosureTasks.Count + allMyTasks.Count,
+            actionRequiredTasks.Count + allMyTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase)),
+            overdueTasks.Count,
+            inProgressTasks.Count,
+            submittedTasks.Count);
     }
 
     // SECTION: My Work queue sections assign each task to exactly one primary section.
@@ -157,7 +170,12 @@ public sealed record ActionTaskMyWorkQueueReadModel(
     IReadOnlyList<ActionTaskItem> ActionRequiredTasks,
     IReadOnlyList<ActionTaskItem> CurrentWorkTasks,
     IReadOnlyList<ActionTaskItem> SubmittedAwaitingClosureTasks,
-    IReadOnlyList<ActionTaskItem> AllMyTasks);
+    IReadOnlyList<ActionTaskItem> AllMyTasks,
+    int OpenAssignedTaskCount,
+    int NeedsActionCount,
+    int OverdueCount,
+    int InProgressCount,
+    int SubmittedCount);
 
 public enum ActionTaskMyWorkQueueSection
 {

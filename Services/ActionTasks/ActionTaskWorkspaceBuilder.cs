@@ -44,6 +44,7 @@ public sealed class ActionTaskWorkspaceBuilder
             request.ReportToDate,
             request.ReportStatus,
             request.ReportPriority,
+            request.ReportBucket,
             request.FilterBucket);
 
         return new ActionTaskWorkspaceReadModel(sourceTasks, _queryService.BuildReadModel(sourceTasks, queryRequest, assigneeNames, activityByTaskId));
@@ -65,6 +66,7 @@ public sealed record ActionTaskWorkspaceRequest(
     string? SortBy,
     string? SortDir,
     string? FilterBucket,
+    string? ReportBucket,
     int? ReportSprintId,
     string? ReportAssigneeUserId,
     DateTime? ReportFromDate,

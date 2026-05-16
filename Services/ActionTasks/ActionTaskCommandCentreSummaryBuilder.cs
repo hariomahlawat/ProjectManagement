@@ -15,7 +15,7 @@ public sealed class ActionTaskCommandCentreSummaryBuilder
     }
 
     // SECTION: Command Centre summary projection centralizes dashboard KPI and narrative composition.
-    public ActionTaskCommandCentreSummary Build(IReadOnlyList<ActionTaskItem> tasks, int criticalOpenCount, int carryForwardCandidateTasks)
+    public ActionTaskCommandCentreSummary Build(IReadOnlyList<ActionTaskItem> tasks, int criticalOpenCount)
     {
         var activeCount = tasks.Count(IsOpenTask);
         var overdueCount = tasks.Count(IsTaskOverdue);
@@ -32,7 +32,7 @@ public sealed class ActionTaskCommandCentreSummaryBuilder
             blockedCount,
             CountByStatus(tasks, ActionTaskStatuses.Closed),
             activeCriticalCount,
-            BuildCommandFocusSummary(overdueCount, blockedCount, submittedPendingClosureCount, activeCriticalCount, carryForwardCandidateTasks),
+            BuildCommandFocusSummary(overdueCount, blockedCount, submittedPendingClosureCount, activeCriticalCount),
             BuildCommandSummary(activeCount, activeCriticalCount, overdueCount, submittedPendingClosureCount),
             BuildTopAttentionItems(tasks),
             attentionLists.PendingClosureTasks,
@@ -87,8 +87,8 @@ public sealed class ActionTaskCommandCentreSummaryBuilder
             .ToList();
     }
 
-    private static string BuildCommandFocusSummary(int overdueCount, int blockedCount, int submittedPendingClosureCount, int criticalOpenCount, int carryForwardCandidateTasks)
-        => $"{overdueCount} overdue. {blockedCount} blocked. {submittedPendingClosureCount} submitted pending closure. {criticalOpenCount} critical open. {carryForwardCandidateTasks} carry-forward candidates.";
+    private static string BuildCommandFocusSummary(int overdueCount, int blockedCount, int submittedPendingClosureCount, int criticalOpenCount)
+        => $"{overdueCount} overdue. {blockedCount} blocked. {submittedPendingClosureCount} submitted pending closure. {criticalOpenCount} critical open.";
 
     private static string BuildCommandSummary(int activeCount, int activeCriticalCount, int overdueCount, int submittedPendingClosureCount)
     {
@@ -159,7 +159,7 @@ public sealed record ActionTaskCommandCentreSummary(
     IReadOnlyList<ActionTaskItem> OverdueTasks,
     IReadOnlyList<ActionTaskItem> CriticalOpenTasks)
 {
-    public static ActionTaskCommandCentreSummary Empty { get; } = new(0, 0, 0, 0, 0, 0, 0, "0 overdue. 0 blocked. 0 submitted pending closure. 0 critical open. 0 carry-forward candidates.", "There are 0 active tasks, including 0 critical tasks. No tasks are overdue. No submitted task is pending closure.", Array.Empty<ActionTaskItem>(), Array.Empty<ActionTaskItem>(), Array.Empty<ActionTaskItem>(), Array.Empty<ActionTaskItem>(), Array.Empty<ActionTaskItem>());
+    public static ActionTaskCommandCentreSummary Empty { get; } = new(0, 0, 0, 0, 0, 0, 0, "0 overdue. 0 blocked. 0 submitted pending closure. 0 critical open.", "There are 0 active tasks, including 0 critical tasks. No tasks are overdue. No submitted task is pending closure.", Array.Empty<ActionTaskItem>(), Array.Empty<ActionTaskItem>(), Array.Empty<ActionTaskItem>(), Array.Empty<ActionTaskItem>(), Array.Empty<ActionTaskItem>());
 }
 
 internal sealed record CommandAttentionLists(
