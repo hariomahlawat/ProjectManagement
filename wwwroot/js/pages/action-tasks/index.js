@@ -452,13 +452,6 @@
             panels.forEach((panel) => panel.removeAttribute("open"));
         };
 
-        // SECTION: More menu cleanup keeps overlapping action controls mutually exclusive.
-        const closeAllMoreMenus = () => {
-            shell.querySelectorAll(".at-action-more-menu[open]").forEach((menu) => {
-                menu.removeAttribute("open");
-            });
-        };
-
         // SECTION: Intent-specific status actions can seed the status panel selection.
         const applyStatusActionTarget = (name, targetStatus) => {
             if (name !== "status" || !targetStatus) {
@@ -475,7 +468,6 @@
         };
 
         const openPanel = (name, targetStatus) => {
-            closeAllMoreMenus();
             closeAllPanels();
             const panel = shell.querySelector(`[data-at-action-panel='${name}']`);
             if (!panel) {
@@ -508,14 +500,12 @@
                 return;
             }
             const hasOpenPanel = panels.some((panel) => panel.hasAttribute("open"));
-            const hasOpenMoreMenu = Boolean(shell.querySelector(".at-action-more-menu[open]"));
-            if (!hasOpenPanel && !hasOpenMoreMenu) {
+            if (!hasOpenPanel) {
                 return;
             }
             event.preventDefault();
             event.stopPropagation();
             closeAllPanels();
-            closeAllMoreMenus();
         });
     }
 

@@ -116,11 +116,15 @@ public class ActionTaskCompositionBuilderTests
     {
         public FixedActionTrackerClock(DateTime today)
         {
-            UtcToday = today.Date;
-            UtcNow = UtcToday.AddHours(12);
+            IstToday = today.Date;
+            IstNow = IstToday.AddHours(12);
+            UtcNow = IstNow.AddHours(-5.5);
+            UtcToday = UtcNow.Date;
         }
 
         public DateTime UtcNow { get; }
         public DateTime UtcToday { get; }
+        public DateTime IstNow { get; }
+        public DateTime IstToday { get; }
     }
 }

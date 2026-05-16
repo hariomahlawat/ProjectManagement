@@ -17,7 +17,7 @@
             : "To close this task, the assignee must first submit it for closure."
         : null;
     var selectedTaskDateLabel = selectedTaskIsBacklog ? "Target" : "Due";
-    var minimumChangeDate = Model.UtcToday;
+    var minimumChangeDate = Model.IstToday;
     var changeDateInputValue = Model.SelectedTask is not null && Model.SelectedTask.DueDate.Date >= minimumChangeDate
         ? Model.SelectedTask.DueDate.Date
         : minimumChangeDate;
@@ -57,7 +57,7 @@
                         <span class="@Model.GetSprintBadgeClass(Model.SelectedTask)">@Model.GetSprintBadgeText(Model.SelectedTask)</span>
                     </div>
                     <div class="at-inspector-snapshot">
-                        <span>Last update: @((Model.SelectedTaskUpdates.FirstOrDefault()?.CreatedAtUtc ?? Model.SelectedTask.AssignedOn).ToString("dd MMM yyyy, HH:mm"))</span>
+                        <span>Last update: @TimeFmt.ToIst(Model.SelectedTaskUpdates.FirstOrDefault()?.CreatedAtUtc ?? Model.SelectedTask.AssignedOn)</span>
                         <span>@Model.SelectedTaskUpdates.Count() updates</span>
                         <span>@Model.UpdateAttachments.Sum(entry => entry.Value.Count) attachments</span>
                     </div>
@@ -87,7 +87,7 @@
                                 <article class="at-activity-update-card">
                                     <div class="d-flex justify-content-between gap-2 flex-wrap">
                                         <div><strong>@Model.ResolveActorName(update.CreatedByUserId)</strong></div>
-                                        <div class="text-muted small">@update.CreatedAtUtc.ToString("dd MMM yyyy, HH:mm")</div>
+                                        <div class="text-muted small">@TimeFmt.ToIst(update.CreatedAtUtc)</div>
                                     </div>
                                     <div class="at-audit-remarks at-remarks-text">@update.Body</div>
                                     @if (Model.UpdateAttachments.TryGetValue(update.Id, out var files) && files.Count > 0)
@@ -140,7 +140,7 @@
                                             <strong>@log.ActionType</strong>
                                             <span class="text-muted">by @Model.ResolveActorName(log.PerformedByUserId)</span>
                                         </div>
-                                        <div class="text-muted small">@log.PerformedAt.ToString("dd MMM yyyy, HH:mm")</div>
+                                        <div class="text-muted small">@TimeFmt.ToIst(log.PerformedAt)</div>
                                     </div>
                                     @if (!string.IsNullOrWhiteSpace(log.OldValue) || !string.IsNullOrWhiteSpace(log.NewValue))
                                     {
@@ -160,9 +160,9 @@
                     <summary>Task Details</summary>
                     <div class="at-task-details-grid mt-2">
                         <div class="at-grid-span-2"><span class="text-muted">Description</span><div class="fw-semibold at-description-text">@Model.SelectedTask.Description</div></div>
-                        <div><span class="text-muted">Assigned On</span><div class="fw-semibold">@Model.SelectedTask.AssignedOn.ToString("dd MMM yyyy, HH:mm")</div></div>
-                        <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@(Model.SelectedTask.SubmittedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
-                        <div><span class="text-muted">Closed On</span><div class="fw-semibold">@(Model.SelectedTask.ClosedOn?.ToString("dd MMM yyyy, HH:mm") ?? "—")</div></div>
+                        <div><span class="text-muted">Assigned On</span><div class="fw-semibold">@TimeFmt.ToIst(Model.SelectedTask.AssignedOn)</div></div>
+                        <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@TimeFmt.ToIst(Model.SelectedTask.SubmittedOn)</div></div>
+                        <div><span class="text-muted">Closed On</span><div class="fw-semibold">@TimeFmt.ToIst(Model.SelectedTask.ClosedOn)</div></div>
                         <div><span class="text-muted">Work category</span><div class="fw-semibold">@Model.GetSprintBadgeText(Model.SelectedTask)</div></div>
                     </div>
                 </details>
@@ -438,9 +438,10 @@
 
                     @if (hasMoreActions)
                     {
-                        <details class="at-action-more-menu">
-                            <summary class="btn btn-outline-secondary btn-sm">More</summary>
-                            <div class="at-action-more-list">
+                        @* SECTION: Inline More Actions panel avoids clipped drawer popovers while grouping secondary actions. *@
+                        <section class="at-more-actions-panel" aria-label="More Actions">
+                            <div class="at-more-actions-title">More Actions</div>
+                            <div class="at-more-actions-grid">
                                 @* SECTION: Workflow action group keeps status and closure transitions together. *@
                                 @if (hasWorkflowActions)
                                 {
@@ -493,7 +494,7 @@
                                 @* SECTION: Danger Zone separates destructive planning actions from routine planning controls. *@
                                 @if (hasDangerActions)
                                 {
-                                    <div class="at-action-more-group" role="group" aria-label="Danger Zone">
+                                    <div class="at-action-more-group at-action-danger-group" role="group" aria-label="Danger Zone">
                                         <div class="at-action-more-heading">Danger Zone</div>
                                         <form method="post" asp-page-handler="MoveToBacklogRemoveAssignee" class="at-card-action-form">
                                             <input type="hidden" name="ViewMode" value="Planning" />
@@ -512,7 +513,7 @@
                                     </div>
                                 }
                             </div>
-                        </details>
+                        </section>
                     }
                 </div>
             </footer>

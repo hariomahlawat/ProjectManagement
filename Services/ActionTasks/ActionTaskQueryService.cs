@@ -42,7 +42,7 @@ public sealed class ActionTaskQueryService
             SprintReadModel = sprintReadModel,
             ActiveSprintMetrics = activeSprintMetrics,
             CriticalOpenTasks = tasks.Where(t => IsCriticalOpen(t)).OrderBy(t => t.DueDate).Take(5).ToList(),
-            OverdueTasks = tasks.Where(t => IsOperationallyOverdue(t, _clock.UtcToday)).OrderBy(t => t.DueDate).Take(5).ToList(),
+            OverdueTasks = tasks.Where(t => IsOperationallyOverdue(t, _clock.IstToday)).OrderBy(t => t.DueDate).Take(5).ToList(),
             RecentlySubmittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase) && t.SubmittedOn.HasValue).OrderByDescending(t => t.SubmittedOn ?? DateTime.MinValue).Take(5).ToList(),
             RecentlyUpdatedTasks = tasks.Where(t => ResolveLastActivityUtc(t, activityByTaskId).HasValue).OrderByDescending(t => ResolveLastActivityUtc(t, activityByTaskId) ?? DateTime.MinValue).ThenByDescending(t => t.Id).Take(5).ToList(),
             DueBuckets = BuildDueBuckets(tasks),
@@ -194,7 +194,7 @@ public sealed class ActionTaskQueryService
         var activeSprintTasks = activeSprint is null
             ? new List<ActionTaskItem>()
             : tasks.Where(t => t.SprintId == activeSprint.Id).ToList();
-        var today = _clock.UtcToday;
+        var today = _clock.IstToday;
 
         return new ActiveSprintOperationalMetrics
         {
@@ -213,7 +213,7 @@ public sealed class ActionTaskQueryService
 
     private ActionTaskDueBuckets BuildDueBuckets(IReadOnlyList<ActionTaskItem> tasks)
     {
-        var today = _clock.UtcToday;
+        var today = _clock.IstToday;
         var endOfWeek = today.AddDays(7);
         return new ActionTaskDueBuckets
         {

@@ -36,7 +36,7 @@
                         {
                             <li>
                                 <div><strong>@entry.ActionType.Replace("Sprint", string.Empty)</strong> by @Model.ResolveSprintActorName(entry.PerformedByUserId)</div>
-                                <small>@entry.PerformedAt.ToString("dd MMM yyyy HH:mm") UTC</small>
+                                <small>@TimeFmt.ToIst(entry.PerformedAt)</small>
                                 @if (!string.IsNullOrWhiteSpace(entry.Remarks))
                                 {
                                     <p>@entry.Remarks</p>

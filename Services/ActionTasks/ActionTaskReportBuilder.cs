@@ -17,11 +17,11 @@ public sealed class ActionTaskReportBuilder
     // SECTION: Filter-aware report projection for management analysis without changing workflow rules.
     public ActionTaskQueryService.ActionTaskReportReadModel BuildReportModel(IReadOnlyList<ActionTaskItem> tasks, ActionTaskQueryService.ActionTaskQueryRequest request, IReadOnlyDictionary<string, string> assigneeNames)
     {
-        var utcToday = _clock.UtcToday;
+        var istToday = _clock.IstToday;
         var reportTasks = ApplyReportFilters(tasks, request).ToList();
         var openTasks = reportTasks.Where(IsOpen).ToList();
         var assignedOpenTasks = openTasks.Where(IsAssignedReportWork).ToList();
-        var overdueAssignedTasks = assignedOpenTasks.Where(t => IsAssignedTaskOverdue(t, utcToday)).ToList();
+        var overdueAssignedTasks = assignedOpenTasks.Where(t => IsAssignedTaskOverdue(t, istToday)).ToList();
         var submittedTasks = assignedOpenTasks.Where(IsSubmitted).ToList();
         var backlogTasks = reportTasks.Where(t => ActionTaskCategorization.ResolveBucket(t) == ActionTaskBucket.Backlog).ToList();
         var blockedTasks = assignedOpenTasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -33,20 +33,20 @@ public sealed class ActionTaskReportBuilder
             WorkloadSummary = BuildWorkloadSummary(openTasks, overdueAssignedTasks, blockedTasks, submittedTasks, backlogTasks),
             BucketDistribution = BuildBucketDistribution(reportTasks),
             ResponsiblePersonWorkloads = BuildResponsiblePersonWorkloads(assignedOpenTasks, overdueAssignedTasks, assigneeNames),
-            BacklogAgeingBuckets = BuildBacklogAgeingBuckets(backlogTasks.Where(IsOpen).ToList(), utcToday),
-            AssignedTaskAgeingBuckets = BuildAssignedTaskAgeingBuckets(assignedOpenTasks, utcToday),
-            OverdueAgeingBuckets = BuildOverdueAgeingBuckets(overdueAssignedTasks, utcToday),
-            SubmittedPendingClosureAgeingBuckets = BuildSubmittedPendingClosureAgeingBuckets(submittedTasks, utcToday),
-            SprintPerformanceRows = BuildSprintPerformanceRows(reportTasks, request.Sprints, utcToday),
+            BacklogAgeingBuckets = BuildBacklogAgeingBuckets(backlogTasks.Where(IsOpen).ToList(), istToday),
+            AssignedTaskAgeingBuckets = BuildAssignedTaskAgeingBuckets(assignedOpenTasks, istToday),
+            OverdueAgeingBuckets = BuildOverdueAgeingBuckets(overdueAssignedTasks, istToday),
+            SubmittedPendingClosureAgeingBuckets = BuildSubmittedPendingClosureAgeingBuckets(submittedTasks, istToday),
+            SprintPerformanceRows = BuildSprintPerformanceRows(reportTasks, request.Sprints, istToday),
             InvalidStateRows = BuildInvalidStateRows(reportTasks),
 
             // SECTION: Legacy report summaries remain populated for existing consumers while the Reports UI uses the management model above.
             AssigneePendingCounts = BuildAssigneePendingCounts(assignedOpenTasks, assigneeNames),
             PriorityCounts = openTasks.GroupBy(t => t.Priority).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).Select(g => new ActionTaskQueryService.CountSummary(g.Key, g.Count())).ToList(),
             StatusCounts = reportTasks.GroupBy(t => t.Status).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).Select(g => new ActionTaskQueryService.CountSummary(g.Key, g.Count())).ToList(),
-            OpenAgeingBuckets = BuildAssignedTaskAgeingBuckets(assignedOpenTasks, utcToday),
+            OpenAgeingBuckets = BuildAssignedTaskAgeingBuckets(assignedOpenTasks, istToday),
             OutsideSprintWorkloadCounts = BuildOutsideSprintWorkloadCounts(assignedOpenTasks.Where(t => ActionTaskCategorization.ResolveBucket(t) == ActionTaskBucket.OutsideSprint).ToList(), assigneeNames),
-            BlockedAgeingBuckets = BuildAssignedTaskAgeingBuckets(blockedTasks, utcToday),
+            BlockedAgeingBuckets = BuildAssignedTaskAgeingBuckets(blockedTasks, istToday),
             CarryForwardBySprint = BuildCarryForwardBySprint(openTasks, request.Sprints)
         };
     }
@@ -151,45 +151,45 @@ public sealed class ActionTaskReportBuilder
     }
 
     // SECTION: Backlog ageing is planning-inventory ageing; AssignedOn is a temporary backlog-entry proxy until a CreatedOnUtc or EnteredBacklogOnUtc field exists.
-    private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildBacklogAgeingBuckets(IReadOnlyList<ActionTaskItem> backlogTasks, DateTime utcToday)
+    private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildBacklogAgeingBuckets(IReadOnlyList<ActionTaskItem> backlogTasks, DateTime istToday)
         => new[]
         {
-            new ActionTaskQueryService.CountSummary("0-3 days in backlog", backlogTasks.Count(t => DaysSince(t.AssignedOn, utcToday) is >= 0 and <= 3)),
-            new ActionTaskQueryService.CountSummary("4-7 days in backlog", backlogTasks.Count(t => DaysSince(t.AssignedOn, utcToday) is >= 4 and <= 7)),
-            new ActionTaskQueryService.CountSummary("8-14 days in backlog", backlogTasks.Count(t => DaysSince(t.AssignedOn, utcToday) is >= 8 and <= 14)),
-            new ActionTaskQueryService.CountSummary("15+ days in backlog", backlogTasks.Count(t => DaysSince(t.AssignedOn, utcToday) >= 15))
+            new ActionTaskQueryService.CountSummary("0-3 days in backlog", backlogTasks.Count(t => DaysSince(t.AssignedOn, istToday) is >= 0 and <= 3)),
+            new ActionTaskQueryService.CountSummary("4-7 days in backlog", backlogTasks.Count(t => DaysSince(t.AssignedOn, istToday) is >= 4 and <= 7)),
+            new ActionTaskQueryService.CountSummary("8-14 days in backlog", backlogTasks.Count(t => DaysSince(t.AssignedOn, istToday) is >= 8 and <= 14)),
+            new ActionTaskQueryService.CountSummary("15+ days in backlog", backlogTasks.Count(t => DaysSince(t.AssignedOn, istToday) >= 15))
         };
 
     // SECTION: Assigned task ageing applies only to Outside Sprint and Sprint work, never backlog or closed tasks.
-    private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildAssignedTaskAgeingBuckets(IReadOnlyList<ActionTaskItem> assignedTasks, DateTime utcToday)
+    private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildAssignedTaskAgeingBuckets(IReadOnlyList<ActionTaskItem> assignedTasks, DateTime istToday)
         => new[]
         {
-            new ActionTaskQueryService.CountSummary("0-3 days assigned", assignedTasks.Count(t => DaysSince(t.AssignedOn, utcToday) is >= 0 and <= 3)),
-            new ActionTaskQueryService.CountSummary("4-7 days assigned", assignedTasks.Count(t => DaysSince(t.AssignedOn, utcToday) is >= 4 and <= 7)),
-            new ActionTaskQueryService.CountSummary("8-14 days assigned", assignedTasks.Count(t => DaysSince(t.AssignedOn, utcToday) is >= 8 and <= 14)),
-            new ActionTaskQueryService.CountSummary("15+ days assigned", assignedTasks.Count(t => DaysSince(t.AssignedOn, utcToday) >= 15))
+            new ActionTaskQueryService.CountSummary("0-3 days assigned", assignedTasks.Count(t => DaysSince(t.AssignedOn, istToday) is >= 0 and <= 3)),
+            new ActionTaskQueryService.CountSummary("4-7 days assigned", assignedTasks.Count(t => DaysSince(t.AssignedOn, istToday) is >= 4 and <= 7)),
+            new ActionTaskQueryService.CountSummary("8-14 days assigned", assignedTasks.Count(t => DaysSince(t.AssignedOn, istToday) is >= 8 and <= 14)),
+            new ActionTaskQueryService.CountSummary("15+ days assigned", assignedTasks.Count(t => DaysSince(t.AssignedOn, istToday) >= 15))
         };
 
     // SECTION: Overdue analysis applies only to assigned work and excludes submitted pending-closure tasks.
-    private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildOverdueAgeingBuckets(IReadOnlyList<ActionTaskItem> overdueTasks, DateTime utcToday)
+    private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildOverdueAgeingBuckets(IReadOnlyList<ActionTaskItem> overdueTasks, DateTime istToday)
         => new[]
         {
-            new ActionTaskQueryService.CountSummary("1-3 days overdue", overdueTasks.Count(t => DaysOverdue(t, utcToday) is >= 1 and <= 3)),
-            new ActionTaskQueryService.CountSummary("4-7 days overdue", overdueTasks.Count(t => DaysOverdue(t, utcToday) is >= 4 and <= 7)),
-            new ActionTaskQueryService.CountSummary("8+ days overdue", overdueTasks.Count(t => DaysOverdue(t, utcToday) >= 8))
+            new ActionTaskQueryService.CountSummary("1-3 days overdue", overdueTasks.Count(t => DaysOverdue(t, istToday) is >= 1 and <= 3)),
+            new ActionTaskQueryService.CountSummary("4-7 days overdue", overdueTasks.Count(t => DaysOverdue(t, istToday) is >= 4 and <= 7)),
+            new ActionTaskQueryService.CountSummary("8+ days overdue", overdueTasks.Count(t => DaysOverdue(t, istToday) >= 8))
         };
 
     // SECTION: Pending closure ageing is separated from assignee overdue exposure.
-    private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildSubmittedPendingClosureAgeingBuckets(IReadOnlyList<ActionTaskItem> submittedTasks, DateTime utcToday)
+    private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildSubmittedPendingClosureAgeingBuckets(IReadOnlyList<ActionTaskItem> submittedTasks, DateTime istToday)
         => new[]
         {
-            new ActionTaskQueryService.CountSummary("0-1 day pending closure", submittedTasks.Count(t => DaysSince(t.SubmittedOn ?? t.AssignedOn, utcToday) is >= 0 and <= 1)),
-            new ActionTaskQueryService.CountSummary("2-3 days pending closure", submittedTasks.Count(t => DaysSince(t.SubmittedOn ?? t.AssignedOn, utcToday) is >= 2 and <= 3)),
-            new ActionTaskQueryService.CountSummary("4+ days pending closure", submittedTasks.Count(t => DaysSince(t.SubmittedOn ?? t.AssignedOn, utcToday) >= 4))
+            new ActionTaskQueryService.CountSummary("0-1 day pending closure", submittedTasks.Count(t => DaysSince(t.SubmittedOn ?? t.AssignedOn, istToday) is >= 0 and <= 1)),
+            new ActionTaskQueryService.CountSummary("2-3 days pending closure", submittedTasks.Count(t => DaysSince(t.SubmittedOn ?? t.AssignedOn, istToday) is >= 2 and <= 3)),
+            new ActionTaskQueryService.CountSummary("4+ days pending closure", submittedTasks.Count(t => DaysSince(t.SubmittedOn ?? t.AssignedOn, istToday) >= 4))
         };
 
     // SECTION: Sprint performance is compact trend-style summary, not a Sprint Board duplicate.
-    private static IReadOnlyList<ActionTaskQueryService.SprintPerformanceSummary> BuildSprintPerformanceRows(IReadOnlyList<ActionTaskItem> tasks, IReadOnlyList<ActionSprint> sprints, DateTime utcToday)
+    private static IReadOnlyList<ActionTaskQueryService.SprintPerformanceSummary> BuildSprintPerformanceRows(IReadOnlyList<ActionTaskItem> tasks, IReadOnlyList<ActionSprint> sprints, DateTime istToday)
     {
         var sprintTasks = tasks.Where(t => t.SprintId.HasValue).ToLookup(t => t.SprintId!.Value);
         return sprints
@@ -207,7 +207,7 @@ public sealed class ActionTaskReportBuilder
                     Status = s.Status.ToString(),
                     Open = assignedOpen.Count,
                     Closed = scopedTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)),
-                    OverdueNow = s.Status == ActionSprintStatus.Closed ? 0 : assignedOpen.Count(t => IsAssignedTaskOverdue(t, utcToday)),
+                    OverdueNow = s.Status == ActionSprintStatus.Closed ? 0 : assignedOpen.Count(t => IsAssignedTaskOverdue(t, istToday)),
                     Unfinished = s.Status == ActionSprintStatus.Closed ? 0 : assignedOpen.Count,
                     ClosedLate = s.Status == ActionSprintStatus.Closed ? scopedTasks.Count(IsClosedLate) : 0
                 };
@@ -262,10 +262,10 @@ public sealed class ActionTaskReportBuilder
         return bucket is (ActionTaskBucket.OutsideSprint or ActionTaskBucket.Sprint) && IsOpen(task);
     }
 
-    private static bool IsAssignedTaskOverdue(ActionTaskItem task, DateTime utcToday)
+    private static bool IsAssignedTaskOverdue(ActionTaskItem task, DateTime istToday)
         => IsAssignedReportWork(task)
            && !IsSubmitted(task)
-           && task.DueDate.Date < utcToday
+           && task.DueDate.Date < istToday
            && ActionTaskCategorization.HasAssignedUser(task);
 
     private static bool IsSubmitted(ActionTaskItem task)
@@ -278,9 +278,9 @@ public sealed class ActionTaskReportBuilder
 
     private static bool IsOpen(ActionTaskItem task) => ActionTaskCategorization.IsOpenTask(task);
 
-    private static int DaysSince(DateTime date, DateTime utcToday) => (int)(utcToday - date.Date).TotalDays;
+    private static int DaysSince(DateTime date, DateTime istToday) => (int)(istToday - date.Date).TotalDays;
 
-    private static int DaysOverdue(ActionTaskItem task, DateTime utcToday) => (int)(utcToday - task.DueDate.Date).TotalDays;
+    private static int DaysOverdue(ActionTaskItem task, DateTime istToday) => (int)(istToday - task.DueDate.Date).TotalDays;
 
     private static string BuildInvalidIssue(ActionTaskItem task)
     {

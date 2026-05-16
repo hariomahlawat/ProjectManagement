@@ -373,9 +373,52 @@ public class ActionTaskServiceTests
     }
 
 
+    [Fact]
+    public async Task CreateTaskAsync_UsesClockUtcNowForAssignedTimestampAndAudit()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var clock = new MidnightIstActionTrackerClock();
+        var service = CreateService(db, clock);
+
+        // SECTION: Act
+        var task = await service.CreateTaskAsync(new ActionTaskItem
+        {
+            Title = "Clocked task",
+            Description = "Desc",
+            AssignedToUserId = "assignee",
+            CreatedByUserId = "creator",
+            CreatedByRole = RoleNames.HoD,
+            AssignedToRole = RoleNames.Ta,
+            DueDate = clock.IstToday.AddDays(1),
+            Priority = "High"
+        });
+
+        // SECTION: Assert
+        var audit = await db.ActionTaskAuditLogs.SingleAsync(x => x.TaskId == task.Id);
+        Assert.Equal(clock.UtcNow, task.AssignedOn);
+        Assert.Equal(clock.UtcNow, audit.PerformedAt);
+    }
+
+    [Fact]
+    public async Task UpdateTaskDateAsync_RejectsDatesBeforeIstTodayRatherThanUtcToday()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var clock = new MidnightIstActionTrackerClock();
+        var service = CreateService(db, clock);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateTaskDateAsync(task.Id, task.RowVersion, clock.UtcToday, "planner", RoleNames.Comdt));
+        Assert.Contains("past", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+
     // SECTION: Test service helpers
-    private static ActionTaskService CreateService(ApplicationDbContext db)
-        => new(db, new ActionTaskPermissionService(), new TestActionTrackerClock());
+    private static ActionTaskService CreateService(ApplicationDbContext db, IActionTrackerClock? clock = null)
+        => new(db, new ActionTaskPermissionService(), clock ?? new TestActionTrackerClock());
 
     private static ApplicationDbContext CreateDb()
         => CreateDb(Guid.NewGuid().ToString(), new InMemoryDatabaseRoot());
@@ -410,12 +453,24 @@ public class ActionTaskServiceTests
         return task;
     }
 
+    private sealed class MidnightIstActionTrackerClock : IActionTrackerClock
+    {
+        public DateTime UtcNow => new(2026, 4, 27, 19, 0, 0);
+        public DateTime UtcToday => UtcNow.Date;
+        public DateTime IstNow => new(2026, 4, 28, 0, 30, 0);
+        public DateTime IstToday => IstNow.Date;
+    }
+
     private sealed class TestActionTrackerClock : IActionTrackerClock
     {
         public static readonly DateTime FixedToday = new(2030, 1, 15);
 
         public DateTime UtcNow => FixedToday.AddHours(12);
 
-        public DateTime UtcToday => FixedToday;
+        public DateTime UtcToday => UtcNow.Date;
+
+        public DateTime IstNow => FixedToday.AddHours(12);
+
+        public DateTime IstToday => FixedToday;
     }
 }

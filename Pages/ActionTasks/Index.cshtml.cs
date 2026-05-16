@@ -52,13 +52,13 @@ public class IndexModel : PageModel
         _userLookup = userLookup;
         _clock = clock;
         _users = users;
-        DirectTaskInput.DueDate = _clock.UtcToday.AddDays(7);
-        BacklogItemInput.TargetDate = _clock.UtcToday.AddDays(7);
-        SprintInput = CreateSprintInput.FromSprint(_clock.UtcToday);
+        DirectTaskInput.DueDate = _clock.IstToday.AddDays(7);
+        BacklogItemInput.TargetDate = _clock.IstToday.AddDays(7);
+        SprintInput = CreateSprintInput.FromSprint(_clock.IstToday);
     }
 
     // SECTION: Clock-backed view dates keep Razor defaults aligned with server-side validation.
-    public DateTime UtcToday => _clock.UtcToday;
+    public DateTime IstToday => _clock.IstToday;
 
     public IReadOnlyList<ActionTaskItem> Tasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> CriticalOpenTasks { get; private set; } = Array.Empty<ActionTaskItem>();
@@ -534,7 +534,7 @@ public class IndexModel : PageModel
             ModelState.AddModelError(nameof(DirectTaskInput.AssignedToUserId), "Select an assignee for a direct task.");
         }
 
-        if (DirectTaskInput.DueDate.Date < _clock.UtcToday)
+        if (DirectTaskInput.DueDate.Date < _clock.IstToday)
         {
             ModelState.AddModelError(nameof(DirectTaskInput.DueDate), "Due date cannot be in the past.");
         }
@@ -547,7 +547,7 @@ public class IndexModel : PageModel
         ModelState.Clear();
         TryValidateModel(BacklogItemInput, nameof(BacklogItemInput));
 
-        if (BacklogItemInput.TargetDate.Date < _clock.UtcToday)
+        if (BacklogItemInput.TargetDate.Date < _clock.IstToday)
         {
             ModelState.AddModelError(nameof(BacklogItemInput.TargetDate), "Target date cannot be in the past.");
         }
@@ -561,7 +561,7 @@ public class IndexModel : PageModel
         ModelState.Clear();
         TryValidateModel(ChangeDateInput, nameof(ChangeDateInput));
 
-        if (ChangeDateInput.NewDate.Date < _clock.UtcToday)
+        if (ChangeDateInput.NewDate.Date < _clock.IstToday)
         {
             ModelState.AddModelError(nameof(ChangeDateInput.NewDate), "Task date cannot be in the past.");
         }
@@ -1739,7 +1739,7 @@ public class IndexModel : PageModel
         IsOpenTask(task)
         && !string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
         && ActionTaskBucketClassifier.ResolveBucket(task) != ActionTaskBucket.Invalid
-        && task.DueDate.Date < _clock.UtcToday;
+        && task.DueDate.Date < _clock.IstToday;
 
     // SECTION: Shared open-task predicate keeps personal and command projections aligned.
     private static bool IsOpenTask(ActionTaskItem task) =>

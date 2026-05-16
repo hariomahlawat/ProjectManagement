@@ -17,15 +17,18 @@ public class ActionSprintService
     private readonly ApplicationDbContext _context;
     private readonly ActionTaskPermissionService _permission;
     private readonly ActionSprintWorkflowPolicy _workflow;
+    private readonly IActionTrackerClock _clock;
 
     public ActionSprintService(
         ApplicationDbContext context,
         ActionTaskPermissionService permission,
-        ActionSprintWorkflowPolicy workflow)
+        ActionSprintWorkflowPolicy workflow,
+        IActionTrackerClock clock)
     {
         _context = context;
         _permission = permission;
         _workflow = workflow;
+        _clock = clock;
     }
 
 
@@ -62,7 +65,7 @@ public class ActionSprintService
         EnsureCanCreateSprint(role);
         _workflow.ValidateDateRange(sprint.StartDate, sprint.EndDate);
 
-        var performedAt = DateTime.UtcNow;
+        var performedAt = _clock.UtcNow;
         sprint.Status = ActionSprintStatus.Planned;
         sprint.RowVersion = NewSprintRowVersion();
         sprint.CreatedByUserId = userId;
@@ -90,7 +93,7 @@ public class ActionSprintService
         _workflow.EnsureCanUpdate(sprint);
         ApplySprintRowVersion(sprint, rowVersion);
 
-        var performedAt = DateTime.UtcNow;
+        var performedAt = _clock.UtcNow;
         var oldValue = DescribeSprint(sprint);
 
         sprint.Name = name;
@@ -125,7 +128,7 @@ public class ActionSprintService
             throw new InvalidOperationException("Only one active sprint is allowed.");
         }
 
-        var performedAt = DateTime.UtcNow;
+        var performedAt = _clock.UtcNow;
         var oldStatus = sprint.Status.ToString();
 
         sprint.Status = ActionSprintStatus.Active;
@@ -156,7 +159,7 @@ public class ActionSprintService
             throw new InvalidOperationException("Sprint contains unfinished tasks. Use the closure review to carry forward, remove from sprint while keeping assignee, or move unfinished tasks to backlog before closing.");
         }
 
-        var performedAt = DateTime.UtcNow;
+        var performedAt = _clock.UtcNow;
         var oldStatus = sprint.Status.ToString();
 
         sprint.Status = ActionSprintStatus.Closed;
@@ -239,7 +242,7 @@ public class ActionSprintService
             throw new InvalidOperationException("Tasks with invalid sprint assignment must be returned to backlog or corrected before sprint closure.");
         }
 
-        var performedAt = DateTime.UtcNow;
+        var performedAt = _clock.UtcNow;
         foreach (var task in unfinishedTasks.Where(t => carryIds.Contains(t.Id)))
         {
             var oldValue = DescribeTaskBucket(task);
@@ -306,7 +309,7 @@ public class ActionSprintService
         var oldValue = DescribeTaskBucket(task);
         task.AssignedToUserId = responsibleUserId;
         task.AssignedToRole = responsibleRole;
-        task.AssignedOn = DateTime.UtcNow;
+        task.AssignedOn = _clock.UtcNow;
         task.SprintId = sprint.Id;
         task.Status = ActionTaskStatuses.Assigned;
         task.SubmittedOn = null;
@@ -517,7 +520,7 @@ public class ActionSprintService
             ActionType = actionType,
             PerformedByUserId = userId,
             PerformedByRole = role,
-            PerformedAt = performedAt ?? DateTime.UtcNow,
+            PerformedAt = performedAt ?? _clock.UtcNow,
             OldValue = oldValue,
             NewValue = newValue,
             Remarks = TrimAuditRemarks(remarks)

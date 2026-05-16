@@ -27,7 +27,7 @@ public sealed class ActionTaskSprintBoardStateBuilder
             : await _userLookup.LoadSprintActorNamesAsync(auditHistory);
 
         return new ActionTaskSprintBoardState(
-            request.ShowCreateSprintPanel ? null : CreateSprintDefaults.FromDate(_clock.UtcToday),
+            request.ShowCreateSprintPanel ? null : CreateSprintDefaults.FromDate(_clock.IstToday),
             request.SelectedSprint is not null && !request.ShowEditSprintPanel ? UpdateSprintDefaults.FromSprint(request.SelectedSprint) : null,
             request.SelectedSprint is not null && !request.ShowCreateNextSprintPanel ? CreateNextSprintDefaults.FromSourceSprint(request.SelectedSprint) : null,
             auditHistory,

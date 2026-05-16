@@ -22,6 +22,7 @@
     --at-weight-medium: 500;
     --at-weight-semibold: 600;
     --at-weight-bold: 700;
+    --at-planning-drawer-width: 34rem;
 }
 
 /* SECTION: Action Tracker shell */
@@ -2756,7 +2757,7 @@ html {
     right: 1rem;
     bottom: 1rem;
     z-index: 1040;
-    width: min(34rem, calc(100vw - 2rem));
+    width: min(var(--at-planning-drawer-width), calc(100vw - 2rem));
     box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
 }
 
@@ -2948,7 +2949,7 @@ html {
 }
 
 .at-shell.is-planning-board.has-selection .at-planning-view-toggle {
-    padding-right: min(35rem, calc(100vw - 1rem));
+    padding-right: min(calc(var(--at-planning-drawer-width) + 1rem), calc(100vw - 1rem));
 }
 
 .at-planning-views-panel .at-planning-due-exceptions-grid,
@@ -3000,6 +3001,34 @@ html {
     }
 }
 
+
+/* SECTION: Drawer-open Execute board reservation keeps status columns clear of the fixed inspector. */
+.at-shell.is-planning-board.has-selection .at-planning-execute-panel,
+.at-shell.is-planning-board.has-selection .at-execute-status-board {
+    max-width: calc(100vw - 88px - var(--at-planning-drawer-width) - 3.5rem);
+    min-width: 0;
+}
+
+.at-shell.is-planning-board.has-selection .at-execute-status-grid {
+    width: 100%;
+    min-width: 0;
+}
+
+@media (max-width: 1200px) {
+    .at-shell.is-planning-board.has-selection .at-planning-execute-panel,
+    .at-shell.is-planning-board.has-selection .at-execute-status-board {
+        max-width: 100%;
+        padding-right: min(calc(var(--at-planning-drawer-width) + 1rem), calc(100vw - 1rem));
+    }
+}
+
+@media (max-width: 767px) {
+    .at-shell.is-planning-board.has-selection .at-planning-execute-panel,
+    .at-shell.is-planning-board.has-selection .at-execute-status-board {
+        padding-right: 0;
+    }
+}
+
 /* SECTION: Phase 3A-3 exclusive Planning views and card-density refinement. */
 .at-planning-due-exceptions-view,
 .at-planning-kanban-view {
@@ -3047,7 +3076,7 @@ html {
 }
 
 .at-shell.is-planning-board.has-selection .at-kanban-scroll {
-    padding-right: min(35rem, calc(100vw - 1rem));
+    padding-right: min(calc(var(--at-planning-drawer-width) + 1rem), calc(100vw - 1rem));
 }
 
 .at-sprint-task-card .at-task-card-link {
@@ -3941,43 +3970,48 @@ html {
     }
 }
 
-/* SECTION: Task Details More menu popover and group refinement. */
-.at-action-more-menu {
-    position: relative;
-}
-
-.at-action-more-list {
-    position: absolute;
-    right: 0;
-    bottom: calc(100% + 0.45rem);
-    z-index: 50;
+/* SECTION: Task Details inline More Actions panel and group refinement. */
+.at-more-actions-panel {
     display: grid;
-    gap: 0.25rem;
-    width: max-content;
-    min-width: 17rem;
-    max-width: min(24rem, calc(100vw - 2rem));
-    padding: 0.35rem 0;
-    background: var(--at-surface);
+    gap: 0.45rem;
+    margin-top: 0.65rem;
     border: 1px solid var(--at-border);
     border-radius: var(--at-radius-md);
-    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+    background: var(--at-surface-soft);
+    padding: 0.65rem;
+}
+
+.at-more-actions-title {
+    color: var(--at-text);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
+}
+
+.at-more-actions-grid {
+    display: grid;
+    gap: 0.45rem;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
 }
 
 .at-action-more-group {
     display: grid;
-    gap: 0.1rem;
-    padding: 0.1rem 0;
+    align-content: start;
+    gap: 0.15rem;
+    min-width: 0;
+    border: 1px solid var(--at-border);
+    border-radius: 10px;
+    background: var(--at-surface);
+    padding: 0.45rem;
 }
 
-.at-action-more-group + .at-action-more-group {
-    border-top: 1px solid var(--at-border);
-    margin-top: 0.25rem;
-    padding-top: 0.35rem;
+.at-action-danger-group {
+    border-color: #fecaca;
+    background: #fffafa;
 }
 
 .at-action-more-heading,
 .at-action-more-separator {
-    padding: 0.15rem 0.75rem 0.05rem;
+    padding: 0 0.2rem 0.15rem;
     color: var(--at-muted);
     font-size: var(--at-font-xs);
     font-weight: var(--at-weight-bold);
@@ -3986,9 +4020,9 @@ html {
     letter-spacing: 0.04em;
 }
 
-.at-action-more-list .btn-link {
+.at-more-actions-panel .btn-link {
     width: 100%;
-    padding: 0.2rem 0.75rem;
+    padding: 0.25rem 0.2rem;
     color: var(--at-text);
     line-height: 1.25;
     text-align: left;
@@ -3996,23 +4030,23 @@ html {
     white-space: normal;
 }
 
-.at-action-more-list .btn-link:hover,
-.at-action-more-list .btn-link:focus {
+.at-more-actions-panel .btn-link:hover,
+.at-more-actions-panel .btn-link:focus {
     background: #f8fafc;
     color: var(--at-text);
     text-decoration: none;
 }
 
-.at-action-more-list .at-card-action-form {
+.at-more-actions-panel .at-card-action-form {
     margin: 0;
 }
 
-.at-action-more-list .at-action-more-destructive {
+.at-more-actions-panel .at-action-more-destructive {
     color: #b91c1c;
 }
 
-.at-action-more-list .at-action-more-destructive:hover,
-.at-action-more-list .at-action-more-destructive:focus {
+.at-more-actions-panel .at-action-more-destructive:hover,
+.at-more-actions-panel .at-action-more-destructive:focus {
     background: #fef2f2;
     color: #991b1b;
 }

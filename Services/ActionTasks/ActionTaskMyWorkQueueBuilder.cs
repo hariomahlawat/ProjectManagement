@@ -63,7 +63,7 @@ public sealed class ActionTaskMyWorkQueueBuilder
 
     private IReadOnlyList<ActionTaskItem> BuildDueTodayTasks(IReadOnlyList<ActionTaskItem> tasks)
         => tasks
-            .Where(t => IsOpenTask(t) && t.DueDate.Date == _clock.UtcToday)
+            .Where(t => IsOpenTask(t) && t.DueDate.Date == _clock.IstToday)
             .OrderBy(t => StatusOrder(t.Status))
             .ThenBy(t => t.DueDate)
             .ThenBy(t => t.Id)
@@ -136,8 +136,8 @@ public sealed class ActionTaskMyWorkQueueBuilder
     }
 
     // SECTION: Shared My Work predicates keep queue grouping aligned with open-task lifecycle rules.
-    private bool IsTaskOverdue(ActionTaskItem task) => IsOpenTask(task) && !IsTaskSubmitted(task) && task.DueDate.Date < _clock.UtcToday;
-    private bool IsTaskDueToday(ActionTaskItem task) => IsOpenTask(task) && !IsTaskSubmitted(task) && task.DueDate.Date == _clock.UtcToday;
+    private bool IsTaskOverdue(ActionTaskItem task) => IsOpenTask(task) && !IsTaskSubmitted(task) && task.DueDate.Date < _clock.IstToday;
+    private bool IsTaskDueToday(ActionTaskItem task) => IsOpenTask(task) && !IsTaskSubmitted(task) && task.DueDate.Date == _clock.IstToday;
     private static bool IsTaskBlocked(ActionTaskItem task) => string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
     private static bool IsTaskInProgress(ActionTaskItem task) => string.Equals(task.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase);
     private static bool IsTaskSubmitted(ActionTaskItem task) => string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);

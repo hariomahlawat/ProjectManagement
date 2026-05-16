@@ -119,7 +119,7 @@ public class ActionTaskService : IActionTaskService
         }
 
         // SECTION: State Mutation
-        task.AssignedOn = DateTime.UtcNow;
+        task.AssignedOn = _clock.UtcNow;
         task.Status = ActionTaskStatuses.Assigned;
         task.SprintId = null;
         task.SubmittedOn = null;
@@ -147,7 +147,7 @@ public class ActionTaskService : IActionTaskService
     public async Task<ActionTaskItem> CreateBacklogItemAsync(ActionTaskItem task, CancellationToken cancellationToken = default)
     {
         // SECTION: Backlog creation enforces backlog items state rather than generic assigned-task defaults.
-        task.AssignedOn = DateTime.UtcNow;
+        task.AssignedOn = _clock.UtcNow;
         task.Status = ActionTaskStatuses.Backlog;
         task.SprintId = null;
         task.AssignedToUserId = string.Empty;
@@ -228,11 +228,11 @@ public class ActionTaskService : IActionTaskService
         task.Status = status;
         if (string.Equals(status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
         {
-            task.SubmittedOn = DateTime.UtcNow;
+            task.SubmittedOn = _clock.UtcNow;
         }
         if (string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
         {
-            task.ClosedOn = DateTime.UtcNow;
+            task.ClosedOn = _clock.UtcNow;
         }
         ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
 
@@ -293,7 +293,7 @@ public class ActionTaskService : IActionTaskService
         // SECTION: State Mutation
         var oldStatus = task.Status;
         task.Status = ActionTaskStatuses.Submitted;
-        task.SubmittedOn = DateTime.UtcNow;
+        task.SubmittedOn = _clock.UtcNow;
         ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
 
         // SECTION: Audit Enqueue
@@ -336,7 +336,7 @@ public class ActionTaskService : IActionTaskService
         // SECTION: State Mutation
         var oldStatus = task.Status;
         task.Status = ActionTaskStatuses.Closed;
-        task.ClosedOn = DateTime.UtcNow;
+        task.ClosedOn = _clock.UtcNow;
         ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
 
         // SECTION: Audit Enqueue
@@ -369,7 +369,7 @@ public class ActionTaskService : IActionTaskService
         }
 
         var normalizedNewDate = newDate.Date;
-        if (normalizedNewDate < _clock.UtcToday)
+        if (normalizedNewDate < _clock.IstToday)
         {
             throw new InvalidOperationException("Task date cannot be in the past.");
         }
@@ -405,7 +405,7 @@ public class ActionTaskService : IActionTaskService
     }
 
     // SECTION: Audit logging
-    private static ActionTaskAuditLog Log(int taskId, string action, string userId, string role, string? oldValue, string? newValue, string? remarks)
+    private ActionTaskAuditLog Log(int taskId, string action, string userId, string role, string? oldValue, string? newValue, string? remarks)
     {
         return new ActionTaskAuditLog
         {
@@ -413,14 +413,14 @@ public class ActionTaskService : IActionTaskService
             ActionType = action,
             PerformedByUserId = userId,
             PerformedByRole = role,
-            PerformedAt = DateTime.UtcNow,
+            PerformedAt = _clock.UtcNow,
             OldValue = oldValue,
             NewValue = newValue,
             Remarks = remarks
         };
     }
 
-    private static ActionTaskAuditLog Log(string action, string userId, string role, string? oldValue, string? newValue, string? remarks, ActionTaskItem task)
+    private ActionTaskAuditLog Log(string action, string userId, string role, string? oldValue, string? newValue, string? remarks, ActionTaskItem task)
     {
         return new ActionTaskAuditLog
         {
@@ -428,7 +428,7 @@ public class ActionTaskService : IActionTaskService
             ActionType = action,
             PerformedByUserId = userId,
             PerformedByRole = role,
-            PerformedAt = DateTime.UtcNow,
+            PerformedAt = _clock.UtcNow,
             OldValue = oldValue,
             NewValue = newValue,
             Remarks = remarks

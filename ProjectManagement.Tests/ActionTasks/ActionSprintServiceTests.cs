@@ -716,9 +716,26 @@ public class ActionSprintServiceTests
         Assert.All(history, x => Assert.Equal(sprint.Id, x.SprintId));
     }
 
+
+    [Fact]
+    public async Task CreateSprintAsync_UsesClockUtcNowForTimestampsAndAudit()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+
+        // SECTION: Act
+        var sprint = await service.CreateSprintAsync(NewSprint(), "planner", RoleNames.Comdt);
+
+        // SECTION: Assert
+        var audit = await db.ActionSprintAuditLogs.SingleAsync(x => x.SprintId == sprint.Id);
+        Assert.Equal(TestActionTrackerClock.FixedUtcNow, sprint.CreatedAtUtc);
+        Assert.Equal(TestActionTrackerClock.FixedUtcNow, audit.PerformedAt);
+    }
+
     // SECTION: Test helpers
     private static ActionSprintService CreateService(ApplicationDbContext db)
-        => new(db, new ActionTaskPermissionService(), new ActionSprintWorkflowPolicy());
+        => new(db, new ActionTaskPermissionService(), new ActionSprintWorkflowPolicy(), new TestActionTrackerClock());
 
     private static ApplicationDbContext CreateDb()
         => CreateDb(Guid.NewGuid().ToString(), new InMemoryDatabaseRoot());
@@ -786,4 +803,14 @@ public class ActionSprintServiceTests
         await db.SaveChangesAsync();
         return task;
     }
+    private sealed class TestActionTrackerClock : IActionTrackerClock
+    {
+        public static readonly DateTime FixedUtcNow = new(2030, 1, 15, 6, 30, 0);
+
+        public DateTime UtcNow => FixedUtcNow;
+        public DateTime UtcToday => UtcNow.Date;
+        public DateTime IstNow => FixedUtcNow.AddHours(5.5);
+        public DateTime IstToday => IstNow.Date;
+    }
+
 }
