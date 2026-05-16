@@ -636,6 +636,7 @@ html {
 
 .at-action-toolbar {
     display: flex;
+    align-items: flex-start;
     gap: 0.4rem;
     flex-wrap: wrap;
 }
@@ -3940,12 +3941,24 @@ html {
     }
 }
 
-/* SECTION: Task Details More menu group refinement. */
+/* SECTION: Task Details More menu popover and group refinement. */
+.at-action-more-menu {
+    position: relative;
+}
+
 .at-action-more-list {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.35rem);
+    z-index: 20;
     display: grid;
     gap: 0.25rem;
     min-width: 13.5rem;
     padding: 0.35rem 0;
+    background: var(--at-surface);
+    border: 1px solid var(--at-border);
+    border-radius: var(--at-radius-md);
+    box-shadow: var(--at-shadow-sm);
 }
 
 .at-action-more-group {
