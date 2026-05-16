@@ -6,13 +6,10 @@
     <article><h3>Blocked</h3><strong>@Model.BlockedCount</strong><p>Needs unblock action</p></article>
     <article><h3>Pending Closure</h3><strong>@Model.SubmittedPendingClosureCount</strong><p>Submitted for close-out</p></article>
     <article><h3>Critical Open</h3><strong>@Model.CriticalOpenCount</strong><p>Critical priority, not closed</p></article>
-    <article><h3>Carry Forward</h3><strong>@Model.ActiveSprintMetrics.CarryForwardCandidateTasks</strong><p>Active sprint candidates</p></article>
-</section>
-<section class="at-panel at-command-focus-strip mb-3">
-    <strong>Command Attention:</strong> @Model.DashboardCommandFocusSummary
+    <article><h3>Open Tasks</h3><strong>@Model.OpenTaskCount</strong><p>Total not closed</p></article>
 </section>
 
-@* SECTION: Active sprint operational health metrics. *@
+@* SECTION: Active sprint operational health metrics or empty state. *@
 <section class="at-panel at-active-sprint-dashboard">
     <div class="at-panel-heading">
         <div>
@@ -21,35 +18,41 @@
             {
                 <p class="at-panel-note">@Model.DisplaySprintName(Model.ActiveSprint) · @Model.ActiveSprintMetrics.ActiveSprintDateRange</p>
             }
-            else
-            {
-                <p class="at-panel-note">No active sprint is currently set.</p>
-            }
         </div>
     </div>
-    <div class="at-sprint-health-grid at-sprint-health-grid-readable" aria-label="Active Sprint health metrics">
-        <article class="is-primary"><h3>Total in active sprint</h3><strong>@Model.ActiveSprintMetrics.TotalTasks</strong><span>Current execution scope</span></article>
-        <article><h3>Completed</h3><strong>@Model.ActiveSprintMetrics.CompletedTasks</strong></article>
-        <article><h3>In progress</h3><strong>@Model.ActiveSprintMetrics.InProgressTasks</strong></article>
-        <article><h3>Blocked</h3><strong>@Model.ActiveSprintMetrics.BlockedTasks</strong></article>
-        <article><h3>Overdue in sprint</h3><strong>@Model.ActiveSprintMetrics.OverdueTasks</strong></article>
-        <article><h3>Carry-forward candidates</h3><strong>@Model.ActiveSprintMetrics.CarryForwardCandidateTasks</strong></article>
-    </div>
-    @* SECTION: Command attention grouping for active Sprint exceptions. *@
-    <div class="at-dashboard-attention-grid" aria-label="Active Sprint command attention">
-        <article class="at-attention-panel">
-            <div class="at-attention-heading"><span>Overdue</span><strong>@Model.ActiveSprintOverdueTaskDisplays.Count</strong></div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintOverdueTaskDisplays, "No overdue tasks in the active sprint.")' />
-        </article>
-        <article class="at-attention-panel">
-            <div class="at-attention-heading"><span>Blocked</span><strong>@Model.ActiveSprintBlockedTaskDisplays.Count</strong></div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintBlockedTaskDisplays, "No blocked tasks in the active sprint.")' />
-        </article>
-        <article class="at-attention-panel">
-            <div class="at-attention-heading"><span>Submitted pending closure</span><strong>@Model.ActiveSprintSubmittedTaskDisplays.Count</strong></div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintSubmittedTaskDisplays, "No submitted tasks pending closure in the active sprint.")' />
-        </article>
-    </div>
+    @if (Model.ActiveSprint is null)
+    {
+        <div class="at-empty-state at-empty-state-compact">
+            <div>No active sprint is currently set.</div>
+            <div class="at-panel-note">Activate a planned sprint from Sprint Board to start execution tracking.</div>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Plan" class="btn btn-outline-primary btn-sm mt-2">Go to Sprint Board</a>
+        </div>
+    }
+    else
+    {
+        <div class="at-sprint-health-grid at-sprint-health-grid-readable" aria-label="Active Sprint health metrics">
+            <article class="is-primary"><h3>Total in active sprint</h3><strong>@Model.ActiveSprintMetrics.TotalTasks</strong><span>Current execution scope</span></article>
+            <article><h3>Completed</h3><strong>@Model.ActiveSprintMetrics.CompletedTasks</strong></article>
+            <article><h3>In progress</h3><strong>@Model.ActiveSprintMetrics.InProgressTasks</strong></article>
+            <article><h3>Blocked</h3><strong>@Model.ActiveSprintMetrics.BlockedTasks</strong></article>
+            <article><h3>Overdue in sprint</h3><strong>@Model.ActiveSprintMetrics.OverdueTasks</strong></article>
+        </div>
+        @* SECTION: Command attention grouping for active Sprint exceptions. *@
+        <div class="at-dashboard-attention-grid" aria-label="Active Sprint command attention">
+            <article class="at-attention-panel">
+                <div class="at-attention-heading"><span>Overdue</span><strong>@Model.ActiveSprintOverdueTaskDisplays.Count</strong></div>
+                <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintOverdueTaskDisplays, "No overdue tasks in the active sprint.")' />
+            </article>
+            <article class="at-attention-panel">
+                <div class="at-attention-heading"><span>Blocked</span><strong>@Model.ActiveSprintBlockedTaskDisplays.Count</strong></div>
+                <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintBlockedTaskDisplays, "No blocked tasks in the active sprint.")' />
+            </article>
+            <article class="at-attention-panel">
+                <div class="at-attention-heading"><span>Submitted pending closure</span><strong>@Model.ActiveSprintSubmittedTaskDisplays.Count</strong></div>
+                <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintSubmittedTaskDisplays, "No submitted tasks pending closure in the active sprint.")' />
+            </article>
+        </div>
+    }
 </section>
 
 @* SECTION: Attention-required panels with compact task rows. *@

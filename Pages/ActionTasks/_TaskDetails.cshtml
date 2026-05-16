@@ -362,6 +362,29 @@
                             {
                                 <button type="button" class="btn btn-link btn-sm" data-at-open-action="close">Close Task</button>
                             }
+                            @if (Model.CanMoveTaskToBacklog(Model.SelectedTask))
+                            {
+                                <div class="at-action-more-separator">Planning Actions</div>
+                                @if (Model.SelectedTask.SprintId.HasValue)
+                                {
+                                    <form method="post" asp-page-handler="RemoveFromSprintKeepAssigned" class="at-card-action-form">
+                                        <input type="hidden" name="ViewMode" value="Planning" />
+                                        <input type="hidden" name="PlanningTab" value="Execute" />
+                                        <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                        <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
+                                        <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
+                                        <button type="submit" class="btn btn-link btn-sm">Remove from Sprint, Keep Assigned</button>
+                                    </form>
+                                }
+                                <form method="post" asp-page-handler="MoveToBacklogRemoveAssignee" class="at-card-action-form">
+                                    <input type="hidden" name="ViewMode" value="Planning" />
+                                    <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />
+                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                    <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
+                                    <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
+                                    <button type="submit" class="btn btn-link btn-sm text-danger" data-at-confirm="This will remove the responsible person and return the work to Backlog. Continue?">Move to Backlog, Remove Assignee</button>
+                                </form>
+                            }
                             </div>
                         </details>
                     }

@@ -8,7 +8,8 @@ public enum ActionTaskBucket
     Backlog,
     OutsideSprint,
     Sprint,
-    Closed
+    Closed,
+    Invalid
 }
 
 public enum ActionTaskWorkCategory
@@ -17,7 +18,8 @@ public enum ActionTaskWorkCategory
     Backlog,
     OutsideSprint,
     NonSprint,
-    Closed
+    Closed,
+    Invalid
 }
 
 public static class ActionTaskBucketClassifier
@@ -30,14 +32,21 @@ public static class ActionTaskBucketClassifier
             return ActionTaskBucket.Closed;
         }
 
-        if (IsSprintTask(task) || task.SprintId.HasValue)
+        if (task.SprintId.HasValue)
         {
-            return ActionTaskBucket.Sprint;
+            return HasAssignedUser(task) && HasAssignedRole(task)
+                ? ActionTaskBucket.Sprint
+                : ActionTaskBucket.Invalid;
+        }
+
+        if (IsBacklogTask(task))
+        {
+            return ActionTaskBucket.Backlog;
         }
 
         return HasAssignedUser(task) && HasAssignedRole(task)
             ? ActionTaskBucket.OutsideSprint
-            : ActionTaskBucket.Backlog;
+            : ActionTaskBucket.Invalid;
     }
 
     public static bool IsSprintTask(ActionTaskItem task)
@@ -88,7 +97,8 @@ public static class ActionTaskCategorization
             ActionTaskBucket.Sprint => ActionTaskWorkCategory.Sprint,
             ActionTaskBucket.OutsideSprint => ActionTaskWorkCategory.OutsideSprint,
             ActionTaskBucket.Closed => ActionTaskWorkCategory.Closed,
-            _ => ActionTaskWorkCategory.Backlog
+            ActionTaskBucket.Backlog => ActionTaskWorkCategory.Backlog,
+            _ => ActionTaskWorkCategory.Invalid
         };
 
     public static ActionTaskBucket ResolveBucket(ActionTaskItem task)

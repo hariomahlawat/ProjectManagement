@@ -185,27 +185,30 @@
                             {
                                 @if (Model.CanAssignTaskToSprint(task))
                                 {
-                                    <form method="post" asp-page-handler="AssignToSprint" class="at-inline-sprint-form at-planning-backlog-assign-form">
-                                        <input type="hidden" name="ViewMode" value="Planning" />
-                                        <input type="hidden" name="PlanningTab" value="Execute" />
-                                        <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                        <input type="hidden" name="id" value="@task.Id" />
-                                        <select class="form-select form-select-sm" name="responsibleUserId" aria-label="Select responsible person for AT-@task.Id" required>
-                                            <option value="">Responsible person</option>
-                                            @foreach (var user in Model.AssignableUsers)
-                                            {
-                                                <option value="@user.UserId">@user.DisplayName</option>
-                                            }
-                                        </select>
-                                        <select class="form-select form-select-sm" name="sprintId" aria-label="Select Sprint for AT-@task.Id" required>
-                                            <option value="">Select Sprint</option>
-                                            @foreach (var sprint in Model.AssignableSprints)
-                                            {
-                                                <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>
-                                            }
-                                        </select>
-                                        <button type="submit" class="btn btn-primary btn-sm">Add to Sprint</button>
-                                    </form>
+                                    <details class="at-backlog-add-disclosure">
+                                        <summary class="btn btn-outline-primary btn-sm">Add to Sprint</summary>
+                                        <form method="post" asp-page-handler="AssignToSprint" class="at-inline-sprint-form at-planning-backlog-assign-form">
+                                            <input type="hidden" name="ViewMode" value="Planning" />
+                                            <input type="hidden" name="PlanningTab" value="Execute" />
+                                            <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                            <input type="hidden" name="id" value="@task.Id" />
+                                            <select class="form-select form-select-sm" name="responsibleUserId" aria-label="Select responsible person for AT-@task.Id" required>
+                                                <option value="">Responsible person</option>
+                                                @foreach (var user in Model.AssignableUsers)
+                                                {
+                                                    <option value="@user.UserId">@user.DisplayName</option>
+                                                }
+                                            </select>
+                                            <select class="form-select form-select-sm" name="sprintId" aria-label="Select Sprint for AT-@task.Id" required>
+                                                <option value="">Select Sprint</option>
+                                                @foreach (var sprint in Model.AssignableSprints)
+                                                {
+                                                    <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>
+                                                }
+                                            </select>
+                                            <button type="submit" class="btn btn-primary btn-sm">Add to Sprint</button>
+                                        </form>
+                                    </details>
                                 }
                                 else
                                 {
@@ -269,17 +272,6 @@
                                     }
                                 </select>
                                 <button type="submit" class="btn btn-primary btn-sm">Add to Sprint</button>
-                            </form>
-                        }
-
-                        @if (Model.CanPlanSprints && Model.CanMoveTaskToBacklog(task))
-                        {
-                            <form method="post" asp-page-handler="MoveToBacklogRemoveAssignee" class="at-card-action-form">
-                                <input type="hidden" name="ViewMode" value="Planning" />
-                                <input type="hidden" name="PlanningTab" value="Plan" />
-                                <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                <input type="hidden" name="id" value="@task.Id" />
-                                <button type="submit" class="btn btn-link btn-sm at-card-subtle-action" data-at-confirm="This will remove the responsible person and return the work to Backlog. Continue?">Move to Backlog, Remove Assignee</button>
                             </form>
                         }
                     </article>

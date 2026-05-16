@@ -1,7 +1,7 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
 @{
-    // SECTION: My Work read-model aliases keep personal task presentation consistent and CSP-safe.
+    // SECTION: My Work read-model aliases keep personal task presentation focused on actionable open work.
     var assignedTaskCount = Model.MyWorkQueue.ActionRequiredTasks.Count + Model.MyWorkQueue.CurrentWorkTasks.Count + Model.MyWorkQueue.SubmittedAwaitingClosureTasks.Count + Model.MyWorkQueue.AllMyTasks.Count;
     var actionRequiredTasks = Model.MyWorkActionRequiredDisplays;
     var currentWorkTasks = Model.MyWorkCurrentWorkDisplays;
@@ -11,18 +11,15 @@
     var overdueCount = Model.MyOverdueTaskDisplays.Count;
     var inProgressCount = Model.MyInProgressTaskDisplays.Count;
     var submittedCount = Model.MySubmittedTaskDisplays.Count;
-    var activeSprintTaskCount = Model.MyActiveSprintTaskDisplays.Count;
 }
 
 @* SECTION: Compact personal execution KPI strip. *@
+<section class="at-mywork-summary-line" aria-label="My work open assignment count">
+    <span>@assignedTaskCount open assigned tasks</span>
+</section>
 <section class="at-kpis at-kpis-mywork" aria-label="My work task summary">
     <article>
-        <h3>Assigned to me</h3>
-        <strong>@assignedTaskCount</strong>
-        <p>Open tasks in your personal queue.</p>
-    </article>
-    <article>
-        <h3>Needs action now</h3>
+        <h3>Needs Action</h3>
         <strong>@actionRequiredCount</strong>
         <p>Overdue, due today, or blocked.</p>
     </article>
@@ -32,7 +29,7 @@
         <p>Past due and still open.</p>
     </article>
     <article>
-        <h3>In progress</h3>
+        <h3>In Progress</h3>
         <strong>@inProgressCount</strong>
         <p>Currently underway.</p>
     </article>
@@ -40,11 +37,6 @@
         <h3>Submitted</h3>
         <strong>@submittedCount</strong>
         <p>Awaiting closure review.</p>
-    </article>
-    <article>
-        <h3>Tasks in Active Sprint</h3>
-        <strong>@activeSprintTaskCount</strong>
-        <p>@(Model.ActiveSprint is null ? "No active sprint set." : Model.DisplaySprintName(Model.ActiveSprint))</p>
     </article>
 </section>
 
