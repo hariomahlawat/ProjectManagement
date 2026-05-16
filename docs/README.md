@@ -13,6 +13,7 @@ Use these guides to navigate the codebase and extend the platform safely. Each d
 | [Project Office Reports Playbook](ProjectOfficeReports_Directions.md) | End-to-end reference for Visits, Social Media, Proliferation, ToT, and IPR trackers: policies, services, Razor Pages, storage rules, and export pipelines. |
 | [Timeline Pipeline](timeline.md) | Deep dive into plan versions, approvals, and checklist integration for the project timeline editor. |
 | [Extending the Platform](extending.md) | Patterns and guardrails for adding roles, properties, services, or Razor Pages without breaking conventions. |
+| [Action Tracker Development Note](action-tracker-development-note.md) | Action Tracker implementation note for UTC persistence, Indian Standard Time display, central clock/formatter usage, review areas, acceptance criteria, and tests. |
 | [Storyboard User Guide](user-guide/README.md) | Persona-oriented walkthrough for operators and project teams covering dashboard, tasks, calendar, celebrations, projects, admin, and notifications. |
 | [Manual Tests](manual-tests/README.md) | Repeatable QA scripts for accessibility and regression checks (kept in sync with UI updates). |
 
