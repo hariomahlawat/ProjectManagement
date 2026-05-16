@@ -344,6 +344,33 @@ public class IndexModel : PageModel
         return _workflowPolicy.CanChangeTaskDate(task, CurrentRole);
     }
 
+    public bool CanViewSelectedTaskSystemHistory()
+    {
+        return _workflowPolicy.CanViewSystemHistory(CurrentRole);
+    }
+
+    public string DisplayAuditActionLabel(string actionType)
+    {
+        if (string.IsNullOrWhiteSpace(actionType))
+        {
+            return "System Event";
+        }
+
+        return actionType switch
+        {
+            "OutsideSprintTaskAssignedToSprint" => "Added to Sprint",
+            "TaskRemovedFromSprintKeepAssigned" => "Removed from Sprint",
+            "TaskCarriedForward" => "Carried Forward",
+            "Task Created" => "Task Created",
+            "TaskUpdated" => "Task Updated",
+            "TaskStatusChanged" => "Status Changed",
+            "TaskSubmitted" => "Submitted for Closure",
+            "TaskClosed" => "Task Closed",
+            "TaskDueDateChanged" => "Due Date Changed",
+            _ => Regex.Replace(actionType, "(?<!^)([A-Z])", " $1")
+        };
+    }
+
     public string GetStatusBadgeClass(string status)
     {
         return _workflowPolicy.GetStatusBadgeClass(status);

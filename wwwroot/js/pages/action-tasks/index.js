@@ -437,7 +437,7 @@
     }
 
 
-    // SECTION: Sticky inspector action panel orchestration and keyboard behavior.
+    // SECTION: Inspector-wide action panel orchestration and keyboard behavior.
     function initInspectorActionPanels() {
         const shell = document.querySelector("[data-at-action-shell='true']");
         if (!shell) {
@@ -447,14 +447,19 @@
         const panels = Array.from(shell.querySelectorAll("[data-at-action-panel]"));
         const openButtons = shell.querySelectorAll("[data-at-open-action]");
         const closeButtons = shell.querySelectorAll("[data-at-close-action]");
+        const actionHost = shell.querySelector("[data-at-action-host='true']");
+        const actionSection = actionHost ? actionHost.closest(".at-action-form-section") : null;
 
         const closeAllPanels = () => {
             panels.forEach((panel) => panel.removeAttribute("open"));
+            if (actionSection) {
+                actionSection.classList.remove("is-active");
+            }
         };
 
         // SECTION: Intent-specific status actions can seed the status panel selection.
         const applyStatusActionTarget = (name, targetStatus) => {
-            if (name !== "status" || !targetStatus) {
+            if (name !== "status") {
                 return;
             }
 
@@ -463,7 +468,8 @@
                 return;
             }
 
-            statusSelect.value = targetStatus;
+            const currentStatus = statusSelect.getAttribute("data-current-status") || statusSelect.value;
+            statusSelect.value = targetStatus || currentStatus;
             statusSelect.dispatchEvent(new Event("change", { bubbles: true }));
         };
 
@@ -474,6 +480,9 @@
                 return;
             }
             panel.setAttribute("open", "open");
+            if (actionSection) {
+                actionSection.classList.add("is-active");
+            }
             applyStatusActionTarget(name, targetStatus);
             const focusTarget = panel.querySelector("textarea, select, input, button");
             if (focusTarget) {
