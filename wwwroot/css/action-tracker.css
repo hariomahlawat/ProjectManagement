@@ -3939,3 +3939,63 @@ html {
         grid-template-columns: 1fr;
     }
 }
+
+/* SECTION: Task Details More menu group refinement. */
+.at-action-more-list {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 13.5rem;
+    padding: 0.35rem 0;
+}
+
+.at-action-more-group {
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.1rem 0;
+}
+
+.at-action-more-group + .at-action-more-group {
+    border-top: 1px solid var(--at-border);
+    margin-top: 0.25rem;
+    padding-top: 0.35rem;
+}
+
+.at-action-more-heading,
+.at-action-more-separator {
+    padding: 0.15rem 0.75rem 0.05rem;
+    color: var(--at-muted);
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-bold);
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.at-action-more-list .btn-link {
+    width: 100%;
+    padding: 0.2rem 0.75rem;
+    color: var(--at-text);
+    text-align: left;
+    text-decoration: none;
+}
+
+.at-action-more-list .btn-link:hover,
+.at-action-more-list .btn-link:focus {
+    background: #f8fafc;
+    color: var(--at-text);
+    text-decoration: none;
+}
+
+.at-action-more-list .at-card-action-form {
+    margin: 0;
+}
+
+.at-action-more-list .at-action-more-destructive {
+    color: #b91c1c;
+}
+
+.at-action-more-list .at-action-more-destructive:hover,
+.at-action-more-list .at-action-more-destructive:focus {
+    background: #fef2f2;
+    color: #991b1b;
+}

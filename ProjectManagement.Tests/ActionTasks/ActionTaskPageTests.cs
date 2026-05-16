@@ -1148,6 +1148,93 @@ public class ActionTaskPageTests
         Assert.DoesNotContain("This will remove the responsible person and return the work to Backlog. Continue?", html, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(RoleNames.Comdt)]
+    [InlineData(RoleNames.HoD)]
+    public async Task TaskDetails_MoreMenu_PlanningAuthoritiesRenderChangeDueDate(string role)
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(role);
+        var sprint = AddSprint(setup.Db, "Date Sprint", ActionSprintStatus.Active);
+        var task = await setup.Db.ActionTasks.SingleAsync();
+        task.SprintId = sprint.Id;
+        task.Status = ActionTaskStatuses.Assigned;
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Planning";
+        page.PlanningTab = "Execute";
+        page.SelectedSprintId = sprint.Id;
+        page.TaskId = task.Id;
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("Workflow Actions", html, StringComparison.Ordinal);
+        Assert.Contains("Planning Actions", html, StringComparison.Ordinal);
+        Assert.Contains("Change Due Date", html, StringComparison.Ordinal);
+        Assert.Contains(@"data-at-action-panel=""change-date""", html, StringComparison.Ordinal);
+        Assert.Contains(@"data-at-open-action=""change-date""", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TaskDetails_MoreMenu_NormalAssigneeHidesChangeDueDate()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.Ta);
+        var task = await setup.Db.ActionTasks.SingleAsync();
+        task.Status = ActionTaskStatuses.Assigned;
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "MyWork";
+        page.TaskId = task.Id;
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("Workflow Actions", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Planning Actions", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Change Due Date", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(@"data-at-action-panel=""change-date""", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(@"data-at-open-action=""change-date""", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TaskDetails_MoreMenu_ClosedTaskHidesChangeDateWorkflowAndPlanningActions()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var sprint = AddSprint(setup.Db, "Closed Sprint", ActionSprintStatus.Active);
+        var task = await setup.Db.ActionTasks.SingleAsync();
+        task.SprintId = sprint.Id;
+        task.Status = ActionTaskStatuses.Closed;
+        task.ClosedOn = DateTime.UtcNow;
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Planning";
+        page.PlanningTab = "Execute";
+        page.SelectedSprintId = sprint.Id;
+        page.TaskId = task.Id;
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("View only", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Workflow Actions", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Planning Actions", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Change Due Date", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Change Target Date", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Change Status", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Remove from Sprint, Keep Assigned", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Move to Backlog, Remove Assignee", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(@"data-at-action-panel=""change-date""", html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ActionTasksScript_UsesAppStyledConfirmationModalWithoutBrowserConfirm()
     {
