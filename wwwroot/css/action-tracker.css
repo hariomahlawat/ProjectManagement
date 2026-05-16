@@ -3492,3 +3492,86 @@ html {
         grid-template-columns: 1fr;
     }
 }
+
+/* SECTION: Command Centre exception dashboard cleanup */
+.at-command-kpis .at-dashboard-compact-card {
+    min-height: 100%;
+}
+
+.at-active-sprint-snapshot {
+    margin-bottom: 0.9rem;
+}
+
+.at-active-sprint-snapshot .at-panel-heading {
+    margin-bottom: 0.45rem;
+}
+
+.at-dashboard-empty-state {
+    display: grid;
+    gap: 0.2rem;
+    align-items: start;
+}
+
+.at-dashboard-empty-state strong {
+    color: var(--at-text);
+}
+
+.at-active-sprint-summary {
+    margin: 0;
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: #f8fafc;
+    color: var(--at-text);
+    padding: 0.6rem 0.75rem;
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-active-sprint-exceptions {
+    display: grid;
+    gap: 0.55rem;
+    margin-top: 0.7rem;
+}
+
+.at-active-sprint-exceptions h3 {
+    margin: 0;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.at-dashboard-empty-line {
+    border: 1px dashed var(--at-border);
+    border-radius: 10px;
+    background: #f8fafc;
+    color: var(--at-muted);
+    padding: 0.55rem 0.65rem;
+    font-size: var(--at-font-md);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-dashboard-task-list {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.at-dashboard-task-card {
+    padding: 0.55rem 0.6rem;
+}
+
+.at-dashboard-task-card .at-mini-title {
+    font-size: var(--at-font-md);
+    line-height: 1.25;
+}
+
+.at-dashboard-task-card .at-mini-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: center;
+    line-height: 1.35;
+}
+
+.at-recent-activity .at-details-collapsible {
+    padding: 0.55rem 0.7rem;
+}

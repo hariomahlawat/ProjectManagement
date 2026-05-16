@@ -899,7 +899,58 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task DashboardPartial_ActiveSprintHealth_DoesNotShowBacklogMetric()
+    public async Task DashboardPartial_TopKpis_ShowOnlyCommandExceptionCards()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var page = setup.Page;
+        page.ViewMode = "CommandCentre";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDashboard.cshtml");
+        var kpiStart = html.IndexOf("at-command-kpis", StringComparison.Ordinal);
+        var kpiEnd = html.IndexOf("at-active-sprint-snapshot", StringComparison.Ordinal);
+        var kpis = html[kpiStart..kpiEnd];
+
+        // SECTION: Assert
+        Assert.Contains("Overdue", kpis, StringComparison.Ordinal);
+        Assert.Contains("Blocked", kpis, StringComparison.Ordinal);
+        Assert.Contains("Pending Closure", kpis, StringComparison.Ordinal);
+        Assert.Contains("Critical Open", kpis, StringComparison.Ordinal);
+        Assert.Contains("Open Tasks", kpis, StringComparison.Ordinal);
+        Assert.DoesNotContain("Carry Forward", kpis, StringComparison.Ordinal);
+        Assert.DoesNotContain("Backlog", kpis, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sprint Tasks", kpis, StringComparison.Ordinal);
+        Assert.DoesNotContain("Completed", kpis, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DashboardPartial_NoActiveSprint_RendersCleanEmptyStateOnly()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var page = setup.Page;
+        page.ViewMode = "CommandCentre";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDashboard.cshtml");
+        var sprintStart = html.IndexOf("at-active-sprint-snapshot", StringComparison.Ordinal);
+        var attentionStart = html.IndexOf("Attention Required", StringComparison.Ordinal);
+        var activeSprint = html[sprintStart..attentionStart];
+
+        // SECTION: Assert
+        Assert.Contains("No active sprint is currently set.", activeSprint, StringComparison.Ordinal);
+        Assert.Contains("Activate a planned sprint from Sprint Board", activeSprint, StringComparison.Ordinal);
+        Assert.DoesNotContain("Total in active sprint", activeSprint, StringComparison.Ordinal);
+        Assert.DoesNotContain("Completed", activeSprint, StringComparison.Ordinal);
+        Assert.DoesNotContain("In progress", activeSprint, StringComparison.Ordinal);
+        Assert.DoesNotContain("Overdue in sprint", activeSprint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DashboardPartial_ActiveSprintSnapshot_DoesNotShowBacklogOrEmptyExceptionPanels()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
@@ -912,13 +963,76 @@ public class ActionTaskPageTests
 
         // SECTION: Act
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDashboard.cshtml");
-        var healthStart = html.IndexOf("<h2>Active Sprint Health</h2>", StringComparison.Ordinal);
-        var attentionStart = html.IndexOf("Active Sprint command attention", StringComparison.Ordinal);
-        var activeSprintHealth = html[healthStart..attentionStart];
+        var sprintStart = html.IndexOf("at-active-sprint-snapshot", StringComparison.Ordinal);
+        var attentionStart = html.IndexOf("Attention Required", StringComparison.Ordinal);
+        var activeSprint = html[sprintStart..attentionStart];
 
         // SECTION: Assert
-        Assert.Contains("Total in active sprint", activeSprintHealth, StringComparison.Ordinal);
-        Assert.DoesNotContain("<h3>Backlog</h3>", activeSprintHealth, StringComparison.Ordinal);
+        Assert.Contains("<h2>Active Sprint</h2>", activeSprint, StringComparison.Ordinal);
+        Assert.Contains("Health Sprint", activeSprint, StringComparison.Ordinal);
+        Assert.Contains("No active sprint exceptions.", activeSprint, StringComparison.Ordinal);
+        Assert.DoesNotContain("Active Sprint Health", activeSprint, StringComparison.Ordinal);
+        Assert.DoesNotContain("<h3>Backlog</h3>", activeSprint, StringComparison.Ordinal);
+        Assert.DoesNotContain("No overdue tasks in the active sprint.", activeSprint, StringComparison.Ordinal);
+        Assert.DoesNotContain("No blocked tasks in the active sprint.", activeSprint, StringComparison.Ordinal);
+        Assert.DoesNotContain("No submitted tasks pending closure in the active sprint.", activeSprint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DashboardPartial_AttentionRequired_RendersOnlyNonEmptyDeduplicatedLists()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var pendingClosure = NewTask("Pending closure item", ActionTaskStatuses.Submitted);
+        var blocked = NewTask("Blocked critical overdue item", ActionTaskStatuses.Blocked);
+        blocked.Priority = "Critical";
+        blocked.DueDate = DateTime.UtcNow.Date.AddDays(-2);
+        var overdue = NewTask("Overdue item", ActionTaskStatuses.Assigned);
+        overdue.DueDate = DateTime.UtcNow.Date.AddDays(-1);
+        var critical = NewTask("Critical open item", ActionTaskStatuses.Assigned);
+        critical.Priority = "Critical";
+        setup.Db.ActionTasks.AddRange(pendingClosure, blocked, overdue, critical);
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "CommandCentre";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDashboard.cshtml");
+        var attentionStart = html.IndexOf("Attention Required", StringComparison.Ordinal);
+        var attentionEnd = html.IndexOf("Recent Activity", StringComparison.Ordinal);
+        var attention = attentionEnd >= 0 ? html[attentionStart..attentionEnd] : html[attentionStart..];
+
+        // SECTION: Assert
+        Assert.Contains("Pending Closure Tasks", attention, StringComparison.Ordinal);
+        Assert.Contains("Blocked Tasks", attention, StringComparison.Ordinal);
+        Assert.Contains("Overdue Tasks", attention, StringComparison.Ordinal);
+        Assert.Contains("Critical Open Tasks", attention, StringComparison.Ordinal);
+        Assert.DoesNotContain("No command attention items.", attention, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(attention, "Blocked critical overdue item"));
+        Assert.DoesNotContain("Remove from Sprint", attention, StringComparison.Ordinal);
+        Assert.DoesNotContain("Return to Backlog", attention, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DashboardPartial_EmptyAttentionAndRecentActivity_DoNotRenderEmptyPanels()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var page = setup.Page;
+        page.ViewMode = "CommandCentre";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDashboard.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("No command attention items.", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Critical Open Tasks", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Overdue Tasks", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Blocked Tasks", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Pending Closure Tasks", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Recent Activity", html, StringComparison.Ordinal);
     }
 
 

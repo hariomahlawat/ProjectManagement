@@ -43,8 +43,8 @@ public sealed class ActionTaskQueryService
             ActiveSprintMetrics = activeSprintMetrics,
             CriticalOpenTasks = tasks.Where(t => IsCriticalOpen(t)).OrderBy(t => t.DueDate).Take(5).ToList(),
             OverdueTasks = tasks.Where(t => IsOpen(t) && t.DueDate.Date < _clock.UtcToday).OrderBy(t => t.DueDate).Take(5).ToList(),
-            RecentlySubmittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).OrderByDescending(t => t.SubmittedOn ?? DateTime.MinValue).Take(5).ToList(),
-            RecentlyUpdatedTasks = tasks.OrderByDescending(t => ResolveLastActivityUtc(t, activityByTaskId) ?? DateTime.MinValue).ThenByDescending(t => t.Id).Take(5).ToList(),
+            RecentlySubmittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase) && t.SubmittedOn.HasValue).OrderByDescending(t => t.SubmittedOn ?? DateTime.MinValue).Take(5).ToList(),
+            RecentlyUpdatedTasks = tasks.Where(t => ResolveLastActivityUtc(t, activityByTaskId).HasValue).OrderByDescending(t => ResolveLastActivityUtc(t, activityByTaskId) ?? DateTime.MinValue).ThenByDescending(t => t.Id).Take(5).ToList(),
             DueBuckets = BuildDueBuckets(tasks),
             Reports = _reportBuilder.BuildReportModel(tasks, request, assigneeNames)
         };
@@ -60,7 +60,7 @@ public sealed class ActionTaskQueryService
     private static DateTime? ResolveLastActivityUtc(ActionTaskItem task, IReadOnlyDictionary<int, DateTime?> activityByTaskId)
     {
         activityByTaskId.TryGetValue(task.Id, out var activityTimestampUtc);
-        return activityTimestampUtc ?? task.SubmittedOn ?? task.AssignedOn;
+        return activityTimestampUtc;
     }
 
     // SECTION: Backlog read-model projection uses the official open, unsprinted, unassigned backlog contract.
