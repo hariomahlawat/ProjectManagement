@@ -437,7 +437,13 @@
                                         <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
                                         <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                         <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
-                                        <button type="submit" class="btn btn-link btn-sm">Remove from Sprint, Keep Assigned</button>
+                                        <button type="submit"
+                                                class="btn btn-link btn-sm"
+                                                data-at-confirm="true"
+                                                data-at-confirm-title="Remove task from Sprint?"
+                                                data-at-confirm-body="This will keep the assignee but remove the task from the selected sprint."
+                                                data-at-confirm-cancel-label="Cancel"
+                                                data-at-confirm-accept-label="Remove from Sprint">Remove from Sprint, Keep Assigned</button>
                                     </form>
                                 }
                                 <form method="post" asp-page-handler="MoveToBacklogRemoveAssignee" class="at-card-action-form">
@@ -446,7 +452,13 @@
                                     <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
                                     <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                     <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
-                                    <button type="submit" class="btn btn-link btn-sm text-danger" data-at-confirm="This will remove the responsible person and return the work to Backlog. Continue?">Move to Backlog, Remove Assignee</button>
+                                    <button type="submit"
+                                            class="btn btn-link btn-sm text-danger"
+                                            data-at-confirm="true"
+                                            data-at-confirm-title="Return task to Backlog?"
+                                            data-at-confirm-body="This will remove the assignee and return the task to Backlog."
+                                            data-at-confirm-cancel-label="Cancel"
+                                            data-at-confirm-accept-label="Return to Backlog">Move to Backlog, Remove Assignee</button>
                                 </form>
                             }
                             </div>
