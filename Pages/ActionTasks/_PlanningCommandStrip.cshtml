@@ -34,7 +34,7 @@
                 @Model.SprintSummary.OpenCount open · @Model.SelectedSprintOverdueCount overdue · @Model.SprintSummary.BlockedCount blocked · @Model.SprintAttentionSubmittedTaskDisplays.Count pending closure
             </p>
             <div class="at-command-focus-strip at-sprint-command-focus at-planning-command-focus">
-                <strong>Command focus:</strong> @(string.IsNullOrWhiteSpace(Model.SelectedSprint.Goal) ? "No command focus recorded." : Model.SelectedSprint.Goal)
+                <strong>Focus:</strong> @(string.IsNullOrWhiteSpace(Model.SelectedSprint.Goal) ? "No command focus recorded." : Model.SelectedSprint.Goal)
             </div>
         </div>
 

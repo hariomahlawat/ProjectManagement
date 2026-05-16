@@ -3,21 +3,7 @@
     // SECTION: Date filter display values are preformatted for CSP-safe server rendering.
     var reportFromDateValue = Model.ReportFromDate?.ToString("yyyy-MM-dd");
     var reportToDateValue = Model.ReportToDate?.ToString("yyyy-MM-dd");
-    var reportFilterSummary = Model.ReportFilterSummary.ToLowerInvariant();
 }
-
-@* SECTION: Reports introduction and scope. *@
-<section class="at-section-group">
-    <article class="at-panel">
-        <div class="at-panel-heading">
-            <div>
-                <h2>Reports</h2>
-                <p class="at-panel-note">Review workload, ageing and sprint performance.</p>
-            </div>
-        </div>
-        <p class="at-empty-state-note">This management view summarises workload, risk, ageing and closure trends without duplicating Command Centre, Sprint Board or Register actions.</p>
-    </article>
-</section>
 
 @* SECTION: Compact reports filter bar for management analysis. *@
 <section class="at-section-group">
@@ -26,7 +12,6 @@
         <div class="at-reports-filter-heading">
             <div>
                 <h2>Report Filters</h2>
-                <p class="at-panel-note">Keep reports focused with date range, responsible person, bucket, sprint, status and priority.</p>
             </div>
             <span class="at-report-filter-summary">@Model.ReportFilterSummary</span>
         </div>
@@ -140,7 +125,7 @@
     <div class="at-panel-heading">
         <div>
             <h2>Workload Summary</h2>
-            <p class="at-panel-note">Showing @reportFilterSummary.</p>
+            <p class="at-panel-note">@Model.ReportFilterSummary</p>
         </div>
     </div>
     <div class="at-kpis">

@@ -647,6 +647,31 @@ public class ActionSprintServiceTests
     }
 
     [Fact]
+    public async Task CloseSprintWithDispositionAsync_InvalidSprintTaskMustReturnToBacklogOrBeCorrected()
+    {
+        // SECTION: Arrange invalid sprint assignment
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var source = await service.CreateSprintAsync(NewSprint("Source"), "planner", RoleNames.Comdt);
+        await service.ActivateSprintAsync(source.Id, source.RowVersion, "planner", RoleNames.Comdt);
+        var target = await service.CreateSprintAsync(NewSprint("Target", 15, 29), "planner", RoleNames.Comdt);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Assigned);
+        task.SprintId = source.Id;
+        task.AssignedToUserId = "assignee";
+        task.AssignedToRole = string.Empty;
+        await db.SaveChangesAsync();
+
+        // SECTION: Act + Assert carry-forward and keep-outside dispositions are rejected for invalid sprint tasks.
+        var carryEx = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CloseSprintWithDispositionAsync(source.Id, source.RowVersion, new[] { task.Id }, target.Id, Array.Empty<int>(), Array.Empty<int>(), "Carry invalid", "planner", RoleNames.Comdt));
+        var outsideEx = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CloseSprintWithDispositionAsync(source.Id, source.RowVersion, Array.Empty<int>(), null, new[] { task.Id }, Array.Empty<int>(), "Keep invalid outside", "planner", RoleNames.Comdt));
+
+        Assert.Equal("Tasks with invalid sprint assignment must be returned to backlog or corrected before sprint closure.", carryEx.Message);
+        Assert.Equal("Tasks with invalid sprint assignment must be returned to backlog or corrected before sprint closure.", outsideEx.Message);
+    }
+
+    [Fact]
     public async Task CloseSprintWithDispositionAsync_BacklogDisposition_ResetsTaskToBacklogStatus()
     {
         // SECTION: Arrange

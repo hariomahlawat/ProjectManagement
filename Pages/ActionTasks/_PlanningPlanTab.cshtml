@@ -211,11 +211,11 @@
     </section>
 
     @* SECTION: Outside Sprint list makes assigned work outside sprint explicit and separate from backlog items. *@
-    <details class="at-panel at-planning-outside-sprint at-planning-plan-card">
-        <summary class="at-panel-heading">
+    <details class="at-planning-outside-sprint at-planning-plan-card">
+        <summary class="at-planning-outside-summary">
             <div>
                 <h2>Assigned Tasks Outside Sprint</h2>
-                <p class="at-panel-note">Assigned work not included in any sprint.</p>
+                <p class="at-panel-note">@Model.OutsideSprintTaskDisplays.Count assigned tasks outside sprint</p>
             </div>
             <span class="at-count-chip">@Model.OutsideSprintTaskDisplays.Count</span>
         </summary>
