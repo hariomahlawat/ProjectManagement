@@ -128,7 +128,8 @@ public class ActionTaskQueryServiceSprintMetricsTests
             NewTask(31, null, ActionTaskStatuses.Backlog, today.AddDays(2), assignedToUserId: string.Empty),
             NewTask(32, null, ActionTaskStatuses.Assigned, today.AddDays(2), assignedToUserId: "assignee"),
             NewTask(33, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), assignedToUserId: "assignee"),
-            NewTask(34, null, ActionTaskStatuses.Closed, today.AddDays(2), assignedToUserId: "assignee")
+            NewTask(34, null, ActionTaskStatuses.Closed, today.AddDays(2), assignedToUserId: "assignee"),
+            NewTask(35, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), assignedToUserId: string.Empty)
         };
         var service = CreateQueryService();
 
@@ -137,12 +138,39 @@ public class ActionTaskQueryServiceSprintMetricsTests
         var outside = BuildWithBucket(service, tasks, sprint, "OutsideSprint");
         var sprintItems = BuildWithBucket(service, tasks, sprint, "Sprint");
         var closed = BuildWithBucket(service, tasks, sprint, "Closed");
+        var invalid = BuildWithBucket(service, tasks, sprint, "Invalid");
 
         // SECTION: Assert
         Assert.Equal(new[] { 31 }, backlog.TaskListTasks.Select(t => t.Id));
         Assert.Equal(new[] { 32 }, outside.TaskListTasks.Select(t => t.Id));
         Assert.Equal(new[] { 33 }, sprintItems.TaskListTasks.Select(t => t.Id));
         Assert.Equal(new[] { 34 }, closed.TaskListTasks.Select(t => t.Id));
+        Assert.Equal(new[] { 35 }, invalid.TaskListTasks.Select(t => t.Id));
+    }
+
+    [Fact]
+    public void BuildReadModel_RegisterSearch_MatchesTitleAndAtNumber()
+    {
+        // SECTION: Arrange
+        var today = DateTime.UtcNow.Date;
+        var sprint = new ActionSprint { Id = 51, Name = "Sprint", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
+        var tasks = new[]
+        {
+            NewTask(51, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(3), assignedToUserId: "assignee", title: "Monthly readiness review"),
+            NewTask(52, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(1), assignedToUserId: "assignee", title: "Fleet compliance check"),
+            NewTask(53, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), assignedToUserId: "assignee", title: "Inventory audit")
+        };
+        var service = CreateQueryService();
+
+        // SECTION: Act
+        var titleMatch = BuildWithSearch(service, tasks, sprint, "readiness");
+        var atNumberMatch = BuildWithSearch(service, tasks, sprint, "AT-52");
+        var numericMatch = BuildWithSearch(service, tasks, sprint, "52");
+
+        // SECTION: Assert
+        Assert.Equal(new[] { 51 }, titleMatch.TaskListTasks.Select(t => t.Id));
+        Assert.Equal(new[] { 52 }, atNumberMatch.TaskListTasks.Select(t => t.Id));
+        Assert.Equal(new[] { 52 }, numericMatch.TaskListTasks.Select(t => t.Id));
     }
 
     // SECTION: Test query service helper
@@ -173,12 +201,20 @@ public class ActionTaskQueryServiceSprintMetricsTests
             new ActionTaskQueryService.ActionTaskQueryRequest("user", false, true, false, sprint.Id, new[] { sprint }, null, null, null, null, null, null, null, FilterBucket: bucket),
             new Dictionary<string, string> { ["assignee"] = "Assignee" },
             new Dictionary<int, DateTime?>());
+
+    private static ActionTaskQueryService.ActionTaskReadModel BuildWithSearch(ActionTaskQueryService service, IReadOnlyList<ActionTaskItem> tasks, ActionSprint sprint, string search)
+        => service.BuildReadModel(
+            tasks,
+            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, true, false, sprint.Id, new[] { sprint }, null, null, null, null, search, null, null),
+            new Dictionary<string, string> { ["assignee"] = "Assignee" },
+            new Dictionary<int, DateTime?>());
+
     // SECTION: Test data helper
-    private static ActionTaskItem NewTask(int id, int? sprintId, string status, DateTime dueDate, string priority = "Normal", string assignedToUserId = "assignee", DateTime? assignedOn = null)
+    private static ActionTaskItem NewTask(int id, int? sprintId, string status, DateTime dueDate, string priority = "Normal", string assignedToUserId = "assignee", DateTime? assignedOn = null, string? title = null)
         => new()
         {
             Id = id,
-            Title = $"Task {id}",
+            Title = title ?? $"Task {id}",
             Description = "Task",
             CreatedByUserId = "creator",
             AssignedToUserId = assignedToUserId,

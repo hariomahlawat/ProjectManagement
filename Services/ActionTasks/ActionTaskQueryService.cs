@@ -219,7 +219,15 @@ public sealed class ActionTaskQueryService
         if (!string.IsNullOrWhiteSpace(request.FilterPriority)) query = query.Where(t => string.Equals(t.Priority, request.FilterPriority, StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrWhiteSpace(request.FilterAssigneeUserId)) query = query.Where(t => string.Equals(t.AssignedToUserId, request.FilterAssigneeUserId, StringComparison.Ordinal));
         if (request.FilterDueDate.HasValue) { var d = request.FilterDueDate.Value.Date; query = query.Where(t => t.DueDate.Date == d); }
-        if (!string.IsNullOrWhiteSpace(request.FilterSearch)) { var s = request.FilterSearch.Trim(); query = query.Where(t => t.Title.Contains(s, StringComparison.OrdinalIgnoreCase)); }
+        if (!string.IsNullOrWhiteSpace(request.FilterSearch))
+        {
+            var s = request.FilterSearch.Trim();
+            var normalizedTaskNumber = s.StartsWith("AT-", StringComparison.OrdinalIgnoreCase)
+                ? s[3..].Trim()
+                : s;
+
+            query = query.Where(t => MatchesRegisterSearch(t, s, normalizedTaskNumber, assigneeNames));
+        }
 
         var sortBy = (request.SortBy ?? "due").Trim().ToLowerInvariant();
         var descending = string.Equals(request.SortDir, "desc", StringComparison.OrdinalIgnoreCase);
@@ -236,6 +244,20 @@ public sealed class ActionTaskQueryService
             _ => descending ? query.OrderByDescending(t => t.DueDate) : query.OrderBy(t => t.DueDate)
         };
         return ordered.ThenBy(t => t.Id);
+    }
+
+
+    // SECTION: Register search matches task identity, title, description, and visible owner text.
+    private static bool MatchesRegisterSearch(ActionTaskItem task, string searchTerm, string normalizedTaskNumber, IReadOnlyDictionary<string, string> assigneeNames)
+    {
+        var taskNumber = $"AT-{task.Id}";
+        var assigneeName = assigneeNames.TryGetValue(task.AssignedToUserId, out var resolvedAssignee) ? resolvedAssignee : string.Empty;
+
+        return task.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+            || taskNumber.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+            || task.Id.ToString().Equals(normalizedTaskNumber, StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrWhiteSpace(task.Description) && task.Description.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+            || (!string.IsNullOrWhiteSpace(assigneeName) && assigneeName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
     }
 
     // SECTION: Register bucket filtering maps user-facing buckets to central task classification.

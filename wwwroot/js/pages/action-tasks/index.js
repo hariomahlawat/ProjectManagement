@@ -66,7 +66,7 @@
             return;
         }
 
-        const immediateControls = form.querySelectorAll("select[name='FilterStatus'], select[name='FilterPriority'], select[name='FilterAssigneeUserId'], input[name='FilterDueDate']");
+        const immediateControls = form.querySelectorAll("select[name='FilterStatus'], select[name='FilterBucket'], select[name='FilterPriority'], input[name='FilterDueDate']");
         immediateControls.forEach((control) => {
             control.addEventListener("change", () => {
                 form.requestSubmit();
@@ -120,8 +120,10 @@
         }
 
         assigneeInput.addEventListener("change", () => {
-            syncAssigneeSelection();
-            form.requestSubmit();
+            const valid = syncAssigneeSelection();
+            if (valid || !assigneeInput.value.trim()) {
+                form.requestSubmit();
+            }
         });
 
         assigneeInput.addEventListener("keydown", (event) => {
@@ -129,12 +131,18 @@
                 return;
             }
             event.preventDefault();
-            syncAssigneeSelection();
-            form.requestSubmit();
+            const valid = syncAssigneeSelection();
+            if (valid || !assigneeInput.value.trim()) {
+                form.requestSubmit();
+            }
         });
 
         assigneeInput.addEventListener("blur", () => {
-            syncAssigneeSelection();
+            const valid = syncAssigneeSelection();
+            if (!valid) {
+                assigneeInput.value = "";
+                hiddenInput.value = "";
+            }
         });
     }
 
