@@ -62,11 +62,6 @@ public class IndexModel : PageModel
     public IReadOnlyList<ActionTaskItem> OverdueTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> RecentlySubmittedTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> RecentlyUpdatedTasks { get; private set; } = Array.Empty<ActionTaskItem>();
-    public IReadOnlyList<ActionTaskItem> KanbanAssignedTasks { get; private set; } = Array.Empty<ActionTaskItem>();
-    public IReadOnlyList<ActionTaskItem> KanbanInProgressTasks { get; private set; } = Array.Empty<ActionTaskItem>();
-    public IReadOnlyList<ActionTaskItem> KanbanBlockedTasks { get; private set; } = Array.Empty<ActionTaskItem>();
-    public IReadOnlyList<ActionTaskItem> KanbanSubmittedTasks { get; private set; } = Array.Empty<ActionTaskItem>();
-    public IReadOnlyList<ActionTaskItem> KanbanClosedTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> DueTodayTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> DueThisWeekTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> DueLaterTasks { get; private set; } = Array.Empty<ActionTaskItem>();
@@ -204,7 +199,7 @@ public class IndexModel : PageModel
     public bool IsDashboardView => IsCommandCentreView;
     public bool IsMyTasksView => IsMyWorkView;
     public bool IsTaskListView => IsRegisterView;
-    public bool IsKanbanView => IsPlanningView && string.Equals(ResolvedPlanningView, "Kanban", StringComparison.OrdinalIgnoreCase);
+    public bool IsKanbanView => false;
     public bool IsSprintBoardView => IsPlanningView && string.Equals(ResolvedPlanningView, "DueExceptions", StringComparison.OrdinalIgnoreCase);
     public bool IsPlanningPlanTab => IsPlanningView && string.Equals(ResolvedPlanningTab, "Plan", StringComparison.OrdinalIgnoreCase);
     public bool IsPlanningExecuteTab => IsPlanningView && string.Equals(ResolvedPlanningTab, "Execute", StringComparison.OrdinalIgnoreCase);
@@ -374,6 +369,7 @@ public class IndexModel : PageModel
             ActionTaskWorkCategory.Sprint => ResolveSprintName(task.SprintId),
             ActionTaskWorkCategory.OutsideSprint or ActionTaskWorkCategory.NonSprint => "Outside Sprint",
             ActionTaskWorkCategory.Closed => "Closed",
+            ActionTaskWorkCategory.Invalid => "Invalid State",
             _ => "Backlog"
         };
 
@@ -381,8 +377,9 @@ public class IndexModel : PageModel
         => ActionTaskCategorization.ResolveCategory(task) switch
         {
             ActionTaskWorkCategory.Sprint => "at-scope-badge at-scope-badge-sprint",
-            ActionTaskWorkCategory.OutsideSprint or ActionTaskWorkCategory.NonSprint => "at-scope-badge at-scope-badge-non-sprint",
+            ActionTaskWorkCategory.OutsideSprint or ActionTaskWorkCategory.NonSprint => "at-scope-badge at-scope-badge-outside-sprint",
             ActionTaskWorkCategory.Closed => "at-scope-badge at-scope-badge-closed",
+            ActionTaskWorkCategory.Invalid => "at-scope-badge at-scope-badge-invalid",
             _ => "at-scope-badge at-scope-badge-backlog"
         };
 
@@ -970,11 +967,6 @@ public class IndexModel : PageModel
         OverdueTasks = readModel.OverdueTasks;
         RecentlySubmittedTasks = readModel.RecentlySubmittedTasks;
         RecentlyUpdatedTasks = readModel.RecentlyUpdatedTasks;
-        KanbanAssignedTasks = readModel.KanbanAssignedTasks;
-        KanbanInProgressTasks = readModel.KanbanInProgressTasks;
-        KanbanBlockedTasks = readModel.KanbanBlockedTasks;
-        KanbanSubmittedTasks = readModel.KanbanSubmittedTasks;
-        KanbanClosedTasks = readModel.KanbanClosedTasks;
         SprintOverdueTasks = readModel.DueBuckets.Overdue;
         BacklogTasks = readModel.BacklogTasks;
         OutsideSprintTasks = readModel.OutsideSprintTasks;
@@ -1115,20 +1107,6 @@ public class IndexModel : PageModel
     public IReadOnlyList<TaskDisplayItem> RecentlyUpdatedTaskDisplays =>
         ToDisplayItems(RecentlyUpdatedTasks);
 
-    public IReadOnlyList<TaskDisplayItem> KanbanAssignedTaskDisplays =>
-        ToDisplayItems(KanbanAssignedTasks);
-
-    public IReadOnlyList<TaskDisplayItem> KanbanInProgressTaskDisplays =>
-        ToDisplayItems(KanbanInProgressTasks);
-
-    public IReadOnlyList<TaskDisplayItem> KanbanBlockedTaskDisplays =>
-        ToDisplayItems(KanbanBlockedTasks);
-
-    public IReadOnlyList<TaskDisplayItem> KanbanSubmittedTaskDisplays =>
-        ToDisplayItems(KanbanSubmittedTasks);
-
-    public IReadOnlyList<TaskDisplayItem> KanbanClosedTaskDisplays =>
-        ToDisplayItems(KanbanClosedTasks);
 
     public IReadOnlyList<TaskDisplayItem> DueTodayTaskDisplays =>
         ToDisplayItems(DueTodayTasks);
@@ -1243,6 +1221,7 @@ public class IndexModel : PageModel
     public int BlockedCount => CommandCentreSummary.BlockedCount;
     public int ClosedCount => CommandCentreSummary.ClosedCount;
     public int CriticalOpenCount => CriticalOpenTasks.Count;
+    public int OpenTaskCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
     public int StatusCountsMax => StatusCounts.Count == 0 ? 0 : StatusCounts.Max(x => x.Count);
     public int PriorityCountsMax => PriorityCounts.Count == 0 ? 0 : PriorityCounts.Max(x => x.Count);
     public int AssigneePendingCountsMax => AssigneePendingCounts.Count == 0 ? 0 : AssigneePendingCounts.Max(x => x.Count);

@@ -45,11 +45,6 @@ public sealed class ActionTaskQueryService
             OverdueTasks = tasks.Where(t => IsOpen(t) && t.DueDate.Date < _clock.UtcToday).OrderBy(t => t.DueDate).Take(5).ToList(),
             RecentlySubmittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).OrderByDescending(t => t.SubmittedOn ?? DateTime.MinValue).Take(5).ToList(),
             RecentlyUpdatedTasks = tasks.OrderByDescending(t => ResolveLastActivityUtc(t, activityByTaskId) ?? DateTime.MinValue).ThenByDescending(t => t.Id).Take(5).ToList(),
-            KanbanAssignedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase)).ToList(),
-            KanbanInProgressTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase)).ToList(),
-            KanbanBlockedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)).ToList(),
-            KanbanSubmittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).ToList(),
-            KanbanClosedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)).ToList(),
             DueBuckets = BuildDueBuckets(tasks),
             Reports = _reportBuilder.BuildReportModel(tasks, request, assigneeNames)
         };
@@ -97,7 +92,7 @@ public sealed class ActionTaskQueryService
 
         var selectedTasks = selectedSprint is null
             ? new List<ActionTaskItem>()
-            : tasks.Where(t => t.SprintId == selectedSprint.Id).OrderBy(t => StatusOrder(t)).ThenBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
+            : tasks.Where(t => t.SprintId == selectedSprint.Id && ActionTaskBucketClassifier.ResolveBucket(t) != ActionTaskBucket.Invalid).OrderBy(t => StatusOrder(t)).ThenBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
 
         var backlogTasks = tasks.Where(IsBacklog).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
 
@@ -199,7 +194,6 @@ public sealed class ActionTaskQueryService
             InProgressTasks = activeSprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase)),
             BlockedTasks = activeSprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)),
             OverdueTasks = activeSprintTasks.Count(t => IsOpen(t) && t.DueDate.Date < today),
-            BacklogTasks = tasks.Count(IsBacklog),
             CarryForwardCandidateTasks = activeSprintTasks.Count(t => IsOpen(t))
         };
     }
@@ -252,6 +246,7 @@ public sealed class ActionTaskQueryService
             "OutsideSprint" => ActionTaskBucketClassifier.ResolveBucket(task) == ActionTaskBucket.OutsideSprint,
             "Sprint" => ActionTaskBucketClassifier.ResolveBucket(task) == ActionTaskBucket.Sprint,
             "Closed" => ActionTaskBucketClassifier.ResolveBucket(task) == ActionTaskBucket.Closed,
+            "Invalid" => ActionTaskBucketClassifier.ResolveBucket(task) == ActionTaskBucket.Invalid,
             _ => true
         };
 
@@ -301,11 +296,6 @@ public sealed class ActionTaskQueryService
         public IReadOnlyList<ActionTaskItem> OverdueTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> RecentlySubmittedTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> RecentlyUpdatedTasks { get; init; } = Array.Empty<ActionTaskItem>();
-        public IReadOnlyList<ActionTaskItem> KanbanAssignedTasks { get; init; } = Array.Empty<ActionTaskItem>();
-        public IReadOnlyList<ActionTaskItem> KanbanInProgressTasks { get; init; } = Array.Empty<ActionTaskItem>();
-        public IReadOnlyList<ActionTaskItem> KanbanBlockedTasks { get; init; } = Array.Empty<ActionTaskItem>();
-        public IReadOnlyList<ActionTaskItem> KanbanSubmittedTasks { get; init; } = Array.Empty<ActionTaskItem>();
-        public IReadOnlyList<ActionTaskItem> KanbanClosedTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public ActionTaskDueBuckets DueBuckets { get; init; } = new();
         public ActionTaskReportReadModel Reports { get; init; } = new();
     }
@@ -369,7 +359,6 @@ public sealed class ActionTaskQueryService
         public int InProgressTasks { get; init; }
         public int BlockedTasks { get; init; }
         public int OverdueTasks { get; init; }
-        public int BacklogTasks { get; init; }
         public int CarryForwardCandidateTasks { get; init; }
     }
 

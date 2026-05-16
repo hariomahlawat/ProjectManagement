@@ -41,7 +41,6 @@ public class ActionTaskQueryServiceSprintMetricsTests
         Assert.Equal(1, model.ActiveSprintMetrics.InProgressTasks);
         Assert.Equal(1, model.ActiveSprintMetrics.BlockedTasks);
         Assert.Equal(1, model.ActiveSprintMetrics.OverdueTasks);
-        Assert.Equal(1, model.ActiveSprintMetrics.BacklogTasks);
         Assert.Equal(3, model.ActiveSprintMetrics.CarryForwardCandidateTasks);
         Assert.Equal(new[] { 5 }, model.BacklogTasks.Select(t => t.Id));
         Assert.Equal(new[] { 5 }, model.SprintReadModel.BacklogTasks.Select(t => t.Id));
@@ -147,6 +146,20 @@ public class ActionTaskQueryServiceSprintMetricsTests
     }
 
     // SECTION: Test query service helper
+    [Fact]
+    public void ResolveBucket_WhenSprintExistsWithoutResponsiblePerson_ReturnsInvalid()
+    {
+        // SECTION: Arrange
+        var task = NewTask(99, 7, ActionTaskStatuses.Assigned, DateTime.UtcNow.Date, assignedToUserId: string.Empty);
+
+        // SECTION: Act
+        var bucket = ActionTaskCategorization.ResolveBucket(task);
+
+        // SECTION: Assert
+        Assert.Equal(ActionTaskBucket.Invalid, bucket);
+    }
+
+
     private static ActionTaskQueryService CreateQueryService()
     {
         var clock = new SystemActionTrackerClock();

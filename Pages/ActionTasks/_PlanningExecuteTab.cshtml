@@ -1,15 +1,15 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 @using ProjectManagement.Models
 @{
-    // SECTION: Execute tab is the primary sprint Kanban/status board.
-    var kanbanStatuses = new[]
+    // SECTION: Execute tab is the official sprint status board for active workflow states.
+    var activeStatuses = new[]
     {
         ActionTaskStatuses.Assigned,
         ActionTaskStatuses.InProgress,
         ActionTaskStatuses.Blocked,
-        ActionTaskStatuses.Submitted,
-        ActionTaskStatuses.Closed
+        ActionTaskStatuses.Submitted
     };
+    var closedTasks = Model.GetSprintTasksByStatus(ActionTaskStatuses.Closed);
     var attentionCount = Model.SprintAttentionOverdueTaskDisplays.Count + Model.SprintAttentionBlockedTaskDisplays.Count + Model.SprintAttentionSubmittedTaskDisplays.Count;
 }
 
@@ -21,17 +21,21 @@
     }
     else
     {
-        @* SECTION: Primary visible Kanban board keeps all execution status columns in one responsive row. *@
+        @* SECTION: Primary Sprint Board keeps active execution states visible without horizontal scrolling. *@
         <section class="at-sprint-board-stack at-execute-status-board" aria-label="Selected Sprint Board task board">
             <header class="at-panel at-execute-board-header" aria-label="Sprint Board header">
                 <div class="at-execute-board-title">
                     <span class="at-section-eyebrow">Execute</span>
-                    <h2>Sprint Kanban Board</h2>
-                    <p class="at-panel-note">Move work through status columns for the selected sprint.</p>
+                    <h2>Sprint Board</h2>
+                    <p class="at-panel-note">Move work through status columns.</p>
+                </div>
+                <div class="at-execute-board-summary" aria-label="Selected sprint closed task count">
+                    <span>Closed</span>
+                    <strong>@closedTasks.Count</strong>
                 </div>
             </header>
-            <div class="at-execute-status-grid" aria-label="Sprint Kanban status columns">
-                @foreach (var status in kanbanStatuses)
+            <div class="at-execute-status-grid" aria-label="Sprint Board active status columns">
+                @foreach (var status in activeStatuses)
                 {
                     var groupedTasks = Model.GetSprintTasksByStatus(status);
                     var statusSectionClass = status.ToLowerInvariant().Replace(" ", "-");
@@ -46,8 +50,7 @@
                             <div class="at-task-cards">
                                 @foreach (var item in groupedTasks)
                                 {
-                                    var canProgressFromColumn = !string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
-                                    <partial name="_PlanningTaskCard" model='@Tuple.Create(Model, item, "Execute", canProgressFromColumn)' />
+                                    <partial name="_PlanningTaskCard" model='@Tuple.Create(Model, item, "Execute", false)' />
                                 }
                             </div>
                         }
@@ -55,6 +58,20 @@
                 }
             </div>
         </section>
+
+        @* SECTION: Closed tasks are secondary and collapsed so active work remains the visual priority. *@
+        @if (closedTasks.Any())
+        {
+            <details class="at-panel at-secondary-panel at-execute-closed-section">
+                <summary>Closed Tasks <span class="at-count-chip">@closedTasks.Count</span></summary>
+                <div class="at-task-cards mt-3">
+                    @foreach (var item in closedTasks)
+                    {
+                        <partial name="_PlanningTaskCard" model='@Tuple.Create(Model, item, "Execute", false)' />
+                    }
+                </div>
+            </details>
+        }
 
         @* SECTION: Attention and due-exception lists are secondary to the visible status board. *@
         <details class="at-panel at-sprint-attention-lane at-execute-attention">

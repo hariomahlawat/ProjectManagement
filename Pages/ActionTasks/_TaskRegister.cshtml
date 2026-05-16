@@ -203,7 +203,7 @@
                                 <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Register">@task.Title</a>
                                 <div class="at-task-desc-preview">@task.Description</div>
                             </td>
-                            <td class="at-register-person-cell">@Model.ResolveAssigneeName(task.AssignedToUserId)</td>
+                            <td class="at-register-person-cell">@(Model.IsBacklogTask(task) ? "—" : Model.ResolveAssigneeName(task.AssignedToUserId))</td>
                             <td class="at-register-sprint-cell"><span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span></td>
                             <td class="at-register-date-cell">@(Model.IsBacklogTask(task) ? "Target" : "Due") @task.DueDate.ToString("dd MMM yyyy")</td>
                             <td><span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span></td>

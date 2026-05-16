@@ -8,7 +8,7 @@
         <div class="at-panel-heading">
             <div>
                 <h2>Sprint Closure Review</h2>
-                <p class="at-panel-note">Review unfinished work and record where each task will continue before closing the Sprint.</p>
+                <p class="at-panel-note">Review unfinished work before closing the Sprint.</p>
             </div>
             <span class="at-count-chip">@review.UnfinishedTasks.Count unfinished</span>
         </div>
@@ -60,7 +60,7 @@
             @if (review.UnfinishedTasks.Any())
             {
                 <div class="at-closure-target-row">
-                    <label class="form-label" asp-for="ClosureInput.TargetSprintId">Next Sprint for carry-forward</label>
+                    <label class="form-label" asp-for="ClosureInput.TargetSprintId">Carry Forward Sprint</label>
                     <select class="form-select" asp-for="ClosureInput.TargetSprintId">
                         <option value="">Select next sprint when carrying tasks forward</option>
                         @foreach (var sprint in Model.ClosureTargetSprints)
@@ -68,18 +68,18 @@
                             <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status) · @sprint.StartDate.ToString("dd MMM") – @sprint.EndDate.ToString("dd MMM yyyy")</option>
                         }
                     </select>
-                    <div class="form-text">Next sprint is required only for tasks marked to carry forward to the next sprint.</div>
+                    <div class="form-text">Return to Backlog removes the responsible person. Carry Forward requires a next sprint.</div>
                 </div>
 
-                <p class="at-panel-note">Select exactly one disposition for each unfinished task: carry forward, keep assigned outside sprint, or move to backlog with the assignee removed.</p>
+                <p class="at-panel-note">Return to Backlog removes the responsible person. Carry Forward requires a next sprint.</p>
 
                 <div class="at-closure-task-table" role="table" aria-label="Unfinished Sprint tasks requiring disposition">
                     <div class="at-closure-task-row at-closure-task-head" role="row">
                         <span>Task</span>
                         <span>Status</span>
-                        <span>Carry forward</span>
-                        <span>Outside Sprint</span>
-                        <span>Backlog</span>
+                        <span>Carry Forward</span>
+                        <span>Keep Outside Sprint</span>
+                        <span>Return to Backlog</span>
                     </div>
                     @foreach (var task in review.UnfinishedTasks)
                     {
@@ -91,15 +91,15 @@
                             <span><span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span></span>
                             <label class="at-closure-choice">
                                 <input type="radio" name="ClosureInput.Dispositions[@task.Id]" value="carry" data-at-closure-choice="carry" required />
-                                <span>Next Sprint</span>
+                                <span>Carry Forward</span>
                             </label>
                             <label class="at-closure-choice">
                                 <input type="radio" name="ClosureInput.Dispositions[@task.Id]" value="outside" data-at-closure-choice="outside" required />
-                                <span>Keep Assigned Outside Sprint</span>
+                                <span>Keep Outside Sprint</span>
                             </label>
                             <label class="at-closure-choice">
                                 <input type="radio" name="ClosureInput.Dispositions[@task.Id]" value="backlog" data-at-closure-choice="backlog" required />
-                                <span>Move to Backlog, Remove Assignee</span>
+                                <span>Return to Backlog</span>
                             </label>
                         </div>
                     }

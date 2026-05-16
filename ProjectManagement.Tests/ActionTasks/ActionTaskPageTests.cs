@@ -92,7 +92,7 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task PlanningKanban_StatusNoOpRedirect_PreservesPlanningView()
+    public async Task PlanningKanban_StatusNoOpRedirect_ResolvesToExecute()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
@@ -111,7 +111,7 @@ public class ActionTaskPageTests
         // SECTION: Assert
         var redirect = Assert.IsType<RedirectToPageResult>(result);
         Assert.Equal("Planning", redirect.RouteValues![nameof(IndexModel.ViewMode)]);
-        Assert.Equal("Kanban", redirect.RouteValues[nameof(IndexModel.PlanningView)]);
+        Assert.False(redirect.RouteValues.ContainsKey(nameof(IndexModel.PlanningView)));
         Assert.Equal(sprint.Id, redirect.RouteValues[nameof(IndexModel.SelectedSprintId)]);
         Assert.Equal(task.Id, redirect.RouteValues[nameof(IndexModel.TaskId)]);
     }
@@ -131,9 +131,9 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskMyWork.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("Assigned to me", html, StringComparison.Ordinal);
-        Assert.Contains("Needs action now", html, StringComparison.Ordinal);
-        Assert.Contains("Tasks in Active Sprint", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Assigned to me", html, StringComparison.Ordinal);
+        Assert.Contains("Needs Action", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Tasks in Active Sprint", html, StringComparison.Ordinal);
         Assert.Contains("Action Required", html, StringComparison.Ordinal);
         Assert.Contains("Current Work", html, StringComparison.Ordinal);
         Assert.Contains("Submitted / Awaiting Closure", html, StringComparison.Ordinal);
@@ -209,7 +209,7 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task TaskDetailsPartial_KanbanInspectorFormsCarryPlanningView()
+    public async Task TaskDetailsPartial_LegacyKanbanInspectorFormsResolveToExecute()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
@@ -225,9 +225,9 @@ public class ActionTaskPageTests
 
         // SECTION: Assert
         Assert.Contains("name=\"PlanningTab\" value=\"Execute\"", html, StringComparison.Ordinal);
-        Assert.Contains("name=\"PlanningView\" value=\"Kanban\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"PlanningView\" value=\"Default\"", html, StringComparison.Ordinal);
         Assert.Contains("PlanningTab=Execute", html, StringComparison.Ordinal);
-        Assert.Contains("PlanningView=Kanban", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlanningView=Kanban", html, StringComparison.Ordinal);
     }
 
 
@@ -496,7 +496,7 @@ public class ActionTaskPageTests
         Assert.Equal("Closed", page.GetSprintBadgeText(closedTask));
         Assert.Contains("at-scope-badge-sprint", page.GetSprintBadgeClass(sprintTask), StringComparison.Ordinal);
         Assert.Contains("at-scope-badge-backlog", page.GetSprintBadgeClass(backlogTask), StringComparison.Ordinal);
-        Assert.Contains("at-scope-badge-non-sprint", page.GetSprintBadgeClass(nonSprintTask), StringComparison.Ordinal);
+        Assert.Contains("at-scope-badge-outside-sprint", page.GetSprintBadgeClass(nonSprintTask), StringComparison.Ordinal);
         Assert.Contains("at-scope-badge-closed", page.GetSprintBadgeClass(closedTask), StringComparison.Ordinal);
     }
 
@@ -872,7 +872,7 @@ public class ActionTaskPageTests
         Assert.NotNull(page.SelectedSprint);
         Assert.Contains("Execution Sprint", html, StringComparison.Ordinal);
         Assert.Contains("Selected Sprint Board task board", html, StringComparison.Ordinal);
-        Assert.Contains("Sprint Kanban Board", html, StringComparison.Ordinal);
+        Assert.Contains("Sprint Board", html, StringComparison.Ordinal);
         Assert.Contains("Sprint board task", html, StringComparison.Ordinal);
         Assert.Contains("at-execute-status-grid", html, StringComparison.Ordinal);
         Assert.Contains("at-execute-status-section", html, StringComparison.Ordinal);
@@ -880,7 +880,7 @@ public class ActionTaskPageTests
         Assert.Contains($"<h2>{ActionTaskStatuses.InProgress}</h2>", html, StringComparison.Ordinal);
         Assert.Contains($"<h2>{ActionTaskStatuses.Blocked}</h2>", html, StringComparison.Ordinal);
         Assert.Contains($"<h2>{ActionTaskStatuses.Submitted}</h2>", html, StringComparison.Ordinal);
-        Assert.Contains($"<h2>{ActionTaskStatuses.Closed}</h2>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<h2>{ActionTaskStatuses.Closed}</h2>", html, StringComparison.Ordinal);
         Assert.True(html.IndexOf("Selected Sprint Board task board", StringComparison.Ordinal) < html.IndexOf("Execution attention", StringComparison.Ordinal));
         Assert.DoesNotContain("Due / Exceptions and Kanban", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Add from Backlog", html, StringComparison.Ordinal);
@@ -890,26 +890,12 @@ public class ActionTaskPageTests
 
 
     [Fact]
-    public async Task TaskKanbanPartial_RendersWithoutPlanningViewGate()
+    public void TaskKanbanPartial_IsRemovedFromActionTracker()
     {
-        // SECTION: Arrange
-        var setup = await CreateSetupAsync(RoleNames.HoD);
-        var sprint = AddSprint(setup.Db, "Legacy Kanban Sprint", ActionSprintStatus.Active);
-        setup.Db.ActionTasks.Add(NewTask("Legacy kanban card", ActionTaskStatuses.Assigned, sprint.Id));
-        await setup.Db.SaveChangesAsync();
-        var page = setup.Page;
-        page.ViewMode = "Planning";
-        page.PlanningTab = "Execute";
-        page.SelectedSprintId = sprint.Id;
-        await page.OnGetAsync();
+        // SECTION: Assert legacy Kanban partial is no longer a user-facing execution surface.
+        var path = Path.Combine(GetContentRoot(), "Pages", "ActionTasks", "_TaskKanban.cshtml");
 
-        // SECTION: Act
-        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskKanban.cshtml");
-
-        // SECTION: Assert
-        Assert.Contains("Legacy kanban card", html, StringComparison.Ordinal);
-        Assert.Contains("Sprint Board Kanban alternate view", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("isKanbanPlanningView", html, StringComparison.Ordinal);
+        Assert.False(File.Exists(path));
     }
 
     [Fact]
@@ -1066,7 +1052,7 @@ public class ActionTaskPageTests
     [InlineData("Due Board", "Planning", "DueExceptions")]
     [InlineData("Backlog", "Planning", "Default")]
     [InlineData("Sprints", "Planning", "Default")]
-    [InlineData("Kanban", "Planning", "Kanban")]
+    [InlineData("Kanban", "Planning", "Default")]
     [InlineData("TaskList", "Register", "Default")]
     [InlineData("Sprint Board", "Planning", "DueExceptions")]
     public async Task LegacyViewModeAliases_ResolveToCanonicalWorkspace(string legacyViewMode, string expectedViewMode, string expectedPlanningView)

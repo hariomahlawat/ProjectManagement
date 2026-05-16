@@ -4,7 +4,6 @@
     var pageModel = Model.Item1;
     var item = Model.Item2;
     var planningTab = Model.Item3;
-    var allowMoveToBacklog = Model.Item4;
     var task = item.Task;
 }
 
@@ -14,7 +13,7 @@
             <h3 class="at-card-subject">AT-@task.Id · @task.Title</h3>
             <span class="@pageModel.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
         </div>
-        <div class="at-card-compact-meta">@item.AssigneeName <span aria-hidden="true">·</span> @task.DueDate.ToString("dd MMM yyyy")</div>
+        <div class="at-card-compact-meta">@item.AssigneeName <span aria-hidden="true">·</span> Due @task.DueDate.ToString("dd MMM yyyy")</div>
         <div class="at-card-footer">
             <span class="@pageModel.GetStatusBadgeClass(task.Status)">@task.Status</span>
             @if (pageModel.IsTaskOverdue(task))
@@ -24,23 +23,4 @@
             <span class="at-open-details-label">Open details</span>
         </div>
     </a>
-    @if (allowMoveToBacklog && pageModel.CanMoveTaskToBacklog(task))
-    {
-        <div class="at-card-action-stack">
-            <form method="post" asp-page-handler="RemoveFromSprintKeepAssigned" class="at-card-action-form">
-                <input type="hidden" name="ViewMode" value="Planning" />
-                <input type="hidden" name="PlanningTab" value="Execute" />
-                <input type="hidden" name="SelectedSprintId" value="@pageModel.SelectedSprintId" />
-                <input type="hidden" name="id" value="@task.Id" />
-                <button type="submit" class="btn btn-link btn-sm at-card-subtle-action">Remove from Sprint, Keep Assigned</button>
-            </form>
-            <form method="post" asp-page-handler="MoveToBacklogRemoveAssignee" class="at-card-action-form">
-                <input type="hidden" name="ViewMode" value="Planning" />
-                <input type="hidden" name="PlanningTab" value="Execute" />
-                <input type="hidden" name="SelectedSprintId" value="@pageModel.SelectedSprintId" />
-                <input type="hidden" name="id" value="@task.Id" />
-                <button type="submit" class="btn btn-link btn-sm at-card-subtle-action" data-at-confirm="This will remove the responsible person and return the work to Backlog. Continue?">Move to Backlog, Remove Assignee</button>
-            </form>
-        </div>
-    }
 </article>

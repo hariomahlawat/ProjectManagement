@@ -49,14 +49,14 @@ public sealed class ActionTaskRouteStateHelper
                 _ when IsAlias(normalized, "Due / exceptions") => "DueExceptions",
                 _ when IsAlias(normalized, "Due Board") => "DueExceptions",
                 _ when IsAlias(normalized, "Sprint Board") => "DueExceptions",
-                _ when IsAlias(normalized, "Kanban") => "Kanban",
+                _ when IsAlias(normalized, "Kanban") => "Default",
                 _ => "Default"
             };
         }
 
         return (viewMode ?? string.Empty).Trim() switch
         {
-            var legacyView when IsAlias(legacyView, "Kanban") => "Kanban",
+            var legacyView when IsAlias(legacyView, "Kanban") => "Default",
             var legacyView when IsAlias(legacyView, "Due Board") => "DueExceptions",
             var legacyView when IsAlias(legacyView, "SprintBoard") => "DueExceptions",
             var legacyView when IsAlias(legacyView, "Sprint Board") => "DueExceptions",
@@ -101,7 +101,10 @@ public sealed class ActionTaskRouteStateHelper
         var viewMode = ResolveViewMode(request.ViewMode);
         var planningView = ResolvePlanningView(request.PlanningView, request.ViewMode);
         var defaultPlanningTab = ResolveDefaultPlanningTab(request.SelectedSprintId, request.HasSelectedSprint, request.HasActiveSprint);
-        var planningTab = ResolvePlanningTab(request.PlanningTab, planningView, defaultPlanningTab);
+        var isLegacyKanbanRoute = IsAlias(request.PlanningView ?? string.Empty, "Kanban") || IsAlias(request.ViewMode ?? string.Empty, "Kanban");
+        var planningTab = string.IsNullOrWhiteSpace(request.PlanningTab) && isLegacyKanbanRoute
+            ? "Execute"
+            : ResolvePlanningTab(request.PlanningTab, planningView, defaultPlanningTab);
         var isPlanningView = string.Equals(viewMode, "Planning", StringComparison.OrdinalIgnoreCase);
         var shouldPreserveTaskFilters = string.Equals(viewMode, "Register", StringComparison.OrdinalIgnoreCase)
             || IsLegacyViewMode(request.ViewMode, "Backlog")
