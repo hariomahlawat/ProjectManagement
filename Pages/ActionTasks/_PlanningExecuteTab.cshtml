@@ -11,6 +11,7 @@
     };
     var closedTasks = Model.GetSprintTasksByStatus(ActionTaskStatuses.Closed);
     var attentionCount = Model.SprintAttentionOverdueTaskDisplays.Count + Model.SprintAttentionBlockedTaskDisplays.Count + Model.SprintAttentionSubmittedTaskDisplays.Count;
+    var hasExecutionAttention = attentionCount > 0;
 }
 
 @* SECTION: Execute tab opens directly into the selected sprint status board. *@
@@ -73,39 +74,43 @@
             </details>
         }
 
-        @* SECTION: Attention and due-exception lists are secondary to the visible status board. *@
-        <details class="at-panel at-sprint-attention-lane at-execute-attention">
-            <summary>
-                <span>Execution attention</span>
-                <span class="at-execute-attention-summary" aria-label="Execution attention counts">
-                    <span>Overdue <strong>@Model.SprintAttentionOverdueTaskDisplays.Count</strong></span>
-                    <span>Blocked <strong>@Model.SprintAttentionBlockedTaskDisplays.Count</strong></span>
-                    <span>Submitted pending closure <strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></span>
-                </span>
-                <span class="at-count-chip">@attentionCount</span>
-            </summary>
-            <div class="at-attention-grid">
-                <div class="at-attention-group">
-                    <div class="at-attention-heading"><span>Overdue</span><strong>@Model.SprintAttentionOverdueTaskDisplays.Count</strong></div>
-                    <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionOverdueTaskDisplays, "No overdue planning tasks.")' />
+        @* SECTION: Attention renders only when there is something to review beyond the status grid counts. *@
+        @if (hasExecutionAttention)
+        {
+            <details class="at-panel at-sprint-attention-lane at-execute-attention">
+                <summary>
+                    <span>Execution Attention</span>
+                    <span class="at-execute-attention-summary" aria-label="Execution attention counts">
+                        <span>Overdue <strong>@Model.SprintAttentionOverdueTaskDisplays.Count</strong></span>
+                        <span>Blocked <strong>@Model.SprintAttentionBlockedTaskDisplays.Count</strong></span>
+                        <span>Pending Closure <strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></span>
+                    </span>
+                    <span class="at-count-chip">@attentionCount</span>
+                </summary>
+                <div class="at-attention-grid">
+                    @if (Model.SprintAttentionOverdueTaskDisplays.Any())
+                    {
+                        <div class="at-attention-group">
+                            <div class="at-attention-heading"><span>Overdue</span><strong>@Model.SprintAttentionOverdueTaskDisplays.Count</strong></div>
+                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionOverdueTaskDisplays, "No overdue planning tasks.")' />
+                        </div>
+                    }
+                    @if (Model.SprintAttentionBlockedTaskDisplays.Any())
+                    {
+                        <div class="at-attention-group">
+                            <div class="at-attention-heading"><span>Blocked</span><strong>@Model.SprintAttentionBlockedTaskDisplays.Count</strong></div>
+                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionBlockedTaskDisplays, "No blocked planning tasks.")' />
+                        </div>
+                    }
+                    @if (Model.SprintAttentionSubmittedTaskDisplays.Any())
+                    {
+                        <div class="at-attention-group">
+                            <div class="at-attention-heading"><span>Pending Closure</span><strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></div>
+                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionSubmittedTaskDisplays, "No submitted planning tasks.")' />
+                        </div>
+                    }
                 </div>
-                <div class="at-attention-group">
-                    <div class="at-attention-heading"><span>Blocked</span><strong>@Model.SprintAttentionBlockedTaskDisplays.Count</strong></div>
-                    <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionBlockedTaskDisplays, "No blocked planning tasks.")' />
-                </div>
-                <div class="at-attention-group">
-                    <div class="at-attention-heading"><span>Submitted pending closure</span><strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></div>
-                    <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionSubmittedTaskDisplays, "No submitted planning tasks.")' />
-                </div>
-            </div>
-        </details>
-
-        @* SECTION: Due / Exceptions is collapsed and contains only the exception view. *@
-        <details class="at-panel at-execute-secondary-views">
-            <summary>Due / Exceptions</summary>
-            <div class="at-execute-secondary-view-stack mt-3">
-                <partial name="_PlanningDueExceptionsView" model="Model" />
-            </div>
-        </details>
+            </details>
+        }
     }
 </section>

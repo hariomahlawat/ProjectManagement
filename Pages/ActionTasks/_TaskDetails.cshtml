@@ -214,6 +214,34 @@
                         </details>
                     }
 
+                    @if (!selectedTaskIsBacklog && Model.CanAddOutsideSprintTaskToSprint(Model.SelectedTask))
+                    {
+                        <details class="at-action-drawer" data-at-action-panel="add-outside-to-sprint">
+                            <summary class="visually-hidden">Open add to sprint panel</summary>
+                            <form method="post" asp-page-handler="AddOutsideSprintTaskToSprint" class="at-action-card at-action-card-compact">
+                                <input type="hidden" name="ViewMode" value="Planning" />
+                                <input type="hidden" name="PlanningTab" value="Execute" />
+                                <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
+                                <div class="at-action-title">Add to Sprint</div>
+                                <div class="mb-2">
+                                    <label class="form-label at-small">Sprint</label>
+                                    <select class="form-select form-select-sm" name="sprintId" required>
+                                        <option value="">Select Sprint</option>
+                                        @foreach (var sprint in Model.AssignableSprints)
+                                        {
+                                            <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="at-action-buttons">
+                                    <button type="submit" class="btn btn-primary btn-sm">Add to Sprint</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="add-outside-to-sprint">Cancel</button>
+                                </div>
+                            </form>
+                        </details>
+                    }
+
                     @if (Model.CanUpdateTaskStatus(Model.SelectedTask))
                     {
                         <details class="at-action-drawer" data-at-action-panel="status">
@@ -315,6 +343,11 @@
                         {
                             <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="add-to-sprint">Add to Sprint</button>
                         }
+                    }
+                    else if (Model.CanAddOutsideSprintTaskToSprint(Model.SelectedTask))
+                    {
+                        <button type="button" class="btn btn-primary btn-sm" data-at-open-action="add-outside-to-sprint">Add to Sprint</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="update">Add Update</button>
                     }
                     else if (string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
                     {
