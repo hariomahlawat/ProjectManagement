@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 
 namespace ProjectManagement.Services.ActionTasks;
@@ -56,6 +57,13 @@ public sealed class ActionTaskWorkflowPolicy
     {
         return _permission.CanChangeTaskDate(currentRole)
             && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public bool CanViewSystemHistory(string currentRole)
+    {
+        return string.Equals(currentRole, RoleNames.Comdt, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentRole, RoleNames.HoD, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentRole, RoleNames.Admin, StringComparison.OrdinalIgnoreCase);
     }
 
     // SECTION: Transition and remarks validation for command handlers.

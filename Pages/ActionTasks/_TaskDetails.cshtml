@@ -25,8 +25,8 @@
     var updatePanelTitle = selectedTaskIsBacklog ? "Add Planning Note" : "Add Update";
     var updatePlaceholder = selectedTaskIsBacklog ? "Add planning note or clarification" : "Add progress details or clarification notes";
     var canOpenStatusAction = Model.SelectedTask is not null && !selectedTaskIsBacklog && Model.CanUpdateTaskStatus(Model.SelectedTask);
-    var canOpenSubmitAction = Model.SelectedTask is not null && !string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase) && Model.CanSubmitTask(Model.SelectedTask);
-    var canOpenCloseAction = Model.SelectedTask is not null && !string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase) && Model.CanCloseTask(Model.SelectedTask);
+    var canOpenSubmitAction = Model.SelectedTask is not null && Model.CanSubmitTask(Model.SelectedTask);
+    var canOpenCloseAction = Model.SelectedTask is not null && selectedTaskIsSubmitted && Model.CanCloseTask(Model.SelectedTask);
     var canOpenChangeDateAction = Model.SelectedTask is not null && Model.CanChangeTaskDate(Model.SelectedTask);
     var canMoveTaskToBacklogAction = Model.SelectedTask is not null && Model.CanMoveTaskToBacklog(Model.SelectedTask);
     var canRemoveFromSprintKeepAssignedAction = canMoveTaskToBacklogAction && Model.SelectedTask?.SprintId.HasValue == true;
@@ -34,10 +34,13 @@
     var hasPlanningActions = !selectedTaskIsClosed && (canOpenChangeDateAction || canRemoveFromSprintKeepAssignedAction);
     var hasDangerActions = !selectedTaskIsClosed && canMoveTaskToBacklogAction;
     var hasMoreActions = hasWorkflowActions || hasPlanningActions || hasDangerActions;
+    var canViewSystemHistory = Model.SelectedTask is not null && Model.CanViewSelectedTaskSystemHistory();
     var selectedTaskClosureHelper = Model.SelectedTask is not null && !selectedTaskIsBacklog && !selectedTaskIsClosed
         ? selectedTaskIsSubmitted
-            ? "Submitted for closure. Review and close, or return for rework."
-            : "The assignee must submit this task before it can be closed."
+            ? "Close Task is available to Comdt/HoD reviewers. Return for Rework if more action is needed."
+            : canOpenSubmitAction
+                ? "Submit for Closure when the work is ready for review."
+                : "Close Task stays hidden until the assignee submits this task for closure."
         : null;
     var taskBrief = string.IsNullOrWhiteSpace(Model.SelectedTask?.Description)
         ? "No task brief has been added."
@@ -56,7 +59,7 @@
 }
 
 <section id="task-details" class="at-panel at-task-details-panel at-task-command-drawer" tabindex="-1">
-    <div class="at-inspector-shell at-task-command-shell">
+    <div class="at-inspector-shell at-task-command-shell" data-at-action-shell="true">
         <header class="at-inspector-header at-task-command-header">
             <div class="at-detail-hero at-task-command-hero">
                 <h2 class="at-panel-title mb-0">AT-@(Model.SelectedTask?.Id.ToString() ?? Model.TaskId?.ToString() ?? "—") · @(Model.SelectedTask?.Title ?? "Task")</h2>
@@ -143,13 +146,62 @@
                             {
                                 <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="status" data-at-target-status="In Progress">Mark In Progress</button>
                             }
-                            @if (Model.CanSubmitTask(Model.SelectedTask) && selectedTaskIsInProgress)
+                            @if (canOpenSubmitAction)
                             {
                                 <button type="button" class="btn btn-warning btn-sm" data-at-open-action="submit">Submit for Closure</button>
                             }
                         }
                     </div>
                 </section>
+
+            <section class="at-command-section at-action-form-section" aria-label="Task action form area">
+                <div class="at-context-panel-host" data-at-action-host="true">
+                    <details class="at-action-drawer" data-at-action-panel="update">
+                        <summary class="visually-hidden">Open update panel</summary>
+                        <form method="post" asp-page-handler="AddUpdate" class="at-action-card at-journal-card" enctype="multipart/form-data">
+                            <input type="hidden" asp-for="UpdateInput.TaskId" value="@Model.SelectedTask.Id" />
+                            <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                            <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                            <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />
+                            <input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" />
+                            <div class="at-action-title">@updatePanelTitle</div>
+                            <div class="mb-2"><label class="form-label at-small" asp-for="UpdateInput.Body">Update details</label><textarea class="form-control form-control-sm" rows="4" asp-for="UpdateInput.Body" maxlength="4000" placeholder="@updatePlaceholder"></textarea></div>
+                            <div class="mb-2"><label class="form-label at-small" asp-for="UpdateInput.Files">Supporting files</label><input class="form-control form-control-sm" asp-for="UpdateInput.Files" type="file" multiple /><div class="form-text at-small">Allowed: PDF, Word, Excel, JPG, PNG, TXT.</div></div>
+                            <div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm">Post Update</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="update">Cancel</button></div>
+                        </form>
+                    </details>
+
+                    @if (selectedTaskIsBacklog && Model.CanAssignTaskToSprint(Model.SelectedTask))
+                    {
+                        <details class="at-action-drawer" data-at-action-panel="add-to-sprint"><summary class="visually-hidden">Open add to sprint panel</summary><form method="post" asp-page-handler="AssignToSprint" class="at-action-card at-action-card-compact"><input type="hidden" name="ViewMode" value="Planning" /><input type="hidden" name="PlanningTab" value="Execute" /><input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" /><input type="hidden" name="id" value="@Model.SelectedTask.Id" /><div class="at-action-title">Add to Sprint</div><div class="mb-2"><label class="form-label at-small">Responsible Person</label><select class="form-select form-select-sm" name="responsibleUserId" required><option value="">Select responsible person</option>@foreach (var user in Model.AssignableUsers){<option value="@user.UserId">@user.DisplayName</option>}</select></div><div class="mb-2"><label class="form-label at-small">Sprint</label><select class="form-select form-select-sm" name="sprintId" required><option value="">Select Sprint</option>@foreach (var sprint in Model.AssignableSprints){<option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>}</select></div><div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm">Add to Sprint</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="add-to-sprint">Cancel</button></div></form></details>
+                    }
+
+                    @if (!selectedTaskIsBacklog && Model.CanAddOutsideSprintTaskToSprint(Model.SelectedTask))
+                    {
+                        <details class="at-action-drawer" data-at-action-panel="add-outside-to-sprint"><summary class="visually-hidden">Open add to sprint panel</summary><form method="post" asp-page-handler="AddOutsideSprintTaskToSprint" class="at-action-card at-action-card-compact"><input type="hidden" name="ViewMode" value="Planning" /><input type="hidden" name="PlanningTab" value="Execute" /><input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" /><input type="hidden" name="id" value="@Model.SelectedTask.Id" /><div class="at-action-title">Add to Sprint</div><div class="mb-2"><label class="form-label at-small">Sprint</label><select class="form-select form-select-sm" name="sprintId" required><option value="">Select Sprint</option>@foreach (var sprint in Model.AssignableSprints){<option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>}</select></div><div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm">Add to Sprint</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="add-outside-to-sprint">Cancel</button></div></form></details>
+                    }
+
+                    @if (Model.CanUpdateTaskStatus(Model.SelectedTask))
+                    {
+                        <details class="at-action-drawer" data-at-action-panel="status"><summary class="visually-hidden">Open status panel</summary><form method="post" asp-page-handler="UpdateStatus" class="at-action-card at-action-card-compact"><input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" /><input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" /><input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" /><input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" /><input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" /><input type="hidden" name="id" value="@Model.SelectedTask.Id" /><input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" /><div class="at-action-title">Change Status</div><div class="mb-2"><label class="form-label at-small">Target Status</label><select name="status" class="form-select form-select-sm" data-at-status-select data-current-status="@Model.SelectedTask.Status">@foreach (var status in Model.AllowedStatusOptions){if (Model.SelectedTask.Status == status){<option value="@status" selected>@status</option>}else{<option value="@status">@status</option>}}</select></div><div class="mb-2"><label class="form-label at-small">Remarks</label><textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Status update remarks"></textarea></div><div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm" data-at-status-submit>Save Status</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="status">Cancel</button></div></form></details>
+                    }
+
+                    @if (Model.CanChangeTaskDate(Model.SelectedTask))
+                    {
+                        <details class="at-action-drawer" data-at-action-panel="change-date"><summary class="visually-hidden">Open date change panel</summary><form method="post" asp-page-handler="ChangeTaskDate" class="at-action-card at-action-card-compact"><input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" /><input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" /><input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" /><input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" /><input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" /><input type="hidden" asp-for="ChangeDateInput.TaskId" value="@Model.SelectedTask.Id" /><input type="hidden" asp-for="ChangeDateInput.RowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" /><div class="at-action-title">Change @selectedTaskDateLabel Date</div><div class="mb-2"><span class="form-label at-small d-block mb-1">Current @selectedTaskDateLabel Date</span><div class="form-control-plaintext form-control-sm py-0">@Model.SelectedTask.DueDate.ToString("dd MMM yyyy")</div></div><div class="mb-2"><label class="form-label at-small" asp-for="ChangeDateInput.NewDate">New @selectedTaskDateLabel Date</label><input class="form-control form-control-sm" asp-for="ChangeDateInput.NewDate" type="date" value="@changeDateInputValue.ToString("yyyy-MM-dd")" min="@minimumChangeDate.ToString("yyyy-MM-dd")" /></div><div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm">Save Date</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="change-date">Cancel</button></div></form></details>
+                    }
+
+                    @if (Model.CanSubmitTask(Model.SelectedTask))
+                    {
+                        <details class="at-action-drawer" data-at-action-panel="submit"><summary class="visually-hidden">Open submit panel</summary><form method="post" asp-page-handler="Submit" class="at-action-card at-action-card-compact"><input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" /><input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" /><input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" /><input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" /><input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" /><input type="hidden" name="id" value="@Model.SelectedTask.Id" /><input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" /><div class="at-action-title">Submit for Closure</div><div class="mb-2"><label class="form-label at-small">Submission Remarks</label><textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Add submission notes"></textarea></div><div class="at-action-buttons"><button type="submit" class="btn btn-warning btn-sm">Submit for Closure</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="submit">Cancel</button></div></form></details>
+                    }
+
+                    @if (Model.CanCloseTask(Model.SelectedTask))
+                    {
+                        <details class="at-action-drawer" data-at-action-panel="close"><summary class="visually-hidden">Open close panel</summary><form method="post" asp-page-handler="Close" class="at-action-card at-action-card-compact"><input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" /><input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" /><input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" /><input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" /><input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" /><input type="hidden" name="id" value="@Model.SelectedTask.Id" /><input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" /><div class="at-action-title">Close Task</div><div class="mb-2"><label class="form-label at-small">Closure Remarks</label><textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Add closure notes"></textarea></div><div class="at-action-buttons"><button type="submit" class="btn btn-success btn-sm">Close Task</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="close">Cancel</button></div></form></details>
+                    }
+                </div>
+            </section>
 
                 <section class="at-command-section at-progress-timeline" aria-label="Progress Timeline">
                     <div class="at-inspector-section-heading">
@@ -203,8 +255,20 @@
                     }
                 </section>
 
-                <details class="at-command-section at-details-collapsible at-audit-collapsible">
-                    <summary>Audit Trail <span class="at-count-chip">@Model.SelectedTaskLogs.Count</span></summary>
+
+                <details class="at-command-section at-details-collapsible">
+                    <summary>Task Details</summary>
+                    <div class="at-task-details-grid mt-2">
+                        <div><span class="text-muted">Assigned On</span><div class="fw-semibold">@TimeFmt.ToIst(Model.SelectedTask.AssignedOn)</div></div>
+                        <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@TimeFmt.ToIst(Model.SelectedTask.SubmittedOn)</div></div>
+                        <div><span class="text-muted">Closed On</span><div class="fw-semibold">@TimeFmt.ToIst(Model.SelectedTask.ClosedOn)</div></div>
+                        <div><span class="text-muted">Work category</span><div class="fw-semibold">@Model.GetSprintBadgeText(Model.SelectedTask)</div></div>
+                    </div>
+                </details>
+                @if (canViewSystemHistory)
+                {
+                    <details class="at-command-section at-details-collapsible at-audit-collapsible">
+                    <summary>System History <span class="at-count-chip">@Model.SelectedTaskLogs.Count</span></summary>
                     @if (!Model.SelectedTaskLogs.Any())
                     {
                         <div class="at-empty-inline mt-2">No audit entries recorded.</div>
@@ -216,7 +280,7 @@
                             {
                                 <article class="at-activity-system-row @(log.ActionType == "Task Created" ? "at-system-event-created" : "")">
                                     <div class="d-flex justify-content-between gap-2 flex-wrap">
-                                        <div><strong>@log.ActionType</strong><span class="text-muted"> by @Model.ResolveActorName(log.PerformedByUserId)</span></div>
+                                        <div><strong>@Model.DisplayAuditActionLabel(log.ActionType)</strong><span class="text-muted"> by @Model.ResolveActorName(log.PerformedByUserId)</span></div>
                                         <div class="text-muted small">@TimeFmt.ToIst(log.PerformedAt)</div>
                                     </div>
                                     @if (!string.IsNullOrWhiteSpace(log.OldValue) || !string.IsNullOrWhiteSpace(log.NewValue))
@@ -231,17 +295,8 @@
                             }
                         </div>
                     }
-                </details>
-
-                <details class="at-command-section at-details-collapsible">
-                    <summary>Task Details</summary>
-                    <div class="at-task-details-grid mt-2">
-                        <div><span class="text-muted">Assigned On</span><div class="fw-semibold">@TimeFmt.ToIst(Model.SelectedTask.AssignedOn)</div></div>
-                        <div><span class="text-muted">Submitted On</span><div class="fw-semibold">@TimeFmt.ToIst(Model.SelectedTask.SubmittedOn)</div></div>
-                        <div><span class="text-muted">Closed On</span><div class="fw-semibold">@TimeFmt.ToIst(Model.SelectedTask.ClosedOn)</div></div>
-                        <div><span class="text-muted">Work category</span><div class="fw-semibold">@Model.GetSprintBadgeText(Model.SelectedTask)</div></div>
-                    </div>
-                </details>
+                    </details>
+                }
 
                 @if (hasMoreActions)
                 {
@@ -306,54 +361,6 @@
                 }
             </div>
 
-            <footer class="at-inspector-footer at-task-command-footer" data-at-action-shell="true">
-                <div class="at-context-panel-host" data-at-action-host="true">
-                    <details class="at-action-drawer" data-at-action-panel="update">
-                        <summary class="visually-hidden">Open update panel</summary>
-                        <form method="post" asp-page-handler="AddUpdate" class="at-action-card at-journal-card" enctype="multipart/form-data">
-                            <input type="hidden" asp-for="UpdateInput.TaskId" value="@Model.SelectedTask.Id" />
-                            <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                            <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                            <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />
-                            <input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" />
-                            <div class="at-action-title">@updatePanelTitle</div>
-                            <div class="mb-2"><label class="form-label at-small" asp-for="UpdateInput.Body">Update details</label><textarea class="form-control form-control-sm" rows="4" asp-for="UpdateInput.Body" maxlength="4000" placeholder="@updatePlaceholder"></textarea></div>
-                            <div class="mb-2"><label class="form-label at-small" asp-for="UpdateInput.Files">Supporting files</label><input class="form-control form-control-sm" asp-for="UpdateInput.Files" type="file" multiple /><div class="form-text at-small">Allowed: PDF, Word, Excel, JPG, PNG, TXT.</div></div>
-                            <div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm">Post Update</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="update">Cancel</button></div>
-                        </form>
-                    </details>
-
-                    @if (selectedTaskIsBacklog && Model.CanAssignTaskToSprint(Model.SelectedTask))
-                    {
-                        <details class="at-action-drawer" data-at-action-panel="add-to-sprint"><summary class="visually-hidden">Open add to sprint panel</summary><form method="post" asp-page-handler="AssignToSprint" class="at-action-card at-action-card-compact"><input type="hidden" name="ViewMode" value="Planning" /><input type="hidden" name="PlanningTab" value="Execute" /><input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" /><input type="hidden" name="id" value="@Model.SelectedTask.Id" /><div class="at-action-title">Add to Sprint</div><div class="mb-2"><label class="form-label at-small">Responsible Person</label><select class="form-select form-select-sm" name="responsibleUserId" required><option value="">Select responsible person</option>@foreach (var user in Model.AssignableUsers){<option value="@user.UserId">@user.DisplayName</option>}</select></div><div class="mb-2"><label class="form-label at-small">Sprint</label><select class="form-select form-select-sm" name="sprintId" required><option value="">Select Sprint</option>@foreach (var sprint in Model.AssignableSprints){<option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>}</select></div><div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm">Add to Sprint</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="add-to-sprint">Cancel</button></div></form></details>
-                    }
-
-                    @if (!selectedTaskIsBacklog && Model.CanAddOutsideSprintTaskToSprint(Model.SelectedTask))
-                    {
-                        <details class="at-action-drawer" data-at-action-panel="add-outside-to-sprint"><summary class="visually-hidden">Open add to sprint panel</summary><form method="post" asp-page-handler="AddOutsideSprintTaskToSprint" class="at-action-card at-action-card-compact"><input type="hidden" name="ViewMode" value="Planning" /><input type="hidden" name="PlanningTab" value="Execute" /><input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" /><input type="hidden" name="id" value="@Model.SelectedTask.Id" /><div class="at-action-title">Add to Sprint</div><div class="mb-2"><label class="form-label at-small">Sprint</label><select class="form-select form-select-sm" name="sprintId" required><option value="">Select Sprint</option>@foreach (var sprint in Model.AssignableSprints){<option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>}</select></div><div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm">Add to Sprint</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="add-outside-to-sprint">Cancel</button></div></form></details>
-                    }
-
-                    @if (Model.CanUpdateTaskStatus(Model.SelectedTask))
-                    {
-                        <details class="at-action-drawer" data-at-action-panel="status"><summary class="visually-hidden">Open status panel</summary><form method="post" asp-page-handler="UpdateStatus" class="at-action-card at-action-card-compact"><input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" /><input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" /><input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" /><input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" /><input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" /><input type="hidden" name="id" value="@Model.SelectedTask.Id" /><input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" /><div class="at-action-title">Change Status</div><div class="mb-2"><label class="form-label at-small">Target Status</label><select name="status" class="form-select form-select-sm" data-at-status-select data-current-status="@Model.SelectedTask.Status">@foreach (var status in Model.AllowedStatusOptions){if (Model.SelectedTask.Status == status){<option value="@status" selected>@status</option>}else{<option value="@status">@status</option>}}</select></div><div class="mb-2"><label class="form-label at-small">Remarks</label><textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Status update remarks"></textarea></div><div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm" data-at-status-submit>Save Status</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="status">Cancel</button></div></form></details>
-                    }
-
-                    @if (Model.CanChangeTaskDate(Model.SelectedTask))
-                    {
-                        <details class="at-action-drawer" data-at-action-panel="change-date"><summary class="visually-hidden">Open date change panel</summary><form method="post" asp-page-handler="ChangeTaskDate" class="at-action-card at-action-card-compact"><input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" /><input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" /><input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" /><input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" /><input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" /><input type="hidden" asp-for="ChangeDateInput.TaskId" value="@Model.SelectedTask.Id" /><input type="hidden" asp-for="ChangeDateInput.RowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" /><div class="at-action-title">Change @selectedTaskDateLabel Date</div><div class="mb-2"><span class="form-label at-small d-block mb-1">Current @selectedTaskDateLabel Date</span><div class="form-control-plaintext form-control-sm py-0">@Model.SelectedTask.DueDate.ToString("dd MMM yyyy")</div></div><div class="mb-2"><label class="form-label at-small" asp-for="ChangeDateInput.NewDate">New @selectedTaskDateLabel Date</label><input class="form-control form-control-sm" asp-for="ChangeDateInput.NewDate" type="date" value="@changeDateInputValue.ToString("yyyy-MM-dd")" min="@minimumChangeDate.ToString("yyyy-MM-dd")" /></div><div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm">Save Date</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="change-date">Cancel</button></div></form></details>
-                    }
-
-                    @if (Model.CanSubmitTask(Model.SelectedTask))
-                    {
-                        <details class="at-action-drawer" data-at-action-panel="submit"><summary class="visually-hidden">Open submit panel</summary><form method="post" asp-page-handler="Submit" class="at-action-card at-action-card-compact"><input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" /><input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" /><input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" /><input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" /><input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" /><input type="hidden" name="id" value="@Model.SelectedTask.Id" /><input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" /><div class="at-action-title">Submit for Closure</div><div class="mb-2"><label class="form-label at-small">Submission Remarks</label><textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Add submission notes"></textarea></div><div class="at-action-buttons"><button type="submit" class="btn btn-warning btn-sm">Submit for Closure</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="submit">Cancel</button></div></form></details>
-                    }
-
-                    @if (Model.CanCloseTask(Model.SelectedTask))
-                    {
-                        <details class="at-action-drawer" data-at-action-panel="close"><summary class="visually-hidden">Open close panel</summary><form method="post" asp-page-handler="Close" class="at-action-card at-action-card-compact"><input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" /><input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" /><input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" /><input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" /><input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" /><input type="hidden" name="id" value="@Model.SelectedTask.Id" /><input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" /><div class="at-action-title">Close Task</div><div class="mb-2"><label class="form-label at-small">Closure Remarks</label><textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Add closure notes"></textarea></div><div class="at-action-buttons"><button type="submit" class="btn btn-success btn-sm">Close Task</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="close">Cancel</button></div></form></details>
-                    }
-                </div>
-            </footer>
         }
     </div>
 </section>
