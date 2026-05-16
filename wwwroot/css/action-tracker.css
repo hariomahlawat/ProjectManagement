@@ -1020,8 +1020,8 @@ html {
 
 .at-ageing-grid {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .75rem;
 }
 
 /* SECTION: Empty states */
@@ -3349,20 +3349,20 @@ html {
 }
 
 .at-report-filter-summary {
-    background: rgba(15, 23, 42, .05);
-    border: 1px solid rgba(15, 23, 42, .08);
-    border-radius: 999px;
-    color: #475569;
-    font-size: .78rem;
-    font-weight: 700;
-    padding: .35rem .7rem;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    color: #64748b;
+    font-size: .72rem;
+    font-weight: 650;
+    padding: .2rem 0;
     white-space: nowrap;
 }
 
 .at-reports-filter-grid {
     display: grid;
     gap: .65rem;
-    grid-template-columns: minmax(13rem, 1.35fr) minmax(13rem, 1.35fr) repeat(4, minmax(8.5rem, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .at-reports-filter-grid label {
@@ -3421,8 +3421,20 @@ html {
         grid-template-columns: 1fr;
     }
 
-    .at-reports-filter-actions {
+    .at-reports-filter-actions,
+    .at-reports-filter-action-cell {
         align-items: stretch;
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .at-ageing-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .at-pending-closure-inline {
+        align-items: flex-start;
         flex-direction: column;
     }
 }
@@ -3697,17 +3709,19 @@ html {
 .at-report-bucket-row {
     display: grid;
     gap: .75rem;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .at-report-bucket-card {
+    align-items: center;
     background: #f8fafc;
     border: 1px solid var(--at-border);
     border-radius: var(--at-radius-md);
     display: flex;
-    flex-direction: column;
-    gap: .2rem;
-    padding: .85rem;
+    gap: .55rem;
+    justify-content: space-between;
+    min-height: 3.35rem;
+    padding: .65rem .8rem;
 }
 
 .at-report-bucket-card span {
@@ -3720,7 +3734,7 @@ html {
 
 .at-report-bucket-card strong {
     color: var(--at-text);
-    font-size: 1.35rem;
+    font-size: 1.2rem;
 }
 
 .at-panel-warning {
@@ -3738,4 +3752,102 @@ html {
     .at-report-bucket-row {
         grid-template-columns: 1fr;
     }
+}
+
+/* SECTION: Final Reports page polish keeps filters, ageing cards, and risk counts visually consistent. */
+.at-reports-filter-action-cell {
+    align-self: end;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.at-reports-filter-action-cell .btn {
+    width: 100%;
+}
+
+.at-report-number {
+    font-weight: 700;
+    text-align: center;
+}
+
+.at-risk-count {
+    color: #b91c1c;
+    font-weight: 800;
+}
+
+.at-ageing-card {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid var(--at-border);
+    border-radius: var(--at-radius-md);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, .04);
+    padding: .9rem;
+}
+
+.at-ageing-card-risk {
+    border-color: rgba(220, 38, 38, .18);
+}
+
+.at-ageing-card h3,
+.at-pending-closure-inline h3 {
+    color: var(--at-text);
+    font-size: .82rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    margin: 0 0 .65rem;
+    text-transform: uppercase;
+}
+
+.at-ageing-table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.at-ageing-table th {
+    border-bottom: 1px solid var(--at-border);
+    color: var(--at-muted);
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    padding: 0 0 .45rem;
+    text-transform: uppercase;
+}
+
+.at-ageing-table th:last-child,
+.at-ageing-table td:last-child {
+    text-align: right;
+}
+
+.at-ageing-table td {
+    border-bottom: 1px solid rgba(226, 232, 240, .72);
+    color: var(--at-text);
+    font-size: .88rem;
+    font-weight: 650;
+    padding: .5rem 0;
+}
+
+.at-ageing-table tr:last-child td {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.at-pending-closure-inline {
+    align-items: center;
+    background: rgba(248, 250, 252, .8);
+    border-radius: var(--at-radius-md);
+    color: var(--at-muted);
+    display: flex;
+    gap: .75rem;
+    margin-top: .85rem;
+    padding: .55rem .7rem;
+}
+
+.at-pending-closure-inline h3,
+.at-pending-closure-inline p {
+    margin: 0;
+}
+
+.at-pending-closure-inline p,
+.at-pending-closure-inline span {
+    font-size: var(--at-font-sm);
+    font-weight: 650;
 }

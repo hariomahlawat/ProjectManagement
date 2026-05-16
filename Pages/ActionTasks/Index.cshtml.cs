@@ -1023,7 +1023,7 @@ public class IndexModel : PageModel
         BucketDistribution = readModel.Reports.BucketDistribution.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         ResponsiblePersonWorkloads = readModel.Reports.ResponsiblePersonWorkloads.Select(x => new ResponsibleWorkloadSummary(x.ResponsiblePerson, x.Open, x.Overdue, x.Blocked, x.InProgress, x.Submitted, x.Critical)).ToList();
         OutsideSprintWorkloadCounts = readModel.Reports.OutsideSprintWorkloadCounts.Select(x => new CountSummary(x.Name, x.Count)).ToList();
-        SprintPerformanceRows = readModel.Reports.SprintPerformanceRows.Select(x => new SprintPerformanceSummary(x.Sprint, x.Status, x.Open, x.Closed, x.CarriedForward, x.ClosedLate)).ToList();
+        SprintPerformanceRows = readModel.Reports.SprintPerformanceRows.Select(x => new SprintPerformanceSummary(x.Sprint, x.Status, x.Open, x.Closed, x.OverdueNow, x.CarriedForward, x.ClosedLate)).ToList();
         InvalidStateRows = readModel.Reports.InvalidStateRows.Select(x => new InvalidTaskStateSummary(x.Task, x.Issue, x.SuggestedCorrection)).ToList();
         WorkloadSummary = new ActionTaskReportSummary(readModel.Reports.WorkloadSummary.OpenTasks, readModel.Reports.WorkloadSummary.Overdue, readModel.Reports.WorkloadSummary.Blocked, readModel.Reports.WorkloadSummary.PendingClosure, readModel.Reports.WorkloadSummary.BacklogItems);
         CarryForwardBySprint = readModel.Reports.CarryForwardBySprint.Select(x => new CountSummary(x.Name, x.Count)).ToList();
@@ -1638,7 +1638,7 @@ public class IndexModel : PageModel
     public sealed record CountSummary(string Name, int Count);
     public sealed record ActionTaskReportSummary(int OpenTasks = 0, int Overdue = 0, int Blocked = 0, int PendingClosure = 0, int BacklogItems = 0);
     public sealed record ResponsibleWorkloadSummary(string ResponsiblePerson, int Open, int Overdue, int Blocked, int InProgress, int Submitted, int Critical);
-    public sealed record SprintPerformanceSummary(string Sprint, string Status, int Open, int Closed, int CarriedForward, int ClosedLate);
+    public sealed record SprintPerformanceSummary(string Sprint, string Status, int Open, int Closed, int OverdueNow, int CarriedForward, int ClosedLate);
     public sealed record InvalidTaskStateSummary(string Task, string Issue, string SuggestedCorrection);
     public sealed class TaskDisplayItem
     {

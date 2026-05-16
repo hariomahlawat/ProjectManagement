@@ -101,7 +101,7 @@ public sealed class ActionTaskReportBuilder
             BacklogItems = backlogTasks.Count
         };
 
-    // SECTION: Official bucket distribution uses the central classifier and hides Invalid State when no records exist.
+    // SECTION: Official bucket distribution uses shared bucket rules and hides Invalid State when no records exist.
     private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildBucketDistribution(IReadOnlyList<ActionTaskItem> tasks)
     {
         var bucketCounts = tasks
@@ -207,10 +207,9 @@ public sealed class ActionTaskReportBuilder
                     Status = s.Status.ToString(),
                     Open = assignedOpen.Count,
                     Closed = scopedTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)),
+                    OverdueNow = s.Status == ActionSprintStatus.Closed ? 0 : assignedOpen.Count(t => IsAssignedTaskOverdue(t, utcToday)),
                     CarriedForward = s.Status == ActionSprintStatus.Closed ? 0 : assignedOpen.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)),
-                    ClosedLate = s.Status == ActionSprintStatus.Closed
-                        ? scopedTasks.Count(IsClosedLate)
-                        : assignedOpen.Count(t => IsAssignedTaskOverdue(t, utcToday))
+                    ClosedLate = s.Status == ActionSprintStatus.Closed ? scopedTasks.Count(IsClosedLate) : 0
                 };
             })
             .ToList();
