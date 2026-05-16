@@ -4,27 +4,98 @@
     var tasks = Model.Item2;
 }
 
-@* SECTION: Compact My Work rows preserve inspector routing without large task-card bodies. *@
+@* SECTION: Compact My Work task cards keep assignee actions focused and avoid command/planning controls. *@
 <div class="at-mywork-rows">
     @foreach (var item in tasks)
     {
         var task = item.Task;
-        <a class="at-mywork-row @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)"
-           asp-page="/ActionTasks/Index"
-           asp-route-taskId="@task.Id"
-           asp-route-viewMode="@pageModel.ResolvedViewMode"
-           aria-label="Open task AT-@task.Id details">
+        var isAssigned = string.Equals(task.Status, ProjectManagement.Models.ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase);
+        var isInProgress = string.Equals(task.Status, ProjectManagement.Models.ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase);
+        var isBlocked = string.Equals(task.Status, ProjectManagement.Models.ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
+        var isSubmitted = string.Equals(task.Status, ProjectManagement.Models.ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
+        var detailsLabel = isSubmitted ? "View Details" : "Details";
+
+        <article class="at-mywork-task-card @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)">
             <div class="at-mywork-row-main">
                 <span class="at-mywork-task-id">AT-@task.Id</span>
+                <span aria-hidden="true">·</span>
                 <span class="at-mywork-title">@task.Title</span>
             </div>
             <div class="at-mywork-row-meta" aria-label="Task metadata">
                 <span>Due @task.DueDate.ToString("dd MMM yyyy")</span>
+                <span aria-hidden="true">·</span>
+                <span class="@pageModel.GetSprintBadgeClass(task)">@pageModel.GetSprintBadgeText(task)</span>
                 <span class="@pageModel.GetStatusBadgeClass(task.Status)">@task.Status</span>
                 <span class="@pageModel.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
-                <span class="@pageModel.GetSprintBadgeClass(task)">@pageModel.GetSprintBadgeText(task)</span>
-                <span class="at-mywork-open-action">Open details</span>
             </div>
-        </a>
+            <div class="at-mywork-card-actions" aria-label="Task actions">
+                @if (isAssigned && pageModel.CanUpdateTaskStatus(task))
+                {
+                    <form method="post" asp-page-handler="UpdateStatus" class="at-mywork-inline-form">
+                        <input type="hidden" name="ViewMode" value="@pageModel.ResolvedViewMode" />
+                        <input type="hidden" name="SelectedSprintId" value="@pageModel.SelectedSprintId" />
+                        <input type="hidden" name="TaskId" value="@task.Id" />
+                        <input type="hidden" name="id" value="@task.Id" />
+                        <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
+                        <input type="hidden" name="status" value="@ProjectManagement.Models.ActionTaskStatuses.InProgress" />
+                        <button type="submit" class="btn btn-primary btn-sm at-mywork-primary-action">Start Work</button>
+                    </form>
+                }
+                else if (isInProgress && pageModel.CanSubmitTask(task))
+                {
+                    <form method="post" asp-page-handler="Submit" class="at-mywork-inline-form">
+                        <input type="hidden" name="ViewMode" value="@pageModel.ResolvedViewMode" />
+                        <input type="hidden" name="SelectedSprintId" value="@pageModel.SelectedSprintId" />
+                        <input type="hidden" name="TaskId" value="@task.Id" />
+                        <input type="hidden" name="id" value="@task.Id" />
+                        <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
+                        <button type="submit" class="btn btn-warning btn-sm at-mywork-primary-action">Submit for Closure</button>
+                    </form>
+                }
+                else if (isBlocked)
+                {
+                    <a class="btn btn-primary btn-sm at-mywork-primary-action"
+                       asp-page="/ActionTasks/Index"
+                       asp-route-taskId="@task.Id"
+                       asp-route-viewMode="@pageModel.ResolvedViewMode">Add Update</a>
+                }
+                else if (isSubmitted)
+                {
+                    <a class="btn btn-primary btn-sm at-mywork-primary-action"
+                       asp-page="/ActionTasks/Index"
+                       asp-route-taskId="@task.Id"
+                       asp-route-viewMode="@pageModel.ResolvedViewMode">View Details</a>
+                }
+
+                @if (isBlocked && pageModel.CanUpdateTaskStatus(task))
+                {
+                    <form method="post" asp-page-handler="UpdateStatus" class="at-mywork-inline-form">
+                        <input type="hidden" name="ViewMode" value="@pageModel.ResolvedViewMode" />
+                        <input type="hidden" name="SelectedSprintId" value="@pageModel.SelectedSprintId" />
+                        <input type="hidden" name="TaskId" value="@task.Id" />
+                        <input type="hidden" name="id" value="@task.Id" />
+                        <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
+                        <input type="hidden" name="status" value="@ProjectManagement.Models.ActionTaskStatuses.InProgress" />
+                        <button type="submit" class="btn btn-outline-primary btn-sm at-mywork-secondary-action">Mark In Progress</button>
+                    </form>
+                }
+                else if (isInProgress)
+                {
+                    <a class="btn btn-link btn-sm at-mywork-secondary-action"
+                       asp-page="/ActionTasks/Index"
+                       asp-route-taskId="@task.Id"
+                       asp-route-viewMode="@pageModel.ResolvedViewMode">Add Update</a>
+                }
+
+                @if (!isSubmitted)
+                {
+                    <a class="btn btn-link btn-sm at-mywork-secondary-action"
+                       asp-page="/ActionTasks/Index"
+                       asp-route-taskId="@task.Id"
+                       asp-route-viewMode="@pageModel.ResolvedViewMode"
+                       aria-label="Open task AT-@task.Id details">@detailsLabel</a>
+                }
+            </div>
+        </article>
     }
 </div>

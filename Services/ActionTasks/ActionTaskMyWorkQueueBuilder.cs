@@ -93,7 +93,12 @@ public sealed class ActionTaskMyWorkQueueBuilder
     // SECTION: My Work precedence prevents repeated cards across action, execution, submitted, and remaining sections.
     private ActionTaskMyWorkQueueSection ResolveMyWorkQueueSection(ActionTaskItem task)
     {
-        if (IsTaskOverdue(task) || IsTaskDueToday(task) || IsTaskBlocked(task))
+        if (IsTaskSubmitted(task))
+        {
+            return ActionTaskMyWorkQueueSection.SubmittedAwaitingClosure;
+        }
+
+        if (IsTaskBlocked(task) || IsTaskOverdue(task) || IsTaskDueToday(task))
         {
             return ActionTaskMyWorkQueueSection.ActionRequired;
         }
@@ -101,11 +106,6 @@ public sealed class ActionTaskMyWorkQueueBuilder
         if (IsTaskInProgress(task))
         {
             return ActionTaskMyWorkQueueSection.CurrentWork;
-        }
-
-        if (IsTaskSubmitted(task))
-        {
-            return ActionTaskMyWorkQueueSection.SubmittedAwaitingClosure;
         }
 
         return ActionTaskMyWorkQueueSection.AllMyTasks;
@@ -123,12 +123,16 @@ public sealed class ActionTaskMyWorkQueueBuilder
     }
 
     // SECTION: Shared My Work predicates keep queue grouping aligned with open-task lifecycle rules.
-    private bool IsTaskOverdue(ActionTaskItem task) => IsOpenTask(task) && task.DueDate.Date < _clock.UtcToday;
-    private bool IsTaskDueToday(ActionTaskItem task) => IsOpenTask(task) && task.DueDate.Date == _clock.UtcToday;
+    private bool IsTaskOverdue(ActionTaskItem task) => IsOpenTask(task) && !IsTaskSubmitted(task) && task.DueDate.Date < _clock.UtcToday;
+    private bool IsTaskDueToday(ActionTaskItem task) => IsOpenTask(task) && !IsTaskSubmitted(task) && task.DueDate.Date == _clock.UtcToday;
     private static bool IsTaskBlocked(ActionTaskItem task) => string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
     private static bool IsTaskInProgress(ActionTaskItem task) => string.Equals(task.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase);
     private static bool IsTaskSubmitted(ActionTaskItem task) => string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
-    private static bool IsOpenTask(ActionTaskItem task) => !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
+    private static bool IsOpenTask(ActionTaskItem task)
+        => !task.IsDeleted
+           && ActionTaskCategorization.HasAssignedUser(task)
+           && !string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
+           && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
 
     // SECTION: Reusable status ordering mirrors operational list ordering.
     private static int StatusOrder(string status) => status switch
