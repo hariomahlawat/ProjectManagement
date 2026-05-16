@@ -53,7 +53,7 @@
                 {
                     <div class="at-empty-inline">No closed sprints.</div>
                 }
-                @foreach (var sprint in Model.ClosedSprints.Take(8))
+                @foreach (var sprint in Model.ClosedSprints)
                 {
                     <a class="at-sprint-list-item is-closed @(Model.SelectedSprint?.Id == sprint.Id ? "is-selected" : string.Empty)" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Close" asp-route-SelectedSprintId="@sprint.Id">
                         <strong>@Model.DisplaySprintName(sprint)</strong>

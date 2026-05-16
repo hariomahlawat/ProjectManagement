@@ -225,13 +225,22 @@ public class IndexModel : PageModel
         "Planning" => "Plan sprint work, monitor execution and review closure.",
         "MyWork" => "Focus on the work assigned to you.",
         "Register" => "Search, filter and review every task you can access.",
-        "Reports" => "Review pending, critical, blocked and closed task trends.",
+        "Reports" => "Review workload, ageing and sprint performance.",
         _ => "Monitor overdue, blocked, submitted and critical task action."
     };
 
     public IReadOnlyList<string> AssignmentRoles => ActionTaskRoleResolver.AllowedAssignmentRoles();
     public IReadOnlyList<string> AllowedStatusOptions => _workflowPolicy.AllowedStatusOptions;
-    public IReadOnlyList<string> RegisterStatusOptions => _workflowPolicy.AllowedStatusOptions.Concat(new[] { ActionTaskStatuses.Submitted, ActionTaskStatuses.Closed, ActionTaskStatuses.Backlog }).ToList();
+    public IReadOnlyList<string> RegisterStatusOptions => ActionTaskStatuses.All.ToList();
+    public IReadOnlyList<string> ReportStatusOptions => new[]
+    {
+        ActionTaskStatuses.Backlog,
+        ActionTaskStatuses.Assigned,
+        ActionTaskStatuses.InProgress,
+        ActionTaskStatuses.Blocked,
+        ActionTaskStatuses.Submitted,
+        ActionTaskStatuses.Closed
+    };
     public IReadOnlyList<string> PriorityOptions => _workflowPolicy.PriorityOptions;
     public bool CanPlanSprints => _permission.CanManageSprints(CurrentRole);
     public bool CanFilterByAssignee => _permission.CanViewAll(CurrentRole);
@@ -390,6 +399,12 @@ public class IndexModel : PageModel
             ActionTaskWorkCategory.Invalid => "at-scope-badge at-scope-badge-invalid",
             _ => "at-scope-badge at-scope-badge-backlog"
         };
+
+    public bool IsInvalidTaskState(ActionTaskItem task)
+        => ActionTaskCategorization.ResolveCategory(task) == ActionTaskWorkCategory.Invalid;
+
+    public bool MustReturnInvalidTaskToBacklogDuringClosure(ActionTaskItem task)
+        => IsInvalidTaskState(task) && !ActionTaskCategorization.HasAssignedUser(task);
 
     public IReadOnlyList<TaskDisplayItem> GetSprintTasksByStatus(string status)
         => ToDisplayItems(SelectedSprintTasks.Where(t => string.Equals(t.Status, status, StringComparison.OrdinalIgnoreCase)).ToList());
@@ -1224,6 +1239,8 @@ public class IndexModel : PageModel
     public IReadOnlyList<TaskDisplayItem> ActiveSprintBlockedTaskDisplays =>
         ToDisplayItems(SprintWorkspaceSummary.ActiveSprintBlockedTasks);
 
+    public int ActiveSprintSubmittedTaskCount => SprintWorkspaceSummary.ActiveSprintSubmittedTaskCount;
+
     public IReadOnlyList<TaskDisplayItem> ActiveSprintSubmittedTaskDisplays =>
         ToDisplayItems(SprintWorkspaceSummary.ActiveSprintSubmittedTasks);
 
@@ -1622,6 +1639,8 @@ public class IndexModel : PageModel
 
     public bool IsTaskOverdue(ActionTaskItem task) =>
         IsOpenTask(task)
+        && !string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
+        && ActionTaskBucketClassifier.ResolveBucket(task) != ActionTaskBucket.Invalid
         && task.DueDate.Date < _clock.UtcToday;
 
     // SECTION: Shared open-task predicate keeps personal and command projections aligned.

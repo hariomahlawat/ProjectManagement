@@ -230,6 +230,15 @@ public class ActionSprintService
             throw new InvalidOperationException("Closure disposition includes tasks that are not unfinished tasks in this sprint.");
         }
 
+        var unsafeAssignedDispositionIds = unfinishedTasks
+            .Where(t => (carryIds.Contains(t.Id) || outsideIds.Contains(t.Id)) && !ActionTaskCategorization.HasAssignedUser(t))
+            .Select(t => t.Id)
+            .ToList();
+        if (unsafeAssignedDispositionIds.Count > 0)
+        {
+            throw new InvalidOperationException("Tasks with invalid sprint assignment and no responsible person must be returned to backlog or corrected before sprint closure.");
+        }
+
         var performedAt = DateTime.UtcNow;
         foreach (var task in unfinishedTasks.Where(t => carryIds.Contains(t.Id)))
         {

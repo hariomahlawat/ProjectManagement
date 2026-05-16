@@ -41,6 +41,8 @@ public class ActionTaskQueryServiceSprintMetricsTests
         Assert.Equal(1, model.ActiveSprintMetrics.InProgressTasks);
         Assert.Equal(1, model.ActiveSprintMetrics.BlockedTasks);
         Assert.Equal(1, model.ActiveSprintMetrics.OverdueTasks);
+        Assert.Equal(1, model.ActiveSprintMetrics.SubmittedPendingClosureTasks);
+        Assert.Equal(0, model.ActiveSprintMetrics.InvalidStateTasks);
         Assert.Equal(3, model.ActiveSprintMetrics.CarryForwardCandidateTasks);
         Assert.Equal(new[] { 5 }, model.BacklogTasks.Select(t => t.Id));
         Assert.Equal(new[] { 5 }, model.SprintReadModel.BacklogTasks.Select(t => t.Id));
@@ -228,7 +230,8 @@ public class ActionTaskQueryServiceSprintMetricsTests
         {
             NewTask(51, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(3), assignedToUserId: "assignee", title: "Monthly readiness review"),
             NewTask(52, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(1), assignedToUserId: "assignee", title: "Fleet compliance check"),
-            NewTask(53, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), assignedToUserId: "assignee", title: "Inventory audit")
+            NewTask(53, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), assignedToUserId: "assignee", title: "Inventory audit"),
+            NewTask(152, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(4), assignedToUserId: "assignee", title: "Engine room inspection")
         };
         var service = CreateQueryService();
 
@@ -241,6 +244,56 @@ public class ActionTaskQueryServiceSprintMetricsTests
         Assert.Equal(new[] { 51 }, titleMatch.TaskListTasks.Select(t => t.Id));
         Assert.Equal(new[] { 52 }, atNumberMatch.TaskListTasks.Select(t => t.Id));
         Assert.Equal(new[] { 52 }, numericMatch.TaskListTasks.Select(t => t.Id));
+    }
+
+
+    [Fact]
+    public void BuildReadModel_SelectedSprintIncludesInvalidSprintLinkedTasksForClosureReview()
+    {
+        // SECTION: Arrange
+        var today = DateTime.UtcNow.Date;
+        var sprint = new ActionSprint { Id = 81, Name = "Active Sprint", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
+        var tasks = new[]
+        {
+            NewTask(81, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(1), assignedToUserId: "assignee"),
+            NewTask(82, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), assignedToUserId: string.Empty)
+        };
+        var service = CreateQueryService();
+
+        // SECTION: Act
+        var model = service.BuildReadModel(
+            tasks,
+            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, false, false, sprint.Id, new[] { sprint }, null, null, null, null, null, null, null),
+            new Dictionary<string, string> { ["assignee"] = "Assignee" },
+            new Dictionary<int, DateTime?>());
+
+        // SECTION: Assert
+        Assert.Equal(new[] { 81, 82 }, model.SprintReadModel.SelectedSprintTasks.Select(t => t.Id));
+        Assert.Equal(new[] { 81, 82 }, model.SprintReadModel.ClosureReview.UnfinishedTasks.Select(t => t.Id));
+        Assert.Equal(1, model.ActiveSprintMetrics.InvalidStateTasks);
+    }
+
+    [Fact]
+    public void BuildReadModel_SprintPerformanceCountsOnlyTasksClosedAfterDueDateAsLate()
+    {
+        // SECTION: Arrange
+        var today = DateTime.UtcNow.Date;
+        var sprint = new ActionSprint { Id = 91, Name = "Closed Sprint", Status = ActionSprintStatus.Closed, StartDate = today.AddDays(-14), EndDate = today.AddDays(-1), ClosedAtUtc = today.AddDays(5) };
+        var closedOnTime = NewTask(91, sprint.Id, ActionTaskStatuses.Closed, today.AddDays(-5));
+        closedOnTime.ClosedOn = today.AddDays(-5);
+        var closedLate = NewTask(92, sprint.Id, ActionTaskStatuses.Closed, today.AddDays(-6));
+        closedLate.ClosedOn = today.AddDays(-4);
+        var service = CreateQueryService();
+
+        // SECTION: Act
+        var model = service.BuildReadModel(
+            new[] { closedOnTime, closedLate },
+            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, false, false, sprint.Id, new[] { sprint }, null, null, null, null, null, null, null),
+            new Dictionary<string, string> { ["assignee"] = "Assignee" },
+            new Dictionary<int, DateTime?>());
+
+        // SECTION: Assert
+        Assert.Equal(1, model.Reports.SprintPerformanceRows.Single().OverdueAtClosure);
     }
 
     // SECTION: Test query service helper

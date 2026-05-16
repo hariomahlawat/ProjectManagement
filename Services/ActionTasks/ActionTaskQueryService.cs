@@ -42,7 +42,7 @@ public sealed class ActionTaskQueryService
             SprintReadModel = sprintReadModel,
             ActiveSprintMetrics = activeSprintMetrics,
             CriticalOpenTasks = tasks.Where(t => IsCriticalOpen(t)).OrderBy(t => t.DueDate).Take(5).ToList(),
-            OverdueTasks = tasks.Where(t => IsOpen(t) && t.DueDate.Date < _clock.UtcToday).OrderBy(t => t.DueDate).Take(5).ToList(),
+            OverdueTasks = tasks.Where(t => IsOperationallyOverdue(t, _clock.UtcToday)).OrderBy(t => t.DueDate).Take(5).ToList(),
             RecentlySubmittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase) && t.SubmittedOn.HasValue).OrderByDescending(t => t.SubmittedOn ?? DateTime.MinValue).Take(5).ToList(),
             RecentlyUpdatedTasks = tasks.Where(t => ResolveLastActivityUtc(t, activityByTaskId).HasValue).OrderByDescending(t => ResolveLastActivityUtc(t, activityByTaskId) ?? DateTime.MinValue).ThenByDescending(t => t.Id).Take(5).ToList(),
             DueBuckets = BuildDueBuckets(tasks),
@@ -56,6 +56,17 @@ public sealed class ActionTaskQueryService
     private static bool IsOpen(ActionTaskItem task) => ActionTaskCategorization.IsOpenTask(task);
     private static bool IsBacklog(ActionTaskItem task) => ActionTaskCategorization.IsBacklogTask(task);
     private static bool IsCriticalOpen(ActionTaskItem task) => IsOpen(task) && string.Equals(task.Priority, "Critical", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSubmitted(ActionTaskItem task)
+        => string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsOperationallyOverdue(ActionTaskItem task, DateTime today)
+        => IsOpen(task)
+           && !IsSubmitted(task)
+           && ActionTaskCategorization.HasAssignedUser(task)
+           && !ActionTaskCategorization.IsBacklogTask(task)
+           && ActionTaskBucketClassifier.ResolveBucket(task) != ActionTaskBucket.Invalid
+           && task.DueDate.Date < today;
 
     private static DateTime? ResolveLastActivityUtc(ActionTaskItem task, IReadOnlyDictionary<int, DateTime?> activityByTaskId)
     {
@@ -92,7 +103,7 @@ public sealed class ActionTaskQueryService
 
         var selectedTasks = selectedSprint is null
             ? new List<ActionTaskItem>()
-            : tasks.Where(t => t.SprintId == selectedSprint.Id && ActionTaskBucketClassifier.ResolveBucket(t) != ActionTaskBucket.Invalid).OrderBy(t => StatusOrder(t)).ThenBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
+            : tasks.Where(t => t.SprintId == selectedSprint.Id).OrderBy(t => StatusOrder(t)).ThenBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
 
         var backlogTasks = tasks.Where(IsBacklog).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
 
@@ -193,8 +204,10 @@ public sealed class ActionTaskQueryService
             CompletedTasks = activeSprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)),
             InProgressTasks = activeSprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase)),
             BlockedTasks = activeSprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)),
-            OverdueTasks = activeSprintTasks.Count(t => IsOpen(t) && t.DueDate.Date < today),
-            CarryForwardCandidateTasks = activeSprintTasks.Count(t => IsOpen(t))
+            OverdueTasks = activeSprintTasks.Count(t => IsOperationallyOverdue(t, today)),
+            SubmittedPendingClosureTasks = activeSprintTasks.Count(IsSubmitted),
+            InvalidStateTasks = activeSprintTasks.Count(t => ActionTaskBucketClassifier.ResolveBucket(t) == ActionTaskBucket.Invalid),
+            CarryForwardCandidateTasks = activeSprintTasks.Count(t => IsOpen(t) && ActionTaskBucketClassifier.ResolveBucket(t) != ActionTaskBucket.Invalid)
         };
     }
 
@@ -204,10 +217,10 @@ public sealed class ActionTaskQueryService
         var endOfWeek = today.AddDays(7);
         return new ActionTaskDueBuckets
         {
-            Overdue = tasks.Where(t => IsOpen(t) && t.DueDate.Date < today).OrderBy(t => t.DueDate).ToList(),
-            Today = tasks.Where(t => IsOpen(t) && t.DueDate.Date == today).OrderBy(t => t.DueDate).ToList(),
-            ThisWeek = tasks.Where(t => IsOpen(t) && t.DueDate.Date > today && t.DueDate.Date <= endOfWeek).OrderBy(t => t.DueDate).ToList(),
-            Later = tasks.Where(t => IsOpen(t) && t.DueDate.Date > endOfWeek).OrderBy(t => t.DueDate).ToList()
+            Overdue = tasks.Where(t => IsOperationallyOverdue(t, today)).OrderBy(t => t.DueDate).ToList(),
+            Today = tasks.Where(t => IsOpen(t) && !IsSubmitted(t) && t.DueDate.Date == today).OrderBy(t => t.DueDate).ToList(),
+            ThisWeek = tasks.Where(t => IsOpen(t) && !IsSubmitted(t) && t.DueDate.Date > today && t.DueDate.Date <= endOfWeek).OrderBy(t => t.DueDate).ToList(),
+            Later = tasks.Where(t => IsOpen(t) && !IsSubmitted(t) && t.DueDate.Date > endOfWeek).OrderBy(t => t.DueDate).ToList()
         };
     }
 
@@ -247,17 +260,28 @@ public sealed class ActionTaskQueryService
     }
 
 
-    // SECTION: Register search matches task identity, title, description, and visible owner text.
+    // SECTION: Register search treats AT identifiers as exact IDs while preserving broad text search.
     private static bool MatchesRegisterSearch(ActionTaskItem task, string searchTerm, string normalizedTaskNumber, IReadOnlyDictionary<string, string> assigneeNames)
     {
+        var trimmed = searchTerm.Trim();
+        var isAtNumber = trimmed.StartsWith("AT-", StringComparison.OrdinalIgnoreCase);
+        var isBareNumber = trimmed.All(char.IsDigit);
+        var matchesExactTaskId = task.Id.ToString().Equals(normalizedTaskNumber, StringComparison.OrdinalIgnoreCase);
+
+        if (isAtNumber || isBareNumber)
+        {
+            return matchesExactTaskId
+                || task.Title.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrWhiteSpace(task.Description) && task.Description.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
+        }
+
         var taskNumber = $"AT-{task.Id}";
         var assigneeName = assigneeNames.TryGetValue(task.AssignedToUserId, out var resolvedAssignee) ? resolvedAssignee : string.Empty;
 
-        return task.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
-            || taskNumber.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
-            || task.Id.ToString().Equals(normalizedTaskNumber, StringComparison.OrdinalIgnoreCase)
-            || (!string.IsNullOrWhiteSpace(task.Description) && task.Description.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
-            || (!string.IsNullOrWhiteSpace(assigneeName) && assigneeName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
+        return task.Title.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+            || taskNumber.Equals(trimmed, StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrWhiteSpace(task.Description) && task.Description.Contains(trimmed, StringComparison.OrdinalIgnoreCase))
+            || (!string.IsNullOrWhiteSpace(assigneeName) && assigneeName.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
     }
 
     // SECTION: Register bucket filtering maps user-facing buckets to central task classification.
@@ -381,6 +405,8 @@ public sealed class ActionTaskQueryService
         public int InProgressTasks { get; init; }
         public int BlockedTasks { get; init; }
         public int OverdueTasks { get; init; }
+        public int SubmittedPendingClosureTasks { get; init; }
+        public int InvalidStateTasks { get; init; }
         public int CarryForwardCandidateTasks { get; init; }
     }
 

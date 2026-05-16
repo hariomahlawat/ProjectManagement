@@ -31,7 +31,7 @@
     else
     {
         <p class="at-active-sprint-summary">
-            @Model.ActiveSprintMetrics.TotalTasks tasks · @Model.ActiveSprintMetrics.InProgressTasks in progress · @Model.ActiveSprintMetrics.OverdueTasks overdue · @Model.ActiveSprintMetrics.BlockedTasks blocked · @Model.ActiveSprintSubmittedTaskDisplays.Count pending closure
+            @Model.ActiveSprintMetrics.TotalTasks tasks · @Model.ActiveSprintMetrics.InProgressTasks in progress · @Model.ActiveSprintMetrics.OverdueTasks overdue · @Model.ActiveSprintMetrics.BlockedTasks blocked · @Model.ActiveSprintSubmittedTaskCount pending closure · @Model.ActiveSprintMetrics.InvalidStateTasks invalid state
         </p>
 
         @* SECTION: Active sprint exception lists render only when they contain command-relevant tasks. *@
@@ -61,7 +61,7 @@
                     @if (Model.ActiveSprintSubmittedTaskDisplays.Any())
                     {
                         <article class="at-attention-panel">
-                            <div class="at-attention-heading"><span>Submitted Pending Closure in Active Sprint</span><strong>@Model.ActiveSprintSubmittedTaskDisplays.Count</strong></div>
+                            <div class="at-attention-heading"><span>Submitted Pending Closure in Active Sprint</span><strong>@Model.ActiveSprintSubmittedTaskCount</strong></div>
                             <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintSubmittedTaskDisplays, string.Empty)' />
                         </article>
                     }
