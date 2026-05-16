@@ -92,6 +92,59 @@ public class ActionTaskPageTests
     }
 
     [Fact]
+    public async Task CreateModal_RendersBacklogItemAndDirectTaskModeLabels()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var page = setup.Page;
+        page.CreateMode = "backlog";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskCreatePanel.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains(@"data-at-create-mode-button=""backlog"">Backlog Item</button>", html, StringComparison.Ordinal);
+        Assert.Contains(@"data-at-create-mode-button=""direct"">Direct Task</button>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CreateModal_DoesNotDuplicateCreateBacklogItemAsSelectorAndSubmitAction()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var page = setup.Page;
+        page.CreateMode = "backlog";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskCreatePanel.cshtml");
+
+        // SECTION: Assert
+        Assert.Equal(1, CountOccurrences(html, @">Backlog Item</button>"));
+        Assert.Contains(@">Save Backlog Item</button>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(@">Create Backlog Item</button>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CreateModal_DirectTaskFormRendersAssignee()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var page = setup.Page;
+        page.CreateMode = "direct";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskCreatePanel.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains(@"for=""DirectTaskInput_AssignedToUserId"">Assignee</label>", html, StringComparison.Ordinal);
+        Assert.Contains(@"name=""DirectTaskInput.AssignedToUserId""", html, StringComparison.Ordinal);
+        Assert.Contains("User One", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PlanningKanban_StatusNoOpRedirect_ResolvesToExecute()
     {
         // SECTION: Arrange

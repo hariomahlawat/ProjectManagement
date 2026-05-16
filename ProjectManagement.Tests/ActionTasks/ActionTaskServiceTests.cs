@@ -217,10 +217,8 @@ public class ActionTaskServiceTests
         Assert.Contains("submit for closure", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Theory]
-    [InlineData(RoleNames.Comdt)]
-    [InlineData(RoleNames.HoD)]
-    public async Task UpdateTaskDateAsync_AllowsPlanningAuthorities(string role)
+    [Fact]
+    public async Task Comdt_CanChangeAssignedTaskDueDate()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -229,7 +227,7 @@ public class ActionTaskServiceTests
         var newDate = DateTime.UtcNow.Date.AddDays(5);
 
         // SECTION: Act
-        await service.UpdateTaskDateAsync(task.Id, task.RowVersion, newDate, "planner", role);
+        await service.UpdateTaskDateAsync(task.Id, task.RowVersion, newDate, "planner", RoleNames.Comdt);
 
         // SECTION: Assert
         var updated = await db.ActionTasks.SingleAsync(x => x.Id == task.Id);
@@ -237,7 +235,24 @@ public class ActionTaskServiceTests
     }
 
     [Fact]
-    public async Task UpdateTaskDateAsync_RejectsAssigneeRole()
+    public async Task HoD_CanChangeAssignedTaskDueDate()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
+        var newDate = DateTime.UtcNow.Date.AddDays(5);
+
+        // SECTION: Act
+        await service.UpdateTaskDateAsync(task.Id, task.RowVersion, newDate, "planner", RoleNames.HoD);
+
+        // SECTION: Assert
+        var updated = await db.ActionTasks.SingleAsync(x => x.Id == task.Id);
+        Assert.Equal(newDate, updated.DueDate.Date);
+    }
+
+    [Fact]
+    public async Task Assignee_CannotChangeOwnDueDate()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -251,7 +266,7 @@ public class ActionTaskServiceTests
     }
 
     [Fact]
-    public async Task UpdateTaskDateAsync_RejectsClosedTasks()
+    public async Task ClosedTask_DateCannotBeChanged()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -267,7 +282,7 @@ public class ActionTaskServiceTests
     }
 
     [Fact]
-    public async Task UpdateTaskDateAsync_RejectsPastDates()
+    public async Task ChangeTaskDate_RejectsPastDate()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
@@ -281,34 +296,57 @@ public class ActionTaskServiceTests
     }
 
     [Fact]
-    public async Task UpdateTaskDateAsync_AuditsTargetDateForBacklogAndDueDateForAssignedTasks()
+    public async Task BacklogItem_ChangeDate_AuditsTargetDateChanged()
     {
         // SECTION: Arrange
         await using var db = CreateDb();
         var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var originalTargetDate = DateTime.UtcNow.Date.AddDays(2);
         var backlog = await service.CreateBacklogItemAsync(new ActionTaskItem
         {
             Title = "Backlog",
             Description = "Future work",
             CreatedByUserId = "creator",
             CreatedByRole = RoleNames.HoD,
-            DueDate = DateTime.UtcNow.Date.AddDays(2),
+            DueDate = originalTargetDate,
             Priority = "Normal"
         });
-        var assigned = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
+        var newDate = DateTime.UtcNow.Date.AddDays(6);
 
         // SECTION: Act
-        await service.UpdateTaskDateAsync(backlog.Id, backlog.RowVersion, DateTime.UtcNow.Date.AddDays(6), "planner", RoleNames.HoD);
-        await service.UpdateTaskDateAsync(assigned.Id, assigned.RowVersion, DateTime.UtcNow.Date.AddDays(7), "planner", RoleNames.Comdt);
+        await service.UpdateTaskDateAsync(backlog.Id, backlog.RowVersion, newDate, "planner", RoleNames.HoD);
 
         // SECTION: Assert
         var logs = await db.ActionTaskAuditLogs.ToListAsync();
-        Assert.Contains(logs, x => x.TaskId == backlog.Id && x.ActionType == "TargetDateChanged");
-        Assert.Contains(logs, x => x.TaskId == assigned.Id && x.ActionType == "DueDateChanged");
+        Assert.Contains(logs, x => x.TaskId == backlog.Id
+            && x.ActionType == "TargetDateChanged"
+            && x.OldValue == originalTargetDate.ToString("yyyy-MM-dd")
+            && x.NewValue == newDate.ToString("yyyy-MM-dd"));
     }
 
     [Fact]
-    public async Task UpdateTaskDateAsync_WithStaleRowVersion_ThrowsConcurrencyException()
+    public async Task AssignedTask_ChangeDate_AuditsDueDateChanged()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var assigned = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
+        var oldDate = assigned.DueDate.Date;
+        var newDate = DateTime.UtcNow.Date.AddDays(7);
+
+        // SECTION: Act
+        await service.UpdateTaskDateAsync(assigned.Id, assigned.RowVersion, newDate, "planner", RoleNames.Comdt);
+
+        // SECTION: Assert
+        var logs = await db.ActionTaskAuditLogs.ToListAsync();
+        Assert.Contains(logs, x => x.TaskId == assigned.Id
+            && x.ActionType == "DueDateChanged"
+            && x.OldValue == oldDate.ToString("yyyy-MM-dd")
+            && x.NewValue == newDate.ToString("yyyy-MM-dd"));
+    }
+
+    [Fact]
+    public async Task ChangeTaskDate_EnforcesRowVersion()
     {
         // SECTION: Arrange
         var databaseName = Guid.NewGuid().ToString();
