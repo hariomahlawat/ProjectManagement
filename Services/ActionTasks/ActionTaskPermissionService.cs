@@ -45,6 +45,9 @@ public class ActionTaskPermissionService
     public bool CanClose(string role)
         => IsPlanningAuthority(role);
 
+    public bool CanChangeTaskDate(string role)
+        => IsPlanningAuthority(role);
+
     // SECTION: Sprint lifecycle permission checks
     public bool CanCreateSprint(string role)
         => IsPlanningAuthority(role);

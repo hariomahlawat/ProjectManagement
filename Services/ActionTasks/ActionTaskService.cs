@@ -351,6 +351,57 @@ public class ActionTaskService : IActionTaskService
         }
     }
 
+    public async Task UpdateTaskDateAsync(int taskId, byte[] rowVersion, DateTime newDate, string userId, string role, CancellationToken cancellationToken = default)
+    {
+        // SECTION: Date-change authorization and task validation
+        if (!_permission.CanChangeTaskDate(role))
+        {
+            throw new InvalidOperationException("You are not authorized to change task dates.");
+        }
+
+        var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
+
+        if (string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Closed tasks cannot have their dates changed.");
+        }
+
+        var normalizedNewDate = newDate.Date;
+        if (normalizedNewDate < DateTime.UtcNow.Date)
+        {
+            throw new InvalidOperationException("Task date cannot be in the past.");
+        }
+
+        if (task.DueDate.Date == normalizedNewDate)
+        {
+            throw new InvalidOperationException("No date change applied because the selected date is already current.");
+        }
+
+        // SECTION: Concurrency token validation
+        _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
+
+        // SECTION: Date mutation and bucket invariant validation
+        var oldDate = task.DueDate.Date;
+        task.DueDate = normalizedNewDate;
+        ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
+
+        // SECTION: Audit Enqueue
+        var auditAction = string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
+            ? "TargetDateChanged"
+            : "DueDateChanged";
+        _context.ActionTaskAuditLogs.Add(Log(taskId, auditAction, userId, role, oldDate.ToString("yyyy-MM-dd"), normalizedNewDate.ToString("yyyy-MM-dd"), null));
+
+        // SECTION: Persistence
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
+        }
+    }
+
     // SECTION: Audit logging
     private static ActionTaskAuditLog Log(int taskId, string action, string userId, string role, string? oldValue, string? newValue, string? remarks)
     {
