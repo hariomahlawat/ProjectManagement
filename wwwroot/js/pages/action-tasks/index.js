@@ -439,82 +439,109 @@
 
     // SECTION: Inspector-wide action panel orchestration and keyboard behavior.
     function initInspectorActionPanels() {
-        const shell = document.querySelector("[data-at-action-shell='true']");
-        if (!shell) {
-            return;
-        }
+        const getDrawer = (element) => element ? element.closest("[data-at-task-drawer], .at-task-command-shell, #task-details") : null;
 
-        const panels = Array.from(shell.querySelectorAll("[data-at-action-panel]"));
-        const openButtons = shell.querySelectorAll("[data-at-open-action]");
-        const closeButtons = shell.querySelectorAll("[data-at-close-action]");
-        const actionHost = shell.querySelector("[data-at-action-host='true']");
-        const actionSection = actionHost ? actionHost.closest(".at-action-form-section") : null;
+        const getShell = (drawer) => {
+            if (!drawer) {
+                return null;
+            }
 
-        const closeAllPanels = () => {
-            panels.forEach((panel) => panel.removeAttribute("open"));
+            return drawer.matches("[data-at-action-shell='true']")
+                ? drawer
+                : drawer.querySelector("[data-at-action-shell='true']") || drawer.closest("[data-at-action-shell='true']");
+        };
+
+        const closeAllPanels = (shell) => {
+            if (!shell) {
+                return;
+            }
+
+            shell.querySelectorAll("[data-at-action-panel]").forEach((panel) => panel.removeAttribute("open"));
+            const actionHost = shell.querySelector("[data-at-action-host='true']");
+            const actionSection = actionHost ? actionHost.closest(".at-action-form-section") : null;
             if (actionSection) {
                 actionSection.classList.remove("is-active");
             }
         };
 
-        // SECTION: Intent-specific status actions can seed the status panel selection.
-        const applyStatusActionTarget = (name, targetStatus) => {
-            if (name !== "status") {
-                return;
-            }
-
-            const statusSelect = shell.querySelector("[data-at-status-select]");
+        // SECTION: Quick workflow buttons seed the unified progress/status panel.
+        const applyStatusActionTarget = (shell, targetStatus) => {
+            const statusSelect = shell.querySelector("[data-at-progress-status-select]");
             if (!statusSelect) {
                 return;
             }
 
-            const currentStatus = statusSelect.getAttribute("data-current-status") || statusSelect.value;
-            statusSelect.value = targetStatus || currentStatus;
+            statusSelect.value = targetStatus || "";
             statusSelect.dispatchEvent(new Event("change", { bubbles: true }));
         };
 
-        const openPanel = (name, targetStatus) => {
-            closeAllPanels();
-            const panel = shell.querySelector(`[data-at-action-panel='${name}']`);
+        const openPanel = (shell, name, targetStatus) => {
+            closeAllPanels(shell);
+            const panelName = name === "status" || name === "submit" ? "update" : name;
+            const panel = shell.querySelector(`[data-at-action-panel='${panelName}']`);
             if (!panel) {
                 return;
             }
+
             panel.setAttribute("open", "open");
+            const actionHost = shell.querySelector("[data-at-action-host='true']");
+            const actionSection = actionHost ? actionHost.closest(".at-action-form-section") : null;
             if (actionSection) {
                 actionSection.classList.add("is-active");
             }
-            applyStatusActionTarget(name, targetStatus);
+
+            if (panelName === "update") {
+                applyStatusActionTarget(shell, targetStatus);
+            }
+
             const focusTarget = panel.querySelector("textarea, select, input, button");
             if (focusTarget) {
                 focusTarget.focus();
             }
         };
 
-        openButtons.forEach((button) => {
-            button.addEventListener("click", () => {
-                const target = button.getAttribute("data-at-open-action");
-                const targetStatus = button.getAttribute("data-at-target-status");
-                openPanel(target, targetStatus);
-            });
+        document.addEventListener("click", (event) => {
+            const openButton = event.target.closest("[data-at-open-action]");
+            if (openButton) {
+                const drawer = getDrawer(openButton);
+                const shell = getShell(drawer);
+                if (!shell) {
+                    return;
+                }
+
+                event.preventDefault();
+                openPanel(shell, openButton.getAttribute("data-at-open-action"), openButton.getAttribute("data-at-target-status"));
+                return;
+            }
+
+            const closeButton = event.target.closest("[data-at-close-action]");
+            if (!closeButton) {
+                return;
+            }
+
+            const drawer = getDrawer(closeButton);
+            const shell = getShell(drawer);
+            closeAllPanels(shell);
         });
 
-        closeButtons.forEach((button) => {
-            button.addEventListener("click", () => {
-                closeAllPanels();
-            });
-        });
-
-        shell.addEventListener("keydown", (event) => {
+        document.addEventListener("keydown", (event) => {
             if (event.key !== "Escape") {
                 return;
             }
-            const hasOpenPanel = panels.some((panel) => panel.hasAttribute("open"));
+
+            const shell = document.querySelector("[data-at-action-shell='true']");
+            if (!shell) {
+                return;
+            }
+
+            const hasOpenPanel = Array.from(shell.querySelectorAll("[data-at-action-panel]")).some((panel) => panel.hasAttribute("open"));
             if (!hasOpenPanel) {
                 return;
             }
+
             event.preventDefault();
             event.stopPropagation();
-            closeAllPanels();
+            closeAllPanels(shell);
         });
     }
 

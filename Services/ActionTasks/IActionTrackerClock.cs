@@ -16,6 +16,9 @@ public interface IActionTrackerClock
 
     // SECTION: IstToday drives date-only business rules on the Indian calendar date.
     DateTime IstToday { get; }
+
+    // SECTION: ConvertUtcToIst centralizes display conversion for Action Tracker timestamps.
+    DateTime ConvertUtcToIst(DateTime utcDateTime) => IstClock.ToIst(utcDateTime);
 }
 
 public sealed class SystemActionTrackerClock : IActionTrackerClock
@@ -27,4 +30,6 @@ public sealed class SystemActionTrackerClock : IActionTrackerClock
     public DateTime IstNow => IstClock.ToIst(UtcNow);
 
     public DateTime IstToday => IstNow.Date;
+
+    public DateTime ConvertUtcToIst(DateTime utcDateTime) => IstClock.ToIst(utcDateTime);
 }

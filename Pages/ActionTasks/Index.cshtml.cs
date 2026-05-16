@@ -1031,7 +1031,7 @@ public class IndexModel : PageModel
         return RedirectToPage(new { ViewMode = "Planning", PlanningTab = "Close", SelectedSprintId = ClosureInput.SprintId });
     }
 
-    // SECTION: Post task progress update with optional attachments
+    // SECTION: Post task progress update with optional workflow status change.
     public async Task<IActionResult> OnPostAddUpdateAsync()
     {
         await ResolveIdentityAsync();
@@ -1044,14 +1044,55 @@ public class IndexModel : PageModel
 
         if (!ModelState.IsValid)
         {
-            TempData["ToastError"] = "Unable to post update. Please check the entered details and try again.";
+            TempData["ToastError"] = "Unable to save update. Please check the entered details and try again.";
+            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
+        }
+
+        var requestedStatus = UpdateInput.NewStatus?.Trim();
+        var hasStatusChange = !string.IsNullOrWhiteSpace(requestedStatus);
+        var hasProgressNote = !string.IsNullOrWhiteSpace(UpdateInput.Body);
+        var hasFiles = UpdateInput.Files?.Any(file => file.Length > 0) == true;
+
+        // SECTION: Important workflow transitions need human context in the progress timeline.
+        if (hasStatusChange
+            && (string.Equals(requestedStatus, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(requestedStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+            && !hasProgressNote)
+        {
+            TempData["ToastError"] = "Enter a progress note when blocking a task or submitting it for closure.";
+            return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
+        }
+
+        if (!hasProgressNote && !hasFiles && !hasStatusChange)
+        {
+            TempData["ToastError"] = "Enter a progress note, attach a file, or choose a status change.";
             return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
         }
 
         try
         {
-            await _collaborationService.AddUpdateAsync(UpdateInput.TaskId, UpdateInput.Body, ActionTaskUpdateTypes.Progress, CurrentUserId, CurrentRole, UpdateInput.Files);
-            TempData["ToastMessage"] = "Task update posted.";
+            if (hasProgressNote || hasFiles)
+            {
+                await _collaborationService.AddUpdateAsync(UpdateInput.TaskId, UpdateInput.Body, ActionTaskUpdateTypes.Progress, CurrentUserId, CurrentRole, UpdateInput.Files ?? new List<IFormFile>());
+            }
+
+            if (hasStatusChange)
+            {
+                if (string.Equals(requestedStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+                {
+                    await _service.SubmitTaskAsync(UpdateInput.TaskId, DecodeRowVersion(UpdateInput.RowVersion), CurrentUserId, CurrentRole, UpdateInput.Body);
+                }
+                else
+                {
+                    await _service.UpdateStatusAsync(UpdateInput.TaskId, DecodeRowVersion(UpdateInput.RowVersion), requestedStatus!, CurrentUserId, CurrentRole, UpdateInput.Body);
+                }
+            }
+
+            TempData["ToastMessage"] = hasStatusChange ? "Progress update saved and task status updated." : "Progress update saved.";
+        }
+        catch (ActionTaskConcurrencyException ex)
+        {
+            TempData["ToastError"] = ex.Message;
         }
         catch (InvalidOperationException ex)
         {
@@ -1745,8 +1786,14 @@ public class IndexModel : PageModel
         [Required]
         public int TaskId { get; set; }
 
+        [Required]
+        public string RowVersion { get; set; } = string.Empty;
+
         [StringLength(4000)]
         public string Body { get; set; } = string.Empty;
+
+        [Display(Name = "Change status")]
+        public string? NewStatus { get; set; }
 
         public List<IFormFile> Files { get; set; } = new();
     }
