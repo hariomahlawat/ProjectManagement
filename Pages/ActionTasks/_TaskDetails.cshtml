@@ -29,9 +29,11 @@
     var canOpenCloseAction = Model.SelectedTask is not null && !string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase) && Model.CanCloseTask(Model.SelectedTask);
     var canOpenChangeDateAction = Model.SelectedTask is not null && Model.CanChangeTaskDate(Model.SelectedTask);
     var canMoveTaskToBacklogAction = Model.SelectedTask is not null && Model.CanMoveTaskToBacklog(Model.SelectedTask);
+    var canRemoveFromSprintKeepAssignedAction = canMoveTaskToBacklogAction && Model.SelectedTask?.SprintId.HasValue == true;
     var hasWorkflowActions = !selectedTaskIsClosed && (canOpenStatusAction || canOpenSubmitAction || canOpenCloseAction);
-    var hasPlanningActions = !selectedTaskIsClosed && (canOpenChangeDateAction || canMoveTaskToBacklogAction);
-    var hasMoreActions = hasWorkflowActions || hasPlanningActions;
+    var hasPlanningActions = !selectedTaskIsClosed && (canOpenChangeDateAction || canRemoveFromSprintKeepAssignedAction);
+    var hasDangerActions = !selectedTaskIsClosed && canMoveTaskToBacklogAction;
+    var hasMoreActions = hasWorkflowActions || hasPlanningActions || hasDangerActions;
 }
 
 @* SECTION: Right-side task inspector drawer content. *@
@@ -459,7 +461,7 @@
                                     </div>
                                 }
 
-                                @* SECTION: Planning action group keeps schedule and sprint-placement actions together. *@
+                                @* SECTION: Planning action group keeps schedule and non-destructive sprint-placement actions together. *@
                                 @if (hasPlanningActions)
                                 {
                                     <div class="at-action-more-group" role="group" aria-label="Planning Actions">
@@ -468,40 +470,45 @@
                                         {
                                             <button type="button" class="btn btn-link btn-sm" data-at-open-action="change-date">Change @selectedTaskDateLabel Date</button>
                                         }
-                                        @if (canMoveTaskToBacklogAction)
+                                        @if (canRemoveFromSprintKeepAssignedAction)
                                         {
-                                            @if (Model.SelectedTask.SprintId.HasValue)
-                                            {
-                                                <form method="post" asp-page-handler="RemoveFromSprintKeepAssigned" class="at-card-action-form">
-                                                    <input type="hidden" name="ViewMode" value="Planning" />
-                                                    <input type="hidden" name="PlanningTab" value="Execute" />
-                                                    <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
-                                                    <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
-                                                    <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
-                                                    <button type="submit"
-                                                            class="btn btn-link btn-sm"
-                                                            data-at-confirm="true"
-                                                            data-at-confirm-title="Remove task from Sprint?"
-                                                            data-at-confirm-body="This will keep the assignee but remove the task from the selected sprint."
-                                                            data-at-confirm-cancel-label="Cancel"
-                                                            data-at-confirm-accept-label="Remove from Sprint">Remove from Sprint, Keep Assigned</button>
-                                                </form>
-                                            }
-                                            <form method="post" asp-page-handler="MoveToBacklogRemoveAssignee" class="at-card-action-form">
+                                            <form method="post" asp-page-handler="RemoveFromSprintKeepAssigned" class="at-card-action-form">
                                                 <input type="hidden" name="ViewMode" value="Planning" />
-                                                <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />
+                                                <input type="hidden" name="PlanningTab" value="Execute" />
                                                 <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
                                                 <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                                 <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
                                                 <button type="submit"
-                                                        class="btn btn-link btn-sm at-action-more-destructive"
+                                                        class="btn btn-link btn-sm"
                                                         data-at-confirm="true"
-                                                        data-at-confirm-title="Return task to Backlog?"
-                                                        data-at-confirm-body="This will remove the assignee and return the task to Backlog."
+                                                        data-at-confirm-title="Remove task from Sprint?"
+                                                        data-at-confirm-body="This will keep the assignee but remove the task from the selected sprint."
                                                         data-at-confirm-cancel-label="Cancel"
-                                                        data-at-confirm-accept-label="Return to Backlog">Move to Backlog, Remove Assignee</button>
+                                                        data-at-confirm-accept-label="Remove from Sprint">Remove from Sprint, Keep Assigned</button>
                                             </form>
                                         }
+                                    </div>
+                                }
+
+                                @* SECTION: Danger Zone separates destructive planning actions from routine planning controls. *@
+                                @if (hasDangerActions)
+                                {
+                                    <div class="at-action-more-group" role="group" aria-label="Danger Zone">
+                                        <div class="at-action-more-heading">Danger Zone</div>
+                                        <form method="post" asp-page-handler="MoveToBacklogRemoveAssignee" class="at-card-action-form">
+                                            <input type="hidden" name="ViewMode" value="Planning" />
+                                            <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />
+                                            <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                            <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
+                                            <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
+                                            <button type="submit"
+                                                    class="btn btn-link btn-sm at-action-more-destructive"
+                                                    data-at-confirm="true"
+                                                    data-at-confirm-title="Return task to Backlog?"
+                                                    data-at-confirm-body="This will remove the assignee and return the task to Backlog."
+                                                    data-at-confirm-cancel-label="Cancel"
+                                                    data-at-confirm-accept-label="Return to Backlog">Move to Backlog, Remove Assignee</button>
+                                        </form>
                                     </div>
                                 }
                             </div>
