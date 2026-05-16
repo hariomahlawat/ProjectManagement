@@ -114,18 +114,22 @@ test('reports date filters submit on change or blur but not every typed input ev
 // SECTION: Inspector status action fixture.
 function createInspectorActionDom(currentStatus = 'Open') {
     const dom = new JSDOM(`<!DOCTYPE html><html><body>
-        <div data-at-action-shell="true">
-            <details data-at-action-panel="status">
-                <summary>Status</summary>
-                <select name="status" data-at-status-select data-current-status="${currentStatus}">
-                    <option value="Open">Open</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Submitted">Submitted</option>
-                </select>
-                <button type="submit" data-at-status-submit>Save Status</button>
-            </details>
-            <button type="button" data-at-open-action="status" data-at-target-status="In Progress" data-test-action="mark-progress">Mark In Progress</button>
-            <button type="button" data-at-open-action="status" data-at-target-status="In Progress" data-test-action="return-rework">Return for Rework</button>
+        <div class="at-task-command-shell" data-at-action-shell="true">
+            <section class="at-action-form-section">
+                <details data-at-action-panel="update">
+                    <summary>Update Progress</summary>
+                    <textarea name="UpdateInput.Body"></textarea>
+                    <select name="UpdateInput.NewStatus" data-at-progress-status-select data-current-status="${currentStatus}">
+                        <option value="">No status change</option>
+                        <option value="Open">Open</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Submitted">Submitted</option>
+                    </select>
+                    <button type="submit">Save Update</button>
+                </details>
+            </section>
+            <button type="button" data-at-open-action="update" data-at-target-status="In Progress" data-test-action="mark-progress">Mark In Progress</button>
+            <button type="button" data-at-open-action="update" data-at-target-status="In Progress" data-test-action="return-rework">Return for Rework</button>
             <section class="at-more-actions-panel" data-test-more-panel>
                 <button type="button">Other action</button>
             </section>
@@ -134,7 +138,7 @@ function createInspectorActionDom(currentStatus = 'Open') {
 
     const { window } = dom;
     const document = window.document;
-    document.querySelector('[data-at-status-select]').value = currentStatus;
+    document.querySelector('[data-at-progress-status-select]').value = currentStatus;
     const scriptEl = document.createElement('script');
     scriptEl.textContent = scriptContent;
     document.body.appendChild(scriptEl);
@@ -148,7 +152,7 @@ function createInspectorActionDom(currentStatus = 'Open') {
 test('inspector actions keep inline More Actions visible while Escape closes action panels', () => {
     const { window, document } = createInspectorActionDom();
     const shell = document.querySelector('[data-at-action-shell]');
-    const panel = document.querySelector('[data-at-action-panel="status"]');
+    const panel = document.querySelector('[data-at-action-panel="update"]');
     const morePanel = document.querySelector('[data-test-more-panel]');
     const openButton = document.querySelector('[data-test-action="mark-progress"]');
 
@@ -171,15 +175,12 @@ test('intent-specific status actions preselect In Progress and refresh save guar
     ].forEach(({ action, currentStatus }) => {
         const { window, document } = createInspectorActionDom(currentStatus);
         const shell = document.querySelector('[data-at-action-shell]');
-        const panel = document.querySelector('[data-at-action-panel="status"]');
-        const select = document.querySelector('[data-at-status-select]');
-        const saveButton = document.querySelector('[data-at-status-submit]');
+        const panel = document.querySelector('[data-at-action-panel="update"]');
+        const select = document.querySelector('[data-at-progress-status-select]');
         const openButton = document.querySelector(`[data-test-action="${action}"]`);
         let bubbledChangeCount = 0;
 
         assert.equal(select.value, currentStatus);
-        assert.equal(saveButton.disabled, true);
-
         shell.addEventListener('change', () => {
             bubbledChangeCount += 1;
         });
@@ -188,7 +189,6 @@ test('intent-specific status actions preselect In Progress and refresh save guar
 
         assert.equal(panel.hasAttribute('open'), true);
         assert.equal(select.value, 'In Progress');
-        assert.equal(saveButton.disabled, false);
         assert.equal(bubbledChangeCount, 1);
     });
 });

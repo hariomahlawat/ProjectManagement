@@ -58,7 +58,7 @@
                     <a class="btn btn-primary btn-sm at-mywork-primary-action"
                        asp-page="/ActionTasks/Index"
                        asp-route-taskId="@task.Id"
-                       asp-route-viewMode="@pageModel.ResolvedViewMode">Add Update</a>
+                       asp-route-viewMode="@pageModel.ResolvedViewMode">Update Progress</a>
                 }
                 else if (isSubmitted)
                 {
@@ -85,7 +85,7 @@
                     <a class="btn btn-link btn-sm at-mywork-secondary-action"
                        asp-page="/ActionTasks/Index"
                        asp-route-taskId="@task.Id"
-                       asp-route-viewMode="@pageModel.ResolvedViewMode">Add Update</a>
+                       asp-route-viewMode="@pageModel.ResolvedViewMode">Update Progress</a>
                 }
 
                 @if (!isSubmitted)
