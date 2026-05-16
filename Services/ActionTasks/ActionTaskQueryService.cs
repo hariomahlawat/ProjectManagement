@@ -386,18 +386,64 @@ public sealed class ActionTaskQueryService
 
     public sealed class ActionTaskReportReadModel
     {
+        public ActionTaskReportSummary WorkloadSummary { get; init; } = new();
+        public IReadOnlyList<CountSummary> BucketDistribution { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<ResponsiblePersonWorkloadSummary> ResponsiblePersonWorkloads { get; init; } = Array.Empty<ResponsiblePersonWorkloadSummary>();
+        public IReadOnlyList<CountSummary> BacklogAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<CountSummary> AssignedTaskAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<CountSummary> OverdueAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<CountSummary> SubmittedPendingClosureAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<SprintPerformanceSummary> SprintPerformanceRows { get; init; } = Array.Empty<SprintPerformanceSummary>();
+        public IReadOnlyList<InvalidTaskStateSummary> InvalidStateRows { get; init; } = Array.Empty<InvalidTaskStateSummary>();
+        public IReadOnlyList<CountSummary> OutsideSprintWorkloadCounts { get; init; } = Array.Empty<CountSummary>();
+
+        // SECTION: Legacy report summaries are retained for existing page helpers and tests during Reports cleanup.
         public IReadOnlyList<CountSummary> AssigneePendingCounts { get; init; } = Array.Empty<CountSummary>();
         public IReadOnlyList<CountSummary> PriorityCounts { get; init; } = Array.Empty<CountSummary>();
         public IReadOnlyList<CountSummary> StatusCounts { get; init; } = Array.Empty<CountSummary>();
         public IReadOnlyList<CountSummary> OpenAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
-        public IReadOnlyList<CountSummary> OverdueAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
-        public IReadOnlyList<CountSummary> SubmittedPendingClosureAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
-        public IReadOnlyList<CountSummary> BacklogAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
-        public IReadOnlyList<CountSummary> NonSprintAssignedWorkloadCounts { get; init; } = Array.Empty<CountSummary>();
         public IReadOnlyList<CountSummary> CarryForwardBySprint { get; init; } = Array.Empty<CountSummary>();
         public IReadOnlyList<CountSummary> BlockedAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
         public int TotalTaskCount { get; init; }
         public int FilteredTaskCount { get; init; }
     }
+
+    public sealed class ActionTaskReportSummary
+    {
+        public int OpenTasks { get; init; }
+        public int Overdue { get; init; }
+        public int Blocked { get; init; }
+        public int PendingClosure { get; init; }
+        public int BacklogItems { get; init; }
+    }
+
+    public sealed class ResponsiblePersonWorkloadSummary
+    {
+        public string ResponsiblePerson { get; init; } = string.Empty;
+        public int Open { get; init; }
+        public int Overdue { get; init; }
+        public int Blocked { get; init; }
+        public int InProgress { get; init; }
+        public int Submitted { get; init; }
+        public int Critical { get; init; }
+    }
+
+    public sealed class SprintPerformanceSummary
+    {
+        public string Sprint { get; init; } = string.Empty;
+        public string Status { get; init; } = string.Empty;
+        public int Open { get; init; }
+        public int Closed { get; init; }
+        public int CarriedForward { get; init; }
+        public int OverdueAtClosure { get; init; }
+    }
+
+    public sealed class InvalidTaskStateSummary
+    {
+        public string Task { get; init; } = string.Empty;
+        public string Issue { get; init; } = string.Empty;
+        public string SuggestedCorrection { get; init; } = string.Empty;
+    }
+
     public sealed record CountSummary(string Name, int Count);
 }

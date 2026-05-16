@@ -90,7 +90,13 @@ public class IndexModel : PageModel
     public IReadOnlyList<CountSummary> OpenAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> OverdueAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> BacklogAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
-    public IReadOnlyList<CountSummary> NonSprintAssignedWorkloadCounts { get; private set; } = Array.Empty<CountSummary>();
+    public IReadOnlyList<CountSummary> AssignedTaskAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
+    public IReadOnlyList<CountSummary> BucketDistribution { get; private set; } = Array.Empty<CountSummary>();
+    public IReadOnlyList<ResponsibleWorkloadSummary> ResponsiblePersonWorkloads { get; private set; } = Array.Empty<ResponsibleWorkloadSummary>();
+    public IReadOnlyList<CountSummary> OutsideSprintWorkloadCounts { get; private set; } = Array.Empty<CountSummary>();
+    public IReadOnlyList<SprintPerformanceSummary> SprintPerformanceRows { get; private set; } = Array.Empty<SprintPerformanceSummary>();
+    public IReadOnlyList<InvalidTaskStateSummary> InvalidStateRows { get; private set; } = Array.Empty<InvalidTaskStateSummary>();
+    public ActionTaskReportSummary WorkloadSummary { get; private set; } = new();
     public IReadOnlyList<CountSummary> CarryForwardBySprint { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<CountSummary> BlockedAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
     public int ReportFilteredTaskCount { get; private set; }
@@ -369,7 +375,7 @@ public class IndexModel : PageModel
         => ActionTaskCategorization.ResolveCategory(task) switch
         {
             ActionTaskWorkCategory.Sprint => ResolveSprintName(task.SprintId),
-            ActionTaskWorkCategory.OutsideSprint or ActionTaskWorkCategory.NonSprint => "Outside Sprint",
+            ActionTaskWorkCategory.OutsideSprint => "Outside Sprint",
             ActionTaskWorkCategory.Closed => "Closed",
             ActionTaskWorkCategory.Invalid => "Invalid State",
             _ => "Backlog"
@@ -379,7 +385,7 @@ public class IndexModel : PageModel
         => ActionTaskCategorization.ResolveCategory(task) switch
         {
             ActionTaskWorkCategory.Sprint => "at-scope-badge at-scope-badge-sprint",
-            ActionTaskWorkCategory.OutsideSprint or ActionTaskWorkCategory.NonSprint => "at-scope-badge at-scope-badge-outside-sprint",
+            ActionTaskWorkCategory.OutsideSprint => "at-scope-badge at-scope-badge-outside-sprint",
             ActionTaskWorkCategory.Closed => "at-scope-badge at-scope-badge-closed",
             ActionTaskWorkCategory.Invalid => "at-scope-badge at-scope-badge-invalid",
             _ => "at-scope-badge at-scope-badge-backlog"
@@ -995,7 +1001,13 @@ public class IndexModel : PageModel
         OverdueAgeingBuckets = readModel.Reports.OverdueAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         SubmittedPendingClosureAgeingBuckets = readModel.Reports.SubmittedPendingClosureAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         BacklogAgeingBuckets = readModel.Reports.BacklogAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
-        NonSprintAssignedWorkloadCounts = readModel.Reports.NonSprintAssignedWorkloadCounts.Select(x => new CountSummary(x.Name, x.Count)).ToList();
+        AssignedTaskAgeingBuckets = readModel.Reports.AssignedTaskAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
+        BucketDistribution = readModel.Reports.BucketDistribution.Select(x => new CountSummary(x.Name, x.Count)).ToList();
+        ResponsiblePersonWorkloads = readModel.Reports.ResponsiblePersonWorkloads.Select(x => new ResponsibleWorkloadSummary(x.ResponsiblePerson, x.Open, x.Overdue, x.Blocked, x.InProgress, x.Submitted, x.Critical)).ToList();
+        OutsideSprintWorkloadCounts = readModel.Reports.OutsideSprintWorkloadCounts.Select(x => new CountSummary(x.Name, x.Count)).ToList();
+        SprintPerformanceRows = readModel.Reports.SprintPerformanceRows.Select(x => new SprintPerformanceSummary(x.Sprint, x.Status, x.Open, x.Closed, x.CarriedForward, x.OverdueAtClosure)).ToList();
+        InvalidStateRows = readModel.Reports.InvalidStateRows.Select(x => new InvalidTaskStateSummary(x.Task, x.Issue, x.SuggestedCorrection)).ToList();
+        WorkloadSummary = new ActionTaskReportSummary(readModel.Reports.WorkloadSummary.OpenTasks, readModel.Reports.WorkloadSummary.Overdue, readModel.Reports.WorkloadSummary.Blocked, readModel.Reports.WorkloadSummary.PendingClosure, readModel.Reports.WorkloadSummary.BacklogItems);
         CarryForwardBySprint = readModel.Reports.CarryForwardBySprint.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         BlockedAgeingBuckets = readModel.Reports.BlockedAgeingBuckets.Select(x => new CountSummary(x.Name, x.Count)).ToList();
         ReportFilteredTaskCount = readModel.Reports.FilteredTaskCount;
@@ -1230,7 +1242,8 @@ public class IndexModel : PageModel
     public int OpenAgeingBucketsMax => OpenAgeingBuckets.Count == 0 ? 0 : OpenAgeingBuckets.Max(x => x.Count);
     public int OverdueAgeingBucketsMax => OverdueAgeingBuckets.Count == 0 ? 0 : OverdueAgeingBuckets.Max(x => x.Count);
     public int BacklogAgeingBucketsMax => BacklogAgeingBuckets.Count == 0 ? 0 : BacklogAgeingBuckets.Max(x => x.Count);
-    public int NonSprintAssignedWorkloadCountsMax => NonSprintAssignedWorkloadCounts.Count == 0 ? 0 : NonSprintAssignedWorkloadCounts.Max(x => x.Count);
+    public int AssignedTaskAgeingBucketsMax => AssignedTaskAgeingBuckets.Count == 0 ? 0 : AssignedTaskAgeingBuckets.Max(x => x.Count);
+    public int OutsideSprintWorkloadCountsMax => OutsideSprintWorkloadCounts.Count == 0 ? 0 : OutsideSprintWorkloadCounts.Max(x => x.Count);
     public int CarryForwardBySprintMax => CarryForwardBySprint.Count == 0 ? 0 : CarryForwardBySprint.Max(x => x.Count);
     public int BlockedAgeingBucketsMax => BlockedAgeingBuckets.Count == 0 ? 0 : BlockedAgeingBuckets.Max(x => x.Count);
     public int ActiveCriticalCount => CommandCentreSummary.ActiveCriticalCount;
@@ -1597,6 +1610,10 @@ public class IndexModel : PageModel
     }
 
     public sealed record CountSummary(string Name, int Count);
+    public sealed record ActionTaskReportSummary(int OpenTasks = 0, int Overdue = 0, int Blocked = 0, int PendingClosure = 0, int BacklogItems = 0);
+    public sealed record ResponsibleWorkloadSummary(string ResponsiblePerson, int Open, int Overdue, int Blocked, int InProgress, int Submitted, int Critical);
+    public sealed record SprintPerformanceSummary(string Sprint, string Status, int Open, int Closed, int CarriedForward, int OverdueAtClosure);
+    public sealed record InvalidTaskStateSummary(string Task, string Issue, string SuggestedCorrection);
     public sealed class TaskDisplayItem
     {
         public ActionTaskItem Task { get; init; } = default!;
