@@ -3949,16 +3949,18 @@ html {
 .at-action-more-list {
     position: absolute;
     right: 0;
-    bottom: calc(100% + 0.35rem);
-    z-index: 20;
+    bottom: calc(100% + 0.45rem);
+    z-index: 50;
     display: grid;
     gap: 0.25rem;
-    min-width: 13.5rem;
+    width: max-content;
+    min-width: 17rem;
+    max-width: min(24rem, calc(100vw - 2rem));
     padding: 0.35rem 0;
     background: var(--at-surface);
     border: 1px solid var(--at-border);
     border-radius: var(--at-radius-md);
-    box-shadow: var(--at-shadow-sm);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
 }
 
 .at-action-more-group {
@@ -3988,8 +3990,10 @@ html {
     width: 100%;
     padding: 0.2rem 0.75rem;
     color: var(--at-text);
+    line-height: 1.25;
     text-align: left;
     text-decoration: none;
+    white-space: normal;
 }
 
 .at-action-more-list .btn-link:hover,
