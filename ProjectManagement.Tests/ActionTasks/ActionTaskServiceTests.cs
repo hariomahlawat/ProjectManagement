@@ -14,7 +14,7 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         await using var db = CreateDb();
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var service = CreateService(db);
         var task = await service.CreateTaskAsync(new ActionTaskItem
         {
             Title = "Task A",
@@ -44,7 +44,7 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         await using var db = CreateDb();
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var service = CreateService(db);
         var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress, "assignee");
 
         // SECTION: Act + Assert
@@ -89,7 +89,7 @@ public class ActionTaskServiceTests
             await concurrentDb.SaveChangesAsync();
         }
 
-        var service = new ActionTaskService(staleDb, new ActionTaskPermissionService());
+        var service = CreateService(staleDb);
 
         // SECTION: Act + Assert
         await Assert.ThrowsAsync<ActionTaskConcurrencyException>(() =>
@@ -101,7 +101,7 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         await using var db = CreateDb();
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var service = CreateService(db);
         var task = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "owner");
 
         // SECTION: Act + Assert
@@ -118,7 +118,7 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         await using var db = CreateDb();
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var service = CreateService(db);
 
         // SECTION: Act
         var task = await service.CreateBacklogItemAsync(new ActionTaskItem
@@ -150,7 +150,7 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         await using var db = CreateDb();
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var service = CreateService(db);
 
         // SECTION: Act
         var task = await service.CreateTaskAsync(new ActionTaskItem
@@ -187,7 +187,7 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         await using var db = CreateDb();
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var service = CreateService(db);
         var task = await service.CreateBacklogItemAsync(new ActionTaskItem
         {
             Title = "Backlog",
@@ -208,7 +208,7 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         await using var db = CreateDb();
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var service = CreateService(db);
         var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress, "assignee");
 
         // SECTION: Act + Assert
@@ -222,9 +222,9 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         await using var db = CreateDb();
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var service = CreateService(db);
         var task = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
-        var newDate = DateTime.UtcNow.Date.AddDays(5);
+        var newDate = TestActionTrackerClock.FixedToday.AddDays(5);
 
         // SECTION: Act
         await service.UpdateTaskDateAsync(task.Id, task.RowVersion, newDate, "planner", RoleNames.Comdt);
@@ -239,9 +239,9 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         await using var db = CreateDb();
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var service = CreateService(db);
         var task = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
-        var newDate = DateTime.UtcNow.Date.AddDays(5);
+        var newDate = TestActionTrackerClock.FixedToday.AddDays(5);
 
         // SECTION: Act
         await service.UpdateTaskDateAsync(task.Id, task.RowVersion, newDate, "planner", RoleNames.HoD);
@@ -256,12 +256,12 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         await using var db = CreateDb();
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var service = CreateService(db);
         var task = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
 
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.UpdateTaskDateAsync(task.Id, task.RowVersion, DateTime.UtcNow.Date.AddDays(3), "assignee", RoleNames.Ta));
+            service.UpdateTaskDateAsync(task.Id, task.RowVersion, TestActionTrackerClock.FixedToday.AddDays(3), "assignee", RoleNames.Ta));
         Assert.Contains("not authorized", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -270,14 +270,14 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         await using var db = CreateDb();
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var service = CreateService(db);
         var task = await SeedTaskAsync(db, ActionTaskStatuses.Closed, "assignee");
         task.ClosedOn = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.UpdateTaskDateAsync(task.Id, task.RowVersion, DateTime.UtcNow.Date.AddDays(3), "planner", RoleNames.HoD));
+            service.UpdateTaskDateAsync(task.Id, task.RowVersion, TestActionTrackerClock.FixedToday.AddDays(3), "planner", RoleNames.HoD));
         Assert.Contains("Closed tasks", ex.Message);
     }
 
@@ -286,12 +286,12 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         await using var db = CreateDb();
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var service = CreateService(db);
         var task = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
 
         // SECTION: Act + Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.UpdateTaskDateAsync(task.Id, task.RowVersion, DateTime.UtcNow.Date.AddDays(-1), "planner", RoleNames.Comdt));
+            service.UpdateTaskDateAsync(task.Id, task.RowVersion, TestActionTrackerClock.FixedToday.AddDays(-1), "planner", RoleNames.Comdt));
         Assert.Contains("past", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -300,8 +300,8 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         await using var db = CreateDb();
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
-        var originalTargetDate = DateTime.UtcNow.Date.AddDays(2);
+        var service = CreateService(db);
+        var originalTargetDate = TestActionTrackerClock.FixedToday.AddDays(2);
         var backlog = await service.CreateBacklogItemAsync(new ActionTaskItem
         {
             Title = "Backlog",
@@ -311,7 +311,7 @@ public class ActionTaskServiceTests
             DueDate = originalTargetDate,
             Priority = "Normal"
         });
-        var newDate = DateTime.UtcNow.Date.AddDays(6);
+        var newDate = TestActionTrackerClock.FixedToday.AddDays(6);
 
         // SECTION: Act
         await service.UpdateTaskDateAsync(backlog.Id, backlog.RowVersion, newDate, "planner", RoleNames.HoD);
@@ -329,10 +329,10 @@ public class ActionTaskServiceTests
     {
         // SECTION: Arrange
         await using var db = CreateDb();
-        var service = new ActionTaskService(db, new ActionTaskPermissionService());
+        var service = CreateService(db);
         var assigned = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
         var oldDate = assigned.DueDate.Date;
-        var newDate = DateTime.UtcNow.Date.AddDays(7);
+        var newDate = TestActionTrackerClock.FixedToday.AddDays(7);
 
         // SECTION: Act
         await service.UpdateTaskDateAsync(assigned.Id, assigned.RowVersion, newDate, "planner", RoleNames.Comdt);
@@ -365,12 +365,17 @@ public class ActionTaskServiceTests
             await concurrentDb.SaveChangesAsync();
         }
 
-        var service = new ActionTaskService(staleDb, new ActionTaskPermissionService());
+        var service = CreateService(staleDb);
 
         // SECTION: Act + Assert
         await Assert.ThrowsAsync<ActionTaskConcurrencyException>(() =>
-            service.UpdateTaskDateAsync(task.Id, staleRowVersion, DateTime.UtcNow.Date.AddDays(8), "planner", RoleNames.HoD));
+            service.UpdateTaskDateAsync(task.Id, staleRowVersion, TestActionTrackerClock.FixedToday.AddDays(8), "planner", RoleNames.HoD));
     }
+
+
+    // SECTION: Test service helpers
+    private static ActionTaskService CreateService(ApplicationDbContext db)
+        => new(db, new ActionTaskPermissionService(), new TestActionTrackerClock());
 
     private static ApplicationDbContext CreateDb()
         => CreateDb(Guid.NewGuid().ToString(), new InMemoryDatabaseRoot());
@@ -403,5 +408,14 @@ public class ActionTaskServiceTests
         db.ActionTasks.Add(task);
         await db.SaveChangesAsync();
         return task;
+    }
+
+    private sealed class TestActionTrackerClock : IActionTrackerClock
+    {
+        public static readonly DateTime FixedToday = new(2030, 1, 15);
+
+        public DateTime UtcNow => FixedToday.AddHours(12);
+
+        public DateTime UtcToday => FixedToday;
     }
 }

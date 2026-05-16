@@ -13,11 +13,13 @@ public class ActionTaskService : IActionTaskService
 {
     private readonly ApplicationDbContext _context;
     private readonly ActionTaskPermissionService _permission;
+    private readonly IActionTrackerClock _clock;
 
-    public ActionTaskService(ApplicationDbContext context, ActionTaskPermissionService permission)
+    public ActionTaskService(ApplicationDbContext context, ActionTaskPermissionService permission, IActionTrackerClock clock)
     {
         _context = context;
         _permission = permission;
+        _clock = clock;
     }
 
     // SECTION: Task read APIs
@@ -367,7 +369,7 @@ public class ActionTaskService : IActionTaskService
         }
 
         var normalizedNewDate = newDate.Date;
-        if (normalizedNewDate < DateTime.UtcNow.Date)
+        if (normalizedNewDate < _clock.UtcToday)
         {
             throw new InvalidOperationException("Task date cannot be in the past.");
         }

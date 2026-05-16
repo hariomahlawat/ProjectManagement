@@ -1805,9 +1805,9 @@ public class ActionTaskPageTests
 
         // SECTION: Action task page services
         var permission = new ActionTaskPermissionService();
-        var service = new ActionTaskService(db, permission);
         var collab = new StubCollabService();
         var clock = new SystemActionTrackerClock();
+        var service = new ActionTaskService(db, permission, clock);
         var queryService = new ActionTaskQueryService(clock, new ActionTaskReportBuilder(clock));
         var workflowPolicy = new ActionTaskWorkflowPolicy(permission);
         var sprintWorkflowPolicy = new ActionSprintWorkflowPolicy();
