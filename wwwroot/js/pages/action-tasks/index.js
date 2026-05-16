@@ -246,27 +246,43 @@
         });
     }
 
-    // SECTION: Create modal choice flow keeps only one selected form open at a time.
+    // SECTION: Create modal segmented-control flow keeps one server-rendered form active at a time.
     function initCreateTaskChoiceFlow() {
         const group = document.querySelector("[data-at-create-choice-group='true']");
         if (!group) {
             return;
         }
 
-        const choices = Array.from(group.querySelectorAll("details[data-at-create-choice='true']"));
-        choices.forEach((choice) => {
-            choice.addEventListener("toggle", () => {
-                if (!choice.open) {
-                    return;
-                }
+        const buttons = Array.from(group.querySelectorAll("[data-at-create-mode-button]"));
+        const panels = Array.from(group.querySelectorAll("[data-at-create-mode-panel]"));
+        if (!buttons.length || !panels.length) {
+            return;
+        }
 
-                choices.forEach((candidate) => {
-                    if (candidate !== choice) {
-                        candidate.removeAttribute("open");
-                    }
-                });
+        function activateMode(mode) {
+            buttons.forEach((button) => {
+                const isActive = button.getAttribute("data-at-create-mode-button") === mode;
+                button.classList.toggle("is-active", isActive);
+                button.setAttribute("aria-selected", isActive ? "true" : "false");
+            });
+
+            panels.forEach((panel) => {
+                const isActive = panel.getAttribute("data-at-create-mode-panel") === mode;
+                panel.hidden = !isActive;
+            });
+        }
+
+        buttons.forEach((button) => {
+            button.addEventListener("click", () => {
+                const mode = button.getAttribute("data-at-create-mode-button");
+                if (mode) {
+                    activateMode(mode);
+                }
             });
         });
+
+        const initiallySelected = buttons.find((button) => button.getAttribute("aria-selected") === "true") || buttons[0];
+        activateMode(initiallySelected.getAttribute("data-at-create-mode-button"));
     }
 
     // SECTION: Confirmation prompts for destructive bucket moves remain CSP-safe through data attributes.

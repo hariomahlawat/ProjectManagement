@@ -167,6 +167,10 @@ public class IndexModel : PageModel
     public string CurrentRole { get; private set; } = string.Empty;
     public string CurrentUserId { get; private set; } = string.Empty;
     public bool ShowCreateModal { get; private set; }
+
+    [BindProperty]
+    public string CreateMode { get; set; } = "backlog";
+
     public bool ShowCreateSprintPanel { get; private set; }
     public bool ShowEditSprintPanel { get; private set; }
     public bool ShowCreateNextSprintPanel { get; private set; }
@@ -524,7 +528,7 @@ public class IndexModel : PageModel
 
         if (string.IsNullOrWhiteSpace(DirectTaskInput.AssignedToUserId))
         {
-            ModelState.AddModelError(nameof(DirectTaskInput.AssignedToUserId), "Select a responsible person for a direct task.");
+            ModelState.AddModelError(nameof(DirectTaskInput.AssignedToUserId), "Select an assignee for a direct task.");
         }
 
         if (DirectTaskInput.DueDate.Date < _clock.UtcToday)
@@ -1568,7 +1572,7 @@ public class IndexModel : PageModel
         [Required, StringLength(4000)]
         public string Description { get; set; } = string.Empty;
 
-        [Display(Name = "Responsible Person")]
+        [Display(Name = "Assignee")]
         public string AssignedToUserId { get; set; } = string.Empty;
 
         [Display(Name = "Due Date")]

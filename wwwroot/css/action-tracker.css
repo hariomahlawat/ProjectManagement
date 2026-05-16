@@ -165,6 +165,80 @@ html {
     font-size: var(--at-font-sm);
 }
 
+
+/* SECTION: Create modal segmented mode selector */
+.at-create-choice-grid {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.at-create-mode-selector {
+    display: inline-grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.25rem;
+    width: 100%;
+    padding: 0.25rem;
+    border: 1px solid var(--at-border);
+    border-radius: 999px;
+    background: var(--at-surface-soft);
+}
+
+.at-create-mode-button {
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
+    line-height: 1.2;
+    padding: 0.55rem 0.8rem;
+    transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.at-create-mode-button:hover,
+.at-create-mode-button:focus-visible {
+    color: var(--at-text);
+    background: rgba(37, 99, 235, 0.08);
+}
+
+.at-create-mode-button:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, 0.25);
+    outline-offset: 2px;
+}
+
+.at-create-mode-button.is-active {
+    color: #1d4ed8;
+    background: var(--at-surface);
+    box-shadow: var(--at-shadow-sm);
+}
+
+.at-create-flow-panel {
+    border: 1px solid var(--at-border);
+    border-radius: var(--at-radius-lg);
+    background: var(--at-surface);
+    padding: 0.95rem;
+}
+
+.at-create-flow-panel[hidden] {
+    display: none;
+}
+
+.at-create-flow-form {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.at-create-flow-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.at-panel-note {
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    margin: 0 0 0.85rem;
+}
+
 /* SECTION: Inspector collaboration helper text and attachment rows */
 .at-helper-text {
     color: var(--at-muted);

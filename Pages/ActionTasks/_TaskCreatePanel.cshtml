@@ -1,6 +1,11 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
+@{
+    var activeCreateMode = string.Equals(Model.CreateMode, "direct", StringComparison.OrdinalIgnoreCase) ? "direct" : "backlog";
+    var isBacklogCreateMode = activeCreateMode == "backlog";
+    var isDirectCreateMode = activeCreateMode == "direct";
+}
 
-@* SECTION: Create-task modal starts with a two-choice flow, then reveals only the selected form without inline scripts. *@
+@* SECTION: Create-task modal starts with a segmented two-choice flow, then reveals only the selected form without inline scripts. *@
 <div class="modal fade" id="createTaskModal" tabindex="-1" aria-labelledby="createTaskModalLabel" aria-hidden="true" data-bs-backdrop="static" data-at-open-on-load="@(Model.ShowCreateModal ? "true" : "false")">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
@@ -14,15 +19,19 @@
                     <div asp-validation-summary="All" class="alert alert-danger mb-3"></div>
                 }
 
-                @* SECTION: Choice screen keeps backlog capture separate from direct assigned work. *@
+                @* SECTION: Segmented create-mode selector keeps backlog capture separate from direct assigned work. *@
                 <div class="at-create-choice-grid" data-at-create-choice-group="true" aria-label="Choose work type">
-                    <details class="at-create-flow-panel at-create-choice-panel" data-at-create-choice="true">
-                        <summary class="btn btn-outline-primary w-100">Create Backlog Item</summary>
-                        <p class="at-panel-note mt-2">Capture future work without assigning a responsible person or sprint.</p>
+                    <div class="at-create-mode-selector" role="tablist" aria-label="Create mode">
+                        <button type="button" class="at-create-mode-button@(isBacklogCreateMode ? " is-active" : string.Empty)" id="at-create-mode-backlog-tab" role="tab" aria-selected="@(isBacklogCreateMode ? "true" : "false")" aria-controls="at-create-mode-backlog-panel" data-at-create-mode-button="backlog">Backlog Item</button>
+                        <button type="button" class="at-create-mode-button@(isDirectCreateMode ? " is-active" : string.Empty)" id="at-create-mode-direct-tab" role="tab" aria-selected="@(isDirectCreateMode ? "true" : "false")" aria-controls="at-create-mode-direct-panel" data-at-create-mode-button="direct">Direct Task</button>
+                    </div>
 
-                        @* SECTION: Backlog item form intentionally has unique model-bound IDs and no assignee fields. *@
+                    @* SECTION: Backlog item form intentionally has unique model-bound IDs and no assignee fields. *@
+                    <section class="at-create-flow-panel" id="at-create-mode-backlog-panel" role="tabpanel" aria-labelledby="at-create-mode-backlog-tab" data-at-create-mode-panel="backlog" hidden="@(!isBacklogCreateMode)">
+                        <p class="at-panel-note">Capture future work without assigning it now.</p>
                         <form method="post" asp-page-handler="CreateBacklogItem" class="at-create-flow-form">
                             <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                            <input type="hidden" name="CreateMode" value="backlog" />
                             <div class="row g-3">
                                 <div class="col-md-5">
                                     <label asp-for="BacklogItemInput.Title" class="form-label"></label>
@@ -51,18 +60,17 @@
                                 </div>
                             </div>
                             <div class="at-create-flow-actions">
-                                <button type="submit" class="btn btn-primary">Create Backlog Item</button>
+                                <button type="submit" class="btn btn-primary">Save Backlog Item</button>
                             </div>
                         </form>
-                    </details>
+                    </section>
 
-                    <details class="at-create-flow-panel at-create-choice-panel" data-at-create-choice="true">
-                        <summary class="btn btn-outline-primary w-100">Create Direct Task</summary>
-                        <p class="at-panel-note mt-2">Assign to a responsible person now. It remains Outside Sprint until added to a sprint.</p>
-
-                        @* SECTION: Direct task form uses its own input model so generated HTML IDs are unique. *@
+                    @* SECTION: Direct task form uses its own input model so generated HTML IDs are unique. *@
+                    <section class="at-create-flow-panel" id="at-create-mode-direct-panel" role="tabpanel" aria-labelledby="at-create-mode-direct-tab" data-at-create-mode-panel="direct" hidden="@(!isDirectCreateMode)">
+                        <p class="at-panel-note">Assign work to a person now. It remains outside sprint until added to a sprint.</p>
                         <form method="post" asp-page-handler="CreateDirectTask" class="at-create-flow-form">
                             <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                            <input type="hidden" name="CreateMode" value="direct" />
                             <div class="row g-3">
                                 <div class="col-md-5">
                                     <label asp-for="DirectTaskInput.Title" class="form-label"></label>
@@ -76,8 +84,8 @@
                                 </div>
                                 <div class="col-12">
                                     <label asp-for="DirectTaskInput.AssignedToUserId" class="form-label"></label>
-                                    <select asp-for="DirectTaskInput.AssignedToUserId" class="form-select at-searchable-select" data-at-searchable-select="true" data-at-placeholder="Select responsible person" required>
-                                        <option value="">Select user</option>
+                                    <select asp-for="DirectTaskInput.AssignedToUserId" class="form-select at-searchable-select" data-at-searchable-select="true" data-at-placeholder="[Select user]" required>
+                                        <option value="">[Select user]</option>
                                         @foreach (var user in Model.AssignableUsers)
                                         {
                                             <option value="@user.UserId">@user.DisplayName</option>
@@ -102,10 +110,10 @@
                                 </div>
                             </div>
                             <div class="at-create-flow-actions">
-                                <button type="submit" class="btn btn-primary">Create Direct Task</button>
+                                <button type="submit" class="btn btn-primary">Create Task</button>
                             </div>
                         </form>
-                    </details>
+                    </section>
                 </div>
             </div>
             <div class="modal-footer">
