@@ -228,6 +228,7 @@ public class IndexModel : PageModel
     public IReadOnlyList<string> RegisterStatusOptions => _workflowPolicy.AllowedStatusOptions.Concat(new[] { ActionTaskStatuses.Submitted, ActionTaskStatuses.Closed, ActionTaskStatuses.Backlog }).ToList();
     public IReadOnlyList<string> PriorityOptions => _workflowPolicy.PriorityOptions;
     public bool CanPlanSprints => _permission.CanManageSprints(CurrentRole);
+    public bool CanFilterByAssignee => _permission.CanViewAll(CurrentRole);
     public IReadOnlyList<ActionSprint> AssignableSprints => Sprints.Where(s => s.Status != ActionSprintStatus.Closed).ToList();
     public IReadOnlyList<ActionSprint> ClosureTargetSprints => SprintClosureReview.TargetSprintOptions;
     public bool CanActivateSelectedSprint => CanPlanSprints && SelectedSprint?.Status == ActionSprintStatus.Planned;
@@ -260,6 +261,7 @@ public class IndexModel : PageModel
             "OutsideSprint" => "Outside Sprint",
             "Sprint" => "Sprint",
             "Closed" => "Closed",
+            "Invalid" => "Invalid State",
             _ => bucket
         };
     public bool CanMoveTaskToBacklog(ActionTaskItem task)
