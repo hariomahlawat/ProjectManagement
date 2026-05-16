@@ -294,7 +294,9 @@ public class ActionTaskQueryServiceSprintMetricsTests
             new Dictionary<int, DateTime?>());
 
         // SECTION: Assert
-        Assert.Equal(1, model.Reports.SprintPerformanceRows.Single().ClosedLate);
+        var row = model.Reports.SprintPerformanceRows.Single();
+        Assert.Equal(1, row.ClosedLate);
+        Assert.Equal(0, row.Unfinished);
     }
 
     [Fact]
@@ -317,6 +319,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
         // SECTION: Assert
         var row = model.Reports.SprintPerformanceRows.Single();
         Assert.Equal(1, row.OverdueNow);
+        Assert.Equal(2, row.Unfinished);
         Assert.Equal(0, row.ClosedLate);
     }
 

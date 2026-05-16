@@ -3338,14 +3338,16 @@ html {
 .at-reports-filter-panel {
     display: flex;
     flex-direction: column;
-    gap: .85rem;
+    gap: .55rem;
+    padding-block: .85rem;
 }
 
 .at-reports-filter-heading {
-    align-items: flex-start;
+    align-items: center;
     display: flex;
-    gap: 1rem;
-    justify-content: space-between;
+    gap: .75rem;
+    justify-content: flex-end;
+    min-height: 0;
 }
 
 .at-report-filter-summary {
@@ -3361,7 +3363,7 @@ html {
 
 .at-reports-filter-grid {
     display: grid;
-    gap: .65rem;
+    gap: .5rem;
     grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
@@ -3369,9 +3371,9 @@ html {
     color: #475569;
     display: flex;
     flex-direction: column;
-    font-size: .74rem;
+    font-size: .72rem;
     font-weight: 800;
-    gap: .25rem;
+    gap: .18rem;
     letter-spacing: .02em;
     text-transform: uppercase;
 }
@@ -3554,9 +3556,15 @@ html {
 }
 
 .at-active-sprint-exceptions {
-    display: grid;
-    gap: 0.55rem;
+    display: block;
     margin-top: 0.7rem;
+}
+
+.at-active-sprint-exception-grid {
+    display: grid;
+    gap: 0.7rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 0.75rem;
 }
 
 .at-active-sprint-exceptions h3 {
@@ -3850,4 +3858,10 @@ html {
 .at-pending-closure-inline span {
     font-size: var(--at-font-sm);
     font-weight: 650;
+}
+
+@media (max-width: 991.98px) {
+    .at-active-sprint-exception-grid {
+        grid-template-columns: 1fr;
+    }
 }

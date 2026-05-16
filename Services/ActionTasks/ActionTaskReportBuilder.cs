@@ -208,7 +208,7 @@ public sealed class ActionTaskReportBuilder
                     Open = assignedOpen.Count,
                     Closed = scopedTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)),
                     OverdueNow = s.Status == ActionSprintStatus.Closed ? 0 : assignedOpen.Count(t => IsAssignedTaskOverdue(t, utcToday)),
-                    CarriedForward = s.Status == ActionSprintStatus.Closed ? 0 : assignedOpen.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)),
+                    Unfinished = s.Status == ActionSprintStatus.Closed ? 0 : assignedOpen.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)),
                     ClosedLate = s.Status == ActionSprintStatus.Closed ? scopedTasks.Count(IsClosedLate) : 0
                 };
             })
@@ -240,7 +240,7 @@ public sealed class ActionTaskReportBuilder
     private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildOutsideSprintWorkloadCounts(IReadOnlyList<ActionTaskItem> tasks, IReadOnlyDictionary<string, string> assigneeNames)
         => BuildAssigneePendingCounts(tasks, assigneeNames);
 
-    // SECTION: Safely-derived carry-forward candidates from unfinished tasks still associated with non-closed sprints.
+    // SECTION: Safely-derived unfinished work candidates from tasks still associated with non-closed sprints.
     private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildCarryForwardBySprint(IReadOnlyList<ActionTaskItem> openTasks, IReadOnlyList<ActionSprint> sprints)
     {
         var sprintLookup = sprints.ToDictionary(s => s.Id);

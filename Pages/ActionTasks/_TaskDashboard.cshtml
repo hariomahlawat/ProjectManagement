@@ -30,7 +30,7 @@
     }
     else
     {
-        @* SECTION: Active sprint status remains a compact summary; detailed exception cards live under Attention Required to avoid duplicate task lists. *@
+        @* SECTION: Active sprint status remains compact while exception details stay active-sprint-specific and independent of capped global attention lists. *@
         <p class="at-active-sprint-summary">
             @Model.ActiveSprintMetrics.TotalTasks tasks ·
             @Model.ActiveSprintMetrics.InProgressTasks in progress ·
@@ -42,6 +42,35 @@
                 <text> · @Model.ActiveSprintMetrics.InvalidStateTasks invalid state</text>
             }
         </p>
+        @if (Model.HasActiveSprintExceptions)
+        {
+            <details class="at-active-sprint-exceptions at-details-collapsible">
+                <summary>Active Sprint Exceptions (@Model.ActiveSprintExceptionCount)</summary>
+                <div class="at-active-sprint-exception-grid at-dashboard-task-list">
+                    @if (Model.ActiveSprintOverdueTaskDisplays.Any())
+                    {
+                        <article class="at-attention-panel">
+                            <div class="at-attention-heading"><span>Overdue</span><strong>@Model.ActiveSprintMetrics.OverdueTasks</strong></div>
+                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintOverdueTaskDisplays, string.Empty)' />
+                        </article>
+                    }
+                    @if (Model.ActiveSprintBlockedTaskDisplays.Any())
+                    {
+                        <article class="at-attention-panel">
+                            <div class="at-attention-heading"><span>Blocked</span><strong>@Model.ActiveSprintMetrics.BlockedTasks</strong></div>
+                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintBlockedTaskDisplays, string.Empty)' />
+                        </article>
+                    }
+                    @if (Model.ActiveSprintSubmittedTaskDisplays.Any())
+                    {
+                        <article class="at-attention-panel">
+                            <div class="at-attention-heading"><span>Pending Closure</span><strong>@Model.ActiveSprintSubmittedTaskCount</strong></div>
+                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintSubmittedTaskDisplays, string.Empty)' />
+                        </article>
+                    }
+                </div>
+            </details>
+        }
     }
 </section>
 
