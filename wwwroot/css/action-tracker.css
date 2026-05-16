@@ -3412,8 +3412,8 @@ html {
 .at-reports-filter-panel {
     display: flex;
     flex-direction: column;
-    gap: .35rem;
-    padding-block: .45rem;
+    gap: .25rem;
+    padding: .55rem .75rem;
 }
 
 .at-reports-filter-heading {
@@ -3429,15 +3429,15 @@ html {
     border: 0;
     border-radius: 0;
     color: #64748b;
-    font-size: .72rem;
-    font-weight: 650;
-    padding: .2rem 0;
+    font-size: .68rem;
+    font-weight: 600;
+    padding: 0;
     white-space: nowrap;
 }
 
 .at-reports-filter-grid {
     display: grid;
-    gap: .35rem;
+    gap: .3rem .5rem;
     grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
@@ -3445,9 +3445,9 @@ html {
     color: #475569;
     display: flex;
     flex-direction: column;
-    font-size: .72rem;
-    font-weight: 800;
-    gap: .12rem;
+    font-size: .68rem;
+    font-weight: 650;
+    gap: .08rem;
     letter-spacing: .02em;
     text-transform: uppercase;
 }
