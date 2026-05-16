@@ -1232,6 +1232,44 @@ public class ActionTaskPageTests
         Assert.DoesNotContain("No submitted tasks pending closure in the active sprint.", activeSprint, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public async Task DashboardPartial_ActiveSprintExceptions_RenderActiveDetailsOutsideGlobalAttentionCap()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var sprint = AddSprint(setup.Db, "Exception Sprint", ActionSprintStatus.Active);
+        for (var i = 0; i < 6; i++)
+        {
+            var globalOverdue = NewTask($"Global overdue {i + 1}", ActionTaskStatuses.Assigned);
+            globalOverdue.DueDate = DateTime.UtcNow.Date.AddDays(-10 - i);
+            setup.Db.ActionTasks.Add(globalOverdue);
+        }
+
+        var activeOverdue = NewTask("Active sprint overdue visible", ActionTaskStatuses.Assigned, sprint.Id);
+        activeOverdue.DueDate = DateTime.UtcNow.Date.AddDays(-1);
+        var activeBlocked = NewTask("Active sprint blocked visible", ActionTaskStatuses.Blocked, sprint.Id);
+        activeBlocked.DueDate = DateTime.UtcNow.Date.AddDays(1);
+        setup.Db.ActionTasks.AddRange(activeOverdue, activeBlocked);
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "CommandCentre";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDashboard.cshtml");
+        var sprintStart = html.IndexOf("at-active-sprint-snapshot", StringComparison.Ordinal);
+        var attentionStart = html.IndexOf("Attention Required", StringComparison.Ordinal);
+        var activeSprint = html[sprintStart..attentionStart];
+
+        // SECTION: Assert
+        Assert.Contains("Active Sprint Exceptions (2)", activeSprint, StringComparison.Ordinal);
+        Assert.Contains("Active sprint overdue visible", activeSprint, StringComparison.Ordinal);
+        Assert.Contains("Active sprint blocked visible", activeSprint, StringComparison.Ordinal);
+        Assert.Contains("Overdue", activeSprint, StringComparison.Ordinal);
+        Assert.Contains("Blocked", activeSprint, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task DashboardPartial_AttentionRequired_RendersOnlyNonEmptyDeduplicatedLists()
     {
@@ -1306,7 +1344,7 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskReports.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("Report Filters", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<h2>Report Filters</h2>", html, StringComparison.Ordinal);
         Assert.Contains(@"name=""ReportBucket""", html, StringComparison.Ordinal);
         Assert.Contains(@"name=""ReportSprintId""", html, StringComparison.Ordinal);
         Assert.Contains("Decision Sprint", html, StringComparison.Ordinal);
@@ -1359,6 +1397,7 @@ public class ActionTaskPageTests
         Assert.Equal(1, page.PriorityCounts.Single(x => x.Name == "High").Count);
         Assert.Equal(1, page.BlockedAgeingBuckets.Single(x => x.Name == "8-14 days assigned").Count);
         Assert.Contains("Showing 1 of 2 tasks", html, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(html, "Showing 1 of 2 tasks"));
         Assert.DoesNotContain("Showing showing", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(@"method=""get""", html, StringComparison.Ordinal);
         Assert.Contains(@"name=""ViewMode"" value=""Reports""", html, StringComparison.Ordinal);
@@ -1372,7 +1411,11 @@ public class ActionTaskPageTests
         Assert.Contains(@"value=""user-1"" selected", html, StringComparison.Ordinal);
         Assert.Contains("Ageing and Overdue Analysis", html, StringComparison.Ordinal);
         Assert.Contains("Pending Closure", html, StringComparison.Ordinal);
-        Assert.Contains("Responsible Person Workload", html, StringComparison.Ordinal);
+        Assert.Contains("Workload by Assignee", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Responsible Person Workload", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(@"<th class=""text-center"">Critical</th>", html, StringComparison.Ordinal);
+        Assert.Contains(@"<th class=""text-center"">Unfinished</th>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(@"<th class=""text-center"">Carried Forward</th>", html, StringComparison.Ordinal);
         Assert.Contains("Bucket Distribution", html, StringComparison.Ordinal);
         Assert.Contains("Backlog Ageing", html, StringComparison.Ordinal);
         Assert.Contains("Assigned Task Ageing", html, StringComparison.Ordinal);

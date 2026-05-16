@@ -31,10 +31,10 @@ public sealed class ActionTaskSprintWorkspaceSummaryBuilder
             request.BacklogTasks.Count(IsHighPriorityBacklogTask),
             request.BacklogTasks.Count(IsBacklogPastTarget),
             activeSprintTasks.OrderBy(t => StatusOrder(t.Status)).ThenBy(t => t.DueDate).ThenBy(t => t.Id).ToList(),
-            activeSprintTasks.Where(IsTaskOverdue).OrderBy(t => t.DueDate).ThenBy(t => t.Id).Take(5).ToList(),
-            activeSprintTasks.Where(IsBlocked).OrderBy(t => t.DueDate).ThenBy(t => t.Id).Take(5).ToList(),
+            activeSprintTasks.Where(IsTaskOverdue).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList(),
+            activeSprintTasks.Where(IsBlocked).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList(),
             activeSprintTasks.Count(IsSubmitted),
-            activeSprintTasks.Where(IsSubmitted).OrderBy(t => t.SubmittedOn ?? t.DueDate).ThenBy(t => t.Id).Take(5).ToList());
+            activeSprintTasks.Where(IsSubmitted).OrderBy(t => t.SubmittedOn ?? t.DueDate).ThenBy(t => t.Id).ToList());
     }
 
     // SECTION: Sprint summary predicates separate assigned overdue work from backlog target dates.

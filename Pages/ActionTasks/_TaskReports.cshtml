@@ -10,9 +10,6 @@
     <form method="get" class="at-panel at-reports-filter-panel" aria-label="Reports filters" data-at-reports-filter-form="true">
         <input type="hidden" name="ViewMode" value="Reports" />
         <div class="at-reports-filter-heading">
-            <div>
-                <h2>Report Filters</h2>
-            </div>
             <span class="at-report-filter-summary">@Model.ReportFilterSummary</span>
         </div>
         <div class="at-reports-filter-grid">
@@ -127,7 +124,6 @@
     <div class="at-panel-heading">
         <div>
             <h2>Workload Summary</h2>
-            <p class="at-panel-note">@Model.ReportFilterSummary</p>
         </div>
     </div>
     <div class="at-kpis">
@@ -159,8 +155,8 @@
     <article class="at-panel">
         <div class="at-panel-heading">
             <div>
-                <h2>Responsible Person Workload</h2>
-                <p class="at-panel-note">Open assigned work only. Backlog and closed records are excluded.</p>
+                <h2>Workload by Assignee</h2>
+                <p class="at-panel-note">Open assigned work only.</p>
             </div>
         </div>
         @if (!Model.ResponsiblePersonWorkloads.Any())
@@ -173,13 +169,12 @@
                 <table class="table table-sm at-table align-middle">
                     <thead>
                         <tr>
-                            <th>Responsible Person</th>
+                            <th>Assignee</th>
                             <th class="text-center">Open</th>
                             <th class="text-center">Overdue</th>
                             <th class="text-center">Blocked</th>
                             <th class="text-center">In Progress</th>
                             <th class="text-center">Submitted</th>
-                            <th class="text-center">Critical</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -192,7 +187,6 @@
                                 <td class="at-report-number">@item.Blocked</td>
                                 <td class="at-report-number">@item.InProgress</td>
                                 <td class="at-report-number">@item.Submitted</td>
-                                <td class="at-report-number @(item.Critical > 0 ? "at-risk-count" : string.Empty)">@item.Critical</td>
                             </tr>
                         }
                     </tbody>
@@ -288,7 +282,7 @@
                             <th>Open</th>
                             <th class="text-center">Closed</th>
                             <th class="text-center">Overdue Now</th>
-                            <th class="text-center">Carried Forward</th>
+                            <th class="text-center">Unfinished</th>
                             <th class="text-center">Closed Late</th>
                         </tr>
                     </thead>
@@ -301,7 +295,7 @@
                                 <td class="at-report-number">@item.Open</td>
                                 <td class="at-report-number">@item.Closed</td>
                                 <td class="at-report-number @(item.OverdueNow > 0 ? "at-risk-count" : string.Empty)">@(string.Equals(item.Status, "Closed", StringComparison.OrdinalIgnoreCase) ? "—" : item.OverdueNow.ToString())</td>
-                                <td class="at-report-number">@item.CarriedForward</td>
+                                <td class="at-report-number">@(string.Equals(item.Status, "Closed", StringComparison.OrdinalIgnoreCase) ? "—" : item.Unfinished.ToString())</td>
                                 <td class="at-report-number">@(string.Equals(item.Status, "Closed", StringComparison.OrdinalIgnoreCase) ? item.ClosedLate.ToString() : "—")</td>
                             </tr>
                         }

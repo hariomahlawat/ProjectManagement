@@ -460,7 +460,7 @@ public sealed class ActionTaskQueryService
         public int Open { get; init; }
         public int Closed { get; init; }
         public int OverdueNow { get; init; }
-        public int CarriedForward { get; init; }
+        public int Unfinished { get; init; }
         public int ClosedLate { get; init; }
     }
 
