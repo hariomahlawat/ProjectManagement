@@ -68,14 +68,6 @@
                 </select>
             </label>
             <label>
-                <span>From</span>
-                <input class="form-control form-control-sm" type="date" name="ReportFromDate" value="@reportFromDateValue" data-at-reports-date-filter="true" />
-            </label>
-            <label>
-                <span>To</span>
-                <input class="form-control form-control-sm" type="date" name="ReportToDate" value="@reportToDateValue" data-at-reports-date-filter="true" />
-            </label>
-            <label>
                 <span>Status</span>
                 <select class="form-select form-select-sm" name="ReportStatus" data-at-reports-filter-control="true">
                     <option value="">All statuses</option>
@@ -91,6 +83,14 @@
                         }
                     }
                 </select>
+            </label>
+            <label>
+                <span>From</span>
+                <input class="form-control form-control-sm" type="date" name="ReportFromDate" value="@reportFromDateValue" data-at-reports-date-filter="true" />
+            </label>
+            <label>
+                <span>To</span>
+                <input class="form-control form-control-sm" type="date" name="ReportToDate" value="@reportToDateValue" data-at-reports-date-filter="true" />
             </label>
             <label>
                 <span>Priority</span>
@@ -109,13 +109,15 @@
                     }
                 </select>
             </label>
+            <div class="at-reports-filter-action-cell">
+                <a class="btn btn-sm btn-outline-secondary" asp-page="/ActionTasks/Index" asp-route-viewMode="Reports">Reset / Clear all</a>
+            </div>
         </div>
         <div class="at-reports-filter-actions">
             <span class="at-reports-filter-loading" data-at-reports-filter-loading="true" role="status" aria-live="polite">
                 <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
                 <span>Updating reports...</span>
             </span>
-            <a class="btn btn-sm btn-outline-secondary" asp-page="/ActionTasks/Index" asp-route-viewMode="Reports">Reset / Clear all</a>
         </div>
     </form>
 </section>
@@ -143,7 +145,7 @@
         <div class="at-panel-heading">
             <div>
                 <h2>Bucket Distribution</h2>
-                <p class="at-panel-note">Official bucket distribution from the central classifier.</p>
+                <p class="at-panel-note">Task distribution by work bucket.</p>
             </div>
         </div>
         <div class="at-report-bucket-row">
@@ -158,7 +160,7 @@
         <div class="at-panel-heading">
             <div>
                 <h2>Responsible Person Workload</h2>
-                <p class="at-panel-note">Open assigned Outside Sprint and Sprint work only; backlog and closed records are excluded.</p>
+                <p class="at-panel-note">Open assigned work only. Backlog and closed records are excluded.</p>
             </div>
         </div>
         @if (!Model.ResponsiblePersonWorkloads.Any())
@@ -172,12 +174,12 @@
                     <thead>
                         <tr>
                             <th>Responsible Person</th>
-                            <th>Open</th>
-                            <th>Overdue</th>
-                            <th>Blocked</th>
-                            <th>In Progress</th>
-                            <th>Submitted</th>
-                            <th>Critical</th>
+                            <th class="text-center">Open</th>
+                            <th class="text-center">Overdue</th>
+                            <th class="text-center">Blocked</th>
+                            <th class="text-center">In Progress</th>
+                            <th class="text-center">Submitted</th>
+                            <th class="text-center">Critical</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -185,12 +187,12 @@
                         {
                             <tr>
                                 <td>@item.ResponsiblePerson</td>
-                                <td>@item.Open</td>
-                                <td>@item.Overdue</td>
-                                <td>@item.Blocked</td>
-                                <td>@item.InProgress</td>
-                                <td>@item.Submitted</td>
-                                <td>@item.Critical</td>
+                                <td class="at-report-number">@item.Open</td>
+                                <td class="at-report-number @(item.Overdue > 0 ? "at-risk-count" : string.Empty)">@item.Overdue</td>
+                                <td class="at-report-number">@item.Blocked</td>
+                                <td class="at-report-number">@item.InProgress</td>
+                                <td class="at-report-number">@item.Submitted</td>
+                                <td class="at-report-number @(item.Critical > 0 ? "at-risk-count" : string.Empty)">@item.Critical</td>
                             </tr>
                         }
                     </tbody>
@@ -203,74 +205,64 @@
         <div class="at-panel-heading">
             <div>
                 <h2>Ageing and Overdue Analysis</h2>
-                <p class="at-panel-note">Backlog Ageing and Assigned Task Ageing are separated so planning inventory is not mixed with responsible-person workload.</p>
+                <p class="at-panel-note">Ageing separated by backlog and assigned work.</p>
             </div>
         </div>
+        @* SECTION: Structured ageing cards replace raw metric rows for faster scan and consistent report polish. *@
         <div class="at-ageing-grid">
-            <div>
-                <h3 class="at-small at-section-eyebrow">Backlog Ageing</h3>
-                @if (Model.BacklogAgeingBuckets.All(item => item.Count == 0))
-                {
-                    <p class="at-empty-state-note">No backlog items.</p>
-                }
-                else
-                {
-                    <div class="at-metric-bars">
+            <div class="at-ageing-card">
+                <h3>Backlog Ageing</h3>
+                <table class="at-ageing-table">
+                    <thead>
+                        <tr><th>Age Band</th><th>Count</th></tr>
+                    </thead>
+                    <tbody>
                         @foreach (var item in Model.BacklogAgeingBuckets)
                         {
-                            <div class="at-metric-row"><span class="at-metric-label" title="@item.Name">@item.Name</span><strong>@item.Count</strong></div>
+                            <tr><td>@item.Name.Replace(" in backlog", string.Empty)</td><td>@item.Count</td></tr>
                         }
-                    </div>
-                }
+                    </tbody>
+                </table>
             </div>
-            <div>
-                <h3 class="at-small at-section-eyebrow">Assigned Task Ageing</h3>
-                @if (Model.AssignedTaskAgeingBuckets.All(item => item.Count == 0))
-                {
-                    <p class="at-empty-state-note">No open assigned workload.</p>
-                }
-                else
-                {
-                    <div class="at-metric-bars">
+            <div class="at-ageing-card">
+                <h3>Assigned Task Ageing</h3>
+                <table class="at-ageing-table">
+                    <thead>
+                        <tr><th>Age Band</th><th>Count</th></tr>
+                    </thead>
+                    <tbody>
                         @foreach (var item in Model.AssignedTaskAgeingBuckets)
                         {
-                            <div class="at-metric-row"><span class="at-metric-label" title="@item.Name">@item.Name</span><strong>@item.Count</strong></div>
+                            <tr><td>@item.Name.Replace(" assigned", string.Empty)</td><td>@item.Count</td></tr>
                         }
-                    </div>
-                }
+                    </tbody>
+                </table>
             </div>
-            <div>
-                <h3 class="at-small at-section-eyebrow">Overdue Analysis</h3>
-                @if (Model.OverdueAgeingBuckets.All(item => item.Count == 0))
-                {
-                    <p class="at-empty-state-note">No overdue tasks.</p>
-                }
-                else
-                {
-                    <div class="at-metric-bars">
+            <div class="at-ageing-card at-ageing-card-risk">
+                <h3>Overdue Analysis</h3>
+                <table class="at-ageing-table">
+                    <thead>
+                        <tr><th>Age Band</th><th>Count</th></tr>
+                    </thead>
+                    <tbody>
                         @foreach (var item in Model.OverdueAgeingBuckets)
                         {
-                            <div class="at-metric-row"><span class="at-metric-label" title="@item.Name">@item.Name</span><strong>@item.Count</strong></div>
+                            <tr><td>@item.Name</td><td class="@(item.Count > 0 ? "at-risk-count" : string.Empty)">@item.Count</td></tr>
                         }
-                    </div>
-                }
+                    </tbody>
+                </table>
             </div>
-            <div>
-                <h3 class="at-small at-section-eyebrow">Pending Closure</h3>
-                @if (Model.SubmittedPendingClosureAgeingBuckets.All(item => item.Count == 0))
-                {
-                    <p class="at-empty-state-note">No submitted tasks are awaiting closure in the selected report scope.</p>
-                }
-                else
-                {
-                    <div class="at-metric-bars">
-                        @foreach (var item in Model.SubmittedPendingClosureAgeingBuckets)
-                        {
-                            <div class="at-metric-row"><span class="at-metric-label" title="@item.Name">@item.Name</span><strong>@item.Count</strong></div>
-                        }
-                    </div>
-                }
-            </div>
+        </div>
+        <div class="at-pending-closure-inline">
+            <h3>Pending Closure</h3>
+            @if (Model.SubmittedPendingClosureAgeingBuckets.All(item => item.Count == 0))
+            {
+                <p>No submitted tasks are awaiting closure in the selected report scope.</p>
+            }
+            else
+            {
+                <span>@Model.SubmittedPendingClosureAgeingBuckets.Sum(item => item.Count) submitted tasks awaiting closure.</span>
+            }
         </div>
     </article>
 
@@ -278,7 +270,7 @@
         <div class="at-panel-heading">
             <div>
                 <h2>Sprint Performance</h2>
-                <p class="at-panel-note">Compact sprint-level progress and closure trend summary.</p>
+                <p class="at-panel-note">Sprint-level progress and closure summary.</p>
             </div>
         </div>
         @if (!Model.SprintPerformanceRows.Any())
@@ -294,9 +286,10 @@
                             <th>Sprint</th>
                             <th>Status</th>
                             <th>Open</th>
-                            <th>Closed</th>
-                            <th>Carried Forward</th>
-                            <th>Closed Late</th>
+                            <th class="text-center">Closed</th>
+                            <th class="text-center">Overdue Now</th>
+                            <th class="text-center">Carried Forward</th>
+                            <th class="text-center">Closed Late</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -305,10 +298,11 @@
                             <tr>
                                 <td>@item.Sprint</td>
                                 <td>@item.Status</td>
-                                <td>@item.Open</td>
-                                <td>@item.Closed</td>
-                                <td>@item.CarriedForward</td>
-                                <td>@item.ClosedLate</td>
+                                <td class="at-report-number">@item.Open</td>
+                                <td class="at-report-number">@item.Closed</td>
+                                <td class="at-report-number @(item.OverdueNow > 0 ? "at-risk-count" : string.Empty)">@(string.Equals(item.Status, "Closed", StringComparison.OrdinalIgnoreCase) ? "—" : item.OverdueNow.ToString())</td>
+                                <td class="at-report-number">@item.CarriedForward</td>
+                                <td class="at-report-number">@(string.Equals(item.Status, "Closed", StringComparison.OrdinalIgnoreCase) ? item.ClosedLate.ToString() : "—")</td>
                             </tr>
                         }
                     </tbody>

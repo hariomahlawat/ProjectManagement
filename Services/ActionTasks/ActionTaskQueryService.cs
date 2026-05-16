@@ -459,6 +459,7 @@ public sealed class ActionTaskQueryService
         public string Status { get; init; } = string.Empty;
         public int Open { get; init; }
         public int Closed { get; init; }
+        public int OverdueNow { get; init; }
         public int CarriedForward { get; init; }
         public int ClosedLate { get; init; }
     }

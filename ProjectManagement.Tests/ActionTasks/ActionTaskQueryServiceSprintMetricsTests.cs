@@ -297,6 +297,29 @@ public class ActionTaskQueryServiceSprintMetricsTests
         Assert.Equal(1, model.Reports.SprintPerformanceRows.Single().ClosedLate);
     }
 
+    [Fact]
+    public void BuildReadModel_SprintPerformanceSeparatesActiveOverdueFromClosedLate()
+    {
+        // SECTION: Arrange
+        var today = DateTime.UtcNow.Date;
+        var sprint = new ActionSprint { Id = 92, Name = "Active Sprint", Status = ActionSprintStatus.Active, StartDate = today.AddDays(-7), EndDate = today.AddDays(7) };
+        var overdueOpen = NewTask(93, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(-2));
+        var futureOpen = NewTask(94, sprint.Id, ActionTaskStatuses.InProgress, today.AddDays(2));
+        var service = CreateQueryService();
+
+        // SECTION: Act
+        var model = service.BuildReadModel(
+            new[] { overdueOpen, futureOpen },
+            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, false, false, sprint.Id, new[] { sprint }, null, null, null, null, null, null, null),
+            new Dictionary<string, string> { ["assignee"] = "Assignee" },
+            new Dictionary<int, DateTime?>());
+
+        // SECTION: Assert
+        var row = model.Reports.SprintPerformanceRows.Single();
+        Assert.Equal(1, row.OverdueNow);
+        Assert.Equal(0, row.ClosedLate);
+    }
+
     // SECTION: Test query service helper
     [Fact]
     public void ResolveBucket_WhenSprintExistsWithoutResponsiblePerson_ReturnsInvalid()
