@@ -10,6 +10,12 @@
     var selectedTaskIsBacklog = Model.SelectedTask is not null && Model.IsBacklogTask(Model.SelectedTask);
     var selectedTaskStatus = Model.SelectedTask?.Status ?? string.Empty;
     var selectedTaskIsClosed = string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
+    var selectedTaskIsSubmitted = string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
+    var selectedTaskClosureHelper = Model.SelectedTask is not null && !selectedTaskIsBacklog && !selectedTaskIsClosed
+        ? selectedTaskIsSubmitted
+            ? "Submitted for closure. Review and close, or return for rework."
+            : "To close this task, the assignee must first submit it for closure."
+        : null;
     var selectedTaskDateLabel = selectedTaskIsBacklog ? "Target" : "Due";
     var minimumChangeDate = Model.UtcToday;
     var changeDateInputValue = Model.SelectedTask is not null && Model.SelectedTask.DueDate.Date >= minimumChangeDate
@@ -378,6 +384,12 @@
                     }
                 </div>
 
+                @* SECTION: Closure workflow helper clarifies two-stage completion without blocking actions. *@
+                @if (!string.IsNullOrWhiteSpace(selectedTaskClosureHelper))
+                {
+                    <div class="text-muted at-small mb-2">@selectedTaskClosureHelper</div>
+                }
+
                 @* SECTION: Primary action rail exposes the next useful action for the task state and tucks other actions away. *@
                 <div class="at-action-toolbar" aria-label="Task actions">
                     @if (selectedTaskIsBacklog)
@@ -393,7 +405,7 @@
                         <button type="button" class="btn btn-primary btn-sm" data-at-open-action="add-outside-to-sprint">Add to Sprint</button>
                         <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="update">Add Update</button>
                     }
-                    else if (string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+                    else if (selectedTaskIsSubmitted)
                     {
                         @if (Model.CanCloseTask(Model.SelectedTask))
                         {
