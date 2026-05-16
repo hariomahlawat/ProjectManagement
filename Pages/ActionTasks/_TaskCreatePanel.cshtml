@@ -84,8 +84,8 @@
                                 </div>
                                 <div class="col-12">
                                     <label asp-for="DirectTaskInput.AssignedToUserId" class="form-label"></label>
-                                    <select asp-for="DirectTaskInput.AssignedToUserId" class="form-select at-searchable-select" data-at-searchable-select="true" data-at-placeholder="[Select user]" required>
-                                        <option value="">[Select user]</option>
+                                    <select asp-for="DirectTaskInput.AssignedToUserId" class="form-select at-searchable-select" data-at-searchable-select="true" data-at-placeholder="Select user" required>
+                                        <option value="">Select user</option>
                                         @foreach (var user in Model.AssignableUsers)
                                         {
                                             <option value="@user.UserId">@user.DisplayName</option>

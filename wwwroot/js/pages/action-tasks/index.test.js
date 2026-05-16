@@ -7,6 +7,37 @@ const path = require('node:path');
 const scriptPath = path.resolve(__dirname, 'index.js');
 const scriptContent = fs.readFileSync(scriptPath, 'utf8');
 
+
+// SECTION: Searchable select fixture.
+function createSearchableSelectDom() {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <select data-at-searchable-select="true" data-at-placeholder="Select user">
+            <option value="">Select user</option>
+            <option value="user-1">User One</option>
+        </select>
+    </body></html>`, { url: 'https://example.test/ActionTasks', runScripts: 'dangerously' });
+
+    const { window } = dom;
+    const document = window.document;
+    const scriptEl = document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    document.body.appendChild(scriptEl);
+    document.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
+
+    return { document };
+}
+
+// SECTION: Searchable select placeholder behavior.
+test('searchable select uses the configured Direct Task assignee placeholder', () => {
+    const { document } = createSearchableSelectDom();
+    const searchInput = document.querySelector('.at-select-search-input');
+    const placeholderOption = document.querySelector('select option[value=""]');
+
+    assert.ok(searchInput);
+    assert.equal(searchInput.placeholder, 'Select user');
+    assert.equal(placeholderOption.textContent, 'Select user');
+});
+
 function createReportsFilterDom() {
     const dom = new JSDOM(`<!DOCTYPE html><html><body>
         <form method="get" data-at-reports-filter-form="true">
