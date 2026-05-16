@@ -22,6 +22,7 @@ public sealed class ActionTaskCommandCentreSummaryBuilder
         var activeCriticalCount = tasks.Count(t => IsOpenTask(t) && string.Equals(t.Priority, "Critical", StringComparison.OrdinalIgnoreCase));
         var blockedCount = CountByStatus(tasks, ActionTaskStatuses.Blocked);
         var submittedPendingClosureCount = CountByStatus(tasks, ActionTaskStatuses.Submitted);
+        var attentionLists = BuildCommandAttentionLists(tasks);
 
         return new ActionTaskCommandCentreSummary(
             activeCount,
@@ -31,10 +32,41 @@ public sealed class ActionTaskCommandCentreSummaryBuilder
             blockedCount,
             CountByStatus(tasks, ActionTaskStatuses.Closed),
             activeCriticalCount,
-            BuildCommandFocusSummary(overdueCount, blockedCount, submittedPendingClosureCount, criticalOpenCount, carryForwardCandidateTasks),
+            BuildCommandFocusSummary(overdueCount, blockedCount, submittedPendingClosureCount, activeCriticalCount, carryForwardCandidateTasks),
             BuildCommandSummary(activeCount, activeCriticalCount, overdueCount, submittedPendingClosureCount),
-            BuildTopAttentionItems(tasks));
+            BuildTopAttentionItems(tasks),
+            attentionLists.PendingClosureTasks,
+            attentionLists.BlockedTasks,
+            attentionLists.OverdueTasks,
+            attentionLists.CriticalOpenTasks);
     }
+
+    // SECTION: Command attention lists de-duplicate task cards by command priority for a cleaner dashboard.
+    private CommandAttentionLists BuildCommandAttentionLists(IReadOnlyList<ActionTaskItem> tasks)
+    {
+        var usedTaskIds = new HashSet<int>();
+        var pendingClosure = TakeUnique(tasks
+            .Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(t => t.DueDate)
+            .ThenBy(t => t.Id), usedTaskIds);
+        var blocked = TakeUnique(tasks
+            .Where(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(t => t.DueDate)
+            .ThenBy(t => t.Id), usedTaskIds);
+        var overdue = TakeUnique(tasks
+            .Where(IsTaskOverdue)
+            .OrderBy(t => t.DueDate)
+            .ThenBy(t => t.Id), usedTaskIds);
+        var criticalOpen = TakeUnique(tasks
+            .Where(t => IsOpenTask(t) && string.Equals(t.Priority, "Critical", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(t => t.DueDate)
+            .ThenBy(t => t.Id), usedTaskIds);
+
+        return new CommandAttentionLists(pendingClosure, blocked, overdue, criticalOpen);
+    }
+
+    private static IReadOnlyList<ActionTaskItem> TakeUnique(IEnumerable<ActionTaskItem> tasks, HashSet<int> usedTaskIds)
+        => tasks.Where(t => usedTaskIds.Add(t.Id)).Take(5).ToList();
 
     // SECTION: Report top-attention prioritization keeps urgent overdue and critical work first.
     private IReadOnlyList<ActionTaskItem> BuildTopAttentionItems(IReadOnlyList<ActionTaskItem> tasks)
@@ -79,7 +111,11 @@ public sealed class ActionTaskCommandCentreSummaryBuilder
         return $"{activeTasksText}{criticalText} {overdueText} {submittedPendingText}";
     }
 
-    private bool IsTaskOverdue(ActionTaskItem task) => IsOpenTask(task) && task.DueDate.Date < _clock.UtcToday;
+    private bool IsTaskOverdue(ActionTaskItem task)
+        => IsOpenTask(task)
+           && ActionTaskCategorization.HasAssignedUser(task)
+           && !ActionTaskCategorization.IsBacklogTask(task)
+           && task.DueDate.Date < _clock.UtcToday;
 
     private static int CountByStatus(IReadOnlyList<ActionTaskItem> tasks, string status)
         => tasks.Count(t => string.Equals(t.Status, status, StringComparison.OrdinalIgnoreCase));
@@ -110,7 +146,17 @@ public sealed record ActionTaskCommandCentreSummary(
     int ActiveCriticalCount,
     string DashboardCommandFocusSummary,
     string CommandSummary,
-    IReadOnlyList<ActionTaskItem> TopAttentionTasks)
+    IReadOnlyList<ActionTaskItem> TopAttentionTasks,
+    IReadOnlyList<ActionTaskItem> PendingClosureTasks,
+    IReadOnlyList<ActionTaskItem> BlockedTasks,
+    IReadOnlyList<ActionTaskItem> OverdueTasks,
+    IReadOnlyList<ActionTaskItem> CriticalOpenTasks)
 {
-    public static ActionTaskCommandCentreSummary Empty { get; } = new(0, 0, 0, 0, 0, 0, 0, "0 overdue. 0 blocked. 0 submitted pending closure. 0 critical open. 0 carry-forward candidates.", "There are 0 active tasks, including 0 critical tasks. No tasks are overdue. No submitted task is pending closure.", Array.Empty<ActionTaskItem>());
+    public static ActionTaskCommandCentreSummary Empty { get; } = new(0, 0, 0, 0, 0, 0, 0, "0 overdue. 0 blocked. 0 submitted pending closure. 0 critical open. 0 carry-forward candidates.", "There are 0 active tasks, including 0 critical tasks. No tasks are overdue. No submitted task is pending closure.", Array.Empty<ActionTaskItem>(), Array.Empty<ActionTaskItem>(), Array.Empty<ActionTaskItem>(), Array.Empty<ActionTaskItem>(), Array.Empty<ActionTaskItem>());
 }
+
+internal sealed record CommandAttentionLists(
+    IReadOnlyList<ActionTaskItem> PendingClosureTasks,
+    IReadOnlyList<ActionTaskItem> BlockedTasks,
+    IReadOnlyList<ActionTaskItem> OverdueTasks,
+    IReadOnlyList<ActionTaskItem> CriticalOpenTasks);

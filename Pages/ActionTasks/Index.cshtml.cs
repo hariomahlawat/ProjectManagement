@@ -1220,7 +1220,7 @@ public class IndexModel : PageModel
     public int SubmittedCount => CommandCentreSummary.SubmittedCount;
     public int BlockedCount => CommandCentreSummary.BlockedCount;
     public int ClosedCount => CommandCentreSummary.ClosedCount;
-    public int CriticalOpenCount => CriticalOpenTasks.Count;
+    public int CriticalOpenCount => CommandCentreSummary.ActiveCriticalCount;
     public int OpenTaskCount => Tasks.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
     public int StatusCountsMax => StatusCounts.Count == 0 ? 0 : StatusCounts.Max(x => x.Count);
     public int PriorityCountsMax => PriorityCounts.Count == 0 ? 0 : PriorityCounts.Max(x => x.Count);
@@ -1258,6 +1258,34 @@ public class IndexModel : PageModel
     public string DashboardCommandFocusSummary => CommandCentreSummary.DashboardCommandFocusSummary;
     public IReadOnlyList<CountSummary> SubmittedPendingClosureAgeingBuckets { get; private set; } = Array.Empty<CountSummary>();
     public IReadOnlyList<TaskDisplayItem> TopAttentionTaskDisplays => ToDisplayItems(CommandCentreSummary.TopAttentionTasks);
+
+    // SECTION: Command Centre attention projections are prioritized and de-duplicated for exception-led rendering.
+    public IReadOnlyList<TaskDisplayItem> CommandPendingClosureTaskDisplays =>
+        ToDisplayItems(CommandCentreSummary.PendingClosureTasks);
+
+    public IReadOnlyList<TaskDisplayItem> CommandBlockedTaskDisplays =>
+        ToDisplayItems(CommandCentreSummary.BlockedTasks);
+
+    public IReadOnlyList<TaskDisplayItem> CommandOverdueTaskDisplays =>
+        ToDisplayItems(CommandCentreSummary.OverdueTasks);
+
+    public IReadOnlyList<TaskDisplayItem> CommandCriticalOpenTaskDisplays =>
+        ToDisplayItems(CommandCentreSummary.CriticalOpenTasks);
+
+    public bool HasCommandAttentionItems =>
+        CommandPendingClosureTaskDisplays.Any()
+        || CommandBlockedTaskDisplays.Any()
+        || CommandOverdueTaskDisplays.Any()
+        || CommandCriticalOpenTaskDisplays.Any();
+
+    public bool HasActiveSprintExceptions =>
+        ActiveSprintOverdueTaskDisplays.Any()
+        || ActiveSprintBlockedTaskDisplays.Any()
+        || ActiveSprintSubmittedTaskDisplays.Any();
+
+    public bool HasRecentActivityItems =>
+        RecentlySubmittedTaskDisplays.Any()
+        || RecentlyUpdatedTaskDisplays.Any();
 
     public string CommandSummary => CommandCentreSummary.CommandSummary;
 
