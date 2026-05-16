@@ -1307,7 +1307,7 @@ public class ActionTaskPageTests
         Assert.Contains(@"name=""ReportSprintId""", html, StringComparison.Ordinal);
         Assert.Contains("Decision Sprint", html, StringComparison.Ordinal);
         Assert.Contains("Reset / Clear all", html, StringComparison.Ordinal);
-        Assert.Contains("<span>Scope</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Bucket / Sprint</span>", html, StringComparison.Ordinal);
         Assert.Contains(@"data-at-reports-filter-form=""true""", html, StringComparison.Ordinal);
         Assert.Contains(@"data-at-reports-filter-control=""true""", html, StringComparison.Ordinal);
         Assert.Contains(@"data-at-reports-date-filter=""true""", html, StringComparison.Ordinal);
@@ -1348,7 +1348,7 @@ public class ActionTaskPageTests
         Assert.Equal(1, page.ReportFilteredTaskCount);
         Assert.Equal(1, page.StatusCounts.Single(x => x.Name == ActionTaskStatuses.Blocked).Count);
         Assert.Equal(1, page.PriorityCounts.Single(x => x.Name == "High").Count);
-        Assert.Equal(1, page.BlockedAgeingBuckets.Single(x => x.Name == "8 to 14 days").Count);
+        Assert.Equal(1, page.BlockedAgeingBuckets.Single(x => x.Name == "8-14 days assigned").Count);
         Assert.Contains("Showing 1 of 2 tasks", html, StringComparison.Ordinal);
         Assert.Contains(@"method=""get""", html, StringComparison.Ordinal);
         Assert.Contains(@"name=""ViewMode"" value=""Reports""", html, StringComparison.Ordinal);
@@ -1359,15 +1359,14 @@ public class ActionTaskPageTests
         Assert.Contains(@"name=""ReportStatus""", html, StringComparison.Ordinal);
         Assert.Contains(@"value=""High"" selected", html, StringComparison.Ordinal);
         Assert.Contains(@"value=""user-1"" selected", html, StringComparison.Ordinal);
-        Assert.Contains("Ageing Analysis", html, StringComparison.Ordinal);
-        Assert.Contains("Pending Closure Ageing", html, StringComparison.Ordinal);
-        Assert.Contains("Assignee Workload", html, StringComparison.Ordinal);
-        Assert.Contains("Priority Exposure", html, StringComparison.Ordinal);
-        Assert.Contains("Workflow Distribution", html, StringComparison.Ordinal);
-        Assert.Contains("Backlog Ageing Summary", html, StringComparison.Ordinal);
-        Assert.Contains("Assigned Tasks Outside Sprint", html, StringComparison.Ordinal);
-        Assert.Contains("Carry-forward by Sprint", html, StringComparison.Ordinal);
-        Assert.Contains("Blocked Task Ageing", html, StringComparison.Ordinal);
+        Assert.Contains("Ageing and Overdue Analysis", html, StringComparison.Ordinal);
+        Assert.Contains("Pending Closure", html, StringComparison.Ordinal);
+        Assert.Contains("Responsible Person Workload", html, StringComparison.Ordinal);
+        Assert.Contains("Bucket Distribution", html, StringComparison.Ordinal);
+        Assert.Contains("Backlog Ageing", html, StringComparison.Ordinal);
+        Assert.Contains("Assigned Task Ageing", html, StringComparison.Ordinal);
+        Assert.Contains("Sprint Performance", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Non-sprint", html, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

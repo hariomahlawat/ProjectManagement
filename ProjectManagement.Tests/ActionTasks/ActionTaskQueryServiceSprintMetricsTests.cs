@@ -44,7 +44,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
         Assert.Equal(3, model.ActiveSprintMetrics.CarryForwardCandidateTasks);
         Assert.Equal(new[] { 5 }, model.BacklogTasks.Select(t => t.Id));
         Assert.Equal(new[] { 5 }, model.SprintReadModel.BacklogTasks.Select(t => t.Id));
-        Assert.Equal(new[] { new ActionTaskQueryService.CountSummary("Assignee", 1) }, model.Reports.NonSprintAssignedWorkloadCounts);
+        Assert.Equal(new[] { new ActionTaskQueryService.CountSummary("Assignee", 1) }, model.Reports.OutsideSprintWorkloadCounts);
         Assert.Equal(1, model.SprintReadModel.ClosureReview.CompletedTasks.Count);
         Assert.Equal(3, model.SprintReadModel.ClosureReview.UnfinishedTasks.Count);
         Assert.Equal(nextSprint.Id, model.SprintReadModel.ClosureReview.TargetSprintOptions.Single().Id);
@@ -81,7 +81,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
         Assert.Equal(new[] { new ActionTaskQueryService.CountSummary("Responsible One", 1) }, model.Reports.AssigneePendingCounts);
         Assert.Equal(new[] { new ActionTaskQueryService.CountSummary("High", 1) }, model.Reports.PriorityCounts);
         Assert.Equal(new[] { new ActionTaskQueryService.CountSummary(ActionTaskStatuses.Blocked, 1) }, model.Reports.StatusCounts);
-        Assert.Equal(1, model.Reports.BlockedAgeingBuckets.Single(x => x.Name == "8 to 14 days").Count);
+        Assert.Equal(1, model.Reports.BlockedAgeingBuckets.Single(x => x.Name == "8-14 days assigned").Count);
         Assert.Equal(new[] { new ActionTaskQueryService.CountSummary("Filtered Sprint", 1) }, model.Reports.CarryForwardBySprint);
     }
 
@@ -110,10 +110,80 @@ public class ActionTaskQueryServiceSprintMetricsTests
         // SECTION: Assert
         Assert.Equal(1, model.Reports.FilteredTaskCount);
         Assert.DoesNotContain(model.Reports.StatusCounts, item => string.Equals(item.Name, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
-        Assert.Equal(1, model.Reports.BacklogAgeingBuckets.Single(x => x.Name == "4 to 7 days").Count);
-        Assert.Equal(0, model.Reports.BacklogAgeingBuckets.Single(x => x.Name == "15+ days").Count);
-        Assert.Empty(model.Reports.NonSprintAssignedWorkloadCounts);
+        Assert.Equal(1, model.Reports.BacklogAgeingBuckets.Single(x => x.Name == "4-7 days in backlog").Count);
+        Assert.Equal(0, model.Reports.BacklogAgeingBuckets.Single(x => x.Name == "15+ days in backlog").Count);
+        Assert.Empty(model.Reports.OutsideSprintWorkloadCounts);
         Assert.All(model.Reports.CarryForwardBySprint, item => Assert.Equal(0, item.Count));
+    }
+
+
+    [Fact]
+    public void BuildReadModel_ReportsResponsibleWorkload_UsesAssignedBucketsAndSortsByRisk()
+    {
+        // SECTION: Arrange
+        var today = DateTime.UtcNow.Date;
+        var sprint = new ActionSprint { Id = 61, Name = "Execution Sprint", Status = ActionSprintStatus.Active, StartDate = today.AddDays(-2), EndDate = today.AddDays(5) };
+        var tasks = new[]
+        {
+            NewTask(61, null, ActionTaskStatuses.Backlog, today.AddDays(3), assignedToUserId: string.Empty, assignedOn: today.AddDays(-1)),
+            NewTask(62, null, ActionTaskStatuses.Assigned, today.AddDays(-1), assignedToUserId: "one"),
+            NewTask(63, null, ActionTaskStatuses.InProgress, today.AddDays(2), assignedToUserId: "one"),
+            NewTask(64, sprint.Id, ActionTaskStatuses.Blocked, today.AddDays(-2), assignedToUserId: "two"),
+            NewTask(65, sprint.Id, ActionTaskStatuses.Submitted, today.AddDays(-3), assignedToUserId: "two"),
+            NewTask(66, null, ActionTaskStatuses.Closed, today.AddDays(-4), assignedToUserId: "one")
+        };
+        var service = CreateQueryService();
+
+        // SECTION: Act
+        var model = service.BuildReadModel(
+            tasks,
+            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, false, false, sprint.Id, new[] { sprint }, null, null, null, null, null, null, null),
+            new Dictionary<string, string> { ["one"] = "One", ["two"] = "Two" },
+            new Dictionary<int, DateTime?>());
+
+        // SECTION: Assert
+        Assert.Equal(new[] { "Backlog", "Outside Sprint", "Sprint", "Closed" }, model.Reports.BucketDistribution.Select(x => x.Name).ToArray());
+        Assert.Equal(5, model.Reports.WorkloadSummary.OpenTasks);
+        Assert.Equal(2, model.Reports.WorkloadSummary.Overdue);
+        Assert.Equal(1, model.Reports.WorkloadSummary.PendingClosure);
+        Assert.Equal(1, model.Reports.WorkloadSummary.BacklogItems);
+        Assert.Equal(new[] { "One", "Two" }, model.Reports.ResponsiblePersonWorkloads.Select(x => x.ResponsiblePerson).ToArray());
+        Assert.All(model.Reports.ResponsiblePersonWorkloads, item => Assert.Equal(2, item.Open));
+        Assert.DoesNotContain(model.Reports.ResponsiblePersonWorkloads, item => item.ResponsiblePerson == "Unassigned");
+        Assert.Equal(1, model.Reports.AssignedTaskAgeingBuckets.Single(x => x.Name == "0-3 days assigned").Count);
+        Assert.Equal(1, model.Reports.BacklogAgeingBuckets.Single(x => x.Name == "0-3 days in backlog").Count);
+        Assert.Equal(0, model.Reports.OverdueAgeingBuckets.Single(x => x.Name == "8+ days overdue").Count);
+    }
+
+    [Fact]
+    public void BuildReadModel_ReportsInvalidStates_RenderOnlyWhenPresent()
+    {
+        // SECTION: Arrange
+        var today = DateTime.UtcNow.Date;
+        var sprint = new ActionSprint { Id = 71, Name = "Invalid Sprint", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
+        var validTasks = new[]
+        {
+            NewTask(71, null, ActionTaskStatuses.Backlog, today.AddDays(2), assignedToUserId: string.Empty),
+            NewTask(72, null, ActionTaskStatuses.Assigned, today.AddDays(2), assignedToUserId: "assignee")
+        };
+        var invalidTasks = validTasks.Concat(new[]
+        {
+            NewTask(73, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(2), assignedToUserId: string.Empty)
+        }).ToArray();
+        var service = CreateQueryService();
+        var request = new ActionTaskQueryService.ActionTaskQueryRequest("user", false, false, false, sprint.Id, new[] { sprint }, null, null, null, null, null, null, null);
+
+        // SECTION: Act
+        var validModel = service.BuildReadModel(validTasks, request, new Dictionary<string, string> { ["assignee"] = "Assignee" }, new Dictionary<int, DateTime?>());
+        var invalidModel = service.BuildReadModel(invalidTasks, request, new Dictionary<string, string> { ["assignee"] = "Assignee" }, new Dictionary<int, DateTime?>());
+
+        // SECTION: Assert
+        Assert.DoesNotContain(validModel.Reports.BucketDistribution, item => item.Name == "Invalid State");
+        Assert.Empty(validModel.Reports.InvalidStateRows);
+        Assert.Contains(invalidModel.Reports.BucketDistribution, item => item.Name == "Invalid State" && item.Count == 1);
+        var invalidRow = Assert.Single(invalidModel.Reports.InvalidStateRows);
+        Assert.Contains("SprintId exists", invalidRow.Issue, StringComparison.Ordinal);
+        Assert.Contains("Assign responsible person", invalidRow.SuggestedCorrection, StringComparison.Ordinal);
     }
 
 

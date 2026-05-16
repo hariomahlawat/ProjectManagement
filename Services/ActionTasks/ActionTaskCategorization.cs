@@ -17,7 +17,6 @@ public enum ActionTaskWorkCategory
     Sprint,
     Backlog,
     OutsideSprint,
-    NonSprint,
     Closed,
     Invalid
 }
@@ -34,7 +33,7 @@ public static class ActionTaskBucketClassifier
 
         if (task.SprintId.HasValue)
         {
-            return HasAssignedUser(task) && HasAssignedRole(task)
+            return IsSprintTask(task)
                 ? ActionTaskBucket.Sprint
                 : ActionTaskBucket.Invalid;
         }
@@ -44,7 +43,7 @@ public static class ActionTaskBucketClassifier
             return ActionTaskBucket.Backlog;
         }
 
-        return HasAssignedUser(task) && HasAssignedRole(task)
+        return IsOutsideSprintTask(task)
             ? ActionTaskBucket.OutsideSprint
             : ActionTaskBucket.Invalid;
     }
@@ -60,9 +59,6 @@ public static class ActionTaskBucketClassifier
 
     public static bool IsOutsideSprintTask(ActionTaskItem task)
         => task.SprintId is null && HasAssignedUser(task) && HasAssignedRole(task) && IsAssignedWorkStatus(task.Status);
-
-    public static bool IsAssignedNonSprintTask(ActionTaskItem task)
-        => IsOutsideSprintTask(task);
 
     public static bool IsClosedTask(ActionTaskItem task)
         => string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
@@ -112,9 +108,6 @@ public static class ActionTaskCategorization
 
     public static bool IsOutsideSprintTask(ActionTaskItem task)
         => ActionTaskBucketClassifier.IsOutsideSprintTask(task);
-
-    public static bool IsAssignedNonSprintTask(ActionTaskItem task)
-        => ActionTaskBucketClassifier.IsAssignedNonSprintTask(task);
 
     public static bool IsClosedTask(ActionTaskItem task)
         => ActionTaskBucketClassifier.IsClosedTask(task);

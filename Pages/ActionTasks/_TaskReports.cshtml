@@ -3,6 +3,7 @@
     // SECTION: Date filter display values are preformatted for CSP-safe server rendering.
     var reportFromDateValue = Model.ReportFromDate?.ToString("yyyy-MM-dd");
     var reportToDateValue = Model.ReportToDate?.ToString("yyyy-MM-dd");
+    var reportFilterSummary = Model.ReportFilterSummary.ToLowerInvariant();
 }
 
 @* SECTION: Reports introduction and scope. *@
@@ -10,11 +11,11 @@
     <article class="at-panel">
         <div class="at-panel-heading">
             <div>
-                <h2>Task Analysis Reports</h2>
-                <p class="at-panel-note">Analytical views computed from current task and Sprint data, with historical trend reporting deferred until Sprint metric snapshots exist.</p>
+                <h2>Reports</h2>
+                <p class="at-panel-note">Review workload, ageing and sprint performance.</p>
             </div>
         </div>
-        <p class="at-empty-state-note">This page intentionally excludes the Command Centre KPI strip so reports remain focused on analysis rather than operational command cards.</p>
+        <p class="at-empty-state-note">This management view summarises workload, risk, ageing and closure trends without duplicating Command Centre, Sprint Board or Register actions.</p>
     </article>
 </section>
 
@@ -25,15 +26,15 @@
         <div class="at-reports-filter-heading">
             <div>
                 <h2>Report Filters</h2>
-                <p class="at-panel-note">Narrow every report section by scope, responsible person, due-date range, workflow status and priority.</p>
+                <p class="at-panel-note">Keep reports focused with date range, responsible person, bucket or sprint scope, status and priority.</p>
             </div>
             <span class="at-report-filter-summary">@Model.ReportFilterSummary</span>
         </div>
         <div class="at-reports-filter-grid">
             <label>
-                <span>Scope</span>
+                <span>Bucket / Sprint</span>
                 <select class="form-select form-select-sm" name="ReportSprintId" data-at-reports-filter-control="true">
-                    <option value="">All Sprint, Backlog &amp; Outside Sprint work</option>
+                    <option value="">All Backlog, Outside Sprint and Sprint work</option>
                     @if (Model.ReportSprintId == 0)
                     {
                         <option value="0" selected>Backlog items only</option>
@@ -125,227 +126,233 @@
     </form>
 </section>
 
-@* SECTION: Current-state analytical reports with proportional bars. *@
-<section class="at-card-grid at-card-grid-reports" aria-label="Task analytical reports">
+@* SECTION: Workload Summary uses exactly five management KPIs. *@
+<section class="at-section-group" aria-label="Workload Summary">
+    <div class="at-panel-heading">
+        <div>
+            <h2>Workload Summary</h2>
+            <p class="at-panel-note">Showing @reportFilterSummary.</p>
+        </div>
+    </div>
+    <div class="at-kpis">
+        <article><h3>Open Tasks</h3><strong>@Model.WorkloadSummary.OpenTasks</strong><p>All non-closed tasks, including backlog.</p></article>
+        <article><h3>Overdue</h3><strong>@Model.WorkloadSummary.Overdue</strong><p>Assigned work past due, excluding submitted.</p></article>
+        <article><h3>Blocked</h3><strong>@Model.WorkloadSummary.Blocked</strong><p>Assigned tasks currently blocked.</p></article>
+        <article><h3>Pending Closure</h3><strong>@Model.WorkloadSummary.PendingClosure</strong><p>Submitted tasks awaiting close-out.</p></article>
+        <article><h3>Backlog Items</h3><strong>@Model.WorkloadSummary.BacklogItems</strong><p>Planning inventory not assigned.</p></article>
+    </div>
+</section>
+
+@* SECTION: Analytical report sections are stacked to avoid visual clutter. *@
+<section class="at-section-group" aria-label="Task analytical reports">
     <article class="at-panel">
         <div class="at-panel-heading">
             <div>
-                <h2>Ageing Analysis</h2>
-                <p class="at-panel-note">Identifies open work by age and highlights overdue exposure by elapsed overdue period.</p>
+                <h2>Bucket Distribution</h2>
+                <p class="at-panel-note">Official bucket distribution from the central classifier.</p>
+            </div>
+        </div>
+        <div class="at-report-bucket-row">
+            @foreach (var item in Model.BucketDistribution)
+            {
+                <div class="at-report-bucket-card"><span>@item.Name</span><strong>@item.Count</strong></div>
+            }
+        </div>
+    </article>
+
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <div>
+                <h2>Responsible Person Workload</h2>
+                <p class="at-panel-note">Open assigned Outside Sprint and Sprint work only; backlog and closed records are excluded.</p>
+            </div>
+        </div>
+        @if (!Model.ResponsiblePersonWorkloads.Any())
+        {
+            <p class="at-empty-state-note">No open assigned workload.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm at-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Responsible Person</th>
+                            <th>Open</th>
+                            <th>Overdue</th>
+                            <th>Blocked</th>
+                            <th>In Progress</th>
+                            <th>Submitted</th>
+                            <th>Critical</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.ResponsiblePersonWorkloads)
+                        {
+                            <tr>
+                                <td>@item.ResponsiblePerson</td>
+                                <td>@item.Open</td>
+                                <td>@item.Overdue</td>
+                                <td>@item.Blocked</td>
+                                <td>@item.InProgress</td>
+                                <td>@item.Submitted</td>
+                                <td>@item.Critical</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </article>
+
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <div>
+                <h2>Ageing and Overdue Analysis</h2>
+                <p class="at-panel-note">Backlog Ageing and Assigned Task Ageing are separated so planning inventory is not mixed with responsible-person workload.</p>
             </div>
         </div>
         <div class="at-ageing-grid">
             <div>
-                <h3 class="at-small at-section-eyebrow">Open tasks ageing</h3>
-                <div class="at-metric-bars">
-                    @foreach (var item in Model.OpenAgeingBuckets)
-                    {
-                        <div class="at-metric-row">
-                            <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                            <div class="at-metric-track"><div class="at-metric-fill" style="width:@Model.ToPercent(item.Count, Model.OpenAgeingBucketsMax)%"></div></div>
-                            <strong>@item.Count</strong>
-                        </div>
-                    }
-                </div>
-            </div>
-            <div>
-                <h3 class="at-small at-section-eyebrow">Overdue ageing</h3>
-                <div class="at-metric-bars">
-                    @foreach (var item in Model.OverdueAgeingBuckets)
-                    {
-                        <div class="at-metric-row">
-                            <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                            <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-danger" style="width:@Model.ToPercent(item.Count, Model.OverdueAgeingBucketsMax)%"></div></div>
-                            <strong>@item.Count</strong>
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
-    </article>
-
-    <article class="at-panel">
-        <div class="at-panel-heading">
-            <div>
-                <h2>Pending Closure Ageing</h2>
-                <p class="at-panel-note">Shows how long submitted tasks have been waiting for close-out review.</p>
-            </div>
-        </div>
-        @if (Model.SubmittedPendingClosureAgeingBuckets.All(item => item.Count == 0))
-        {
-            <p class="at-empty-state-note">No submitted tasks are awaiting closure in the selected report scope.</p>
-        }
-        else
-        {
-            <div class="at-metric-bars">
-                @foreach (var item in Model.SubmittedPendingClosureAgeingBuckets)
+                <h3 class="at-small at-section-eyebrow">Backlog Ageing</h3>
+                @if (Model.BacklogAgeingBuckets.All(item => item.Count == 0))
                 {
-                    <div class="at-metric-row">
-                        <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                        <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-amber" style="width:@Model.ToPercent(item.Count, Model.SubmittedPendingClosureAgeingBuckets.Max(x => x.Count))%"></div></div>
-                        <strong>@item.Count</strong>
+                    <p class="at-empty-state-note">No backlog items.</p>
+                }
+                else
+                {
+                    <div class="at-metric-bars">
+                        @foreach (var item in Model.BacklogAgeingBuckets)
+                        {
+                            <div class="at-metric-row"><span class="at-metric-label" title="@item.Name">@item.Name</span><strong>@item.Count</strong></div>
+                        }
                     </div>
                 }
             </div>
-        }
-    </article>
-
-    <article class="at-panel">
-        <div class="at-panel-heading">
             <div>
-                <h2>Assignee Workload</h2>
-                <p class="at-panel-note">Compares pending task volume across assignees to surface capacity imbalance.</p>
-            </div>
-        </div>
-        <div class="at-metric-bars at-metric-bars-tight">
-            @foreach (var item in Model.AssigneePendingCounts)
-            {
-                <div class="at-metric-row">
-                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                    <div class="at-metric-track"><div class="at-metric-fill" style="width:@Model.ToPercent(item.Count, Model.AssigneePendingCountsMax)%"></div></div>
-                    <strong>@item.Count</strong>
-                </div>
-            }
-        </div>
-    </article>
-
-    <article class="at-panel">
-        <div class="at-panel-heading">
-            <div>
-                <h2>Priority Exposure</h2>
-                <p class="at-panel-note">Breaks down open task volume by urgency to support prioritisation decisions.</p>
-            </div>
-        </div>
-        <div class="at-metric-bars">
-            @foreach (var item in Model.PriorityCounts)
-            {
-                <div class="at-metric-row">
-                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                    <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-amber" style="width:@Model.ToPercent(item.Count, Model.PriorityCountsMax)%"></div></div>
-                    <strong>@item.Count</strong>
-                </div>
-            }
-        </div>
-    </article>
-
-    <article class="at-panel">
-        <div class="at-panel-heading">
-            <div>
-                <h2>Workflow Distribution</h2>
-                <p class="at-panel-note">Summarises task spread by workflow stage for process-level analysis.</p>
-            </div>
-        </div>
-        <div class="at-metric-bars">
-            @foreach (var item in Model.StatusCounts)
-            {
-                <div class="at-metric-row">
-                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                    <div class="at-metric-track"><div class="at-metric-fill" style="width:@Model.ToPercent(item.Count, Model.StatusCountsMax)%"></div></div>
-                    <strong>@item.Count</strong>
-                </div>
-            }
-        </div>
-    </article>
-
-    @* SECTION: Decision-support summaries derived from the existing task and Sprint read model. *@
-    <article class="at-panel">
-        <div class="at-panel-heading">
-            <div>
-                <h2>Backlog Ageing Summary</h2>
-                <p class="at-panel-note">Highlights backlog items only: open, not in a Sprint, and not assigned to a user.</p>
-            </div>
-        </div>
-        <div class="at-metric-bars">
-            @foreach (var item in Model.BacklogAgeingBuckets)
-            {
-                <div class="at-metric-row">
-                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                    <div class="at-metric-track"><div class="at-metric-fill" style="width:@Model.ToPercent(item.Count, Model.BacklogAgeingBucketsMax)%"></div></div>
-                    <strong>@item.Count</strong>
-                </div>
-            }
-        </div>
-    </article>
-
-    <article class="at-panel">
-        <div class="at-panel-heading">
-            <div>
-                <h2>Assigned Tasks Outside Sprint</h2>
-                <p class="at-panel-note">Counts open assigned work that is not part of Sprint commitment and is excluded from backlog ageing.</p>
-            </div>
-        </div>
-        @if (!Model.NonSprintAssignedWorkloadCounts.Any())
-        {
-            <p class="at-empty-state-note">No open assigned work outside sprint is visible in the selected report scope.</p>
-        }
-        else
-        {
-            <div class="at-metric-bars at-metric-bars-tight">
-                @foreach (var item in Model.NonSprintAssignedWorkloadCounts)
+                <h3 class="at-small at-section-eyebrow">Assigned Task Ageing</h3>
+                @if (Model.AssignedTaskAgeingBuckets.All(item => item.Count == 0))
                 {
-                    <div class="at-metric-row">
-                        <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                        <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-amber" style="width:@Model.ToPercent(item.Count, Model.NonSprintAssignedWorkloadCountsMax)%"></div></div>
-                        <strong>@item.Count</strong>
+                    <p class="at-empty-state-note">No open assigned workload.</p>
+                }
+                else
+                {
+                    <div class="at-metric-bars">
+                        @foreach (var item in Model.AssignedTaskAgeingBuckets)
+                        {
+                            <div class="at-metric-row"><span class="at-metric-label" title="@item.Name">@item.Name</span><strong>@item.Count</strong></div>
+                        }
                     </div>
                 }
             </div>
-        }
-    </article>
-
-    <article class="at-panel">
-        <div class="at-panel-heading">
             <div>
-                <h2>Carry-forward by Sprint</h2>
-                <p class="at-panel-note">Safely derived from unfinished tasks that remain assigned to non-closed Sprints.</p>
-            </div>
-        </div>
-        @if (Model.CarryForwardBySprint.All(item => item.Count == 0))
-        {
-            <p class="at-empty-state-note">No carry-forward candidates are visible in the selected report scope.</p>
-        }
-        else
-        {
-            <div class="at-metric-bars">
-                @foreach (var item in Model.CarryForwardBySprint)
+                <h3 class="at-small at-section-eyebrow">Overdue Analysis</h3>
+                @if (Model.OverdueAgeingBuckets.All(item => item.Count == 0))
                 {
-                    <div class="at-metric-row">
-                        <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                        <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-amber" style="width:@Model.ToPercent(item.Count, Model.CarryForwardBySprintMax)%"></div></div>
-                        <strong>@item.Count</strong>
+                    <p class="at-empty-state-note">No overdue tasks.</p>
+                }
+                else
+                {
+                    <div class="at-metric-bars">
+                        @foreach (var item in Model.OverdueAgeingBuckets)
+                        {
+                            <div class="at-metric-row"><span class="at-metric-label" title="@item.Name">@item.Name</span><strong>@item.Count</strong></div>
+                        }
                     </div>
                 }
             </div>
+            <div>
+                <h3 class="at-small at-section-eyebrow">Pending Closure</h3>
+                @if (Model.SubmittedPendingClosureAgeingBuckets.All(item => item.Count == 0))
+                {
+                    <p class="at-empty-state-note">No submitted tasks are awaiting closure in the selected report scope.</p>
+                }
+                else
+                {
+                    <div class="at-metric-bars">
+                        @foreach (var item in Model.SubmittedPendingClosureAgeingBuckets)
+                        {
+                            <div class="at-metric-row"><span class="at-metric-label" title="@item.Name">@item.Name</span><strong>@item.Count</strong></div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </article>
+
+    <article class="at-panel">
+        <div class="at-panel-heading">
+            <div>
+                <h2>Sprint Performance</h2>
+                <p class="at-panel-note">Compact sprint-level progress and closure trend summary.</p>
+            </div>
+        </div>
+        @if (!Model.SprintPerformanceRows.Any())
+        {
+            <p class="at-empty-state-note">No sprint activity available.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm at-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Sprint</th>
+                            <th>Status</th>
+                            <th>Open</th>
+                            <th>Closed</th>
+                            <th>Carried Forward</th>
+                            <th>Overdue at Closure</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.SprintPerformanceRows)
+                        {
+                            <tr>
+                                <td>@item.Sprint</td>
+                                <td>@item.Status</td>
+                                <td>@item.Open</td>
+                                <td>@item.Closed</td>
+                                <td>@item.CarriedForward</td>
+                                <td>@item.OverdueAtClosure</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         }
     </article>
 
-    <article class="at-panel">
-        <div class="at-panel-heading">
-            <div>
-                <h2>Blocked Task Ageing</h2>
-                <p class="at-panel-note">Ages blocked tasks by time since assignment to support unblock decisions without changing backend workflow.</p>
-            </div>
-        </div>
-        <div class="at-metric-bars">
-            @foreach (var item in Model.BlockedAgeingBuckets)
-            {
-                <div class="at-metric-row">
-                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                    <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-danger" style="width:@Model.ToPercent(item.Count, Model.BlockedAgeingBucketsMax)%"></div></div>
-                    <strong>@item.Count</strong>
+    @if (Model.InvalidStateRows.Any())
+    {
+        <article class="at-panel at-panel-warning">
+            <div class="at-panel-heading">
+                <div>
+                    <h2>Data Quality</h2>
+                    <p class="at-panel-note">Data quality warning: some task records have inconsistent assignment or sprint data.</p>
                 </div>
-            }
-        </div>
-    </article>
-
-    @* SECTION: Deferred trend report state because the current read model has no historical snapshots. *@
-    <article class="at-panel">
-        <div class="at-panel-heading">
-            <div>
-                <h2>Historical Trend Reports</h2>
-                <p class="at-panel-note">Trend charts require dated snapshot data before they can show reliable movement over time.</p>
             </div>
-        </div>
-        <p class="at-empty-state-note">Trend reporting will be enabled after historical Sprint metrics are available.</p>
-    </article>
+            <div class="table-responsive">
+                <table class="table table-sm at-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Task</th>
+                            <th>Issue</th>
+                            <th>Suggested Correction</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.InvalidStateRows)
+                        {
+                            <tr>
+                                <td>@item.Task</td>
+                                <td>@item.Issue</td>
+                                <td>@item.SuggestedCorrection</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    }
 </section>
