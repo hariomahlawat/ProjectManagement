@@ -57,6 +57,9 @@ public class IndexModel : PageModel
         SprintInput = CreateSprintInput.FromSprint(_clock.UtcToday);
     }
 
+    // SECTION: Clock-backed view dates keep Razor defaults aligned with server-side validation.
+    public DateTime UtcToday => _clock.UtcToday;
+
     public IReadOnlyList<ActionTaskItem> Tasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> CriticalOpenTasks { get; private set; } = Array.Empty<ActionTaskItem>();
     public IReadOnlyList<ActionTaskItem> OverdueTasks { get; private set; } = Array.Empty<ActionTaskItem>();
