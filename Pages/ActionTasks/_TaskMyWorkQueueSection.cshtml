@@ -1,28 +1,23 @@
-@model Tuple<ProjectManagement.Pages.ActionTasks.IndexModel, IReadOnlyList<ProjectManagement.Pages.ActionTasks.IndexModel.TaskDisplayItem>, string, string, string>
+@model Tuple<ProjectManagement.Pages.ActionTasks.IndexModel, IReadOnlyList<ProjectManagement.Pages.ActionTasks.IndexModel.TaskDisplayItem>, string, string>
 @{
     var pageModel = Model.Item1;
     var tasks = Model.Item2;
     var title = Model.Item3;
     var description = Model.Item4;
-    var emptyMessage = Model.Item5;
 }
 
-@* SECTION: Compact queue section keeps empty My Work groups from dominating the page. *@
-<article class="at-panel at-mywork-section @(tasks.Any() ? string.Empty : "is-empty")">
-    <div class="at-mywork-section-heading">
-        <div>
-            <h3>@title</h3>
-            <p class="at-panel-note">@description</p>
+@if (tasks.Any())
+{
+    @* SECTION: Compact queue section renders only when My Work has visible assigned tasks for the group. *@
+    <article class="at-panel at-mywork-section">
+        <div class="at-mywork-section-heading">
+            <div>
+                <h3>@title</h3>
+                <p class="at-panel-note">@description</p>
+            </div>
+            <span class="at-count-chip">@tasks.Count</span>
         </div>
-        <span class="at-count-chip">@tasks.Count</span>
-    </div>
 
-    @if (!tasks.Any())
-    {
-        <p class="at-empty-inline at-mywork-empty-line">@emptyMessage</p>
-    }
-    else
-    {
         <partial name="_TaskMyWorkQueueRows" model='@Tuple.Create(pageModel, tasks)' />
-    }
-</article>
+    </article>
+}

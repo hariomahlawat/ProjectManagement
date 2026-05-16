@@ -6,44 +6,57 @@
     var actionRequiredTasks = Model.MyWorkActionRequiredDisplays;
     var currentWorkTasks = Model.MyWorkCurrentWorkDisplays;
     var submittedTasks = Model.MyWorkSubmittedAwaitingClosureDisplays;
-    var allMyTaskDisplays = Model.MyWorkAllMyTasksDisplays;
-    var actionRequiredCount = actionRequiredTasks.Count;
+    var otherAssignedWorkDisplays = Model.MyWorkAllMyTasksDisplays;
+    var actionRequiredCount = actionRequiredTasks.Count + otherAssignedWorkDisplays.Count(item => string.Equals(item.Task.Status, ProjectManagement.Models.ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase));
     var overdueCount = Model.MyOverdueTaskDisplays.Count;
     var inProgressCount = Model.MyInProgressTaskDisplays.Count;
     var submittedCount = Model.MySubmittedTaskDisplays.Count;
 }
 
-@* SECTION: Compact personal execution KPI strip. *@
+@* SECTION: Compact personal execution count line. *@
 <section class="at-mywork-summary-line" aria-label="My work open assignment count">
     <span>@assignedTaskCount open assigned tasks</span>
 </section>
-<section class="at-kpis at-kpis-mywork" aria-label="My work task summary">
-    <article>
-        <h3>Needs Action</h3>
-        <strong>@actionRequiredCount</strong>
-        <p>Overdue, due today, or blocked.</p>
-    </article>
-    <article>
-        <h3>Overdue</h3>
-        <strong>@overdueCount</strong>
-        <p>Past due and still open.</p>
-    </article>
-    <article>
-        <h3>In Progress</h3>
-        <strong>@inProgressCount</strong>
-        <p>Currently underway.</p>
-    </article>
-    <article>
-        <h3>Submitted</h3>
-        <strong>@submittedCount</strong>
-        <p>Awaiting closure review.</p>
-    </article>
-</section>
 
-@* SECTION: Priority-based personal work queue avoids repeated tasks and oversized empty panels. *@
-<section class="at-mywork-queue" aria-label="Priority-based personal work queue">
-    <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, actionRequiredTasks, "Action Required", "Overdue, due today, and blocked work that needs attention before other assignments.", "No action-required tasks right now.")' />
-    <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, currentWorkTasks, "Current Work", "In-progress tasks that are already underway after urgent exceptions are removed.", "No current work in progress.")' />
-    <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, submittedTasks, "Submitted / Awaiting Closure", "Submitted work waiting for closure review.", "No submitted tasks are awaiting closure.")' />
-    <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, allMyTaskDisplays, "All My Tasks", "Remaining assigned tasks not already shown above.", "No remaining assigned tasks.")' />
-</section>
+@if (assignedTaskCount == 0)
+{
+    @* SECTION: Single calm empty state replaces repeated empty My Work panels. *@
+    <section class="at-panel at-mywork-empty" aria-label="No open assigned work">
+        <h3>No open tasks assigned to you.</h3>
+        <p>New assigned work will appear here.</p>
+    </section>
+}
+else
+{
+    @* SECTION: Compact personal execution KPI strip appears only when open work exists. *@
+    <section class="at-kpis at-kpis-mywork at-mywork-kpis" aria-label="My work task summary">
+        <article>
+            <h3>Needs Action</h3>
+            <strong>@actionRequiredCount</strong>
+            <p>Tasks that need your attention.</p>
+        </article>
+        <article>
+            <h3>Overdue</h3>
+            <strong>@overdueCount</strong>
+            <p>Past due and still open.</p>
+        </article>
+        <article>
+            <h3>In Progress</h3>
+            <strong>@inProgressCount</strong>
+            <p>Currently underway.</p>
+        </article>
+        <article>
+            <h3>Submitted</h3>
+            <strong>@submittedCount</strong>
+            <p>Awaiting closure review.</p>
+        </article>
+    </section>
+
+    @* SECTION: Priority-based personal work queue avoids repeated tasks and hides empty groups. *@
+    <section class="at-mywork-queue" aria-label="Priority-based personal work queue">
+        <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, actionRequiredTasks, "Action Required", "Tasks that need your attention now.")' />
+        <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, currentWorkTasks, "Current Work", "Tasks currently in progress.")' />
+        <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, submittedTasks, "Submitted / Awaiting Closure", "Work submitted for closure review.")' />
+        <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, otherAssignedWorkDisplays, "Other Assigned Work", "Open assigned tasks not already shown above.")' />
+    </section>
+}

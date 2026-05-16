@@ -117,11 +117,18 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task MyWorkPartial_RendersRedesignedPersonalQueueSections()
+    public async Task MyWorkPartial_RendersOpenPersonalQueueWithoutCommandNoise()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
         setup.Db.ActionTasks.Add(NewTask("Closed personal task", ActionTaskStatuses.Closed));
+        var otherUserTask = NewTask("Other user task", ActionTaskStatuses.Assigned);
+        otherUserTask.AssignedToUserId = "user-2";
+        setup.Db.ActionTasks.Add(otherUserTask);
+        var backlogTask = NewTask("Backlog personal task", ActionTaskStatuses.Backlog);
+        backlogTask.AssignedToUserId = string.Empty;
+        backlogTask.AssignedToRole = string.Empty;
+        setup.Db.ActionTasks.Add(backlogTask);
         await setup.Db.SaveChangesAsync();
         var page = setup.Page;
         page.ViewMode = "MyWork";
@@ -134,13 +141,22 @@ public class ActionTaskPageTests
         Assert.DoesNotContain("Assigned to me", html, StringComparison.Ordinal);
         Assert.Contains("Needs Action", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Tasks in Active Sprint", html, StringComparison.Ordinal);
-        Assert.Contains("Action Required", html, StringComparison.Ordinal);
-        Assert.Contains("Current Work", html, StringComparison.Ordinal);
-        Assert.Contains("Submitted / Awaiting Closure", html, StringComparison.Ordinal);
-        Assert.Contains("All My Tasks", html, StringComparison.Ordinal);
-        Assert.Contains("Open details", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Action Required", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Current Work", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Submitted / Awaiting Closure", html, StringComparison.Ordinal);
+        Assert.Contains("Other Assigned Work", html, StringComparison.Ordinal);
+        Assert.Contains("Open assigned tasks not already shown above.", html, StringComparison.Ordinal);
+        Assert.Contains("Start Work", html, StringComparison.Ordinal);
+        Assert.Contains("Details", html, StringComparison.Ordinal);
         Assert.Contains("Mine", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("All My Tasks", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Closed personal task", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Backlog personal task", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Other user task", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Remove from Sprint", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Return to Backlog", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reassign", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Close Task", html, StringComparison.Ordinal);
         Assert.Single(page.MyWorkAllMyTasksDisplays);
         Assert.DoesNotContain(page.MyWorkAllMyTasksDisplays, item => string.Equals(item.Task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase));
     }
@@ -171,10 +187,13 @@ public class ActionTaskPageTests
     }
 
     [Fact]
-    public async Task MyWorkPartial_EmptySectionsRenderCompactly()
+    public async Task MyWorkPartial_ZeroOpenTasksRendersSingleEmptyStateOnly()
     {
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
+        var task = await setup.Db.ActionTasks.SingleAsync();
+        task.Status = ActionTaskStatuses.Closed;
+        await setup.Db.SaveChangesAsync();
         var page = setup.Page;
         page.ViewMode = "MyWork";
         await page.OnGetAsync();
@@ -183,10 +202,57 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskMyWork.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("at-mywork-empty-line", html, StringComparison.Ordinal);
-        Assert.Contains("No action-required tasks right now.", html, StringComparison.Ordinal);
-        Assert.Contains("at-panel at-mywork-section is-empty", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("No tasks assigned to you are due today.", html, StringComparison.Ordinal);
+        Assert.Contains("0 open assigned tasks", html, StringComparison.Ordinal);
+        Assert.Contains("No open tasks assigned to you.", html, StringComparison.Ordinal);
+        Assert.Contains("New assigned work will appear here.", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("at-mywork-kpis", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Action Required", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Current Work", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Submitted / Awaiting Closure", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Other Assigned Work", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("at-mywork-section", html, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public async Task MyWorkPartial_RendersStatusSpecificPrimaryActionsAndExclusiveSections()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var assigned = await setup.Db.ActionTasks.SingleAsync();
+        assigned.Title = "Assigned future";
+        assigned.Status = ActionTaskStatuses.Assigned;
+        assigned.DueDate = DateTime.UtcNow.Date.AddDays(5);
+        setup.Db.ActionTasks.Add(NewTask("Blocked task", ActionTaskStatuses.Blocked));
+        var overdueTask = NewTask("Overdue task", ActionTaskStatuses.Assigned);
+        overdueTask.DueDate = DateTime.UtcNow.Date.AddDays(-1);
+        setup.Db.ActionTasks.Add(overdueTask);
+        var dueTodayTask = NewTask("Due today task", ActionTaskStatuses.Assigned);
+        dueTodayTask.DueDate = DateTime.UtcNow.Date;
+        setup.Db.ActionTasks.Add(dueTodayTask);
+        setup.Db.ActionTasks.Add(NewTask("In progress task", ActionTaskStatuses.InProgress));
+        setup.Db.ActionTasks.Add(NewTask("Submitted task", ActionTaskStatuses.Submitted));
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "MyWork";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskMyWork.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains(page.MyWorkActionRequiredDisplays, item => item.Task.Title == "Blocked task");
+        Assert.Contains(page.MyWorkActionRequiredDisplays, item => item.Task.Title == "Overdue task");
+        Assert.Contains(page.MyWorkActionRequiredDisplays, item => item.Task.Title == "Due today task");
+        Assert.Contains(page.MyWorkCurrentWorkDisplays, item => item.Task.Title == "In progress task");
+        Assert.Contains(page.MyWorkSubmittedAwaitingClosureDisplays, item => item.Task.Title == "Submitted task");
+        Assert.Contains(page.MyWorkAllMyTasksDisplays, item => item.Task.Title == "Assigned future");
+        Assert.Equal(6, page.MyWorkActionRequiredDisplays.Count + page.MyWorkCurrentWorkDisplays.Count + page.MyWorkSubmittedAwaitingClosureDisplays.Count + page.MyWorkAllMyTasksDisplays.Count);
+        Assert.Contains("Start Work", html, StringComparison.Ordinal);
+        Assert.Contains("Submit for Closure", html, StringComparison.Ordinal);
+        Assert.Contains("Add Update", html, StringComparison.Ordinal);
+        Assert.Contains("Mark In Progress", html, StringComparison.Ordinal);
+        Assert.Contains("View Details", html, StringComparison.Ordinal);
     }
 
     [Fact]
