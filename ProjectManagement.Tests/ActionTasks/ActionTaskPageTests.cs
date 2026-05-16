@@ -1354,6 +1354,8 @@ public class ActionTaskPageTests
         Assert.DoesNotContain("<span>Bucket / Sprint</span>", html, StringComparison.Ordinal);
         Assert.Contains("<span>Bucket</span>", html, StringComparison.Ordinal);
         Assert.Contains("<span>Sprint</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Assignee</span>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<span>Responsible Person</span>", html, StringComparison.Ordinal);
         Assert.Contains(@"data-at-reports-filter-form=""true""", html, StringComparison.Ordinal);
         Assert.Contains(@"data-at-reports-filter-control=""true""", html, StringComparison.Ordinal);
         Assert.Contains(@"data-at-reports-date-filter=""true""", html, StringComparison.Ordinal);
@@ -1421,6 +1423,33 @@ public class ActionTaskPageTests
         Assert.Contains("Assigned Task Ageing", html, StringComparison.Ordinal);
         Assert.Contains("Sprint Performance", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Non-sprint", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ReportsSprintPerformance_ActiveSubmittedTaskCountsAsOpenAndUnfinished()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync();
+        var sprint = AddSprint(setup.Db, "Submitted Sprint", ActionSprintStatus.Active);
+        var submittedTask = await setup.Db.ActionTasks.SingleAsync();
+        submittedTask.Title = "Submitted sprint task";
+        submittedTask.Status = ActionTaskStatuses.Submitted;
+        submittedTask.SprintId = sprint.Id;
+        submittedTask.AssignedToUserId = "user-1";
+        submittedTask.SubmittedOn = DateTime.UtcNow.Date;
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Reports";
+
+        // SECTION: Act
+        await page.OnGetAsync();
+        var performance = Assert.Single(page.SprintPerformanceRows);
+
+        // SECTION: Assert
+        Assert.Equal("Submitted Sprint", performance.Sprint);
+        Assert.Equal(1, performance.Open);
+        Assert.Equal(1, performance.Unfinished);
+        Assert.Equal(0, performance.ClosedLate);
     }
 
     [Fact]
