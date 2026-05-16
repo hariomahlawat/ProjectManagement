@@ -113,8 +113,10 @@ public sealed class ActionTaskCommandCentreSummaryBuilder
 
     private bool IsTaskOverdue(ActionTaskItem task)
         => IsOpenTask(task)
+           && !string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
            && ActionTaskCategorization.HasAssignedUser(task)
            && !ActionTaskCategorization.IsBacklogTask(task)
+           && ActionTaskBucketClassifier.ResolveBucket(task) != ActionTaskBucket.Invalid
            && task.DueDate.Date < _clock.UtcToday;
 
     private static int CountByStatus(IReadOnlyList<ActionTaskItem> tasks, string status)
@@ -122,13 +124,18 @@ public sealed class ActionTaskCommandCentreSummaryBuilder
 
     private static int GetAttentionScore(ActionTaskItem task, DateTime today)
     {
-        var isOverdue = task.DueDate.Date < today;
+        var isSubmitted = string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
+        var isOverdue = !isSubmitted
+            && ActionTaskCategorization.HasAssignedUser(task)
+            && !ActionTaskCategorization.IsBacklogTask(task)
+            && ActionTaskBucketClassifier.ResolveBucket(task) != ActionTaskBucket.Invalid
+            && task.DueDate.Date < today;
         var isCritical = string.Equals(task.Priority, "Critical", StringComparison.OrdinalIgnoreCase);
-        if (isOverdue && isCritical) return 1;
-        if (isOverdue) return 2;
+        if (!isSubmitted && isOverdue && isCritical) return 1;
+        if (!isSubmitted && isOverdue) return 2;
         if (string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase) && isCritical) return 3;
         if (isCritical) return 4;
-        if (string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)) return 5;
+        if (isSubmitted) return 5;
         return 6;
     }
 

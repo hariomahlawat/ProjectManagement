@@ -76,18 +76,29 @@
                     </div>
                     @foreach (var task in review.UnfinishedTasks)
                     {
+                        var mustReturnInvalidTaskToBacklog = Model.MustReturnInvalidTaskToBacklogDuringClosure(task);
                         <div class="at-closure-task-row" role="row">
                             <span>
                                 <strong>AT-@task.Id</strong> @task.Title
                                 <small>Due @task.DueDate.ToString("dd MMM yyyy")</small>
+                                @if (Model.IsInvalidTaskState(task))
+                                {
+                                    <small class="at-empty-inline">Invalid sprint assignment. Return to Backlog or correct the responsible person before closure.</small>
+                                }
                             </span>
-                            <span><span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span></span>
+                            <span>
+                                <span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span>
+                                @if (Model.IsInvalidTaskState(task))
+                                {
+                                    <span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span>
+                                }
+                            </span>
                             <label class="at-closure-choice">
-                                <input type="radio" name="ClosureInput.Dispositions[@task.Id]" value="carry" data-at-closure-choice="carry" required />
+                                <input type="radio" name="ClosureInput.Dispositions[@task.Id]" value="carry" data-at-closure-choice="carry" required disabled="@mustReturnInvalidTaskToBacklog" />
                                 <span>Carry Forward</span>
                             </label>
                             <label class="at-closure-choice">
-                                <input type="radio" name="ClosureInput.Dispositions[@task.Id]" value="outside" data-at-closure-choice="outside" required />
+                                <input type="radio" name="ClosureInput.Dispositions[@task.Id]" value="outside" data-at-closure-choice="outside" required disabled="@mustReturnInvalidTaskToBacklog" />
                                 <span>Keep Outside Sprint</span>
                             </label>
                             <label class="at-closure-choice">

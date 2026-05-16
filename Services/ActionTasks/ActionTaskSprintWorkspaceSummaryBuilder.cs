@@ -29,15 +29,26 @@ public sealed class ActionTaskSprintWorkspaceSummaryBuilder
             request.UnfinishedClosureTasks.OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList(),
             request.BacklogTasks.Count,
             request.BacklogTasks.Count(IsHighPriorityBacklogTask),
-            request.BacklogTasks.Count(IsTaskOverdue),
+            request.BacklogTasks.Count(IsBacklogPastTarget),
             activeSprintTasks.OrderBy(t => StatusOrder(t.Status)).ThenBy(t => t.DueDate).ThenBy(t => t.Id).ToList(),
             activeSprintTasks.Where(IsTaskOverdue).OrderBy(t => t.DueDate).ThenBy(t => t.Id).Take(5).ToList(),
             activeSprintTasks.Where(IsBlocked).OrderBy(t => t.DueDate).ThenBy(t => t.Id).Take(5).ToList(),
+            activeSprintTasks.Count(IsSubmitted),
             activeSprintTasks.Where(IsSubmitted).OrderBy(t => t.SubmittedOn ?? t.DueDate).ThenBy(t => t.Id).Take(5).ToList());
     }
 
-    // SECTION: Sprint summary predicates preserve existing open-task and status semantics.
-    private bool IsTaskOverdue(ActionTaskItem task) => IsOpenTask(task) && task.DueDate.Date < _clock.UtcToday;
+    // SECTION: Sprint summary predicates separate assigned overdue work from backlog target dates.
+    private bool IsTaskOverdue(ActionTaskItem task)
+        => IsOpenTask(task)
+           && !IsSubmitted(task)
+           && ActionTaskCategorization.HasAssignedUser(task)
+           && ActionTaskBucketClassifier.ResolveBucket(task) != ActionTaskBucket.Invalid
+           && task.DueDate.Date < _clock.UtcToday;
+
+    private bool IsBacklogPastTarget(ActionTaskItem task)
+        => ActionTaskCategorization.IsBacklogTask(task)
+           && task.DueDate.Date < _clock.UtcToday;
+
     private static bool IsHighPriorityBacklogTask(ActionTaskItem task) => string.Equals(task.Priority, "High", StringComparison.OrdinalIgnoreCase) || string.Equals(task.Priority, "Critical", StringComparison.OrdinalIgnoreCase);
     private static bool IsBlocked(ActionTaskItem task) => string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
     private static bool IsSubmitted(ActionTaskItem task) => string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
@@ -79,6 +90,7 @@ public sealed record ActionTaskSprintWorkspaceSummary(
     IReadOnlyList<ActionTaskItem> ActiveSprintTasks,
     IReadOnlyList<ActionTaskItem> ActiveSprintOverdueTasks,
     IReadOnlyList<ActionTaskItem> ActiveSprintBlockedTasks,
+    int ActiveSprintSubmittedTaskCount,
     IReadOnlyList<ActionTaskItem> ActiveSprintSubmittedTasks)
 {
     public static ActionTaskSprintWorkspaceSummary Empty { get; } = new(
@@ -95,5 +107,6 @@ public sealed record ActionTaskSprintWorkspaceSummary(
         Array.Empty<ActionTaskItem>(),
         Array.Empty<ActionTaskItem>(),
         Array.Empty<ActionTaskItem>(),
+        0,
         Array.Empty<ActionTaskItem>());
 }

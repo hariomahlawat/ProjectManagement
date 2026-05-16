@@ -194,7 +194,7 @@ public sealed class ActionTaskReportBuilder
                     Closed = scopedTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)),
                     CarriedForward = s.Status == ActionSprintStatus.Closed ? 0 : assignedOpen.Count(t => !string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)),
                     OverdueAtClosure = s.Status == ActionSprintStatus.Closed
-                        ? scopedTasks.Count(t => t.DueDate.Date < (s.ClosedAtUtc ?? s.EndDate).Date && !string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+                        ? scopedTasks.Count(IsClosedLate)
                         : assignedOpen.Count(t => IsAssignedTaskOverdue(t, utcToday))
                 };
             })
@@ -256,6 +256,11 @@ public sealed class ActionTaskReportBuilder
 
     private static bool IsSubmitted(ActionTaskItem task)
         => string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsClosedLate(ActionTaskItem task)
+        => string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+           && task.ClosedOn.HasValue
+           && task.ClosedOn.Value.Date > task.DueDate.Date;
 
     private static bool IsOpen(ActionTaskItem task) => ActionTaskCategorization.IsOpenTask(task);
 

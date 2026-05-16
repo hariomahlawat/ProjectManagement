@@ -85,7 +85,7 @@
                 <span>Status</span>
                 <select class="form-select form-select-sm" name="ReportStatus" data-at-reports-filter-control="true">
                     <option value="">All statuses</option>
-                    @foreach (var status in Model.AllowedStatusOptions)
+                    @foreach (var status in Model.ReportStatusOptions)
                     {
                         @if (string.Equals(Model.ReportStatus, status, StringComparison.OrdinalIgnoreCase))
                         {
@@ -302,7 +302,7 @@
                             <th>Open</th>
                             <th>Closed</th>
                             <th>Carried Forward</th>
-                            <th>Overdue at Closure</th>
+                            <th>Closed Late</th>
                         </tr>
                     </thead>
                     <tbody>
