@@ -3618,12 +3618,28 @@ html {
     margin-top: 0.5rem;
 }
 
+/* SECTION: Outside sprint disclosure stays visually secondary to the backlog planning queue. */
 .at-planning-outside-sprint {
-    border-style: dashed;
+    border: 1px dashed var(--at-border);
+    border-radius: var(--at-radius-lg);
+    background: #f8fafc;
+    padding: 0.75rem 0.85rem;
 }
 
 .at-planning-outside-sprint > summary {
     cursor: pointer;
+}
+
+.at-planning-outside-summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.at-planning-outside-summary h2 {
+    margin: 0;
+    font-size: 1rem;
 }
 
 .at-execute-status-board,

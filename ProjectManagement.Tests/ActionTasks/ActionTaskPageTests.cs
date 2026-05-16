@@ -1002,7 +1002,8 @@ public class ActionTaskPageTests
         Assert.DoesNotContain("Quick open", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Open Sprint", html, StringComparison.Ordinal);
         Assert.Contains("<details class=\"at-planning-backlog-filter-shell\">", html, StringComparison.Ordinal);
-        Assert.Contains("<details class=\"at-panel at-planning-outside-sprint at-planning-plan-card\">", html, StringComparison.Ordinal);
+        Assert.Contains("<details class=\"at-planning-outside-sprint at-planning-plan-card\">", html, StringComparison.Ordinal);
+        Assert.Contains("assigned tasks outside sprint", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1221,7 +1222,9 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.Contains("<h2>Active Sprint</h2>", activeSprint, StringComparison.Ordinal);
         Assert.Contains("Health Sprint", activeSprint, StringComparison.Ordinal);
-        Assert.Contains("No active sprint exceptions.", activeSprint, StringComparison.Ordinal);
+        Assert.Contains("1 tasks", activeSprint, StringComparison.Ordinal);
+        Assert.DoesNotContain("Active Sprint Exceptions", activeSprint, StringComparison.Ordinal);
+        Assert.DoesNotContain("No active sprint exceptions.", activeSprint, StringComparison.Ordinal);
         Assert.DoesNotContain("Active Sprint Health", activeSprint, StringComparison.Ordinal);
         Assert.DoesNotContain("<h3>Backlog</h3>", activeSprint, StringComparison.Ordinal);
         Assert.DoesNotContain("No overdue tasks in the active sprint.", activeSprint, StringComparison.Ordinal);
@@ -1308,6 +1311,8 @@ public class ActionTaskPageTests
         Assert.Contains(@"name=""ReportSprintId""", html, StringComparison.Ordinal);
         Assert.Contains("Decision Sprint", html, StringComparison.Ordinal);
         Assert.Contains("Reset / Clear all", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("This management view summarises", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Keep reports focused", html, StringComparison.Ordinal);
         Assert.DoesNotContain("<span>Bucket / Sprint</span>", html, StringComparison.Ordinal);
         Assert.Contains("<span>Bucket</span>", html, StringComparison.Ordinal);
         Assert.Contains("<span>Sprint</span>", html, StringComparison.Ordinal);
@@ -1354,6 +1359,7 @@ public class ActionTaskPageTests
         Assert.Equal(1, page.PriorityCounts.Single(x => x.Name == "High").Count);
         Assert.Equal(1, page.BlockedAgeingBuckets.Single(x => x.Name == "8-14 days assigned").Count);
         Assert.Contains("Showing 1 of 2 tasks", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Showing showing", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(@"method=""get""", html, StringComparison.Ordinal);
         Assert.Contains(@"name=""ViewMode"" value=""Reports""", html, StringComparison.Ordinal);
         Assert.Contains(@"name=""ReportBucket""", html, StringComparison.Ordinal);

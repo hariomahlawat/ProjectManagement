@@ -30,44 +30,18 @@
     }
     else
     {
+        @* SECTION: Active sprint status remains a compact summary; detailed exception cards live under Attention Required to avoid duplicate task lists. *@
         <p class="at-active-sprint-summary">
-            @Model.ActiveSprintMetrics.TotalTasks tasks · @Model.ActiveSprintMetrics.InProgressTasks in progress · @Model.ActiveSprintMetrics.OverdueTasks overdue · @Model.ActiveSprintMetrics.BlockedTasks blocked · @Model.ActiveSprintSubmittedTaskCount pending closure@if (Model.ActiveSprintMetrics.InvalidStateTasks > 0) { <text> · @Model.ActiveSprintMetrics.InvalidStateTasks invalid state</text> }
+            @Model.ActiveSprintMetrics.TotalTasks tasks ·
+            @Model.ActiveSprintMetrics.InProgressTasks in progress ·
+            @Model.ActiveSprintMetrics.OverdueTasks overdue ·
+            @Model.ActiveSprintMetrics.BlockedTasks blocked ·
+            @Model.ActiveSprintSubmittedTaskCount pending closure
+            @if (Model.ActiveSprintMetrics.InvalidStateTasks > 0)
+            {
+                <text> · @Model.ActiveSprintMetrics.InvalidStateTasks invalid state</text>
+            }
         </p>
-
-        @* SECTION: Active sprint exception lists render only when they contain command-relevant tasks. *@
-        <div class="at-active-sprint-exceptions" aria-label="Active Sprint Exceptions">
-            <h3>Active Sprint Exceptions</h3>
-            @if (!Model.HasActiveSprintExceptions)
-            {
-                <div class="at-dashboard-empty-line">No active sprint exceptions.</div>
-            }
-            else
-            {
-                <div class="at-attention-grid">
-                    @if (Model.ActiveSprintOverdueTaskDisplays.Any())
-                    {
-                        <article class="at-attention-panel">
-                            <div class="at-attention-heading"><span>Overdue in Active Sprint</span><strong>@Model.ActiveSprintOverdueTaskDisplays.Count</strong></div>
-                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintOverdueTaskDisplays, string.Empty)' />
-                        </article>
-                    }
-                    @if (Model.ActiveSprintBlockedTaskDisplays.Any())
-                    {
-                        <article class="at-attention-panel">
-                            <div class="at-attention-heading"><span>Blocked in Active Sprint</span><strong>@Model.ActiveSprintBlockedTaskDisplays.Count</strong></div>
-                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintBlockedTaskDisplays, string.Empty)' />
-                        </article>
-                    }
-                    @if (Model.ActiveSprintSubmittedTaskDisplays.Any())
-                    {
-                        <article class="at-attention-panel">
-                            <div class="at-attention-heading"><span>Submitted Pending Closure in Active Sprint</span><strong>@Model.ActiveSprintSubmittedTaskCount</strong></div>
-                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintSubmittedTaskDisplays, string.Empty)' />
-                        </article>
-                    }
-                </div>
-            }
-        </div>
     }
 </section>
 
