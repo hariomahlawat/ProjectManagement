@@ -11,6 +11,10 @@
     var selectedTaskStatus = Model.SelectedTask?.Status ?? string.Empty;
     var selectedTaskIsClosed = string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
     var selectedTaskDateLabel = selectedTaskIsBacklog ? "Target" : "Due";
+    var minimumChangeDate = Model.UtcToday;
+    var changeDateInputValue = Model.SelectedTask is not null && Model.SelectedTask.DueDate.Date >= minimumChangeDate
+        ? Model.SelectedTask.DueDate.Date
+        : minimumChangeDate;
     var updateButtonText = selectedTaskIsBacklog ? "Add Planning Note" : "Add Update";
     var updatePanelTitle = selectedTaskIsBacklog ? "Add Planning Note" : "Add Update";
     var updatePlaceholder = selectedTaskIsBacklog ? "Add planning note or clarification" : "Add progress details or clarification notes";
@@ -306,9 +310,14 @@
                                 <input type="hidden" asp-for="ChangeDateInput.TaskId" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" asp-for="ChangeDateInput.RowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" />
                                 <div class="at-action-title">Change @selectedTaskDateLabel Date</div>
+                                @* SECTION: Date change values keep overdue tasks visible while enforcing the current minimum date. *@
+                                <div class="mb-2">
+                                    <span class="form-label at-small d-block mb-1">Current @selectedTaskDateLabel Date</span>
+                                    <div class="form-control-plaintext form-control-sm py-0">@Model.SelectedTask.DueDate.ToString("dd MMM yyyy")</div>
+                                </div>
                                 <div class="mb-2">
                                     <label class="form-label at-small" asp-for="ChangeDateInput.NewDate">New @selectedTaskDateLabel Date</label>
-                                    <input class="form-control form-control-sm" asp-for="ChangeDateInput.NewDate" type="date" value="@Model.SelectedTask.DueDate.ToString("yyyy-MM-dd")" min="@DateTime.UtcNow.Date.ToString("yyyy-MM-dd")" />
+                                    <input class="form-control form-control-sm" asp-for="ChangeDateInput.NewDate" type="date" value="@changeDateInputValue.ToString("yyyy-MM-dd")" min="@minimumChangeDate.ToString("yyyy-MM-dd")" />
                                 </div>
                                 <div class="at-action-buttons">
                                     <button type="submit" class="btn btn-primary btn-sm">Save Date</button>
