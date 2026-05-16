@@ -1,34 +1,21 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
-@using ProjectManagement.Models
-
-@* SECTION: Backlog filters reuse the module's controlled register-style filtering. *@
+@* SECTION: Sprint Board backlog queue filters reuse controlled open-status filtering for actionable unscheduled work. *@
 <section class="at-panel mb-3">
     <div class="at-panel-heading">
         <div>
-            <h2>Backlog Filters</h2>
-            <p class="at-panel-note">Backlog shows only tasks where SprintId is empty.</p>
+            <h2>Sprint Board Backlog Filters</h2>
+            <p class="at-panel-note">Backlog items show only open tasks that are not in a Sprint and not assigned to a user.</p>
         </div>
         <span class="at-count-chip">@Model.BacklogTaskDisplays.Count tasks</span>
     </div>
+    @* SECTION: Compact backlog planning signals preserve the unassigned backlog definition. *@
+    <div class="at-backlog-summary-grid" aria-label="Backlog summary">
+        <article><strong>@Model.BacklogTotalCount</strong><span>Backlog items</span></article>
+        <article><strong>@Model.BacklogHighPriorityCount</strong><span>High priority</span></article>
+        <article><strong>@Model.BacklogOverdueCount</strong><span>Past Target</span></article>
+    </div>
     <form method="get" class="row g-2" data-at-task-filter-form="true">
-        <input type="hidden" name="viewMode" value="Backlog" />
-        <div class="col-md-2">
-            <label class="form-label">Status</label>
-            <select class="form-select" name="FilterStatus">
-                <option value="">All</option>
-                @foreach (var status in Model.AllowedStatusOptions.Append(ActionTaskStatuses.Closed))
-                {
-                    if (string.Equals(Model.FilterStatus, status, StringComparison.OrdinalIgnoreCase))
-                    {
-                        <option value="@status" selected>@status</option>
-                    }
-                    else
-                    {
-                        <option value="@status">@status</option>
-                    }
-                }
-            </select>
-        </div>
+        <input type="hidden" name="viewMode" value="Planning" />
         <div class="col-md-2">
             <label class="form-label">Priority</label>
             <select class="form-select" name="FilterPriority">
@@ -47,24 +34,7 @@
             </select>
         </div>
         <div class="col-md-2">
-            <label class="form-label">Responsible Person</label>
-            <select class="form-select" name="FilterAssigneeUserId">
-                <option value="">All</option>
-                @foreach (var assignee in Model.TaskAssigneeNames.OrderBy(x => x.Value))
-                {
-                    if (string.Equals(Model.FilterAssigneeUserId, assignee.Key, StringComparison.Ordinal))
-                    {
-                        <option value="@assignee.Key" selected>@assignee.Value</option>
-                    }
-                    else
-                    {
-                        <option value="@assignee.Key">@assignee.Value</option>
-                    }
-                }
-            </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label">Due Date</label>
+            <label class="form-label">Target Date</label>
             <input type="date" class="form-control" name="FilterDueDate" value="@(Model.FilterDueDate?.ToString("yyyy-MM-dd"))" />
         </div>
         <div class="col-md-2">
@@ -72,18 +42,18 @@
             <input type="text" class="form-control" name="FilterSearch" value="@Model.FilterSearch" data-at-filter-search="true" />
         </div>
         <div class="col-md-2 d-flex align-items-end">
-            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Backlog" class="btn btn-outline-secondary w-100">Reset</a>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" class="btn btn-outline-secondary w-100">Reset</a>
         </div>
     </form>
 </section>
 
-@* SECTION: Backlog task list and controlled sprint assignment action. *@
+@* SECTION: Sprint Board backlog task list and controlled AssignToSprint action. *@
 <section class="at-panel">
     <div class="at-panel-heading">
-        <h2>Backlog Tasks</h2>
+        <h2>Sprint Board Backlog Items</h2>
         @if (Model.CanPlanSprints)
         {
-            <span class="at-panel-note">Comdt and HoD can assign open tasks into open sprints.</span>
+            <span class="at-panel-note">Comdt and HoD can assign backlog items into open Sprints.</span>
         }
     </div>
 
@@ -98,10 +68,8 @@
                 <thead>
                     <tr>
                         <th>Task</th>
-                        <th>Responsible Person</th>
                         <th>Priority</th>
-                        <th>Status</th>
-                        <th>Due Date</th>
+                        <th>Target Date</th>
                         @if (Model.CanPlanSprints)
                         {
                             <th>Assign to Sprint</th>
@@ -114,29 +82,40 @@
                         var task = item.Task;
                         <tr class="@(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)">
                             <td>
-                                <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Backlog">AT-@task.Id · @task.Title</a>
-                                <div class="mt-1"><span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span></div>
+                                <a class="at-task-title" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Planning">AT-@task.Id · @task.Title</a>
+                                <div class="at-backlog-task-meta">
+                                    <span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span>
+                                    @if (Model.IsTaskOverdue(task))
+                                    {
+                                        <span class="at-overdue-marker">Past Target</span>
+                                    }
+                                </div>
                             </td>
-                            <td>@item.AssigneeName</td>
                             <td><span class="@Model.GetPriorityBadgeClass(task.Priority)">@task.Priority</span></td>
-                            <td><span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span></td>
-                            <td>@task.DueDate.ToString("dd MMM yyyy")</td>
+                            <td><span class="at-cell-primary">@task.DueDate.ToString("dd MMM yyyy")</span></td>
                             @if (Model.CanPlanSprints)
                             {
                                 <td>
                                     @if (Model.CanAssignTaskToSprint(task))
                                     {
                                     <form method="post" asp-page-handler="AssignToSprint" class="at-inline-sprint-form">
-                                        <input type="hidden" name="ViewMode" value="Backlog" />
+                                        <input type="hidden" name="ViewMode" value="Planning" />
                                         <input type="hidden" name="id" value="@task.Id" />
-                                        <select class="form-select form-select-sm" name="sprintId" aria-label="Select sprint for AT-@task.Id" required>
-                                            <option value="">Select sprint</option>
-                                            @foreach (var sprint in Model.AssignableSprints)
+                                        <select class="form-select form-select-sm" name="responsibleUserId" aria-label="Select responsible person for AT-@task.Id" required>
+                                            <option value="">Responsible person</option>
+                                            @foreach (var user in Model.AssignableUsers)
                                             {
-                                                <option value="@sprint.Id">@sprint.Name (@sprint.Status)</option>
+                                                <option value="@user.UserId">@user.DisplayName</option>
                                             }
                                         </select>
-                                        <button type="submit" class="btn btn-primary btn-sm">Assign</button>
+                                        <select class="form-select form-select-sm" name="sprintId" aria-label="Select Sprint for AT-@task.Id" required>
+                                            <option value="">Select Sprint</option>
+                                            @foreach (var sprint in Model.AssignableSprints)
+                                            {
+                                                <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>
+                                            }
+                                        </select>
+                                        <button type="submit" class="btn btn-primary btn-sm">Add to Sprint</button>
                                     </form>
                                     }
                                     else

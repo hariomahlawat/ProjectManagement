@@ -1,68 +1,124 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
+@{
+    var activeCreateMode = string.Equals(Model.CreateMode, "direct", StringComparison.OrdinalIgnoreCase) ? "direct" : "backlog";
+    var isBacklogCreateMode = activeCreateMode == "backlog";
+    var isDirectCreateMode = activeCreateMode == "direct";
+}
 
-@* SECTION: Create-task modal for focused task capture workflow. *@
+@* SECTION: Create-task modal starts with a segmented two-choice flow, then reveals only the selected form without inline scripts. *@
 <div class="modal fade" id="createTaskModal" tabindex="-1" aria-labelledby="createTaskModalLabel" aria-hidden="true" data-bs-backdrop="static" data-at-open-on-load="@(Model.ShowCreateModal ? "true" : "false")">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <form method="post" asp-page-handler="Create">
-                <div class="modal-header">
-                    <h2 class="modal-title h5 mb-0" id="createTaskModalLabel">Create Task</h2>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    @if (!ViewData.ModelState.IsValid)
-                    {
-                        <div asp-validation-summary="All" class="alert alert-danger mb-3"></div>
-                    }
-                    @* SECTION: Preserve selected view mode during postbacks. *@
-                    <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
-                    <div class="row g-3">
-                        <div class="col-md-5">
-                            <label asp-for="Input.Title" class="form-label">Task Title</label>
-                            <input asp-for="Input.Title" class="form-control" />
-                            <span asp-validation-for="Input.Title" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-7">
-                            <label asp-for="Input.Description" class="form-label">Description / Instructions</label>
-                            <textarea asp-for="Input.Description"
-                                      class="form-control"
-                                      rows="4"
-                                      placeholder="Enter task instructions, background and expected output"></textarea>
-                            <span asp-validation-for="Input.Description" class="text-danger small"></span>
-                        </div>
-                        <div class="col-12">
-                            <label asp-for="Input.AssignedToUserId" class="form-label">Assign To</label>
-                            <select asp-for="Input.AssignedToUserId" class="form-select at-searchable-select" data-at-searchable-select="true" data-at-placeholder="Select responsible person">
-                                <option value="">Select user</option>
-                                @foreach (var user in Model.AssignableUsers)
-                                {
-                                    <option value="@user.UserId">@user.DisplayName</option>
-                                }
-                            </select>
-                            <span asp-validation-for="Input.AssignedToUserId" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-3">
-                            <label asp-for="Input.Priority" class="form-label">Priority</label>
-                            <select asp-for="Input.Priority" class="form-select">
-                                <option>Low</option>
-                                <option selected>Normal</option>
-                                <option>High</option>
-                                <option>Critical</option>
-                            </select>
-                            <span asp-validation-for="Input.Priority" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-4">
-                            <label asp-for="Input.DueDate" class="form-label">Due Date</label>
-                            <input asp-for="Input.DueDate" type="date" class="form-control" />
-                            <span asp-validation-for="Input.DueDate" class="text-danger small"></span>
-                        </div>
+            <div class="modal-header">
+                <h2 class="modal-title h5 mb-0" id="createTaskModalLabel">Create Action Tracker Work</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div asp-validation-summary="All" class="alert alert-danger mb-3"></div>
+                }
+
+                @* SECTION: Segmented create-mode selector keeps backlog capture separate from direct assigned work. *@
+                <div class="at-create-choice-grid" data-at-create-choice-group="true" aria-label="Choose work type">
+                    <div class="at-create-mode-selector" role="tablist" aria-label="Create mode">
+                        <button type="button" class="at-create-mode-button@(isBacklogCreateMode ? " is-active" : string.Empty)" id="at-create-mode-backlog-tab" role="tab" aria-selected="@(isBacklogCreateMode ? "true" : "false")" aria-controls="at-create-mode-backlog-panel" data-at-create-mode-button="backlog">Backlog Item</button>
+                        <button type="button" class="at-create-mode-button@(isDirectCreateMode ? " is-active" : string.Empty)" id="at-create-mode-direct-tab" role="tab" aria-selected="@(isDirectCreateMode ? "true" : "false")" aria-controls="at-create-mode-direct-panel" data-at-create-mode-button="direct">Direct Task</button>
                     </div>
+
+                    @* SECTION: Backlog item form intentionally has unique model-bound IDs and no assignee fields. *@
+                    <section class="at-create-flow-panel" id="at-create-mode-backlog-panel" role="tabpanel" aria-labelledby="at-create-mode-backlog-tab" data-at-create-mode-panel="backlog" hidden="@(!isBacklogCreateMode)">
+                        <p class="at-panel-note">Capture future work without assigning it now.</p>
+                        <form method="post" asp-page-handler="CreateBacklogItem" class="at-create-flow-form">
+                            <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                            <input type="hidden" name="CreateMode" value="backlog" />
+                            <div class="row g-3">
+                                <div class="col-md-5">
+                                    <label asp-for="BacklogItemInput.Title" class="form-label"></label>
+                                    <input asp-for="BacklogItemInput.Title" class="form-control" />
+                                    <span asp-validation-for="BacklogItemInput.Title" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-7">
+                                    <label asp-for="BacklogItemInput.Description" class="form-label"></label>
+                                    <textarea asp-for="BacklogItemInput.Description" class="form-control" rows="4" placeholder="Enter the work idea, context and planning notes"></textarea>
+                                    <span asp-validation-for="BacklogItemInput.Description" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-3">
+                                    <label asp-for="BacklogItemInput.Priority" class="form-label">Priority</label>
+                                    <select asp-for="BacklogItemInput.Priority" class="form-select">
+                                        <option>Low</option>
+                                        <option selected>Normal</option>
+                                        <option>High</option>
+                                        <option>Critical</option>
+                                    </select>
+                                    <span asp-validation-for="BacklogItemInput.Priority" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-4">
+                                    <label asp-for="BacklogItemInput.TargetDate" class="form-label"></label>
+                                    <input asp-for="BacklogItemInput.TargetDate" type="date" class="form-control" />
+                                    <span asp-validation-for="BacklogItemInput.TargetDate" class="text-danger small"></span>
+                                </div>
+                            </div>
+                            <div class="at-create-flow-actions">
+                                <button type="submit" class="btn btn-primary">Save Backlog Item</button>
+                            </div>
+                        </form>
+                    </section>
+
+                    @* SECTION: Direct task form uses its own input model so generated HTML IDs are unique. *@
+                    <section class="at-create-flow-panel" id="at-create-mode-direct-panel" role="tabpanel" aria-labelledby="at-create-mode-direct-tab" data-at-create-mode-panel="direct" hidden="@(!isDirectCreateMode)">
+                        <p class="at-panel-note">Assign work to a person now. It remains outside sprint until added to a sprint.</p>
+                        <form method="post" asp-page-handler="CreateDirectTask" class="at-create-flow-form">
+                            <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                            <input type="hidden" name="CreateMode" value="direct" />
+                            <div class="row g-3">
+                                <div class="col-md-5">
+                                    <label asp-for="DirectTaskInput.Title" class="form-label"></label>
+                                    <input asp-for="DirectTaskInput.Title" class="form-control" />
+                                    <span asp-validation-for="DirectTaskInput.Title" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-7">
+                                    <label asp-for="DirectTaskInput.Description" class="form-label"></label>
+                                    <textarea asp-for="DirectTaskInput.Description" class="form-control" rows="4" placeholder="Enter task instructions, background and expected output"></textarea>
+                                    <span asp-validation-for="DirectTaskInput.Description" class="text-danger small"></span>
+                                </div>
+                                <div class="col-12">
+                                    <label asp-for="DirectTaskInput.AssignedToUserId" class="form-label"></label>
+                                    <select asp-for="DirectTaskInput.AssignedToUserId" class="form-select at-searchable-select" data-at-searchable-select="true" data-at-placeholder="Select user" required>
+                                        <option value="">Select user</option>
+                                        @foreach (var user in Model.AssignableUsers)
+                                        {
+                                            <option value="@user.UserId">@user.DisplayName</option>
+                                        }
+                                    </select>
+                                    <span asp-validation-for="DirectTaskInput.AssignedToUserId" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-3">
+                                    <label asp-for="DirectTaskInput.Priority" class="form-label">Priority</label>
+                                    <select asp-for="DirectTaskInput.Priority" class="form-select">
+                                        <option>Low</option>
+                                        <option selected>Normal</option>
+                                        <option>High</option>
+                                        <option>Critical</option>
+                                    </select>
+                                    <span asp-validation-for="DirectTaskInput.Priority" class="text-danger small"></span>
+                                </div>
+                                <div class="col-md-4">
+                                    <label asp-for="DirectTaskInput.DueDate" class="form-label"></label>
+                                    <input asp-for="DirectTaskInput.DueDate" type="date" class="form-control" />
+                                    <span asp-validation-for="DirectTaskInput.DueDate" class="text-danger small"></span>
+                                </div>
+                            </div>
+                            <div class="at-create-flow-actions">
+                                <button type="submit" class="btn btn-primary">Create Task</button>
+                            </div>
+                        </form>
+                    </section>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create Task</button>
-                </div>
-            </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
         </div>
     </div>
 </div>

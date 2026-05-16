@@ -13,6 +13,16 @@
     --at-radius-lg: 18px;
     --at-radius-md: 12px;
     --at-shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.06);
+    --at-font-xs: 0.68rem;
+    --at-font-sm: 0.74rem;
+    --at-font-md: 0.8125rem;
+    --at-font-base: 0.875rem;
+    --at-font-lg: 1rem;
+    --at-font-xl: 1.2rem;
+    --at-weight-medium: 500;
+    --at-weight-semibold: 600;
+    --at-weight-bold: 700;
+    --at-planning-drawer-width: 34rem;
 }
 
 /* SECTION: Action Tracker shell */
@@ -22,6 +32,7 @@ html {
 
 .at-shell {
     display: grid;
+    font-size: var(--at-font-base);
     grid-template-columns: 88px minmax(0, 1fr);
     gap: 1rem;
     min-height: 70vh;
@@ -59,7 +70,7 @@ html {
     text-decoration: none;
     border-radius: 10px;
     padding: 0.55rem 0.35rem;
-    font-size: 0.72rem;
+    font-size: var(--at-font-sm);
     font-weight: 700;
     line-height: 1.2;
     border: 1px solid transparent;
@@ -67,11 +78,11 @@ html {
 }
 
 .at-nav a i {
-    font-size: 0.95rem;
+    font-size: var(--at-font-base);
 }
 
 .at-nav a span {
-    font-size: 0.72rem;
+    font-size: var(--at-font-sm);
     font-weight: 700;
 }
 
@@ -97,6 +108,7 @@ html {
 /* SECTION: Header and panels */
 .at-workspace {
     min-width: 0;
+    font-size: var(--at-font-base);
     padding-bottom: 1.5rem;
 }
 
@@ -111,15 +123,15 @@ html {
 .at-header h1 {
     margin: 0;
     color: var(--at-text);
-    font-size: 1.45rem;
-    font-weight: 760;
+    font-size: 1.32rem;
+    font-weight: var(--at-weight-semibold);
     letter-spacing: -0.02em;
 }
 
 .at-header p {
     margin: 0;
     color: var(--at-muted);
-    font-size: 0.92rem;
+    font-size: var(--at-font-base);
 }
 
 .at-panel {
@@ -127,37 +139,111 @@ html {
     border: 1px solid var(--at-border);
     border-radius: var(--at-radius-lg);
     box-shadow: var(--at-shadow-sm);
-    padding: 1rem;
+    padding: 0.9rem;
 }
 
 .at-panel h2 {
-    font-size: 0.98rem;
-    font-weight: 750;
+    font-size: var(--at-font-base);
+    font-weight: var(--at-weight-semibold);
     color: var(--at-text);
     margin-bottom: 0.85rem;
 }
 
 .at-section-eyebrow {
-    font-size: 0.72rem;
-    font-weight: 800;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--at-muted);
 }
 
 .at-panel-title {
-    font-size: 1rem;
-    font-weight: 760;
+    font-size: var(--at-font-lg);
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-small {
-    font-size: 0.78rem;
+    font-size: var(--at-font-sm);
+}
+
+
+/* SECTION: Create modal segmented mode selector */
+.at-create-choice-grid {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.at-create-mode-selector {
+    display: inline-grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.25rem;
+    width: 100%;
+    padding: 0.25rem;
+    border: 1px solid var(--at-border);
+    border-radius: 999px;
+    background: var(--at-surface-soft);
+}
+
+.at-create-mode-button {
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
+    line-height: 1.2;
+    padding: 0.55rem 0.8rem;
+    transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.at-create-mode-button:hover,
+.at-create-mode-button:focus-visible {
+    color: var(--at-text);
+    background: rgba(37, 99, 235, 0.08);
+}
+
+.at-create-mode-button:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, 0.25);
+    outline-offset: 2px;
+}
+
+.at-create-mode-button.is-active {
+    color: #1d4ed8;
+    background: var(--at-surface);
+    box-shadow: var(--at-shadow-sm);
+}
+
+.at-create-flow-panel {
+    border: 1px solid var(--at-border);
+    border-radius: var(--at-radius-lg);
+    background: var(--at-surface);
+    padding: 0.95rem;
+}
+
+.at-create-flow-panel[hidden] {
+    display: none;
+}
+
+.at-create-flow-form {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.at-create-flow-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.at-panel-note {
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    margin: 0 0 0.85rem;
 }
 
 /* SECTION: Inspector collaboration helper text and attachment rows */
 .at-helper-text {
     color: var(--at-muted);
-    font-size: 0.82rem;
+    font-size: var(--at-font-md);
     margin-bottom: 0.6rem;
 }
 
@@ -178,8 +264,8 @@ html {
 }
 
 .at-file-type {
-    font-size: 0.72rem;
-    font-weight: 800;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
     color: var(--at-muted);
 }
 
@@ -193,7 +279,7 @@ html {
 
 .at-file-size {
     color: var(--at-muted);
-    font-size: 0.78rem;
+    font-size: var(--at-font-sm);
 }
 
 
@@ -216,8 +302,8 @@ html {
 
 .at-panel-heading h3 {
     margin: 0;
-    font-size: 0.98rem;
-    font-weight: 750;
+    font-size: var(--at-font-base);
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-count-chip {
@@ -228,7 +314,7 @@ html {
     color: #1d4ed8;
     padding: 0.15rem 0.55rem;
     font-weight: 700;
-    font-size: 0.8rem;
+    font-size: var(--at-font-md);
 }
 
 .at-section-group + .at-section-group {
@@ -236,11 +322,11 @@ html {
 }
 
 .at-section-title {
-    font-size: 0.87rem;
+    font-size: var(--at-font-md);
     text-transform: uppercase;
     letter-spacing: 0.045em;
     color: var(--at-muted);
-    font-weight: 800;
+    font-weight: var(--at-weight-bold);
     margin-bottom: 0.55rem;
 }
 
@@ -260,7 +346,7 @@ html {
 }
 
 .at-kpis h3 {
-    font-size: 0.82rem;
+    font-size: var(--at-font-md);
     color: var(--at-muted);
     font-weight: 700;
     text-transform: uppercase;
@@ -269,7 +355,7 @@ html {
 }
 
 .at-kpis strong {
-    font-size: 1.8rem;
+    font-size: 1.55rem;
     color: var(--at-text);
 }
 
@@ -316,7 +402,7 @@ html {
 .at-mini-meta {
     margin-top: 0.2rem;
     color: var(--at-muted);
-    font-size: 0.82rem;
+    font-size: var(--at-font-md);
     display: flex;
     gap: 0.3rem;
     align-items: center;
@@ -333,7 +419,7 @@ html {
 .at-table thead th {
     background: #f8fafc;
     color: #475569;
-    font-size: 0.72rem;
+    font-size: var(--at-font-sm);
     text-transform: uppercase;
     letter-spacing: 0.03em;
     border-bottom: 1px solid var(--at-border);
@@ -354,7 +440,7 @@ html {
 }
 
 .at-task-title {
-    font-weight: 750;
+    font-weight: var(--at-weight-semibold);
     color: var(--at-blue);
     text-decoration: none;
 }
@@ -370,7 +456,7 @@ html {
 
 .at-task-desc {
     color: var(--at-muted);
-    font-size: 0.86rem;
+    font-size: var(--at-font-md);
 }
 
 .at-preline {
@@ -389,7 +475,7 @@ html {
 
 .at-task-desc-preview {
     color: #7a8798;
-    font-size: 0.82rem;
+    font-size: var(--at-font-md);
     line-height: 1.35;
     white-space: pre-line;
     display: -webkit-box;
@@ -407,8 +493,8 @@ html {
 
 .at-detail-assignee {
     color: var(--at-text);
-    font-size: 0.85rem;
-    font-weight: 650;
+    font-size: var(--at-font-md);
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-detail-meta {
@@ -432,7 +518,7 @@ html {
     background: #e2e8f0;
     color: #334155;
     padding: 0.15rem 0.45rem;
-    font-size: 0.74rem;
+    font-size: var(--at-font-sm);
     font-weight: 700;
 }
 
@@ -449,8 +535,8 @@ html {
 .at-inspector-actions h3,
 .at-task-info h3 {
     margin: 0;
-    font-size: 0.9rem;
-    font-weight: 750;
+    font-size: var(--at-font-base);
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-action-card {
@@ -472,8 +558,8 @@ html {
 }
 
 .at-action-title {
-    font-size: 0.74rem;
-    font-weight: 760;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--at-muted);
@@ -526,7 +612,7 @@ html {
 
 .at-audit-title {
     color: var(--at-muted);
-    font-size: 0.86rem;
+    font-size: var(--at-font-md);
     font-weight: 700;
 }
 
@@ -545,12 +631,13 @@ html {
 
 .at-details-collapsible > summary {
     cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 750;
+    font-size: var(--at-font-base);
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-action-toolbar {
     display: flex;
+    align-items: flex-start;
     gap: 0.4rem;
     flex-wrap: wrap;
 }
@@ -579,12 +666,12 @@ html {
     color: #334155;
     border-radius: 999px;
     padding: 0.2rem 0.6rem;
-    font-size: 0.78rem;
+    font-size: var(--at-font-sm);
     font-weight: 700;
 }
 
 .at-filter-clear {
-    font-size: 0.8rem;
+    font-size: var(--at-font-md);
     font-weight: 600;
     color: #64748b;
     text-decoration: none;
@@ -594,13 +681,176 @@ html {
     text-decoration: underline;
 }
 
+
+/* SECTION: Register enterprise grid polish */
+.at-register-filter-panel {
+    padding: 0.65rem 0.75rem;
+}
+
+.at-register-filter-toolbar {
+    display: grid;
+    grid-template-columns: minmax(15rem, 1.45fr) minmax(14rem, 1.25fr) repeat(3, minmax(8rem, 0.75fr)) minmax(10rem, 0.9fr) auto;
+    gap: 0.45rem;
+    align-items: end;
+}
+
+.at-register-filter-field-search {
+    min-width: 0;
+}
+
+.at-register-filter-field-person {
+    min-width: 0;
+}
+
+.at-register-filter-action {
+    display: flex;
+    align-items: end;
+    min-height: 2rem;
+}
+
+.at-register-filter-action .btn {
+    white-space: nowrap;
+}
+
+.at-register-filter-field .form-label {
+    margin-bottom: 0.2rem;
+    color: #64748b;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-register-filter-field .form-control,
+.at-register-filter-field .form-select {
+    min-height: 2rem;
+    font-size: var(--at-font-md);
+}
+
+.at-register-active-filters {
+    margin-top: 0.55rem;
+    gap: 0.35rem;
+}
+
+.at-register-active-filters .at-filter-chip {
+    padding: 0.12rem 0.5rem;
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-register-table-scroll {
+    max-height: min(64vh, 42rem);
+    overflow: auto;
+    border: 1px solid var(--at-border);
+    border-radius: var(--at-radius-md);
+}
+
+.at-register-table {
+    min-width: 980px;
+    font-size: var(--at-font-md);
+}
+
+.at-register-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    box-shadow: inset 0 -1px 0 var(--at-border);
+    padding: 0.45rem 0.55rem;
+    white-space: nowrap;
+}
+
+.at-register-table td {
+    padding: 0.38rem 0.55rem;
+}
+
+.at-register-table tbody tr:hover td {
+    background: #f8fafc;
+}
+
+.at-register-task-cell {
+    min-width: 18rem;
+    max-width: 30rem;
+}
+
+.at-register-person-cell,
+.at-register-date-cell {
+    color: #334155;
+    font-weight: 400;
+    white-space: nowrap;
+}
+
+.at-register-sprint-cell {
+    min-width: 9.5rem;
+    max-width: 13.5rem;
+}
+
+.at-register-sprint-cell .at-scope-badge {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.at-register-table .at-task-title {
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-register-table .at-task-desc-preview {
+    -webkit-line-clamp: 1;
+    font-size: var(--at-font-sm);
+}
+
+.at-register-table tbody tr.is-selected td {
+    background: #eef6ff;
+}
+
+.at-register-table tbody tr.is-selected:hover td {
+    background: #e8f2ff;
+}
+
+.at-sort-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.at-sort-link.is-active {
+    color: #1d4ed8;
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-sort-indicator {
+    min-width: 0.75rem;
+    color: #64748b;
+    font-size: 0.72rem;
+    line-height: 1;
+}
+
+@media (max-width: 1199.98px) {
+    .at-register-filter-toolbar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .at-register-filter-field-person,
+    .at-register-filter-field-search {
+        grid-column: span 2;
+    }
+
+    .at-register-filter-action {
+        align-items: stretch;
+    }
+}
+
 /* SECTION: Badge system */
 .at-badge {
     border-radius: 999px;
     padding: 0.15rem 0.45rem;
-    font-size: 0.72rem;
+    font-size: var(--at-font-sm);
     font-weight: 700;
     border: 1px solid transparent;
+}
+
+.at-badge-status-backlog {
+    color: #334155;
+    background: #e2e8f0;
 }
 
 .at-badge-status-assigned {
@@ -654,11 +904,11 @@ html {
     grid-auto-flow: column;
     grid-auto-columns: minmax(250px, 1fr);
     gap: 1rem;
-    min-width: max-content;
+    min-width: 0;
 }
 
 .at-board-grid.at-board-grid-sprint {
-    grid-template-columns: repeat(4, minmax(260px, 1fr));
+    grid-template-columns: repeat(4, minmax(185px, 1fr));
 }
 
 .at-board-grid.is-kanban {
@@ -670,7 +920,7 @@ html {
 }
 
 .at-board-column h2 {
-    font-size: 0.95rem;
+    font-size: var(--at-font-base);
     margin-bottom: 0;
 }
 
@@ -695,15 +945,15 @@ html {
     display: block;
     text-decoration: none;
     color: inherit;
-    padding: .65rem;
+    padding: 0.55rem 0.6rem;
     cursor: pointer;
 }
 
 .at-card-subject {
     margin: 0;
     color: var(--at-text);
-    font-size: 0.98rem;
-    font-weight: 760;
+    font-size: var(--at-font-base);
+    font-weight: var(--at-weight-semibold);
     line-height: 1.3;
 }
 
@@ -715,7 +965,7 @@ html {
 
 .at-card-due {
     margin-top: 0.2rem;
-    font-size: 0.82rem;
+    font-size: var(--at-font-md);
     color: #334155;
     font-weight: 600;
 }
@@ -731,7 +981,7 @@ html {
 .at-card-status {
     margin-top: 0.18rem;
     color: #64748b;
-    font-size: 0.78rem;
+    font-size: var(--at-font-sm);
     font-weight: 600;
 }
 .at-sort-link {
@@ -741,11 +991,11 @@ html {
 .at-sort-link:hover { text-decoration: underline; }
 .at-command-focus-strip {
     padding: 0.65rem 0.9rem;
-    font-size: 0.84rem;
+    font-size: var(--at-font-md);
     color: #334155;
 }
 .at-select-search-wrap { display: grid; gap: 0.35rem; }
-.at-select-search-input { font-size: 0.78rem; }
+.at-select-search-input { font-size: var(--at-font-sm); }
 
 .at-task-card.is-selected,
 .at-mini-row.is-selected,
@@ -771,7 +1021,7 @@ html {
 
 .at-panel-note {
     color: var(--at-muted);
-    font-size: 0.8rem;
+    font-size: var(--at-font-md);
     margin-top: -0.35rem;
 }
 
@@ -813,7 +1063,7 @@ html {
     border-radius: 10px;
     background: #f8fafc;
     color: var(--at-muted);
-    font-size: 0.81rem;
+    font-size: var(--at-font-md);
 }
 
 .at-metric-row {
@@ -821,7 +1071,7 @@ html {
     grid-template-columns: minmax(100px, auto) 1fr auto;
     gap: 0.5rem;
     align-items: center;
-    font-size: 0.84rem;
+    font-size: var(--at-font-md);
 }
 
 .at-metric-track {
@@ -846,8 +1096,8 @@ html {
 
 .at-ageing-grid {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .75rem;
 }
 
 /* SECTION: Empty states */
@@ -860,9 +1110,9 @@ html {
 }
 
 .at-empty-state-compact {
-    padding: 0.5rem 0.6rem;
+    padding: 0.45rem 0.5rem;
     min-height: auto;
-    font-size: 0.82rem;
+    font-size: var(--at-font-md);
 }
 
 .at-empty-icon {
@@ -875,12 +1125,12 @@ html {
     margin-bottom: 0.3rem;
     color: var(--at-muted);
     background: #e2e8f0;
-    font-weight: 800;
+    font-weight: var(--at-weight-bold);
 }
 
 .at-empty-inline {
     margin: 0.1rem 0 0.2rem;
-    font-size: 0.78rem;
+    font-size: var(--at-font-sm);
     color: var(--at-muted);
     line-height: 1.35;
 }
@@ -1044,7 +1294,7 @@ html {
     border: 1px solid var(--at-border);
     border-radius: var(--at-radius-md);
     background: #fff;
-    padding: 0.5rem 0.6rem;
+    padding: 0.45rem 0.5rem;
 }
 
 .at-activity-system-row {
@@ -1059,15 +1309,15 @@ html {
     background: #f1f5f9;
 }
 
-/* SECTION: Sprint and backlog scope badges */
+/* SECTION: Sprint, backlog, outside-sprint, and closed scope badges */
 .at-scope-badge {
     display: inline-flex;
     align-items: center;
     max-width: 100%;
     border-radius: 999px;
     padding: 0.12rem 0.45rem;
-    font-size: 0.72rem;
-    font-weight: 750;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
     line-height: 1.25;
     border: 1px solid transparent;
 }
@@ -1081,6 +1331,18 @@ html {
 .at-scope-badge-backlog {
     color: #475569;
     background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.at-scope-badge-outside-sprint {
+    color: #7c2d12;
+    background: #ffedd5;
+    border-color: #fed7aa;
+}
+
+.at-scope-badge-closed {
+    color: #334155;
+    background: #e2e8f0;
     border-color: #cbd5e1;
 }
 
@@ -1132,8 +1394,8 @@ html {
 
 .at-sprint-date-range {
     color: var(--at-muted);
-    font-size: 0.86rem;
-    font-weight: 650;
+    font-size: var(--at-font-md);
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-sprint-status-pill {
@@ -1142,8 +1404,8 @@ html {
     color: #0f172a;
     background: #e0f2fe;
     border: 1px solid #bae6fd;
-    font-size: 0.78rem;
-    font-weight: 800;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
 }
 
 .at-sprint-summary-grid {
@@ -1166,8 +1428,8 @@ html {
 }
 
 .at-sprint-summary-grid span {
-    font-size: 1.1rem;
-    font-weight: 800;
+    font-size: 1rem;
+    font-weight: var(--at-weight-bold);
     color: var(--at-text);
 }
 
@@ -1177,7 +1439,7 @@ html {
 }
 
 .at-board-grid.is-sprints {
-    grid-template-columns: repeat(5, minmax(260px, 1fr));
+    grid-template-columns: repeat(5, minmax(185px, 1fr));
 }
 
 .at-card-action-form {
@@ -1215,8 +1477,8 @@ html {
     color: #1e40af;
     border-radius: 10px;
     padding: 0.45rem 0.55rem;
-    font-size: 0.8rem;
-    font-weight: 750;
+    font-size: var(--at-font-md);
+    font-weight: var(--at-weight-semibold);
     margin-bottom: 0.55rem;
 }
 
@@ -1249,15 +1511,15 @@ html {
 .at-sprint-health-grid strong {
     display: block;
     color: var(--at-text);
-    font-size: 1.25rem;
-    font-weight: 850;
+    font-size: 0.98rem;
+    font-weight: var(--at-weight-bold);
 }
 
 .at-closure-metrics small,
 .at-sprint-health-grid h3 {
     color: var(--at-muted);
-    font-size: 0.78rem;
-    font-weight: 750;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
     margin: 0;
 }
 
@@ -1294,7 +1556,7 @@ html {
 
 .at-closure-task-row {
     display: grid;
-    grid-template-columns: minmax(220px, 1fr) 150px 150px 130px;
+    grid-template-columns: minmax(220px, 1fr) 140px 130px 150px 150px;
     gap: 0.75rem;
     align-items: center;
     padding: 0.7rem 0.8rem;
@@ -1308,8 +1570,8 @@ html {
 .at-closure-task-head {
     background: #f8fafc;
     color: var(--at-muted);
-    font-size: 0.78rem;
-    font-weight: 800;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
@@ -1317,14 +1579,14 @@ html {
 .at-closure-task-row small {
     display: block;
     color: var(--at-muted);
-    font-weight: 650;
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-closure-choice {
     display: inline-flex;
     gap: 0.4rem;
     align-items: center;
-    font-weight: 750;
+    font-weight: var(--at-weight-semibold);
 }
 
 .at-closure-actions {
@@ -1368,8 +1630,8 @@ html {
 
 .at-sprint-command-form {
     display: grid;
-    gap: 0.55rem;
-    padding: 0.75rem;
+    gap: 0.45rem;
+    padding: 0.65rem;
     border: 1px solid var(--at-border);
     border-radius: 12px;
     background: var(--at-surface-soft);
@@ -1378,16 +1640,16 @@ html {
 .at-sprint-command-form .form-label {
     margin-bottom: -0.25rem;
     color: var(--at-muted);
-    font-size: 0.78rem;
-    font-weight: 800;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
 }
 
 .at-sprint-action-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.55rem;
-    margin-top: 0.85rem;
+    gap: 0.45rem;
+    margin-top: 0.7rem;
 }
 
 .at-sprint-action-row form {
@@ -1396,13 +1658,13 @@ html {
 
 /* SECTION: Compact sprint lifecycle history */
 .at-sprint-history-panel {
-    padding: 0.85rem 1rem;
+    padding: 0.7rem 0.85rem;
 }
 
 .at-sprint-history-panel > summary {
     cursor: pointer;
     color: var(--at-text);
-    font-weight: 850;
+    font-weight: var(--at-weight-bold);
 }
 
 .at-sprint-history-list {
@@ -1442,4 +1704,2349 @@ html {
 .at-sprint-history-list code {
     white-space: pre-wrap;
     word-break: break-word;
+}
+
+/* SECTION: Phase 2A refined sprint workspace layout */
+.at-sprints-workspace {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.at-sprint-command-strip {
+    display: grid;
+    grid-template-columns: minmax(250px, 1.25fr) minmax(320px, 1fr) auto;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.7rem 0.85rem;
+}
+
+.at-sprint-command-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.65rem;
+    align-items: start;
+}
+
+.at-sprint-command-main h2 {
+    margin-bottom: 0.1rem;
+    font-size: 0.98rem;
+}
+
+.at-sprint-command-focus {
+    grid-column: 1 / -1;
+    margin: 0;
+    background: #f8fafc;
+    border: 1px solid var(--at-border);
+    border-radius: 10px;
+}
+
+.at-sprint-summary-grid-compact {
+    grid-template-columns: repeat(5, minmax(72px, 1fr));
+    margin-top: 0;
+}
+
+.at-sprint-summary-grid-compact div {
+    padding: 0.45rem 0.5rem;
+}
+
+.at-sprint-action-row-strip {
+    justify-content: flex-end;
+    margin-top: 0;
+}
+
+.at-sprint-layout-refined {
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+}
+
+.at-sprint-execution-main {
+    display: grid;
+    gap: 0.85rem;
+    min-width: 0;
+}
+
+.at-sprint-selector-compact {
+    border-bottom: 1px solid var(--at-border);
+    margin-bottom: 0.7rem;
+    padding-bottom: 0.75rem;
+}
+
+.at-sprint-list-group {
+    display: grid;
+    gap: 0.35rem;
+    margin-top: 0.7rem;
+}
+
+.at-sprint-list-heading {
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.at-sprint-list-item {
+    display: grid;
+    gap: 0.1rem;
+    border: 1px solid var(--at-border);
+    border-radius: 10px;
+    color: var(--at-text);
+    padding: 0.55rem 0.65rem;
+    text-decoration: none;
+    background: #ffffff;
+}
+
+.at-sprint-list-item strong {
+    font-size: var(--at-font-md);
+    line-height: 1.25;
+}
+
+.at-sprint-list-item span {
+    color: var(--at-muted);
+    font-size: 0.76rem;
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-sprint-list-item.is-active {
+    border-color: #93c5fd;
+    background: #eff6ff;
+}
+
+.at-sprint-list-item.is-selected {
+    border-left: 4px solid var(--at-blue);
+}
+
+.at-sprint-list-group.is-closed .at-sprint-list-item,
+.at-sprint-list-item.is-closed {
+    opacity: 0.72;
+    background: #f8fafc;
+}
+
+.at-sprint-attention-lane {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.at-attention-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.65rem;
+}
+
+.at-attention-group,
+.at-attention-panel {
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: #f8fafc;
+    padding: 0.65rem;
+}
+
+.at-attention-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.45rem;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.at-attention-heading strong {
+    min-width: 1.8rem;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: var(--at-text);
+    padding: 0.1rem 0.45rem;
+    text-align: center;
+}
+
+.at-sprint-board-column {
+    min-height: 12rem;
+}
+
+.at-sprint-task-card .at-card-subject {
+    font-size: var(--at-font-base);
+}
+
+.at-card-facts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem;
+    margin: 0.45rem 0;
+}
+
+.at-card-facts div {
+    min-width: 0;
+}
+
+.at-card-facts dt {
+    color: var(--at-muted);
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-semibold);
+    text-transform: uppercase;
+}
+
+.at-card-facts dd {
+    margin: 0;
+    color: var(--at-text);
+    font-size: var(--at-font-md);
+    font-weight: var(--at-weight-medium);
+    overflow-wrap: anywhere;
+}
+
+.at-open-details-label {
+    color: var(--at-blue);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-medium);
+}
+
+.at-overdue-marker {
+    border: 1px solid #fecaca;
+    border-radius: 999px;
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 0.12rem 0.45rem;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
+}
+
+/* SECTION: Phase 2A backlog planning summary and compact task metadata */
+.at-backlog-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
+    gap: 0.65rem;
+    margin-bottom: 0.85rem;
+}
+
+.at-backlog-summary-grid article {
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: #f8fafc;
+    padding: 0.65rem 0.75rem;
+}
+
+.at-backlog-summary-grid strong,
+.at-backlog-summary-grid span {
+    display: block;
+}
+
+.at-backlog-summary-grid strong {
+    color: var(--at-text);
+    font-size: 0.98rem;
+    font-weight: var(--at-weight-bold);
+}
+
+.at-backlog-summary-grid span {
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-backlog-task-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.35rem;
+}
+
+.at-cell-primary {
+    color: var(--at-text);
+    font-size: var(--at-font-md);
+    font-weight: 700;
+}
+
+/* SECTION: Phase 2A task inspector prominence and collapsed audit affordances */
+.at-task-details-panel {
+    padding: 0;
+    overflow: hidden;
+}
+
+.at-inspector-shell {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    max-height: calc(100vh - 7rem);
+}
+
+.at-inspector-header {
+    margin-bottom: 0;
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid var(--at-border);
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.at-inspector-header .at-panel-title {
+    font-size: 0.98rem;
+    line-height: 1.25;
+}
+
+.at-inspector-body {
+    overflow: auto;
+    padding: 0.85rem 1rem;
+}
+
+.at-inspector-footer {
+    border-top: 1px solid var(--at-border);
+    background: #ffffff;
+    padding: 0.75rem 1rem;
+}
+
+.at-inspector-section-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.at-inspector-section-heading h3,
+.at-progress-timeline h3 {
+    margin: 0;
+    color: var(--at-text);
+    font-size: var(--at-font-base);
+    font-weight: var(--at-weight-bold);
+}
+
+.at-progress-timeline {
+    margin-bottom: 0.8rem;
+}
+
+.at-audit-collapsible,
+.at-details-collapsible {
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 0.65rem 0.75rem;
+}
+
+.at-audit-list {
+    display: grid;
+    gap: 0.5rem;
+}
+
+/* SECTION: Phase 2A dashboard active sprint readability */
+.at-sprint-health-grid-readable article.is-primary {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+}
+
+.at-sprint-health-grid-readable article span {
+    display: block;
+    color: var(--at-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-top: 0.15rem;
+}
+
+.at-dashboard-attention-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 0.9rem;
+}
+
+@media (max-width: 1200px) {
+    .at-sprint-command-strip,
+    .at-sprint-layout-refined,
+    .at-dashboard-attention-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .at-sprint-attention-lane {
+        position: static;
+    }
+}
+
+@media (max-width: 767px) {
+    .at-backlog-summary-grid,
+    .at-sprint-summary-grid-compact,
+    .at-card-facts {
+        grid-template-columns: 1fr;
+    }
+
+    .at-inspector-shell {
+        max-height: none;
+    }
+}
+
+
+/* SECTION: Phase 2A typography and density pass */
+.at-shell .btn-sm,
+.at-shell .form-control-sm,
+.at-shell .form-select-sm {
+    font-size: var(--at-font-sm);
+}
+
+.at-shell .btn {
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-shell .form-label,
+.at-shell .form-control,
+.at-shell .form-select {
+    font-size: var(--at-font-base);
+}
+
+.at-sprint-task-card .at-task-card-link {
+    padding: 0.55rem 0.6rem;
+}
+
+.at-sprint-task-card .at-card-subject {
+    font-size: var(--at-font-md);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-sprint-task-card .at-card-meta,
+.at-sprint-task-card .at-card-due {
+    font-size: var(--at-font-sm);
+}
+
+.at-sprint-summary-grid-compact span {
+    font-size: 0.96rem;
+}
+
+.at-sprint-summary-grid-compact small,
+.at-sprint-command-focus,
+.at-card-action-form {
+    font-size: var(--at-font-sm);
+}
+
+.at-sprint-health-grid strong,
+.at-backlog-summary-grid strong {
+    font-size: 1.08rem;
+    font-weight: var(--at-weight-bold);
+}
+
+.at-open-details-label {
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-medium);
+}
+
+/* SECTION: Phase 2A sprint workspace cleanup and inspector-safe board layout */
+.at-sprint-empty-command {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem;
+}
+
+.at-sprint-empty-command .at-empty-state {
+    display: grid;
+    gap: 0.2rem;
+    margin: 0;
+    text-align: left;
+}
+
+.at-sprint-empty-command .at-empty-state strong,
+.at-sprint-empty-command .at-empty-state span {
+    display: block;
+}
+
+.at-sprint-command-strip,
+.at-sprint-layout-refined,
+.at-sprint-execution-main,
+.at-board-scroll {
+    min-width: 0;
+}
+
+.at-sprint-action-row-strip {
+    align-items: flex-start;
+}
+
+.at-sprint-action-row-strip .at-sprint-form-disclosure {
+    position: relative;
+    margin: 0;
+}
+
+.at-sprint-action-row-strip .at-sprint-command-form {
+    display: grid;
+    position: absolute;
+    top: calc(100% + 0.45rem);
+    right: 0;
+    z-index: 5;
+    width: min(24rem, calc(100vw - 2rem));
+    box-shadow: var(--at-shadow-sm);
+}
+
+.at-sprint-board-stack {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+.at-board-grid.is-sprints {
+    grid-auto-columns: initial;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.at-sprint-primary-statuses {
+    align-items: start;
+}
+
+.at-sprint-closed-section {
+    min-height: 0;
+}
+
+.at-sprint-closed-cards {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.at-sprint-execution-main .at-board-scroll {
+    max-width: 100%;
+    overflow-x: visible;
+    overflow-y: visible;
+}
+
+.at-sprint-task-card {
+    min-width: 0;
+}
+
+.at-sprint-task-card .at-card-footer {
+    gap: 0.35rem;
+}
+
+.at-shell.has-selection .at-sprint-layout-refined {
+    grid-template-columns: minmax(190px, 230px) minmax(0, 1fr);
+}
+
+.at-shell.has-selection .at-sprint-attention-lane {
+    grid-column: auto;
+}
+
+.at-shell.has-selection .at-sprint-board-column {
+    min-width: 0;
+}
+
+.at-shell.has-selection .at-board-grid.is-sprints {
+    grid-auto-columns: initial;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 1399px) {
+    .at-shell.has-selection .at-sprint-layout-refined {
+        grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 1200px) {
+    .at-shell.has-selection .at-sprint-layout-refined,
+    .at-shell.has-selection .at-sprint-attention-lane {
+        grid-template-columns: 1fr;
+        grid-column: auto;
+    }
+
+    .at-board-grid.is-sprints {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    .at-board-grid.is-sprints,
+    .at-shell.has-selection .at-board-grid.is-sprints,
+    .at-sprint-closed-cards,
+    .at-attention-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .at-sprint-empty-command {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .at-sprint-action-row-strip .at-sprint-command-form {
+        left: 0;
+        right: auto;
+        width: min(100%, calc(100vw - 2rem));
+    }
+}
+
+/* SECTION: My Work focused execution workspace */
+.at-kpis-mywork {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.65rem;
+}
+
+.at-kpis-mywork article {
+    min-height: 0;
+    padding: 0.75rem 0.85rem;
+}
+
+.at-kpis-mywork h3 {
+    margin-bottom: 0.25rem;
+    font-size: 0.72rem;
+}
+
+.at-kpis-mywork strong {
+    font-size: 1.4rem;
+    line-height: 1.05;
+}
+
+.at-kpis-mywork p {
+    margin-top: 0.25rem;
+    font-size: 0.72rem;
+    line-height: 1.25;
+}
+
+.at-mywork-empty {
+    display: grid;
+    gap: 0.25rem;
+    max-width: 36rem;
+    padding: 1.25rem;
+}
+
+.at-mywork-empty h3 {
+    margin: 0;
+    color: var(--at-text);
+    font-size: 1rem;
+    font-weight: var(--at-weight-bold);
+}
+
+.at-mywork-empty p {
+    margin: 0;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+}
+
+.at-mywork-queue {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.at-mywork-section {
+    padding: 0.8rem;
+}
+
+.at-mywork-section-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    align-items: start;
+    margin-bottom: 0.55rem;
+}
+
+.at-mywork-section-heading h3 {
+    margin: 0;
+    color: var(--at-text);
+    font-size: 1rem;
+    font-weight: var(--at-weight-bold);
+}
+
+.at-mywork-rows {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.at-mywork-task-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(17rem, 1.35fr) auto;
+    gap: 0.65rem;
+    align-items: center;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: #fff;
+}
+
+.at-mywork-task-card.is-selected {
+    border-color: var(--at-primary);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.16);
+}
+
+.at-mywork-row-main {
+    display: flex;
+    gap: 0.35rem;
+    align-items: baseline;
+    min-width: 0;
+}
+
+.at-mywork-task-id {
+    color: var(--at-primary);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
+    white-space: nowrap;
+}
+
+.at-mywork-title {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--at-text);
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.at-mywork-row-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+    justify-content: flex-end;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+}
+
+.at-mywork-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.at-mywork-inline-form {
+    margin: 0;
+}
+
+.at-mywork-primary-action {
+    font-weight: var(--at-weight-bold);
+    white-space: nowrap;
+}
+
+.at-mywork-secondary-action {
+    color: var(--at-muted);
+    font-weight: var(--at-weight-semibold);
+    white-space: nowrap;
+}
+
+@media (max-width: 1399px) {
+    .at-kpis-mywork {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .at-mywork-task-card {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .at-mywork-row-meta,
+    .at-mywork-card-actions {
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 767px) {
+    .at-kpis-mywork {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+/* SECTION: Sprint Board due/exception section stays nested and avoids horizontal-first interaction. */
+.at-planning-due-exceptions-section {
+    display: grid;
+    gap: 0;
+    margin-top: 1rem;
+    border: 1px solid var(--at-border);
+    border-radius: 14px;
+    background: var(--at-surface);
+    box-shadow: var(--at-shadow-sm);
+}
+
+.at-planning-due-exceptions-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    cursor: pointer;
+    padding: 0.75rem 0.9rem;
+}
+
+.at-planning-due-exceptions-title {
+    color: var(--at-text);
+    font-weight: var(--at-weight-bold);
+}
+
+.at-planning-due-exceptions-meta {
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: 600;
+}
+
+.at-planning-due-exceptions-summary .at-count-chip {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+}
+
+.at-planning-due-exceptions-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    min-width: 0;
+    padding: 0.9rem;
+    border-top: 1px solid var(--at-border);
+}
+
+.at-due-exception-column {
+    min-width: 0;
+}
+
+.at-due-exception-column-overdue {
+    border-color: #fecaca;
+}
+
+@media (min-width: 992px) {
+    .at-planning-due-exceptions-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        align-items: start;
+    }
+}
+
+@media (max-width: 767px) {
+    .at-planning-due-exceptions-summary {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .at-planning-due-exceptions-summary .at-count-chip {
+        grid-row: auto;
+        grid-column: auto;
+        width: fit-content;
+    }
+}
+
+/* SECTION: Sprint Board integrated backlog and alternate views */
+.at-planning-backlog-queue,
+.at-planning-secondary-view {
+    border: 1px solid var(--at-border);
+    border-radius: 14px;
+    background: var(--at-surface);
+    box-shadow: var(--at-shadow-sm);
+}
+
+.at-planning-backlog-queue {
+    margin-top: 1rem;
+}
+
+.at-planning-backlog-queue > summary,
+.at-planning-secondary-view > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    cursor: pointer;
+    font-weight: var(--at-weight-bold);
+    padding: 0.75rem 0.9rem;
+}
+
+.at-planning-backlog-body,
+.at-planning-secondary-view .at-planning-secondary-grid {
+    border-top: 1px solid var(--at-border);
+    padding: 0.9rem;
+}
+
+.at-planning-backlog-filter {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+}
+
+.at-planning-backlog-filter-actions,
+.at-planning-backlog-assign-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.at-planning-backlog-list {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 0.9rem;
+}
+
+.at-planning-backlog-card {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: var(--at-surface-soft);
+}
+
+.at-planning-backlog-card.is-selected {
+    border-color: var(--at-primary);
+    box-shadow: inset 3px 0 0 var(--at-primary);
+}
+
+.at-planning-secondary-view {
+    margin-top: 1rem;
+}
+
+.at-planning-secondary-grid {
+    grid-auto-columns: initial;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    min-width: 0;
+}
+
+/* SECTION: Phase 3A-1 Sprint Board internal tabs and simplified panes */
+.at-planning-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+    padding: 0.55rem;
+}
+
+.at-planning-tabs a {
+    display: grid;
+    gap: 0.1rem;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    color: var(--at-muted);
+    padding: 0.55rem 0.7rem;
+    text-decoration: none;
+    background: #f8fafc;
+}
+
+.at-planning-tabs a span {
+    color: var(--at-text);
+    font-size: var(--at-font-base);
+    font-weight: var(--at-weight-bold);
+}
+
+.at-planning-tabs a small {
+    color: var(--at-muted);
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-planning-tabs a.active {
+    border-color: #93c5fd;
+    background: #eff6ff;
+    box-shadow: inset 0 -3px 0 var(--at-blue);
+}
+
+.at-planning-tab-panel {
+    min-width: 0;
+}
+
+.at-planning-plan-grid {
+    display: grid;
+    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+    gap: 0.85rem;
+    align-items: start;
+}
+
+.at-planning-plan-card {
+    min-width: 0;
+}
+
+.at-planning-plan-grid .at-sprint-list-panel {
+    position: static;
+}
+
+.at-plan-create-panel {
+    display: grid;
+    gap: 0.6rem;
+    margin-top: 0.85rem;
+}
+
+.at-sprint-command-form-static {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 0.65rem;
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    padding: 0.75rem;
+    background: #ffffff;
+}
+
+.at-execute-compact-assignment {
+    padding: 0.75rem 0.85rem;
+}
+
+.at-execute-compact-assignment .at-panel-heading {
+    margin-bottom: 0.55rem;
+}
+
+.at-execute-attention {
+    padding: 0.75rem 0.85rem;
+}
+
+.at-execute-attention > summary,
+.at-sprint-closed-section > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    cursor: pointer;
+    color: var(--at-text);
+    font-weight: var(--at-weight-bold);
+}
+
+.at-execute-attention .at-attention-grid {
+    margin-top: 0.75rem;
+}
+
+.at-sprint-closed-section {
+    background: #f8fafc;
+    opacity: 0.92;
+}
+
+.at-sprint-closed-section[open] {
+    background: var(--at-surface);
+    opacity: 1;
+}
+
+.at-sprint-closed-section .at-sprint-closed-cards {
+    margin-top: 0.75rem;
+}
+
+.at-planning-views-panel {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.at-planning-view-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 0.85rem;
+}
+
+.at-planning-secondary-view .at-panel-note {
+    padding: 0 0.9rem 0.9rem;
+}
+
+.at-planning-plan-grid .at-planning-backlog-queue {
+    margin-top: 0;
+}
+
+.at-planning-plan-grid .at-planning-backlog-body {
+    border-top: 1px solid var(--at-border);
+}
+
+@media (max-width: 1200px) {
+    .at-planning-plan-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 767px) {
+    .at-planning-tabs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .at-planning-view-toggle,
+    .at-planning-backlog-filter-actions,
+    .at-planning-backlog-assign-form {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .at-planning-view-toggle .btn-group {
+        display: grid;
+        grid-template-columns: 1fr;
+        width: 100%;
+    }
+}
+
+/* SECTION: Phase 3A-1 execution board uses intrinsic-width-safe columns instead of horizontal-first scrolling. */
+.at-sprint-board-stack .at-board-grid,
+.at-planning-views-panel .at-board-grid {
+    min-width: 0;
+}
+
+/* SECTION: Phase 3A-2 Sprint Board compact command strip and overlay-safe workspace. */
+.at-shell.is-planning-board.has-selection {
+    grid-template-columns: 88px minmax(0, 1fr);
+}
+
+.at-shell.is-planning-board.has-selection .at-drawer-host {
+    position: fixed;
+    top: 5.5rem;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 1040;
+    width: min(var(--at-planning-drawer-width), calc(100vw - 2rem));
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
+}
+
+.at-shell.is-planning-board.has-selection .at-task-details-panel,
+.at-shell.is-planning-board.has-selection .at-inspector-shell {
+    height: 100%;
+    max-height: 100%;
+}
+
+.at-planning-command-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.55rem 0.85rem;
+    align-items: center;
+    padding: 0.55rem 0.7rem;
+}
+
+.at-planning-command-main {
+    display: grid;
+    grid-template-columns: minmax(0, auto) auto minmax(12rem, 1fr);
+    gap: 0.45rem 0.65rem;
+    align-items: center;
+    min-width: 0;
+}
+
+.at-planning-command-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.55rem;
+    min-width: 0;
+}
+
+.at-planning-command-title h2 {
+    margin: 0;
+    font-size: 0.96rem;
+    line-height: 1.2;
+}
+
+.at-planning-command-title .at-section-eyebrow {
+    margin: 0;
+}
+
+.at-planning-command-pills {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.at-compact-counter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 1px solid var(--at-border);
+    border-radius: 999px;
+    background: #f8fafc;
+    color: var(--at-muted);
+    padding: 0.16rem 0.45rem;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
+    white-space: nowrap;
+}
+
+.at-compact-counter strong {
+    color: var(--at-text);
+}
+
+.at-planning-command-focus {
+    overflow: hidden;
+    padding: 0.24rem 0.45rem;
+    border: 0;
+    border-left: 3px solid #bfdbfe;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.at-planning-command-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.at-planning-empty-command {
+    grid-column: 1 / -1;
+}
+
+/* SECTION: Phase 3A-2 compact internal Sprint Board tabs. */
+.at-planning-tabs-compact {
+    display: flex;
+    gap: 0;
+    padding: 0 0.65rem;
+    border-bottom: 1px solid var(--at-border);
+    background: #ffffff;
+}
+
+.at-planning-tabs-compact a {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: -1px;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    padding: 0.55rem 0.8rem 0.45rem;
+}
+
+.at-planning-tabs-compact a small {
+    display: none;
+}
+
+.at-planning-tabs-compact a.active {
+    border-color: var(--at-blue);
+    background: #f8fbff;
+    box-shadow: none;
+}
+
+/* SECTION: Execute status board uses four active workflow columns, then stacks responsively. */
+.at-planning-execute-panel {
+    gap: 0.7rem;
+}
+
+.at-execute-status-board {
+    gap: 0.7rem;
+    max-width: 100%;
+    overflow-x: visible;
+    padding-bottom: 0.2rem;
+}
+
+.at-execute-status-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    align-items: start;
+    min-width: max-content;
+}
+
+.at-execute-status-section {
+    min-width: 0;
+    min-height: 10rem;
+}
+
+.at-execute-status-section .at-task-cards,
+.at-execute-closed-section .at-task-cards {
+    margin-top: 0.55rem;
+}
+
+.at-execute-toolbar {
+    display: grid;
+    grid-template-columns: minmax(16rem, 0.8fr) minmax(0, 1.2fr);
+    gap: 0.7rem;
+    align-items: start;
+}
+
+.at-execute-quick-add {
+    padding: 0.65rem 0.75rem;
+}
+
+.at-execute-quick-add > summary,
+.at-execute-attention > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    cursor: pointer;
+    color: var(--at-text);
+    font-weight: var(--at-weight-bold);
+}
+
+.at-execute-quick-add .at-sprint-add-form {
+    margin-top: 0.65rem;
+}
+
+.at-execute-attention {
+    min-width: 0;
+    padding: 0.65rem 0.75rem;
+}
+
+.at-execute-attention .at-attention-grid {
+    margin-top: 0.65rem;
+}
+
+.at-shell.is-planning-board.has-selection .at-execute-status-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.at-shell.is-planning-board.has-selection .at-planning-view-toggle {
+    padding-right: min(calc(var(--at-planning-drawer-width) + 1rem), calc(100vw - 1rem));
+}
+
+.at-planning-views-panel .at-planning-due-exceptions-grid,
+.at-planning-views-panel .at-task-cards,
+.at-planning-views-panel .at-panel {
+    min-width: 0;
+}
+
+.at-planning-views-panel .at-board-grid.is-kanban {
+    min-width: max-content;
+}
+
+@media (max-width: 1200px) {
+    .at-planning-command-strip,
+    .at-planning-command-main,
+    .at-execute-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .at-planning-command-actions {
+        justify-content: flex-start;
+    }
+
+    .at-execute-status-grid,
+    .at-shell.is-planning-board.has-selection .at-execute-status-grid {
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+        min-width: 0;
+    }
+}
+
+@media (max-width: 767px) {
+    .at-shell.is-planning-board.has-selection .at-drawer-host {
+        left: 0.75rem;
+        right: 0.75rem;
+        width: auto;
+    }
+
+    .at-planning-tabs-compact {
+        overflow-x: auto;
+        padding: 0 0.35rem;
+    }
+
+    .at-planning-tabs-compact a {
+        flex: 0 0 auto;
+    }
+
+    .at-planning-command-focus {
+        white-space: normal;
+    }
+}
+
+
+/* SECTION: Drawer-open Execute board reservation keeps status columns clear of the fixed inspector. */
+.at-shell.is-planning-board.has-selection .at-planning-execute-panel,
+.at-shell.is-planning-board.has-selection .at-execute-status-board {
+    max-width: calc(100vw - 88px - var(--at-planning-drawer-width) - 3.5rem);
+    min-width: 0;
+}
+
+.at-shell.is-planning-board.has-selection .at-execute-status-grid {
+    width: 100%;
+    min-width: 0;
+}
+
+@media (max-width: 1200px) {
+    .at-shell.is-planning-board.has-selection .at-planning-execute-panel,
+    .at-shell.is-planning-board.has-selection .at-execute-status-board {
+        max-width: 100%;
+        padding-right: min(calc(var(--at-planning-drawer-width) + 1rem), calc(100vw - 1rem));
+    }
+}
+
+@media (max-width: 767px) {
+    .at-shell.is-planning-board.has-selection .at-planning-execute-panel,
+    .at-shell.is-planning-board.has-selection .at-execute-status-board {
+        padding-right: 0;
+    }
+}
+
+/* SECTION: Phase 3A-3 exclusive Planning views and card-density refinement. */
+.at-planning-due-exceptions-view,
+.at-planning-kanban-view {
+    min-width: 0;
+    margin-top: 0;
+    overflow: hidden;
+}
+
+.at-planning-due-exceptions-header {
+    padding: 0.85rem 0.9rem 0;
+}
+
+.at-planning-due-exceptions-header .at-panel-note,
+.at-kanban-view-note {
+    margin: 0.15rem 0 0;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-planning-due-exceptions-view .at-planning-due-exceptions-grid {
+    border-top: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding-top: 0.75rem;
+}
+
+.at-kanban-view-note {
+    padding: 0 0.9rem 0.7rem;
+}
+
+.at-kanban-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding: 0 0.9rem 0.9rem;
+}
+
+.at-kanban-scroll .at-planning-secondary-grid {
+    border-top: 1px solid var(--at-border);
+    padding: 0.9rem 0 0;
+}
+
+.at-shell.is-planning-board.has-selection .at-planning-kanban-view {
+    max-width: calc(100vw - 88px - 2rem);
+}
+
+.at-shell.is-planning-board.has-selection .at-kanban-scroll {
+    padding-right: min(calc(var(--at-planning-drawer-width) + 1rem), calc(100vw - 1rem));
+}
+
+.at-sprint-task-card .at-task-card-link {
+    padding: 0.42rem 0.5rem;
+}
+
+.at-sprint-task-card .at-card-top-row {
+    align-items: flex-start;
+}
+
+.at-sprint-task-card .at-card-subject {
+    font-size: var(--at-font-sm);
+    line-height: 1.2;
+}
+
+.at-card-compact-meta {
+    margin-top: 0.25rem;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: 400;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.at-sprint-task-card .at-card-footer {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.35rem;
+    margin-top: 0.35rem;
+}
+
+.at-sprint-task-card .at-card-footer .at-open-details-label {
+    margin-left: auto;
+}
+
+.at-sprint-task-card .at-card-action-form {
+    padding: 0 0.5rem 0.5rem;
+}
+
+.at-sprint-task-card .at-card-action-form .btn-sm {
+    padding: 0.18rem 0.45rem;
+    font-size: var(--at-font-xs);
+}
+
+.at-execute-board-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-width: 0;
+    padding: 0.65rem 0.75rem;
+}
+
+.at-execute-board-title {
+    min-width: 0;
+}
+
+.at-execute-board-title h2 {
+    margin: 0.05rem 0 0;
+    font-size: 1rem;
+    line-height: 1.2;
+}
+
+.at-execute-quick-add-inline {
+    min-width: min(24rem, 100%);
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.at-execute-attention > summary {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+
+.at-execute-attention-summary {
+    display: inline-flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.at-execute-attention-summary span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 1px solid var(--at-border);
+    border-radius: 999px;
+    background: #f8fafc;
+    color: var(--at-muted);
+    padding: 0.12rem 0.45rem;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
+    white-space: nowrap;
+}
+
+.at-execute-attention-summary strong {
+    color: var(--at-text);
+    font-weight: var(--at-weight-bold);
+}
+
+@media (max-width: 1200px) {
+    .at-planning-due-exceptions-view .at-planning-due-exceptions-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .at-shell.is-planning-board.has-selection .at-planning-kanban-view {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 767px) {
+    .at-planning-due-exceptions-view .at-planning-due-exceptions-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .at-execute-board-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .at-execute-status-grid,
+    .at-shell.is-planning-board.has-selection .at-execute-status-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .at-shell.is-planning-board.has-selection .at-kanban-scroll {
+        padding-right: 0.9rem;
+    }
+}
+
+/* SECTION: Phase 3A-4 Sprint Board polish, contained Kanban scrolling, and compact empty states. */
+.at-shell.is-planning-board {
+    overflow-x: clip;
+}
+
+.at-shell.is-planning-board .at-create-trigger {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+    box-shadow: none;
+}
+
+.at-planning-views-panel,
+.at-planning-kanban-view {
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.at-planning-kanban-view {
+    width: 100%;
+}
+
+.at-kanban-scroll {
+    contain: inline-size;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+}
+
+.at-kanban-scroll .at-board-grid.is-kanban {
+    width: max-content;
+    min-width: max-content;
+}
+
+.at-shell.is-planning-board.has-selection .at-planning-kanban-view {
+    max-width: min(100%, calc(100vw - 88px - 37rem));
+}
+
+.at-shell.is-planning-board.has-selection .at-kanban-scroll {
+    padding-right: 0.9rem;
+}
+
+.at-execute-status-section.is-empty {
+    min-height: 0;
+    padding: 0.58rem 0.7rem;
+}
+
+.at-execute-status-section.is-empty .at-panel-heading,
+.at-execute-closed-section.is-empty > summary {
+    margin-bottom: 0;
+}
+
+.at-execute-status-section.is-empty .at-empty-inline,
+.at-execute-closed-section.is-empty .at-empty-inline {
+    margin-top: 0.25rem;
+}
+
+.at-execute-closed-section.is-empty {
+    padding: 0.58rem 0.7rem;
+}
+
+.at-execute-quick-add-inline.is-empty {
+    min-width: 0;
+    background: #f8fafc;
+}
+
+.at-execute-quick-add-empty {
+    margin-top: 0.45rem;
+}
+
+.at-closure-review {
+    border-color: var(--at-border);
+}
+
+.at-closure-recommendations {
+    border-color: #fed7aa;
+    border-left: 4px solid var(--at-warning);
+    box-shadow: none;
+    padding: 0.6rem 0.75rem;
+}
+
+.at-closure-actions .btn-danger {
+    box-shadow: 0 10px 22px rgba(220, 38, 38, 0.22);
+    font-weight: var(--at-weight-bold);
+}
+
+@media (max-width: 1399px) {
+    .at-shell.is-planning-board.has-selection .at-planning-kanban-view {
+        max-width: 100%;
+    }
+}
+
+/* SECTION: Phase 3A-5 Sprint Board final polish, compact backlog filters, and contained close panels. */
+.at-planning-board-workspace,
+.at-planning-tab-panel,
+.at-planning-plan-grid,
+.at-sprint-execution-main {
+    min-height: 0;
+}
+
+.at-planning-backlog-filter-shell {
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: #ffffff;
+    margin-top: 0.75rem;
+}
+
+.at-planning-backlog-filter-shell > summary,
+.at-close-carry-forward-panel > summary,
+.at-sprint-history-panel > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    cursor: pointer;
+    color: var(--at-text);
+    font-size: var(--at-font-md);
+    font-weight: var(--at-weight-bold);
+    list-style: none;
+}
+
+.at-planning-backlog-filter-shell > summary {
+    padding: 0.55rem 0.7rem;
+}
+
+.at-planning-backlog-filter-shell > summary::-webkit-details-marker,
+.at-close-carry-forward-panel > summary::-webkit-details-marker,
+.at-sprint-history-panel > summary::-webkit-details-marker {
+    display: none;
+}
+
+.at-filter-state {
+    color: var(--at-muted);
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-planning-backlog-filter-shell .at-planning-backlog-filter {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: end;
+    gap: 0.45rem;
+    margin-top: 0;
+    padding: 0 0.7rem 0.7rem;
+}
+
+.at-planning-backlog-filter-shell .at-planning-backlog-filter .form-label {
+    margin-bottom: -0.2rem;
+}
+
+.at-planning-backlog-filter-shell .at-planning-backlog-filter-actions {
+    align-self: end;
+}
+
+.at-planning-backlog-list {
+    max-height: min(56vh, 42rem);
+    overflow-y: auto;
+    padding-right: 0.15rem;
+    overscroll-behavior-block: contain;
+}
+
+.at-close-carry-forward-panel,
+.at-sprint-history-panel {
+    padding: 0.72rem 0.85rem;
+}
+
+.at-close-carry-forward-panel[open] .at-mini-list,
+.at-sprint-history-panel[open] .at-sprint-history-list {
+    max-height: min(42vh, 26rem);
+    overflow-y: auto;
+    overscroll-behavior-block: contain;
+}
+
+.at-close-carry-forward-panel[open] .at-mini-list {
+    margin-top: 0.7rem;
+}
+
+.at-closure-recommendations {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    font-size: var(--at-font-md);
+    margin-bottom: 0.65rem;
+}
+
+.at-closure-recommendations ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    margin-top: 0;
+}
+
+.at-sprint-task-card .at-card-action-form {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 0.45rem 0.38rem;
+}
+
+.at-sprint-task-card .at-card-subtle-action {
+    color: var(--at-muted);
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-semibold);
+    padding: 0;
+    text-decoration: none;
+}
+
+.at-sprint-task-card .at-card-subtle-action:hover,
+.at-sprint-task-card .at-card-subtle-action:focus {
+    color: var(--at-danger);
+    text-decoration: underline;
+}
+
+@media (max-width: 991px) {
+    .at-planning-backlog-filter-shell .at-planning-backlog-filter {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .at-closure-recommendations {
+        display: block;
+    }
+
+    .at-closure-recommendations ul {
+        display: block;
+        margin-top: 0.35rem;
+    }
+}
+
+/* SECTION: Phase 3D compact analytical Reports filters and decision-support cards. */
+.at-reports-filter-panel {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    padding: .55rem .75rem;
+}
+
+.at-reports-filter-heading {
+    align-items: center;
+    display: flex;
+    gap: .75rem;
+    justify-content: flex-end;
+    min-height: 0;
+}
+
+.at-report-filter-summary {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    color: #64748b;
+    font-size: .68rem;
+    font-weight: 600;
+    padding: 0;
+    white-space: nowrap;
+}
+
+.at-reports-filter-grid {
+    display: grid;
+    gap: .3rem .5rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.at-reports-filter-grid label {
+    color: #475569;
+    display: flex;
+    flex-direction: column;
+    font-size: .68rem;
+    font-weight: 650;
+    gap: .08rem;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+}
+
+.at-reports-filter-actions {
+    align-items: center;
+    display: flex;
+    gap: .5rem;
+    justify-content: flex-end;
+}
+
+.at-reports-filter-loading {
+    align-items: center;
+    color: #64748b;
+    display: none;
+    font-size: .78rem;
+    font-weight: 700;
+    gap: .4rem;
+}
+
+.at-reports-filter-loading.is-visible,
+.at-reports-filter-panel.is-loading .at-reports-filter-loading {
+    display: inline-flex;
+}
+
+.at-reports-filter-panel.is-loading .form-control,
+.at-reports-filter-panel.is-loading .form-select {
+    opacity: .72;
+}
+
+@media (max-width: 1199.98px) {
+    .at-reports-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .at-reports-filter-heading {
+        flex-direction: column;
+    }
+
+    .at-report-filter-summary {
+        white-space: normal;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .at-reports-filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .at-reports-filter-actions,
+    .at-reports-filter-action-cell {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .at-ageing-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .at-pending-closure-inline {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+/* SECTION: Production Sprint Board uses responsive active-status columns without horizontal scrolling. */
+.at-execute-status-board {
+    overflow-x: visible;
+}
+
+.at-execute-status-grid,
+.at-shell.is-planning-board.has-selection .at-execute-status-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    min-width: 0;
+}
+
+.at-execute-board-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid var(--at-border);
+    border-radius: 999px;
+    background: #f8fafc;
+    color: var(--at-muted);
+    padding: 0.25rem 0.65rem;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
+    white-space: nowrap;
+}
+
+.at-execute-board-summary strong {
+    color: var(--at-text);
+}
+
+.at-secondary-panel > summary,
+.at-backlog-add-disclosure > summary {
+    cursor: pointer;
+}
+
+.at-backlog-add-disclosure {
+    margin-top: 0.55rem;
+}
+
+.at-backlog-add-disclosure .at-planning-backlog-assign-form {
+    margin-top: 0.55rem;
+}
+
+.at-mywork-summary-line {
+    margin-bottom: 0.55rem;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-action-more-separator {
+    border-top: 1px solid var(--at-border);
+    margin-top: 0.35rem;
+    padding: 0.45rem 0.75rem 0.1rem;
+    color: var(--at-muted);
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+
+.at-scope-badge-invalid {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+@media (max-width: 1200px) {
+    .at-execute-status-grid,
+    .at-shell.is-planning-board.has-selection .at-execute-status-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    .at-execute-status-grid,
+    .at-shell.is-planning-board.has-selection .at-execute-status-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* SECTION: Command Centre exception dashboard cleanup */
+.at-command-kpis .at-dashboard-compact-card {
+    min-height: 100%;
+}
+
+.at-active-sprint-snapshot {
+    margin-bottom: 0.9rem;
+}
+
+.at-active-sprint-snapshot .at-panel-heading {
+    margin-bottom: 0.45rem;
+}
+
+.at-dashboard-empty-state {
+    display: grid;
+    gap: 0.2rem;
+    align-items: start;
+}
+
+.at-dashboard-empty-state strong {
+    color: var(--at-text);
+}
+
+.at-active-sprint-summary {
+    margin: 0;
+    border: 1px solid var(--at-border);
+    border-radius: 12px;
+    background: #f8fafc;
+    color: var(--at-text);
+    padding: 0.6rem 0.75rem;
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-active-sprint-exceptions {
+    display: block;
+    margin-top: 0.7rem;
+}
+
+.at-active-sprint-exception-grid {
+    display: grid;
+    gap: 0.7rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 0.75rem;
+}
+
+.at-active-sprint-exceptions h3 {
+    margin: 0;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.at-dashboard-empty-line {
+    border: 1px dashed var(--at-border);
+    border-radius: 10px;
+    background: #f8fafc;
+    color: var(--at-muted);
+    padding: 0.55rem 0.65rem;
+    font-size: var(--at-font-md);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-dashboard-task-list {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.at-dashboard-task-card {
+    padding: 0.55rem 0.6rem;
+}
+
+.at-dashboard-task-card .at-mini-title {
+    font-size: var(--at-font-md);
+    line-height: 1.25;
+}
+
+.at-dashboard-task-card .at-mini-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: center;
+    line-height: 1.35;
+}
+
+.at-recent-activity .at-details-collapsible {
+    padding: 0.55rem 0.7rem;
+}
+
+
+/* SECTION: Sprint Board cleanup compacts planning cards, disclosures, and command summary. */
+.at-planning-command-summary,
+.at-backlog-summary-line {
+    margin: 0;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-planning-command-summary {
+    margin-top: 0.25rem;
+}
+
+.at-planning-backlog-card {
+    gap: 0.35rem;
+    padding: 0.75rem 0.85rem;
+}
+
+.at-inline-action > summary {
+    cursor: pointer;
+}
+
+.at-inline-action .at-planning-backlog-assign-form {
+    margin-top: 0.5rem;
+}
+
+/* SECTION: Outside sprint disclosure stays visually secondary to the backlog planning queue. */
+.at-planning-outside-sprint {
+    border: 1px dashed var(--at-border);
+    border-radius: var(--at-radius-lg);
+    background: #f8fafc;
+    padding: 0.75rem 0.85rem;
+}
+
+.at-planning-outside-sprint > summary {
+    cursor: pointer;
+}
+
+.at-planning-outside-summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.at-planning-outside-summary h2 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.at-execute-status-board,
+.at-execute-status-grid {
+    max-width: 100%;
+    overflow-x: visible;
+}
+
+.at-execute-status-grid,
+.at-shell.is-planning-board.has-selection .at-execute-status-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    min-width: 0;
+}
+
+.at-sprint-task-card .at-card-top-row,
+.at-sprint-task-card .at-card-footer {
+    gap: 0.4rem;
+}
+
+.at-sprint-task-card .at-card-subject {
+    font-size: var(--at-font-sm);
+}
+
+.at-sprint-task-card .at-card-compact-meta {
+    font-size: var(--at-font-xs);
+}
+
+.at-closure-recommendations {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+}
+
+.at-closure-recommendations span {
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+}
+
+@media (max-width: 1200px) {
+    .at-execute-status-grid,
+    .at-shell.is-planning-board.has-selection .at-execute-status-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    .at-execute-status-grid,
+    .at-shell.is-planning-board.has-selection .at-execute-status-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* SECTION: Management-level Action Tracker Reports distribution and warning panels. */
+.at-report-bucket-row {
+    display: grid;
+    gap: .75rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.at-report-bucket-card {
+    align-items: center;
+    background: #f8fafc;
+    border: 1px solid var(--at-border);
+    border-radius: var(--at-radius-md);
+    display: flex;
+    gap: .55rem;
+    justify-content: space-between;
+    min-height: 3.35rem;
+    padding: .65rem .8rem;
+}
+
+.at-report-bucket-card span {
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
+    letter-spacing: .03em;
+    text-transform: uppercase;
+}
+
+.at-report-bucket-card strong {
+    color: var(--at-text);
+    font-size: 1.2rem;
+}
+
+.at-panel-warning {
+    border-color: rgba(245, 158, 11, .45);
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, .08);
+}
+
+@media (max-width: 991.98px) {
+    .at-report-bucket-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 575.98px) {
+    .at-report-bucket-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* SECTION: Final Reports page polish keeps filters, ageing cards, and risk counts visually consistent. */
+.at-reports-filter-action-cell {
+    align-self: end;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.at-reports-filter-action-cell .btn {
+    width: 100%;
+}
+
+.at-report-number {
+    font-weight: 700;
+    text-align: center;
+}
+
+.at-risk-count {
+    color: #b91c1c;
+    font-weight: 800;
+}
+
+.at-ageing-card {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid var(--at-border);
+    border-radius: var(--at-radius-md);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, .04);
+    padding: .9rem;
+}
+
+.at-ageing-card-risk {
+    border-color: rgba(220, 38, 38, .18);
+}
+
+.at-ageing-card h3,
+.at-pending-closure-inline h3 {
+    color: var(--at-text);
+    font-size: .82rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    margin: 0 0 .65rem;
+    text-transform: uppercase;
+}
+
+.at-ageing-table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.at-ageing-table th {
+    border-bottom: 1px solid var(--at-border);
+    color: var(--at-muted);
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    padding: 0 0 .45rem;
+    text-transform: uppercase;
+}
+
+.at-ageing-table th:last-child,
+.at-ageing-table td:last-child {
+    text-align: right;
+}
+
+.at-ageing-table td {
+    border-bottom: 1px solid rgba(226, 232, 240, .72);
+    color: var(--at-text);
+    font-size: .88rem;
+    font-weight: 650;
+    padding: .5rem 0;
+}
+
+.at-ageing-table tr:last-child td {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.at-pending-closure-inline {
+    align-items: center;
+    background: rgba(248, 250, 252, .8);
+    border-radius: var(--at-radius-md);
+    color: var(--at-muted);
+    display: flex;
+    gap: .75rem;
+    margin-top: .85rem;
+    padding: .55rem .7rem;
+}
+
+.at-pending-closure-inline h3,
+.at-pending-closure-inline p {
+    margin: 0;
+}
+
+.at-pending-closure-inline p,
+.at-pending-closure-inline span {
+    font-size: var(--at-font-sm);
+    font-weight: 650;
+}
+
+@media (max-width: 991.98px) {
+    .at-active-sprint-exception-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* SECTION: Task Details inline More Actions panel and group refinement. */
+.at-more-actions-panel {
+    display: grid;
+    gap: 0.45rem;
+    margin-top: 0.65rem;
+    border: 1px solid var(--at-border);
+    border-radius: var(--at-radius-md);
+    background: var(--at-surface-soft);
+    padding: 0.65rem;
+}
+
+.at-more-actions-title {
+    color: var(--at-text);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-bold);
+}
+
+.at-more-actions-grid {
+    display: grid;
+    gap: 0.45rem;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
+.at-action-more-group {
+    display: grid;
+    align-content: start;
+    gap: 0.15rem;
+    min-width: 0;
+    border: 1px solid var(--at-border);
+    border-radius: 10px;
+    background: var(--at-surface);
+    padding: 0.45rem;
+}
+
+.at-action-danger-group {
+    border-color: #fecaca;
+    background: #fffafa;
+}
+
+.at-action-more-heading,
+.at-action-more-separator {
+    padding: 0 0.2rem 0.15rem;
+    color: var(--at-muted);
+    font-size: var(--at-font-xs);
+    font-weight: var(--at-weight-bold);
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.at-more-actions-panel .btn-link {
+    width: 100%;
+    padding: 0.25rem 0.2rem;
+    color: var(--at-text);
+    line-height: 1.25;
+    text-align: left;
+    text-decoration: none;
+    white-space: normal;
+}
+
+.at-more-actions-panel .btn-link:hover,
+.at-more-actions-panel .btn-link:focus {
+    background: #f8fafc;
+    color: var(--at-text);
+    text-decoration: none;
+}
+
+.at-more-actions-panel .at-card-action-form {
+    margin: 0;
+}
+
+.at-more-actions-panel .at-action-more-destructive {
+    color: #b91c1c;
+}
+
+.at-more-actions-panel .at-action-more-destructive:hover,
+.at-more-actions-panel .at-action-more-destructive:focus {
+    background: #fef2f2;
+    color: #991b1b;
 }

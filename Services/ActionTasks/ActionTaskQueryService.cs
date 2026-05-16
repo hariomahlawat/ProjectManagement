@@ -7,6 +7,15 @@ namespace ProjectManagement.Services.ActionTasks;
 
 public sealed class ActionTaskQueryService
 {
+    private readonly IActionTrackerClock _clock;
+    private readonly ActionTaskReportBuilder _reportBuilder;
+
+    public ActionTaskQueryService(IActionTrackerClock clock, ActionTaskReportBuilder reportBuilder)
+    {
+        _clock = clock;
+        _reportBuilder = reportBuilder;
+    }
+
     // SECTION: Compose all read-model slices used by Action Tasks pages.
     public ActionTaskReadModel BuildReadModel(
         IReadOnlyList<ActionTaskItem> sourceTasks,
@@ -20,6 +29,7 @@ public sealed class ActionTaskQueryService
 
         var taskList = request.IsTaskListView ? ApplyTaskListFilters(tasks, request, assigneeNames).ToList() : tasks;
         var backlogTasks = BuildBacklogTasks(tasks, request, assigneeNames);
+        var outsideSprintTasks = BuildOutsideSprintTasks(tasks);
         var sprintReadModel = BuildSprintReadModel(tasks, request.Sprints, request.SelectedSprintId, assigneeNames);
         var activeSprintMetrics = BuildActiveSprintMetrics(tasks, sprintReadModel.ActiveSprint);
 
@@ -28,42 +38,54 @@ public sealed class ActionTaskQueryService
             ScopeTasks = tasks,
             TaskListTasks = taskList,
             BacklogTasks = backlogTasks,
+            OutsideSprintTasks = outsideSprintTasks,
             SprintReadModel = sprintReadModel,
             ActiveSprintMetrics = activeSprintMetrics,
             CriticalOpenTasks = tasks.Where(t => IsCriticalOpen(t)).OrderBy(t => t.DueDate).Take(5).ToList(),
-            OverdueTasks = tasks.Where(t => IsOpen(t) && t.DueDate.Date < DateTime.UtcNow.Date).OrderBy(t => t.DueDate).Take(5).ToList(),
-            RecentlySubmittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).OrderByDescending(t => t.SubmittedOn ?? DateTime.MinValue).Take(5).ToList(),
-            RecentlyUpdatedTasks = tasks.OrderByDescending(t => ResolveLastActivityUtc(t, activityByTaskId) ?? DateTime.MinValue).ThenByDescending(t => t.Id).Take(5).ToList(),
-            KanbanAssignedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase)).ToList(),
-            KanbanInProgressTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase)).ToList(),
-            KanbanBlockedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)).ToList(),
-            KanbanSubmittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).ToList(),
-            KanbanClosedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)).ToList(),
+            OverdueTasks = tasks.Where(t => IsOperationallyOverdue(t, _clock.IstToday)).OrderBy(t => t.DueDate).Take(5).ToList(),
+            RecentlySubmittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase) && t.SubmittedOn.HasValue).OrderByDescending(t => t.SubmittedOn ?? DateTime.MinValue).Take(5).ToList(),
+            RecentlyUpdatedTasks = tasks.Where(t => ResolveLastActivityUtc(t, activityByTaskId).HasValue).OrderByDescending(t => ResolveLastActivityUtc(t, activityByTaskId) ?? DateTime.MinValue).ThenByDescending(t => t.Id).Take(5).ToList(),
             DueBuckets = BuildDueBuckets(tasks),
-            Reports = BuildReportModel(tasks, assigneeNames)
+            Reports = _reportBuilder.BuildReportModel(tasks, request, assigneeNames)
         };
     }
 
     public ActionTaskItem? SelectTask(IReadOnlyList<ActionTaskItem> visibleTasks, int? taskId)
         => !taskId.HasValue ? null : visibleTasks.FirstOrDefault(t => t.Id == taskId.Value);
 
-    private static bool IsOpen(ActionTaskItem task) => !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase);
+    private static bool IsOpen(ActionTaskItem task) => ActionTaskCategorization.IsOpenTask(task);
+    private static bool IsBacklog(ActionTaskItem task) => ActionTaskCategorization.IsBacklogTask(task);
     private static bool IsCriticalOpen(ActionTaskItem task) => IsOpen(task) && string.Equals(task.Priority, "Critical", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSubmitted(ActionTaskItem task)
+        => string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsOperationallyOverdue(ActionTaskItem task, DateTime today)
+        => IsOpen(task)
+           && !IsSubmitted(task)
+           && ActionTaskCategorization.HasAssignedUser(task)
+           && !ActionTaskCategorization.IsBacklogTask(task)
+           && ActionTaskBucketClassifier.ResolveBucket(task) != ActionTaskBucket.Invalid
+           && task.DueDate.Date < today;
 
     private static DateTime? ResolveLastActivityUtc(ActionTaskItem task, IReadOnlyDictionary<int, DateTime?> activityByTaskId)
     {
         activityByTaskId.TryGetValue(task.Id, out var activityTimestampUtc);
-        return activityTimestampUtc ?? task.SubmittedOn ?? task.AssignedOn;
+        return activityTimestampUtc;
     }
 
-    // SECTION: Backlog read-model projection where null SprintId is the backlog contract.
+    // SECTION: Backlog read-model projection uses the official open, unsprinted, unassigned backlog contract.
     private static IReadOnlyList<ActionTaskItem> BuildBacklogTasks(IReadOnlyList<ActionTaskItem> tasks, ActionTaskQueryRequest request, IReadOnlyDictionary<string, string> assigneeNames)
     {
-        var backlogTasks = tasks.Where(t => t.SprintId is null).ToList();
+        var backlogTasks = tasks.Where(IsBacklog).ToList();
         return request.IsBacklogView
             ? ApplyTaskListFilters(backlogTasks, request, assigneeNames).ToList()
             : backlogTasks.OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
     }
+
+    // SECTION: Outside Sprint projection keeps assigned outside sprint work separate from backlog items.
+    private static IReadOnlyList<ActionTaskItem> BuildOutsideSprintTasks(IReadOnlyList<ActionTaskItem> tasks)
+        => tasks.Where(ActionTaskCategorization.IsOutsideSprintTask).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
 
     // SECTION: Sprint read-model projection for selected sprint operational rendering.
     private static ActionSprintReadModel BuildSprintReadModel(IReadOnlyList<ActionTaskItem> tasks, IReadOnlyList<ActionSprint> sprints, int? selectedSprintId, IReadOnlyDictionary<string, string> assigneeNames)
@@ -83,7 +105,7 @@ public sealed class ActionTaskQueryService
             ? new List<ActionTaskItem>()
             : tasks.Where(t => t.SprintId == selectedSprint.Id).OrderBy(t => StatusOrder(t)).ThenBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
 
-        var backlogTasks = tasks.Where(t => t.SprintId is null).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
+        var backlogTasks = tasks.Where(IsBacklog).OrderBy(t => t.DueDate).ThenBy(t => t.Id).ToList();
 
         return new ActionSprintReadModel
         {
@@ -154,10 +176,10 @@ public sealed class ActionTaskQueryService
     {
         if (unfinishedTasks.Count == 0)
         {
-            return new[] { "Close sprint after recording closure remarks." };
+            return new[] { "Close the sprint after recording closure remarks." };
         }
 
-        var options = new List<string> { "Move unfinished tasks with continuing operational value to the next open sprint.", "Move deferred or unscheduled tasks to backlog." };
+        var options = new List<string> { "Carry unfinished tasks with continuing operational value forward to the next open sprint.", "Remove still-owned work from the sprint to keep it assigned outside sprint, or move deferred work to backlog and remove the assignee." };
         if (targetOptions.Count == 0)
         {
             options.Add("Create or reopen a planned sprint before carrying tasks forward.");
@@ -167,12 +189,12 @@ public sealed class ActionTaskQueryService
     }
 
     // SECTION: Active sprint dashboard metrics scoped to operational task health.
-    private static ActiveSprintOperationalMetrics BuildActiveSprintMetrics(IReadOnlyList<ActionTaskItem> tasks, ActionSprint? activeSprint)
+    private ActiveSprintOperationalMetrics BuildActiveSprintMetrics(IReadOnlyList<ActionTaskItem> tasks, ActionSprint? activeSprint)
     {
         var activeSprintTasks = activeSprint is null
             ? new List<ActionTaskItem>()
             : tasks.Where(t => t.SprintId == activeSprint.Id).ToList();
-        var today = DateTime.UtcNow.Date;
+        var today = _clock.IstToday;
 
         return new ActiveSprintOperationalMetrics
         {
@@ -182,40 +204,23 @@ public sealed class ActionTaskQueryService
             CompletedTasks = activeSprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)),
             InProgressTasks = activeSprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase)),
             BlockedTasks = activeSprintTasks.Count(t => string.Equals(t.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)),
-            OverdueTasks = activeSprintTasks.Count(t => IsOpen(t) && t.DueDate.Date < today),
-            BacklogTasks = tasks.Count(t => t.SprintId is null),
-            CarryForwardCandidateTasks = activeSprintTasks.Count(t => IsOpen(t))
+            OverdueTasks = activeSprintTasks.Count(t => IsOperationallyOverdue(t, today)),
+            SubmittedPendingClosureTasks = activeSprintTasks.Count(IsSubmitted),
+            InvalidStateTasks = activeSprintTasks.Count(t => ActionTaskBucketClassifier.ResolveBucket(t) == ActionTaskBucket.Invalid),
+            CarryForwardCandidateTasks = activeSprintTasks.Count(t => IsOpen(t) && ActionTaskBucketClassifier.ResolveBucket(t) != ActionTaskBucket.Invalid)
         };
     }
 
-    private static ActionTaskDueBuckets BuildDueBuckets(IReadOnlyList<ActionTaskItem> tasks)
+    private ActionTaskDueBuckets BuildDueBuckets(IReadOnlyList<ActionTaskItem> tasks)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = _clock.IstToday;
         var endOfWeek = today.AddDays(7);
         return new ActionTaskDueBuckets
         {
-            Overdue = tasks.Where(t => IsOpen(t) && t.DueDate.Date < today).OrderBy(t => t.DueDate).ToList(),
-            Today = tasks.Where(t => IsOpen(t) && t.DueDate.Date == today).OrderBy(t => t.DueDate).ToList(),
-            ThisWeek = tasks.Where(t => IsOpen(t) && t.DueDate.Date > today && t.DueDate.Date <= endOfWeek).OrderBy(t => t.DueDate).ToList(),
-            Later = tasks.Where(t => IsOpen(t) && t.DueDate.Date > endOfWeek).OrderBy(t => t.DueDate).ToList()
-        };
-    }
-
-    private static ActionTaskReportReadModel BuildReportModel(IReadOnlyList<ActionTaskItem> tasks, IReadOnlyDictionary<string, string> assigneeNames)
-    {
-        var utcToday = DateTime.UtcNow.Date;
-        var openTasks = tasks.Where(IsOpen).ToList();
-        var submittedTasks = tasks.Where(t => string.Equals(t.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)).ToList();
-        string Assignee(string id) => assigneeNames.TryGetValue(id, out var name) ? name : "User";
-
-        return new ActionTaskReportReadModel
-        {
-            AssigneePendingCounts = openTasks.GroupBy(t => Assignee(t.AssignedToUserId)).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).Select(g => new CountSummary(g.Key, g.Count())).ToList(),
-            PriorityCounts = tasks.GroupBy(t => t.Priority).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).Select(g => new CountSummary(g.Key, g.Count())).ToList(),
-            StatusCounts = tasks.GroupBy(t => t.Status).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).Select(g => new CountSummary(g.Key, g.Count())).ToList(),
-            OpenAgeingBuckets = new[] { new CountSummary("0 to 3 days", openTasks.Count(t => (utcToday - t.AssignedOn.Date).TotalDays is >= 0 and <= 3)), new CountSummary("4 to 7 days", openTasks.Count(t => (utcToday - t.AssignedOn.Date).TotalDays is >= 4 and <= 7)), new CountSummary("8 to 14 days", openTasks.Count(t => (utcToday - t.AssignedOn.Date).TotalDays is >= 8 and <= 14)), new CountSummary("15+ days", openTasks.Count(t => (utcToday - t.AssignedOn.Date).TotalDays >= 15)) },
-            OverdueAgeingBuckets = new[] { new CountSummary("1 to 3 days overdue", openTasks.Count(t => (utcToday - t.DueDate.Date).TotalDays is >= 1 and <= 3)), new CountSummary("4 to 7 days overdue", openTasks.Count(t => (utcToday - t.DueDate.Date).TotalDays is >= 4 and <= 7)), new CountSummary("8+ days overdue", openTasks.Count(t => (utcToday - t.DueDate.Date).TotalDays >= 8)) },
-            SubmittedPendingClosureAgeingBuckets = new[] { new CountSummary("0 to 1 day", submittedTasks.Count(t => (utcToday - (t.SubmittedOn ?? t.AssignedOn).Date).TotalDays is >= 0 and <= 1)), new CountSummary("2 to 3 days", submittedTasks.Count(t => (utcToday - (t.SubmittedOn ?? t.AssignedOn).Date).TotalDays is >= 2 and <= 3)), new CountSummary("4+ days", submittedTasks.Count(t => (utcToday - (t.SubmittedOn ?? t.AssignedOn).Date).TotalDays >= 4)) }
+            Overdue = tasks.Where(t => IsOperationallyOverdue(t, today)).OrderBy(t => t.DueDate).ToList(),
+            Today = tasks.Where(t => IsOpen(t) && !IsSubmitted(t) && t.DueDate.Date == today).OrderBy(t => t.DueDate).ToList(),
+            ThisWeek = tasks.Where(t => IsOpen(t) && !IsSubmitted(t) && t.DueDate.Date > today && t.DueDate.Date <= endOfWeek).OrderBy(t => t.DueDate).ToList(),
+            Later = tasks.Where(t => IsOpen(t) && !IsSubmitted(t) && t.DueDate.Date > endOfWeek).OrderBy(t => t.DueDate).ToList()
         };
     }
 
@@ -223,10 +228,19 @@ public sealed class ActionTaskQueryService
     {
         var query = tasks.AsEnumerable();
         if (!string.IsNullOrWhiteSpace(request.FilterStatus)) query = query.Where(t => string.Equals(t.Status, request.FilterStatus, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(request.FilterBucket)) query = query.Where(t => MatchesBucketFilter(t, request.FilterBucket));
         if (!string.IsNullOrWhiteSpace(request.FilterPriority)) query = query.Where(t => string.Equals(t.Priority, request.FilterPriority, StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrWhiteSpace(request.FilterAssigneeUserId)) query = query.Where(t => string.Equals(t.AssignedToUserId, request.FilterAssigneeUserId, StringComparison.Ordinal));
         if (request.FilterDueDate.HasValue) { var d = request.FilterDueDate.Value.Date; query = query.Where(t => t.DueDate.Date == d); }
-        if (!string.IsNullOrWhiteSpace(request.FilterSearch)) { var s = request.FilterSearch.Trim(); query = query.Where(t => t.Title.Contains(s, StringComparison.OrdinalIgnoreCase)); }
+        if (!string.IsNullOrWhiteSpace(request.FilterSearch))
+        {
+            var s = request.FilterSearch.Trim();
+            var normalizedTaskNumber = s.StartsWith("AT-", StringComparison.OrdinalIgnoreCase)
+                ? s[3..].Trim()
+                : s;
+
+            query = query.Where(t => MatchesRegisterSearch(t, s, normalizedTaskNumber, assigneeNames));
+        }
 
         var sortBy = (request.SortBy ?? "due").Trim().ToLowerInvariant();
         var descending = string.Equals(request.SortDir, "desc", StringComparison.OrdinalIgnoreCase);
@@ -245,9 +259,45 @@ public sealed class ActionTaskQueryService
         return ordered.ThenBy(t => t.Id);
     }
 
+
+    // SECTION: Register search treats AT identifiers as exact IDs while preserving broad text search.
+    private static bool MatchesRegisterSearch(ActionTaskItem task, string searchTerm, string normalizedTaskNumber, IReadOnlyDictionary<string, string> assigneeNames)
+    {
+        var trimmed = searchTerm.Trim();
+        var isAtNumber = trimmed.StartsWith("AT-", StringComparison.OrdinalIgnoreCase);
+        var isBareNumber = trimmed.All(char.IsDigit);
+        var matchesExactTaskId = task.Id.ToString().Equals(normalizedTaskNumber, StringComparison.OrdinalIgnoreCase);
+
+        if (isAtNumber || isBareNumber)
+        {
+            return matchesExactTaskId;
+        }
+
+        var taskNumber = $"AT-{task.Id}";
+        var assigneeName = assigneeNames.TryGetValue(task.AssignedToUserId, out var resolvedAssignee) ? resolvedAssignee : string.Empty;
+
+        return task.Title.Contains(trimmed, StringComparison.OrdinalIgnoreCase)
+            || taskNumber.Equals(trimmed, StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrWhiteSpace(task.Description) && task.Description.Contains(trimmed, StringComparison.OrdinalIgnoreCase))
+            || (!string.IsNullOrWhiteSpace(assigneeName) && assigneeName.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // SECTION: Register bucket filtering maps user-facing buckets to central task classification.
+    private static bool MatchesBucketFilter(ActionTaskItem task, string filterBucket)
+        => filterBucket.Trim() switch
+        {
+            "Backlog" => ActionTaskBucketClassifier.ResolveBucket(task) == ActionTaskBucket.Backlog,
+            "OutsideSprint" => ActionTaskBucketClassifier.ResolveBucket(task) == ActionTaskBucket.OutsideSprint,
+            "Sprint" => ActionTaskBucketClassifier.ResolveBucket(task) == ActionTaskBucket.Sprint,
+            "Closed" => ActionTaskBucketClassifier.ResolveBucket(task) == ActionTaskBucket.Closed,
+            "Invalid" => ActionTaskBucketClassifier.ResolveBucket(task) == ActionTaskBucket.Invalid,
+            _ => true
+        };
+
     // SECTION: Shared operational status ordering for boards and filtered lists.
     private static int StatusOrder(ActionTaskItem task) => task.Status switch
     {
+        ActionTaskStatuses.Backlog => 0,
         ActionTaskStatuses.Assigned => 1,
         ActionTaskStatuses.InProgress => 2,
         ActionTaskStatuses.Blocked => 3,
@@ -269,24 +319,28 @@ public sealed class ActionTaskQueryService
         DateTime? FilterDueDate,
         string? FilterSearch,
         string? SortBy,
-        string? SortDir);
+        string? SortDir,
+        int? ReportSprintId = null,
+        string? ReportAssigneeUserId = null,
+        DateTime? ReportFromDate = null,
+        DateTime? ReportToDate = null,
+        string? ReportStatus = null,
+        string? ReportPriority = null,
+        string? ReportBucket = null,
+        string? FilterBucket = null);
 
     public sealed class ActionTaskReadModel
     {
         public IReadOnlyList<ActionTaskItem> ScopeTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> TaskListTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> BacklogTasks { get; init; } = Array.Empty<ActionTaskItem>();
+        public IReadOnlyList<ActionTaskItem> OutsideSprintTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public ActionSprintReadModel SprintReadModel { get; init; } = new();
         public ActiveSprintOperationalMetrics ActiveSprintMetrics { get; init; } = ActiveSprintOperationalMetrics.Empty;
         public IReadOnlyList<ActionTaskItem> CriticalOpenTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> OverdueTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> RecentlySubmittedTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public IReadOnlyList<ActionTaskItem> RecentlyUpdatedTasks { get; init; } = Array.Empty<ActionTaskItem>();
-        public IReadOnlyList<ActionTaskItem> KanbanAssignedTasks { get; init; } = Array.Empty<ActionTaskItem>();
-        public IReadOnlyList<ActionTaskItem> KanbanInProgressTasks { get; init; } = Array.Empty<ActionTaskItem>();
-        public IReadOnlyList<ActionTaskItem> KanbanBlockedTasks { get; init; } = Array.Empty<ActionTaskItem>();
-        public IReadOnlyList<ActionTaskItem> KanbanSubmittedTasks { get; init; } = Array.Empty<ActionTaskItem>();
-        public IReadOnlyList<ActionTaskItem> KanbanClosedTasks { get; init; } = Array.Empty<ActionTaskItem>();
         public ActionTaskDueBuckets DueBuckets { get; init; } = new();
         public ActionTaskReportReadModel Reports { get; init; } = new();
     }
@@ -350,18 +404,72 @@ public sealed class ActionTaskQueryService
         public int InProgressTasks { get; init; }
         public int BlockedTasks { get; init; }
         public int OverdueTasks { get; init; }
-        public int BacklogTasks { get; init; }
+        public int SubmittedPendingClosureTasks { get; init; }
+        public int InvalidStateTasks { get; init; }
         public int CarryForwardCandidateTasks { get; init; }
     }
 
     public sealed class ActionTaskReportReadModel
     {
+        public ActionTaskReportSummary WorkloadSummary { get; init; } = new();
+        public IReadOnlyList<CountSummary> BucketDistribution { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<ResponsiblePersonWorkloadSummary> ResponsiblePersonWorkloads { get; init; } = Array.Empty<ResponsiblePersonWorkloadSummary>();
+        public IReadOnlyList<CountSummary> BacklogAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<CountSummary> AssignedTaskAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<CountSummary> OverdueAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<CountSummary> SubmittedPendingClosureAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<SprintPerformanceSummary> SprintPerformanceRows { get; init; } = Array.Empty<SprintPerformanceSummary>();
+        public IReadOnlyList<InvalidTaskStateSummary> InvalidStateRows { get; init; } = Array.Empty<InvalidTaskStateSummary>();
+        public IReadOnlyList<CountSummary> OutsideSprintWorkloadCounts { get; init; } = Array.Empty<CountSummary>();
+
+        // SECTION: Legacy report summaries are retained for existing page helpers and tests during Reports cleanup.
         public IReadOnlyList<CountSummary> AssigneePendingCounts { get; init; } = Array.Empty<CountSummary>();
         public IReadOnlyList<CountSummary> PriorityCounts { get; init; } = Array.Empty<CountSummary>();
         public IReadOnlyList<CountSummary> StatusCounts { get; init; } = Array.Empty<CountSummary>();
         public IReadOnlyList<CountSummary> OpenAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
-        public IReadOnlyList<CountSummary> OverdueAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
-        public IReadOnlyList<CountSummary> SubmittedPendingClosureAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<CountSummary> CarryForwardBySprint { get; init; } = Array.Empty<CountSummary>();
+        public IReadOnlyList<CountSummary> BlockedAgeingBuckets { get; init; } = Array.Empty<CountSummary>();
+        public int TotalTaskCount { get; init; }
+        public int FilteredTaskCount { get; init; }
     }
+
+    public sealed class ActionTaskReportSummary
+    {
+        public int OpenTasks { get; init; }
+        public int Overdue { get; init; }
+        public int Blocked { get; init; }
+        public int PendingClosure { get; init; }
+        public int BacklogItems { get; init; }
+    }
+
+    public sealed class ResponsiblePersonWorkloadSummary
+    {
+        public string ResponsiblePerson { get; init; } = string.Empty;
+        public int Open { get; init; }
+        public int Overdue { get; init; }
+        public int Blocked { get; init; }
+        public int InProgress { get; init; }
+        public int Submitted { get; init; }
+        public int Critical { get; init; }
+    }
+
+    public sealed class SprintPerformanceSummary
+    {
+        public string Sprint { get; init; } = string.Empty;
+        public string Status { get; init; } = string.Empty;
+        public int Open { get; init; }
+        public int Closed { get; init; }
+        public int OverdueNow { get; init; }
+        public int Unfinished { get; init; }
+        public int ClosedLate { get; init; }
+    }
+
+    public sealed class InvalidTaskStateSummary
+    {
+        public string Task { get; init; } = string.Empty;
+        public string Issue { get; init; } = string.Empty;
+        public string SuggestedCorrection { get; init; } = string.Empty;
+    }
+
     public sealed record CountSummary(string Name, int Count);
 }

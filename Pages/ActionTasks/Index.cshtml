@@ -4,7 +4,6 @@
     ViewData["Title"] = "Task Tracker";
     ViewData["UseFullWidth"] = true;
 }
-
 @section Styles {
     <link rel="stylesheet" href="~/css/action-tracker.css" asp-append-version="true" />
 }
@@ -13,18 +12,15 @@
     <script src="~/js/pages/action-tasks/index.js" asp-append-version="true"></script>
 }
 
-<div class="at-shell @(Model.TaskId.HasValue ? "has-selection" : string.Empty)">
+<div class="at-shell @(Model.TaskId.HasValue ? "has-selection" : string.Empty) @(Model.IsPlanningView ? "is-planning-board" : string.Empty)">
     @* SECTION: Compact left rail navigation. *@
     <aside class="at-rail" aria-label="Task tracker navigation">
         <nav class="at-nav">
             @* SECTION: Icon-led rail links for compact enterprise navigation. *@
-            <a title="Dashboard" asp-page="/ActionTasks/Index" asp-route-viewMode="Dashboard" class="@(Model.IsDashboardView ? "active" : string.Empty)"><i class="bi bi-speedometer2" aria-hidden="true"></i><span>Dashboard</span></a>
-            <a title="My Tasks" asp-page="/ActionTasks/Index" asp-route-viewMode="MyTasks" class="@(Model.IsMyTasksView ? "active" : string.Empty)"><i class="bi bi-check2-circle" aria-hidden="true"></i><span>My Tasks</span></a>
-            <a title="Due Board" asp-page="/ActionTasks/Index" asp-route-viewMode="Sprint" class="@(Model.IsSprintBoardView ? "active" : string.Empty)"><i class="bi bi-calendar2-week" aria-hidden="true"></i><span>Due Board</span></a>
-            <a title="Backlog" asp-page="/ActionTasks/Index" asp-route-viewMode="Backlog" class="@(Model.IsBacklogView ? "active" : string.Empty)"><i class="bi bi-inbox" aria-hidden="true"></i><span>Backlog</span></a>
-            <a title="Sprints" asp-page="/ActionTasks/Index" asp-route-viewMode="Sprints" class="@(Model.IsSprintsView ? "active" : string.Empty)"><i class="bi bi-calendar-range" aria-hidden="true"></i><span>Sprints</span></a>
-            <a title="Kanban" asp-page="/ActionTasks/Index" asp-route-viewMode="Kanban" class="@(Model.IsKanbanView ? "active" : string.Empty)"><i class="bi bi-columns-gap" aria-hidden="true"></i><span>Kanban</span></a>
-            <a title="Register" asp-page="/ActionTasks/Index" asp-route-viewMode="TaskList" class="@(Model.IsTaskListView ? "active" : string.Empty)"><i class="bi bi-list-task" aria-hidden="true"></i><span>Register</span></a>
+            <a title="Command Centre" asp-page="/ActionTasks/Index" asp-route-viewMode="CommandCentre" class="@(Model.IsCommandCentreView ? "active" : string.Empty)"><i class="bi bi-speedometer2" aria-hidden="true"></i><span>Command Centre</span></a>
+            <a title="Sprint Board" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" class="@(Model.IsPlanningView ? "active" : string.Empty)"><i class="bi bi-calendar-range" aria-hidden="true"></i><span>Sprint Board</span></a>
+            <a title="My Work" asp-page="/ActionTasks/Index" asp-route-viewMode="MyWork" class="@(Model.IsMyWorkView ? "active" : string.Empty)"><i class="bi bi-check2-circle" aria-hidden="true"></i><span>My Work</span></a>
+            <a title="Register" asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="@(Model.IsRegisterView ? "active" : string.Empty)"><i class="bi bi-list-task" aria-hidden="true"></i><span>Register</span></a>
             <a title="Reports" asp-page="/ActionTasks/Index" asp-route-viewMode="Reports" class="@(Model.IsReportsView ? "active" : string.Empty)"><i class="bi bi-bar-chart" aria-hidden="true"></i><span>Reports</span></a>
         </nav>
     </aside>
@@ -47,29 +43,22 @@
             <partial name="_TaskCreatePanel" model="Model" />
         }
 
-        @if (Model.IsDashboardView)
+        @if (Model.IsCommandCentreView)
         {
             <partial name="_TaskDashboard" model="Model" />
         }
-        else if (Model.IsMyTasksView || Model.IsTaskListView)
+        else if (Model.IsPlanningView)
+        {
+            @* SECTION: Sprint Board internal tabs are rendered inside the board partial to avoid competing major sections. *@
+            <partial name="_TaskSprints" model="Model" />
+        }
+        else if (Model.IsMyWorkView)
+        {
+            <partial name="_TaskMyWork" model="Model" />
+        }
+        else if (Model.IsRegisterView)
         {
             <partial name="_TaskRegister" model="Model" />
-        }
-        else if (Model.IsKanbanView)
-        {
-            <partial name="_TaskKanban" model="Model" />
-        }
-        else if (Model.IsSprintBoardView)
-        {
-            <partial name="_TaskSprintBoard" model="Model" />
-        }
-        else if (Model.IsBacklogView)
-        {
-            <partial name="_TaskBacklog" model="Model" />
-        }
-        else if (Model.IsSprintsView)
-        {
-            <partial name="_TaskSprints" model="Model" />
         }
         else if (Model.IsReportsView)
         {

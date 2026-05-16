@@ -1,136 +1,340 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
+@{
+    // SECTION: Date filter display values are preformatted for CSP-safe server rendering.
+    var reportFromDateValue = Model.ReportFromDate?.ToString("yyyy-MM-dd");
+    var reportToDateValue = Model.ReportToDate?.ToString("yyyy-MM-dd");
+}
 
-@* SECTION: Report KPI strip. *@
+@* SECTION: Compact reports filter bar for management analysis. *@
 <section class="at-section-group">
-    <h2 class="at-section-title">Overview</h2>
-    <section class="at-kpis at-kpis-reports">
-        <article><h3>Active</h3><strong>@Model.ActiveCount</strong><p>All open workflow tasks.</p></article>
-        <article><h3>Critical Open</h3><strong>@Model.CriticalOpenCount</strong><p>Urgent open tasks.</p></article>
-        <article><h3>Overdue</h3><strong>@Model.OverdueCount</strong><p>Open tasks past due date.</p></article>
-        <article><h3>Blocked</h3><strong>@Model.BlockedCount</strong><p>Tasks requiring intervention.</p></article>
-        <article><h3>Submitted</h3><strong>@Model.SubmittedCount</strong><p>Pending command closure.</p></article>
-        <article><h3>Closed</h3><strong>@Model.ClosedCount</strong><p>Completed outcomes.</p></article>
-    </section>
-</section>
-
-@* SECTION: Command summary card with rule-based grammar. *@
-<section class="at-section-group">
-    <article class="at-panel">
-        <h2>Command Summary</h2>
-        <p class="at-panel-note">@Model.CommandSummary</p>
-    </article>
-</section>
-
-@* SECTION: Reports analysis panels with lightweight proportional bars. *@
-<section class="at-card-grid at-card-grid-reports">
-    <article class="at-panel">
-        <h2>Command Attention</h2>
-        <p class="at-panel-note">What requires command focus now.</p>
-        <div class="at-attention-list">
-            <div><span>Critical Open</span><strong>@Model.CriticalOpenCount</strong></div>
-            <div><span>Overdue</span><strong>@Model.OverdueCount</strong></div>
-            <div><span>Blocked</span><strong>@Model.BlockedCount</strong></div>
-            <div><span>Submitted Pending Closure</span><strong>@Model.SubmittedCount</strong></div>
+    <form method="get" class="at-panel at-reports-filter-panel" aria-label="Reports filters" data-at-reports-filter-form="true">
+        <input type="hidden" name="ViewMode" value="Reports" />
+        <div class="at-reports-filter-heading">
+            <span class="at-report-filter-summary">@Model.ReportFilterSummary</span>
         </div>
-    </article>
+        <div class="at-reports-filter-grid">
+            <label>
+                <span>Bucket</span>
+                <select class="form-select form-select-sm" name="ReportBucket" data-at-reports-filter-control="true">
+                    <option value="">All buckets</option>
+                    @foreach (var bucket in new[] { (Value: "Backlog", Label: "Backlog"), (Value: "OutsideSprint", Label: "Outside Sprint"), (Value: "Sprint", Label: "Sprint"), (Value: "Closed", Label: "Closed"), (Value: "Invalid", Label: "Invalid State") })
+                    {
+                        @if (string.Equals(Model.ReportBucket, bucket.Value, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@bucket.Value" selected>@bucket.Label</option>
+                        }
+                        else
+                        {
+                            <option value="@bucket.Value">@bucket.Label</option>
+                        }
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Sprint</span>
+                <select class="form-select form-select-sm" name="ReportSprintId" data-at-reports-filter-control="true">
+                    <option value="">All sprints</option>
+                    @foreach (var sprint in Model.Sprints)
+                    {
+                        @if (Model.ReportSprintId == sprint.Id)
+                        {
+                            <option value="@sprint.Id" selected>@Model.DisplaySprintName(sprint)</option>
+                        }
+                        else
+                        {
+                            <option value="@sprint.Id">@Model.DisplaySprintName(sprint)</option>
+                        }
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Assignee</span>
+                <select class="form-select form-select-sm" name="ReportAssigneeUserId" data-at-reports-filter-control="true">
+                    <option value="">All people</option>
+                    @foreach (var user in Model.AssignableUsers)
+                    {
+                        @if (string.Equals(Model.ReportAssigneeUserId, user.UserId, StringComparison.Ordinal))
+                        {
+                            <option value="@user.UserId" selected>@user.DisplayName</option>
+                        }
+                        else
+                        {
+                            <option value="@user.UserId">@user.DisplayName</option>
+                        }
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Status</span>
+                <select class="form-select form-select-sm" name="ReportStatus" data-at-reports-filter-control="true">
+                    <option value="">All statuses</option>
+                    @foreach (var status in Model.ReportStatusOptions)
+                    {
+                        @if (string.Equals(Model.ReportStatus, status, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@status" selected>@status</option>
+                        }
+                        else
+                        {
+                            <option value="@status">@status</option>
+                        }
+                    }
+                </select>
+            </label>
+            <label>
+                <span>From</span>
+                <input class="form-control form-control-sm" type="date" name="ReportFromDate" value="@reportFromDateValue" data-at-reports-date-filter="true" />
+            </label>
+            <label>
+                <span>To</span>
+                <input class="form-control form-control-sm" type="date" name="ReportToDate" value="@reportToDateValue" data-at-reports-date-filter="true" />
+            </label>
+            <label>
+                <span>Priority</span>
+                <select class="form-select form-select-sm" name="ReportPriority" data-at-reports-filter-control="true">
+                    <option value="">All priorities</option>
+                    @foreach (var priority in Model.PriorityOptions)
+                    {
+                        @if (string.Equals(Model.ReportPriority, priority, StringComparison.OrdinalIgnoreCase))
+                        {
+                            <option value="@priority" selected>@priority</option>
+                        }
+                        else
+                        {
+                            <option value="@priority">@priority</option>
+                        }
+                    }
+                </select>
+            </label>
+            <div class="at-reports-filter-action-cell">
+                <a class="btn btn-sm btn-outline-secondary" asp-page="/ActionTasks/Index" asp-route-viewMode="Reports">Reset / Clear all</a>
+            </div>
+        </div>
+        <div class="at-reports-filter-actions">
+            <span class="at-reports-filter-loading" data-at-reports-filter-loading="true" role="status" aria-live="polite">
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <span>Updating reports...</span>
+            </span>
+        </div>
+    </form>
+</section>
+
+@* SECTION: Workload Summary uses exactly five management KPIs. *@
+<section class="at-section-group" aria-label="Workload Summary">
+    <div class="at-panel-heading">
+        <div>
+            <h2>Workload Summary</h2>
+        </div>
+    </div>
+    <div class="at-kpis">
+        <article><h3>Open Tasks</h3><strong>@Model.WorkloadSummary.OpenTasks</strong><p>All non-closed tasks, including backlog.</p></article>
+        <article><h3>Overdue</h3><strong>@Model.WorkloadSummary.Overdue</strong><p>Assigned work past due, excluding submitted.</p></article>
+        <article><h3>Blocked</h3><strong>@Model.WorkloadSummary.Blocked</strong><p>Assigned tasks currently blocked.</p></article>
+        <article><h3>Pending Closure</h3><strong>@Model.WorkloadSummary.PendingClosure</strong><p>Submitted tasks awaiting close-out.</p></article>
+        <article><h3>Backlog Items</h3><strong>@Model.WorkloadSummary.BacklogItems</strong><p>Planning inventory not assigned.</p></article>
+    </div>
+</section>
+
+@* SECTION: Analytical report sections are stacked to avoid visual clutter. *@
+<section class="at-section-group" aria-label="Task analytical reports">
     <article class="at-panel">
-        <h2>Workflow Health</h2>
-        <p class="at-panel-note">Tasks by current stage of completion.</p>
-        <div class="at-metric-bars">
-            @foreach (var item in Model.StatusCounts)
+        <div class="at-panel-heading">
+            <div>
+                <h2>Bucket Distribution</h2>
+                <p class="at-panel-note">Task distribution by work bucket.</p>
+            </div>
+        </div>
+        <div class="at-report-bucket-row">
+            @foreach (var item in Model.BucketDistribution)
             {
-                <div class="at-metric-row">
-                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                    <div class="at-metric-track"><div class="at-metric-fill" style="width:@Model.ToPercent(item.Count, Model.StatusCountsMax)%"></div></div>
-                    <strong>@item.Count</strong>
-                </div>
+                <div class="at-report-bucket-card"><span>@item.Name</span><strong>@item.Count</strong></div>
             }
         </div>
     </article>
+
     <article class="at-panel">
-        <h2>Ageing Analysis</h2>
-        <p class="at-panel-note">Open and overdue task ageing buckets.</p>
-        <div class="at-ageing-grid">
+        <div class="at-panel-heading">
             <div>
-                <h3 class="at-small at-section-eyebrow">Open Tasks Ageing</h3>
-                <div class="at-metric-bars">
-                    @foreach (var item in Model.OpenAgeingBuckets)
-                    {
-                        <div class="at-metric-row">
-                            <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                            <div class="at-metric-track"><div class="at-metric-fill" style="width:@Model.ToPercent(item.Count, Model.OpenAgeingBucketsMax)%"></div></div>
-                            <strong>@item.Count</strong>
-                        </div>
-                    }
-                </div>
-            </div>
-            <div>
-                <h3 class="at-small at-section-eyebrow">Overdue Ageing</h3>
-                <div class="at-metric-bars">
-                    @foreach (var item in Model.OverdueAgeingBuckets)
-                    {
-                        <div class="at-metric-row">
-                            <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                            <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-danger" style="width:@Model.ToPercent(item.Count, Model.OverdueAgeingBucketsMax)%"></div></div>
-                            <strong>@item.Count</strong>
-                        </div>
-                    }
-                </div>
+                <h2>Workload by Assignee</h2>
+                <p class="at-panel-note">Open assigned work only.</p>
             </div>
         </div>
-    </article>
-    <article class="at-panel">
-        <h2>Pending Closure Ageing</h2>
-        <p class="at-panel-note">Ageing buckets for submitted tasks awaiting closure.</p>
-        @if (Model.SubmittedPendingClosureAgeingBuckets.All(item => item.Count == 0))
+        @if (!Model.ResponsiblePersonWorkloads.Any())
         {
-            <p class="at-empty-state-note">No submitted tasks are awaiting closure.</p>
+            <p class="at-empty-state-note">No open assigned workload.</p>
         }
         else
         {
-            <div class="at-metric-bars">
-                @foreach (var item in Model.SubmittedPendingClosureAgeingBuckets)
-                {
-                    <div class="at-metric-row">
-                        <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                        <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-amber" style="width:@Model.ToPercent(item.Count, Model.SubmittedCount == 0 ? 1 : Model.SubmittedCount)%"></div></div>
-                        <strong>@item.Count</strong>
-                    </div>
-                }
+            <div class="table-responsive">
+                <table class="table table-sm at-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Assignee</th>
+                            <th class="text-center">Open</th>
+                            <th class="text-center">Overdue</th>
+                            <th class="text-center">Blocked</th>
+                            <th class="text-center">In Progress</th>
+                            <th class="text-center">Submitted</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.ResponsiblePersonWorkloads)
+                        {
+                            <tr>
+                                <td>@item.ResponsiblePerson</td>
+                                <td class="at-report-number">@item.Open</td>
+                                <td class="at-report-number @(item.Overdue > 0 ? "at-risk-count" : string.Empty)">@item.Overdue</td>
+                                <td class="at-report-number">@item.Blocked</td>
+                                <td class="at-report-number">@item.InProgress</td>
+                                <td class="at-report-number">@item.Submitted</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
         }
     </article>
+
     <article class="at-panel">
-        <h2>Assignee Workload</h2>
-        <p class="at-panel-note">Pending tasks grouped by assignee.</p>
-        <div class="at-metric-bars at-metric-bars-tight">
-            @foreach (var item in Model.AssigneePendingCounts)
+        <div class="at-panel-heading">
+            <div>
+                <h2>Ageing and Overdue Analysis</h2>
+                <p class="at-panel-note">Ageing separated by backlog and assigned work.</p>
+            </div>
+        </div>
+        @* SECTION: Structured ageing cards replace raw metric rows for faster scan and consistent report polish. *@
+        <div class="at-ageing-grid">
+            <div class="at-ageing-card">
+                <h3>Backlog Ageing</h3>
+                <table class="at-ageing-table">
+                    <thead>
+                        <tr><th>Age Band</th><th>Count</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.BacklogAgeingBuckets)
+                        {
+                            <tr><td>@item.Name.Replace(" in backlog", string.Empty)</td><td>@item.Count</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="at-ageing-card">
+                <h3>Assigned Task Ageing</h3>
+                <table class="at-ageing-table">
+                    <thead>
+                        <tr><th>Age Band</th><th>Count</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.AssignedTaskAgeingBuckets)
+                        {
+                            <tr><td>@item.Name.Replace(" assigned", string.Empty)</td><td>@item.Count</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="at-ageing-card at-ageing-card-risk">
+                <h3>Overdue Analysis</h3>
+                <table class="at-ageing-table">
+                    <thead>
+                        <tr><th>Age Band</th><th>Count</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.OverdueAgeingBuckets)
+                        {
+                            <tr><td>@item.Name</td><td class="@(item.Count > 0 ? "at-risk-count" : string.Empty)">@item.Count</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="at-pending-closure-inline">
+            <h3>Pending Closure</h3>
+            @if (Model.SubmittedPendingClosureAgeingBuckets.All(item => item.Count == 0))
             {
-                <div class="at-metric-row">
-                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                    <div class="at-metric-track"><div class="at-metric-fill" style="width:@Model.ToPercent(item.Count, Model.AssigneePendingCountsMax)%"></div></div>
-                    <strong>@item.Count</strong>
-                </div>
+                <p>No submitted tasks are awaiting closure in the selected report scope.</p>
+            }
+            else
+            {
+                <span>@Model.SubmittedPendingClosureAgeingBuckets.Sum(item => item.Count) submitted tasks awaiting closure.</span>
             }
         </div>
     </article>
+
     <article class="at-panel">
-        <h2>Priority Exposure</h2>
-        <p class="at-panel-note">Open tasks grouped by urgency.</p>
-        <div class="at-metric-bars">
-            @foreach (var item in Model.PriorityCounts)
-            {
-                <div class="at-metric-row">
-                    <span class="at-metric-label" title="@item.Name">@item.Name</span>
-                    <div class="at-metric-track"><div class="at-metric-fill at-metric-fill-amber" style="width:@Model.ToPercent(item.Count, Model.PriorityCountsMax)%"></div></div>
-                    <strong>@item.Count</strong>
-                </div>
-            }
+        <div class="at-panel-heading">
+            <div>
+                <h2>Sprint Performance</h2>
+                <p class="at-panel-note">Sprint-level progress and closure summary.</p>
+            </div>
         </div>
+        @if (!Model.SprintPerformanceRows.Any())
+        {
+            <p class="at-empty-state-note">No sprint activity available.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm at-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Sprint</th>
+                            <th>Status</th>
+                            <th>Open</th>
+                            <th class="text-center">Closed</th>
+                            <th class="text-center">Overdue Now</th>
+                            <th class="text-center">Unfinished</th>
+                            <th class="text-center">Closed Late</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.SprintPerformanceRows)
+                        {
+                            <tr>
+                                <td>@item.Sprint</td>
+                                <td>@item.Status</td>
+                                <td class="at-report-number">@item.Open</td>
+                                <td class="at-report-number">@item.Closed</td>
+                                <td class="at-report-number @(item.OverdueNow > 0 ? "at-risk-count" : string.Empty)">@(string.Equals(item.Status, "Closed", StringComparison.OrdinalIgnoreCase) ? "—" : item.OverdueNow.ToString())</td>
+                                <td class="at-report-number">@(string.Equals(item.Status, "Closed", StringComparison.OrdinalIgnoreCase) ? "—" : item.Unfinished.ToString())</td>
+                                <td class="at-report-number">@(string.Equals(item.Status, "Closed", StringComparison.OrdinalIgnoreCase) ? item.ClosedLate.ToString() : "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
     </article>
-    <article class="at-panel">
-        <h2>Top Attention Items</h2>
-        <p class="at-panel-note">Top 3 tasks requiring command attention now.</p>
-        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.TopAttentionTaskDisplays, "No urgent attention items.")' />
-    </article>
+
+    @if (Model.InvalidStateRows.Any())
+    {
+        <article class="at-panel at-panel-warning">
+            <div class="at-panel-heading">
+                <div>
+                    <h2>Data Quality</h2>
+                    <p class="at-panel-note">Data quality warning: some task records have inconsistent assignment or sprint data.</p>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm at-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Task</th>
+                            <th>Issue</th>
+                            <th>Suggested Correction</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.InvalidStateRows)
+                        {
+                            <tr>
+                                <td>@item.Task</td>
+                                <td>@item.Issue</td>
+                                <td>@item.SuggestedCorrection</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    }
 </section>

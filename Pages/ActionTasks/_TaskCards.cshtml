@@ -4,6 +4,12 @@
     var tasks = Model.Item2;
     var emptyMessage = Model.Item3;
     var hideStatusBadge = Model.Item4;
+    // SECTION: Sprint Board task cards preserve the selected internal tab, alternate view, and Sprint when opening the inspector.
+    var planningTabRouteValue = pageModel.IsPlanningView ? pageModel.ResolvedPlanningTab : null;
+    var planningViewRouteValue = pageModel.IsPlanningView && !string.Equals(pageModel.ResolvedPlanningView, "Default", StringComparison.OrdinalIgnoreCase)
+        ? pageModel.ResolvedPlanningView
+        : null;
+    var selectedSprintRouteValue = pageModel.IsPlanningView ? pageModel.SelectedSprintId : null;
 }
 
 @if (!tasks.Any())
@@ -17,13 +23,20 @@ else
         {
             var task = item.Task;
             <article class="at-task-card @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)">
-                <a class="at-task-card-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@pageModel.ResolvedViewMode" aria-label="Open task AT-@task.Id details">
+                <a class="at-task-card-link"
+                   asp-page="/ActionTasks/Index"
+                   asp-route-taskId="@task.Id"
+                   asp-route-viewMode="@pageModel.ResolvedViewMode"
+                   asp-route-PlanningTab="@planningTabRouteValue"
+                   asp-route-PlanningView="@planningViewRouteValue"
+                   asp-route-SelectedSprintId="@selectedSprintRouteValue"
+                   aria-label="Open task AT-@task.Id details">
                     <div class="at-card-top-row">
                         <h3 class="at-card-subject">@task.Title</h3>
                         <span class="@pageModel.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
                     </div>
                     <div class="at-card-meta">AT-@task.Id · @item.AssigneeName</div>
-                    <div class="at-card-due">Due @task.DueDate.ToString("dd MMM yyyy")</div>
+                    <div class="at-card-due">@(pageModel.IsBacklogTask(task) ? "Target" : "Due") @task.DueDate.ToString("dd MMM yyyy")</div>
                     <div class="mt-1"><span class="@pageModel.GetSprintBadgeClass(task)">@pageModel.GetSprintBadgeText(task)</span></div>
                     @if (!hideStatusBadge)
                     {

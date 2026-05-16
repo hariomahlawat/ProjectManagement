@@ -66,7 +66,7 @@
             return;
         }
 
-        const immediateControls = form.querySelectorAll("select[name='FilterStatus'], select[name='FilterPriority'], select[name='FilterAssigneeUserId'], input[name='FilterDueDate']");
+        const immediateControls = form.querySelectorAll("select[name='FilterStatus'], select[name='FilterBucket'], select[name='FilterPriority'], input[name='FilterDueDate']");
         immediateControls.forEach((control) => {
             control.addEventListener("change", () => {
                 form.requestSubmit();
@@ -120,8 +120,10 @@
         }
 
         assigneeInput.addEventListener("change", () => {
-            syncAssigneeSelection();
-            form.requestSubmit();
+            const valid = syncAssigneeSelection();
+            if (valid || !assigneeInput.value.trim()) {
+                form.requestSubmit();
+            }
         });
 
         assigneeInput.addEventListener("keydown", (event) => {
@@ -129,12 +131,75 @@
                 return;
             }
             event.preventDefault();
-            syncAssigneeSelection();
-            form.requestSubmit();
+            const valid = syncAssigneeSelection();
+            if (valid || !assigneeInput.value.trim()) {
+                form.requestSubmit();
+            }
         });
 
         assigneeInput.addEventListener("blur", () => {
-            syncAssigneeSelection();
+            const valid = syncAssigneeSelection();
+            if (!valid) {
+                assigneeInput.value = "";
+                hiddenInput.value = "";
+            }
+        });
+    }
+
+    // SECTION: Reports filter auto-apply keeps management analysis low-friction.
+    function initReportsFilters() {
+        const form = document.querySelector("[data-at-reports-filter-form='true']");
+        if (!form) {
+            return;
+        }
+
+        let isSubmitting = false;
+        const loadingIndicator = form.querySelector("[data-at-reports-filter-loading='true']");
+
+        function showLoadingState() {
+            form.classList.add("is-loading");
+            form.setAttribute("aria-busy", "true");
+            if (loadingIndicator) {
+                loadingIndicator.classList.add("is-visible");
+            }
+        }
+
+        function submitReportsFilters() {
+            if (isSubmitting) {
+                return;
+            }
+
+            isSubmitting = true;
+            showLoadingState();
+            if (typeof form.requestSubmit === "function") {
+                form.requestSubmit();
+                return;
+            }
+
+            form.submit();
+        }
+
+        const dropdownControls = form.querySelectorAll("select[data-at-reports-filter-control='true']");
+        dropdownControls.forEach((control) => {
+            control.addEventListener("change", submitReportsFilters);
+        });
+
+        const dateControls = form.querySelectorAll("input[data-at-reports-date-filter='true']");
+        dateControls.forEach((control) => {
+            let lastAppliedValue = control.value || "";
+
+            function applyDateFilter() {
+                const currentValue = control.value || "";
+                if (currentValue === lastAppliedValue) {
+                    return;
+                }
+
+                lastAppliedValue = currentValue;
+                submitReportsFilters();
+            }
+
+            control.addEventListener("change", applyDateFilter);
+            control.addEventListener("blur", applyDateFilter);
         });
     }
 
@@ -181,6 +246,196 @@
         });
     }
 
+    // SECTION: Create modal segmented-control flow keeps one server-rendered form active at a time.
+    function initCreateTaskChoiceFlow() {
+        const group = document.querySelector("[data-at-create-choice-group='true']");
+        if (!group) {
+            return;
+        }
+
+        const buttons = Array.from(group.querySelectorAll("[data-at-create-mode-button]"));
+        const panels = Array.from(group.querySelectorAll("[data-at-create-mode-panel]"));
+        if (!buttons.length || !panels.length) {
+            return;
+        }
+
+        function activateMode(mode) {
+            buttons.forEach((button) => {
+                const isActive = button.getAttribute("data-at-create-mode-button") === mode;
+                button.classList.toggle("is-active", isActive);
+                button.setAttribute("aria-selected", isActive ? "true" : "false");
+            });
+
+            panels.forEach((panel) => {
+                const isActive = panel.getAttribute("data-at-create-mode-panel") === mode;
+                panel.hidden = !isActive;
+            });
+        }
+
+        buttons.forEach((button) => {
+            button.addEventListener("click", () => {
+                const mode = button.getAttribute("data-at-create-mode-button");
+                if (mode) {
+                    activateMode(mode);
+                }
+            });
+        });
+
+        const initiallySelected = buttons.find((button) => button.getAttribute("aria-selected") === "true") || buttons[0];
+        activateMode(initiallySelected.getAttribute("data-at-create-mode-button"));
+    }
+
+    // SECTION: Application-styled confirmation modal for destructive Action Tracker form submissions.
+    function initActionConfirmations() {
+        const triggers = document.querySelectorAll("[data-at-confirm='true']");
+        if (!triggers.length) {
+            return;
+        }
+
+        const modalElement = ensureActionConfirmationModal();
+        if (!modalElement) {
+            return;
+        }
+
+        const titleElement = modalElement.querySelector("[data-at-confirm-modal-title]");
+        const bodyElement = modalElement.querySelector("[data-at-confirm-modal-body]");
+        const cancelButton = modalElement.querySelector("[data-at-confirm-modal-cancel]");
+        const acceptButton = modalElement.querySelector("[data-at-confirm-modal-accept]");
+        const modal = typeof window.bootstrap !== "undefined" && window.bootstrap.Modal
+            ? window.bootstrap.Modal.getOrCreateInstance(modalElement)
+            : null;
+        let pendingForm = null;
+        let pendingSubmitter = null;
+
+        if (!titleElement || !bodyElement || !cancelButton || !acceptButton || !modal) {
+            return;
+        }
+
+        triggers.forEach((trigger) => {
+            const form = trigger.closest("form");
+            if (!form || form.dataset.atConfirmReady === "true") {
+                return;
+            }
+
+            form.addEventListener("submit", (event) => {
+                if (form.dataset.atConfirmAccepted === "true") {
+                    delete form.dataset.atConfirmAccepted;
+                    return;
+                }
+
+                const submitter = event.submitter || trigger;
+                if (submitter.getAttribute("data-at-confirm") !== "true") {
+                    return;
+                }
+
+                event.preventDefault();
+                pendingForm = form;
+                pendingSubmitter = submitter;
+                titleElement.textContent = submitter.getAttribute("data-at-confirm-title") || "Confirm action";
+                bodyElement.textContent = submitter.getAttribute("data-at-confirm-body") || "Please confirm that you want to continue.";
+                cancelButton.textContent = submitter.getAttribute("data-at-confirm-cancel-label") || "Cancel";
+                acceptButton.textContent = submitter.getAttribute("data-at-confirm-accept-label") || "Continue";
+                modal.show();
+            });
+            form.dataset.atConfirmReady = "true";
+        });
+
+        acceptButton.addEventListener("click", () => {
+            if (!pendingForm) {
+                return;
+            }
+
+            const formToSubmit = pendingForm;
+            const submitterToUse = pendingSubmitter;
+            pendingForm = null;
+            pendingSubmitter = null;
+            formToSubmit.dataset.atConfirmAccepted = "true";
+            modal.hide();
+
+            if (typeof formToSubmit.requestSubmit === "function" && submitterToUse) {
+                formToSubmit.requestSubmit(submitterToUse);
+                return;
+            }
+
+            formToSubmit.submit();
+        });
+
+        modalElement.addEventListener("hidden.bs.modal", () => {
+            pendingForm = null;
+            pendingSubmitter = null;
+        });
+    }
+
+    // SECTION: Build the shared confirmation modal without inline scripts to preserve CSP compliance.
+    function ensureActionConfirmationModal() {
+        const existingModal = document.getElementById("actionTaskConfirmModal");
+        if (existingModal) {
+            return existingModal;
+        }
+
+        const modalElement = document.createElement("div");
+        modalElement.className = "modal fade";
+        modalElement.id = "actionTaskConfirmModal";
+        modalElement.tabIndex = -1;
+        modalElement.setAttribute("aria-labelledby", "actionTaskConfirmModalTitle");
+        modalElement.setAttribute("aria-hidden", "true");
+
+        const dialog = document.createElement("div");
+        dialog.className = "modal-dialog modal-dialog-centered";
+
+        const content = document.createElement("div");
+        content.className = "modal-content";
+
+        const header = document.createElement("div");
+        header.className = "modal-header";
+
+        const title = document.createElement("h2");
+        title.className = "modal-title h5 mb-0";
+        title.id = "actionTaskConfirmModalTitle";
+        title.setAttribute("data-at-confirm-modal-title", "true");
+
+        const closeButton = document.createElement("button");
+        closeButton.type = "button";
+        closeButton.className = "btn-close";
+        closeButton.setAttribute("data-bs-dismiss", "modal");
+        closeButton.setAttribute("aria-label", "Close");
+
+        const body = document.createElement("div");
+        body.className = "modal-body";
+
+        const bodyText = document.createElement("p");
+        bodyText.className = "mb-0";
+        bodyText.setAttribute("data-at-confirm-modal-body", "true");
+
+        const footer = document.createElement("div");
+        footer.className = "modal-footer";
+
+        const cancelButton = document.createElement("button");
+        cancelButton.type = "button";
+        cancelButton.className = "btn btn-outline-secondary";
+        cancelButton.setAttribute("data-bs-dismiss", "modal");
+        cancelButton.setAttribute("data-at-confirm-modal-cancel", "true");
+
+        const acceptButton = document.createElement("button");
+        acceptButton.type = "button";
+        acceptButton.className = "btn btn-danger";
+        acceptButton.setAttribute("data-at-confirm-modal-accept", "true");
+
+        header.appendChild(title);
+        header.appendChild(closeButton);
+        body.appendChild(bodyText);
+        footer.appendChild(cancelButton);
+        footer.appendChild(acceptButton);
+        content.appendChild(header);
+        content.appendChild(body);
+        content.appendChild(footer);
+        dialog.appendChild(content);
+        modalElement.appendChild(dialog);
+        document.body.appendChild(modalElement);
+
+        return modalElement;
+    }
+
 
     // SECTION: Sticky inspector action panel orchestration and keyboard behavior.
     function initInspectorActionPanels() {
@@ -197,13 +452,29 @@
             panels.forEach((panel) => panel.removeAttribute("open"));
         };
 
-        const openPanel = (name) => {
+        // SECTION: Intent-specific status actions can seed the status panel selection.
+        const applyStatusActionTarget = (name, targetStatus) => {
+            if (name !== "status" || !targetStatus) {
+                return;
+            }
+
+            const statusSelect = shell.querySelector("[data-at-status-select]");
+            if (!statusSelect) {
+                return;
+            }
+
+            statusSelect.value = targetStatus;
+            statusSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        };
+
+        const openPanel = (name, targetStatus) => {
             closeAllPanels();
             const panel = shell.querySelector(`[data-at-action-panel='${name}']`);
             if (!panel) {
                 return;
             }
             panel.setAttribute("open", "open");
+            applyStatusActionTarget(name, targetStatus);
             const focusTarget = panel.querySelector("textarea, select, input, button");
             if (focusTarget) {
                 focusTarget.focus();
@@ -213,7 +484,8 @@
         openButtons.forEach((button) => {
             button.addEventListener("click", () => {
                 const target = button.getAttribute("data-at-open-action");
-                openPanel(target);
+                const targetStatus = button.getAttribute("data-at-target-status");
+                openPanel(target, targetStatus);
             });
         });
 
@@ -240,10 +512,13 @@
     document.addEventListener("DOMContentLoaded", function () {
         openCreateTaskModalOnLoad();
         initSearchableSelects();
+        initCreateTaskChoiceFlow();
         initStatusUpdateGuard();
         initTaskRegisterFilters();
+        initReportsFilters();
         initSprintSelector();
         initSprintClosureReview();
+        initActionConfirmations();
         initInspectorActionPanels();
     });
 })();

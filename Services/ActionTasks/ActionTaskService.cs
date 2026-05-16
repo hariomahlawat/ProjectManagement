@@ -13,11 +13,13 @@ public class ActionTaskService : IActionTaskService
 {
     private readonly ApplicationDbContext _context;
     private readonly ActionTaskPermissionService _permission;
+    private readonly IActionTrackerClock _clock;
 
-    public ActionTaskService(ApplicationDbContext context, ActionTaskPermissionService permission)
+    public ActionTaskService(ApplicationDbContext context, ActionTaskPermissionService permission, IActionTrackerClock clock)
     {
         _context = context;
         _permission = permission;
+        _clock = clock;
     }
 
     // SECTION: Task read APIs
@@ -111,16 +113,54 @@ public class ActionTaskService : IActionTaskService
     public async Task<ActionTaskItem> CreateTaskAsync(ActionTaskItem task, CancellationToken cancellationToken = default)
     {
         // SECTION: Validation
+        if (string.IsNullOrWhiteSpace(task.AssignedToUserId) || string.IsNullOrWhiteSpace(task.AssignedToRole))
+        {
+            throw new InvalidOperationException("Direct tasks require a responsible person.");
+        }
 
         // SECTION: State Mutation
-        task.AssignedOn = DateTime.UtcNow;
+        task.AssignedOn = _clock.UtcNow;
         task.Status = ActionTaskStatuses.Assigned;
+        task.SprintId = null;
+        task.SubmittedOn = null;
+        task.ClosedOn = null;
+        ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
 
         _context.ActionTasks.Add(task);
 
         // SECTION: Audit Enqueue
         _context.ActionTaskAuditLogs.Add(Log(
             action: "TaskCreated",
+            userId: task.CreatedByUserId,
+            role: task.CreatedByRole,
+            oldValue: null,
+            newValue: task.Status,
+            remarks: null,
+            task: task));
+
+        // SECTION: Persistence
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return task;
+    }
+
+    public async Task<ActionTaskItem> CreateBacklogItemAsync(ActionTaskItem task, CancellationToken cancellationToken = default)
+    {
+        // SECTION: Backlog creation enforces backlog items state rather than generic assigned-task defaults.
+        task.AssignedOn = _clock.UtcNow;
+        task.Status = ActionTaskStatuses.Backlog;
+        task.SprintId = null;
+        task.AssignedToUserId = string.Empty;
+        task.AssignedToRole = string.Empty;
+        task.SubmittedOn = null;
+        task.ClosedOn = null;
+        ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
+
+        _context.ActionTasks.Add(task);
+
+        // SECTION: Audit Enqueue
+        _context.ActionTaskAuditLogs.Add(Log(
+            action: "BacklogItemCreated",
             userId: task.CreatedByUserId,
             role: task.CreatedByRole,
             oldValue: null,
@@ -148,7 +188,18 @@ public class ActionTaskService : IActionTaskService
             throw new InvalidOperationException("Invalid status transition.");
         }
 
-        // SECTION: Enforce dedicated close action
+        // SECTION: Enforce dedicated workflow actions for non-generic status changes.
+        if (string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Backlog items can only be changed through planning actions.");
+        }
+
+        if (string.Equals(status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Use the submit for closure action to submit a task.");
+        }
+
         if (string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Use the close action to close a task.");
@@ -177,12 +228,13 @@ public class ActionTaskService : IActionTaskService
         task.Status = status;
         if (string.Equals(status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
         {
-            task.SubmittedOn = DateTime.UtcNow;
+            task.SubmittedOn = _clock.UtcNow;
         }
         if (string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
         {
-            task.ClosedOn = DateTime.UtcNow;
+            task.ClosedOn = _clock.UtcNow;
         }
+        ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
 
         // SECTION: Audit Enqueue
         _context.ActionTaskAuditLogs.Add(Log(taskId, "StatusUpdated", userId, role, oldStatus, task.Status, remarks));
@@ -214,6 +266,11 @@ public class ActionTaskService : IActionTaskService
             throw new InvalidOperationException("You are not authorized to submit this task.");
         }
 
+        if (string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Backlog items cannot be submitted.");
+        }
+
         if (string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Closed tasks cannot be submitted.");
@@ -236,7 +293,8 @@ public class ActionTaskService : IActionTaskService
         // SECTION: State Mutation
         var oldStatus = task.Status;
         task.Status = ActionTaskStatuses.Submitted;
-        task.SubmittedOn = DateTime.UtcNow;
+        task.SubmittedOn = _clock.UtcNow;
+        ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
 
         // SECTION: Audit Enqueue
         _context.ActionTaskAuditLogs.Add(Log(taskId, "Submitted", userId, role, oldStatus, task.Status, remarks));
@@ -278,7 +336,8 @@ public class ActionTaskService : IActionTaskService
         // SECTION: State Mutation
         var oldStatus = task.Status;
         task.Status = ActionTaskStatuses.Closed;
-        task.ClosedOn = DateTime.UtcNow;
+        task.ClosedOn = _clock.UtcNow;
+        ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
 
         // SECTION: Audit Enqueue
         _context.ActionTaskAuditLogs.Add(Log(taskId, "Closed", userId, role, oldStatus, task.Status, remarks));
@@ -294,8 +353,59 @@ public class ActionTaskService : IActionTaskService
         }
     }
 
+    public async Task UpdateTaskDateAsync(int taskId, byte[] rowVersion, DateTime newDate, string userId, string role, CancellationToken cancellationToken = default)
+    {
+        // SECTION: Date-change authorization and task validation
+        if (!_permission.CanChangeTaskDate(role))
+        {
+            throw new InvalidOperationException("You are not authorized to change task dates.");
+        }
+
+        var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
+
+        if (string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Closed tasks cannot have their dates changed.");
+        }
+
+        var normalizedNewDate = newDate.Date;
+        if (normalizedNewDate < _clock.IstToday)
+        {
+            throw new InvalidOperationException("Task date cannot be in the past.");
+        }
+
+        if (task.DueDate.Date == normalizedNewDate)
+        {
+            throw new InvalidOperationException("No date change applied because the selected date is already current.");
+        }
+
+        // SECTION: Concurrency token validation
+        _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
+
+        // SECTION: Date mutation and bucket invariant validation
+        var oldDate = task.DueDate.Date;
+        task.DueDate = normalizedNewDate;
+        ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
+
+        // SECTION: Audit Enqueue
+        var auditAction = string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
+            ? "TargetDateChanged"
+            : "DueDateChanged";
+        _context.ActionTaskAuditLogs.Add(Log(taskId, auditAction, userId, role, oldDate.ToString("yyyy-MM-dd"), normalizedNewDate.ToString("yyyy-MM-dd"), null));
+
+        // SECTION: Persistence
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
+        }
+    }
+
     // SECTION: Audit logging
-    private static ActionTaskAuditLog Log(int taskId, string action, string userId, string role, string? oldValue, string? newValue, string? remarks)
+    private ActionTaskAuditLog Log(int taskId, string action, string userId, string role, string? oldValue, string? newValue, string? remarks)
     {
         return new ActionTaskAuditLog
         {
@@ -303,14 +413,14 @@ public class ActionTaskService : IActionTaskService
             ActionType = action,
             PerformedByUserId = userId,
             PerformedByRole = role,
-            PerformedAt = DateTime.UtcNow,
+            PerformedAt = _clock.UtcNow,
             OldValue = oldValue,
             NewValue = newValue,
             Remarks = remarks
         };
     }
 
-    private static ActionTaskAuditLog Log(string action, string userId, string role, string? oldValue, string? newValue, string? remarks, ActionTaskItem task)
+    private ActionTaskAuditLog Log(string action, string userId, string role, string? oldValue, string? newValue, string? remarks, ActionTaskItem task)
     {
         return new ActionTaskAuditLog
         {
@@ -318,7 +428,7 @@ public class ActionTaskService : IActionTaskService
             ActionType = action,
             PerformedByUserId = userId,
             PerformedByRole = role,
-            PerformedAt = DateTime.UtcNow,
+            PerformedAt = _clock.UtcNow,
             OldValue = oldValue,
             NewValue = newValue,
             Remarks = remarks
@@ -376,9 +486,9 @@ public class ActionTaskService : IActionTaskService
 
         return currentStatus switch
         {
-            ActionTaskStatuses.Assigned => nextStatus is ActionTaskStatuses.InProgress or ActionTaskStatuses.Blocked or ActionTaskStatuses.Submitted,
-            ActionTaskStatuses.InProgress => nextStatus is ActionTaskStatuses.Blocked or ActionTaskStatuses.Submitted,
-            ActionTaskStatuses.Blocked => nextStatus is ActionTaskStatuses.InProgress or ActionTaskStatuses.Submitted,
+            ActionTaskStatuses.Assigned => nextStatus is ActionTaskStatuses.InProgress or ActionTaskStatuses.Blocked,
+            ActionTaskStatuses.InProgress => nextStatus is ActionTaskStatuses.Blocked,
+            ActionTaskStatuses.Blocked => nextStatus is ActionTaskStatuses.InProgress,
             ActionTaskStatuses.Submitted => nextStatus is ActionTaskStatuses.InProgress or ActionTaskStatuses.Blocked,
             _ => false
         };

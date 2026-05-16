@@ -1,81 +1,149 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Command overview KPI strip. *@
-<section class="at-kpis">
-    <article><h3>Active</h3><strong>@Model.ActiveCount</strong></article>
-    <article><h3>Overdue</h3><strong>@Model.OverdueCount</strong></article>
-    <article><h3>Blocked</h3><strong>@Model.BlockedCount</strong></article>
-    <article><h3>Submitted</h3><strong>@Model.SubmittedCount</strong></article>
-    <article><h3>Closed</h3><strong>@Model.ClosedCount</strong></article>
-</section>
-<section class="at-panel at-command-focus-strip mb-3">
-    <strong>Command Focus:</strong> @Model.DashboardCommandFocusSummary
+@* SECTION: Command KPI row keeps the Command Centre focused on exception-level counters only. *@
+<section class="at-command-kpis at-kpis" aria-label="Command KPI row">
+    <article class="at-dashboard-compact-card"><h3>Overdue</h3><strong>@Model.OverdueCount</strong><p>Past due and open</p></article>
+    <article class="at-dashboard-compact-card"><h3>Blocked</h3><strong>@Model.BlockedCount</strong><p>Needs unblock action</p></article>
+    <article class="at-dashboard-compact-card"><h3>Pending Closure</h3><strong>@Model.SubmittedPendingClosureCount</strong><p>Submitted for close-out</p></article>
+    <article class="at-dashboard-compact-card"><h3>Critical Open</h3><strong>@Model.CriticalOpenCount</strong><p>Critical priority, not closed</p></article>
+    <article class="at-dashboard-compact-card"><h3>Open Tasks</h3><strong>@Model.OpenTaskCount</strong><p>Total not closed</p></article>
 </section>
 
-@* SECTION: Active sprint operational health metrics. *@
-<section class="at-panel at-active-sprint-dashboard">
+@* SECTION: Active sprint snapshot is compact and suppresses zero-card grids when no active sprint exists. *@
+<section class="at-panel at-active-sprint-snapshot" aria-label="Active Sprint Snapshot">
     <div class="at-panel-heading">
         <div>
-            <h2>Active Sprint Health</h2>
-            @if (!string.IsNullOrWhiteSpace(Model.ActiveSprintMetrics.ActiveSprintName))
+            <h2>Active Sprint</h2>
+            @if (Model.ActiveSprint is not null)
             {
-                <p class="at-panel-note">@Model.ActiveSprintMetrics.ActiveSprintName · @Model.ActiveSprintMetrics.ActiveSprintDateRange</p>
-            }
-            else
-            {
-                <p class="at-panel-note">No active sprint is currently set.</p>
+                <p class="at-panel-note">@Model.DisplaySprintName(Model.ActiveSprint) · @Model.ActiveSprintMetrics.ActiveSprintDateRange</p>
             }
         </div>
     </div>
-    <div class="at-sprint-health-grid" aria-label="Active sprint health metrics">
-        <article><h3>Total in active sprint</h3><strong>@Model.ActiveSprintMetrics.TotalTasks</strong></article>
-        <article><h3>Completed</h3><strong>@Model.ActiveSprintMetrics.CompletedTasks</strong></article>
-        <article><h3>In progress</h3><strong>@Model.ActiveSprintMetrics.InProgressTasks</strong></article>
-        <article><h3>Blocked</h3><strong>@Model.ActiveSprintMetrics.BlockedTasks</strong></article>
-        <article><h3>Overdue in sprint</h3><strong>@Model.ActiveSprintMetrics.OverdueTasks</strong></article>
-        <article><h3>Backlog</h3><strong>@Model.ActiveSprintMetrics.BacklogTasks</strong></article>
-        <article><h3>Carry-forward candidates</h3><strong>@Model.ActiveSprintMetrics.CarryForwardCandidateTasks</strong></article>
-    </div>
+    @if (Model.ActiveSprint is null)
+    {
+        <div class="at-dashboard-empty-state at-empty-state at-empty-state-compact">
+            <strong>No active sprint is currently set.</strong>
+            <span>Activate a planned sprint from Sprint Board to start execution tracking.</span>
+            <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Plan" class="btn btn-outline-primary btn-sm mt-2">Go to Sprint Board</a>
+        </div>
+    }
+    else
+    {
+        @* SECTION: Active sprint status remains compact while exception details stay active-sprint-specific and independent of capped global attention lists. *@
+        <p class="at-active-sprint-summary">
+            @Model.ActiveSprintMetrics.TotalTasks tasks ·
+            @Model.ActiveSprintMetrics.InProgressTasks in progress ·
+            @Model.ActiveSprintMetrics.OverdueTasks overdue ·
+            @Model.ActiveSprintMetrics.BlockedTasks blocked ·
+            @Model.ActiveSprintSubmittedTaskCount pending closure
+            @if (Model.ActiveSprintMetrics.InvalidStateTasks > 0)
+            {
+                <text> · @Model.ActiveSprintMetrics.InvalidStateTasks invalid state</text>
+            }
+        </p>
+        @if (Model.HasActiveSprintExceptions)
+        {
+            <details class="at-active-sprint-exceptions at-details-collapsible">
+                <summary>Active Sprint Exceptions (@Model.ActiveSprintExceptionCount)</summary>
+                <div class="at-active-sprint-exception-grid at-dashboard-task-list">
+                    @if (Model.ActiveSprintOverdueTaskDisplays.Any())
+                    {
+                        <article class="at-attention-panel">
+                            <div class="at-attention-heading"><span>Overdue</span><strong>@Model.ActiveSprintMetrics.OverdueTasks</strong></div>
+                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintOverdueTaskDisplays, string.Empty)' />
+                        </article>
+                    }
+                    @if (Model.ActiveSprintBlockedTaskDisplays.Any())
+                    {
+                        <article class="at-attention-panel">
+                            <div class="at-attention-heading"><span>Blocked</span><strong>@Model.ActiveSprintMetrics.BlockedTasks</strong></div>
+                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintBlockedTaskDisplays, string.Empty)' />
+                        </article>
+                    }
+                    @if (Model.ActiveSprintSubmittedTaskDisplays.Any())
+                    {
+                        <article class="at-attention-panel">
+                            <div class="at-attention-heading"><span>Pending Closure</span><strong>@Model.ActiveSprintSubmittedTaskCount</strong></div>
+                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.ActiveSprintSubmittedTaskDisplays, string.Empty)' />
+                        </article>
+                    }
+                </div>
+            </details>
+        }
+    }
 </section>
 
-@* SECTION: Attention-required panels with compact task rows. *@
-<section class="at-section-group">
+@* SECTION: Attention Required renders only non-empty command exception lists in de-duplicated priority order. *@
+<section class="at-attention-required at-section-group" aria-label="Attention Required">
     <h2 class="at-section-title">Attention Required</h2>
-    <div class="at-card-grid">
-        <article class="at-panel">
-            <div class="at-panel-heading">
-                <h3>Critical Open Tasks</h3>
-                <span class="at-count-chip">@Model.CriticalOpenTaskDisplays.Count</span>
-            </div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.CriticalOpenTaskDisplays, "No critical open tasks.")' />
-        </article>
-        <article class="at-panel">
-            <div class="at-panel-heading">
-                <h3>Overdue Tasks</h3>
-                <span class="at-count-chip">@Model.OverdueTaskDisplays.Count</span>
-            </div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.OverdueTaskDisplays, "No overdue tasks.")' />
-        </article>
-    </div>
+    @if (!Model.HasCommandAttentionItems)
+    {
+        <div class="at-dashboard-empty-line">No command attention items.</div>
+    }
+    else
+    {
+        <div class="at-attention-grid at-dashboard-task-list">
+            @if (Model.CommandPendingClosureTaskDisplays.Any())
+            {
+                <article class="at-attention-panel">
+                    <div class="at-attention-heading"><span>Pending Closure Tasks</span><strong>@Model.CommandPendingClosureTaskDisplays.Count</strong></div>
+                    <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.CommandPendingClosureTaskDisplays, string.Empty)' />
+                </article>
+            }
+            @if (Model.CommandBlockedTaskDisplays.Any())
+            {
+                <article class="at-attention-panel">
+                    <div class="at-attention-heading"><span>Blocked Tasks</span><strong>@Model.CommandBlockedTaskDisplays.Count</strong></div>
+                    <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.CommandBlockedTaskDisplays, string.Empty)' />
+                </article>
+            }
+            @if (Model.CommandOverdueTaskDisplays.Any())
+            {
+                <article class="at-attention-panel">
+                    <div class="at-attention-heading"><span>Overdue Tasks</span><strong>@Model.CommandOverdueTaskDisplays.Count</strong></div>
+                    <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.CommandOverdueTaskDisplays, string.Empty)' />
+                </article>
+            }
+            @if (Model.CommandCriticalOpenTaskDisplays.Any())
+            {
+                <article class="at-attention-panel">
+                    <div class="at-attention-heading"><span>Critical Open Tasks</span><strong>@Model.CommandCriticalOpenTaskDisplays.Count</strong></div>
+                    <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.CommandCriticalOpenTaskDisplays, string.Empty)' />
+                </article>
+            }
+        </div>
+    }
 </section>
 
-@* SECTION: Recent activity panels with compact task rows. *@
-<section class="at-section-group">
-    <h2 class="at-section-title">Recent Activity</h2>
-    <div class="at-card-grid">
-        <article class="at-panel">
-            <div class="at-panel-heading">
-                <h3>Recently Submitted</h3>
-                <span class="at-count-chip">@Model.RecentlySubmittedTaskDisplays.Count</span>
+@* SECTION: Recent activity remains secondary and is hidden completely when it has no useful content. *@
+@if (Model.HasRecentActivityItems)
+{
+    <section class="at-recent-activity at-section-group" aria-label="Recent Activity">
+        <details class="at-panel at-details-collapsible">
+            <summary>Recent Activity</summary>
+            <div class="at-card-grid mt-3">
+                @if (Model.RecentlySubmittedTaskDisplays.Any())
+                {
+                    <article class="at-panel">
+                        <div class="at-panel-heading">
+                            <h3>Recently Submitted</h3>
+                            <span class="at-count-chip">@Model.RecentlySubmittedTaskDisplays.Count</span>
+                        </div>
+                        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.RecentlySubmittedTaskDisplays, string.Empty)' />
+                    </article>
+                }
+                @if (Model.RecentlyUpdatedTaskDisplays.Any())
+                {
+                    <article class="at-panel">
+                        <div class="at-panel-heading">
+                            <h3>Recently Updated</h3>
+                            <span class="at-count-chip">@Model.RecentlyUpdatedTaskDisplays.Count</span>
+                        </div>
+                        <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.RecentlyUpdatedTaskDisplays, string.Empty)' />
+                    </article>
+                }
             </div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.RecentlySubmittedTaskDisplays, "No submitted tasks awaiting closure.")' />
-        </article>
-        <article class="at-panel">
-            <div class="at-panel-heading">
-                <h3>Recently Updated</h3>
-                <span class="at-count-chip">@Model.RecentlyUpdatedTaskDisplays.Count</span>
-            </div>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.RecentlyUpdatedTaskDisplays, "No recently updated tasks.")' />
-        </article>
-    </div>
-</section>
+        </details>
+    </section>
+}

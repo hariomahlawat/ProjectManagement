@@ -1,0 +1,30 @@
+@model Tuple<ProjectManagement.Pages.ActionTasks.IndexModel, ProjectManagement.Pages.ActionTasks.IndexModel.TaskDisplayItem, string, bool>
+@{
+    // SECTION: Shared Sprint Board task card keeps Execute and closed-section card behaviour consistent.
+    var pageModel = Model.Item1;
+    var item = Model.Item2;
+    var planningTab = Model.Item3;
+    var task = item.Task;
+}
+
+<article class="at-task-card at-sprint-task-card @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)">
+    <a class="at-task-card-link" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="Planning" asp-route-PlanningTab="@planningTab" asp-route-SelectedSprintId="@pageModel.SelectedSprintId" aria-label="Open task AT-@task.Id details">
+        <div class="at-card-top-row">
+            <h3 class="at-card-subject">AT-@task.Id · @task.Title</h3>
+            <span class="@pageModel.GetPriorityBadgeClass(task.Priority)">@task.Priority</span>
+        </div>
+        <div class="at-card-compact-meta">@item.AssigneeName <span aria-hidden="true">·</span> Due @task.DueDate.ToString("dd MMM yyyy")</div>
+        <div class="at-card-footer">
+            <span class="@pageModel.GetStatusBadgeClass(task.Status)">@task.Status</span>
+            @if (pageModel.IsInvalidTaskState(task))
+            {
+                <span class="@pageModel.GetSprintBadgeClass(task)">@pageModel.GetSprintBadgeText(task)</span>
+            }
+            @if (pageModel.IsTaskOverdue(task))
+            {
+                <span class="at-overdue-marker">Overdue</span>
+            }
+            <span class="at-open-details-label">Details</span>
+        </div>
+    </a>
+</article>
