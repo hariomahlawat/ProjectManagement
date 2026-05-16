@@ -126,6 +126,10 @@ function createInspectorActionDom(currentStatus = 'Open') {
             </details>
             <button type="button" data-at-open-action="status" data-at-target-status="In Progress" data-test-action="mark-progress">Mark In Progress</button>
             <button type="button" data-at-open-action="status" data-at-target-status="In Progress" data-test-action="return-rework">Return for Rework</button>
+            <details class="at-action-more-menu" data-test-menu>
+                <summary>More</summary>
+                <button type="button">Other action</button>
+            </details>
         </div>
     </body></html>`, { url: 'https://example.test/ActionTasks?TaskId=1', runScripts: 'dangerously' });
 
@@ -139,6 +143,28 @@ function createInspectorActionDom(currentStatus = 'Open') {
 
     return { window, document };
 }
+
+
+// SECTION: Inspector action panel and More menu exclusivity.
+test('inspector actions close More menus when panels open or Escape is pressed', () => {
+    const { window, document } = createInspectorActionDom();
+    const shell = document.querySelector('[data-at-action-shell]');
+    const panel = document.querySelector('[data-at-action-panel="status"]');
+    const moreMenu = document.querySelector('[data-test-menu]');
+    const openButton = document.querySelector('[data-test-action="mark-progress"]');
+
+    moreMenu.setAttribute('open', 'open');
+    openButton.dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    assert.equal(panel.hasAttribute('open'), true);
+    assert.equal(moreMenu.hasAttribute('open'), false);
+
+    moreMenu.setAttribute('open', 'open');
+    shell.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    assert.equal(panel.hasAttribute('open'), false);
+    assert.equal(moreMenu.hasAttribute('open'), false);
+});
 
 // SECTION: Status intent action behavior.
 test('intent-specific status actions preselect In Progress and refresh save guard', () => {
