@@ -10,15 +10,18 @@
     {
         <partial name="_SprintClosureReview" model="Model" />
 
-        <details class="at-panel at-sprint-attention-lane at-close-carry-forward-panel">
-            <summary>
-                <span>Carry-forward candidates</span>
-                <span class="at-count-chip">@Model.SprintCarryForwardCandidateDisplays.Count</span>
-            </summary>
-            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintCarryForwardCandidateDisplays, "No carry-forward candidates.")' />
-        </details>
+        @if (Model.SprintCarryForwardCandidateDisplays.Any())
+        {
+            <details class="at-panel at-sprint-attention-lane at-close-carry-forward-panel">
+                <summary>
+                    <span>Carry-forward candidates</span>
+                    <span class="at-count-chip">@Model.SprintCarryForwardCandidateDisplays.Count</span>
+                </summary>
+                <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintCarryForwardCandidateDisplays, "No carry-forward candidates.")' />
+            </details>
+        }
 
-        @if (Model.SelectedSprint is not null)
+        @if (Model.SelectedSprint is not null && Model.SprintAuditHistory.Any())
         {
             <details class="at-panel at-sprint-history-panel">
                 <summary>Sprint History <span class="at-count-chip">@Model.SprintAuditHistory.Count</span></summary>

@@ -822,7 +822,7 @@ html {
     grid-auto-flow: column;
     grid-auto-columns: minmax(250px, 1fr);
     gap: 1rem;
-    min-width: max-content;
+    min-width: 0;
 }
 
 .at-board-grid.at-board-grid-sprint {
@@ -2783,7 +2783,7 @@ html {
     box-shadow: none;
 }
 
-/* SECTION: Execute Kanban board uses five visible status columns on wide screens, then stacks responsively. */
+/* SECTION: Execute status board uses four active workflow columns, then stacks responsively. */
 .at-planning-execute-panel {
     gap: 0.7rem;
 }
@@ -2791,13 +2791,13 @@ html {
 .at-execute-status-board {
     gap: 0.7rem;
     max-width: 100%;
-    overflow-x: auto;
+    overflow-x: visible;
     padding-bottom: 0.2rem;
 }
 
 .at-execute-status-grid {
     display: grid;
-    grid-template-columns: repeat(5, minmax(210px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.75rem;
     align-items: start;
     min-width: max-content;
@@ -2849,7 +2849,7 @@ html {
 }
 
 .at-shell.is-planning-board.has-selection .at-execute-status-grid {
-    grid-template-columns: repeat(5, minmax(180px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .at-shell.is-planning-board.has-selection .at-planning-view-toggle {
@@ -3574,4 +3574,90 @@ html {
 
 .at-recent-activity .at-details-collapsible {
     padding: 0.55rem 0.7rem;
+}
+
+
+/* SECTION: Sprint Board cleanup compacts planning cards, disclosures, and command summary. */
+.at-planning-command-summary,
+.at-backlog-summary-line {
+    margin: 0;
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
+}
+
+.at-planning-command-summary {
+    margin-top: 0.25rem;
+}
+
+.at-planning-backlog-card {
+    gap: 0.35rem;
+    padding: 0.75rem 0.85rem;
+}
+
+.at-inline-action > summary {
+    cursor: pointer;
+}
+
+.at-inline-action .at-planning-backlog-assign-form {
+    margin-top: 0.5rem;
+}
+
+.at-planning-outside-sprint {
+    border-style: dashed;
+}
+
+.at-planning-outside-sprint > summary {
+    cursor: pointer;
+}
+
+.at-execute-status-board,
+.at-execute-status-grid {
+    max-width: 100%;
+    overflow-x: visible;
+}
+
+.at-execute-status-grid,
+.at-shell.is-planning-board.has-selection .at-execute-status-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    min-width: 0;
+}
+
+.at-sprint-task-card .at-card-top-row,
+.at-sprint-task-card .at-card-footer {
+    gap: 0.4rem;
+}
+
+.at-sprint-task-card .at-card-subject {
+    font-size: var(--at-font-sm);
+}
+
+.at-sprint-task-card .at-card-compact-meta {
+    font-size: var(--at-font-xs);
+}
+
+.at-closure-recommendations {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+}
+
+.at-closure-recommendations span {
+    color: var(--at-muted);
+    font-size: var(--at-font-sm);
+}
+
+@media (max-width: 1200px) {
+    .at-execute-status-grid,
+    .at-shell.is-planning-board.has-selection .at-execute-status-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    .at-execute-status-grid,
+    .at-shell.is-planning-board.has-selection .at-execute-status-grid {
+        grid-template-columns: 1fr;
+    }
 }

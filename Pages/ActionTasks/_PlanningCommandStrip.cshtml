@@ -30,19 +30,15 @@
                 <span class="at-sprint-status-pill">@Model.SelectedSprint.Status</span>
                 <span class="at-sprint-date-range">@Model.SelectedSprint.StartDate.ToString("dd MMM yyyy") – @Model.SelectedSprint.EndDate.ToString("dd MMM yyyy")</span>
             </div>
-            <div class="at-planning-command-pills" aria-label="Sprint summary">
-                <span class="at-compact-counter"><strong>@Model.SprintSummary.OpenCount</strong> Open</span>
-                <span class="at-compact-counter"><strong>@Model.SelectedSprintOverdueCount</strong> Overdue</span>
-                <span class="at-compact-counter"><strong>@Model.SprintSummary.BlockedCount</strong> Blocked</span>
-                <span class="at-compact-counter"><strong>@Model.SprintSummary.ClosedCount</strong> Closed</span>
-                <span class="at-compact-counter"><strong>@Model.SprintSummary.TaskCount</strong> Total</span>
-            </div>
+            <p class="at-planning-command-summary" aria-label="Sprint summary">
+                @Model.SprintSummary.OpenCount open · @Model.SelectedSprintOverdueCount overdue · @Model.SprintSummary.BlockedCount blocked · @Model.SprintAttentionSubmittedTaskDisplays.Count pending closure
+            </p>
             <div class="at-command-focus-strip at-sprint-command-focus at-planning-command-focus">
                 <strong>Command focus:</strong> @(string.IsNullOrWhiteSpace(Model.SelectedSprint.Goal) ? "No command focus recorded." : Model.SelectedSprint.Goal)
             </div>
         </div>
 
-        @if (Model.CanEditSelectedSprint || Model.CanActivateSelectedSprint || Model.CanCloseSelectedSprintDirectly || (Model.CanReviewSprintClosure && Model.SprintClosureReview.UnfinishedTasks.Any()))
+        @if (Model.CanEditSelectedSprint || Model.CanActivateSelectedSprint || (Model.CanReviewSprintClosure && Model.SprintClosureReview.UnfinishedTasks.Any()))
         {
             @* SECTION: Lifecycle and edit actions continue to post to existing handlers. *@
             <div class="at-sprint-action-row at-sprint-action-row-strip at-planning-command-actions">
@@ -77,16 +73,7 @@
                         <button type="submit" class="btn btn-success btn-sm">Activate</button>
                     </form>
                 }
-                @if (Model.CanCloseSelectedSprintDirectly)
-                {
-                    <form method="post" asp-page-handler="CloseSprint">
-                        <input type="hidden" name="PlanningTab" value="Close" />
-                        <input type="hidden" name="sprintId" value="@Model.SelectedSprint.Id" />
-                        <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedSprint.RowVersion)" />
-                        <button type="submit" class="btn btn-danger btn-sm">Close</button>
-                    </form>
-                }
-                else if (Model.CanReviewSprintClosure && Model.SprintClosureReview.UnfinishedTasks.Any())
+                @if (Model.CanReviewSprintClosure && Model.SelectedSprint.Status == ProjectManagement.Models.ActionSprintStatus.Active)
                 {
                     <a class="btn btn-outline-danger btn-sm" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Close" asp-route-SelectedSprintId="@Model.SelectedSprintId">Review Closure</a>
                 }

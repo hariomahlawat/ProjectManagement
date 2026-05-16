@@ -8,7 +8,7 @@
         <div class="at-panel-heading">
             <div>
                 <h2>Sprint Closure Review</h2>
-                <p class="at-panel-note">Review unfinished work before closing the Sprint.</p>
+                <p class="at-panel-note">Review unfinished work before closing the sprint.</p>
             </div>
             <span class="at-count-chip">@review.UnfinishedTasks.Count unfinished</span>
         </div>
@@ -21,13 +21,8 @@
         </div>
 
         <div class="at-closure-recommendations">
-            <strong>Recommended disposition:</strong>
-            <ul>
-                @foreach (var option in review.RecommendedDispositionOptions)
-                {
-                    <li>@option</li>
-                }
-            </ul>
+            <strong>Closure guidance:</strong>
+            <span>Choose one disposition for each unfinished task. Return to Backlog removes the responsible person.</span>
         </div>
 
         @if (review.UnfinishedTasks.Any() && Model.ShouldShowCreateNextSprint)
@@ -68,10 +63,8 @@
                             <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status) · @sprint.StartDate.ToString("dd MMM") – @sprint.EndDate.ToString("dd MMM yyyy")</option>
                         }
                     </select>
-                    <div class="form-text">Return to Backlog removes the responsible person. Carry Forward requires a next sprint.</div>
                 </div>
 
-                <p class="at-panel-note">Return to Backlog removes the responsible person. Carry Forward requires a next sprint.</p>
 
                 <div class="at-closure-task-table" role="table" aria-label="Unfinished Sprint tasks requiring disposition">
                     <div class="at-closure-task-row at-closure-task-head" role="row">
@@ -111,7 +104,7 @@
             }
 
             <label class="form-label" asp-for="ClosureInput.Remarks">Closure remarks</label>
-            <textarea class="form-control" asp-for="ClosureInput.Remarks" rows="3" maxlength="2000" required placeholder="Summarize command decision and disposition rationale."></textarea>
+            <textarea class="form-control" asp-for="ClosureInput.Remarks" rows="3" maxlength="2000" required placeholder="Summarise command decision and disposition rationale."></textarea>
 
             <div class="at-closure-actions">
                 <button type="submit" class="btn btn-danger">Close Sprint with Review</button>

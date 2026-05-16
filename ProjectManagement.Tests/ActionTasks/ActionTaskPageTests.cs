@@ -274,7 +274,7 @@ public class ActionTaskPageTests
 
         // SECTION: Assert
         Assert.Contains("Unassigned future work awaiting sprint planning.", backlogHeader, StringComparison.Ordinal);
-        Assert.Contains("Past Target", backlogHeader, StringComparison.Ordinal);
+        Assert.Contains("past target", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<span>Overdue</span>", backlogHeader, StringComparison.Ordinal);
         Assert.DoesNotContain("Outside Sprint", backlogHeader, StringComparison.Ordinal);
         Assert.DoesNotContain("Assigned Tasks Outside Sprint", backlogHeader, StringComparison.Ordinal);
@@ -824,7 +824,8 @@ public class ActionTaskPageTests
         Assert.Null(page.SelectedSprint);
         Assert.Contains("No sprint has been created yet", html, StringComparison.Ordinal);
         Assert.Contains("Create Sprint", html, StringComparison.Ordinal);
-        Assert.Contains("Assigned Tasks Outside Sprint are assigned work not included in a sprint commitment.", html, StringComparison.Ordinal);
+        Assert.Contains("Assigned Tasks Outside Sprint", html, StringComparison.Ordinal);
+        Assert.Contains("Assigned work not included in any sprint.", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Create " + "Planning " + "Window", html, StringComparison.Ordinal);
         Assert.Contains("handler=CreateSprint", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Select a sprint to view sprint command details.", html, StringComparison.Ordinal);
@@ -881,11 +882,195 @@ public class ActionTaskPageTests
         Assert.Contains($"<h2>{ActionTaskStatuses.Blocked}</h2>", html, StringComparison.Ordinal);
         Assert.Contains($"<h2>{ActionTaskStatuses.Submitted}</h2>", html, StringComparison.Ordinal);
         Assert.DoesNotContain($"<h2>{ActionTaskStatuses.Closed}</h2>", html, StringComparison.Ordinal);
-        Assert.True(html.IndexOf("Selected Sprint Board task board", StringComparison.Ordinal) < html.IndexOf("Execution attention", StringComparison.Ordinal));
+        Assert.DoesNotContain("Execution Attention", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Due / Exceptions and Kanban", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Add from Backlog", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Add Backlog Task", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Backlog Queue", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Due / Exceptions", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Remove from Sprint", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Return to Backlog", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SprintBoardTabs_RenderOnlyPlanExecuteClose()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var page = setup.Page;
+        page.ViewMode = "Planning";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_PlanningTabs.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains(">Plan</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Execute</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Close</span>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Views</span>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Kanban", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PlanningPlanTab_RemovesQuickOpenAndKeepsCollapsedPlanningControls()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        AddSprint(setup.Db, "Active Sprint", ActionSprintStatus.Active);
+        AddSprint(setup.Db, "Planned Sprint", ActionSprintStatus.Planned, 10);
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Planning";
+        page.PlanningTab = "Plan";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_PlanningPlanTab.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("<h2>Sprints</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("at-sprint-list-heading\">Active", html, StringComparison.Ordinal);
+        Assert.Contains("at-sprint-list-heading\">Planned", html, StringComparison.Ordinal);
+        Assert.Contains("<h2>Backlog Items</h2>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Quick open", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open Sprint", html, StringComparison.Ordinal);
+        Assert.Contains("<details class=\"at-planning-backlog-filter-shell\">", html, StringComparison.Ordinal);
+        Assert.Contains("<details class=\"at-panel at-planning-outside-sprint at-planning-plan-card\">", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PlanningPlanTab_BacklogSummaryCardsRenderOnlyWhenUseful()
+    {
+        // SECTION: Arrange compact backlog
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var compactPage = setup.Page;
+        compactPage.ViewMode = "Planning";
+        compactPage.PlanningTab = "Plan";
+        await compactPage.OnGetAsync();
+
+        // SECTION: Act compact backlog
+        var compactHtml = await RenderPartialAsync(compactPage, "/Pages/ActionTasks/_PlanningPlanTab.cshtml");
+
+        // SECTION: Assert compact backlog
+        Assert.Contains("backlog items · 0 high priority · 0 past target", compactHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("at-backlog-summary-grid", compactHtml, StringComparison.Ordinal);
+
+        // SECTION: Arrange urgent backlog
+        var urgent = NewTask("Urgent backlog", ActionTaskStatuses.Backlog);
+        urgent.AssignedToUserId = string.Empty;
+        urgent.AssignedToRole = string.Empty;
+        urgent.Priority = "High";
+        urgent.DueDate = DateTime.UtcNow.Date.AddDays(3);
+        setup.Db.ActionTasks.Add(urgent);
+        await setup.Db.SaveChangesAsync();
+        await compactPage.OnGetAsync();
+
+        // SECTION: Act urgent backlog
+        var urgentHtml = await RenderPartialAsync(compactPage, "/Pages/ActionTasks/_PlanningPlanTab.cshtml");
+
+        // SECTION: Assert urgent backlog
+        Assert.Contains("at-backlog-summary-grid", urgentHtml, StringComparison.Ordinal);
+        Assert.Contains("<span>High priority</span>", urgentHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PlanningPlanTab_BacklogAddToSprintFormIsHiddenDisclosure()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        AddSprint(setup.Db, "Planning Sprint", ActionSprintStatus.Planned);
+        var backlogTask = NewTask("Plan me", ActionTaskStatuses.Backlog);
+        backlogTask.AssignedToUserId = string.Empty;
+        backlogTask.AssignedToRole = string.Empty;
+        backlogTask.SprintId = null;
+        setup.Db.ActionTasks.Add(backlogTask);
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Planning";
+        page.PlanningTab = "Plan";
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_PlanningPlanTab.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("<details class=\"at-backlog-add-disclosure at-inline-action\">", html, StringComparison.Ordinal);
+        Assert.Contains(">Add to Sprint</summary>", html, StringComparison.Ordinal);
+        Assert.Contains("Responsible person", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Pull from Backlog", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SprintBoardCss_UsesResponsiveExecuteGridWithoutHorizontalScrollRequirement()
+    {
+        // SECTION: Arrange
+        var css = File.ReadAllText(Path.Combine(GetContentRoot(), "wwwroot", "css", "action-tracker.css"));
+        var cleanupStart = css.IndexOf("/* SECTION: Sprint Board cleanup", StringComparison.Ordinal);
+        var cleanupCss = css[cleanupStart..];
+
+        // SECTION: Assert
+        Assert.Contains("grid-template-columns: repeat(4, minmax(0, 1fr));", cleanupCss, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr));", cleanupCss, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: 1fr;", cleanupCss, StringComparison.Ordinal);
+        Assert.Contains("overflow-x: visible;", cleanupCss, StringComparison.Ordinal);
+        Assert.DoesNotContain("min-width: max-content", cleanupCss, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SprintClosureReview_UsesConciseDispositionTextWithoutDuplicateHelper()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.Comdt);
+        var sprint = AddSprint(setup.Db, "Close Sprint", ActionSprintStatus.Active);
+        setup.Db.ActionTasks.Add(NewTask("Unfinished task", ActionTaskStatuses.Assigned, sprint.Id));
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Planning";
+        page.PlanningTab = "Close";
+        page.SelectedSprintId = sprint.Id;
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_SprintClosureReview.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("Choose one disposition for each unfinished task. Return to Backlog removes the responsible person.", html, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(html, "Return to Backlog removes the responsible person"));
+        Assert.Contains("<span>Carry Forward</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Keep Outside Sprint</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Return to Backlog</span>", html, StringComparison.Ordinal);
+        Assert.Contains("Closure remarks", html, StringComparison.Ordinal);
+        Assert.Contains("Summarise command decision and disposition rationale.", html, StringComparison.Ordinal);
+        Assert.Contains("Close Sprint with Review", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Move to Backlog, Remove Assignee", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Keep Assigned Outside Sprint", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TaskDetails_KeepsMovementActionsAndBacklogConfirmationInInspector()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var sprint = AddSprint(setup.Db, "Inspector Sprint", ActionSprintStatus.Active);
+        var task = await setup.Db.ActionTasks.SingleAsync();
+        task.SprintId = sprint.Id;
+        task.Status = ActionTaskStatuses.Assigned;
+        await setup.Db.SaveChangesAsync();
+        var page = setup.Page;
+        page.ViewMode = "Planning";
+        page.PlanningTab = "Execute";
+        page.SelectedSprintId = sprint.Id;
+        page.TaskId = task.Id;
+        await page.OnGetAsync();
+
+        // SECTION: Act
+        var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("Remove from Sprint, Keep Assigned", html, StringComparison.Ordinal);
+        Assert.Contains("Move to Backlog, Remove Assignee", html, StringComparison.Ordinal);
+        Assert.Contains("This will remove the responsible person and return the work to Backlog. Continue?", html, StringComparison.Ordinal);
     }
 
 
