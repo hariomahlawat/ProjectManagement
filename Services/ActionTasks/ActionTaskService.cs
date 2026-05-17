@@ -353,7 +353,7 @@ public class ActionTaskService : IActionTaskService
         }
     }
 
-    public async Task UpdateTaskDateAsync(int taskId, byte[] rowVersion, DateTime newDate, string userId, string role, CancellationToken cancellationToken = default)
+    public async Task UpdateTaskDateAsync(int taskId, byte[] rowVersion, DateTime newDate, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
     {
         // SECTION: Date-change authorization and task validation
         if (!_permission.CanChangeTaskDate(role))
@@ -391,7 +391,7 @@ public class ActionTaskService : IActionTaskService
         var auditAction = string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
             ? "TargetDateChanged"
             : "DueDateChanged";
-        _context.ActionTaskAuditLogs.Add(Log(taskId, auditAction, userId, role, oldDate.ToString("yyyy-MM-dd"), normalizedNewDate.ToString("yyyy-MM-dd"), null));
+        _context.ActionTaskAuditLogs.Add(Log(taskId, auditAction, userId, role, oldDate.ToString("yyyy-MM-dd"), normalizedNewDate.ToString("yyyy-MM-dd"), remarks));
 
         // SECTION: Persistence
         try

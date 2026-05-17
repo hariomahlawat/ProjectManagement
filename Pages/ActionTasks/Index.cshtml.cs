@@ -340,6 +340,12 @@ public class IndexModel : PageModel
         return _workflowPolicy.CanUpdateTaskStatus(task, CurrentRole, CurrentUserId);
     }
 
+    public bool CanAddProgressUpdate(ActionTaskItem task)
+    {
+        return !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+            && _permission.CanAddTaskUpdate(CurrentRole, CurrentUserId, task.AssignedToUserId);
+    }
+
     public IReadOnlyList<string> GetAllowedStatusTargets(ActionTaskItem task)
     {
         return _workflowPolicy.GetAllowedStatusTargets(task, CurrentRole, CurrentUserId);
@@ -388,6 +394,32 @@ public class IndexModel : PageModel
             "TaskDueDateChanged" => "Due date changed",
             _ => Regex.Replace(actionType, "(?<!^)([A-Z])", " $1")
         };
+    }
+
+    public string DisplayAuditPlainLanguage(ActionTaskAuditLog log)
+    {
+        // SECTION: Convert common audit values into reader-friendly system history text while leaving raw values collapsed.
+        return log.ActionType switch
+        {
+            "StatusUpdated" or "TaskStatusChanged" => $"Status changed from {log.OldValue ?? "previous status"} to {log.NewValue ?? "new status"}.",
+            "Submitted" or "TaskSubmitted" => "Task submitted for closure review.",
+            "Closed" or "TaskClosed" => "Task closed after review.",
+            "DueDateChanged" or "TaskDueDateChanged" => $"Due date changed from {FormatAuditDate(log.OldValue)} to {FormatAuditDate(log.NewValue)}.",
+            "TargetDateChanged" => $"Target date changed from {FormatAuditDate(log.OldValue)} to {FormatAuditDate(log.NewValue)}.",
+            "TaskAssignedToSprint" or "OutsideSprintTaskAssignedToSprint" => "Task added to sprint. Responsible person retained.",
+            "TaskRemovedFromSprintKeepAssigned" => "Task removed from sprint and kept assigned as Outside Sprint work.",
+            "TaskMovedToBacklogRemoveAssignee" => "Task moved to backlog and assignee removed.",
+            "BacklogItemCreated" => "Backlog item created.",
+            "TaskCreated" => "Task created.",
+            _ => DisplayAuditActionLabel(log.ActionType)
+        };
+    }
+
+    private static string FormatAuditDate(string? value)
+    {
+        return DateTime.TryParse(value, out var parsed)
+            ? parsed.ToString("dd MMM yyyy")
+            : string.IsNullOrWhiteSpace(value) ? "—" : value;
     }
 
     public string GetStatusBadgeClass(string status)
@@ -610,6 +642,11 @@ public class IndexModel : PageModel
         if (ChangeDateInput.NewDate.Date < _clock.IstToday)
         {
             ModelState.AddModelError(nameof(ChangeDateInput.NewDate), "Task date cannot be in the past.");
+        }
+
+        if (string.IsNullOrWhiteSpace(ChangeDateInput.Remarks))
+        {
+            ModelState.AddModelError(nameof(ChangeDateInput.Remarks), "Enter a short reason for changing the task date.");
         }
 
         return ModelState.IsValid;
@@ -925,7 +962,8 @@ public class IndexModel : PageModel
                 DecodeRowVersion(ChangeDateInput.RowVersion),
                 ChangeDateInput.NewDate,
                 CurrentUserId,
-                CurrentRole);
+                CurrentRole,
+                ChangeDateInput.Remarks);
 
             TempData["ToastMessage"] = "Task date updated.";
         }
@@ -985,13 +1023,19 @@ public class IndexModel : PageModel
     }
 
     // SECTION: Remove a sprint task from sprint scope while preserving the responsible person.
-    public async Task<IActionResult> OnPostRemoveFromSprintKeepAssignedAsync(int id)
+    public async Task<IActionResult> OnPostRemoveFromSprintKeepAssignedAsync(int id, string? remarks)
     {
         await ResolveIdentityAsync();
 
         try
         {
-            await _sprintService.RemoveTaskFromSprintKeepAssignedAsync(id, CurrentUserId, CurrentRole);
+            if (string.IsNullOrWhiteSpace(remarks))
+            {
+                TempData["ToastError"] = "Enter a short reason before removing the task from sprint.";
+                return RedirectToTaskPage(id, SelectedSprintId);
+            }
+
+            await _sprintService.RemoveTaskFromSprintKeepAssignedAsync(id, CurrentUserId, CurrentRole, remarks);
             TempData["ToastMessage"] = "Task removed from sprint and kept assigned.";
         }
         catch (InvalidOperationException ex)
@@ -1003,13 +1047,19 @@ public class IndexModel : PageModel
     }
 
     // SECTION: Move a sprint or outside-sprint task to backlog by clearing sprint and assignee.
-    public async Task<IActionResult> OnPostMoveToBacklogRemoveAssigneeAsync(int id)
+    public async Task<IActionResult> OnPostMoveToBacklogRemoveAssigneeAsync(int id, string? remarks)
     {
         await ResolveIdentityAsync();
 
         try
         {
-            await _sprintService.MoveTaskToBacklogRemoveAssigneeAsync(id, CurrentUserId, CurrentRole);
+            if (string.IsNullOrWhiteSpace(remarks))
+            {
+                TempData["ToastError"] = "Enter a short reason before moving the task to backlog.";
+                return RedirectToTaskPage(id, SelectedSprintId);
+            }
+
+            await _sprintService.MoveTaskToBacklogRemoveAssigneeAsync(id, CurrentUserId, CurrentRole, remarks);
             TempData["ToastMessage"] = "Task moved to backlog and assignee removed.";
         }
         catch (InvalidOperationException ex)
@@ -1048,6 +1098,12 @@ public class IndexModel : PageModel
         }
 
         return RedirectToPage(new { ViewMode = "Planning", PlanningTab = "Close", SelectedSprintId = ClosureInput.SprintId });
+    }
+
+    // SECTION: Unified progress update handler used by the rationalised task details pane.
+    public Task<IActionResult> OnPostUpdateProgressAsync()
+    {
+        return OnPostAddUpdateAsync();
     }
 
     // SECTION: Post task progress update with optional workflow status change.
@@ -1791,6 +1847,9 @@ public class IndexModel : PageModel
         [Display(Name = "New Date")]
         [Required]
         public DateTime NewDate { get; set; }
+
+        [Required, StringLength(1000)]
+        public string Remarks { get; set; } = string.Empty;
     }
 
     public sealed class AddTaskUpdateInput
