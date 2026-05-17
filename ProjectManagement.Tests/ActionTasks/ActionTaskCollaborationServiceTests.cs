@@ -135,6 +135,121 @@ public class ActionTaskCollaborationServiceTests
         Assert.Empty(await db.ActionTaskAttachments.ToListAsync());
     }
 
+
+    [Fact]
+    public async Task AddUpdateAndMaybeChangeStatusAsync_StatusOnlyAssignedToInProgressCreatesProgressAndAuditEntries()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner", ActionTaskStatuses.Assigned);
+
+        // SECTION: Act
+        var update = await service.AddUpdateAndMaybeChangeStatusAsync(task.Id, string.Empty, ActionTaskStatuses.InProgress, "owner", RoleNames.Ta, Array.Empty<IFormFile>(), task.RowVersion);
+
+        // SECTION: Assert
+        Assert.NotNull(update);
+        Assert.Equal(ActionTaskUpdateTypes.Progress, update.UpdateType);
+        Assert.Equal("Task marked as in progress.", update.Body);
+
+        var changed = await db.ActionTasks.SingleAsync(x => x.Id == task.Id);
+        Assert.Equal(ActionTaskStatuses.InProgress, changed.Status);
+
+        var audit = await db.ActionTaskAuditLogs.SingleAsync(x => x.TaskId == task.Id && x.ActionType == "StatusUpdated");
+        Assert.Equal(ActionTaskStatuses.Assigned, audit.OldValue);
+        Assert.Equal(ActionTaskStatuses.InProgress, audit.NewValue);
+    }
+
+    [Fact]
+    public async Task AddUpdateAndMaybeChangeStatusAsync_StatusOnlyBlockedToInProgressCreatesAutomaticProgressEntry()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner", ActionTaskStatuses.Blocked);
+
+        // SECTION: Act
+        var update = await service.AddUpdateAndMaybeChangeStatusAsync(task.Id, "", ActionTaskStatuses.InProgress, "owner", RoleNames.Ta, Array.Empty<IFormFile>(), task.RowVersion);
+
+        // SECTION: Assert
+        Assert.NotNull(update);
+        Assert.Equal("Task marked as in progress.", update.Body);
+        Assert.Equal(1, await db.ActionTaskUpdates.CountAsync(x => x.TaskId == task.Id && x.UpdateType == ActionTaskUpdateTypes.Progress));
+        Assert.Equal(1, await db.ActionTaskAuditLogs.CountAsync(x => x.TaskId == task.Id && x.ActionType == "StatusUpdated"));
+    }
+
+    [Fact]
+    public async Task AddUpdateAndMaybeChangeStatusAsync_EmptyNoOpCreatesNoProgressEntryAndReturnsClearMessage()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner", ActionTaskStatuses.Assigned);
+
+        // SECTION: Act
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.AddUpdateAndMaybeChangeStatusAsync(task.Id, " ", null, "owner", RoleNames.Ta, Array.Empty<IFormFile>(), task.RowVersion));
+
+        // SECTION: Assert
+        Assert.Equal("No update was applied.", ex.Message);
+        Assert.Empty(await db.ActionTaskUpdates.Where(x => x.TaskId == task.Id).ToListAsync());
+        Assert.Empty(await db.ActionTaskAuditLogs.Where(x => x.TaskId == task.Id).ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(ActionTaskStatuses.Blocked, "Remarks are required when marking a task as blocked.")]
+    [InlineData(ActionTaskStatuses.Submitted, "Remarks are required when submitting a task.")]
+    public async Task AddUpdateAndMaybeChangeStatusAsync_ImportantTransitionsStillRequireUserNote(string status, string expectedMessage)
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner", ActionTaskStatuses.Assigned);
+
+        // SECTION: Act
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.AddUpdateAndMaybeChangeStatusAsync(task.Id, "", status, "owner", RoleNames.Ta, Array.Empty<IFormFile>(), task.RowVersion));
+
+        // SECTION: Assert
+        Assert.Equal(expectedMessage, ex.Message);
+        Assert.Empty(await db.ActionTaskUpdates.Where(x => x.TaskId == task.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task AddUpdateAndMaybeChangeStatusAsync_FileOnlyUpdateCreatesSupportingFileProgressEntry()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner", ActionTaskStatuses.Assigned);
+        var file = BuildFile("support.txt", "text/plain", 10);
+
+        // SECTION: Act
+        var update = await service.AddUpdateAndMaybeChangeStatusAsync(task.Id, " ", null, "owner", RoleNames.Ta, [file], task.RowVersion);
+
+        // SECTION: Assert
+        Assert.NotNull(update);
+        Assert.Equal("Supporting file uploaded.", update.Body);
+        Assert.Equal(1, await db.ActionTaskAttachments.CountAsync(x => x.TaskId == task.Id && x.UpdateId == update.Id));
+    }
+
+    [Fact]
+    public async Task AddUpdateAndMaybeChangeStatusAsync_UserNoteAndStatusChangeUsesUserNote()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner", ActionTaskStatuses.Assigned);
+
+        // SECTION: Act
+        var update = await service.AddUpdateAndMaybeChangeStatusAsync(task.Id, "  Started the work.  ", ActionTaskStatuses.InProgress, "owner", RoleNames.Ta, Array.Empty<IFormFile>(), task.RowVersion);
+
+        // SECTION: Assert
+        Assert.NotNull(update);
+        Assert.Equal("Started the work.", update.Body);
+        Assert.DoesNotContain("Task marked as in progress.", await db.ActionTaskUpdates.Where(x => x.TaskId == task.Id).Select(x => x.Body).ToListAsync());
+    }
+
     private static ActionTaskCollaborationService CreateService(ApplicationDbContext db)
         => new(db, new ActionTaskPermissionService(), new TestUploadRootProvider(), new PassFileSecurityValidator(), new StubUrlBuilder(), new TestActionTrackerClock());
 
@@ -146,7 +261,7 @@ public class ActionTaskCollaborationServiceTests
         return new ApplicationDbContext(options);
     }
 
-    private static async Task<ActionTaskItem> SeedTaskAsync(ApplicationDbContext db, string assignee)
+    private static async Task<ActionTaskItem> SeedTaskAsync(ApplicationDbContext db, string assignee, string status = ActionTaskStatuses.Assigned)
     {
         var task = new ActionTaskItem
         {
@@ -159,7 +274,7 @@ public class ActionTaskCollaborationServiceTests
             DueDate = DateTime.UtcNow.AddDays(1),
             Priority = "Normal",
             AssignedOn = DateTime.UtcNow,
-            Status = ActionTaskStatuses.Assigned
+            Status = status
         };
         db.ActionTasks.Add(task);
         await db.SaveChangesAsync();

@@ -32,24 +32,43 @@ public class ActionTaskProductionReadinessTests
         // SECTION: Assert secondary actions are a stable inline panel grouped by workflow, planning, and danger actions.
         var html = ReadRepoFile("Pages", "ActionTasks", "_TaskDetails.cshtml");
 
-        Assert.Contains("at-more-actions-panel", html, StringComparison.Ordinal);
-        Assert.Contains("Workflow Actions", html, StringComparison.Ordinal);
-        Assert.Contains("Planning Actions", html, StringComparison.Ordinal);
+        Assert.Contains("at-manage-task-panel", html, StringComparison.Ordinal);
+        Assert.Contains("Manage Task", html, StringComparison.Ordinal);
+        Assert.Contains("Planning", html, StringComparison.Ordinal);
         Assert.Contains("Danger Zone", html, StringComparison.Ordinal);
         Assert.DoesNotContain("at-action-more-menu", html, StringComparison.Ordinal);
         Assert.DoesNotContain("<summary class=\"btn btn-outline-secondary btn-sm\">More</summary>", html, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ExecuteBoardCss_UsesSharedDrawerWidthReservation()
+    public void ExecuteBoardCss_UsesFixedOverlayDrawerWithoutThirdGridColumn()
     {
-        // SECTION: Assert Sprint Board Execute containers reserve the fixed inspector width while selected.
-        var css = ReadRepoFile("wwwroot", "css", "action-tracker.css");
+        // SECTION: Assert Sprint Board Execute uses the shared fixed overlay drawer instead of reserving a third grid column.
+        var actionTrackerCss = ReadRepoFile("wwwroot", "css", "action-tracker.css");
+        var detailsCss = ReadRepoFile("wwwroot", "css", "action-task-details-redesign.css");
+        var css = actionTrackerCss + Environment.NewLine + detailsCss;
 
-        Assert.Contains("--at-planning-drawer-width: 34rem;", css, StringComparison.Ordinal);
-        Assert.Contains(".at-shell.is-planning-board.has-selection .at-planning-execute-panel", css, StringComparison.Ordinal);
-        Assert.Contains(".at-shell.is-planning-board.has-selection .at-execute-status-board", css, StringComparison.Ordinal);
-        Assert.Contains(".at-shell.is-planning-board.has-selection .at-execute-status-grid", css, StringComparison.Ordinal);
+        Assert.Contains("--at-task-drawer-width: min(32rem, calc(100vw - 2rem));", css, StringComparison.Ordinal);
+        Assert.Contains(".at-shell.has-selection,", css, StringComparison.Ordinal);
+        Assert.Contains(".at-shell.is-planning-board.has-selection", css, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: 88px minmax(0, 1fr);", css, StringComparison.Ordinal);
+        Assert.Contains("width: var(--at-task-drawer-width);", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("--at-planning-drawer-width", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("minmax(320px, 30vw)", css, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public void TaskDetailsPartial_PreservesCurrentRouteContextForDrawerActions()
+    {
+        // SECTION: Assert drawer action forms preserve current workspace context instead of forcing users back to Planning Execute.
+        var html = ReadRepoFile("Pages", "ActionTasks", "_TaskDetails.cshtml");
+
+        Assert.Contains("name=\"ViewMode\" value=\"@Model.ResolvedViewMode\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"PlanningTab\" value=\"@Model.ResolvedPlanningTab\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"PlanningView\" value=\"@Model.ResolvedPlanningView\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"ViewMode\" value=\"Planning\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"PlanningTab\" value=\"Execute\"", html, StringComparison.Ordinal);
     }
 
     [Fact]

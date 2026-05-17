@@ -391,7 +391,7 @@
 .at-page,
 .at-main-shell {
     max-width: 100%;
-    overflow-x: clip;
+    min-width: 0;
 }
 
 .at-shell.has-selection,
@@ -410,6 +410,7 @@
     width: var(--at-task-drawer-width);
     max-width: calc(100vw - 2rem);
     min-width: 0;
+    overflow: hidden;
     box-shadow: 0 1rem 3rem rgba(15, 23, 42, 0.18);
 }
 

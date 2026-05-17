@@ -133,14 +133,17 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
 
         // SECTION: Load and validate the full command before any update or attachment is persisted.
         var task = await _context.ActionTasks.FirstOrDefaultAsync(x => x.Id == taskId && !x.IsDeleted, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
-        var hasBody = !string.IsNullOrWhiteSpace(body);
+        var trimmedBody = body?.Trim() ?? string.Empty;
+        var hasUserNote = !string.IsNullOrWhiteSpace(trimmedBody);
         var hasFiles = files is { Count: > 0 } && files.Any(x => x.Length > 0);
         var requestedStatus = string.IsNullOrWhiteSpace(newStatus) ? null : ResolveStatus(newStatus.Trim());
-        var hasStatusChange = !string.IsNullOrWhiteSpace(requestedStatus);
+        var hasStatusChange = !string.IsNullOrWhiteSpace(requestedStatus)
+            && !string.Equals(task.Status, requestedStatus, StringComparison.OrdinalIgnoreCase);
+        var previousStatus = task.Status;
 
-        if (!hasBody && !hasFiles && !hasStatusChange)
+        if (!hasUserNote && !hasFiles && !hasStatusChange)
         {
-            throw new InvalidOperationException("Update text is required unless at least one attachment is uploaded.");
+            throw new InvalidOperationException("No update was applied.");
         }
 
         ValidateUpdatePermissions(task, userId, role, hasFiles);
@@ -154,7 +157,7 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         {
             // SECTION: Create the human progress timeline entry and mutate workflow state in the same EF transaction.
             ActionTaskUpdate? update = null;
-            if (hasBody || hasFiles)
+            if (hasUserNote || hasFiles || hasStatusChange)
             {
                 update = new ActionTaskUpdate
                 {
@@ -162,16 +165,16 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
                     CreatedByUserId = userId,
                     CreatedAtUtc = _clock.UtcNow,
                     UpdateType = ActionTaskUpdateTypes.Progress,
-                    Body = hasBody ? body.Trim() : "Supporting file uploaded.",
+                    Body = hasUserNote ? trimmedBody : BuildAutomaticProgressMessage(previousStatus, requestedStatus, hasFiles),
                     IsDeleted = false
                 };
                 _context.ActionTaskUpdates.Add(update);
             }
 
-            if (hasStatusChange && !string.Equals(task.Status, requestedStatus, StringComparison.OrdinalIgnoreCase))
+            if (hasStatusChange)
             {
                 _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
-                ApplyStatusChange(task, requestedStatus!, userId, role, body);
+                ApplyStatusChange(task, requestedStatus!, userId, role, trimmedBody);
             }
 
             await _context.SaveChangesAsync(cancellationToken);
@@ -301,6 +304,45 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         });
         await _context.SaveChangesAsync(cancellationToken);
         return absolutePath;
+    }
+
+
+    // SECTION: Automatic progress messages for status-only and attachment-only updates
+    private static string BuildAutomaticProgressMessage(string? previousStatus, string? newStatus, bool hasFiles)
+    {
+        if (!string.IsNullOrWhiteSpace(previousStatus)
+            && !string.IsNullOrWhiteSpace(newStatus)
+            && !string.Equals(previousStatus, newStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.Equals(newStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Task submitted for closure.";
+            }
+
+            if (string.Equals(newStatus, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Task marked as blocked.";
+            }
+
+            if (string.Equals(newStatus, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Task marked as in progress.";
+            }
+
+            if (string.Equals(newStatus, ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Task moved back to assigned status.";
+            }
+
+            return $"Status changed to {newStatus}.";
+        }
+
+        if (hasFiles)
+        {
+            return "Supporting file uploaded.";
+        }
+
+        return "Progress updated.";
     }
 
     // SECTION: Atomic command validation helpers
