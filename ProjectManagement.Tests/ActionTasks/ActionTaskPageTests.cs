@@ -431,10 +431,12 @@ public class ActionTaskPageTests
         // SECTION: Arrange
         var setup = await CreateSetupAsync();
         var page = setup.Page;
-        var selectedTaskId = await setup.Db.ActionTasks.Select(t => t.Id).SingleAsync();
+        var selectedTask = await setup.Db.ActionTasks.SingleAsync();
+        selectedTask.Status = ActionTaskStatuses.Closed;
+        await setup.Db.SaveChangesAsync();
         page.ViewMode = "Register";
-        page.FilterStatus = ActionTaskStatuses.Closed;
-        page.TaskId = selectedTaskId;
+        page.TaskScope = ActionTaskRegisterScopes.Open;
+        page.TaskId = selectedTask.Id;
 
         // SECTION: Act
         await page.OnGetAsync();
@@ -442,7 +444,7 @@ public class ActionTaskPageTests
         // SECTION: Assert
         Assert.Empty(page.Tasks);
         Assert.NotNull(page.SelectedTask);
-        Assert.Equal(selectedTaskId, page.SelectedTask!.Id);
+        Assert.Equal(selectedTask.Id, page.SelectedTask!.Id);
     }
 
     [Fact]
@@ -468,9 +470,13 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskRegister.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("<th scope=\"col\" class=\"at-register-sprint-heading\">Scope</th>", html, StringComparison.Ordinal);
+        Assert.Contains("data-at-register-scope-option=\"Open\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-at-register-scope-option=\"All\"", html, StringComparison.Ordinal);
+        Assert.Contains("aria-pressed=\"true\">Open Tasks", html, StringComparison.Ordinal);
+        Assert.Contains("<th scope=\"col\" class=\"at-register-sprint-heading\">Bucket</th>", html, StringComparison.Ordinal);
         Assert.Contains("Due / Target Date", html, StringComparison.Ordinal);
         Assert.DoesNotContain("<th scope=\"col\" class=\"at-register-sprint-heading\">Sprint</th>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Closed</option>", html, StringComparison.Ordinal);
         Assert.Contains("at-register-sprint-cell", html, StringComparison.Ordinal);
         Assert.Contains("Enterprise Sprint", html, StringComparison.Ordinal);
         Assert.Contains("Target 20 May 2026", html, StringComparison.Ordinal);

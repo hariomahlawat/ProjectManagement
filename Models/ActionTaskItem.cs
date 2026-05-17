@@ -23,6 +23,19 @@ public static class ActionTaskStatuses
     };
 }
 
+
+public static class ActionTaskRegisterScopes
+{
+    public const string Open = "Open";
+    public const string All = "All";
+
+    public static string Normalize(string? scope)
+        => string.Equals((scope ?? string.Empty).Trim(), All, StringComparison.OrdinalIgnoreCase) ? All : Open;
+
+    public static bool IsOpenScope(string? scope)
+        => string.Equals(Normalize(scope), Open, StringComparison.OrdinalIgnoreCase);
+}
+
 public class ActionTaskItem
 {
     [Key]
