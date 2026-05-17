@@ -126,12 +126,14 @@ public sealed class ActionTaskRouteStateHelper
             request.FilterState.FilterSearch,
             request.FilterState.SortBy,
             request.FilterState.SortDir,
-            request.FilterState.FilterBucket);
+            request.FilterState.FilterBucket,
+            request.FilterState.TaskScope);
     }
 
     // SECTION: Shared filter-state detection covers GET bookmarks and postback route preservation.
     public bool HasTaskFilterRouteState(ActionTaskFilterRouteState state)
         => !string.IsNullOrWhiteSpace(state.FilterStatus)
+            || string.Equals(state.TaskScope, ProjectManagement.Models.ActionTaskRegisterScopes.All, StringComparison.OrdinalIgnoreCase)
             || !string.IsNullOrWhiteSpace(state.FilterBucket)
             || !string.IsNullOrWhiteSpace(state.FilterPriority)
             || !string.IsNullOrWhiteSpace(state.FilterAssigneeUserId)
@@ -191,6 +193,7 @@ public sealed class ActionTaskRouteStateHelper
     // SECTION: Filter route values are added only when populated so canonical links stay compact.
     private static void AddTaskFilterRouteValues(RouteValueDictionary routeValues, ActionTaskRouteState state)
     {
+        AddRouteValueIfPresent(routeValues, nameof(ActionTaskRouteState.TaskScope), state.TaskScope);
         AddRouteValueIfPresent(routeValues, nameof(ActionTaskRouteState.FilterStatus), state.FilterStatus);
         AddRouteValueIfPresent(routeValues, nameof(ActionTaskRouteState.FilterBucket), state.FilterBucket);
         AddRouteValueIfPresent(routeValues, nameof(ActionTaskRouteState.FilterPriority), state.FilterPriority);
@@ -245,7 +248,8 @@ public sealed record ActionTaskRouteState(
     string? FilterSearch,
     string? SortBy,
     string? SortDir,
-    string? FilterBucket = null);
+    string? FilterBucket = null,
+    string? TaskScope = null);
 
 public sealed record ActionTaskFilterRouteState(
     string? FilterStatus,
@@ -255,7 +259,8 @@ public sealed record ActionTaskFilterRouteState(
     string? FilterSearch,
     string? SortBy,
     string? SortDir,
-    string? FilterBucket = null);
+    string? FilterBucket = null,
+    string? TaskScope = null);
 
 public sealed record ActionTaskReportFilterRouteState(
     string? ReportBucket,

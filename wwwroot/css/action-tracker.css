@@ -690,9 +690,48 @@ html {
 
 .at-register-filter-toolbar {
     display: grid;
-    grid-template-columns: minmax(15rem, 1.45fr) minmax(14rem, 1.25fr) repeat(3, minmax(8rem, 0.75fr)) minmax(10rem, 0.9fr) auto;
+    grid-template-columns: auto minmax(15rem, 1.45fr) minmax(14rem, 1.25fr) repeat(3, minmax(8rem, 0.75fr)) minmax(10rem, 0.9fr) auto;
     gap: 0.45rem;
     align-items: end;
+}
+
+
+.at-register-scope-field {
+    display: flex;
+    align-items: end;
+    min-height: 2rem;
+}
+
+.at-register-scope-toggle {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--at-border);
+    border-radius: 999px;
+    background: var(--at-surface-soft);
+    padding: 2px;
+    white-space: nowrap;
+}
+
+.at-register-scope-option {
+    border: 0;
+    background: transparent;
+    border-radius: 999px;
+    padding: 0.32rem 0.72rem;
+    font-size: var(--at-font-sm);
+    font-weight: var(--at-weight-semibold);
+    color: var(--at-muted);
+    line-height: 1.2;
+}
+
+.at-register-scope-option:focus-visible {
+    outline: 2px solid rgba(37, 99, 235, 0.35);
+    outline-offset: 2px;
+}
+
+.at-register-scope-option.active {
+    background: var(--at-blue);
+    color: #fff;
+    box-shadow: var(--at-shadow-sm);
 }
 
 .at-register-filter-field-search {

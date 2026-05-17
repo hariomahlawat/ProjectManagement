@@ -87,6 +87,56 @@ public class ActionTaskQueryServiceSprintMetricsTests
         Assert.Equal(new[] { new ActionTaskQueryService.CountSummary("Filtered Sprint", 1) }, model.Reports.CarryForwardBySprint);
     }
 
+
+    [Fact]
+    public void BuildReadModel_RegisterOpenScopeExcludesClosedBeforeFilters()
+    {
+        // SECTION: Arrange
+        var today = DateTime.UtcNow.Date;
+        var sprint = new ActionSprint { Id = 41, Name = "Register Sprint", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
+        var tasks = new[]
+        {
+            NewTask(31, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(1)),
+            NewTask(32, sprint.Id, ActionTaskStatuses.Closed, today.AddDays(1)),
+            NewTask(33, null, ActionTaskStatuses.Backlog, today.AddDays(1), assignedToUserId: string.Empty)
+        };
+        var service = CreateQueryService();
+
+        // SECTION: Act
+        var model = service.BuildReadModel(
+            tasks,
+            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, true, false, sprint.Id, new[] { sprint }, null, null, null, null, null, null, null, TaskScope: ActionTaskRegisterScopes.Open),
+            new Dictionary<string, string> { ["assignee"] = "Assignee" },
+            new Dictionary<int, DateTime?>());
+
+        // SECTION: Assert
+        Assert.Equal(new[] { 31, 33 }, model.TaskListTasks.Select(t => t.Id));
+    }
+
+    [Fact]
+    public void BuildReadModel_RegisterAllScopeIncludesClosedAndAllowsClosedStatusFilter()
+    {
+        // SECTION: Arrange
+        var today = DateTime.UtcNow.Date;
+        var sprint = new ActionSprint { Id = 42, Name = "Register Sprint", Status = ActionSprintStatus.Active, StartDate = today, EndDate = today.AddDays(7) };
+        var tasks = new[]
+        {
+            NewTask(34, sprint.Id, ActionTaskStatuses.Assigned, today.AddDays(1)),
+            NewTask(35, sprint.Id, ActionTaskStatuses.Closed, today.AddDays(1))
+        };
+        var service = CreateQueryService();
+
+        // SECTION: Act
+        var model = service.BuildReadModel(
+            tasks,
+            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, true, false, sprint.Id, new[] { sprint }, ActionTaskStatuses.Closed, null, null, null, null, null, null, TaskScope: ActionTaskRegisterScopes.All),
+            new Dictionary<string, string> { ["assignee"] = "Assignee" },
+            new Dictionary<int, DateTime?>());
+
+        // SECTION: Assert
+        Assert.Equal(new[] { 35 }, model.TaskListTasks.Select(t => t.Id));
+    }
+
     [Fact]
     public void BuildReadModel_ReportBacklogSprintFilter_RendersBacklogAgeingOnly()
     {
@@ -348,7 +398,7 @@ public class ActionTaskQueryServiceSprintMetricsTests
     private static ActionTaskQueryService.ActionTaskReadModel BuildWithBucket(ActionTaskQueryService service, IReadOnlyList<ActionTaskItem> tasks, ActionSprint sprint, string bucket)
         => service.BuildReadModel(
             tasks,
-            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, true, false, sprint.Id, new[] { sprint }, null, null, null, null, null, null, null, FilterBucket: bucket),
+            new ActionTaskQueryService.ActionTaskQueryRequest("user", false, true, false, sprint.Id, new[] { sprint }, null, null, null, null, null, null, null, FilterBucket: bucket, TaskScope: ActionTaskRegisterScopes.All),
             new Dictionary<string, string> { ["assignee"] = "Assignee" },
             new Dictionary<int, DateTime?>());
 

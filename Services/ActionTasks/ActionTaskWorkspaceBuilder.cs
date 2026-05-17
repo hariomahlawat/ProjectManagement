@@ -45,7 +45,8 @@ public sealed class ActionTaskWorkspaceBuilder
             request.ReportStatus,
             request.ReportPriority,
             request.ReportBucket,
-            request.FilterBucket);
+            request.FilterBucket,
+            TaskScope: request.TaskScope);
 
         return new ActionTaskWorkspaceReadModel(sourceTasks, _queryService.BuildReadModel(sourceTasks, queryRequest, assigneeNames, activityByTaskId));
     }
@@ -72,6 +73,7 @@ public sealed record ActionTaskWorkspaceRequest(
     DateTime? ReportFromDate,
     DateTime? ReportToDate,
     string? ReportStatus,
-    string? ReportPriority);
+    string? ReportPriority,
+    string? TaskScope = null);
 
 public sealed record ActionTaskWorkspaceReadModel(IReadOnlyList<ActionTaskItem> SourceTasks, ActionTaskQueryService.ActionTaskReadModel ReadModel);

@@ -73,6 +73,20 @@
             });
         });
 
+        const scopeInput = form.querySelector("[data-at-register-scope-input='true']");
+        const scopeOptions = form.querySelectorAll("[data-at-register-scope-option]");
+        scopeOptions.forEach((option) => {
+            option.addEventListener("click", () => {
+                const selectedScope = option.getAttribute("data-at-register-scope-option");
+                if (!scopeInput || !selectedScope || scopeInput.value === selectedScope) {
+                    return;
+                }
+
+                scopeInput.value = selectedScope;
+                form.requestSubmit();
+            });
+        });
+
         const searchInput = form.querySelector("[data-at-filter-search='true']");
         if (searchInput) {
             let searchDebounceHandle;

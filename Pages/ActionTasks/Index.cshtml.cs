@@ -126,6 +126,9 @@ public class IndexModel : PageModel
     public string? PlanningTab { get; set; }
 
     [BindProperty(SupportsGet = true)]
+    public string? TaskScope { get; set; } = ActionTaskRegisterScopes.Open;
+
+    [BindProperty(SupportsGet = true)]
     public string? FilterStatus { get; set; }
 
     [BindProperty(SupportsGet = true)]
@@ -245,7 +248,25 @@ public class IndexModel : PageModel
 
     public IReadOnlyList<string> AssignmentRoles => ActionTaskRoleResolver.AllowedAssignmentRoles();
     public IReadOnlyList<string> AllowedStatusOptions => _workflowPolicy.AllowedStatusOptions;
-    public IReadOnlyList<string> RegisterStatusOptions => ActionTaskStatuses.All.ToList();
+    public string ResolvedTaskScope => ActionTaskRegisterScopes.Normalize(TaskScope);
+    public bool IsOpenTaskScope => ActionTaskRegisterScopes.IsOpenScope(ResolvedTaskScope);
+    public IReadOnlyList<string> RegisterStatusOptions => new[]
+    {
+        ActionTaskStatuses.Backlog,
+        ActionTaskStatuses.Assigned,
+        ActionTaskStatuses.InProgress,
+        ActionTaskStatuses.Blocked,
+        ActionTaskStatuses.Submitted,
+        ActionTaskStatuses.Closed
+    }.Where(status => !IsOpenTaskScope || !string.Equals(status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)).ToList();
+    public IReadOnlyList<(string Value, string Label)> RegisterBucketOptions => new[]
+    {
+        (Value: "Backlog", Label: "Backlog"),
+        (Value: "OutsideSprint", Label: "Outside Sprint"),
+        (Value: "Sprint", Label: "Sprint"),
+        (Value: "Closed", Label: "Closed"),
+        (Value: "Invalid", Label: "Invalid State")
+    }.Where(bucket => !IsOpenTaskScope || !string.Equals(bucket.Value, "Closed", StringComparison.OrdinalIgnoreCase)).ToList();
     public IReadOnlyList<string> ReportStatusOptions => new[]
     {
         ActionTaskStatuses.Backlog,
@@ -1178,6 +1199,7 @@ public class IndexModel : PageModel
     private async Task LoadDataAsync()
     {
         await ResolveIdentityAsync();
+        NormalizeRegisterScopeFilters();
 
         var sourceTasks = await _service.GetTasksAsync(CurrentUserId, CurrentRole);
 
@@ -1255,6 +1277,27 @@ public class IndexModel : PageModel
         TaskActorNames = inspector.ActorNames;
     }
 
+    // SECTION: Register scope normalization prevents contradictory open/closed filter combinations.
+    private void NormalizeRegisterScopeFilters()
+    {
+        TaskScope = ActionTaskRegisterScopes.Normalize(TaskScope);
+
+        if (!IsRegisterView || !IsOpenTaskScope)
+        {
+            return;
+        }
+
+        if (string.Equals(FilterStatus, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            FilterStatus = null;
+        }
+
+        if (string.Equals(FilterBucket, "Closed", StringComparison.OrdinalIgnoreCase))
+        {
+            FilterBucket = null;
+        }
+    }
+
     // SECTION: Workspace request isolates GET filter, report and sprint state before builder orchestration.
     private ActionTaskWorkspaceRequest BuildWorkspaceRequest()
         => new(
@@ -1278,7 +1321,8 @@ public class IndexModel : PageModel
             ReportFromDate,
             ReportToDate,
             ReportStatus,
-            ReportPriority);
+            ReportPriority,
+            ResolvedTaskScope);
 
 
     // SECTION: Sprint Board panel defaults and audit state are composed by the Sprint Board state builder.
@@ -1477,6 +1521,7 @@ public class IndexModel : PageModel
     public bool HasActiveFilters =>
         (IsTaskListView || IsBacklogView) &&
         (!string.IsNullOrWhiteSpace(FilterStatus)
+            || !string.Equals(ResolvedTaskScope, ActionTaskRegisterScopes.Open, StringComparison.OrdinalIgnoreCase)
             || !string.IsNullOrWhiteSpace(FilterBucket)
          || !string.IsNullOrWhiteSpace(FilterPriority)
          || !string.IsNullOrWhiteSpace(FilterAssigneeUserId)
@@ -1663,7 +1708,7 @@ public class IndexModel : PageModel
             BuildFilterRouteState()));
 
     private ActionTaskFilterRouteState BuildFilterRouteState()
-        => new(FilterStatus, FilterPriority, FilterAssigneeUserId, FilterDueDate, FilterSearch, SortBy, SortDir, FilterBucket);
+        => new(FilterStatus, FilterPriority, FilterAssigneeUserId, FilterDueDate, FilterSearch, SortBy, SortDir, FilterBucket, ResolvedTaskScope);
 
     private ActionTaskReportFilterRouteState BuildReportFilterRouteState()
         => new(ReportBucket, ReportSprintId, ReportAssigneeUserId, ReportFromDate, ReportToDate, ReportStatus, ReportPriority);
