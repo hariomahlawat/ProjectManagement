@@ -1,21 +1,9 @@
 /* SECTION: Action Tracker Task Details pane redesign */
-:root {
-    --at-planning-drawer-width: 46rem;
-}
-
 .at-task-command-drawer {
     padding: 0;
     overflow: hidden;
 }
 
-.at-shell.has-selection .at-drawer-host,
-.at-shell.is-planning-board.has-selection .at-drawer-host {
-    width: min(46rem, calc(100vw - 2rem));
-}
-
-.at-shell.is-planning-board.has-selection .at-workspace {
-    padding-right: min(46rem, calc(100vw - 2rem));
-}
 
 .at-task-command-shell {
     display: grid;
@@ -398,16 +386,6 @@
 }
 
 /* SECTION: Production drawer overlay constraints prevent page-wide horizontal scrolling. */
-:root {
-    --at-planning-drawer-width: 38rem;
-    --at-task-drawer-width: min(38rem, calc(100vw - 2rem));
-}
-
-html,
-body {
-    overflow-x: hidden;
-}
-
 .at-shell,
 .at-workspace,
 .at-page,

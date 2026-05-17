@@ -22,7 +22,8 @@
     --at-weight-medium: 500;
     --at-weight-semibold: 600;
     --at-weight-bold: 700;
-    --at-planning-drawer-width: 46rem;
+    --at-planning-drawer-width: 38rem;
+    --at-task-drawer-width: min(38rem, calc(100vw - 2rem));
 }
 
 /* SECTION: Action Tracker shell */

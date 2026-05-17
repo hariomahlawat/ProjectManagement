@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using ProjectManagement.Models;
 
@@ -43,8 +44,28 @@ public sealed class ActionTaskInspectorReadModelBuilder
         var attachments = await _collaborationService.GetAttachmentMetadataByUpdateAsync(selectedTask.Id, request.CurrentUserId, request.CurrentRole);
         var actorNames = await _userLookup.LoadTaskActorNamesAsync(logs);
         actorNames = await _userLookup.MergeUpdateActorNamesAsync(actorNames, updates);
+        var lastActivityUtc = ResolveLastActivityUtc(selectedTask, logs, updates);
 
-        return new ActionTaskInspectorReadModel(selectedTask, logs, updates, attachments, actorNames, false);
+        return new ActionTaskInspectorReadModel(selectedTask, logs, updates, attachments, actorNames, false, lastActivityUtc);
+    }
+
+    // SECTION: Last activity combines human updates, system history and task lifecycle timestamps for the drawer header.
+    private static DateTime ResolveLastActivityUtc(ActionTaskItem task, IReadOnlyList<ActionTaskAuditLog> logs, IReadOnlyList<ActionTaskUpdate> updates)
+    {
+        var activityCandidates = new List<DateTime> { task.AssignedOn };
+        if (task.SubmittedOn.HasValue)
+        {
+            activityCandidates.Add(task.SubmittedOn.Value);
+        }
+
+        if (task.ClosedOn.HasValue)
+        {
+            activityCandidates.Add(task.ClosedOn.Value);
+        }
+
+        activityCandidates.AddRange(logs.Select(log => log.PerformedAt));
+        activityCandidates.AddRange(updates.Select(update => update.CreatedAtUtc));
+        return activityCandidates.Max();
     }
 }
 
@@ -60,7 +81,8 @@ public sealed record ActionTaskInspectorReadModel(
     IReadOnlyList<ActionTaskUpdate> Updates,
     IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>> UpdateAttachments,
     IReadOnlyDictionary<string, string> ActorNames,
-    bool IsUnavailable)
+    bool IsUnavailable,
+    DateTime? LastActivityAtUtc)
 {
     public static ActionTaskInspectorReadModel Empty { get; } = new(
         null,
@@ -68,7 +90,8 @@ public sealed record ActionTaskInspectorReadModel(
         Array.Empty<ActionTaskUpdate>(),
         new Dictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>(),
         new Dictionary<string, string>(StringComparer.Ordinal),
-        false);
+        false,
+        null);
 
     public static ActionTaskInspectorReadModel Unavailable { get; } = Empty with { IsUnavailable = true };
 }

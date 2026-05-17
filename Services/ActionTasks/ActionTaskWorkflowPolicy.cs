@@ -22,6 +22,16 @@ public sealed class ActionTaskWorkflowPolicy
         ActionTaskStatuses.Blocked
     };
 
+    public IReadOnlyList<string> GetAllowedStatusTargets(ActionTaskItem task, string currentRole, string currentUserId)
+    {
+        if (!CanUpdateTaskStatus(task, currentRole, currentUserId))
+        {
+            return Array.Empty<string>();
+        }
+
+        return ActionTaskStatusWorkflow.GetAllowedStatusTargets(task.Status);
+    }
+
     public IReadOnlyList<string> PriorityOptions => new[]
     {
         "Low",

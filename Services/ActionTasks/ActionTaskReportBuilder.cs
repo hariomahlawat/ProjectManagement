@@ -151,7 +151,7 @@ public sealed class ActionTaskReportBuilder
     }
 
     // SECTION: Backlog ageing is planning-inventory ageing; AssignedOn is a temporary backlog-entry proxy until a CreatedOnUtc or EnteredBacklogOnUtc field exists.
-    private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildBacklogAgeingBuckets(IReadOnlyList<ActionTaskItem> backlogTasks, DateTime istToday)
+    private IReadOnlyList<ActionTaskQueryService.CountSummary> BuildBacklogAgeingBuckets(IReadOnlyList<ActionTaskItem> backlogTasks, DateTime istToday)
         => new[]
         {
             new ActionTaskQueryService.CountSummary("0-3 days in backlog", backlogTasks.Count(t => DaysSince(t.AssignedOn, istToday) is >= 0 and <= 3)),
@@ -161,7 +161,7 @@ public sealed class ActionTaskReportBuilder
         };
 
     // SECTION: Assigned task ageing applies only to Outside Sprint and Sprint work, never backlog or closed tasks.
-    private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildAssignedTaskAgeingBuckets(IReadOnlyList<ActionTaskItem> assignedTasks, DateTime istToday)
+    private IReadOnlyList<ActionTaskQueryService.CountSummary> BuildAssignedTaskAgeingBuckets(IReadOnlyList<ActionTaskItem> assignedTasks, DateTime istToday)
         => new[]
         {
             new ActionTaskQueryService.CountSummary("0-3 days assigned", assignedTasks.Count(t => DaysSince(t.AssignedOn, istToday) is >= 0 and <= 3)),
@@ -180,7 +180,7 @@ public sealed class ActionTaskReportBuilder
         };
 
     // SECTION: Pending closure ageing is separated from assignee overdue exposure.
-    private static IReadOnlyList<ActionTaskQueryService.CountSummary> BuildSubmittedPendingClosureAgeingBuckets(IReadOnlyList<ActionTaskItem> submittedTasks, DateTime istToday)
+    private IReadOnlyList<ActionTaskQueryService.CountSummary> BuildSubmittedPendingClosureAgeingBuckets(IReadOnlyList<ActionTaskItem> submittedTasks, DateTime istToday)
         => new[]
         {
             new ActionTaskQueryService.CountSummary("0-1 day pending closure", submittedTasks.Count(t => DaysSince(t.SubmittedOn ?? t.AssignedOn, istToday) is >= 0 and <= 1)),
@@ -189,7 +189,7 @@ public sealed class ActionTaskReportBuilder
         };
 
     // SECTION: Sprint performance is compact trend-style summary, not a Sprint Board duplicate.
-    private static IReadOnlyList<ActionTaskQueryService.SprintPerformanceSummary> BuildSprintPerformanceRows(IReadOnlyList<ActionTaskItem> tasks, IReadOnlyList<ActionSprint> sprints, DateTime istToday)
+    private IReadOnlyList<ActionTaskQueryService.SprintPerformanceSummary> BuildSprintPerformanceRows(IReadOnlyList<ActionTaskItem> tasks, IReadOnlyList<ActionSprint> sprints, DateTime istToday)
     {
         var sprintTasks = tasks.Where(t => t.SprintId.HasValue).ToLookup(t => t.SprintId!.Value);
         return sprints
@@ -271,14 +271,24 @@ public sealed class ActionTaskReportBuilder
     private static bool IsSubmitted(ActionTaskItem task)
         => string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsClosedLate(ActionTaskItem task)
-        => string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
-           && task.ClosedOn.HasValue
-           && task.ClosedOn.Value.Date > task.DueDate.Date;
+    private bool IsClosedLate(ActionTaskItem task)
+    {
+        if (!string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase) || !task.ClosedOn.HasValue)
+        {
+            return false;
+        }
+
+        var closedIstDate = _clock.ConvertUtcToIst(task.ClosedOn.Value).Date;
+        return closedIstDate > task.DueDate.Date;
+    }
 
     private static bool IsOpen(ActionTaskItem task) => ActionTaskCategorization.IsOpenTask(task);
 
-    private static int DaysSince(DateTime date, DateTime istToday) => (int)(istToday - date.Date).TotalDays;
+    private int DaysSince(DateTime utcDateTime, DateTime istToday)
+    {
+        var istDate = _clock.ConvertUtcToIst(utcDateTime).Date;
+        return (int)(istToday.Date - istDate).TotalDays;
+    }
 
     private static int DaysOverdue(ActionTaskItem task, DateTime istToday) => (int)(istToday - task.DueDate.Date).TotalDays;
 
