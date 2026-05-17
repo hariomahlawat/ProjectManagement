@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test wwwroot/js/projects wwwroot/js/pages/action-tasks/index.test.js wwwroot/js/calendar.test.js",
+    "test": "node tools/run-js-tests.js",
     "lint:views": "./tools/check-views.sh"
   },
   "repository": {
