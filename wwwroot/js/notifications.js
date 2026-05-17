@@ -54,6 +54,9 @@
       title: raw.title ?? null,
       summary: raw.summary ?? null,
       createdUtc: createdUtc ?? createdAt.toISOString(),
+      createdDisplayIst: typeof raw.createdDisplayIst === 'string' && raw.createdDisplayIst.trim().length > 0
+        ? raw.createdDisplayIst
+        : formatIstDateTime(createdAt),
       createdAt,
       seenUtc,
       readUtc,
@@ -592,7 +595,7 @@
         const created = clone.querySelector('[data-notification-created]');
         if (created) {
           created.setAttribute('datetime', item.createdUtc);
-          created.textContent = formatDate(item.createdAt);
+          created.textContent = item.createdDisplayIst;
         }
 
         const toggleButton = clone.querySelector('[data-notification-action="toggle-read"]');
@@ -846,7 +849,7 @@
         const created = row.querySelector('[data-notification-created]');
         if (created) {
           created.setAttribute('datetime', notification.createdUtc);
-          created.textContent = formatDate(notification.createdAt);
+          created.textContent = notification.createdDisplayIst;
         }
 
         const state = row.querySelector('[data-notification-state]');
@@ -960,18 +963,29 @@
     }
   }
 
-  function formatDate(date) {
-    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
-      return '';
+  // SECTION: IST Timestamp Formatting
+  function formatIstDateTime(value) {
+    if (!value) {
+      return '—';
     }
 
-    return date.toLocaleString(undefined, {
-      year: 'numeric',
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return '—';
+    }
+
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
       month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
       minute: '2-digit',
-    });
+      hour12: false,
+    }).formatToParts(date);
+
+    const valueFor = type => parts.find(part => part.type === type)?.value ?? '';
+    return `${valueFor('day')} ${valueFor('month')} ${valueFor('year')}, ${valueFor('hour')}:${valueFor('minute')} IST`;
   }
 
   function deriveConfig(elements) {

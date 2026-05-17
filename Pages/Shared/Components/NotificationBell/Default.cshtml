@@ -71,7 +71,7 @@
                                     </a>
                                 </div>
                                 <div class="text-end small text-muted" data-notification-meta>
-                                    <time datetime="@item.CreatedUtc.ToString("O")" data-notification-created>@item.CreatedUtc.ToLocalTime().ToString("g")</time>
+                                    <time datetime="@item.CreatedUtc.ToString("O")" data-notification-created>@item.CreatedDisplayIst</time>
                                 </div>
                                 <div class="btn-group btn-group-sm" role="group" aria-label="Manage notification">
                                     <button type="button" class="btn btn-outline-secondary" data-notification-action="toggle-read"
