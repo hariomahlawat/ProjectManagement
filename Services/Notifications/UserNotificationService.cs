@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Contracts.Notifications;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Notifications;
 using ProjectManagement.Services;
@@ -157,6 +158,7 @@ public sealed class UserNotificationService
                 }
             }
 
+            // SECTION: Notification Display Projection
             var isMuted = notification.ProjectId is int pid && mutedProjectSet?.Contains(pid) == true;
             var normalizedRoute = NotificationPublisher.NormalizeRouteSegments(notification.Route);
 
@@ -173,6 +175,7 @@ public sealed class UserNotificationService
                 notification.Title,
                 notification.Summary,
                 notification.CreatedUtc,
+                TimeFmt.ToIst(notification.CreatedUtc),
                 notification.SeenUtc,
                 notification.ReadUtc,
                 isMuted));

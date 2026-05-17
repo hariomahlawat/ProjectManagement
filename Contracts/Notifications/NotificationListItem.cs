@@ -2,6 +2,7 @@ using System;
 
 namespace ProjectManagement.Contracts.Notifications;
 
+// SECTION: Notification List Payload
 public sealed record NotificationListItem(
     int Id,
     string? Module,
@@ -15,6 +16,7 @@ public sealed record NotificationListItem(
     string? Title,
     string? Summary,
     DateTime CreatedUtc,
+    string CreatedDisplayIst,
     DateTime? SeenUtc,
     DateTime? ReadUtc,
     bool IsProjectMuted);

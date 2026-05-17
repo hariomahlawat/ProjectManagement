@@ -107,7 +107,7 @@
                                         </div>
                                     </td>
                                     <td>
-                                        <time datetime="@item.CreatedUtc.ToString("O")" data-notification-created>@item.CreatedUtc.ToLocalTime().ToString("g")</time>
+                                        <time datetime="@item.CreatedUtc.ToString("O")" data-notification-created>@item.CreatedDisplayIst</time>
                                     </td>
                                     <td>
                                         <span class="badge rounded-pill @(item.IsRead ? "bg-secondary-subtle text-secondary" : "bg-primary")" data-notification-state>

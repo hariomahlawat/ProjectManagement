@@ -1,5 +1,6 @@
 using System;
 using ProjectManagement.Contracts.Notifications;
+using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.ViewModels.Notifications;
 
@@ -29,6 +30,9 @@ public sealed record NotificationDisplayModel
 
     public DateTime CreatedUtc { get; init; }
 
+    // SECTION: IST Display Timestamp
+    public string CreatedDisplayIst { get; init; } = string.Empty;
+
     public DateTime? SeenUtc { get; init; }
 
     public DateTime? ReadUtc { get; init; }
@@ -52,6 +56,9 @@ public sealed record NotificationDisplayModel
             Title = notification.Title,
             Summary = notification.Summary,
             CreatedUtc = notification.CreatedUtc,
+            CreatedDisplayIst = string.IsNullOrWhiteSpace(notification.CreatedDisplayIst)
+                ? TimeFmt.ToIst(notification.CreatedUtc)
+                : notification.CreatedDisplayIst,
             SeenUtc = notification.SeenUtc,
             ReadUtc = notification.ReadUtc,
             IsProjectMuted = notification.IsProjectMuted,
