@@ -312,22 +312,25 @@ public class ActionTaskService : IActionTaskService
 
     public async Task CloseTaskAsync(int taskId, byte[] rowVersion, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
     {
+        // SECTION: Submitted-task closure is retained as a compatibility wrapper over the command closure path.
+        await CloseTaskDirectlyAsync(taskId, rowVersion, remarks ?? string.Empty, userId, role, cancellationToken);
+    }
+
+    public async Task CloseTaskDirectlyAsync(int taskId, byte[] rowVersion, string closureRemarks, string closedByUserId, string role, CancellationToken cancellationToken = default)
+    {
         // SECTION: Validation
-        if (!_permission.CanClose(role))
-        {
-            throw new InvalidOperationException("You are not authorized to close this task.");
-        }
-
         var task = await GetTaskAsync(taskId, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
-        if (!string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+        if (!_permission.CanCloseTaskDirectly(task, role))
         {
-            throw new InvalidOperationException("Only submitted tasks can be closed.");
+            throw new InvalidOperationException(string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+                ? "This task is already closed."
+                : "You are not authorised to close this task.");
         }
 
-        // SECTION: Remarks validation for close action
-        if (IsBlank(remarks))
+        // SECTION: Remarks validation for direct command closure
+        if (IsBlank(closureRemarks))
         {
-            throw new InvalidOperationException("Closure remarks are required.");
+            throw new InvalidOperationException("Closure remarks are required when closing a task.");
         }
 
         // SECTION: Concurrency token validation
@@ -335,12 +338,16 @@ public class ActionTaskService : IActionTaskService
 
         // SECTION: State Mutation
         var oldStatus = task.Status;
+        var trimmedRemarks = closureRemarks.Trim();
+        var closedAtUtc = _clock.UtcNow;
         task.Status = ActionTaskStatuses.Closed;
-        task.ClosedOn = _clock.UtcNow;
+        task.ClosedOn = closedAtUtc;
+        task.ClosedByUserId = closedByUserId;
+        task.ClosureRemarks = trimmedRemarks;
         ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
 
         // SECTION: Audit Enqueue
-        _context.ActionTaskAuditLogs.Add(Log(taskId, "Closed", userId, role, oldStatus, task.Status, remarks));
+        _context.ActionTaskAuditLogs.Add(Log(taskId, "TaskClosedByCommandAuthority", closedByUserId, role, oldStatus, task.Status, trimmedRemarks));
 
         // SECTION: Persistence
         try

@@ -24,7 +24,7 @@
     var updatePlaceholder = selectedTaskIsBacklog ? "Add planning note or clarification" : "Record progress, blocker details, completion notes, or status-change context";
     var canOpenStatusAction = Model.SelectedTask is not null && !selectedTaskIsBacklog && Model.CanUpdateTaskStatus(Model.SelectedTask);
     var canOpenSubmitAction = Model.SelectedTask is not null && Model.CanSubmitTask(Model.SelectedTask);
-    var canOpenCloseAction = Model.SelectedTask is not null && selectedTaskIsSubmitted && Model.CanCloseTask(Model.SelectedTask);
+    var canOpenCloseAction = Model.SelectedTask is not null && Model.CanCloseTaskDirectly(Model.SelectedTask);
     var canOpenChangeDateAction = Model.SelectedTask is not null && Model.CanChangeTaskDate(Model.SelectedTask);
     var canMoveTaskToBacklogAction = Model.SelectedTask is not null && Model.CanMoveTaskToBacklog(Model.SelectedTask);
     var canRemoveFromSprintKeepAssignedAction = canMoveTaskToBacklogAction && Model.SelectedTask?.SprintId.HasValue == true;
@@ -33,10 +33,12 @@
     var hasDangerActions = !selectedTaskIsClosed && canMoveTaskToBacklogAction;
     var hasMoreActions = hasPlanningActions || hasDangerActions;
     var canViewSystemHistory = Model.SelectedTask is not null && Model.CanViewSelectedTaskSystemHistory();
-    var selectedTaskClosureHelper = Model.SelectedTask is not null && !selectedTaskIsBacklog && !selectedTaskIsClosed
-        ? selectedTaskIsSubmitted
-            ? "Close Task is available to authorised reviewers."
-            : "Close Task will appear after the assignee submits this task for closure."
+    var selectedTaskClosureHelper = Model.SelectedTask is not null && !selectedTaskIsClosed
+        ? canOpenCloseAction
+            ? "Command authorities may close this task directly with mandatory closure remarks."
+            : selectedTaskIsSubmitted
+                ? "This task is submitted for closure review."
+                : null
         : null;
     var taskBrief = string.IsNullOrWhiteSpace(Model.SelectedTask?.Description)
         ? "No task brief recorded."
@@ -46,7 +48,7 @@
         : selectedTaskIsClosed
             ? "This task is closed. No further action is required."
             : selectedTaskIsSubmitted
-                ? "This task is awaiting closure review."
+                ? "This task is awaiting closure review. Command authorities may close it directly after recording remarks."
                 : selectedTaskIsBlocked
                     ? "This task is blocked. Record blocker details or change status once the issue is resolved."
                     : selectedTaskIsInProgress
@@ -95,55 +97,80 @@
                     <div class="at-task-brief-text @(string.IsNullOrWhiteSpace(Model.SelectedTask.Description) ? "is-muted" : string.Empty)">@taskBrief</div>
                 </section>
 
-                <section class="at-command-section at-next-action-section" aria-label="Next action">
-                    <div class="at-next-action-copy">
-                        <div class="at-command-section-heading">Next Action</div>
-                        <p>@nextActionText</p>
-                        @if (!string.IsNullOrWhiteSpace(selectedTaskClosureHelper))
-                        {
-                            <small>@selectedTaskClosureHelper</small>
-                        }
-                    </div>
-                    <div class="at-next-action-buttons">
-                        @if (selectedTaskIsBacklog)
-                        {
-                            <button type="button" class="btn btn-primary btn-sm" data-at-open-action="update">Add Planning Note</button>
-                            @if (Model.CanAssignTaskToSprint(Model.SelectedTask))
+                @if (selectedTaskIsClosed)
+                {
+                    <section class="at-command-section at-closed-task-summary" aria-label="Closure details">
+                        <div class="at-command-section-heading">Closure Details</div>
+                        <dl class="at-task-closure-list">
+                            <div>
+                                <dt>Status</dt>
+                                <dd><span class="@Model.GetStatusBadgeClass(Model.SelectedTask.Status)">@Model.SelectedTask.Status</span></dd>
+                            </div>
+                            <div>
+                                <dt>Closed on</dt>
+                                <dd>@(Model.SelectedTask.ClosedOn.HasValue ? TimeFmt.ToIst(Model.SelectedTask.ClosedOn.Value) : "Not recorded")</dd>
+                            </div>
+                            <div>
+                                <dt>Closed by</dt>
+                                <dd>@Model.ResolveClosedByName(Model.SelectedTask)</dd>
+                            </div>
+                            <div>
+                                <dt>Closure remarks</dt>
+                                <dd class="at-remarks-text">@(string.IsNullOrWhiteSpace(Model.SelectedTask.ClosureRemarks) ? "No closure remarks recorded." : Model.SelectedTask.ClosureRemarks)</dd>
+                            </div>
+                        </dl>
+                    </section>
+                }
+                else
+                {
+                    <section class="at-command-section at-next-action-section" aria-label="Next action">
+                        <div class="at-next-action-copy">
+                            <div class="at-command-section-heading">Next Action</div>
+                            <p>@nextActionText</p>
+                            @if (!string.IsNullOrWhiteSpace(selectedTaskClosureHelper))
                             {
-                                <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="add-to-sprint">Add to Sprint</button>
+                                <small>@selectedTaskClosureHelper</small>
                             }
-                        }
-                        else if (Model.CanAddOutsideSprintTaskToSprint(Model.SelectedTask))
-                        {
-                            <button type="button" class="btn btn-primary btn-sm" data-at-open-action="add-outside-to-sprint">Add to Sprint</button>
-                            <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="update">Update Progress</button>
-                        }
-                        else if (selectedTaskIsSubmitted)
-                        {
-                            @if (canUseUpdateWorkflow)
+                        </div>
+                        <div class="at-next-action-buttons">
+                            @if (selectedTaskIsBacklog)
                             {
+                                <button type="button" class="btn btn-primary btn-sm" data-at-open-action="update">Add Planning Note</button>
+                                @if (Model.CanAssignTaskToSprint(Model.SelectedTask))
+                                {
+                                    <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="add-to-sprint">Add to Sprint</button>
+                                }
+                            }
+                            else if (Model.CanAddOutsideSprintTaskToSprint(Model.SelectedTask))
+                            {
+                                <button type="button" class="btn btn-primary btn-sm" data-at-open-action="add-outside-to-sprint">Add to Sprint</button>
                                 <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="update">Update Progress</button>
                             }
-                            @if (Model.CanCloseTask(Model.SelectedTask))
+                            else if (selectedTaskIsSubmitted)
                             {
-                                <button type="button" class="btn btn-success btn-sm" data-at-open-action="close" data-at-close-task>Close Task</button>
+                                @if (canUseUpdateWorkflow)
+                                {
+                                    <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="update">Update Progress</button>
+                                }
+                                else if (!canOpenCloseAction)
+                                {
+                                    <span class="text-muted small">Submitted for closure</span>
+                                }
                             }
-                            else if (!canUseUpdateWorkflow)
+                            else
                             {
-                                <span class="text-muted small">Submitted for closure</span>
+                                <button type="button" class="btn btn-primary btn-sm" data-at-open-action="update">Update Progress</button>
                             }
-                        }
-                        else if (selectedTaskIsClosed)
-                        {
-                            <span class="text-muted small">View only</span>
-                        }
-                        else
-                        {
-                            <button type="button" class="btn btn-primary btn-sm" data-at-open-action="update">Update Progress</button>
-                        }
-                    </div>
-                </section>
+                            @if (canOpenCloseAction)
+                            {
+                                <button type="button" class="btn btn-outline-danger btn-sm" data-at-open-action="close" data-at-close-task>Close Task</button>
+                            }
+                        </div>
+                    </section>
+                }
 
+                @if (!selectedTaskIsClosed)
+                {
             <section class="at-command-section at-action-form-section" aria-label="Task action form area">
                 <div class="at-context-panel-host" data-at-action-host="true">
                     <details class="at-action-drawer" data-at-action-panel="update">
@@ -268,12 +295,33 @@
                         </details>
                     }
 
-                    @if (Model.CanCloseTask(Model.SelectedTask))
+                    @if (canOpenCloseAction)
                     {
-                        <details class="at-action-drawer" data-at-action-panel="close"><summary class="visually-hidden">Open close panel</summary><form method="post" asp-page-handler="Close" class="at-action-card at-action-card-compact"><input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" /><input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" /><input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" /><input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" /><input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" /><input type="hidden" name="id" value="@Model.SelectedTask.Id" /><input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" /><div class="at-action-title">Close Task</div><div class="mb-2"><label class="form-label at-small">Closure Remarks</label><textarea name="remarks" rows="3" class="form-control form-control-sm" maxlength="1000" placeholder="Add closure notes"></textarea></div><div class="at-action-buttons"><button type="submit" class="btn btn-success btn-sm">Close Task</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="close">Cancel</button></div></form></details>
+                        <details class="at-action-drawer" data-at-action-panel="close">
+                            <summary class="visually-hidden">Open close panel</summary>
+                            <form method="post" asp-page-handler="Close" class="at-action-card at-action-card-compact" data-at-direct-close-form="true">
+                                <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
+                                <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
+                                <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />
+                                <input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" />
+                                <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
+                                <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
+                                <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" />
+                                <div class="at-action-title">Close Task</div>
+                                <div class="mb-2">
+                                    <label class="form-label at-small" for="closureRemarks-@Model.SelectedTask.Id">Closure remarks</label>
+                                    <textarea id="closureRemarks-@Model.SelectedTask.Id" name="remarks" rows="4" class="form-control form-control-sm" maxlength="2000" required data-at-direct-close-remarks="true" placeholder="Enter closure decision, completion confirmation, or command rationale."></textarea>
+                                </div>
+                                <div class="at-action-buttons">
+                                    <button type="submit" class="btn btn-danger btn-sm" data-at-direct-close-submit="true" disabled>Close Task</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="close">Cancel</button>
+                                </div>
+                            </form>
+                        </details>
                     }
                 </div>
             </section>
+                }
 
                 <section class="at-command-section at-progress-timeline" aria-label="Progress Timeline">
                     <div class="at-inspector-section-heading">

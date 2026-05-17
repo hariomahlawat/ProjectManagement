@@ -1283,7 +1283,9 @@ public class ActionTaskPageTests
         var html = await RenderPartialAsync(page, "/Pages/ActionTasks/_TaskDetails.cshtml");
 
         // SECTION: Assert
-        Assert.Contains("View only", html, StringComparison.Ordinal);
+        Assert.Contains("Closure Details", html, StringComparison.Ordinal);
+        Assert.Contains("Closed on", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Next Action", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Workflow Actions", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Planning Actions", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Change Due Date", html, StringComparison.Ordinal);
@@ -1292,6 +1294,7 @@ public class ActionTaskPageTests
         Assert.DoesNotContain("Remove from Sprint, Keep Assigned", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Move to Backlog, Remove Assignee", html, StringComparison.Ordinal);
         Assert.DoesNotContain(@"data-at-action-panel=""change-date""", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(@"data-at-action-panel=""close""", html, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -2380,8 +2380,16 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
+                    b.Property<string>("ClosedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
                     b.Property<DateTime?>("ClosedOn")
                         .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("ClosureRemarks")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<string>("CreatedByRole")
                         .IsRequired()
