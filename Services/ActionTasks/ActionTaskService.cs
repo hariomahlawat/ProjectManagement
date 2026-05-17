@@ -11,6 +11,8 @@ namespace ProjectManagement.Services.ActionTasks;
 
 public class ActionTaskService : IActionTaskService
 {
+    private const int MaxClosureRemarksLength = 2000;
+
     private readonly ApplicationDbContext _context;
     private readonly ActionTaskPermissionService _permission;
     private readonly IActionTrackerClock _clock;
@@ -328,9 +330,15 @@ public class ActionTaskService : IActionTaskService
         }
 
         // SECTION: Remarks validation for direct command closure
-        if (IsBlank(closureRemarks))
+        var trimmedRemarks = closureRemarks?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(trimmedRemarks))
         {
             throw new InvalidOperationException("Closure remarks are required when closing a task.");
+        }
+
+        if (trimmedRemarks.Length > MaxClosureRemarksLength)
+        {
+            throw new InvalidOperationException($"Closure remarks cannot exceed {MaxClosureRemarksLength} characters.");
         }
 
         // SECTION: Concurrency token validation
@@ -338,7 +346,6 @@ public class ActionTaskService : IActionTaskService
 
         // SECTION: State Mutation
         var oldStatus = task.Status;
-        var trimmedRemarks = closureRemarks.Trim();
         var closedAtUtc = _clock.UtcNow;
         task.Status = ActionTaskStatuses.Closed;
         task.ClosedOn = closedAtUtc;
