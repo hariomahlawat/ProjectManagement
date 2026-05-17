@@ -504,3 +504,28 @@
         border-radius: 1rem 1rem 0 0;
     }
 }
+
+/* SECTION: Closed task summary metadata */
+.at-task-closure-list {
+    display: grid;
+    gap: .75rem;
+    margin: .75rem 0 0;
+}
+
+.at-task-closure-list > div {
+    display: grid;
+    gap: .2rem;
+}
+
+.at-task-closure-list dt {
+    color: var(--bs-secondary-color, #6c757d);
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    margin: 0;
+    text-transform: uppercase;
+}
+
+.at-task-closure-list dd {
+    margin: 0;
+}

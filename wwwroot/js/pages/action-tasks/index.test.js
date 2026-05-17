@@ -192,3 +192,31 @@ test('intent-specific status actions preselect In Progress and refresh save guar
         assert.equal(bubbledChangeCount, 1);
     });
 });
+
+// SECTION: Direct close remarks guard behavior.
+test('direct close submit stays disabled until closure remarks are entered', () => {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <form data-at-direct-close-form="true">
+            <textarea data-at-direct-close-remarks="true"></textarea>
+            <button type="submit" data-at-direct-close-submit="true">Close Task</button>
+        </form>
+    </body></html>`, { url: 'https://example.test/ActionTasks?TaskId=1', runScripts: 'dangerously' });
+
+    const { window } = dom;
+    const document = window.document;
+    const scriptEl = document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    document.body.appendChild(scriptEl);
+    document.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
+
+    const remarks = document.querySelector('[data-at-direct-close-remarks]');
+    const submit = document.querySelector('[data-at-direct-close-submit]');
+
+    assert.equal(submit.disabled, true);
+    remarks.value = 'Closed after command review.';
+    remarks.dispatchEvent(new window.Event('input', { bubbles: true }));
+    assert.equal(submit.disabled, false);
+    remarks.value = '   ';
+    remarks.dispatchEvent(new window.Event('input', { bubbles: true }));
+    assert.equal(submit.disabled, true);
+});

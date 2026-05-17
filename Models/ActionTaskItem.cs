@@ -71,6 +71,13 @@ public class ActionTaskItem
     public DateTime? SubmittedOn { get; set; }
     public DateTime? ClosedOn { get; set; }
 
+    // SECTION: Closure authority metadata for reviewer and command-directed closures
+    [StringLength(450)]
+    public string? ClosedByUserId { get; set; }
+
+    [StringLength(2000)]
+    public string? ClosureRemarks { get; set; }
+
     // SECTION: Optional sprint assignment; null represents the backlog
     public int? SprintId { get; set; }
     public ActionSprint? Sprint { get; set; }

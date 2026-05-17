@@ -356,6 +356,11 @@ public class IndexModel : PageModel
         return _workflowPolicy.CanCloseTask(task, CurrentRole);
     }
 
+    public bool CanCloseTaskDirectly(ActionTaskItem task)
+    {
+        return _permission.CanCloseTaskDirectly(task, CurrentRole);
+    }
+
     public bool CanUpdateTaskStatus(ActionTaskItem task)
     {
         return _workflowPolicy.CanUpdateTaskStatus(task, CurrentRole, CurrentUserId);
@@ -404,6 +409,7 @@ public class IndexModel : PageModel
             "TaskMovedToBacklogRemoveAssignee" => "Moved to backlog",
             "TaskCarriedForward" => "Carried forward",
             "TaskUpdated" => "Task updated",
+            "TaskClosedByCommandAuthority" => "Closed by command authority",
             "Submitted" => "Submitted for closure",
             "TaskSubmitted" => "Submitted for closure",
             "Closed" => "Closed",
@@ -425,6 +431,7 @@ public class IndexModel : PageModel
             "StatusUpdated" or "TaskStatusChanged" => $"Status changed from {log.OldValue ?? "previous status"} to {log.NewValue ?? "new status"}.",
             "Submitted" or "TaskSubmitted" => "Task submitted for closure review.",
             "Closed" or "TaskClosed" => "Task closed after review.",
+            "TaskClosedByCommandAuthority" => "Closed by command authority.",
             "DueDateChanged" or "TaskDueDateChanged" => $"Due date changed from {FormatAuditDate(log.OldValue)} to {FormatAuditDate(log.NewValue)}.",
             "TargetDateChanged" => $"Target date changed from {FormatAuditDate(log.OldValue)} to {FormatAuditDate(log.NewValue)}.",
             "TaskAssignedToSprint" or "OutsideSprintTaskAssignedToSprint" => "Task added to sprint. Responsible person retained.",
@@ -531,6 +538,13 @@ public class IndexModel : PageModel
         return TaskActorNames.TryGetValue(performedByUserId, out var actorName)
             ? actorName
             : "User";
+    }
+
+    public string ResolveClosedByName(ActionTaskItem task)
+    {
+        return !string.IsNullOrWhiteSpace(task.ClosedByUserId) && TaskActorNames.TryGetValue(task.ClosedByUserId, out var actorName)
+            ? actorName
+            : "Command authority";
     }
 
     public string ResolveSprintActorName(string performedByUserId)
@@ -902,8 +916,8 @@ public class IndexModel : PageModel
         await ResolveIdentityAsync();
         try
         {
-            await _service.CloseTaskAsync(id, DecodeRowVersion(rowVersion), CurrentUserId, CurrentRole, remarks);
-            TempData["ToastMessage"] = "Task closed.";
+            await _service.CloseTaskDirectlyAsync(id, DecodeRowVersion(rowVersion), remarks ?? string.Empty, CurrentUserId, CurrentRole);
+            TempData["ToastMessage"] = "Task closed successfully.";
         }
         catch (ActionTaskConcurrencyException ex)
         {

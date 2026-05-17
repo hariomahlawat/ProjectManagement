@@ -1,4 +1,5 @@
 using ProjectManagement.Configuration;
+using ProjectManagement.Models;
 using ProjectManagement.Services.ActionTasks;
 
 namespace ProjectManagement.Tests.ActionTasks;
@@ -76,6 +77,8 @@ public class ActionTaskPermissionServiceTests
         var canAssignTaskToSprint = service.CanAssignTaskToSprint(role);
         var canMoveTaskToBacklog = service.CanMoveTaskToBacklog(role);
         var canChangeTaskDate = service.CanChangeTaskDate(role);
+        var canCloseAssignedTaskDirectly = service.CanCloseTaskDirectly(new ActionTaskItem { Status = ActionTaskStatuses.Assigned }, role);
+        var canCloseClosedTaskDirectly = service.CanCloseTaskDirectly(new ActionTaskItem { Status = ActionTaskStatuses.Closed }, role);
 
         // SECTION: Assert
         Assert.Equal(expected, canManageSprints);
@@ -87,6 +90,8 @@ public class ActionTaskPermissionServiceTests
         Assert.Equal(expected, canAssignTaskToSprint);
         Assert.Equal(expected, canMoveTaskToBacklog);
         Assert.Equal(expected, canChangeTaskDate);
+        Assert.Equal(expected, canCloseAssignedTaskDirectly);
+        Assert.False(canCloseClosedTaskDirectly);
     }
 
 }

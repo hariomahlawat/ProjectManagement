@@ -559,6 +559,25 @@
         });
     }
 
+    // SECTION: Direct closure remarks gate keeps command closure deliberate without inline script.
+    function initDirectClosureValidation() {
+        document.querySelectorAll("[data-at-direct-close-form='true']").forEach((form) => {
+            const remarks = form.querySelector("[data-at-direct-close-remarks='true']");
+            const submit = form.querySelector("[data-at-direct-close-submit='true']");
+            if (!remarks || !submit) {
+                return;
+            }
+
+            const sync = () => {
+                submit.disabled = remarks.value.trim().length === 0;
+            };
+
+            remarks.addEventListener("input", sync);
+            remarks.addEventListener("change", sync);
+            sync();
+        });
+    }
+
     document.addEventListener("DOMContentLoaded", function () {
         openCreateTaskModalOnLoad();
         initSearchableSelects();
@@ -570,5 +589,6 @@
         initSprintClosureReview();
         initActionConfirmations();
         initInspectorActionPanels();
+        initDirectClosureValidation();
     });
 })();

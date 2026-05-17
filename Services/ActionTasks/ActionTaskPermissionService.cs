@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using ProjectManagement.Configuration;
+using ProjectManagement.Models;
 
 namespace ProjectManagement.Services.ActionTasks;
 
@@ -44,6 +45,12 @@ public class ActionTaskPermissionService
 
     public bool CanClose(string role)
         => IsPlanningAuthority(role);
+
+    // SECTION: Direct command closure is limited to planning authorities and non-closed tasks.
+    public bool CanCloseTaskDirectly(ActionTaskItem? task, string role)
+        => task is not null
+            && !string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)
+            && IsPlanningAuthority(role);
 
     public bool CanChangeTaskDate(string role)
         => IsPlanningAuthority(role);

@@ -54,9 +54,11 @@ public class ActionTaskServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.SubmitTaskAsync(task.Id, task.RowVersion, "other-user", RoleNames.Ta, "submit"));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.CloseTaskAsync(task.Id, task.RowVersion, "cmd", RoleNames.Comdt, "close"));
+        await service.CloseTaskDirectlyAsync(task.Id, task.RowVersion, "command close", "cmd", RoleNames.Comdt);
+        var directlyClosed = await service.GetTaskAsync(task.Id);
+        Assert.Equal(ActionTaskStatuses.Closed, directlyClosed!.Status);
 
+        task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress, "assignee");
         await service.SubmitTaskAsync(task.Id, task.RowVersion, "assignee", RoleNames.Ta, "ready");
         var submitted = await service.GetTaskAsync(task.Id);
         Assert.Equal(ActionTaskStatuses.Submitted, submitted!.Status);
@@ -67,6 +69,74 @@ public class ActionTaskServiceTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.CloseTaskAsync(task.Id, submitted.RowVersion, "non-cmd", RoleNames.Ta, "close"));
+    }
+
+
+    [Theory]
+    [InlineData(RoleNames.Comdt, ActionTaskStatuses.Assigned)]
+    [InlineData(RoleNames.Comdt, ActionTaskStatuses.InProgress)]
+    [InlineData(RoleNames.Comdt, ActionTaskStatuses.Blocked)]
+    [InlineData(RoleNames.HoD, ActionTaskStatuses.Assigned)]
+    [InlineData(RoleNames.HoD, ActionTaskStatuses.InProgress)]
+    [InlineData(RoleNames.HoD, ActionTaskStatuses.Blocked)]
+    public async Task PlanningAuthority_CanCloseNonClosedTaskDirectly(string role, string status)
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, status, "assignee");
+
+        // SECTION: Act
+        await service.CloseTaskDirectlyAsync(task.Id, task.RowVersion, "Task reviewed and closed as per command decision.", "authority", role);
+
+        // SECTION: Assert
+        var updated = await db.ActionTasks.SingleAsync(x => x.Id == task.Id);
+        Assert.Equal(ActionTaskStatuses.Closed, updated.Status);
+        Assert.Equal(new TestActionTrackerClock().UtcNow, updated.ClosedOn);
+        Assert.Equal("authority", updated.ClosedByUserId);
+        Assert.Equal("Task reviewed and closed as per command decision.", updated.ClosureRemarks);
+        Assert.DoesNotContain(await db.ActionTasks.Where(x => x.Status != ActionTaskStatuses.Closed).ToListAsync(), x => x.Id == task.Id);
+
+        var audit = await db.ActionTaskAuditLogs.SingleAsync(x => x.TaskId == task.Id && x.ActionType == "TaskClosedByCommandAuthority");
+        Assert.Equal(status, audit.OldValue);
+        Assert.Equal(ActionTaskStatuses.Closed, audit.NewValue);
+        Assert.Equal("authority", audit.PerformedByUserId);
+        Assert.Equal(role, audit.PerformedByRole);
+        Assert.Equal("Task reviewed and closed as per command decision.", audit.Remarks);
+    }
+
+    [Fact]
+    public async Task Assignee_CannotDirectlyCloseTask()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Assigned, "assignee");
+
+        // SECTION: Act + Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CloseTaskDirectlyAsync(task.Id, task.RowVersion, "close", "assignee", RoleNames.Ta));
+        Assert.Contains("not authorised", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DirectClosure_RequiresRemarksAndRejectsAlreadyClosedTask()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.Blocked, "assignee");
+
+        // SECTION: Act + Assert
+        var missingRemarks = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CloseTaskDirectlyAsync(task.Id, task.RowVersion, " ", "authority", RoleNames.HoD));
+        Assert.Contains("Closure remarks are required when closing a task.", missingRemarks.Message);
+
+        await service.CloseTaskDirectlyAsync(task.Id, task.RowVersion, "Valid closure", "authority", RoleNames.HoD);
+        var closed = await service.GetTaskAsync(task.Id);
+        var alreadyClosed = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CloseTaskDirectlyAsync(task.Id, closed!.RowVersion, "again", "authority", RoleNames.HoD));
+        Assert.Contains("already closed", alreadyClosed.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
