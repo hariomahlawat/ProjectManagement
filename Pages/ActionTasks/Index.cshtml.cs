@@ -1159,7 +1159,9 @@ public class IndexModel : PageModel
         }
 
         var requestedStatus = UpdateInput.NewStatus?.Trim();
-        var hasStatusChange = !string.IsNullOrWhiteSpace(requestedStatus);
+        var currentTask = await _service.GetTaskAsync(UpdateInput.TaskId);
+        var hasStatusChange = !string.IsNullOrWhiteSpace(requestedStatus)
+            && (currentTask is null || !string.Equals(currentTask.Status, requestedStatus, StringComparison.OrdinalIgnoreCase));
         var hasProgressNote = !string.IsNullOrWhiteSpace(UpdateInput.Body);
         var hasFiles = UpdateInput.Files?.Any(file => file.Length > 0) == true;
 
@@ -1175,7 +1177,7 @@ public class IndexModel : PageModel
 
         if (!hasProgressNote && !hasFiles && !hasStatusChange)
         {
-            TempData["ToastError"] = "Enter a progress note, attach a file, or choose a status change.";
+            TempData["ToastError"] = "No update was applied.";
             return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
         }
 
@@ -1190,7 +1192,7 @@ public class IndexModel : PageModel
                 UpdateInput.Files ?? new List<IFormFile>(),
                 DecodeRowVersion(UpdateInput.RowVersion));
 
-            TempData["ToastMessage"] = hasStatusChange ? "Progress update saved and task status updated." : "Progress update saved.";
+            TempData["ToastMessage"] = BuildProgressUpdateToast(hasProgressNote, hasFiles, hasStatusChange);
         }
         catch (ActionTaskConcurrencyException ex)
         {
@@ -1207,6 +1209,24 @@ public class IndexModel : PageModel
         }
 
         return RedirectToTaskPage(UpdateInput.TaskId, SelectedSprintId);
+    }
+
+
+    // SECTION: Progress update toast wording mirrors the actual saved changes.
+    private static string BuildProgressUpdateToast(bool hasProgressNote, bool hasFiles, bool hasStatusChange)
+    {
+        var hasUserProgress = hasProgressNote || hasFiles;
+        if (hasUserProgress && hasStatusChange)
+        {
+            return "Progress update saved and task status updated.";
+        }
+
+        if (hasStatusChange)
+        {
+            return "Task status updated.";
+        }
+
+        return "Progress update saved.";
     }
 
     // SECTION: Shared data loading

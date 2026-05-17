@@ -312,10 +312,12 @@ public class ActionTaskService : IActionTaskService
         }
     }
 
-    public async Task CloseTaskAsync(int taskId, byte[] rowVersion, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
+    // SECTION: Compatibility wrapper for older close-task callers.
+    // Current policy allows authorised task-controlling roles to close any non-closed task.
+    // Closure permission and remarks validation are enforced by CloseTaskDirectlyAsync.
+    public Task CloseTaskAsync(int taskId, byte[] rowVersion, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
     {
-        // SECTION: Submitted-task closure is retained as a compatibility wrapper over the command closure path.
-        await CloseTaskDirectlyAsync(taskId, rowVersion, remarks ?? string.Empty, userId, role, cancellationToken);
+        return CloseTaskDirectlyAsync(taskId, rowVersion, remarks ?? string.Empty, userId, role, cancellationToken);
     }
 
     public async Task CloseTaskDirectlyAsync(int taskId, byte[] rowVersion, string closureRemarks, string closedByUserId, string role, CancellationToken cancellationToken = default)

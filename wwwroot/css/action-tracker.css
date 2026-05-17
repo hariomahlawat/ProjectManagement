@@ -22,7 +22,6 @@
     --at-weight-medium: 500;
     --at-weight-semibold: 600;
     --at-weight-bold: 700;
-    --at-planning-drawer-width: 32rem;
     --at-task-drawer-width: min(32rem, calc(100vw - 2rem));
 }
 
@@ -38,10 +37,12 @@ html {
     gap: 1rem;
     min-height: 70vh;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
 }
 
 .at-shell.has-selection {
-    grid-template-columns: 88px minmax(0, 1fr) minmax(320px, 30vw);
+    grid-template-columns: 88px minmax(0, 1fr);
 }
 
 .at-rail {
@@ -2796,8 +2797,10 @@ html {
     top: 5.5rem;
     right: 1rem;
     bottom: 1rem;
-    z-index: 1040;
-    width: min(var(--at-planning-drawer-width), calc(100vw - 2rem));
+    z-index: 1050;
+    width: var(--at-task-drawer-width);
+    max-width: calc(100vw - 2rem);
+    overflow: hidden;
     box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
 }
 
@@ -2989,7 +2992,7 @@ html {
 }
 
 .at-shell.is-planning-board.has-selection .at-planning-view-toggle {
-    padding-right: min(calc(var(--at-planning-drawer-width) + 1rem), calc(100vw - 1rem));
+    padding-right: 0;
 }
 
 .at-planning-views-panel .at-planning-due-exceptions-grid,
@@ -3042,10 +3045,10 @@ html {
 }
 
 
-/* SECTION: Drawer-open Execute board reservation keeps status columns clear of the fixed inspector. */
+/* SECTION: Drawer-open Execute board stays width-safe while the fixed inspector overlays the page. */
 .at-shell.is-planning-board.has-selection .at-planning-execute-panel,
 .at-shell.is-planning-board.has-selection .at-execute-status-board {
-    max-width: calc(100vw - 88px - var(--at-planning-drawer-width) - 3.5rem);
+    max-width: 100%;
     min-width: 0;
 }
 
@@ -3058,7 +3061,7 @@ html {
     .at-shell.is-planning-board.has-selection .at-planning-execute-panel,
     .at-shell.is-planning-board.has-selection .at-execute-status-board {
         max-width: 100%;
-        padding-right: min(calc(var(--at-planning-drawer-width) + 1rem), calc(100vw - 1rem));
+        padding-right: 0;
     }
 }
 
@@ -3116,7 +3119,7 @@ html {
 }
 
 .at-shell.is-planning-board.has-selection .at-kanban-scroll {
-    padding-right: min(calc(var(--at-planning-drawer-width) + 1rem), calc(100vw - 1rem));
+    padding-right: 0;
 }
 
 .at-sprint-task-card .at-task-card-link {
@@ -3250,10 +3253,6 @@ html {
 }
 
 /* SECTION: Phase 3A-4 Sprint Board polish, contained Kanban scrolling, and compact empty states. */
-.at-shell.is-planning-board {
-    overflow-x: clip;
-}
-
 .at-shell.is-planning-board .at-create-trigger {
     border-color: #bfdbfe;
     background: #eff6ff;
@@ -4011,28 +4010,8 @@ html {
 }
 
 /* SECTION: Task Details inline More Actions panel and group refinement. */
-.at-more-actions-panel {
-    display: grid;
-    gap: 0.45rem;
-    margin-top: 0.65rem;
-    border: 1px solid var(--at-border);
-    border-radius: var(--at-radius-md);
-    background: var(--at-surface-soft);
-    padding: 0.65rem;
-}
 
-.at-more-actions-title {
-    color: var(--at-text);
-    font-size: var(--at-font-sm);
-    font-weight: var(--at-weight-bold);
-}
-
-.at-more-actions-grid {
-    display: grid;
-    gap: 0.45rem;
-    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-}
-
+/* SECTION: Task Details inline Manage Task groups. */
 .at-action-more-group {
     display: grid;
     align-content: start;
@@ -4060,7 +4039,7 @@ html {
     letter-spacing: 0.04em;
 }
 
-.at-more-actions-panel .btn-link {
+.at-action-more-group .btn-link {
     width: 100%;
     padding: 0.25rem 0.2rem;
     color: var(--at-text);
@@ -4070,39 +4049,40 @@ html {
     white-space: normal;
 }
 
-.at-more-actions-panel .btn-link:hover,
-.at-more-actions-panel .btn-link:focus {
+.at-action-more-group .btn-link:hover,
+.at-action-more-group .btn-link:focus {
     background: #f8fafc;
     color: var(--at-text);
     text-decoration: none;
 }
 
-.at-more-actions-panel .at-card-action-form {
+.at-action-more-group .at-card-action-form {
     margin: 0;
 }
 
-.at-more-actions-panel .at-action-more-destructive {
+.at-action-more-group .at-action-more-destructive {
     color: #b91c1c;
 }
 
-.at-more-actions-panel .at-action-more-destructive:hover,
-.at-more-actions-panel .at-action-more-destructive:focus {
+.at-action-more-group .at-action-more-destructive:hover,
+.at-action-more-group .at-action-more-destructive:focus {
     background: #fef2f2;
     color: #991b1b;
 }
 
 /* SECTION: Rationalised Action Tracker task details pane density and viewport-safe drawer. */
 .at-shell {
-    overflow-x: clip;
+    max-width: 100%;
+    min-width: 0;
 }
 
 .at-shell.has-selection {
-    grid-template-columns: 88px minmax(0, 1fr) minmax(20rem, min(32rem, calc(100vw - 2rem)));
+    grid-template-columns: 88px minmax(0, 1fr);
 }
 
 .at-drawer-host,
 .at-task-command-drawer {
-    max-width: min(32rem, calc(100vw - 2rem));
+    max-width: var(--at-task-drawer-width);
 }
 
 .at-inspector-header .at-panel-title {
@@ -4174,7 +4154,7 @@ html {
 
 @media (max-width: 1399px) {
     .at-drawer-host {
-        width: min(32rem, calc(100vw - 2rem));
+        width: var(--at-task-drawer-width);
     }
 }
 
