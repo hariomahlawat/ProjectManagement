@@ -56,6 +56,11 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         var hasBody = !string.IsNullOrWhiteSpace(body);
         var hasFiles = files is { Count: > 0 } && files.Any(x => x.Length > 0);
 
+        if (string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Closed tasks cannot be updated.");
+        }
+
         if (!_permission.CanAddTaskUpdate(role, userId, task.AssignedToUserId))
         {
             throw new InvalidOperationException("You are not authorized to add updates for this task.");
@@ -95,7 +100,7 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
                 CreatedByUserId = userId,
                 CreatedAtUtc = _clock.UtcNow,
                 UpdateType = ActionTaskUpdateTypes.All.First(x => string.Equals(x, updateType, StringComparison.OrdinalIgnoreCase)),
-                Body = hasBody ? body.Trim() : "Attachment update",
+                Body = hasBody ? body.Trim() : "Supporting file uploaded.",
                 IsDeleted = false
             };
 
@@ -162,7 +167,7 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
                     CreatedByUserId = userId,
                     CreatedAtUtc = _clock.UtcNow,
                     UpdateType = ActionTaskUpdateTypes.Progress,
-                    Body = hasBody ? body.Trim() : "Attachment update",
+                    Body = hasBody ? body.Trim() : "Supporting file uploaded.",
                     IsDeleted = false
                 };
                 _context.ActionTaskUpdates.Add(update);
@@ -306,6 +311,11 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
     // SECTION: Atomic command validation helpers
     private void ValidateUpdatePermissions(ActionTaskItem task, string userId, string role, bool hasFiles)
     {
+        if (string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Closed tasks cannot be updated.");
+        }
+
         if (!_permission.CanAddTaskUpdate(role, userId, task.AssignedToUserId))
         {
             throw new InvalidOperationException("You are not authorized to add updates for this task.");

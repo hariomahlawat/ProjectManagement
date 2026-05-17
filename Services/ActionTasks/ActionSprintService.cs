@@ -351,7 +351,7 @@ public class ActionSprintService
         return task;
     }
 
-    public async Task<ActionTaskItem> RemoveTaskFromSprintKeepAssignedAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default)
+    public async Task<ActionTaskItem> RemoveTaskFromSprintKeepAssignedAsync(int taskId, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
     {
         EnsureCanMoveTaskToBacklog(role);
 
@@ -367,16 +367,16 @@ public class ActionSprintService
         var oldValue = DescribeTaskBucket(task);
         task.SprintId = null;
         ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
-        AddTaskSprintAudit(task.Id, "TaskRemovedFromSprintKeepAssigned", userId, role, oldValue, DescribeTaskBucket(task), "Removed from sprint and kept assigned as Outside Sprint work.");
+        AddTaskSprintAudit(task.Id, "TaskRemovedFromSprintKeepAssigned", userId, role, oldValue, DescribeTaskBucket(task), AppendRemark("Removed from sprint and kept assigned as Outside Sprint work.", remarks));
 
         await _context.SaveChangesAsync(cancellationToken);
         return task;
     }
 
     public Task<ActionTaskItem> MoveTaskToBacklogAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default)
-        => MoveTaskToBacklogRemoveAssigneeAsync(taskId, userId, role, cancellationToken);
+        => MoveTaskToBacklogRemoveAssigneeAsync(taskId, userId, role, null, cancellationToken);
 
-    public async Task<ActionTaskItem> MoveTaskToBacklogRemoveAssigneeAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default)
+    public async Task<ActionTaskItem> MoveTaskToBacklogRemoveAssigneeAsync(int taskId, string userId, string role, string? remarks = null, CancellationToken cancellationToken = default)
     {
         EnsureCanMoveTaskToBacklog(role);
 
@@ -397,7 +397,7 @@ public class ActionSprintService
         task.SubmittedOn = null;
         task.ClosedOn = null;
         ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
-        AddTaskSprintAudit(task.Id, "TaskMovedToBacklogRemoveAssignee", userId, role, oldValue, DescribeTaskBucket(task), "Moved to backlog and removed assignee.");
+        AddTaskSprintAudit(task.Id, "TaskMovedToBacklogRemoveAssignee", userId, role, oldValue, DescribeTaskBucket(task), AppendRemark("Moved to backlog and removed assignee.", remarks));
 
         await _context.SaveChangesAsync(cancellationToken);
         return task;
@@ -415,6 +415,14 @@ public class ActionSprintService
 
     private static string DescribeTaskBucket(ActionTaskItem task)
         => $"Bucket={ActionTaskBucketClassifier.ResolveBucket(task)}; Status={task.Status}; SprintId={task.SprintId?.ToString() ?? "none"}; Assignee={(string.IsNullOrWhiteSpace(task.AssignedToUserId) ? "none" : task.AssignedToUserId)}";
+
+    private static string AppendRemark(string systemMessage, string? remarks)
+    {
+        // SECTION: Keep planning audit messages readable while retaining the required human reason.
+        return string.IsNullOrWhiteSpace(remarks)
+            ? systemMessage
+            : $"{systemMessage} Reason: {remarks.Trim()}";
+    }
 
     // SECTION: Authorization helpers
     private async Task<int> CountUnfinishedSprintTasksAsync(int sprintId, CancellationToken cancellationToken)

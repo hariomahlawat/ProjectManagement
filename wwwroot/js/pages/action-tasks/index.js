@@ -439,7 +439,7 @@
 
     // SECTION: Inspector-wide action panel orchestration and keyboard behavior.
     function initInspectorActionPanels() {
-        const getDrawer = (element) => element ? element.closest("[data-at-task-drawer], .at-task-command-shell, #task-details") : null;
+        const getDrawer = (element) => element ? element.closest("[data-at-task-details], [data-at-task-drawer], .at-task-command-shell, #task-details") : null;
 
         const getShell = (drawer) => {
             if (!drawer) {

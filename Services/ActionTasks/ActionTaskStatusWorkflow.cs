@@ -21,7 +21,7 @@ internal static class ActionTaskStatusWorkflow
             ActionTaskStatuses.Assigned => new[] { ActionTaskStatuses.InProgress, ActionTaskStatuses.Blocked },
             ActionTaskStatuses.InProgress => new[] { ActionTaskStatuses.Blocked },
             ActionTaskStatuses.Blocked => new[] { ActionTaskStatuses.InProgress },
-            ActionTaskStatuses.Submitted => new[] { ActionTaskStatuses.InProgress, ActionTaskStatuses.Blocked },
+            ActionTaskStatuses.Submitted => Array.Empty<string>(),
             _ => Array.Empty<string>()
         };
     }
