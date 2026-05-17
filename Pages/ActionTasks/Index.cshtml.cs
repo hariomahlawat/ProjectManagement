@@ -82,6 +82,7 @@ public class IndexModel : PageModel
     public IReadOnlyList<ActionTaskAuditLog> SelectedTaskLogs { get; private set; } = Array.Empty<ActionTaskAuditLog>();
     public IReadOnlyList<ActionSprintAuditLog> SprintAuditHistory { get; private set; } = Array.Empty<ActionSprintAuditLog>();
     public IReadOnlyList<ActionTaskUpdate> SelectedTaskUpdates { get; private set; } = Array.Empty<ActionTaskUpdate>();
+    public DateTime? SelectedTaskLastActivityAtUtc { get; private set; }
     public IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>> UpdateAttachments { get; private set; } = new Dictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>();
     public IReadOnlyList<UserOption> AssignableUsers { get; private set; } = Array.Empty<UserOption>();
     public IReadOnlyDictionary<string, string> TaskAssigneeNames { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -339,6 +340,16 @@ public class IndexModel : PageModel
         return _workflowPolicy.CanUpdateTaskStatus(task, CurrentRole, CurrentUserId);
     }
 
+    public IReadOnlyList<string> GetAllowedStatusTargets(ActionTaskItem task)
+    {
+        return _workflowPolicy.GetAllowedStatusTargets(task, CurrentRole, CurrentUserId);
+    }
+
+    public DateTime GetSelectedTaskLastActivityUtc()
+    {
+        return SelectedTaskLastActivityAtUtc ?? SelectedTask?.AssignedOn ?? DateTime.MinValue;
+    }
+
     public bool CanChangeTaskDate(ActionTaskItem task)
     {
         return _workflowPolicy.CanChangeTaskDate(task, CurrentRole);
@@ -358,15 +369,23 @@ public class IndexModel : PageModel
 
         return actionType switch
         {
-            "OutsideSprintTaskAssignedToSprint" => "Added to Sprint",
-            "TaskRemovedFromSprintKeepAssigned" => "Removed from Sprint",
-            "TaskCarriedForward" => "Carried Forward",
-            "Task Created" => "Task Created",
-            "TaskUpdated" => "Task Updated",
-            "TaskStatusChanged" => "Status Changed",
-            "TaskSubmitted" => "Submitted for Closure",
-            "TaskClosed" => "Task Closed",
-            "TaskDueDateChanged" => "Due Date Changed",
+            "TaskCreated" => "Task created",
+            "BacklogItemCreated" => "Backlog item created",
+            "TaskAssignedToSprint" => "Added to sprint",
+            "OutsideSprintTaskAssignedToSprint" => "Added to sprint",
+            "TaskRemovedFromSprintKeepAssigned" => "Removed from sprint, kept assigned",
+            "TaskMovedToBacklogRemoveAssignee" => "Moved to backlog",
+            "TaskCarriedForward" => "Carried forward",
+            "TaskUpdated" => "Task updated",
+            "Submitted" => "Submitted for closure",
+            "TaskSubmitted" => "Submitted for closure",
+            "Closed" => "Closed",
+            "TaskClosed" => "Closed",
+            "StatusUpdated" => "Status changed",
+            "TaskStatusChanged" => "Status changed",
+            "DueDateChanged" => "Due date changed",
+            "TargetDateChanged" => "Target date changed",
+            "TaskDueDateChanged" => "Due date changed",
             _ => Regex.Replace(actionType, "(?<!^)([A-Z])", " $1")
         };
     }
@@ -1071,22 +1090,14 @@ public class IndexModel : PageModel
 
         try
         {
-            if (hasProgressNote || hasFiles)
-            {
-                await _collaborationService.AddUpdateAsync(UpdateInput.TaskId, UpdateInput.Body, ActionTaskUpdateTypes.Progress, CurrentUserId, CurrentRole, UpdateInput.Files ?? new List<IFormFile>());
-            }
-
-            if (hasStatusChange)
-            {
-                if (string.Equals(requestedStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
-                {
-                    await _service.SubmitTaskAsync(UpdateInput.TaskId, DecodeRowVersion(UpdateInput.RowVersion), CurrentUserId, CurrentRole, UpdateInput.Body);
-                }
-                else
-                {
-                    await _service.UpdateStatusAsync(UpdateInput.TaskId, DecodeRowVersion(UpdateInput.RowVersion), requestedStatus!, CurrentUserId, CurrentRole, UpdateInput.Body);
-                }
-            }
+            await _collaborationService.AddUpdateAndMaybeChangeStatusAsync(
+                UpdateInput.TaskId,
+                UpdateInput.Body,
+                requestedStatus,
+                CurrentUserId,
+                CurrentRole,
+                UpdateInput.Files ?? new List<IFormFile>(),
+                DecodeRowVersion(UpdateInput.RowVersion));
 
             TempData["ToastMessage"] = hasStatusChange ? "Progress update saved and task status updated." : "Progress update saved.";
         }
@@ -1183,6 +1194,7 @@ public class IndexModel : PageModel
         SelectedTask = inspector.SelectedTask;
         SelectedTaskLogs = inspector.Logs;
         SelectedTaskUpdates = inspector.Updates;
+        SelectedTaskLastActivityAtUtc = inspector.LastActivityAtUtc;
         UpdateAttachments = inspector.UpdateAttachments;
         TaskActorNames = inspector.ActorNames;
     }

@@ -126,6 +126,94 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         }
     }
 
+    // SECTION: Atomic progress update with optional workflow status change
+    public async Task<ActionTaskUpdate?> AddUpdateAndMaybeChangeStatusAsync(int taskId, string body, string? newStatus, string userId, string role, IReadOnlyList<IFormFile> files, byte[] rowVersion, CancellationToken cancellationToken = default)
+    {
+        files ??= Array.Empty<IFormFile>();
+
+        // SECTION: Load and validate the full command before any update or attachment is persisted.
+        var task = await _context.ActionTasks.FirstOrDefaultAsync(x => x.Id == taskId && !x.IsDeleted, cancellationToken) ?? throw new InvalidOperationException("Task not found.");
+        var hasBody = !string.IsNullOrWhiteSpace(body);
+        var hasFiles = files is { Count: > 0 } && files.Any(x => x.Length > 0);
+        var requestedStatus = string.IsNullOrWhiteSpace(newStatus) ? null : ResolveStatus(newStatus.Trim());
+        var hasStatusChange = !string.IsNullOrWhiteSpace(requestedStatus);
+
+        if (!hasBody && !hasFiles && !hasStatusChange)
+        {
+            throw new InvalidOperationException("Update text is required unless at least one attachment is uploaded.");
+        }
+
+        ValidateUpdatePermissions(task, userId, role, hasFiles);
+        ValidateAttachments(files);
+        ValidateAtomicStatusChange(task, requestedStatus, userId, role, body);
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        var committedFiles = new List<string>();
+
+        try
+        {
+            // SECTION: Create the human progress timeline entry and mutate workflow state in the same EF transaction.
+            ActionTaskUpdate? update = null;
+            if (hasBody || hasFiles)
+            {
+                update = new ActionTaskUpdate
+                {
+                    TaskId = taskId,
+                    CreatedByUserId = userId,
+                    CreatedAtUtc = _clock.UtcNow,
+                    UpdateType = ActionTaskUpdateTypes.Progress,
+                    Body = hasBody ? body.Trim() : "Attachment update",
+                    IsDeleted = false
+                };
+                _context.ActionTaskUpdates.Add(update);
+            }
+
+            if (hasStatusChange && !string.Equals(task.Status, requestedStatus, StringComparison.OrdinalIgnoreCase))
+            {
+                _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
+                ApplyStatusChange(task, requestedStatus!, userId, role, body);
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            // SECTION: Attachment metadata remains inside the same database transaction; physical files are cleaned up on rollback.
+            if (update is not null)
+            {
+                foreach (var file in files.Where(x => x.Length > 0))
+                {
+                    var storedPath = await AddAttachmentAsync(taskId, update.Id, userId, file, cancellationToken);
+                    if (!string.IsNullOrWhiteSpace(storedPath))
+                    {
+                        committedFiles.Add(storedPath);
+                    }
+                }
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            return update;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            foreach (var filePath in committedFiles)
+            {
+                SafeDelete(filePath);
+            }
+
+            throw new ActionTaskConcurrencyException("This task was updated by another user. Please reload the task details and try again.");
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            foreach (var filePath in committedFiles)
+            {
+                SafeDelete(filePath);
+            }
+
+            throw;
+        }
+    }
+
     // SECTION: Read updates for inspector thread
     public async Task<List<ActionTaskUpdate>> GetUpdatesAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default)
     {
@@ -213,6 +301,129 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         });
         await _context.SaveChangesAsync(cancellationToken);
         return absolutePath;
+    }
+
+    // SECTION: Atomic command validation helpers
+    private void ValidateUpdatePermissions(ActionTaskItem task, string userId, string role, bool hasFiles)
+    {
+        if (!_permission.CanAddTaskUpdate(role, userId, task.AssignedToUserId))
+        {
+            throw new InvalidOperationException("You are not authorized to add updates for this task.");
+        }
+
+        if (hasFiles && !_permission.CanUploadTaskAttachment(role, userId, task.AssignedToUserId))
+        {
+            throw new InvalidOperationException("You are not authorized to add updates for this task.");
+        }
+    }
+
+    private void ValidateAtomicStatusChange(ActionTaskItem task, string? requestedStatus, string userId, string role, string? remarks)
+    {
+        if (string.IsNullOrWhiteSpace(requestedStatus))
+        {
+            return;
+        }
+
+        if (string.Equals(task.Status, requestedStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (string.Equals(requestedStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateSubmitCommand(task, userId, role, remarks);
+            return;
+        }
+
+        if (!_permission.CanUpdateTask(role, userId, task.AssignedToUserId))
+        {
+            throw new InvalidOperationException("You are not authorized to update this task.");
+        }
+
+        if (string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(requestedStatus, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Backlog items can only be changed through planning actions.");
+        }
+
+        if (string.Equals(requestedStatus, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Use the close action to close a task.");
+        }
+
+        if (!ActionTaskStatusWorkflow.IsAllowedTransition(task.Status, requestedStatus))
+        {
+            throw new InvalidOperationException($"Invalid status transition from {task.Status} to {requestedStatus}.");
+        }
+
+        ActionTaskStatusWorkflow.ValidateRemarksForStatusTransition(task.Status, requestedStatus, remarks);
+    }
+
+    private void ValidateSubmitCommand(ActionTaskItem task, string userId, string role, string? remarks)
+    {
+        if (!string.Equals(task.AssignedToUserId, userId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Only the assigned user can submit this task.");
+        }
+
+        if (!_permission.CanSubmit(role))
+        {
+            throw new InvalidOperationException("You are not authorized to submit this task.");
+        }
+
+        if (string.Equals(task.Status, ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Backlog items cannot be submitted.");
+        }
+
+        if (string.Equals(task.Status, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Closed tasks cannot be submitted.");
+        }
+
+        if (!ActionTaskStatusWorkflow.CanSubmitFromStatus(task.Status))
+        {
+            throw new InvalidOperationException("Only assigned, in-progress, or blocked tasks can be submitted.");
+        }
+
+        ActionTaskStatusWorkflow.ValidateRemarksForStatusTransition(task.Status, ActionTaskStatuses.Submitted, remarks);
+    }
+
+    private void ApplyStatusChange(ActionTaskItem task, string requestedStatus, string userId, string role, string? remarks)
+    {
+        var oldStatus = task.Status;
+        task.Status = requestedStatus;
+        if (string.Equals(requestedStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+        {
+            task.SubmittedOn = _clock.UtcNow;
+        }
+
+        ActionTaskBucketInvariantValidator.ValidateTaskBucketInvariant(task);
+        var auditAction = string.Equals(requestedStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
+            ? "Submitted"
+            : "StatusUpdated";
+        _context.ActionTaskAuditLogs.Add(new ActionTaskAuditLog
+        {
+            TaskId = task.Id,
+            ActionType = auditAction,
+            PerformedByUserId = userId,
+            PerformedByRole = role,
+            PerformedAt = _clock.UtcNow,
+            OldValue = oldStatus,
+            NewValue = task.Status,
+            Remarks = remarks
+        });
+    }
+
+    private static string ResolveStatus(string status)
+    {
+        var resolved = ActionTaskStatuses.All.FirstOrDefault(candidate => string.Equals(candidate, status, StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrWhiteSpace(resolved))
+        {
+            throw new InvalidOperationException("Invalid status transition.");
+        }
+
+        return resolved;
     }
 
     // SECTION: Attachment validation helpers

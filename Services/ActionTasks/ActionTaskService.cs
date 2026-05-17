@@ -212,13 +212,13 @@ public class ActionTaskService : IActionTaskService
         }
 
         // SECTION: Enforce lifecycle transitions
-        if (!IsAllowedTransition(task.Status, status))
+        if (!ActionTaskStatusWorkflow.IsAllowedTransition(task.Status, status))
         {
             throw new InvalidOperationException($"Invalid status transition from {task.Status} to {status}.");
         }
 
         // SECTION: Remarks validation for key transitions
-        ValidateRemarksForStatusTransition(task.Status, status, remarks);
+        ActionTaskStatusWorkflow.ValidateRemarksForStatusTransition(task.Status, status, remarks);
 
         // SECTION: Concurrency token validation
         _context.Entry(task).Property(x => x.RowVersion).OriginalValue = rowVersion;
@@ -276,7 +276,7 @@ public class ActionTaskService : IActionTaskService
             throw new InvalidOperationException("Closed tasks cannot be submitted.");
         }
 
-        if (!CanSubmitFromStatus(task.Status))
+        if (!ActionTaskStatusWorkflow.CanSubmitFromStatus(task.Status))
         {
             throw new InvalidOperationException("Only assigned, in-progress, or blocked tasks can be submitted.");
         }
@@ -435,62 +435,6 @@ public class ActionTaskService : IActionTaskService
         };
     }
 
-    // SECTION: Remarks rule helpers
-    private static void ValidateRemarksForStatusTransition(string currentStatus, string nextStatus, string? remarks)
-    {
-        if (string.Equals(nextStatus, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase) && IsBlank(remarks))
-        {
-            throw new InvalidOperationException("Remarks are required when marking a task as blocked.");
-        }
-
-        if (string.Equals(nextStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase) && IsBlank(remarks))
-        {
-            throw new InvalidOperationException("Remarks are required when submitting a task.");
-        }
-
-        if (string.Equals(currentStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(nextStatus, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)
-            && IsBlank(remarks))
-        {
-            throw new InvalidOperationException("Remarks are required when returning a submitted task for further action.");
-        }
-    }
-
+    // SECTION: Shared blank-value guard for required workflow remarks.
     private static bool IsBlank(string? value) => string.IsNullOrWhiteSpace(value);
-
-    // SECTION: Submit workflow guard
-    private static bool CanSubmitFromStatus(string currentStatus)
-    {
-        return string.Equals(currentStatus, ActionTaskStatuses.Assigned, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(currentStatus, ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(currentStatus, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
-    }
-
-    // SECTION: Workflow transition guard
-    private static bool IsAllowedTransition(string currentStatus, string nextStatus)
-    {
-        if (string.Equals(currentStatus, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (string.Equals(nextStatus, ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (string.Equals(currentStatus, nextStatus, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return currentStatus switch
-        {
-            ActionTaskStatuses.Assigned => nextStatus is ActionTaskStatuses.InProgress or ActionTaskStatuses.Blocked,
-            ActionTaskStatuses.InProgress => nextStatus is ActionTaskStatuses.Blocked,
-            ActionTaskStatuses.Blocked => nextStatus is ActionTaskStatuses.InProgress,
-            ActionTaskStatuses.Submitted => nextStatus is ActionTaskStatuses.InProgress or ActionTaskStatuses.Blocked,
-            _ => false
-        };
-    }
 }

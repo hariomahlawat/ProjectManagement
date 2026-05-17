@@ -1,7 +1,5 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-<link rel="stylesheet" href="~/css/action-task-details-redesign.css" asp-append-version="true" />
-
 @{
     // SECTION: Inspector actions preserve the active Sprint Board tab, alternate view, and Sprint route state.
     var planningTabRouteValue = Model.IsPlanningView ? Model.ResolvedPlanningTab : null;
@@ -83,7 +81,7 @@
                         <span class="at-muted-meta">@Model.GetSprintBadgeText(Model.SelectedTask)</span>
                     </div>
                     <div class="at-inspector-snapshot at-command-snapshot">
-                        <span>Last update: @TimeFmt.ToIst(Model.SelectedTaskUpdates.FirstOrDefault()?.CreatedAtUtc ?? Model.SelectedTask.AssignedOn)</span>
+                        <span>Last update: @TimeFmt.ToIst(Model.GetSelectedTaskLastActivityUtc())</span>
                         <span>@Model.SelectedTaskUpdates.Count() updates</span>
                         <span>@Model.UpdateAttachments.Sum(entry => entry.Value.Count) attachments</span>
                     </div>
@@ -176,7 +174,7 @@
                                     <label class="form-label at-small" asp-for="UpdateInput.NewStatus">Change status</label>
                                     <select class="form-select form-select-sm" asp-for="UpdateInput.NewStatus" data-at-progress-status-select data-current-status="@Model.SelectedTask.Status">
                                         <option value="">No status change</option>
-                                        @foreach (var status in Model.AllowedStatusOptions.Where(status => !string.Equals(status, ProjectManagement.Models.ActionTaskStatuses.Backlog, StringComparison.OrdinalIgnoreCase) && !string.Equals(status, ProjectManagement.Models.ActionTaskStatuses.Closed, StringComparison.OrdinalIgnoreCase)))
+                                        @foreach (var status in Model.GetAllowedStatusTargets(Model.SelectedTask))
                                         {
                                             <option value="@status">@status</option>
                                         }
