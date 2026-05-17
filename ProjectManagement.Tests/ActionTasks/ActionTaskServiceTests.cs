@@ -139,6 +139,77 @@ public class ActionTaskServiceTests
         Assert.Contains("already closed", alreadyClosed.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("     ")]
+    public async Task CloseTaskDirectlyAsync_RejectsBlankClosureRemarks(string remarks)
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress, "assignee");
+
+        // SECTION: Act
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CloseTaskDirectlyAsync(task.Id, task.RowVersion, remarks, "authority", RoleNames.HoD));
+
+        // SECTION: Assert
+        Assert.Equal("Closure remarks are required when closing a task.", ex.Message);
+        var unchanged = await db.ActionTasks.SingleAsync(x => x.Id == task.Id);
+        Assert.Equal(ActionTaskStatuses.InProgress, unchanged.Status);
+        Assert.Null(unchanged.ClosedOn);
+        Assert.Null(unchanged.ClosedByUserId);
+        Assert.Null(unchanged.ClosureRemarks);
+    }
+
+    [Fact]
+    public async Task CloseTaskDirectlyAsync_RejectsOverlengthClosureRemarksBeforeSaving()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress, "assignee");
+        var overlengthRemarks = new string('x', 2001);
+
+        // SECTION: Act
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CloseTaskDirectlyAsync(task.Id, task.RowVersion, overlengthRemarks, "authority", RoleNames.HoD));
+
+        // SECTION: Assert
+        Assert.Equal("Closure remarks cannot exceed 2000 characters.", ex.Message);
+        var unchanged = await db.ActionTasks.SingleAsync(x => x.Id == task.Id);
+        Assert.Equal(ActionTaskStatuses.InProgress, unchanged.Status);
+        Assert.Null(unchanged.ClosedOn);
+        Assert.Null(unchanged.ClosedByUserId);
+        Assert.Null(unchanged.ClosureRemarks);
+        Assert.Empty(await db.ActionTaskAuditLogs.Where(x => x.TaskId == task.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task CloseTaskDirectlyAsync_SavesValidClosureRemarksAndAuditFields()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, ActionTaskStatuses.InProgress, "assignee");
+
+        // SECTION: Act
+        await service.CloseTaskDirectlyAsync(task.Id, task.RowVersion, "  Closed by command decision after review.  ", "authority", RoleNames.HoD);
+
+        // SECTION: Assert
+        var updated = await db.ActionTasks.SingleAsync(x => x.Id == task.Id);
+        Assert.Equal(ActionTaskStatuses.Closed, updated.Status);
+        Assert.Equal(new TestActionTrackerClock().UtcNow, updated.ClosedOn);
+        Assert.Equal("authority", updated.ClosedByUserId);
+        Assert.Equal("Closed by command decision after review.", updated.ClosureRemarks);
+
+        var audit = await db.ActionTaskAuditLogs.SingleAsync(x => x.TaskId == task.Id && x.ActionType == "TaskClosedByCommandAuthority");
+        Assert.Equal(ActionTaskStatuses.InProgress, audit.OldValue);
+        Assert.Equal(ActionTaskStatuses.Closed, audit.NewValue);
+        Assert.Equal("Closed by command decision after review.", audit.Remarks);
+    }
+
     [Fact]
     public async Task UpdateStatusAsync_WithStaleRowVersion_ThrowsConcurrencyException()
     {

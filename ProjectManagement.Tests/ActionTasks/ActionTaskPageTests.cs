@@ -169,6 +169,37 @@ public class ActionTaskPageTests
         Assert.Equal(task.Id, redirect.RouteValues[nameof(IndexModel.TaskId)]);
     }
 
+
+    [Fact]
+    public async Task OnPostAddUpdateAsync_UsesAtomicUpdateStatusWorkflow()
+    {
+        // SECTION: Arrange
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var page = setup.Page;
+        var task = await setup.Db.ActionTasks.SingleAsync();
+        page.UpdateInput = new IndexModel.AddTaskUpdateInput
+        {
+            TaskId = task.Id,
+            RowVersion = Convert.ToBase64String(task.RowVersion),
+            Body = "Progress made",
+            NewStatus = ActionTaskStatuses.InProgress,
+            Files = new List<IFormFile>()
+        };
+
+        // SECTION: Act
+        var result = await page.OnPostAddUpdateAsync();
+
+        // SECTION: Assert
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal(task.Id, redirect.RouteValues![nameof(IndexModel.TaskId)]);
+        Assert.Equal(1, setup.Collab.AtomicUpdateCallCount);
+        Assert.Equal(task.Id, setup.Collab.LastAtomicUpdateTaskId);
+        Assert.Equal("Progress made", setup.Collab.LastAtomicUpdateBody);
+        Assert.Equal(ActionTaskStatuses.InProgress, setup.Collab.LastAtomicUpdateStatus);
+        Assert.NotNull(setup.Collab.LastAtomicUpdateFiles);
+        Assert.Equal("Progress update saved and task status updated.", page.TempData["ToastMessage"]);
+    }
+
     [Fact]
     public async Task MyWorkPartial_RendersOpenPersonalQueueWithoutCommandNoise()
     {
@@ -1791,7 +1822,7 @@ public class ActionTaskPageTests
         return services.BuildServiceProvider();
     }
 
-    private static async Task<(IndexModel Page, ApplicationDbContext Db)> CreateSetupAsync(string currentRole = RoleNames.HoD)
+    private static async Task<(IndexModel Page, ApplicationDbContext Db, StubCollabService Collab)> CreateSetupAsync(string currentRole = RoleNames.HoD)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         var db = new ApplicationDbContext(options);
@@ -1836,7 +1867,7 @@ public class ActionTaskPageTests
 
         page.PageContext = new PageContext(new ActionContext(httpContext, new RouteData(), new ActionDescriptor()));
         page.TempData = new TempDataDictionary(httpContext, new DictionaryTempDataProvider());
-        return (page, db);
+        return (page, db, collab);
     }
 
 
@@ -1891,7 +1922,42 @@ public class ActionTaskPageTests
 
     private sealed class StubCollabService : IActionTaskCollaborationService
     {
+        public int AtomicUpdateCallCount { get; private set; }
+        public int? LastAtomicUpdateTaskId { get; private set; }
+        public string? LastAtomicUpdateBody { get; private set; }
+        public string? LastAtomicUpdateStatus { get; private set; }
+        public IReadOnlyList<IFormFile>? LastAtomicUpdateFiles { get; private set; }
+
         public Task<ActionTaskUpdate> AddUpdateAsync(int taskId, string body, string updateType, string userId, string role, IReadOnlyList<IFormFile> files, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
+        public Task<ActionTaskUpdate?> AddUpdateAndMaybeChangeStatusAsync(
+            int taskId,
+            string body,
+            string? newStatus,
+            string userId,
+            string role,
+            IReadOnlyList<IFormFile> files,
+            byte[] rowVersion,
+            CancellationToken cancellationToken = default)
+        {
+            // SECTION: Track atomic update submissions for page-handler assertions.
+            AtomicUpdateCallCount++;
+            LastAtomicUpdateTaskId = taskId;
+            LastAtomicUpdateBody = body;
+            LastAtomicUpdateStatus = newStatus;
+            LastAtomicUpdateFiles = files;
+
+            return Task.FromResult<ActionTaskUpdate?>(new ActionTaskUpdate
+            {
+                TaskId = taskId,
+                Body = string.IsNullOrWhiteSpace(body) ? "Status updated." : body.Trim(),
+                UpdateType = ActionTaskUpdateTypes.Progress,
+                CreatedByUserId = userId,
+                CreatedAtUtc = DateTime.UtcNow,
+                IsDeleted = false
+            });
+        }
+
         public Task<IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>> GetAttachmentMetadataByUpdateAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default) => Task.FromResult((IReadOnlyDictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>)new Dictionary<int, IReadOnlyList<ActionTaskAttachmentMetadata>>());
         public Task<List<ActionTaskUpdate>> GetUpdatesAsync(int taskId, string userId, string role, CancellationToken cancellationToken = default) => Task.FromResult(new List<ActionTaskUpdate>());
     }

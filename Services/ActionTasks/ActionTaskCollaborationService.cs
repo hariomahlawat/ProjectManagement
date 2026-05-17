@@ -81,13 +81,8 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             throw new InvalidOperationException("Update text is required unless at least one attachment is uploaded.");
         }
 
-        if (files.Count > MaxAttachmentsPerUpdate)
-        {
-            throw new InvalidOperationException($"A maximum of {MaxAttachmentsPerUpdate} files can be attached per update.");
-        }
-
         // SECTION: Validate all uploaded files before persisting update
-        ValidateAttachments(files);
+        ValidateAttachmentCollection(files);
 
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         var committedFiles = new List<string>();
@@ -149,7 +144,7 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         }
 
         ValidateUpdatePermissions(task, userId, role, hasFiles);
-        ValidateAttachments(files);
+        ValidateAttachmentCollection(files);
         ValidateAtomicStatusChange(task, requestedStatus, userId, role, body);
 
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
@@ -437,6 +432,16 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
     }
 
     // SECTION: Attachment validation helpers
+    private static void ValidateAttachmentCollection(IReadOnlyList<IFormFile> files)
+    {
+        if (files.Count > MaxAttachmentsPerUpdate)
+        {
+            throw new InvalidOperationException($"A maximum of {MaxAttachmentsPerUpdate} files can be attached per update.");
+        }
+
+        ValidateAttachments(files);
+    }
+
     private static void ValidateAttachments(IReadOnlyList<IFormFile> files)
     {
         foreach (var file in files)
