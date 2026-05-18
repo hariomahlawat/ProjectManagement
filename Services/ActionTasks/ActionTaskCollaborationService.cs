@@ -36,8 +36,16 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
     private readonly IFileSecurityValidator _fileSecurityValidator;
     private readonly IProtectedFileUrlBuilder _urlBuilder;
     private readonly IActionTrackerClock _clock;
+    private readonly IActionTaskNotificationService? _notifications;
 
-    public ActionTaskCollaborationService(ApplicationDbContext context, ActionTaskPermissionService permission, IUploadRootProvider uploadRootProvider, IFileSecurityValidator fileSecurityValidator, IProtectedFileUrlBuilder urlBuilder, IActionTrackerClock clock)
+    public ActionTaskCollaborationService(
+        ApplicationDbContext context,
+        ActionTaskPermissionService permission,
+        IUploadRootProvider uploadRootProvider,
+        IFileSecurityValidator fileSecurityValidator,
+        IProtectedFileUrlBuilder urlBuilder,
+        IActionTrackerClock clock,
+        IActionTaskNotificationService? notifications = null)
     {
         _context = context;
         _permission = permission;
@@ -45,6 +53,7 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
         _fileSecurityValidator = fileSecurityValidator;
         _urlBuilder = urlBuilder;
         _clock = clock;
+        _notifications = notifications;
     }
 
     // SECTION: Add update with optional attachments
@@ -112,6 +121,13 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             }
 
             await transaction.CommitAsync(cancellationToken);
+
+            // SECTION: In-app notification after successful transaction commit
+            if (_notifications is not null)
+            {
+                await _notifications.NotifyProgressUpdatedAsync(task, update, userId, cancellationToken);
+            }
+
             return update;
         }
         catch
@@ -193,6 +209,31 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             }
 
             await transaction.CommitAsync(cancellationToken);
+
+            // SECTION: In-app notification after successful transaction commit
+            if (_notifications is not null && update is not null)
+            {
+                if (hasStatusChange)
+                {
+                    if (string.Equals(task.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase))
+                    {
+                        await _notifications.NotifyTaskBlockedAsync(task, userId, cancellationToken);
+                    }
+                    else if (string.Equals(task.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase))
+                    {
+                        await _notifications.NotifySubmittedForClosureAsync(task, userId, cancellationToken);
+                    }
+                    else
+                    {
+                        await _notifications.NotifyStatusChangedAsync(task, previousStatus, task.Status, userId, cancellationToken);
+                    }
+                }
+                else
+                {
+                    await _notifications.NotifyProgressUpdatedAsync(task, update, userId, cancellationToken);
+                }
+            }
+
             return update;
         }
         catch (DbUpdateConcurrencyException)
