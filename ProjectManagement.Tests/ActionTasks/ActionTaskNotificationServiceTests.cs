@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Notifications;
@@ -226,7 +225,8 @@ public sealed class ActionTaskNotificationServiceTests
         public FakeUserManager(IReadOnlyDictionary<string, IReadOnlyList<ApplicationUser>>? usersByRole = null)
             : base(
                 new FakeUserStore(),
-                Options.Create(new IdentityOptions()),
+                // SECTION: Identity options
+                Microsoft.Extensions.Options.Options.Create(new IdentityOptions()),
                 new PasswordHasher<ApplicationUser>(),
                 Array.Empty<IUserValidator<ApplicationUser>>(),
                 Array.Empty<IPasswordValidator<ApplicationUser>>(),
