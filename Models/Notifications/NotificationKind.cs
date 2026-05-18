@@ -21,5 +21,15 @@ public enum NotificationKind
     TrainingDeleteRejected = 92,
     ActivityDeleteRequested = 93,
     ActivityDeleteApproved = 94,
-    ActivityDeleteRejected = 95
+    ActivityDeleteRejected = 95,
+    ActionTaskAssigned = 100,
+    ActionTaskProgressUpdated = 101,
+    ActionTaskStatusChanged = 102,
+    ActionTaskBlocked = 103,
+    ActionTaskSubmittedForClosure = 104,
+    ActionTaskClosed = 105,
+    ActionTaskDueDateChanged = 106,
+    ActionTaskMovedToBacklog = 107,
+    ActionTaskRemovedFromSprint = 108,
+    ActionTaskAddedToSprint = 109
 }

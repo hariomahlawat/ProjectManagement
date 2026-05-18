@@ -398,6 +398,7 @@ builder.Services.AddScoped<ActionTaskWorkspaceBuilder>();
 builder.Services.AddScoped<ActionTaskWorkflowPolicy>();
 builder.Services.AddScoped<ActionSprintWorkflowPolicy>();
 builder.Services.AddScoped<ActionSprintService>();
+builder.Services.AddScoped<IActionTaskNotificationService, ActionTaskNotificationService>();
 builder.Services.AddScoped<IActionTaskService, ActionTaskService>();
 builder.Services.AddScoped<IActionTaskCollaborationService, ActionTaskCollaborationService>();
 builder.Services.Configure<TodoOptions>(

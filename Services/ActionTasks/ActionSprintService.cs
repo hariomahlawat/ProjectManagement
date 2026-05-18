@@ -18,17 +18,20 @@ public class ActionSprintService
     private readonly ActionTaskPermissionService _permission;
     private readonly ActionSprintWorkflowPolicy _workflow;
     private readonly IActionTrackerClock _clock;
+    private readonly IActionTaskNotificationService? _notifications;
 
     public ActionSprintService(
         ApplicationDbContext context,
         ActionTaskPermissionService permission,
         ActionSprintWorkflowPolicy workflow,
-        IActionTrackerClock clock)
+        IActionTrackerClock clock,
+        IActionTaskNotificationService? notifications = null)
     {
         _context = context;
         _permission = permission;
         _workflow = workflow;
         _clock = clock;
+        _notifications = notifications;
     }
 
 
@@ -318,6 +321,13 @@ public class ActionSprintService
         AddTaskSprintAudit(task.Id, "TaskAssignedToSprint", userId, role, oldValue, DescribeTaskBucket(task), $"Assigned to sprint: {sprint.Name}; responsible person selected.");
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        // SECTION: In-app notification after successful persistence
+        if (_notifications is not null)
+        {
+            await _notifications.NotifyTaskAssignedAsync(task, userId, cancellationToken);
+        }
+
         return task;
     }
 
@@ -348,6 +358,13 @@ public class ActionSprintService
         AddTaskSprintAudit(task.Id, "OutsideSprintTaskAssignedToSprint", userId, role, oldValue, DescribeTaskBucket(task), $"Added Outside Sprint task to sprint: {sprint.Name}; responsible person retained.");
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        // SECTION: In-app notification after successful persistence
+        if (_notifications is not null)
+        {
+            await _notifications.NotifyAddedToSprintAsync(task, userId, cancellationToken);
+        }
+
         return task;
     }
 
@@ -370,6 +387,13 @@ public class ActionSprintService
         AddTaskSprintAudit(task.Id, "TaskRemovedFromSprintKeepAssigned", userId, role, oldValue, DescribeTaskBucket(task), AppendRemark("Removed from sprint and kept assigned as Outside Sprint work.", remarks));
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        // SECTION: In-app notification after successful persistence
+        if (_notifications is not null)
+        {
+            await _notifications.NotifyRemovedFromSprintAsync(task, userId, cancellationToken);
+        }
+
         return task;
     }
 
@@ -390,6 +414,7 @@ public class ActionSprintService
         await EnsureCurrentSprintCanChangeAsync(task, cancellationToken);
 
         var oldValue = DescribeTaskBucket(task);
+        var previousAssigneeUserId = task.AssignedToUserId;
         task.SprintId = null;
         task.AssignedToUserId = string.Empty;
         task.AssignedToRole = string.Empty;
@@ -400,6 +425,13 @@ public class ActionSprintService
         AddTaskSprintAudit(task.Id, "TaskMovedToBacklogRemoveAssignee", userId, role, oldValue, DescribeTaskBucket(task), AppendRemark("Moved to backlog and removed assignee.", remarks));
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        // SECTION: In-app notification after successful persistence
+        if (_notifications is not null)
+        {
+            await _notifications.NotifyMovedToBacklogAsync(task, previousAssigneeUserId, userId, cancellationToken);
+        }
+
         return task;
     }
 
