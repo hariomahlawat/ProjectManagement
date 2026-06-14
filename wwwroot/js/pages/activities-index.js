@@ -27,20 +27,23 @@
       });
     }
 
+    // SECTION: Optional instant-submit filters
+    function submitFiltersFromFirstPage() {
+      const pageInput = filterForm.querySelector('input[name="Page"]');
+      if (pageInput) {
+        pageInput.value = '1';
+      }
+
+      if (typeof filterForm.requestSubmit === 'function') {
+        filterForm.requestSubmit();
+      } else {
+        filterForm.submit();
+      }
+    }
+
     const autoSubmitInputs = filterForm.querySelectorAll('[data-activities-autosubmit]');
     autoSubmitInputs.forEach((input) => {
-      input.addEventListener('change', () => {
-        const pageInput = filterForm.querySelector('input[name="Page"]');
-        if (pageInput) {
-          pageInput.value = '1';
-        }
-
-        if (typeof filterForm.requestSubmit === 'function') {
-          filterForm.requestSubmit();
-        } else {
-          filterForm.submit();
-        }
-      });
+      input.addEventListener('change', submitFiltersFromFirstPage);
     });
   }
 

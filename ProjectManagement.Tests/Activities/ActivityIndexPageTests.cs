@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -309,6 +310,35 @@ public sealed class ActivityIndexPageTests
         Assert.Equal("No activities match the selected filters.", page.TempData?["ToastMessage"]);
     }
 
+
+    [Fact]
+    public void FilterMarkup_DoesNotAutoSubmitDateFields()
+    {
+        // SECTION: Arrange
+        var pageMarkup = ReadRepoFile("Pages", "Activities", "Index.cshtml");
+
+        // SECTION: Assert
+        Assert.Contains("asp-for=\"ActivityTypeId\" class=\"form-select\" asp-items=\"Model.ActivityTypeOptions\" data-activities-autosubmit", pageMarkup, StringComparison.Ordinal);
+        Assert.Contains("asp-for=\"MediaFilter\" class=\"form-select\" data-activities-autosubmit", pageMarkup, StringComparison.Ordinal);
+        Assert.Contains("asp-for=\"FromDate\" class=\"form-control\" type=\"date\" aria-label=\"From date\"", pageMarkup, StringComparison.Ordinal);
+        Assert.Contains("asp-for=\"ToDate\" class=\"form-control\" type=\"date\" aria-label=\"To date\"", pageMarkup, StringComparison.Ordinal);
+        Assert.DoesNotContain("asp-for=\"FromDate\" class=\"form-control\" type=\"date\" data-activities-autosubmit", pageMarkup, StringComparison.Ordinal);
+        Assert.DoesNotContain("asp-for=\"ToDate\" class=\"form-control\" type=\"date\" data-activities-autosubmit", pageMarkup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ActivitiesScript_BindsAutoSubmitOnlyToExplicitOptInFields()
+    {
+        // SECTION: Arrange
+        var script = ReadRepoFile("wwwroot", "js", "pages", "activities-index.js");
+
+        // SECTION: Assert
+        Assert.Contains("querySelectorAll('[data-activities-autosubmit]')", script, StringComparison.Ordinal);
+        Assert.Contains("input.addEventListener('change', submitFiltersFromFirstPage)", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("input[name=\"FromDate\"]", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("input[name=\"ToDate\"]", script, StringComparison.Ordinal);
+    }
+
     private static ClaimsPrincipal CreatePrincipal(string userId, IEnumerable<Claim>? additionalClaims)
     {
         var identityClaims = new List<Claim>
@@ -335,6 +365,26 @@ public sealed class ActivityIndexPageTests
         };
 
         page.TempData = new TempDataDictionary(httpContext, new DictionaryTempDataProvider());
+    }
+
+
+    private static string ReadRepoFile(params string[] relativePathParts)
+    {
+        // SECTION: Source assertions locate files from either repository-root or test-output working directories.
+        var relativePath = Path.Combine(relativePathParts);
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(directory.FullName, relativePath);
+            if (File.Exists(candidate))
+            {
+                return File.ReadAllText(candidate);
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException($"Could not locate repository file {relativePath}.", relativePath);
     }
 
     private sealed class StubActivityService : IActivityService
