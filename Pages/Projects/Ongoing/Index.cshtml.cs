@@ -238,16 +238,16 @@ namespace ProjectManagement.Pages.Projects.Ongoing
 
                 switch (bucket)
                 {
-                    case StageBucket.Approval:
+                    case ProjectManagement.Models.Stages.StageBucket.Approval:
                         BucketApvlCount++;
                         break;
-                    case StageBucket.Aon:
+                    case ProjectManagement.Models.Stages.StageBucket.Aon:
                         BucketAonCount++;
                         break;
-                    case StageBucket.Procurement:
+                    case ProjectManagement.Models.Stages.StageBucket.Procurement:
                         BucketProcCount++;
                         break;
-                    case StageBucket.Development:
+                    case ProjectManagement.Models.Stages.StageBucket.Development:
                         BucketDevpCount++;
                         break;
                     default:
