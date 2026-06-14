@@ -422,28 +422,28 @@ public sealed class EditModel : PageModel
 
         [Required]
         [StringLength(200)]
-        [Display(Name = "Nomenclature")]
+        [Display(Name = "Activity title")]
         public string? Title { get; set; }
 
         [StringLength(2000)]
-        [Display(Name = "Description")]
+        [Display(Name = "Remarks / Brief")]
         public string? Description { get; set; }
 
         [StringLength(450)]
-        [Display(Name = "Place")]
+        [Display(Name = "Location (optional)")]
         public string? Location { get; set; }
 
         [Required]
         [Display(Name = "Activity type")]
         public int? ActivityTypeId { get; set; }
 
-        [Display(Name = "Start date")]
+        [Display(Name = "Event date")]
         public DateTime? ScheduledStart { get; set; }
 
-        [Display(Name = "End date")]
+        [Display(Name = "End date (optional)")]
         public DateTime? ScheduledEnd { get; set; }
 
-        [Display(Name = "Attachments")]
+        [Display(Name = "Media / Documents")]
         public IList<IFormFile>? Files { get; set; }
     }
 }
