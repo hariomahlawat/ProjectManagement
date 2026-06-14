@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ProjectManagement.Contracts.Activities;
@@ -96,11 +95,12 @@ internal sealed class ActivityInputValidator : IActivityInputValidator
             throw new ActivityValidationException(errors);
         }
 
-        var existingActivities = await _activityRepository.ListByTypeAsync(input.ActivityTypeId, cancellationToken);
-        var normalizedTitle = input.Title.Trim();
-        var duplicate = existingActivities
-            .Where(x => existing is null || x.Id != existing.Id)
-            .Any(x => string.Equals(x.Title, normalizedTitle, StringComparison.OrdinalIgnoreCase));
+        // SECTION: Duplicate activity title validation
+        var duplicate = await _activityRepository.ExistsByTypeAndTitleAsync(
+            input.ActivityTypeId,
+            input.Title.Trim(),
+            existing?.Id,
+            cancellationToken);
 
         if (duplicate)
         {

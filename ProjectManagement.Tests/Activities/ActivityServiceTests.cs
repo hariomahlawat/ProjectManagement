@@ -85,6 +85,95 @@ public class ActivityInputValidatorTests : IDisposable
         Assert.Contains(nameof(input.Title), ex.Errors.Keys);
     }
 
+    [Theory]
+    [InlineData("safety brief")]
+    [InlineData("SAFETY BRIEF")]
+    public async Task ValidateAsync_ThrowsWhenCreateTitleDiffersOnlyByCase(string duplicateTitle)
+    {
+        // SECTION: Arrange an existing activity for create duplicate validation
+        var type = new ActivityType
+        {
+            Name = "Create Case Check",
+            CreatedByUserId = "user",
+            IsActive = true
+        };
+        _context.ActivityTypes.Add(type);
+        await _context.SaveChangesAsync();
+
+        await _activityRepository.AddAsync(new Activity
+        {
+            Title = "Safety Brief",
+            ActivityTypeId = type.Id,
+            CreatedByUserId = "owner"
+        });
+
+        // SECTION: Act and assert
+        var input = new ActivityInput(duplicateTitle, null, null, type.Id, null, null);
+        var ex = await Assert.ThrowsAsync<ActivityValidationException>(() => _validator.ValidateAsync(input, null, CancellationToken.None));
+        Assert.Contains(nameof(input.Title), ex.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_ThrowsWhenEditTitleDiffersOnlyByCaseFromAnotherActivity()
+    {
+        // SECTION: Arrange two activities in the same type for edit duplicate validation
+        var type = new ActivityType
+        {
+            Name = "Edit Case Check",
+            CreatedByUserId = "user",
+            IsActive = true
+        };
+        _context.ActivityTypes.Add(type);
+        await _context.SaveChangesAsync();
+
+        var existingActivity = new Activity
+        {
+            Title = "Existing Brief",
+            ActivityTypeId = type.Id,
+            CreatedByUserId = "owner"
+        };
+        var editedActivity = new Activity
+        {
+            Title = "Editable Brief",
+            ActivityTypeId = type.Id,
+            CreatedByUserId = "owner"
+        };
+
+        await _activityRepository.AddAsync(existingActivity);
+        await _activityRepository.AddAsync(editedActivity);
+
+        // SECTION: Act and assert
+        var input = new ActivityInput("existing brief", null, null, type.Id, null, null);
+        var ex = await Assert.ThrowsAsync<ActivityValidationException>(() => _validator.ValidateAsync(input, editedActivity, CancellationToken.None));
+        Assert.Contains(nameof(input.Title), ex.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_AllowsEditWhenTitleDiffersOnlyByCaseFromSameActivity()
+    {
+        // SECTION: Arrange an existing activity being edited
+        var type = new ActivityType
+        {
+            Name = "Self Edit Case Check",
+            CreatedByUserId = "user",
+            IsActive = true
+        };
+        _context.ActivityTypes.Add(type);
+        await _context.SaveChangesAsync();
+
+        var editedActivity = new Activity
+        {
+            Title = "Editable Brief",
+            ActivityTypeId = type.Id,
+            CreatedByUserId = "owner"
+        };
+        await _activityRepository.AddAsync(editedActivity);
+
+        // SECTION: Act and assert
+        var input = new ActivityInput("editable brief", null, null, type.Id, null, null);
+        await _validator.ValidateAsync(input, editedActivity, CancellationToken.None);
+    }
+
     public void Dispose()
     {
         _context.Dispose();
