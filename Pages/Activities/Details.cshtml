@@ -176,7 +176,7 @@
                                                 data-bs-toggle="modal"
                                                 data-bs-target="#@modalId"
                                                 aria-label="View photo @photo.FileName">
-                                            <img src="@photo.DownloadUrl" alt="@photo.FileName" class="card-img-top" />
+                                            <img src="@photo.InlineUrl" alt="@photo.FileName" class="card-img-top" />
                                         </button>
                                         <div class="card-body">
                                             <h4 class="card-title h6 mb-1">@photo.FileName</h4>
@@ -204,7 +204,7 @@
                                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                             </div>
                                             <div class="modal-body">
-                                                <img src="@photo.DownloadUrl" alt="@photo.FileName" class="img-fluid" />
+                                                <img src="@photo.InlineUrl" alt="@photo.FileName" class="img-fluid" />
                                             </div>
                                         </div>
                                     </div>
@@ -225,7 +225,7 @@
                                     <div class="card h-100">
                                         <div class="ratio ratio-16x9">
                                             <video controls preload="metadata">
-                                                <source src="@video.DownloadUrl" type="@video.ContentType" />
+                                                <source src="@video.InlineUrl" type="@video.ContentType" />
                                                 Your browser does not support the video tag.
                                             </video>
                                         </div>
