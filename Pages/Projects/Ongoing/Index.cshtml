@@ -20,6 +20,7 @@
     // SECTION: Filter state
     var hasFilters = Model.ProjectCategoryId.HasValue
         || !string.IsNullOrWhiteSpace(Model.PresentStageCode)
+        || !string.IsNullOrWhiteSpace(Model.StageBucket)
         || !string.IsNullOrWhiteSpace(Model.ProjectOfficerId)
         || !string.IsNullOrWhiteSpace(Model.Search);
 
@@ -89,39 +90,67 @@
 
         <!-- SECTION: Stage pipeline -->
         <div class="ongoing-top__pipeline" aria-label="Stage bucket distribution">
-            @if (Model.FilteredTotal > 0)
+            @if (Model.BucketCountItems.Count > 0)
             {
                 <div class="stage-pipeline-wrap" aria-label="Stage distribution">
                     <div class="stage-pipeline-wrap__caption">Stage distribution</div>
 
                     <div class="stage-pipeline" role="group" aria-label="Stage pipeline">
-                        <div class="stage-pipeline__seg stage-pipeline__seg--apvl"
-                             style="--grow:@Model.BucketApvlCount"
-                             title="Apvl: FS, SOW, IPA">
+                        <button type="button"
+                                class="stage-pipeline__seg stage-pipeline__seg--apvl js-stage-bucket-chip @(Model.StageBucket == "approval" ? "is-active" : string.Empty)"
+                                data-stage-bucket="approval"
+                                style="--grow:@Model.BucketApvlCount"
+                                title="Apvl: FS, SOW, IPA"
+                                aria-pressed="@(Model.StageBucket == "approval")">
                             <span class="stage-pipeline__label">Apvl</span>
                             <span class="stage-pipeline__count">@Model.BucketApvlCount</span>
-                        </div>
+                            @if (Model.StageBucket == "approval")
+                            {
+                                <span class="stage-pipeline__close" aria-hidden="true">×</span>
+                            }
+                        </button>
 
-                        <div class="stage-pipeline__seg stage-pipeline__seg--aon"
-                             style="--grow:@Model.BucketAonCount"
-                             title="AoN: AON">
+                        <button type="button"
+                                class="stage-pipeline__seg stage-pipeline__seg--aon js-stage-bucket-chip @(Model.StageBucket == "aon" ? "is-active" : string.Empty)"
+                                data-stage-bucket="aon"
+                                style="--grow:@Model.BucketAonCount"
+                                title="AoN: AON"
+                                aria-pressed="@(Model.StageBucket == "aon")">
                             <span class="stage-pipeline__label">AoN</span>
                             <span class="stage-pipeline__count">@Model.BucketAonCount</span>
-                        </div>
+                            @if (Model.StageBucket == "aon")
+                            {
+                                <span class="stage-pipeline__close" aria-hidden="true">×</span>
+                            }
+                        </button>
 
-                        <div class="stage-pipeline__seg stage-pipeline__seg--proc"
-                             style="--grow:@Model.BucketProcCount"
-                             title="Tendering (GeM/Proc): BID, TEC, BM, COB, PNC, EAS, SO">
+                        <button type="button"
+                                class="stage-pipeline__seg stage-pipeline__seg--proc js-stage-bucket-chip @(Model.StageBucket == "procurement" ? "is-active" : string.Empty)"
+                                data-stage-bucket="procurement"
+                                style="--grow:@Model.BucketProcCount"
+                                title="Tendering (GeM/Proc): BID, TEC, BM, COB, PNC, EAS, SO"
+                                aria-pressed="@(Model.StageBucket == "procurement")">
                             <span class="stage-pipeline__label">Tender</span>
                             <span class="stage-pipeline__count">@Model.BucketProcCount</span>
-                        </div>
+                            @if (Model.StageBucket == "procurement")
+                            {
+                                <span class="stage-pipeline__close" aria-hidden="true">×</span>
+                            }
+                        </button>
 
-                        <div class="stage-pipeline__seg stage-pipeline__seg--devp"
-                             style="--grow:@Model.BucketDevpCount"
-                             title="Devp: DEVP, ATP, PAYMENT, TOT">
+                        <button type="button"
+                                class="stage-pipeline__seg stage-pipeline__seg--devp js-stage-bucket-chip @(Model.StageBucket == "development" ? "is-active" : string.Empty)"
+                                data-stage-bucket="development"
+                                style="--grow:@Model.BucketDevpCount"
+                                title="Devp: DEVP, ATP, PAYMENT, TOT"
+                                aria-pressed="@(Model.StageBucket == "development")">
                             <span class="stage-pipeline__label">Devp</span>
                             <span class="stage-pipeline__count">@Model.BucketDevpCount</span>
-                        </div>
+                            @if (Model.StageBucket == "development")
+                            {
+                                <span class="stage-pipeline__close" aria-hidden="true">×</span>
+                            }
+                        </button>
                     </div>
 
                     @if (Model.BucketUnknownCount > 0)
@@ -200,6 +229,9 @@
         <!-- SECTION: Persist view selection -->
         <input type="hidden" asp-for="View" />
 
+        <!-- SECTION: Persist broad stage bucket quick filter -->
+        <input type="hidden" asp-for="StageBucket" />
+
         <!-- SECTION: Filters row -->
         <div class="cmdbar__filters cmdbar__filters-row">
             <div class="cmdbar__field cmdbar__field--category">
@@ -232,6 +264,7 @@
                 <a asp-page="./Index"
                    asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
                    asp-route-PresentStageCode="@Model.PresentStageCode"
+                   asp-route-StageBucket="@Model.StageBucket"
                    asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
                    asp-route-Search="@Model.Search"
                    asp-route-View="timeline"
@@ -245,6 +278,7 @@
                 <a asp-page="./Index"
                    asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
                    asp-route-PresentStageCode="@Model.PresentStageCode"
+                   asp-route-StageBucket="@Model.StageBucket"
                    asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
                    asp-route-Search="@Model.Search"
                    asp-route-View="table"
@@ -297,6 +331,7 @@
                asp-page-handler="Export"
                asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
                asp-route-PresentStageCode="@Model.PresentStageCode"
+               asp-route-StageBucket="@Model.StageBucket"
                asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
                asp-route-Search="@Model.Search"
                asp-route-View="@Model.View"

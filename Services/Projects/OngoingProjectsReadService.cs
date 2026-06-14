@@ -36,6 +36,7 @@ namespace ProjectManagement.Services.Projects
             string? leadPoUserId,
             string? search,
             string? presentStageCode,
+            string? stageBucket,
             string? stageFlow,
             CancellationToken cancellationToken)
         {
@@ -208,6 +209,7 @@ namespace ProjectManagement.Services.Projects
                         StringComparer.Ordinal,
                         cancellationToken);
 
+            var selectedStageBucket = ParseStageBucketFilter(stageBucket);
             var result = new List<OngoingProjectRowDto>(projects.Count);
 
             foreach (var proj in projects)
@@ -347,6 +349,18 @@ namespace ProjectManagement.Services.Projects
 
                 stageDtos[currentIndex].IsCurrent = true;
 
+                // SECTION: Current-stage filtering
+                if (!string.IsNullOrWhiteSpace(presentStageCode) &&
+                    !string.Equals(stageDtos[currentIndex].Code, presentStageCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (selectedStageBucket.HasValue && StageBuckets.Of(stageDtos[currentIndex].Code) != selectedStageBucket.Value)
+                {
+                    continue;
+                }
+
                 // SECTION: Timeline-independent stage lookups (full list)
                 var ipaDate = ResolveStageMilestoneDate(stageDtos, "IPA");
                 var aonDate = ResolveStageMilestoneDate(stageDtos, "AON");
@@ -474,16 +488,6 @@ namespace ProjectManagement.Services.Projects
                 });
             }
 
-            if (!string.IsNullOrWhiteSpace(presentStageCode))
-            {
-                result = result
-                    .Where(row => string.Equals(
-                        row.CurrentStageCode,
-                        presentStageCode,
-                        StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-            }
-
             // SECTION: Operational ordering for review dashboard
             var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
             var reverseStageFlow = string.Equals(
@@ -585,6 +589,24 @@ namespace ProjectManagement.Services.Projects
             }
 
             return collectedIds.ToArray();
+        }
+
+        // SECTION: Stage bucket filter parsing
+        private static StageBucket? ParseStageBucketFilter(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            return value.Trim().ToLowerInvariant() switch
+            {
+                "approval" => StageBucket.Approval,
+                "aon" => StageBucket.Aon,
+                "procurement" => StageBucket.Procurement,
+                "development" => StageBucket.Development,
+                _ => null
+            };
         }
 
         // SECTION: Stage milestone helpers

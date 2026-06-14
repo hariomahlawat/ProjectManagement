@@ -56,6 +56,10 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         [BindProperty(SupportsGet = true)]
         public string? PresentStageCode { get; set; }
 
+        // SECTION: Broad stage bucket selector
+        [BindProperty(SupportsGet = true)]
+        public string? StageBucket { get; set; }
+
         // SECTION: View selector (timeline/table)
         [BindProperty(SupportsGet = true)]
         public string? View { get; set; }
@@ -100,6 +104,9 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         public IReadOnlyList<OngoingProjectRowDto> Items { get; private set; }
             = Array.Empty<OngoingProjectRowDto>();
 
+        public IReadOnlyList<OngoingProjectRowDto> BucketCountItems { get; private set; }
+            = Array.Empty<OngoingProjectRowDto>();
+
         // SECTION: Inline external remark editing metadata
         public bool CanInlineEditExternalRemarks { get; private set; }
         public string TodayIstIso { get; private set; } = string.Empty;
@@ -113,8 +120,13 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             var officerId = Normalize(ProjectOfficerId);
             var search = Normalize(Search);
             PresentStageCode = NormalizeStageCode(PresentStageCode);
+            StageBucket = NormalizeStageBucket(StageBucket);
             LoadPresentStageOptions();
             PresentStageCode = ValidateStageCode(PresentStageCode);
+            if (!string.IsNullOrWhiteSpace(PresentStageCode))
+            {
+                StageBucket = null;
+            }
 
             ProjectOfficerOptions = await _ongoingService.GetProjectOfficerOptionsAsync(
                 officerId,
@@ -125,6 +137,16 @@ namespace ProjectManagement.Pages.Projects.Ongoing
                 officerId,
                 search,
                 PresentStageCode,
+                StageBucket,
+                StageFlow,
+                cancellationToken);
+
+            BucketCountItems = await _ongoingService.GetAsync(
+                ProjectCategoryId,
+                officerId,
+                search,
+                null,
+                null,
                 StageFlow,
                 cancellationToken);
 
@@ -141,14 +163,20 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             var officerId = Normalize(ProjectOfficerId);
             var search = Normalize(Search);
             PresentStageCode = NormalizeStageCode(PresentStageCode);
+            StageBucket = NormalizeStageBucket(StageBucket);
             LoadPresentStageOptions();
             PresentStageCode = ValidateStageCode(PresentStageCode);
+            if (!string.IsNullOrWhiteSpace(PresentStageCode))
+            {
+                StageBucket = null;
+            }
 
             var items = await _ongoingService.GetAsync(
                 ProjectCategoryId,
                 officerId,
                 search,
                 PresentStageCode,
+                StageBucket,
                 StageFlow,
                 cancellationToken);
 
@@ -204,7 +232,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             BucketDevpCount = 0;
             BucketUnknownCount = 0;
 
-            foreach (var item in Items)
+            foreach (var item in BucketCountItems)
             {
                 var bucket = StageBuckets.Of(item.CurrentStageCode);
 
@@ -338,6 +366,24 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         // SECTION: Present stage normalization
         private static string? NormalizeStageCode(string? value)
             => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
+
+        // SECTION: Stage bucket normalization
+        private static string? NormalizeStageBucket(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            return value.Trim().ToLowerInvariant() switch
+            {
+                "approval" => "approval",
+                "aon" => "aon",
+                "procurement" => "procurement",
+                "development" => "development",
+                _ => null
+            };
+        }
 
         // SECTION: Present stage options
         private void LoadPresentStageOptions()
