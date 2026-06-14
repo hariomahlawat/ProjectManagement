@@ -66,6 +66,36 @@ public sealed class ActivityDetailsPageRenderingTests
         Assert.DoesNotContain("data-bs-target=\"#{modalId}\"", html, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public async Task DetailsPage_LegacyMissingDateRecordStillRenders()
+    {
+        // SECTION: Arrange a legacy activity without scheduled dates.
+        var activity = new Activity
+        {
+            Id = 77,
+            Title = "Legacy Missing Date",
+            Description = null,
+            ActivityType = new ActivityType { Id = 6, Name = "Misc", CreatedByUserId = "seed" },
+            ActivityTypeId = 6,
+            ScheduledStartUtc = null,
+            ScheduledEndUtc = null,
+            CreatedByUserId = "owner",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+
+        var page = new DetailsModel(
+            new StubActivityService(activity, Array.Empty<ActivityAttachmentMetadata>()),
+            new StubActivityAttachmentManager(),
+            NullLogger<DetailsModel>.Instance);
+
+        // SECTION: Act and assert the details view renders date placeholders safely.
+        var html = await RenderDetailsPageAsync(page, activity.Id);
+
+        Assert.Contains("Legacy Missing Date", html, StringComparison.Ordinal);
+        Assert.Contains("<dd class=\"col-sm-9\">—</dd>", html, StringComparison.Ordinal);
+    }
+
     private static async Task<string> RenderDetailsPageAsync(DetailsModel page, int activityId)
     {
         // SECTION: Populate the Razor PageModel before rendering the details view.

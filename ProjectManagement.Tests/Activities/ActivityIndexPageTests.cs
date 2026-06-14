@@ -193,6 +193,60 @@ public sealed class ActivityIndexPageTests
         Assert.False(row.CanDelete);
     }
 
+
+    [Fact]
+    public async Task OnGetAsync_LegacyMissingDateRecordStillBuildsViewModel()
+    {
+        // SECTION: Arrange a legacy activity row without scheduled dates.
+        var now = DateTimeOffset.UtcNow;
+        var result = new ActivityListResult(new List<ActivityListItem>
+        {
+            new ActivityListItem(
+                Id: 9,
+                Title: "Legacy Activity",
+                ActivityTypeName: "Misc",
+                ActivityTypeId: 6,
+                Location: null,
+                RemarksPreview: null,
+                ScheduledStartUtc: null,
+                ScheduledEndUtc: null,
+                CreatedAtUtc: now.AddDays(-5),
+                CreatedByUserId: "legacy-owner",
+                CreatedByDisplayName: "Legacy Owner",
+                CreatedByEmail: "legacy@example.test",
+                AttachmentCount: 0,
+                PdfAttachmentCount: 0,
+                PhotoAttachmentCount: 0,
+                VideoAttachmentCount: 0,
+                MediaPreviews: Array.Empty<ActivityMediaPreview>(),
+                HasPendingDelete: false)
+        }, 1, 1, 25, ActivityListSort.ScheduledStart, true);
+
+        var activityService = new StubActivityService(result);
+        var typeService = new StubActivityTypeService(new List<ActivityType>
+        {
+            new() { Id = 6, Name = "Misc", CreatedByUserId = "seed" }
+        });
+        var exportService = new StubActivityExportService();
+        var deleteRequestService = new StubActivityDeleteRequestService();
+
+        var services = new ServiceCollection().BuildServiceProvider();
+        var user = new ApplicationUser { Id = "legacy-owner", UserName = "legacy" };
+        using var userManager = new StubUserManager(user, services, "Admin");
+
+        var page = new IndexModel(activityService, typeService, exportService, deleteRequestService, userManager);
+        ConfigurePage(page, CreatePrincipal("legacy-owner", new[] { new Claim(ClaimTypes.Role, "Admin") }));
+
+        // SECTION: Act and assert the index can present the legacy row safely.
+        var actionResult = await page.OnGetAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(actionResult);
+        var row = Assert.Single(page.ViewModel!.Rows);
+        Assert.Equal("Legacy Activity", row.Title);
+        Assert.Null(row.ScheduledStartUtc);
+        Assert.NotEmpty(page.ViewModel.Groups);
+    }
+
     [Fact]
     public async Task OnPostExportAsync_UsesFiltersAndReturnsFile()
     {
