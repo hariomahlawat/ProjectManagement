@@ -54,8 +54,8 @@
         <input type="hidden" asp-for="SortDir" />
         <input asp-for="Search" class="form-control activities-filterbar__search" placeholder="Search activity..." autocomplete="off" />
         <select asp-for="ActivityTypeId" class="form-select" asp-items="Model.ActivityTypeOptions" data-activities-autosubmit></select>
-        <input asp-for="FromDate" class="form-control" type="date" data-activities-autosubmit aria-label="From date" />
-        <input asp-for="ToDate" class="form-control" type="date" data-activities-autosubmit aria-label="To date" />
+        <input asp-for="FromDate" class="form-control" type="date" aria-label="From date" />
+        <input asp-for="ToDate" class="form-control" type="date" aria-label="To date" />
         <select asp-for="MediaFilter" class="form-select" data-activities-autosubmit>
             <option value="Any">Any media</option>
             <option value="WithMedia">With media</option>
