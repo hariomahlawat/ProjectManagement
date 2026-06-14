@@ -12,6 +12,10 @@
 
     ViewData["Title"] = activity.Title;
 
+    var latestDeleteRequest = activity.DeleteRequests
+        .OrderByDescending(request => request.RequestedAtUtc)
+        .FirstOrDefault();
+
     string FormatEventDate(DateTimeOffset? value) => value.HasValue ? IstClock.ToIst(value.Value).ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
     string FormatTimestamp(DateTimeOffset? value) => value.HasValue ? IstClock.ToIst(value.Value).ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture) : "—";
 
@@ -42,9 +46,30 @@
         var value = bytes / Math.Pow(1024, order);
         return $"{value:0.#} {sizes[order]}";
     }
+
+    string ResolveDeleteRequestStatus()
+    {
+        if (latestDeleteRequest is null)
+        {
+            return "No delete request";
+        }
+
+        if (latestDeleteRequest.ApprovedAtUtc.HasValue)
+        {
+            return $"Approved on {FormatTimestamp(latestDeleteRequest.ApprovedAtUtc)} by {FormatUser(latestDeleteRequest.ApprovedByUser?.FullName, latestDeleteRequest.ApprovedByUserId)}";
+        }
+
+        if (latestDeleteRequest.RejectedAtUtc.HasValue)
+        {
+            return $"Rejected on {FormatTimestamp(latestDeleteRequest.RejectedAtUtc)} by {FormatUser(latestDeleteRequest.RejectedByUser?.FullName, latestDeleteRequest.RejectedByUserId)}";
+        }
+
+        return $"Pending since {FormatTimestamp(latestDeleteRequest.RequestedAtUtc)} by {FormatUser(latestDeleteRequest.RequestedByUser?.FullName, latestDeleteRequest.RequestedByUserId)}";
+    }
 }
 
 <div class="container-xxl activities-details-page" data-module="activities-index">
+    <!-- SECTION: Breadcrumb navigation -->
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a asp-page="/Activities/Index">Activities</a></li>
@@ -52,11 +77,23 @@
         </ol>
     </nav>
 
-    <div class="pm-card pm-shadow mb-4">
-        <div class="pm-card-header d-flex flex-column flex-md-row gap-3 align-items-start align-items-md-center">
+    <!-- SECTION: Activity header -->
+    <header class="pm-card pm-shadow mb-4">
+        <div class="pm-card-header d-flex flex-column flex-lg-row gap-3 align-items-start align-items-lg-center">
             <div class="flex-grow-1">
-                <h1 class="pm-card-title mb-1">@activity.Title</h1>
-                <p class="pm-card-subtitle mb-0 text-muted">@(activity.ActivityType?.Name ?? "Activity")</p>
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                    <span class="badge text-bg-primary">@(activity.ActivityType?.Name ?? "Activity")</span>
+                    <span class="text-muted small">
+                        <i class="bi bi-calendar-event me-1" aria-hidden="true"></i>@FormatEventDate(activity.ScheduledStartUtc)
+                    </span>
+                </div>
+                <h1 class="pm-card-title mb-2">@activity.Title</h1>
+                @if (!string.IsNullOrWhiteSpace(activity.Location))
+                {
+                    <p class="pm-card-subtitle mb-0 text-muted">
+                        <i class="bi bi-geo-alt me-1" aria-hidden="true"></i>@activity.Location
+                    </p>
+                }
             </div>
             @if (Model.CanManage)
             {
@@ -83,36 +120,25 @@
         </div>
         <div class="pm-card-body">
             <dl class="row mb-0">
-                <dt class="col-sm-3">Event start</dt>
+                <dt class="col-sm-3">Event date</dt>
                 <dd class="col-sm-9">@FormatEventDate(activity.ScheduledStartUtc)</dd>
 
                 <dt class="col-sm-3">Event end</dt>
                 <dd class="col-sm-9">@FormatEventDate(activity.ScheduledEndUtc)</dd>
 
+                <dt class="col-sm-3">Activity type</dt>
+                <dd class="col-sm-9">@(activity.ActivityType?.Name ?? "Activity")</dd>
+
                 <dt class="col-sm-3">Location</dt>
                 <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(activity.Location) ? "—" : activity.Location)</dd>
-
-                <dt class="col-sm-3">Created</dt>
-                <dd class="col-sm-9">@FormatTimestamp(activity.CreatedAtUtc) by @FormatUser(activity.CreatedByUser?.FullName, activity.CreatedByUserId)</dd>
-
-                <dt class="col-sm-3">Last updated</dt>
-                <dd class="col-sm-9">
-                    @if (activity.LastModifiedAtUtc is { } updated)
-                    {
-                        @FormatTimestamp(updated) @:by @FormatUser(activity.LastModifiedByUser?.FullName, activity.LastModifiedByUserId)
-                    }
-                    else
-                    {
-                        @:—
-                    }
-                </dd>
             </dl>
         </div>
-    </div>
+    </header>
 
-    <div class="pm-card pm-shadow mb-4">
+    <!-- SECTION: Remarks / brief -->
+    <section class="pm-card pm-shadow mb-4" aria-labelledby="activity-remarks-heading">
         <div class="pm-card-header">
-            <h2 class="h5 mb-0">Remarks / Brief</h2>
+            <h2 class="h5 mb-0" id="activity-remarks-heading">Remarks / Brief</h2>
         </div>
         <div class="pm-card-body">
             @if (string.IsNullOrWhiteSpace(activity.Description))
@@ -124,17 +150,19 @@
                 <p class="mb-0 pm-text-prewrap">@activity.Description</p>
             }
         </div>
-    </div>
+    </section>
 
-    <div class="pm-card pm-shadow mb-4">
+    <!-- SECTION: Media gallery -->
+    <section class="pm-card pm-shadow mb-4" aria-labelledby="activity-media-heading">
         <div class="pm-card-header d-flex flex-column flex-lg-row gap-3 align-items-start align-items-lg-center">
             <div>
-                <h2 class="h5 mb-1">Media / Documents</h2>
+                <h2 class="h5 mb-1" id="activity-media-heading">Media gallery</h2>
                 <p class="text-muted mb-0">@Model.Attachments.Count attachment@(Model.Attachments.Count == 1 ? string.Empty : "s"). Allowed types: @Model.AllowedAttachmentSummary. Max size: @(Math.Ceiling(Model.MaxAttachmentSizeBytes / 1048576.0)) MB.</p>
             </div>
             @if (Model.CanManage)
             {
                 <div class="ms-lg-auto">
+                    <!-- SECTION: Attachment upload form -->
                     <form method="post" asp-page-handler="Upload" asp-route-id="@activity.Id" enctype="multipart/form-data" class="d-flex flex-column flex-sm-row gap-2">
                         @Html.AntiForgeryToken()
                         <input type="file" name="Uploads" multiple class="form-control" accept="application/pdf,image/png,image/jpeg,video/mp4,video/quicktime,video/webm,.pdf,.png,.jpg,.jpeg,.mp4,.mov,.webm" @(Model.RemainingAttachmentSlots <= 0 ? "disabled" : null) />
@@ -161,26 +189,27 @@
             }
             else
             {
-                if (Model.PhotoAttachments.Count > 0)
-                {
-                    <section class="mb-4">
-                        <h3 class="h6 mb-3">Photos</h3>
+                <!-- SECTION: Photo attachments -->
+                <section class="mb-4" aria-labelledby="activity-photos-heading">
+                    <h3 class="h6 mb-3" id="activity-photos-heading">Photos</h3>
+                    @if (Model.PhotoAttachments.Count == 0)
+                    {
+                        <p class="text-muted mb-0">No photos uploaded.</p>
+                    }
+                    else
+                    {
                         <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3">
                             @foreach (var photo in Model.PhotoAttachments)
                             {
                                 var modalId = $"photo-modal-{photo.Id}";
                                 <div class="col">
                                     <div class="card h-100">
-                                        <button type="button"
-                                                class="btn btn-link p-0 text-start"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#@modalId"
-                                                aria-label="View photo @photo.FileName">
+                                        <button type="button" class="btn btn-link p-0 text-start" data-bs-toggle="modal" data-bs-target="#@modalId" aria-label="View photo @photo.FileName">
                                             <img src="@photo.InlineUrl" alt="@photo.FileName" class="card-img-top" />
                                         </button>
                                         <div class="card-body">
                                             <h4 class="card-title h6 mb-1">@photo.FileName</h4>
-                                            <p class="card-text text-muted small mb-2">Uploaded @IstClock.ToIst(photo.UploadedAtUtc).ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture)</p>
+                                            <p class="card-text text-muted small mb-2">Uploaded @FormatTimestamp(photo.UploadedAtUtc)</p>
                                             <p class="card-text text-muted small mb-0">@FormatFileSize(photo.FileSize)</p>
                                         </div>
                                         <div class="card-footer bg-transparent border-0 pt-0">
@@ -211,13 +240,18 @@
                                 </div>
                             }
                         </div>
-                    </section>
-                }
+                    }
+                </section>
 
-                if (Model.VideoAttachments.Count > 0)
-                {
-                    <section class="mb-4">
-                        <h3 class="h6 mb-3">Videos</h3>
+                <!-- SECTION: Video attachments -->
+                <section class="mb-4" aria-labelledby="activity-videos-heading">
+                    <h3 class="h6 mb-3" id="activity-videos-heading">Videos</h3>
+                    @if (Model.VideoAttachments.Count == 0)
+                    {
+                        <p class="text-muted mb-0">No videos uploaded.</p>
+                    }
+                    else
+                    {
                         <div class="row row-cols-1 row-cols-md-2 g-3">
                             @foreach (var video in Model.VideoAttachments)
                             {
@@ -231,7 +265,7 @@
                                         </div>
                                         <div class="card-body">
                                             <h4 class="card-title h6 mb-1">@video.FileName</h4>
-                                            <p class="card-text text-muted small mb-2">Uploaded @IstClock.ToIst(video.UploadedAtUtc).ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture)</p>
+                                            <p class="card-text text-muted small mb-2">Uploaded @FormatTimestamp(video.UploadedAtUtc)</p>
                                             <p class="card-text text-muted small mb-0">@FormatFileSize(video.FileSize)</p>
                                         </div>
                                         <div class="card-footer bg-transparent border-0 pt-0">
@@ -248,14 +282,18 @@
                                 </div>
                             }
                         </div>
-                    </section>
-                }
+                    }
+                </section>
 
-                if (Model.PdfAttachments.Count > 0)
-                {
-                    <section class="mb-4">
-                        <h3 class="h6 mb-3">PDFs</h3>
-                        <!-- SECTION: PDF attachments list -->
+                <!-- SECTION: PDF and document attachments -->
+                <section class="mb-4" aria-labelledby="activity-documents-heading">
+                    <h3 class="h6 mb-3" id="activity-documents-heading">PDFs / Documents</h3>
+                    @if (Model.PdfAttachments.Count == 0)
+                    {
+                        <p class="text-muted mb-0">No PDFs or documents uploaded.</p>
+                    }
+                    else
+                    {
                         <ul class="list-group">
                             @foreach (var pdf in Model.PdfAttachments)
                             {
@@ -279,13 +317,18 @@
                                 </li>
                             }
                         </ul>
-                    </section>
-                }
+                    }
+                </section>
 
-                if (Model.OtherAttachments.Count > 0)
-                {
-                    <section>
-                        <h3 class="h6 mb-3">Other files</h3>
+                <!-- SECTION: Other file attachments -->
+                <section aria-labelledby="activity-other-files-heading">
+                    <h3 class="h6 mb-3" id="activity-other-files-heading">Other files</h3>
+                    @if (Model.OtherAttachments.Count == 0)
+                    {
+                        <p class="text-muted mb-0">No other files uploaded.</p>
+                    }
+                    else
+                    {
                         <ul class="list-group">
                             @foreach (var file in Model.OtherAttachments)
                             {
@@ -307,11 +350,42 @@
                                 </li>
                             }
                         </ul>
-                    </section>
-                }
+                    }
+                </section>
             }
-</div>
-</div>
+        </div>
+    </section>
+
+    <!-- SECTION: Admin details -->
+    <section class="pm-card pm-shadow mb-4" aria-labelledby="activity-admin-heading">
+        <div class="pm-card-header">
+            <h2 class="h5 mb-0" id="activity-admin-heading">Admin details</h2>
+        </div>
+        <div class="pm-card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-3">Created by</dt>
+                <dd class="col-sm-9">@FormatUser(activity.CreatedByUser?.FullName, activity.CreatedByUserId)</dd>
+
+                <dt class="col-sm-3">Created date</dt>
+                <dd class="col-sm-9">@FormatTimestamp(activity.CreatedAtUtc)</dd>
+
+                <dt class="col-sm-3">Last updated</dt>
+                <dd class="col-sm-9">
+                    @if (activity.LastModifiedAtUtc is { } updated)
+                    {
+                        @FormatTimestamp(updated) @:by @FormatUser(activity.LastModifiedByUser?.FullName, activity.LastModifiedByUserId)
+                    }
+                    else
+                    {
+                        @:—
+                    }
+                </dd>
+
+                <dt class="col-sm-3">Delete request status</dt>
+                <dd class="col-sm-9">@ResolveDeleteRequestStatus()</dd>
+            </dl>
+        </div>
+    </section>
 </div>
 
 @await Html.PartialAsync("_DeleteConfirmModal")

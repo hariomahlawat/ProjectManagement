@@ -28,6 +28,12 @@ namespace ProjectManagement.Infrastructure.Activities
                 .Include(x => x.CreatedByUser)
                 .Include(x => x.LastModifiedByUser)
                 .Include(x => x.DeletedByUser)
+                .Include(x => x.DeleteRequests)
+                    .ThenInclude(x => x.RequestedByUser)
+                .Include(x => x.DeleteRequests)
+                    .ThenInclude(x => x.ApprovedByUser)
+                .Include(x => x.DeleteRequests)
+                    .ThenInclude(x => x.RejectedByUser)
                 .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         }
 
