@@ -416,7 +416,7 @@ public sealed class EditModel : PageModel
         return IstClock.StartOfDayIstToUtc(localDate);
     }
 
-    public sealed class InputModel
+    public sealed class InputModel : IValidatableObject
     {
         public int? Id { get; set; }
 
@@ -437,6 +437,7 @@ public sealed class EditModel : PageModel
         [Display(Name = "Activity type")]
         public int? ActivityTypeId { get; set; }
 
+        [Required(ErrorMessage = "Event date is required.")]
         [Display(Name = "Event date")]
         public DateTime? ScheduledStart { get; set; }
 
@@ -445,5 +446,16 @@ public sealed class EditModel : PageModel
 
         [Display(Name = "Media / Documents")]
         public IList<IFormFile>? Files { get; set; }
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            // SECTION: Optional end date chronology validation
+            if (ScheduledStart.HasValue && ScheduledEnd.HasValue && ScheduledEnd.Value.Date < ScheduledStart.Value.Date)
+            {
+                yield return new ValidationResult(
+                    "End date must be on or after the event date.",
+                    new[] { nameof(ScheduledEnd) });
+            }
+        }
     }
 }
