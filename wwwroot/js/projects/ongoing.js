@@ -72,9 +72,10 @@
   officerSelect?.addEventListener('change', submitFilters);
   stageFlowSelect?.addEventListener('change', submitFilters);
 
-  // Pressing Enter in the search box already submits the form, but this keeps behaviour explicit
+  // SECTION: Search submits only when Enter is pressed
   searchInput?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
+      event.preventDefault();
       submitFilters();
     }
   });
