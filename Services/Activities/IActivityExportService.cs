@@ -19,4 +19,6 @@ public sealed record ActivityExportRequest(
     DateOnly? ToDate = null,
     int? ActivityTypeId = null,
     string? CreatedByUserId = null,
-    ActivityAttachmentTypeFilter AttachmentType = ActivityAttachmentTypeFilter.Any);
+    ActivityAttachmentTypeFilter AttachmentType = ActivityAttachmentTypeFilter.Any,
+    string? Search = null,
+    ActivityMediaFilter MediaFilter = ActivityMediaFilter.Any);

@@ -7,8 +7,26 @@
   const filterOffcanvas = document.getElementById('activitiesFilterOffcanvas');
   const filterForm = filterOffcanvas
     ? filterOffcanvas.querySelector('form')
-    : moduleRoot.querySelector('.activities-filter, .activities-filter-form');
+    : document.getElementById('activitiesFilterForm') || moduleRoot.querySelector('.activities-filter, .activities-filter-form, .activities-filterbar');
   if (filterForm) {
+    const searchInput = filterForm.querySelector('input[name="Search"]');
+    if (searchInput) {
+      searchInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          const pageInput = filterForm.querySelector('input[name="Page"]');
+          if (pageInput) {
+            pageInput.value = '1';
+          }
+          if (typeof filterForm.requestSubmit === 'function') {
+            filterForm.requestSubmit();
+          } else {
+            filterForm.submit();
+          }
+        }
+      });
+    }
+
     const autoSubmitInputs = filterForm.querySelectorAll('[data-activities-autosubmit]');
     autoSubmitInputs.forEach((input) => {
       input.addEventListener('change', () => {

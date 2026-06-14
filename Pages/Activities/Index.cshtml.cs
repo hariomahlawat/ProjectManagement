@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Routing;
 using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Activities;
+using ProjectManagement.Services.Storage;
 using ProjectManagement.ViewModels.Activities;
 
 namespace ProjectManagement.Pages.Activities;
@@ -29,18 +30,21 @@ public sealed class IndexModel : PageModel
     private readonly IActivityExportService _activityExportService;
     private readonly IActivityDeleteRequestService _deleteRequestService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IProtectedFileUrlBuilder _fileUrlBuilder;
 
     public IndexModel(IActivityService activityService,
                       IActivityTypeService activityTypeService,
                       IActivityExportService activityExportService,
                       IActivityDeleteRequestService deleteRequestService,
-                      UserManager<ApplicationUser> userManager)
+                      UserManager<ApplicationUser> userManager,
+                      IProtectedFileUrlBuilder? fileUrlBuilder = null)
     {
         _activityService = activityService;
         _activityTypeService = activityTypeService;
         _activityExportService = activityExportService;
         _deleteRequestService = deleteRequestService;
         _userManager = userManager;
+        _fileUrlBuilder = fileUrlBuilder ?? new ActivityIndexFallbackUrlBuilder();
     }
 
     [BindProperty(SupportsGet = true)]
@@ -66,6 +70,15 @@ public sealed class IndexModel : PageModel
 
     [BindProperty(SupportsGet = true)]
     public ActivityAttachmentTypeFilter AttachmentType { get; set; } = ActivityAttachmentTypeFilter.Any;
+
+    [BindProperty(SupportsGet = true)]
+    public ActivityMediaFilter MediaFilter { get; set; } = ActivityMediaFilter.Any;
+
+    [BindProperty(SupportsGet = true)]
+    public string? Search { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string View { get; set; } = "cards";
 
     public ActivityListViewModel? ViewModel { get; private set; }
 
@@ -98,7 +111,9 @@ public sealed class IndexModel : PageModel
             ToDate,
             ActivityTypeId,
             CreatedByUserId: null,
-            AttachmentType);
+            AttachmentType: AttachmentType,
+            Search: Search,
+            MediaFilter: MediaFilter);
 
         var result = await _activityService.ListAsync(request, cancellationToken);
 
@@ -122,6 +137,7 @@ public sealed class IndexModel : PageModel
                 item.Title,
                 item.ActivityTypeName,
                 item.Location,
+                item.RemarksPreview,
                 item.ScheduledStartUtc,
                 item.ScheduledEndUtc,
                 item.CreatedAtUtc,
@@ -131,6 +147,16 @@ public sealed class IndexModel : PageModel
                 item.PdfAttachmentCount,
                 item.PhotoAttachmentCount,
                 item.VideoAttachmentCount,
+                item.MediaPreviews.Select(media => new ActivityMediaPreviewViewModel(
+                    media.AttachmentId,
+                    media.FileName,
+                    media.ContentType,
+                    media.MediaKind,
+                    string.Equals(media.MediaKind, "Photo", StringComparison.OrdinalIgnoreCase)
+                        ? _fileUrlBuilder.CreateInlineUrl(media.StorageKey, media.FileName, media.ContentType)
+                        : null,
+                    _fileUrlBuilder.CreateDownloadUrl(media.StorageKey, media.FileName, media.ContentType),
+                    media.SizeBytes)).ToList(),
                 item.HasPendingDelete,
                 canManage,
                 canRequestDelete);
@@ -139,6 +165,30 @@ public sealed class IndexModel : PageModel
         var totalPages = result.PageSize <= 0
             ? (result.TotalCount > 0 ? 1 : 0)
             : (int)Math.Ceiling(result.TotalCount / (double)Math.Max(result.PageSize, 1));
+
+        var normalizedView = string.Equals(View, "table", StringComparison.OrdinalIgnoreCase) ? "table" : "cards";
+        View = normalizedView;
+        var groups = rows
+            .GroupBy(row => new { row.ScheduledStartUtc?.Year, row.ScheduledStartUtc?.Month, FallbackYear = row.CreatedAtUtc.Year, FallbackMonth = row.CreatedAtUtc.Month })
+            .Select(group => new
+            {
+                Year = group.Key.Year ?? group.Key.FallbackYear,
+                Month = group.Key.Month ?? group.Key.FallbackMonth,
+                Items = group.ToList()
+            })
+            .OrderByDescending(group => group.Year)
+            .ThenByDescending(group => group.Month)
+            .Select(group => new ActivityMonthGroupViewModel(
+                new DateTime(group.Year, group.Month, 1).ToString("MMM yyyy", CultureInfo.CurrentCulture),
+                group.Items))
+            .ToList();
+
+        var summary = new ActivityReviewSummaryViewModel(
+            result.TotalCount,
+            rows.Count(row => row.HasMedia),
+            rows.Sum(row => row.PhotoAttachmentCount),
+            rows.Sum(row => row.PdfAttachmentCount),
+            rows.Sum(row => row.VideoAttachmentCount));
 
         ViewModel = new ActivityListViewModel(rows,
             result.Page,
@@ -150,7 +200,12 @@ public sealed class IndexModel : PageModel
             AttachmentType,
             FromDate,
             ToDate,
-            ActivityTypeId);
+            ActivityTypeId,
+            normalizedView,
+            Search,
+            MediaFilter,
+            summary,
+            groups);
 
         await BuildFilterOptionsAsync(cancellationToken);
 
@@ -203,7 +258,9 @@ public sealed class IndexModel : PageModel
             ToDate,
             ActivityTypeId,
             CreatedByUserId: null,
-            AttachmentType);
+            AttachmentType: AttachmentType,
+            Search: Search,
+            MediaFilter: MediaFilter);
 
         var export = await _activityExportService.ExportAsync(exportRequest, cancellationToken);
 
@@ -226,7 +283,8 @@ public sealed class IndexModel : PageModel
             ["Page"] = (page ?? Page).ToString(CultureInfo.InvariantCulture),
             ["PageSize"] = (pageSize ?? PageSize).ToString(CultureInfo.InvariantCulture),
             ["SortBy"] = (sort ?? SortBy).ToString(),
-            ["SortDir"] = sortDir ?? SortDirection
+            ["SortDir"] = sortDir ?? SortDirection,
+            ["View"] = View
         };
 
         if (FromDate.HasValue)
@@ -247,6 +305,16 @@ public sealed class IndexModel : PageModel
         if (AttachmentType != ActivityAttachmentTypeFilter.Any)
         {
             values["AttachmentType"] = AttachmentType.ToString();
+        }
+
+        if (!string.IsNullOrWhiteSpace(Search))
+        {
+            values["Search"] = Search;
+        }
+
+        if (MediaFilter != ActivityMediaFilter.Any)
+        {
+            values["MediaFilter"] = MediaFilter.ToString();
         }
 
         return values;
@@ -361,4 +429,17 @@ public sealed class IndexModel : PageModel
         return string.Concat("/Activities/Index", queryString.HasValue ? queryString.ToUriComponent() : string.Empty);
     }
 
+
+    private sealed class ActivityIndexFallbackUrlBuilder : IProtectedFileUrlBuilder
+    {
+        public string CreateDownloadUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
+        {
+            return string.IsNullOrWhiteSpace(storageKey) ? string.Empty : $"/files/{Uri.EscapeDataString(storageKey)}";
+        }
+
+        public string CreateInlineUrl(string storageKey, string? fileName = null, string? contentType = null, TimeSpan? lifetime = null)
+        {
+            return CreateDownloadUrl(storageKey, fileName, contentType, lifetime);
+        }
+    }
 }

@@ -111,12 +111,12 @@
 
     <div class="pm-card pm-shadow mb-4">
         <div class="pm-card-header">
-            <h2 class="h5 mb-0">Description</h2>
+            <h2 class="h5 mb-0">Remarks / Brief</h2>
         </div>
         <div class="pm-card-body">
             @if (string.IsNullOrWhiteSpace(activity.Description))
             {
-                <p class="text-muted mb-0">No description provided.</p>
+                <p class="text-muted mb-0">No remarks added.</p>
             }
             else
             {
@@ -128,7 +128,7 @@
     <div class="pm-card pm-shadow mb-4">
         <div class="pm-card-header d-flex flex-column flex-lg-row gap-3 align-items-start align-items-lg-center">
             <div>
-                <h2 class="h5 mb-1">Attachments</h2>
+                <h2 class="h5 mb-1">Media / Documents</h2>
                 <p class="text-muted mb-0">@Model.Attachments.Count attachment@(Model.Attachments.Count == 1 ? string.Empty : "s"). Allowed types: @Model.AllowedAttachmentSummary. Max size: @(Math.Ceiling(Model.MaxAttachmentSizeBytes / 1048576.0)) MB.</p>
             </div>
             @if (Model.CanManage)

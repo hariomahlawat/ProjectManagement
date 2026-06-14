@@ -19,6 +19,16 @@ public enum ActivityAttachmentTypeFilter
     Video
 }
 
+public enum ActivityMediaFilter
+{
+    Any,
+    WithMedia,
+    WithoutMedia,
+    Photos,
+    Videos,
+    Documents
+}
+
 public sealed record ActivityListRequest(
     int Page = 1,
     int PageSize = 25,
@@ -28,7 +38,9 @@ public sealed record ActivityListRequest(
     DateOnly? ToDate = null,
     int? ActivityTypeId = null,
     string? CreatedByUserId = null,
-    ActivityAttachmentTypeFilter AttachmentType = ActivityAttachmentTypeFilter.Any);
+    ActivityAttachmentTypeFilter AttachmentType = ActivityAttachmentTypeFilter.Any,
+    string? Search = null,
+    ActivityMediaFilter MediaFilter = ActivityMediaFilter.Any);
 
 public sealed record ActivityListItem(
     int Id,
@@ -36,6 +48,7 @@ public sealed record ActivityListItem(
     string ActivityTypeName,
     int ActivityTypeId,
     string? Location,
+    string? RemarksPreview,
     DateTimeOffset? ScheduledStartUtc,
     DateTimeOffset? ScheduledEndUtc,
     DateTimeOffset CreatedAtUtc,
@@ -46,7 +59,16 @@ public sealed record ActivityListItem(
     int PdfAttachmentCount,
     int PhotoAttachmentCount,
     int VideoAttachmentCount,
+    IReadOnlyList<ActivityMediaPreview> MediaPreviews,
     bool HasPendingDelete);
+
+public sealed record ActivityMediaPreview(
+    int AttachmentId,
+    string FileName,
+    string ContentType,
+    string MediaKind,
+    string StorageKey,
+    long SizeBytes);
 
 public sealed record ActivityListResult(
     IReadOnlyList<ActivityListItem> Items,

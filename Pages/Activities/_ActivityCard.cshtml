@@ -1,0 +1,96 @@
+@model ProjectManagement.ViewModels.Activities.ActivityListRowViewModel
+@using System.Globalization
+@{
+    var eventDate = Model.ScheduledStartUtc?.ToLocalTime();
+    var day = eventDate?.ToString("dd", CultureInfo.CurrentCulture) ?? "—";
+    var monthYear = eventDate?.ToString("MMM yyyy", CultureInfo.CurrentCulture) ?? "Date pending";
+}
+
+<article class="activity-card">
+    <!-- SECTION: Date and location -->
+    <aside class="activity-card__date" aria-label="Activity date">
+        <div class="activity-card__date-day">@day</div>
+        <div class="activity-card__date-month">@monthYear</div>
+        @if (!string.IsNullOrWhiteSpace(Model.Location))
+        {
+            <div class="activity-card__location">
+                <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                <span>@Model.Location</span>
+            </div>
+        }
+    </aside>
+
+    <!-- SECTION: Review content -->
+    <div class="activity-card__body">
+        <div class="activity-card__meta">
+            <span class="activity-card__type">@Model.ActivityType</span>
+        </div>
+        <h2 class="activity-card__title">
+            <a asp-page="./Details" asp-route-id="@Model.Id">@Model.Title</a>
+        </h2>
+
+        <section class="activity-card__remarks" aria-label="Remarks">
+            <div class="activity-card__section-title">Remarks / Brief</div>
+            @if (!string.IsNullOrWhiteSpace(Model.RemarksPreview))
+            {
+                <p>@Model.RemarksPreview</p>
+            }
+            else
+            {
+                <p class="text-muted">No remarks added.</p>
+            }
+        </section>
+
+        <!-- SECTION: Media evidence -->
+        <section class="activity-card__media" aria-label="Media evidence">
+            @if (Model.HasMedia)
+            {
+                <div class="activity-card__media-title">Media (@Model.AttachmentCount)</div>
+                <div class="activity-card__media-strip">
+                    @foreach (var media in Model.MediaPreviews)
+                    {
+                        if (!string.IsNullOrWhiteSpace(media.ThumbnailUrl))
+                        {
+                            <img src="@media.ThumbnailUrl" alt="@media.FileName" class="activity-card__thumb" loading="lazy" />
+                        }
+                        else
+                        {
+                            <a class="activity-card__file-chip" href="@media.DownloadUrl">
+                                <span>@media.MediaKind</span>
+                                <strong>@media.FileName</strong>
+                            </a>
+                        }
+                    }
+                    @if (Model.PhotoAttachmentCount > 0)
+                    {
+                        <span class="activity-card__media-chip"><i class="bi bi-camera" aria-hidden="true"></i> Photos @Model.PhotoAttachmentCount</span>
+                    }
+                    @if (Model.VideoAttachmentCount > 0)
+                    {
+                        <span class="activity-card__media-chip"><i class="bi bi-camera-video" aria-hidden="true"></i> Videos @Model.VideoAttachmentCount</span>
+                    }
+                    @if (Model.PdfAttachmentCount > 0)
+                    {
+                        <span class="activity-card__media-chip"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Documents @Model.PdfAttachmentCount</span>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="activity-card__no-media">
+                    <i class="bi bi-folder" aria-hidden="true"></i>
+                    <span>No media attached</span>
+                </div>
+            }
+        </section>
+
+        <!-- SECTION: Minimal card actions -->
+        <footer class="activity-card__actions">
+            <a asp-page="./Details" asp-route-id="@Model.Id">View details</a>
+            @if (Model.CanEdit)
+            {
+                <a asp-page="./Edit" asp-route-id="@Model.Id"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</a>
+            }
+        </footer>
+    </div>
+</article>

@@ -7,359 +7,143 @@
     var hasRows = vm is not null && vm.Rows.Count > 0;
     var pageSize = vm?.PageSize ?? Model.PageSize;
     var currentPage = vm?.Page ?? Model.Page;
-    var totalCount = vm?.TotalCount ?? 0;
-    var resultsStart = hasRows ? ((currentPage - 1) * pageSize) + 1 : 0;
-    var resultsEnd = hasRows ? resultsStart + vm!.Rows.Count - 1 : 0;
     string FormatEventDate(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd MMM yyyy", System.Globalization.CultureInfo.CurrentCulture) ?? "—";
-    string FormatTimestamp(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd MMM yyyy, HH:mm", System.Globalization.CultureInfo.CurrentCulture) ?? "—";
 }
 
-@section Styles
-{
-    <link rel="stylesheet" href="~/css/activities/index.css" asp-append-version="true" />
-}
-
-@section Scripts
-{
-    <script src="~/js/pages/activities-index.js" asp-append-version="true"></script>
-}
+@section Styles { <link rel="stylesheet" href="~/css/activities/index.css" asp-append-version="true" /> }
+@section Scripts { <script src="~/js/pages/activities-index.js" asp-append-version="true"></script> }
 
 <div class="container-xxl activities-page" data-module="activities-index">
-    <div class="activities-header">
-        <div class="activities-header__heading">
-            <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-calendar-event"></i></span>
-            <div>
-                <h1 class="pm-card-title mb-1">Activities</h1>
-                <p class="pm-card-subtitle mb-0">Record and review misc activities with photos, videos and documents.</p>
-            </div>
+    <!-- SECTION: Page header and primary actions -->
+    <div class="activities-page-header">
+        <div>
+            <h1 class="pm-card-title mb-1">Activities</h1>
+            <p class="pm-card-subtitle mb-0">Review activities with remarks and media.</p>
         </div>
-        <div class="activities-header__actions">
-            <button type="button"
-                    class="btn btn-outline-primary btn-sm"
-                    data-bs-toggle="offcanvas"
-                    data-bs-target="#activitiesFilterOffcanvas"
-                    aria-controls="activitiesFilterOffcanvas">
-                <i class="bi bi-funnel" aria-hidden="true"></i>
-                <span>Filters</span>
-            </button>
-            @if (Model.IsDeleteApprover)
+        <div class="activities-actions">
+            @if (Model.CanCreateActivities)
             {
-                <a class="btn btn-outline-secondary btn-sm" asp-page="./Approvals">
-                    <i class="bi bi-check2-square" aria-hidden="true"></i>
-                    <span>Approvals</span>
-                </a>
+                <a class="btn btn-primary" asp-page="./Edit"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add activity</a>
             }
-
-            <form method="post"
-                  asp-page-handler="Export"
-                  class="d-inline"
-                  data-activities-export-form>
+            <form method="post" asp-page-handler="Export" class="d-inline" data-activities-export-form>
                 @Html.AntiForgeryToken()
+                <input type="hidden" name="Search" value="@Model.Search" />
                 <input type="hidden" name="FromDate" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" />
                 <input type="hidden" name="ToDate" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" />
                 <input type="hidden" name="ActivityTypeId" value="@(Model.ActivityTypeId?.ToString())" />
                 <input type="hidden" name="AttachmentType" value="@Model.AttachmentType" />
+                <input type="hidden" name="MediaFilter" value="@Model.MediaFilter" />
                 <input type="hidden" name="SortBy" value="@Model.SortBy" />
                 <input type="hidden" name="SortDir" value="@Model.SortDirection" />
-                <input type="hidden" name="PageSize" value="@Model.PageSize" />
-                <button type="submit"
-                        class="btn btn-outline-secondary btn-sm"
-                        @(Model.CanExportActivities ? null : "disabled")>
-                    <i class="bi bi-download" aria-hidden="true"></i>
-                    <span>Export spreadsheet</span>
+                <button type="submit" class="btn btn-outline-secondary" @(Model.CanExportActivities ? null : "disabled")>
+                    <i class="bi bi-download" aria-hidden="true"></i> Export
                 </button>
             </form>
-            @if (Model.CanCreateActivities)
+            @if (Model.IsDeleteApprover)
             {
-                <a class="btn btn-primary btn-sm" asp-page="./Edit">
-                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                    <span>Add activity</span>
-                </a>
+                <a class="btn btn-outline-secondary" asp-page="./Approvals"><i class="bi bi-shield-check" aria-hidden="true"></i> Approvals</a>
             }
         </div>
     </div>
 
-    <div class="offcanvas offcanvas-end activities-filter-offcanvas"
-         tabindex="-1"
-         id="activitiesFilterOffcanvas"
-         aria-labelledby="activitiesFilterOffcanvasLabel">
-        <div class="offcanvas-header">
-            <h5 class="offcanvas-title" id="activitiesFilterOffcanvasLabel">Activity filters</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-        </div>
-        <div class="offcanvas-body">
-            <form method="get" class="row g-3 activities-filter-form" aria-label="Activity filters">
-                <input type="hidden" name="Page" value="1" />
-                <input type="hidden" asp-for="SortBy" />
-                <div class="col-12 col-sm-6">
-                    <label class="form-label" asp-for="FromDate">From date</label>
-                    <input asp-for="FromDate" class="form-control" type="date" />
-                </div>
-                <div class="col-12 col-sm-6">
-                    <label class="form-label" asp-for="ToDate">To date</label>
-                    <input asp-for="ToDate" class="form-control" type="date" />
-                </div>
-                <div class="col-12">
-                    <label class="form-label" asp-for="ActivityTypeId">Activity type</label>
-                    <select asp-for="ActivityTypeId" class="form-select" asp-items="Model.ActivityTypeOptions"></select>
-                </div>
-                <div class="col-12 col-sm-6">
-                    <label class="form-label" asp-for="AttachmentType">Attachment type</label>
-                    <select asp-for="AttachmentType" class="form-select" asp-items="Model.AttachmentTypeOptions" data-activities-autosubmit></select>
-                </div>
-                <div class="col-12 col-sm-6">
-                    <label class="form-label" for="SortDir">Order</label>
-                    <select id="SortDir" name="SortDir" class="form-select" data-activities-autosubmit>
-                        <option value="desc" selected="@(Model.IsSortDescending ? "selected" : null)">Descending</option>
-                        <option value="asc" selected="@(!Model.IsSortDescending ? "selected" : null)">Ascending</option>
-                    </select>
-                </div>
-                <div class="col-12 col-sm-6">
-                    <label class="form-label" asp-for="PageSize">Page size</label>
-                    <select asp-for="PageSize" class="form-select" asp-items="Model.PageSizeOptions" data-activities-autosubmit></select>
-                </div>
-                <div class="col-12 d-flex flex-wrap gap-2 justify-content-end">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-funnel" aria-hidden="true"></i>
-                        <span>Apply</span>
-                    </button>
-                    <a asp-page="./Index" class="btn btn-outline-secondary">Reset</a>
-                </div>
-            </form>
-        </div>
+    <!-- SECTION: Visible review filters and view switcher -->
+    <form method="get" id="activitiesFilterForm" class="activities-filterbar" aria-label="Activity filters">
+        <input type="hidden" name="Page" value="1" />
+        <input type="hidden" asp-for="SortBy" />
+        <input type="hidden" asp-for="SortDir" />
+        <input asp-for="Search" class="form-control activities-filterbar__search" placeholder="Search activity..." autocomplete="off" />
+        <select asp-for="ActivityTypeId" class="form-select" asp-items="Model.ActivityTypeOptions" data-activities-autosubmit></select>
+        <input asp-for="FromDate" class="form-control" type="date" data-activities-autosubmit aria-label="From date" />
+        <input asp-for="ToDate" class="form-control" type="date" data-activities-autosubmit aria-label="To date" />
+        <select asp-for="MediaFilter" class="form-select" data-activities-autosubmit>
+            <option value="Any">Any media</option>
+            <option value="WithMedia">With media</option>
+            <option value="WithoutMedia">Without media</option>
+            <option value="Photos">Photos</option>
+            <option value="Videos">Videos</option>
+            <option value="Documents">Documents</option>
+        </select>
+        <input type="hidden" asp-for="View" />
+        <button type="submit" class="btn btn-outline-primary"><i class="bi bi-search" aria-hidden="true"></i> Search</button>
+        <a asp-page="./Index" class="btn btn-outline-secondary">Reset</a>
+    </form>
+
+    <div class="activities-view-toggle" role="group" aria-label="Activity view">
+        <a asp-page="./Index" asp-route-Page="1" asp-route-PageSize="@Model.PageSize" asp-route-SortBy="@Model.SortBy" asp-route-SortDir="@Model.SortDirection" asp-route-Search="@Model.Search" asp-route-FromDate="@Model.FromDate" asp-route-ToDate="@Model.ToDate" asp-route-ActivityTypeId="@Model.ActivityTypeId" asp-route-MediaFilter="@Model.MediaFilter" asp-route-View="cards" class="btn @(Model.View == "cards" ? "btn-primary" : "btn-outline-secondary")"><i class="bi bi-grid" aria-hidden="true"></i> Cards</a>
+        <a asp-page="./Index" asp-route-Page="1" asp-route-PageSize="@Model.PageSize" asp-route-SortBy="@Model.SortBy" asp-route-SortDir="@Model.SortDirection" asp-route-Search="@Model.Search" asp-route-FromDate="@Model.FromDate" asp-route-ToDate="@Model.ToDate" asp-route-ActivityTypeId="@Model.ActivityTypeId" asp-route-MediaFilter="@Model.MediaFilter" asp-route-View="table" class="btn @(Model.View == "table" ? "btn-primary" : "btn-outline-secondary")"><i class="bi bi-list" aria-hidden="true"></i> Table</a>
     </div>
 
-    <div class="activities-summary pm-card pm-shadow mt-3">
-        <div class="pm-card-body d-flex flex-column flex-md-row gap-3 align-items-md-center">
-            <div class="activities-summary__metric">
-                <span class="activities-summary__label">Total activities</span>
-                <span class="activities-summary__value">@totalCount</span>
-            </div>
-            <div class="activities-summary__metric">
-                <span class="activities-summary__label">Showing</span>
-                <span class="activities-summary__value">@(hasRows ? $"{resultsStart:N0}–{resultsEnd:N0}" : "0")</span>
-            </div>
-            <div class="activities-summary__metric">
-                <span class="activities-summary__label">Filters</span>
-                <span class="activities-summary__value">@GetActiveFilterCount()</span>
-            </div>
-            <div class="ms-md-auto text-muted small">
-                Updated @(DateTime.Now.ToString("dd MMM yyyy, HH:mm", System.Globalization.CultureInfo.CurrentCulture)).
-            </div>
-        </div>
+    <!-- SECTION: Review summary chips -->
+    <div class="activities-summary-strip" aria-label="Activity media summary">
+        <span>All <strong>@(vm?.Summary.All ?? 0)</strong></span>
+        <span>With media <strong>@(vm?.Summary.WithMedia ?? 0)</strong></span>
+        <span>Photos <strong>@(vm?.Summary.Photos ?? 0)</strong></span>
+        <span>Documents <strong>@(vm?.Summary.Documents ?? 0)</strong></span>
+        <span>Videos <strong>@(vm?.Summary.Videos ?? 0)</strong></span>
     </div>
 
-    <div class="pm-card pm-shadow activities-table-card mt-3">
-        <div class="pm-card-body">
-            @if (!hasRows)
+    @if (!hasRows)
+    {
+        <div class="pm-card pm-shadow activities-empty text-center py-5">
+            <i class="bi bi-inbox activities-empty__icon" aria-hidden="true"></i>
+            <h2 class="h5 mt-3">No activities found</h2>
+            <p class="text-muted">Try adjusting the filters or add a new activity.</p>
+        </div>
+    }
+    else if (Model.View == "table")
+    {
+        <!-- SECTION: Secondary compact table view -->
+        <div class="pm-card pm-shadow activities-table-card">
+            <div class="pm-card-body table-responsive">
+                <table class="table table-hover align-middle activities-table">
+                    <thead><tr><th>Activity</th><th>Type</th><th>Event date</th><th>Remarks</th><th>Media</th><th class="text-end">Actions</th></tr></thead>
+                    <tbody>
+                    @foreach (var row in vm!.Rows)
+                    {
+                        <tr>
+                            <td><div class="activities-table__title">@row.Title</div>@if (!string.IsNullOrWhiteSpace(row.Location)){<div class="activities-table__meta text-muted"><i class="bi bi-geo-alt" aria-hidden="true"></i> @row.Location</div>}</td>
+                            <td><span class="badge rounded-pill activities-type-badge">@row.ActivityType</span></td>
+                            <td>@FormatEventDate(row.ScheduledStartUtc)</td>
+                            <td class="activities-table__remarks">@(string.IsNullOrWhiteSpace(row.RemarksPreview) ? "No remarks added." : row.RemarksPreview)</td>
+                            <td>@if (row.HasMedia){<span class="badge text-bg-secondary"><i class="bi bi-paperclip" aria-hidden="true"></i> @row.AttachmentCount</span>} else {<span class="text-muted small">No media</span>}</td>
+                            <td class="text-end"><a class="btn btn-outline-secondary btn-sm" asp-page="./Details" asp-route-id="@row.Id">View</a>@if(row.CanEdit){<a class="btn btn-outline-primary btn-sm" asp-page="./Edit" asp-route-id="@row.Id">Edit</a>}</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- SECTION: Default review card timeline -->
+        <div class="activities-timeline">
+            @foreach (var group in vm!.Groups)
             {
-                <div class="activities-empty text-center py-5">
-                    <i class="bi bi-inbox activities-empty__icon" aria-hidden="true"></i>
-                    <h2 class="h5 mt-3">No activities found</h2>
-                    <p class="text-muted">Try adjusting the filters or add a new activity.</p>
-                </div>
-            }
-            else
-            {
-                <div class="table-responsive activities-table-wrapper">
-                    <table class="table table-hover align-middle activities-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Activity</th>
-                                <th scope="col">
-                                    <a class="activities-sort-link" asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: 1, sort: ActivityListSort.ActivityType, sortDir: Model.GetSortDirectionFor(ActivityListSort.ActivityType))">
-                                        Type
-                                        <i class="@Model.GetSortIconClass(ActivityListSort.ActivityType)" aria-hidden="true"></i>
-                                    </a>
-                                </th>
-                                <th scope="col">
-                                    <a class="activities-sort-link" asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: 1, sort: ActivityListSort.ScheduledStart, sortDir: Model.GetSortDirectionFor(ActivityListSort.ScheduledStart))">
-                                        Event date
-                                        <i class="@Model.GetSortIconClass(ActivityListSort.ScheduledStart)" aria-hidden="true"></i>
-                                    </a>
-                                </th>
-                                <th scope="col">
-                                    <a class="activities-sort-link" asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: 1, sort: ActivityListSort.CreatedAt, sortDir: Model.GetSortDirectionFor(ActivityListSort.CreatedAt))">
-                                        Created
-                                        <i class="@Model.GetSortIconClass(ActivityListSort.CreatedAt)" aria-hidden="true"></i>
-                                    </a>
-                                </th>
-                                <th scope="col">Attachments</th>
-                                <th scope="col" class="text-end">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var row in vm!.Rows)
-                            {
-                                <tr>
-                                    <td>
-                                        <div class="activities-table__title">@row.Title</div>
-                                        @if (!string.IsNullOrWhiteSpace(row.Location))
-                                        {
-                                            <div class="activities-table__meta text-muted">
-                                                <i class="bi bi-geo-alt" aria-hidden="true"></i>
-                                                <span>@row.Location</span>
-                                            </div>
-                                        }
-                                        @if (row.HasPendingDelete)
-                                        {
-                                            <div class="mt-2">
-                                                <span class="badge text-bg-warning text-dark">Pending delete approval</span>
-                                            </div>
-                                        }
-                                    </td>
-                                    <td>
-                                        <span class="badge rounded-pill text-bg-light activities-type-badge">@row.ActivityType</span>
-                                    </td>
-                                    <td>
-                                        <div class="activities-table__schedule">
-                                            <div><i class="bi bi-clock" aria-hidden="true"></i> <span>@FormatEventDate(row.ScheduledStartUtc)</span></div>
-                                            @if (row.ScheduledEndUtc.HasValue)
-                                            {
-                                                <div class="text-muted"><i class="bi bi-arrow-right" aria-hidden="true"></i> <span>@FormatEventDate(row.ScheduledEndUtc)</span></div>
-                                            }
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div class="activities-table__creator">@row.CreatedByDisplayName</div>
-                                        <div class="text-muted small">@FormatTimestamp(row.CreatedAtUtc)</div>
-                                    </td>
-                                    <td>
-                                        <div class="d-flex flex-wrap gap-2 align-items-center">
-                                            <span class="badge text-bg-secondary activities-attachment-total" title="Total attachments">
-                                                <i class="bi bi-paperclip" aria-hidden="true"></i>
-                                                <span>@row.AttachmentCount</span>
-                                            </span>
-                                            @if (row.HasPdf)
-                                            {
-                                                <span class="badge text-bg-danger-subtle text-danger activities-attachment-badge" title="PDF attachments">
-                                                    <i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>
-                                                    <span>@row.PdfAttachmentCount</span>
-                                                </span>
-                                            }
-                                            @if (row.HasPhoto)
-                                            {
-                                                <span class="badge text-bg-primary-subtle text-primary activities-attachment-badge" title="Photo attachments">
-                                                    <i class="bi bi-camera" aria-hidden="true"></i>
-                                                    <span>@row.PhotoAttachmentCount</span>
-                                                </span>
-                                            }
-                                            @if (row.HasVideo)
-                                            {
-                                                <span class="badge text-bg-success-subtle text-success activities-attachment-badge" title="Video attachments">
-                                                    <i class="bi bi-camera-video" aria-hidden="true"></i>
-                                                    <span>@row.VideoAttachmentCount</span>
-                                                </span>
-                                            }
-                                        </div>
-                                    </td>
-                                    <td class="text-end">
-                                        <div class="btn-group btn-group-sm" role="group" aria-label="Activity actions">
-                                            <a class="btn btn-outline-secondary" asp-page="./Details" asp-route-id="@row.Id">
-                                                <span class="visually-hidden">View</span>
-                                                <i class="bi bi-eye" aria-hidden="true"></i>
-                                            </a>
-                                            @if (row.CanEdit)
-                                            {
-                                                <a class="btn btn-outline-primary" asp-page="./Edit" asp-route-id="@row.Id">
-                                                    <span class="visually-hidden">Edit</span>
-                                                    <i class="bi bi-pencil" aria-hidden="true"></i>
-                                                </a>
-                                            }
-                                            @if (row.CanDelete)
-                                            {
-                                                var deleteRouteValues = Model.BuildRouteForDeleteRequest(row.Id);
-                                                var deleteFormId = $"delete-form-{row.Id}";
-                                                <form method="post"
-                                                      asp-page="./Index"
-                                                      asp-page-handler="RequestDelete"
-                                                      class="d-inline"
-                                                      id="@deleteFormId"
-                                                      data-activities-delete-form>
-                                                    @Html.AntiForgeryToken()
-                                                    @foreach (var routeValue in deleteRouteValues)
-                                                    {
-                                                        <input type="hidden" name="@routeValue.Key" value="@(routeValue.Value ?? string.Empty)" />
-                                                    }
-                                                </form>
-                                                <button type="submit"
-                                                        class="btn btn-outline-danger js-activities-confirm-delete"
-                                                        form="@deleteFormId"
-                                                        data-confirm="Request deletion of this activity?">
-                                                    <span class="visually-hidden">Request delete</span>
-                                                    <i class="bi bi-trash" aria-hidden="true"></i>
-                                                </button>
-                                            }
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                @if (vm!.TotalPages > 1)
-                {
-                    <nav aria-label="Activity pagination" class="activities-pagination">
-                        <ul class="pagination justify-content-end flex-wrap">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : null)">
-                                <a class="page-link" asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: Math.Max(1, currentPage - 1))" aria-label="Previous">
-                                    <span aria-hidden="true">&laquo;</span>
-                                </a>
-                            </li>
-                            @for (var p = 1; p <= vm.TotalPages; p++)
-                            {
-                                if (p == currentPage || Math.Abs(p - currentPage) <= 2 || p == 1 || p == vm.TotalPages)
-                                {
-                                    var isActive = p == currentPage;
-                                    <li class="page-item @(isActive ? "active" : null)">
-                                        <a class="page-link" asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: p)">@p</a>
-                                    </li>
-                                }
-                                else if (p == 2 && currentPage > 4)
-                                {
-                                    <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
-                                }
-                                else if (p == vm.TotalPages - 1 && currentPage < vm.TotalPages - 3)
-                                {
-                                    <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
-                                }
-                            }
-                            <li class="page-item @(currentPage >= vm.TotalPages ? "disabled" : null)">
-                                <a class="page-link" asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: Math.Min(vm.TotalPages, currentPage + 1))" aria-label="Next">
-                                    <span aria-hidden="true">&raquo;</span>
-                                </a>
-                            </li>
-                        </ul>
-                    </nav>
-                }
+                <section class="activities-month-group" aria-label="@group.Label activities">
+                    <h2>@group.Label</h2>
+                    <div class="activities-month-group__items">
+                        @foreach (var row in group.Items)
+                        {
+                            <partial name="_ActivityCard" model="row" />
+                        }
+                    </div>
+                </section>
             }
         </div>
-    </div>
+    }
+
+    @if (vm is not null && vm.TotalPages > 1)
+    {
+        <!-- SECTION: Pagination -->
+        <nav aria-label="Activity pagination" class="activities-pagination">
+            <ul class="pagination justify-content-end flex-wrap">
+                <li class="page-item @(currentPage <= 1 ? "disabled" : null)"><a class="page-link" asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: Math.Max(1, currentPage - 1))">Previous</a></li>
+                <li class="page-item disabled"><span class="page-link">Page @currentPage of @vm.TotalPages</span></li>
+                <li class="page-item @(currentPage >= vm.TotalPages ? "disabled" : null)"><a class="page-link" asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: Math.Min(vm.TotalPages, currentPage + 1))">Next</a></li>
+            </ul>
+        </nav>
+    }
 </div>
 
 @await Html.PartialAsync("_DeleteConfirmModal")
-
-@functions {
-    private int GetActiveFilterCount()
-    {
-        var count = 0;
-        if (Model.FromDate.HasValue)
-        {
-            count++;
-        }
-        if (Model.ToDate.HasValue)
-        {
-            count++;
-        }
-        if (Model.ActivityTypeId.HasValue)
-        {
-            count++;
-        }
-        if (Model.AttachmentType != ActivityAttachmentTypeFilter.Any)
-        {
-            count++;
-        }
-        return count;
-    }
-}

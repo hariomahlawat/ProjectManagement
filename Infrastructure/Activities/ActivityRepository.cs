@@ -68,6 +68,17 @@ namespace ProjectManagement.Infrastructure.Activities
                 query = query.Where(x => x.CreatedByUserId == request.CreatedByUserId);
             }
 
+            // SECTION: Review-first search filters
+            if (!string.IsNullOrWhiteSpace(request.Search))
+            {
+                var term = request.Search.Trim();
+                query = query.Where(x =>
+                    x.Title.Contains(term) ||
+                    (x.Description != null && x.Description.Contains(term)) ||
+                    (x.Location != null && x.Location.Contains(term)) ||
+                    x.ActivityType.Name.Contains(term));
+            }
+
             if (request.FromDate.HasValue)
             {
                 var from = new DateTimeOffset(request.FromDate.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
@@ -88,6 +99,22 @@ namespace ProjectManagement.Infrastructure.Activities
                     a.OriginalFileName.EndsWith(".pdf"))),
                 ActivityAttachmentTypeFilter.Photo => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("image/"))),
                 ActivityAttachmentTypeFilter.Video => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("video/"))),
+                _ => query
+            };
+
+            // SECTION: Media availability filters
+            query = request.MediaFilter switch
+            {
+                ActivityMediaFilter.WithMedia => query.Where(x => x.Attachments.Any()),
+                ActivityMediaFilter.WithoutMedia => query.Where(x => !x.Attachments.Any()),
+                ActivityMediaFilter.Photos => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("image/"))),
+                ActivityMediaFilter.Videos => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("video/"))),
+                ActivityMediaFilter.Documents => query.Where(x => x.Attachments.Any(a =>
+                    a.ContentType == "application/pdf" ||
+                    a.OriginalFileName.EndsWith(".pdf") ||
+                    a.ContentType.Contains("document") ||
+                    a.ContentType.Contains("spreadsheet") ||
+                    a.ContentType.Contains("presentation"))),
                 _ => query
             };
 
@@ -131,6 +158,7 @@ namespace ProjectManagement.Infrastructure.Activities
                     x.ActivityType.Name,
                     x.ActivityTypeId,
                     x.Location,
+                    x.Description,
                     x.ScheduledStartUtc,
                     x.ScheduledEndUtc,
                     x.CreatedAtUtc,
@@ -141,6 +169,20 @@ namespace ProjectManagement.Infrastructure.Activities
                     x.Attachments.Count(a => a.ContentType == "application/pdf" || a.OriginalFileName.EndsWith(".pdf")),
                     x.Attachments.Count(a => a.ContentType.StartsWith("image/")),
                     x.Attachments.Count(a => a.ContentType.StartsWith("video/")),
+                    x.Attachments
+                        .OrderByDescending(a => a.ContentType.StartsWith("image/"))
+                        .ThenByDescending(a => a.ContentType.StartsWith("video/"))
+                        .ThenByDescending(a => a.ContentType == "application/pdf" || a.OriginalFileName.EndsWith(".pdf"))
+                        .ThenByDescending(a => a.UploadedAtUtc)
+                        .Take(3)
+                        .Select(a => new ActivityMediaPreview(
+                            a.Id,
+                            a.OriginalFileName,
+                            a.ContentType,
+                            a.ContentType.StartsWith("image/") ? "Photo" : a.ContentType.StartsWith("video/") ? "Video" : "Document",
+                            a.StorageKey,
+                            a.FileSize))
+                        .ToList(),
                     x.DeleteRequests.Any(r => r.ApprovedAtUtc == null && r.RejectedAtUtc == null)))
                 .ToListAsync(cancellationToken);
 
