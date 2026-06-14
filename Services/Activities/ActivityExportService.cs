@@ -16,6 +16,20 @@ public sealed class ActivityExportService : IActivityExportService
     private readonly IActivityAttachmentManager _attachmentManager;
     private static readonly TimeZoneInfo IndiaTimeZone = GetIndiaTimeZone();
 
+    // SECTION: Spreadsheet column indexes
+    private const int ActivityTitleColumn = 1;
+    private const int ActivityTypeColumn = 2;
+    private const int RemarksColumn = 3;
+    private const int EventDateColumn = 4;
+    private const int EndDateColumn = 5;
+    private const int CreatedDateColumn = 6;
+    private const int CreatedByColumn = 7;
+    private const int PdfAttachmentsColumn = 8;
+    private const int PhotoAttachmentsColumn = 9;
+    private const int VideoAttachmentsColumn = 10;
+    private const int TotalAttachmentsColumn = 11;
+    private const int AttachmentLinksColumn = 12;
+
     public const string ExcelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
     public ActivityExportService(IActivityRepository activityRepository,
@@ -103,9 +117,10 @@ public sealed class ActivityExportService : IActivityExportService
     {
         var headers = new[]
         {
-            "Title",
+            "Activity title",
             "Activity type",
-            "Start date",
+            "Remarks / Brief",
+            "Event date",
             "End date",
             "Created date",
             "Created by",
@@ -133,18 +148,24 @@ public sealed class ActivityExportService : IActivityExportService
             var item = items[index];
             var rowNumber = index + 2;
 
-            worksheet.Cell(rowNumber, 1).Value = item.Title;
-            worksheet.Cell(rowNumber, 2).Value = item.ActivityTypeName;
+            // SECTION: Core activity details
+            worksheet.Cell(rowNumber, ActivityTitleColumn).Value = item.Title;
+            worksheet.Cell(rowNumber, ActivityTypeColumn).Value = item.ActivityTypeName;
+            worksheet.Cell(rowNumber, RemarksColumn).Value = item.RemarksPreview ?? string.Empty;
+            worksheet.Cell(rowNumber, RemarksColumn).Style.Alignment.WrapText = true;
 
-            SetDateCell(worksheet.Cell(rowNumber, 3), item.ScheduledStartUtc);
-            SetDateCell(worksheet.Cell(rowNumber, 4), item.ScheduledEndUtc);
-            SetDateCell(worksheet.Cell(rowNumber, 5), item.CreatedAtUtc);
+            // SECTION: Activity dates and ownership
+            SetDateCell(worksheet.Cell(rowNumber, EventDateColumn), item.ScheduledStartUtc);
+            SetDateCell(worksheet.Cell(rowNumber, EndDateColumn), item.ScheduledEndUtc);
+            SetDateCell(worksheet.Cell(rowNumber, CreatedDateColumn), item.CreatedAtUtc);
 
-            worksheet.Cell(rowNumber, 6).Value = ResolveCreatedBy(item);
-            worksheet.Cell(rowNumber, 7).Value = item.PdfAttachmentCount;
-            worksheet.Cell(rowNumber, 8).Value = item.PhotoAttachmentCount;
-            worksheet.Cell(rowNumber, 9).Value = item.VideoAttachmentCount;
-            worksheet.Cell(rowNumber, 10).Value = item.AttachmentCount;
+            worksheet.Cell(rowNumber, CreatedByColumn).Value = ResolveCreatedBy(item);
+
+            // SECTION: Attachment counts
+            worksheet.Cell(rowNumber, PdfAttachmentsColumn).Value = item.PdfAttachmentCount;
+            worksheet.Cell(rowNumber, PhotoAttachmentsColumn).Value = item.PhotoAttachmentCount;
+            worksheet.Cell(rowNumber, VideoAttachmentsColumn).Value = item.VideoAttachmentCount;
+            worksheet.Cell(rowNumber, TotalAttachmentsColumn).Value = item.AttachmentCount;
 
             if (!metadata.TryGetValue(item.Id, out var attachments) || attachments.Count == 0)
             {
@@ -157,7 +178,7 @@ public sealed class ActivityExportService : IActivityExportService
                 continue;
             }
 
-            var cell = worksheet.Cell(rowNumber, 11);
+            var cell = worksheet.Cell(rowNumber, AttachmentLinksColumn);
             cell.SetFormulaA1(formula);
             cell.Style.Alignment.WrapText = true;
         }
