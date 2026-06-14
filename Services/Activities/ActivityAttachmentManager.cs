@@ -76,7 +76,7 @@ public sealed class ActivityAttachmentManager : IActivityAttachmentManager
         await _activityRepository.AddAttachmentAsync(attachment, cancellationToken);
         activity.Attachments.Add(attachment);
 
-        if (string.Equals(upload.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
+        if (ActivityAttachmentClassifier.Classify(storageResult.FileName, upload.ContentType) == ActivityAttachmentKind.Pdf)
         {
             try
             {

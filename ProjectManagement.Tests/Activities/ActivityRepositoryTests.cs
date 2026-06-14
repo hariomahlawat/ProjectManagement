@@ -500,4 +500,77 @@ public class ActivityRepositoryTests
         Assert.Equal(expectedTitle, item.Title);
     }
 
+    [Fact]
+    public async Task ListAsync_ClassifiesAttachmentsWithCaseInsensitiveNormalizedRules()
+    {
+        await using var context = CreateContext();
+        var repository = new ActivityRepository(context);
+
+        var type = new ActivityType
+        {
+            Name = "Attachments",
+            CreatedByUserId = "system"
+        };
+        context.ActivityTypes.Add(type);
+        await context.SaveChangesAsync();
+
+        // SECTION: Mixed-case attachment data used by filters, counts, and previews
+        var activity = new Activity
+        {
+            Title = "Attachment classification",
+            ActivityTypeId = type.Id,
+            CreatedByUserId = "user-1",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            Attachments =
+            {
+                new ActivityAttachment
+                {
+                    StorageKey = "files/upper-pdf",
+                    OriginalFileName = "brief.PDF",
+                    ContentType = "application/octet-stream",
+                    UploadedByUserId = "user-1",
+                    UploadedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-3)
+                },
+                new ActivityAttachment
+                {
+                    StorageKey = "files/photo",
+                    OriginalFileName = "photo.jpg",
+                    ContentType = "Image/JPEG",
+                    UploadedByUserId = "user-1",
+                    UploadedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-2)
+                },
+                new ActivityAttachment
+                {
+                    StorageKey = "files/video",
+                    OriginalFileName = "clip.mp4",
+                    ContentType = "Video/MP4",
+                    UploadedByUserId = "user-1",
+                    UploadedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-1)
+                },
+                new ActivityAttachment
+                {
+                    StorageKey = "files/office",
+                    OriginalFileName = "memo.docx",
+                    ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    UploadedByUserId = "user-1",
+                    UploadedAtUtc = DateTimeOffset.UtcNow
+                }
+            }
+        };
+
+        context.Activities.Add(activity);
+        await context.SaveChangesAsync();
+
+        var result = await repository.ListAsync(new ActivityListRequest(PageSize: 10, MediaFilter: ActivityMediaFilter.Documents));
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal(4, item.AttachmentCount);
+        Assert.Equal(1, item.PdfAttachmentCount);
+        Assert.Equal(1, item.PhotoAttachmentCount);
+        Assert.Equal(1, item.VideoAttachmentCount);
+        Assert.Contains(item.MediaPreviews, preview => preview.MediaKind == ActivityAttachmentClassifier.PhotoLabel);
+        Assert.Contains(item.MediaPreviews, preview => preview.MediaKind == ActivityAttachmentClassifier.VideoLabel);
+        Assert.Contains(item.MediaPreviews, preview => preview.MediaKind == ActivityAttachmentClassifier.PdfLabel);
+    }
+
 }

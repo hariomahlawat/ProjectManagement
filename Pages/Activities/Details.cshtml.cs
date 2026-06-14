@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
+using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Infrastructure.Ui;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Services.Activities;
@@ -197,28 +198,18 @@ public sealed class DetailsModel : PageModel
 
         var attachments = await _activityService.GetAttachmentMetadataAsync(activity.Id, cancellationToken);
         Attachments = attachments;
-        PhotoAttachments = attachments.Where(IsPhoto).ToList();
-        VideoAttachments = attachments.Where(IsVideo).ToList();
-        PdfAttachments = attachments.Where(IsPdf).ToList();
-        OtherAttachments = attachments.Except(PhotoAttachments.Concat(VideoAttachments).Concat(PdfAttachments)).ToList();
+        PhotoAttachments = attachments.Where(a => ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType) == ActivityAttachmentKind.Photo).ToList();
+        VideoAttachments = attachments.Where(a => ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType) == ActivityAttachmentKind.Video).ToList();
+        PdfAttachments = attachments.Where(a => ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType) == ActivityAttachmentKind.Pdf).ToList();
+        OtherAttachments = attachments
+            .Where(a =>
+            {
+                var kind = ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType);
+                return kind is ActivityAttachmentKind.Document or ActivityAttachmentKind.Other;
+            })
+            .ToList();
 
         RemainingAttachmentSlots = Math.Max(0, ActivityAttachmentManager.MaxAttachmentsPerActivity - attachments.Count);
-    }
-
-    private static bool IsPhoto(ActivityAttachmentMetadata attachment)
-    {
-        return attachment.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsVideo(ActivityAttachmentMetadata attachment)
-    {
-        return attachment.ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsPdf(ActivityAttachmentMetadata attachment)
-    {
-        return string.Equals(attachment.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase) ||
-               attachment.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsManager(ClaimsPrincipal user)
