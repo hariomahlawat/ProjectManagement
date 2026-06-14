@@ -14,5 +14,21 @@ namespace ProjectManagement.Infrastructure
 
         public static DateTime? ToIst(DateTime? utc) =>
             utc.HasValue ? ToIst(utc.Value) : (DateTime?)null;
+
+        // SECTION: Application day-boundary conversion helpers
+        public static DateTimeOffset StartOfDayIstToUtc(DateOnly date)
+        {
+            var istStart = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+            return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(istStart, _ist), TimeSpan.Zero);
+        }
+
+        public static DateTimeOffset ExclusiveEndOfDayIstToUtc(DateOnly date) =>
+            StartOfDayIstToUtc(date.AddDays(1));
+
+        public static DateTimeOffset ToIst(DateTimeOffset utc) =>
+            TimeZoneInfo.ConvertTime(utc, _ist);
+
+        public static DateTimeOffset? ToIst(DateTimeOffset? utc) =>
+            utc.HasValue ? ToIst(utc.Value) : (DateTimeOffset?)null;
     }
 }

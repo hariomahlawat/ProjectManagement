@@ -1,9 +1,10 @@
 @page
 @model ProjectManagement.Pages.Activities.ApprovalsModel
 @using System.Globalization
+@using ProjectManagement.Infrastructure
 @{
     ViewData["Title"] = "Activity delete approvals";
-    string FormatDate(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture) ?? "—";
+    string FormatDate(DateTimeOffset? value) => value.HasValue ? IstClock.ToIst(value.Value).ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture) : "—";
 }
 
 <div class="container-xxl activities-approvals-page">

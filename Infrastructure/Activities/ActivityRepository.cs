@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Activities;
 
 namespace ProjectManagement.Infrastructure.Activities
@@ -79,16 +80,16 @@ namespace ProjectManagement.Infrastructure.Activities
                     x.ActivityType.Name.Contains(term));
             }
 
+            // SECTION: IST date-range filters
             if (request.FromDate.HasValue)
             {
-                var from = new DateTimeOffset(request.FromDate.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+                var from = IstClock.StartOfDayIstToUtc(request.FromDate.Value);
                 query = query.Where(x => (x.ScheduledStartUtc ?? x.CreatedAtUtc) >= from);
             }
 
             if (request.ToDate.HasValue)
             {
-                var toExclusiveDate = request.ToDate.Value.AddDays(1);
-                var toExclusive = new DateTimeOffset(toExclusiveDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+                var toExclusive = IstClock.ExclusiveEndOfDayIstToUtc(request.ToDate.Value);
                 query = query.Where(x => (x.ScheduledStartUtc ?? x.CreatedAtUtc) < toExclusive);
             }
 

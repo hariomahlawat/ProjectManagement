@@ -1,13 +1,14 @@
 @page
 @model ProjectManagement.Pages.Activities.IndexModel
 @using ProjectManagement.Contracts.Activities
+@using ProjectManagement.Infrastructure
 @{
     ViewData["Title"] = "Activities";
     var vm = Model.ViewModel;
     var hasRows = vm is not null && vm.Rows.Count > 0;
     var pageSize = vm?.PageSize ?? Model.PageSize;
     var currentPage = vm?.Page ?? Model.Page;
-    string FormatEventDate(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd MMM yyyy", System.Globalization.CultureInfo.CurrentCulture) ?? "—";
+    string FormatEventDate(DateTimeOffset? value) => value.HasValue ? IstClock.ToIst(value.Value).ToString("dd MMM yyyy", System.Globalization.CultureInfo.CurrentCulture) : "—";
 }
 
 @section Styles { <link rel="stylesheet" href="~/css/activities/index.css" asp-append-version="true" /> }

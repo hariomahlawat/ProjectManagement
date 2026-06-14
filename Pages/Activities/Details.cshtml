@@ -1,6 +1,7 @@
 @page "{id:int}"
 @model ProjectManagement.Pages.Activities.DetailsModel
 @using System.Globalization
+@using ProjectManagement.Infrastructure
 @{
     var activity = Model.Activity;
     if (activity is null)
@@ -11,8 +12,8 @@
 
     ViewData["Title"] = activity.Title;
 
-    string FormatEventDate(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd MMM yyyy", CultureInfo.CurrentCulture) ?? "—";
-    string FormatTimestamp(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture) ?? "—";
+    string FormatEventDate(DateTimeOffset? value) => value.HasValue ? IstClock.ToIst(value.Value).ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
+    string FormatTimestamp(DateTimeOffset? value) => value.HasValue ? IstClock.ToIst(value.Value).ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture) : "—";
 
     string FormatUser(string? displayName, string? userId)
     {
@@ -179,7 +180,7 @@
                                         </button>
                                         <div class="card-body">
                                             <h4 class="card-title h6 mb-1">@photo.FileName</h4>
-                                            <p class="card-text text-muted small mb-2">Uploaded @photo.UploadedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture)</p>
+                                            <p class="card-text text-muted small mb-2">Uploaded @IstClock.ToIst(photo.UploadedAtUtc).ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture)</p>
                                             <p class="card-text text-muted small mb-0">@FormatFileSize(photo.FileSize)</p>
                                         </div>
                                         <div class="card-footer bg-transparent border-0 pt-0">
@@ -230,7 +231,7 @@
                                         </div>
                                         <div class="card-body">
                                             <h4 class="card-title h6 mb-1">@video.FileName</h4>
-                                            <p class="card-text text-muted small mb-2">Uploaded @video.UploadedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture)</p>
+                                            <p class="card-text text-muted small mb-2">Uploaded @IstClock.ToIst(video.UploadedAtUtc).ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture)</p>
                                             <p class="card-text text-muted small mb-0">@FormatFileSize(video.FileSize)</p>
                                         </div>
                                         <div class="card-footer bg-transparent border-0 pt-0">
