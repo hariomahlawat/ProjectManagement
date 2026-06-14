@@ -55,69 +55,7 @@ namespace ProjectManagement.Infrastructure.Activities
             var page = request.Page <= 0 ? 1 : request.Page;
             var pageSize = request.PageSize < 0 ? 0 : request.PageSize;
 
-            var query = _dbContext.Activities
-                .AsNoTracking()
-                .Where(x => !x.IsDeleted);
-
-            if (request.ActivityTypeId.HasValue)
-            {
-                query = query.Where(x => x.ActivityTypeId == request.ActivityTypeId.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.CreatedByUserId))
-            {
-                query = query.Where(x => x.CreatedByUserId == request.CreatedByUserId);
-            }
-
-            // SECTION: Review-first search filters
-            if (!string.IsNullOrWhiteSpace(request.Search))
-            {
-                var term = request.Search.Trim();
-                query = query.Where(x =>
-                    x.Title.Contains(term) ||
-                    (x.Description != null && x.Description.Contains(term)) ||
-                    (x.Location != null && x.Location.Contains(term)) ||
-                    x.ActivityType.Name.Contains(term));
-            }
-
-            // SECTION: IST date-range filters
-            if (request.FromDate.HasValue)
-            {
-                var from = IstClock.StartOfDayIstToUtc(request.FromDate.Value);
-                query = query.Where(x => (x.ScheduledStartUtc ?? x.CreatedAtUtc) >= from);
-            }
-
-            if (request.ToDate.HasValue)
-            {
-                var toExclusive = IstClock.ExclusiveEndOfDayIstToUtc(request.ToDate.Value);
-                query = query.Where(x => (x.ScheduledStartUtc ?? x.CreatedAtUtc) < toExclusive);
-            }
-
-            query = request.AttachmentType switch
-            {
-                ActivityAttachmentTypeFilter.Pdf => query.Where(x => x.Attachments.Any(a =>
-                    a.ContentType == "application/pdf" ||
-                    a.OriginalFileName.EndsWith(".pdf"))),
-                ActivityAttachmentTypeFilter.Photo => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("image/"))),
-                ActivityAttachmentTypeFilter.Video => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("video/"))),
-                _ => query
-            };
-
-            // SECTION: Media availability filters
-            query = request.MediaFilter switch
-            {
-                ActivityMediaFilter.WithMedia => query.Where(x => x.Attachments.Any()),
-                ActivityMediaFilter.WithoutMedia => query.Where(x => !x.Attachments.Any()),
-                ActivityMediaFilter.Photos => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("image/"))),
-                ActivityMediaFilter.Videos => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("video/"))),
-                ActivityMediaFilter.Documents => query.Where(x => x.Attachments.Any(a =>
-                    a.ContentType == "application/pdf" ||
-                    a.OriginalFileName.EndsWith(".pdf") ||
-                    a.ContentType.Contains("document") ||
-                    a.ContentType.Contains("spreadsheet") ||
-                    a.ContentType.Contains("presentation"))),
-                _ => query
-            };
+            var query = ApplyMediaFilter(ApplyBaseReviewFilters(CreateBaseQuery(), request), request.MediaFilter);
 
             var total = await query.CountAsync(cancellationToken);
 
@@ -188,6 +126,105 @@ namespace ProjectManagement.Infrastructure.Activities
                 .ToListAsync(cancellationToken);
 
             return new ActivityListResult(items, total, page, pageSize > 0 ? pageSize : total, request.Sort, request.SortDescending);
+        }
+
+        public async Task<ActivityReviewSummaryResult> GetReviewSummaryAsync(ActivityListRequest request, CancellationToken cancellationToken = default)
+        {
+            if (request is null)
+            {
+                throw new ArgumentNullException(nameof(request));
+            }
+
+            // SECTION: Full-result review summary
+            // MediaFilter is intentionally ignored so the summary chips remain stable
+            // navigation buckets while search, activity type, dates, creator, and attachment
+            // type filters continue to scope the aggregate.
+            var query = ApplyBaseReviewFilters(CreateBaseQuery(), request);
+
+            var all = await query.CountAsync(cancellationToken);
+            var withMedia = await query.CountAsync(x => x.Attachments.Any(), cancellationToken);
+            var photos = await query.SelectMany(x => x.Attachments).CountAsync(a => a.ContentType.StartsWith("image/"), cancellationToken);
+            var documents = await query.SelectMany(x => x.Attachments).CountAsync(a =>
+                a.ContentType == "application/pdf" ||
+                a.OriginalFileName.EndsWith(".pdf") ||
+                a.ContentType.Contains("document") ||
+                a.ContentType.Contains("spreadsheet") ||
+                a.ContentType.Contains("presentation"), cancellationToken);
+            var videos = await query.SelectMany(x => x.Attachments).CountAsync(a => a.ContentType.StartsWith("video/"), cancellationToken);
+
+            return new ActivityReviewSummaryResult(all, withMedia, photos, documents, videos);
+        }
+
+        private IQueryable<Activity> CreateBaseQuery()
+        {
+            return _dbContext.Activities
+                .AsNoTracking()
+                .Where(x => !x.IsDeleted);
+        }
+
+        private static IQueryable<Activity> ApplyBaseReviewFilters(IQueryable<Activity> query, ActivityListRequest request)
+        {
+            // SECTION: Base review filters shared by rows and summary
+            if (request.ActivityTypeId.HasValue)
+            {
+                query = query.Where(x => x.ActivityTypeId == request.ActivityTypeId.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.CreatedByUserId))
+            {
+                query = query.Where(x => x.CreatedByUserId == request.CreatedByUserId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.Search))
+            {
+                var term = request.Search.Trim();
+                query = query.Where(x =>
+                    x.Title.Contains(term) ||
+                    (x.Description != null && x.Description.Contains(term)) ||
+                    (x.Location != null && x.Location.Contains(term)) ||
+                    x.ActivityType.Name.Contains(term));
+            }
+
+            if (request.FromDate.HasValue)
+            {
+                var from = IstClock.StartOfDayIstToUtc(request.FromDate.Value);
+                query = query.Where(x => (x.ScheduledStartUtc ?? x.CreatedAtUtc) >= from);
+            }
+
+            if (request.ToDate.HasValue)
+            {
+                var toExclusive = IstClock.ExclusiveEndOfDayIstToUtc(request.ToDate.Value);
+                query = query.Where(x => (x.ScheduledStartUtc ?? x.CreatedAtUtc) < toExclusive);
+            }
+
+            return request.AttachmentType switch
+            {
+                ActivityAttachmentTypeFilter.Pdf => query.Where(x => x.Attachments.Any(a =>
+                    a.ContentType == "application/pdf" ||
+                    a.OriginalFileName.EndsWith(".pdf"))),
+                ActivityAttachmentTypeFilter.Photo => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("image/"))),
+                ActivityAttachmentTypeFilter.Video => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("video/"))),
+                _ => query
+            };
+        }
+
+        private static IQueryable<Activity> ApplyMediaFilter(IQueryable<Activity> query, ActivityMediaFilter mediaFilter)
+        {
+            // SECTION: Media availability row filters
+            return mediaFilter switch
+            {
+                ActivityMediaFilter.WithMedia => query.Where(x => x.Attachments.Any()),
+                ActivityMediaFilter.WithoutMedia => query.Where(x => !x.Attachments.Any()),
+                ActivityMediaFilter.Photos => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("image/"))),
+                ActivityMediaFilter.Videos => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("video/"))),
+                ActivityMediaFilter.Documents => query.Where(x => x.Attachments.Any(a =>
+                    a.ContentType == "application/pdf" ||
+                    a.OriginalFileName.EndsWith(".pdf") ||
+                    a.ContentType.Contains("document") ||
+                    a.ContentType.Contains("spreadsheet") ||
+                    a.ContentType.Contains("presentation"))),
+                _ => query
+            };
         }
 
         public async Task AddAsync(Activity activity, CancellationToken cancellationToken = default)

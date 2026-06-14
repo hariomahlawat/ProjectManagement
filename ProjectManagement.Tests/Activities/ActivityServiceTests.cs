@@ -494,6 +494,42 @@ public class ActivityServiceTests : IDisposable
         Assert.Null(export);
     }
 
+    [Fact]
+    public async Task GetReviewSummaryAsync_DoesNotChangeWhenOnlyPageChanges()
+    {
+        var type = await EnsureActivityTypeAsync();
+        await SeedActivityWithAttachmentAsync(type.Id, "Photo Activity", "photo.jpg", "image/jpeg");
+        await SeedActivityWithAttachmentAsync(type.Id, "Document Activity", "notes.pdf", "application/pdf");
+        await SeedActivityWithAttachmentAsync(type.Id, "Video Activity", "clip.mp4", "video/mp4");
+        await SeedActivityWithoutAttachmentAsync(type.Id, "No Media Activity");
+
+        var firstPageRequest = new ActivityListRequest(Page: 1, PageSize: 2, ActivityTypeId: type.Id);
+        var secondPageRequest = firstPageRequest with { Page = 2 };
+
+        var firstPageSummary = await _service.GetReviewSummaryAsync(firstPageRequest);
+        var secondPageSummary = await _service.GetReviewSummaryAsync(secondPageRequest);
+
+        Assert.Equal(firstPageSummary, secondPageSummary);
+        Assert.Equal(new ActivityReviewSummaryResult(All: 4, WithMedia: 3, Photos: 1, Documents: 1, Videos: 1), firstPageSummary);
+    }
+
+    [Fact]
+    public async Task GetReviewSummaryAsync_IgnoresMediaFilter()
+    {
+        var type = await EnsureActivityTypeAsync();
+        await SeedActivityWithAttachmentAsync(type.Id, "Photo Activity", "photo.jpg", "image/jpeg");
+        await SeedActivityWithoutAttachmentAsync(type.Id, "No Media Activity");
+
+        var unfilteredRequest = new ActivityListRequest(Page: 1, PageSize: 10, ActivityTypeId: type.Id);
+        var mediaFilteredRequest = unfilteredRequest with { MediaFilter = ActivityMediaFilter.Photos };
+
+        var unfilteredSummary = await _service.GetReviewSummaryAsync(unfilteredRequest);
+        var mediaFilteredSummary = await _service.GetReviewSummaryAsync(mediaFilteredRequest);
+
+        Assert.Equal(unfilteredSummary, mediaFilteredSummary);
+        Assert.Equal(2, mediaFilteredSummary.All);
+    }
+
     private ActivityService CreateService(TestUserContext userContext)
     {
         return new ActivityService(_activityRepository,
@@ -514,6 +550,28 @@ public class ActivityServiceTests : IDisposable
         };
         await _activityTypeRepository.AddAsync(type);
         return type;
+    }
+
+    private async Task SeedActivityWithAttachmentAsync(int activityTypeId, string title, string fileName, string contentType)
+    {
+        // SECTION: Activity summary test seed
+        var activity = await _service.CreateAsync(new ActivityInput(title, null, null, activityTypeId, null, null));
+        _context.ActivityAttachments.Add(new ActivityAttachment
+        {
+            ActivityId = activity.Id,
+            OriginalFileName = fileName,
+            ContentType = contentType,
+            StorageKey = $"activities/{activity.Id}/{fileName}",
+            FileSize = 1024,
+            UploadedByUserId = "owner"
+        });
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task SeedActivityWithoutAttachmentAsync(int activityTypeId, string title)
+    {
+        // SECTION: Activity summary test seed
+        await _service.CreateAsync(new ActivityInput(title, null, null, activityTypeId, null, null));
     }
 
     public void Dispose()

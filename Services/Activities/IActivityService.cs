@@ -22,6 +22,8 @@ public interface IActivityService
 
     Task<ActivityListResult> ListAsync(ActivityListRequest request, CancellationToken cancellationToken = default);
 
+    Task<ActivityReviewSummaryResult> GetReviewSummaryAsync(ActivityListRequest request, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<ActivityAttachmentMetadata>> GetAttachmentMetadataAsync(int activityId,
                                                                               CancellationToken cancellationToken = default);
 

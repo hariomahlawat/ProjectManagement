@@ -116,6 +116,7 @@ public sealed class IndexModel : PageModel
             MediaFilter: MediaFilter);
 
         var result = await _activityService.ListAsync(request, cancellationToken);
+        var summaryResult = await _activityService.GetReviewSummaryAsync(request, cancellationToken);
 
         var currentUserId = _userManager.GetUserId(User) ?? string.Empty;
         var isManager = IsManager(User);
@@ -183,12 +184,13 @@ public sealed class IndexModel : PageModel
                 group.Items))
             .ToList();
 
+        // SECTION: Full-result review summary
         var summary = new ActivityReviewSummaryViewModel(
-            result.TotalCount,
-            rows.Count(row => row.HasMedia),
-            rows.Sum(row => row.PhotoAttachmentCount),
-            rows.Sum(row => row.PdfAttachmentCount),
-            rows.Sum(row => row.VideoAttachmentCount));
+            summaryResult.All,
+            summaryResult.WithMedia,
+            summaryResult.Photos,
+            summaryResult.Documents,
+            summaryResult.Videos);
 
         ViewModel = new ActivityListViewModel(rows,
             result.Page,

@@ -13,6 +13,8 @@ namespace ProjectManagement.Contracts.Activities
 
         Task<ActivityListResult> ListAsync(ActivityListRequest request, CancellationToken cancellationToken = default);
 
+        Task<ActivityReviewSummaryResult> GetReviewSummaryAsync(ActivityListRequest request, CancellationToken cancellationToken = default);
+
         Task AddAsync(Activity activity, CancellationToken cancellationToken = default);
 
         Task UpdateAsync(Activity activity, CancellationToken cancellationToken = default);
