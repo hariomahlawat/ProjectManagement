@@ -485,6 +485,34 @@ public class ActivityServiceTests : IDisposable
         Assert.Contains("photo.jpg", attachmentsCell.FormulaA1, StringComparison.OrdinalIgnoreCase);
     }
 
+
+    [Fact]
+    public async Task ActivityExportService_IgnoresStaleAttachmentTypeAndUsesMediaFilter()
+    {
+        // SECTION: Arrange an export that should match all media regardless of a stale attachment-type value.
+        var type = await EnsureActivityTypeAsync();
+        await SeedActivityWithAttachmentAsync(type.Id, "PDF Export Activity", "report.pdf", "application/pdf");
+        await SeedActivityWithAttachmentAsync(type.Id, "Photo Export Activity", "photo.jpg", "image/jpeg");
+
+        var exportService = new ActivityExportService(_activityRepository, _attachmentManager);
+
+        // SECTION: Act
+        var export = await exportService.ExportAsync(new ActivityExportRequest(
+            ActivityTypeId: type.Id,
+            AttachmentType: ActivityAttachmentTypeFilter.Photo,
+            MediaFilter: ActivityMediaFilter.WithMedia));
+
+        // SECTION: Assert
+        Assert.NotNull(export);
+        using var stream = new MemoryStream(export!.Content);
+        using var workbook = new XLWorkbook(stream);
+        var worksheet = workbook.Worksheet("Activities");
+
+        Assert.Equal(2, worksheet.LastRowUsed()!.RowNumber() - 1);
+        Assert.Contains("PDF Export Activity", new[] { worksheet.Cell(2, 1).GetString(), worksheet.Cell(3, 1).GetString() });
+        Assert.Contains("Photo Export Activity", new[] { worksheet.Cell(2, 1).GetString(), worksheet.Cell(3, 1).GetString() });
+    }
+
     [Fact]
     public async Task ActivityExportService_ReturnsNullWhenNoResults()
     {

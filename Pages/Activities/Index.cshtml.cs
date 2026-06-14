@@ -103,6 +103,7 @@ public sealed class IndexModel : PageModel
         Page = Page <= 0 ? 1 : Page;
         PageSize = NormalizePageSize(PageSize);
 
+        // SECTION: User-facing index media filter request
         var request = new ActivityListRequest(Page,
             PageSize,
             SortBy,
@@ -111,7 +112,7 @@ public sealed class IndexModel : PageModel
             ToDate,
             ActivityTypeId,
             CreatedByUserId: null,
-            AttachmentType: AttachmentType,
+            AttachmentType: ActivityAttachmentTypeFilter.Any,
             Search: Search,
             MediaFilter: MediaFilter);
 
@@ -199,7 +200,7 @@ public sealed class IndexModel : PageModel
             totalPages,
             result.Sort,
             result.SortDescending,
-            AttachmentType,
+            ActivityAttachmentTypeFilter.Any,
             FromDate,
             ToDate,
             ActivityTypeId,
@@ -260,7 +261,7 @@ public sealed class IndexModel : PageModel
             ToDate,
             ActivityTypeId,
             CreatedByUserId: null,
-            AttachmentType: AttachmentType,
+            AttachmentType: ActivityAttachmentTypeFilter.Any,
             Search: Search,
             MediaFilter: MediaFilter);
 
@@ -302,11 +303,6 @@ public sealed class IndexModel : PageModel
         if (ActivityTypeId.HasValue)
         {
             values["ActivityTypeId"] = ActivityTypeId.Value.ToString(CultureInfo.InvariantCulture);
-        }
-
-        if (AttachmentType != ActivityAttachmentTypeFilter.Any)
-        {
-            values["AttachmentType"] = AttachmentType.ToString();
         }
 
         if (!string.IsNullOrWhiteSpace(Search))
