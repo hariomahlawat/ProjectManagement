@@ -70,7 +70,7 @@ namespace ProjectManagement.Services.Projects
             }
 
             var projects = await q
-                .OrderBy(p => p.Name)
+                .OrderBy(p => p.Id)
                 .Select(p => new
                 {
                     p.Id,
@@ -432,6 +432,12 @@ namespace ProjectManagement.Services.Projects
                     LeadPoName = proj.LeadPoName,
                     CurrentStageCode = stageDtos[currentIndex].Code,
                     CurrentStageName = stageDtos[currentIndex].Name,
+
+                    // SECTION: Operational sorting fields
+                    CurrentStageSortOrder = currentIndex >= 0 ? currentIndex : int.MaxValue,
+                    CurrentStagePdc = presentStagePdc,
+                    DaysInCurrentStage = presentStage.DaysSinceStartOrLastCompletion,
+
                     LastCompletedStageName = lastCompletedName,
                     LastCompletedStageDate = lastCompletedDate,
                     PresentStage = presentStage,
@@ -459,7 +465,17 @@ namespace ProjectManagement.Services.Projects
                     .ToList();
             }
 
-            return result;
+            // SECTION: Operational ordering for review dashboard
+            var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+            return result
+                .OrderBy(row => row.CurrentStageSortOrder)
+                .ThenBy(row =>
+                    row.CurrentStagePdc.HasValue && row.CurrentStagePdc.Value < today ? 0 : 1)
+                .ThenBy(row => row.CurrentStagePdc ?? DateOnly.MaxValue)
+                .ThenByDescending(row => row.DaysInCurrentStage ?? 0)
+                .ThenBy(row => row.ProjectName)
+                .ToList();
         }
 
         /// <summary>
@@ -569,6 +585,12 @@ namespace ProjectManagement.Services.Projects
 
         public string CurrentStageCode { get; init; } = "";
         public string? CurrentStageName { get; init; }
+
+        // SECTION: Operational sorting fields
+        public int CurrentStageSortOrder { get; init; }
+        public DateOnly? CurrentStagePdc { get; init; }
+        public int? DaysInCurrentStage { get; init; }
+
         public string? LastCompletedStageName { get; init; }
         public DateOnly? LastCompletedStageDate { get; init; }
 
