@@ -105,20 +105,20 @@ namespace ProjectManagement.Infrastructure.Activities
                     x.CreatedByUser != null ? x.CreatedByUser.FullName : null,
                     x.CreatedByUser != null ? x.CreatedByUser.Email : null,
                     x.Attachments.Count,
-                    x.Attachments.Count(a => a.ContentType == "application/pdf" || a.OriginalFileName.EndsWith(".pdf")),
-                    x.Attachments.Count(a => a.ContentType.StartsWith("image/")),
-                    x.Attachments.Count(a => a.ContentType.StartsWith("video/")),
+                    x.Attachments.AsQueryable().Count(ActivityAttachmentClassifier.IsPdfExpression),
+                    x.Attachments.AsQueryable().Count(ActivityAttachmentClassifier.IsPhotoExpression),
+                    x.Attachments.AsQueryable().Count(ActivityAttachmentClassifier.IsVideoExpression),
                     x.Attachments
-                        .OrderByDescending(a => a.ContentType.StartsWith("image/"))
-                        .ThenByDescending(a => a.ContentType.StartsWith("video/"))
-                        .ThenByDescending(a => a.ContentType == "application/pdf" || a.OriginalFileName.EndsWith(".pdf"))
+                        .OrderByDescending(a => a.ContentType != null && a.ContentType.ToLower().StartsWith("image/"))
+                        .ThenByDescending(a => a.ContentType != null && a.ContentType.ToLower().StartsWith("video/"))
+                        .ThenByDescending(a => (a.ContentType != null && a.ContentType.ToLower() == "application/pdf") || (a.OriginalFileName != null && a.OriginalFileName.ToLower().EndsWith(".pdf")))
                         .ThenByDescending(a => a.UploadedAtUtc)
                         .Take(3)
                         .Select(a => new ActivityMediaPreview(
                             a.Id,
                             a.OriginalFileName,
                             a.ContentType,
-                            a.ContentType.StartsWith("image/") ? "Photo" : a.ContentType.StartsWith("video/") ? "Video" : "Document",
+                            a.ContentType != null && a.ContentType.ToLower().StartsWith("image/") ? ActivityAttachmentClassifier.PhotoLabel : a.ContentType != null && a.ContentType.ToLower().StartsWith("video/") ? ActivityAttachmentClassifier.VideoLabel : ((a.ContentType != null && a.ContentType.ToLower() == "application/pdf") || (a.OriginalFileName != null && a.OriginalFileName.ToLower().EndsWith(".pdf"))) ? ActivityAttachmentClassifier.PdfLabel : ActivityAttachmentClassifier.DocumentLabel,
                             a.StorageKey,
                             a.FileSize))
                         .ToList(),
@@ -143,14 +143,9 @@ namespace ProjectManagement.Infrastructure.Activities
 
             var all = await query.CountAsync(cancellationToken);
             var withMedia = await query.CountAsync(x => x.Attachments.Any(), cancellationToken);
-            var photos = await query.SelectMany(x => x.Attachments).CountAsync(a => a.ContentType.StartsWith("image/"), cancellationToken);
-            var documents = await query.SelectMany(x => x.Attachments).CountAsync(a =>
-                a.ContentType == "application/pdf" ||
-                a.OriginalFileName.EndsWith(".pdf") ||
-                a.ContentType.Contains("document") ||
-                a.ContentType.Contains("spreadsheet") ||
-                a.ContentType.Contains("presentation"), cancellationToken);
-            var videos = await query.SelectMany(x => x.Attachments).CountAsync(a => a.ContentType.StartsWith("video/"), cancellationToken);
+            var photos = await query.SelectMany(x => x.Attachments).CountAsync(ActivityAttachmentClassifier.IsPhotoExpression, cancellationToken);
+            var documents = await query.SelectMany(x => x.Attachments).CountAsync(ActivityAttachmentClassifier.IsDocumentExpression, cancellationToken);
+            var videos = await query.SelectMany(x => x.Attachments).CountAsync(ActivityAttachmentClassifier.IsVideoExpression, cancellationToken);
 
             return new ActivityReviewSummaryResult(all, withMedia, photos, documents, videos);
         }
@@ -194,11 +189,9 @@ namespace ProjectManagement.Infrastructure.Activities
 
             return request.AttachmentType switch
             {
-                ActivityAttachmentTypeFilter.Pdf => query.Where(x => x.Attachments.Any(a =>
-                    a.ContentType == "application/pdf" ||
-                    a.OriginalFileName.EndsWith(".pdf"))),
-                ActivityAttachmentTypeFilter.Photo => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("image/"))),
-                ActivityAttachmentTypeFilter.Video => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("video/"))),
+                ActivityAttachmentTypeFilter.Pdf => query.Where(x => x.Attachments.AsQueryable().Any(ActivityAttachmentClassifier.IsPdfExpression)),
+                ActivityAttachmentTypeFilter.Photo => query.Where(x => x.Attachments.AsQueryable().Any(ActivityAttachmentClassifier.IsPhotoExpression)),
+                ActivityAttachmentTypeFilter.Video => query.Where(x => x.Attachments.AsQueryable().Any(ActivityAttachmentClassifier.IsVideoExpression)),
                 _ => query
             };
         }
@@ -246,14 +239,9 @@ namespace ProjectManagement.Infrastructure.Activities
             {
                 ActivityMediaFilter.WithMedia => query.Where(x => x.Attachments.Any()),
                 ActivityMediaFilter.WithoutMedia => query.Where(x => !x.Attachments.Any()),
-                ActivityMediaFilter.Photos => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("image/"))),
-                ActivityMediaFilter.Videos => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("video/"))),
-                ActivityMediaFilter.Documents => query.Where(x => x.Attachments.Any(a =>
-                    a.ContentType == "application/pdf" ||
-                    a.OriginalFileName.EndsWith(".pdf") ||
-                    a.ContentType.Contains("document") ||
-                    a.ContentType.Contains("spreadsheet") ||
-                    a.ContentType.Contains("presentation"))),
+                ActivityMediaFilter.Photos => query.Where(x => x.Attachments.AsQueryable().Any(ActivityAttachmentClassifier.IsPhotoExpression)),
+                ActivityMediaFilter.Videos => query.Where(x => x.Attachments.AsQueryable().Any(ActivityAttachmentClassifier.IsVideoExpression)),
+                ActivityMediaFilter.Documents => query.Where(x => x.Attachments.AsQueryable().Any(ActivityAttachmentClassifier.IsDocumentExpression)),
                 _ => query
             };
         }
