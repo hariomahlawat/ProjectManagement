@@ -40,36 +40,17 @@ namespace ProjectManagement.Services.Projects
             string? stageFlow,
             CancellationToken cancellationToken)
         {
-            // base query – active projects only
-            var q = _db.Projects
-                .AsNoTracking()
+            // SECTION: Base project scope
+            var q = BuildActiveProjectsQuery()
                 .Include(p => p.Category)
-                .Include(p => p.LeadPoUser)
-                .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Active
-                            && !p.IsArchived
-                            && !p.IsDeleted);
+                .Include(p => p.LeadPoUser);
 
-            // -------------------- Category filtering --------------------
-            if (projectCategoryId is { } catId && catId > 0)
-            {
-                var categoryScopeIds = await GetCategoryScopeIdsAsync(catId, cancellationToken);
-                q = q.Where(p => p.CategoryId.HasValue && categoryScopeIds.Contains(p.CategoryId.Value));
-            }
-
-            if (!string.IsNullOrWhiteSpace(leadPoUserId))
-            {
-                var officerId = leadPoUserId.Trim();
-                q = q.Where(p => p.LeadPoUserId == officerId);
-            }
-
-            // -------------------- Search filtering (case-insensitive) --------------------
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                var term = search.Trim();
-                var like = $"%{term}%";
-
-                q = q.Where(p => EF.Functions.ILike(p.Name, like));
-            }
+            q = await ApplyProjectScopeFiltersAsync(
+                q,
+                projectCategoryId,
+                leadPoUserId,
+                search,
+                cancellationToken);
 
             var projects = await q
                 .OrderBy(p => p.Id)
@@ -508,6 +489,72 @@ namespace ProjectManagement.Services.Projects
                 .ToList();
         }
 
+        public async Task<OngoingStageBucketCountsDto> GetStageBucketCountsAsync(
+            int? projectCategoryId,
+            string? leadPoUserId,
+            string? search,
+            CancellationToken cancellationToken)
+        {
+            // SECTION: Build the same project scope as the row query without loading row-only details
+            var q = BuildActiveProjectsQuery();
+
+            q = await ApplyProjectScopeFiltersAsync(
+                q,
+                projectCategoryId,
+                leadPoUserId,
+                search,
+                cancellationToken);
+
+            var projects = await q
+                .OrderBy(p => p.Id)
+                .Select(p => new
+                {
+                    p.Id,
+                    p.WorkflowVersion
+                })
+                .ToListAsync(cancellationToken);
+
+            if (projects.Count == 0)
+            {
+                return OngoingStageBucketCountsDto.Empty;
+            }
+
+            var projectIds = projects.Select(p => p.Id).ToArray();
+
+            // SECTION: Read only stage fields required to resolve each project's current stage
+            var allStages = await _db.ProjectStages
+                .AsNoTracking()
+                .Where(s => projectIds.Contains(s.ProjectId))
+                .Select(s => new
+                {
+                    s.ProjectId,
+                    s.StageCode,
+                    s.Status
+                })
+                .ToListAsync(cancellationToken);
+
+            var stagesByProject = allStages
+                .GroupBy(s => s.ProjectId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.ToDictionary(s => s.StageCode, s => s.Status, StringComparer.OrdinalIgnoreCase));
+
+            var counts = new OngoingStageBucketCountsDto();
+
+            foreach (var project in projects)
+            {
+                var currentStageCode = ResolveCurrentStageCode(
+                    project.WorkflowVersion,
+                    stagesByProject.TryGetValue(project.Id, out var stageStatuses)
+                        ? stageStatuses
+                        : EmptyStageStatuses);
+
+                counts.Add(StageBuckets.Of(currentStageCode));
+            }
+
+            return counts;
+        }
+
         /// <summary>
         /// Build officer dropdown from all active projects that have a LeadPoUser.
         /// </summary>
@@ -547,6 +594,98 @@ namespace ProjectManagement.Services.Projects
             }
 
             return items;
+        }
+
+        // SECTION: Active project query helpers
+        private static readonly IReadOnlyDictionary<string, StageStatus> EmptyStageStatuses =
+            new Dictionary<string, StageStatus>(StringComparer.OrdinalIgnoreCase);
+
+        private IQueryable<Project> BuildActiveProjectsQuery()
+            => _db.Projects
+                .AsNoTracking()
+                .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Active
+                            && !p.IsArchived
+                            && !p.IsDeleted);
+
+        private async Task<IQueryable<Project>> ApplyProjectScopeFiltersAsync(
+            IQueryable<Project> query,
+            int? projectCategoryId,
+            string? leadPoUserId,
+            string? search,
+            CancellationToken cancellationToken)
+        {
+            // SECTION: Category filtering
+            if (projectCategoryId is { } catId && catId > 0)
+            {
+                var categoryScopeIds = await GetCategoryScopeIdsAsync(catId, cancellationToken);
+                query = query.Where(p => p.CategoryId.HasValue && categoryScopeIds.Contains(p.CategoryId.Value));
+            }
+
+            // SECTION: Project officer filtering
+            if (!string.IsNullOrWhiteSpace(leadPoUserId))
+            {
+                var officerId = leadPoUserId.Trim();
+                query = query.Where(p => p.LeadPoUserId == officerId);
+            }
+
+            // SECTION: Search filtering (case-insensitive)
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                var like = $"%{term}%";
+
+                query = query.Where(p => EF.Functions.ILike(p.Name, like));
+            }
+
+            return query;
+        }
+
+        // SECTION: Current stage resolver for lightweight counts
+        private static string ResolveCurrentStageCode(
+            string? workflowVersion,
+            IReadOnlyDictionary<string, StageStatus> stageStatuses)
+        {
+            var stageCodes = ProcurementWorkflow.StageCodesFor(workflowVersion);
+            var currentIndex = ResolveCurrentStageIndex(stageCodes, stageStatuses);
+
+            return stageCodes[currentIndex];
+        }
+
+        private static int ResolveCurrentStageIndex(
+            IReadOnlyList<string> stageCodes,
+            IReadOnlyDictionary<string, StageStatus> stageStatuses)
+        {
+            int? inProgressIndex = null;
+            var lastCompletedIndex = -1;
+
+            for (var i = 0; i < stageCodes.Count; i++)
+            {
+                var status = stageStatuses.TryGetValue(stageCodes[i], out var stageStatus)
+                    ? stageStatus
+                    : StageStatus.NotStarted;
+
+                if (status == StageStatus.InProgress && inProgressIndex == null)
+                {
+                    inProgressIndex = i;
+                }
+
+                if (status == StageStatus.Completed)
+                {
+                    lastCompletedIndex = i;
+                }
+            }
+
+            if (inProgressIndex.HasValue)
+            {
+                return inProgressIndex.Value;
+            }
+
+            if (lastCompletedIndex >= 0 && lastCompletedIndex + 1 < stageCodes.Count)
+            {
+                return lastCompletedIndex + 1;
+            }
+
+            return 0;
         }
 
         // -------------------- Category scope helpers --------------------
@@ -618,6 +757,41 @@ namespace ProjectManagement.Services.Projects
                 string.Equals(s.Code, stageCode, StringComparison.OrdinalIgnoreCase));
 
             return stage?.ActualCompletedOn;
+        }
+    }
+
+    public sealed class OngoingStageBucketCountsDto
+    {
+        public static OngoingStageBucketCountsDto Empty => new();
+
+        public int Approval { get; private set; }
+        public int Aon { get; private set; }
+        public int Procurement { get; private set; }
+        public int Development { get; private set; }
+        public int Unknown { get; private set; }
+        public int Total => Approval + Aon + Procurement + Development + Unknown;
+
+        public void Add(StageBucket bucket)
+        {
+            // SECTION: Increment bucket totals
+            switch (bucket)
+            {
+                case StageBucket.Approval:
+                    Approval++;
+                    break;
+                case StageBucket.Aon:
+                    Aon++;
+                    break;
+                case StageBucket.Procurement:
+                    Procurement++;
+                    break;
+                case StageBucket.Development:
+                    Development++;
+                    break;
+                default:
+                    Unknown++;
+                    break;
+            }
         }
     }
 
