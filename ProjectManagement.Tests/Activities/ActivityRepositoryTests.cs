@@ -390,4 +390,63 @@ public class ActivityRepositoryTests
         var item = Assert.Single(result.Items);
         Assert.True(item.HasPendingDelete);
     }
+
+    [Fact]
+    public async Task ListAsync_FiltersScheduledEventsByIstDayBoundaries()
+    {
+        await using var context = CreateContext();
+        var repository = new ActivityRepository(context);
+
+        var type = new ActivityType
+        {
+            Name = "IST Review",
+            CreatedByUserId = "system"
+        };
+
+        context.ActivityTypes.Add(type);
+        await context.SaveChangesAsync();
+
+        // SECTION: Events around the 14 Jun 2026 IST filter window
+        var includedAtIstStart = new Activity
+        {
+            Title = "14 Jun 2026 IST event",
+            ActivityTypeId = type.Id,
+            CreatedByUserId = "user-1",
+            ScheduledStartUtc = new DateTimeOffset(2026, 6, 13, 18, 30, 0, TimeSpan.Zero),
+            CreatedAtUtc = new DateTimeOffset(2026, 6, 13, 18, 30, 0, TimeSpan.Zero)
+        };
+
+        var previousIstDay = new Activity
+        {
+            Title = "13 Jun 2026 IST event",
+            ActivityTypeId = type.Id,
+            CreatedByUserId = "user-1",
+            ScheduledStartUtc = new DateTimeOffset(2026, 6, 13, 18, 29, 0, TimeSpan.Zero),
+            CreatedAtUtc = new DateTimeOffset(2026, 6, 13, 18, 29, 0, TimeSpan.Zero)
+        };
+
+        var nextIstDay = new Activity
+        {
+            Title = "15 Jun 2026 IST event",
+            ActivityTypeId = type.Id,
+            CreatedByUserId = "user-1",
+            ScheduledStartUtc = new DateTimeOffset(2026, 6, 14, 18, 30, 0, TimeSpan.Zero),
+            CreatedAtUtc = new DateTimeOffset(2026, 6, 14, 18, 30, 0, TimeSpan.Zero)
+        };
+
+        context.Activities.AddRange(includedAtIstStart, previousIstDay, nextIstDay);
+        await context.SaveChangesAsync();
+
+        var request = new ActivityListRequest(
+            Page: 1,
+            PageSize: 10,
+            FromDate: new DateOnly(2026, 6, 14),
+            ToDate: new DateOnly(2026, 6, 14));
+
+        var result = await repository.ListAsync(request);
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("14 Jun 2026 IST event", item.Title);
+    }
+
 }

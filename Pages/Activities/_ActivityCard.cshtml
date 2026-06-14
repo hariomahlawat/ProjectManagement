@@ -1,7 +1,8 @@
 @model ProjectManagement.ViewModels.Activities.ActivityListRowViewModel
 @using System.Globalization
+@using ProjectManagement.Infrastructure
 @{
-    var eventDate = Model.ScheduledStartUtc?.ToLocalTime();
+    var eventDate = IstClock.ToIst(Model.ScheduledStartUtc);
     var day = eventDate?.ToString("dd", CultureInfo.CurrentCulture) ?? "—";
     var monthYear = eventDate?.ToString("MMM yyyy", CultureInfo.CurrentCulture) ?? "Date pending";
 }

@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Contracts.Activities;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Services.Activities;
 
@@ -399,9 +400,9 @@ public sealed class EditModel : PageModel
             return null;
         }
 
-        var local = value.Value.ToLocalTime();
-        var date = local.Date;
-        return DateTime.SpecifyKind(date, DateTimeKind.Local);
+        var ist = IstClock.ToIst(value.Value);
+        var date = ist.Date;
+        return DateTime.SpecifyKind(date, DateTimeKind.Unspecified);
     }
 
     private static DateTimeOffset? ConvertToUtc(DateTime? value)
@@ -411,9 +412,8 @@ public sealed class EditModel : PageModel
             return null;
         }
 
-        var localDate = value.Value.Date;
-        var local = DateTime.SpecifyKind(localDate, DateTimeKind.Local);
-        return new DateTimeOffset(local).ToUniversalTime();
+        var localDate = DateOnly.FromDateTime(value.Value.Date);
+        return IstClock.StartOfDayIstToUtc(localDate);
     }
 
     public sealed class InputModel
