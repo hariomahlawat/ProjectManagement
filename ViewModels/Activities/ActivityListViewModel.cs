@@ -35,6 +35,7 @@ public sealed record ActivityListRowViewModel(
     string? CreatedByEmail,
     int AttachmentCount,
     int PdfAttachmentCount,
+    int DocumentAttachmentCount,
     int PhotoAttachmentCount,
     int VideoAttachmentCount,
     IReadOnlyList<ActivityMediaPreviewViewModel> MediaPreviews,
@@ -43,6 +44,7 @@ public sealed record ActivityListRowViewModel(
     bool CanDelete)
 {
     public bool HasPdf => PdfAttachmentCount > 0;
+    public bool HasDocument => DocumentAttachmentCount > 0;
     public bool HasPhoto => PhotoAttachmentCount > 0;
     public bool HasVideo => VideoAttachmentCount > 0;
     public bool HasMedia => AttachmentCount > 0;

@@ -22,6 +22,7 @@ public sealed class ActivityExportServiceTests
             remarksPreview: "Coordinated stakeholder brief on readiness.",
             createdAt: createdAt,
             pdfAttachmentCount: 1,
+            documentAttachmentCount: 1,
             photoAttachmentCount: 2,
             videoAttachmentCount: 3,
             attachmentCount: 6);
@@ -56,15 +57,17 @@ public sealed class ActivityExportServiceTests
         Assert.Equal("Remarks / Brief", worksheet.Cell(1, 3).GetString());
         Assert.Equal("Event date", worksheet.Cell(1, 4).GetString());
         Assert.Equal("Coordinated stakeholder brief on readiness.", worksheet.Cell(2, 3).GetString());
-        Assert.Equal("PDF attachments", worksheet.Cell(1, 8).GetString());
+        Assert.Equal("Document attachments", worksheet.Cell(1, 8).GetString());
         Assert.Equal(1, worksheet.Cell(2, 8).GetValue<int>());
-        Assert.Equal("Photo attachments", worksheet.Cell(1, 9).GetString());
-        Assert.Equal(2, worksheet.Cell(2, 9).GetValue<int>());
-        Assert.Equal("Video attachments", worksheet.Cell(1, 10).GetString());
-        Assert.Equal(3, worksheet.Cell(2, 10).GetValue<int>());
-        Assert.Equal("Total attachments", worksheet.Cell(1, 11).GetString());
-        Assert.Equal(6, worksheet.Cell(2, 11).GetValue<int>());
-        Assert.Equal("Attachment links", worksheet.Cell(1, 12).GetString());
+        Assert.Equal("PDF attachments", worksheet.Cell(1, 9).GetString());
+        Assert.Equal(1, worksheet.Cell(2, 9).GetValue<int>());
+        Assert.Equal("Photo attachments", worksheet.Cell(1, 10).GetString());
+        Assert.Equal(2, worksheet.Cell(2, 10).GetValue<int>());
+        Assert.Equal("Video attachments", worksheet.Cell(1, 11).GetString());
+        Assert.Equal(3, worksheet.Cell(2, 11).GetValue<int>());
+        Assert.Equal("Total attachments", worksheet.Cell(1, 12).GetString());
+        Assert.Equal(6, worksheet.Cell(2, 12).GetValue<int>());
+        Assert.Equal("Attachment links", worksheet.Cell(1, 13).GetString());
     }
 
     [Fact]
@@ -112,16 +115,17 @@ public sealed class ActivityExportServiceTests
         using var workbook = new XLWorkbook(stream);
         var worksheet = workbook.Worksheet("Activities");
 
-        Assert.Equal("Attachment links", worksheet.Cell(1, 12).GetString());
-        Assert.Contains("HYPERLINK", worksheet.Cell(2, 12).FormulaA1, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("brief.pdf", worksheet.Cell(2, 12).FormulaA1, StringComparison.OrdinalIgnoreCase);
-        Assert.True(string.IsNullOrWhiteSpace(worksheet.Cell(2, 13).GetString()));
+        Assert.Equal("Attachment links", worksheet.Cell(1, 13).GetString());
+        Assert.Contains("HYPERLINK", worksheet.Cell(2, 13).FormulaA1, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("brief.pdf", worksheet.Cell(2, 13).FormulaA1, StringComparison.OrdinalIgnoreCase);
+        Assert.True(string.IsNullOrWhiteSpace(worksheet.Cell(2, 14).GetString()));
     }
 
     private static ActivityListItem CreateItem(
         string? remarksPreview,
         DateTimeOffset? createdAt = null,
         int pdfAttachmentCount = 0,
+        int documentAttachmentCount = 0,
         int photoAttachmentCount = 0,
         int videoAttachmentCount = 0,
         int attachmentCount = 0) => new(
@@ -139,6 +143,7 @@ public sealed class ActivityExportServiceTests
             CreatedByEmail: "avery@example.test",
             AttachmentCount: attachmentCount,
             PdfAttachmentCount: pdfAttachmentCount,
+            DocumentAttachmentCount: documentAttachmentCount,
             PhotoAttachmentCount: photoAttachmentCount,
             VideoAttachmentCount: videoAttachmentCount,
             MediaPreviews: Array.Empty<ActivityMediaPreview>(),

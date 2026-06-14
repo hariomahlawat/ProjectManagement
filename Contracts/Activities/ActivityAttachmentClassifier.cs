@@ -40,7 +40,14 @@ public static class ActivityAttachmentClassifier
         (attachment.ContentType != null && attachment.ContentType.ToLower().Contains("presentation")) ||
         (attachment.ContentType != null && attachment.ContentType.ToLower().Contains("wordprocessingml")) ||
         (attachment.ContentType != null && attachment.ContentType.ToLower().Contains("spreadsheetml")) ||
-        (attachment.ContentType != null && attachment.ContentType.ToLower().Contains("presentationml"));
+        (attachment.ContentType != null && attachment.ContentType.ToLower().Contains("presentationml")) ||
+        (attachment.ContentType != null && attachment.ContentType.ToLower().Contains("officedocument")) ||
+        (attachment.OriginalFileName != null && attachment.OriginalFileName.ToLower().EndsWith(".doc")) ||
+        (attachment.OriginalFileName != null && attachment.OriginalFileName.ToLower().EndsWith(".docx")) ||
+        (attachment.OriginalFileName != null && attachment.OriginalFileName.ToLower().EndsWith(".xls")) ||
+        (attachment.OriginalFileName != null && attachment.OriginalFileName.ToLower().EndsWith(".xlsx")) ||
+        (attachment.OriginalFileName != null && attachment.OriginalFileName.ToLower().EndsWith(".ppt")) ||
+        (attachment.OriginalFileName != null && attachment.OriginalFileName.ToLower().EndsWith(".pptx"));
 
     // SECTION: In-memory classification helpers
     public static ActivityAttachmentKind Classify(string? fileName, string? contentType)
@@ -84,7 +91,14 @@ public static class ActivityAttachmentClassifier
         ContainsNormalized(contentType, "presentation") ||
         ContainsNormalized(contentType, "wordprocessingml") ||
         ContainsNormalized(contentType, "spreadsheetml") ||
-        ContainsNormalized(contentType, "presentationml");
+        ContainsNormalized(contentType, "presentationml") ||
+        ContainsNormalized(contentType, "officedocument") ||
+        EndsWithNormalized(fileName, ".doc") ||
+        EndsWithNormalized(fileName, ".docx") ||
+        EndsWithNormalized(fileName, ".xls") ||
+        EndsWithNormalized(fileName, ".xlsx") ||
+        EndsWithNormalized(fileName, ".ppt") ||
+        EndsWithNormalized(fileName, ".pptx");
 
     public static string GetDisplayLabel(string? fileName, string? contentType) => Classify(fileName, contentType) switch
     {

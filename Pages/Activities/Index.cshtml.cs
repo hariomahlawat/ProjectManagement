@@ -85,7 +85,7 @@ public sealed class IndexModel : PageModel
 
     public IReadOnlyList<SelectListItem> ActivityTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
-    public IReadOnlyList<SelectListItem> AttachmentTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
+    // SECTION: Legacy query parameter retained only to ignore stale URLs; new UI uses MediaFilter.
 
     public IReadOnlyList<SelectListItem> PageSizeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -148,6 +148,7 @@ public sealed class IndexModel : PageModel
                 item.CreatedByEmail,
                 item.AttachmentCount,
                 item.PdfAttachmentCount,
+                item.DocumentAttachmentCount,
                 item.PhotoAttachmentCount,
                 item.VideoAttachmentCount,
                 item.MediaPreviews.Select(media => new ActivityMediaPreviewViewModel(
@@ -324,6 +325,26 @@ public sealed class IndexModel : PageModel
         return values;
     }
 
+    public Dictionary<string, string?> BuildMediaFilterRoute(ActivityMediaFilter mediaFilter)
+    {
+        // SECTION: Summary chip navigation preserves base filters while toggling media buckets
+        var target = MediaFilter == mediaFilter && mediaFilter != ActivityMediaFilter.Any
+            ? ActivityMediaFilter.Any
+            : mediaFilter;
+
+        var values = BuildRoute(page: 1);
+        if (target == ActivityMediaFilter.Any)
+        {
+            values.Remove("MediaFilter");
+        }
+        else
+        {
+            values["MediaFilter"] = target.ToString();
+        }
+
+        return values;
+    }
+
     public Dictionary<string, string?> BuildRouteForDeleteRequest(int id)
     {
         var values = new Dictionary<string, string?>(BuildRoute(Page, SortBy, SortDirection, PageSize), StringComparer.OrdinalIgnoreCase)
@@ -369,14 +390,6 @@ public sealed class IndexModel : PageModel
         }
 
         ActivityTypeOptions = typeOptions;
-
-        AttachmentTypeOptions = new List<SelectListItem>
-        {
-            new("Any attachment", ActivityAttachmentTypeFilter.Any.ToString(), AttachmentType == ActivityAttachmentTypeFilter.Any),
-            new("PDF", ActivityAttachmentTypeFilter.Pdf.ToString(), AttachmentType == ActivityAttachmentTypeFilter.Pdf),
-            new("Photo", ActivityAttachmentTypeFilter.Photo.ToString(), AttachmentType == ActivityAttachmentTypeFilter.Photo),
-            new("Video", ActivityAttachmentTypeFilter.Video.ToString(), AttachmentType == ActivityAttachmentTypeFilter.Video)
-        };
 
         PageSizeOptions = AllowedPageSizes
             .Select(size => new SelectListItem(size.ToString(CultureInfo.InvariantCulture), size.ToString(CultureInfo.InvariantCulture), PageSize == size))

@@ -29,12 +29,15 @@ public class ActivityAttachmentClassifierTests
         Assert.Equal(expected, kind);
     }
 
-    // SECTION: Office document MIME classification
+    // SECTION: Office document MIME and extension classification
     [Theory]
     [InlineData("memo.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")]
     [InlineData("sheet.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
     [InlineData("slides.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")]
-    public void Classify_DetectsOfficeDocumentMimeTypes(string fileName, string contentType)
+    [InlineData("legacy.DOC", "application/octet-stream")]
+    [InlineData("budget.XLSX", "application/octet-stream")]
+    [InlineData("deck.PPTX", "application/octet-stream")]
+    public void Classify_DetectsOfficeDocumentMimeTypesAndExtensions(string fileName, string contentType)
     {
         var kind = ActivityAttachmentClassifier.Classify(fileName, contentType);
 

@@ -23,7 +23,7 @@ public sealed class DetailsModel : PageModel
     private static readonly IReadOnlyList<string> ManagerRoles = ActivityRoleLists.ManagerRoles;
     private static readonly IReadOnlyList<string> AttachmentSummaryLabels = new[]
     {
-        "PDF", "PNG", "JPG/JPEG", "MP4", "MOV", "WEBM"
+        "PDF", "DOC/DOCX", "XLS/XLSX", "PPT/PPTX", "PNG", "JPG/JPEG", "MP4", "MOV", "WEBM"
     };
 
     private readonly IActivityService _activityService;
@@ -50,7 +50,7 @@ public sealed class DetailsModel : PageModel
 
     public IReadOnlyList<ActivityAttachmentMetadata> VideoAttachments { get; private set; } = Array.Empty<ActivityAttachmentMetadata>();
 
-    public IReadOnlyList<ActivityAttachmentMetadata> PdfAttachments { get; private set; } = Array.Empty<ActivityAttachmentMetadata>();
+    public IReadOnlyList<ActivityAttachmentMetadata> DocumentAttachments { get; private set; } = Array.Empty<ActivityAttachmentMetadata>();
 
     public IReadOnlyList<ActivityAttachmentMetadata> OtherAttachments { get; private set; } = Array.Empty<ActivityAttachmentMetadata>();
 
@@ -200,14 +200,14 @@ public sealed class DetailsModel : PageModel
         Attachments = attachments;
         PhotoAttachments = attachments.Where(a => ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType) == ActivityAttachmentKind.Photo).ToList();
         VideoAttachments = attachments.Where(a => ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType) == ActivityAttachmentKind.Video).ToList();
-        PdfAttachments = attachments.Where(a => ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType) == ActivityAttachmentKind.Pdf).ToList();
-        OtherAttachments = attachments
+        DocumentAttachments = attachments
             .Where(a =>
             {
                 var kind = ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType);
-                return kind is ActivityAttachmentKind.Document or ActivityAttachmentKind.Other;
+                return kind is ActivityAttachmentKind.Pdf or ActivityAttachmentKind.Document;
             })
             .ToList();
+        OtherAttachments = attachments.Where(a => ActivityAttachmentClassifier.Classify(a.FileName, a.ContentType) == ActivityAttachmentKind.Other).ToList();
 
         RemainingAttachmentSlots = Math.Max(0, ActivityAttachmentManager.MaxAttachmentsPerActivity - attachments.Count);
     }

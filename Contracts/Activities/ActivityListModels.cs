@@ -57,6 +57,7 @@ public sealed record ActivityListItem(
     string? CreatedByEmail,
     int AttachmentCount,
     int PdfAttachmentCount,
+    int DocumentAttachmentCount,
     int PhotoAttachmentCount,
     int VideoAttachmentCount,
     IReadOnlyList<ActivityMediaPreview> MediaPreviews,

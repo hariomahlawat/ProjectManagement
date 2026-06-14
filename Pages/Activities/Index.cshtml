@@ -65,7 +65,7 @@
         </select>
         <input type="hidden" asp-for="View" />
         <button type="submit" class="btn btn-outline-primary"><i class="bi bi-search" aria-hidden="true"></i> Search</button>
-        <a asp-page="./Index" class="btn btn-outline-secondary">Reset</a>
+        <a asp-page="./Index" class="btn btn-outline-secondary activities-filterbar__clear">Clear filters</a>
     </form>
 
     <div class="activities-view-toggle" role="group" aria-label="Activity view">
@@ -75,11 +75,11 @@
 
     <!-- SECTION: Review summary chips -->
     <div class="activities-summary-strip" aria-label="Activity media summary">
-        <span>All <strong>@(vm?.Summary.All ?? 0)</strong></span>
-        <span>With media <strong>@(vm?.Summary.WithMedia ?? 0)</strong></span>
-        <span>Photos <strong>@(vm?.Summary.Photos ?? 0)</strong></span>
-        <span>Documents <strong>@(vm?.Summary.Documents ?? 0)</strong></span>
-        <span>Videos <strong>@(vm?.Summary.Videos ?? 0)</strong></span>
+        <a class="activity-summary-chip @(Model.MediaFilter == ActivityMediaFilter.Any ? "is-active" : null)" asp-page="./Index" asp-all-route-data="Model.BuildMediaFilterRoute(ActivityMediaFilter.Any)">All <strong>@(vm?.Summary.All ?? 0)</strong></a>
+        <a class="activity-summary-chip @(Model.MediaFilter == ActivityMediaFilter.WithMedia ? "is-active" : null)" asp-page="./Index" asp-all-route-data="Model.BuildMediaFilterRoute(ActivityMediaFilter.WithMedia)">With media <strong>@(vm?.Summary.WithMedia ?? 0)</strong></a>
+        <a class="activity-summary-chip @(Model.MediaFilter == ActivityMediaFilter.Photos ? "is-active" : null)" asp-page="./Index" asp-all-route-data="Model.BuildMediaFilterRoute(ActivityMediaFilter.Photos)">Photos <strong>@(vm?.Summary.Photos ?? 0)</strong></a>
+        <a class="activity-summary-chip @(Model.MediaFilter == ActivityMediaFilter.Documents ? "is-active" : null)" asp-page="./Index" asp-all-route-data="Model.BuildMediaFilterRoute(ActivityMediaFilter.Documents)">Documents <strong>@(vm?.Summary.Documents ?? 0)</strong></a>
+        <a class="activity-summary-chip @(Model.MediaFilter == ActivityMediaFilter.Videos ? "is-active" : null)" asp-page="./Index" asp-all-route-data="Model.BuildMediaFilterRoute(ActivityMediaFilter.Videos)">Videos <strong>@(vm?.Summary.Videos ?? 0)</strong></a>
     </div>
 
     @if (!hasRows)
@@ -128,8 +128,8 @@
                             <td><div class="activities-table__title">@row.Title</div>@if (!string.IsNullOrWhiteSpace(row.Location)){<div class="activities-table__meta text-muted"><i class="bi bi-geo-alt" aria-hidden="true"></i> @row.Location</div>}</td>
                             <td><span class="badge rounded-pill activities-type-badge">@row.ActivityType</span></td>
                             <td>@FormatEventDate(row.ScheduledStartUtc)</td>
-                            <td class="activities-table__remarks">@(string.IsNullOrWhiteSpace(row.RemarksPreview) ? "No remarks added." : row.RemarksPreview)</td>
-                            <td>@if (row.HasMedia){<span class="badge text-bg-secondary"><i class="bi bi-paperclip" aria-hidden="true"></i> @row.AttachmentCount</span>} else {<span class="text-muted small">No media</span>}</td>
+                            <td class="activities-table__remarks"><div class="activities-table__remarks-text">@(string.IsNullOrWhiteSpace(row.RemarksPreview) ? "No remarks added." : row.RemarksPreview)</div></td>
+                            <td>@if (row.HasMedia){<div class="activities-table__media">@if (row.PhotoAttachmentCount > 0){<span><i class="bi bi-image" aria-hidden="true"></i> @row.PhotoAttachmentCount</span>}@if (row.VideoAttachmentCount > 0){<span><i class="bi bi-camera-video" aria-hidden="true"></i> @row.VideoAttachmentCount</span>}@if (row.DocumentAttachmentCount > 0){<span><i class="bi bi-file-earmark-text" aria-hidden="true"></i> @row.DocumentAttachmentCount</span>}</div>} else {<span class="text-muted small">No media</span>}</td>
                             <td class="text-end"><a class="btn btn-outline-secondary btn-sm" asp-page="./Details" asp-route-id="@row.Id">View</a>@if(row.CanEdit){<a class="btn btn-outline-primary btn-sm" asp-page="./Edit" asp-route-id="@row.Id">Edit</a>}</td>
                         </tr>
                     }

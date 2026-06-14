@@ -118,21 +118,6 @@
                 </div>
             }
         </div>
-        <div class="pm-card-body">
-            <dl class="row mb-0">
-                <dt class="col-sm-3">Event date</dt>
-                <dd class="col-sm-9">@FormatEventDate(activity.ScheduledStartUtc)</dd>
-
-                <dt class="col-sm-3">Event end</dt>
-                <dd class="col-sm-9">@FormatEventDate(activity.ScheduledEndUtc)</dd>
-
-                <dt class="col-sm-3">Activity type</dt>
-                <dd class="col-sm-9">@(activity.ActivityType?.Name ?? "Activity")</dd>
-
-                <dt class="col-sm-3">Location</dt>
-                <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(activity.Location) ? "—" : activity.Location)</dd>
-            </dl>
-        </div>
     </header>
 
     <!-- SECTION: Remarks / brief -->
@@ -162,10 +147,21 @@
             @if (Model.CanManage)
             {
                 <div class="ms-lg-auto">
-                    <!-- SECTION: Attachment upload form -->
+                    <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#activityUploadPanel" aria-expanded="false" aria-controls="activityUploadPanel">
+                        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                        Add media
+                    </button>
+                </div>
+            }
+        </div>
+        <div class="pm-card-body">
+            @if (Model.CanManage)
+            {
+                <!-- SECTION: Collapsed attachment upload form -->
+                <div class="collapse mb-4" id="activityUploadPanel">
                     <form method="post" asp-page-handler="Upload" asp-route-id="@activity.Id" enctype="multipart/form-data" class="d-flex flex-column flex-sm-row gap-2">
                         @Html.AntiForgeryToken()
-                        <input type="file" name="Uploads" multiple class="form-control" accept="application/pdf,image/png,image/jpeg,video/mp4,video/quicktime,video/webm,.pdf,.png,.jpg,.jpeg,.mp4,.mov,.webm" @(Model.RemainingAttachmentSlots <= 0 ? "disabled" : null) />
+                        <input type="file" name="Uploads" multiple class="form-control" accept="application/pdf,application/msword,application/vnd.ms-excel,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/png,image/jpeg,video/mp4,video/quicktime,video/webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.mp4,.mov,.webm" @(Model.RemainingAttachmentSlots <= 0 ? "disabled" : null) />
                         <button type="submit" class="btn btn-primary" @(Model.RemainingAttachmentSlots <= 0 ? "disabled" : null)>
                             <i class="bi bi-upload" aria-hidden="true"></i>
                             <span>Upload</span>
@@ -181,8 +177,6 @@
                     }
                 </div>
             }
-        </div>
-        <div class="pm-card-body">
             @if (Model.Attachments.Count == 0)
             {
                 <p class="text-muted mb-0">No attachments uploaded yet.</p>
@@ -285,30 +279,30 @@
                     }
                 </section>
 
-                <!-- SECTION: PDF and document attachments -->
+                <!-- SECTION: Document attachments -->
                 <section class="mb-4" aria-labelledby="activity-documents-heading">
-                    <h3 class="h6 mb-3" id="activity-documents-heading">PDFs / Documents</h3>
-                    @if (Model.PdfAttachments.Count == 0)
+                    <h3 class="h6 mb-3" id="activity-documents-heading">Documents</h3>
+                    @if (Model.DocumentAttachments.Count == 0)
                     {
-                        <p class="text-muted mb-0">No PDFs or documents uploaded.</p>
+                        <p class="text-muted mb-0">No documents uploaded.</p>
                     }
                     else
                     {
                         <ul class="list-group">
-                            @foreach (var pdf in Model.PdfAttachments)
+                            @foreach (var document in Model.DocumentAttachments)
                             {
                                 <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
                                     <div class="d-flex flex-column">
-                                        <a href="@pdf.InlineUrl" target="_blank" rel="noopener" class="fw-semibold">
-                                            <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>@pdf.FileName
+                                        <a href="@document.InlineUrl" target="_blank" rel="noopener" class="fw-semibold">
+                                            <i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>@document.FileName
                                         </a>
-                                        <span class="text-muted small">@FormatFileSize(pdf.FileSize)</span>
+                                        <span class="text-muted small">@FormatFileSize(document.FileSize)</span>
                                     </div>
                                     <div class="d-flex flex-wrap gap-2">
-                                        <a class="btn btn-sm btn-outline-secondary" href="@pdf.DownloadUrl">Download</a>
+                                        <a class="btn btn-sm btn-outline-secondary" href="@document.DownloadUrl">Download</a>
                                         @if (Model.CanManage)
                                         {
-                                            <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@pdf.Id" class="d-inline" data-activities-delete-form data-confirm="Remove this attachment?">
+                                            <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@document.Id" class="d-inline" data-activities-delete-form data-confirm="Remove this attachment?">
                                                 @Html.AntiForgeryToken()
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
                                             </form>
