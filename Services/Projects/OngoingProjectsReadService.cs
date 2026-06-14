@@ -378,13 +378,31 @@ namespace ProjectManagement.Services.Projects
                     .Where(r => r.ProjectId == proj.Id)
                     .ToList();
 
-                // last 10 INTERNAL in last 10 days
-                var recentInternal = remarksForProject
+                // SECTION: Internal remarks for ongoing project timeline card
+                // Default: show up to 10 internal remarks from the last 10 days.
+                // Fallback: if none exist in the last 10 days, show the latest one internal remark.
+                var recentInternalRemarks = remarksForProject
                     .Where(r =>
                         r.Type == RemarkType.Internal &&
                         r.CreatedAtUtc >= tenDaysAgoUtc)
                     .OrderByDescending(r => r.CreatedAtUtc)
                     .Take(10)
+                    .ToList();
+
+                if (recentInternalRemarks.Count == 0)
+                {
+                    var latestInternalFallback = remarksForProject
+                        .Where(r => r.Type == RemarkType.Internal)
+                        .OrderByDescending(r => r.CreatedAtUtc)
+                        .FirstOrDefault();
+
+                    if (latestInternalFallback != null)
+                    {
+                        recentInternalRemarks.Add(latestInternalFallback);
+                    }
+                }
+
+                var recentInternal = recentInternalRemarks
                     .Select(r => new OngoingProjectRemarkDto
                     {
                         CreatedAtUtc = r.CreatedAtUtc,
