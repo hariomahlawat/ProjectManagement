@@ -22,6 +22,7 @@ using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Pages.Activities;
 using ProjectManagement.Services.Activities;
+using ProjectManagement.ViewModels.Activities;
 using Xunit;
 
 namespace ProjectManagement.Tests.Activities;
@@ -66,6 +67,80 @@ public sealed class ActivityDetailsPageRenderingTests
         Assert.DoesNotContain("data-bs-target=\"#{modalId}\"", html, StringComparison.Ordinal);
     }
 
+
+
+    [Fact]
+    public async Task DetailsPage_UsesInlineUrlsForMediaSourcesAndDownloadUrlsForLinks()
+    {
+        // SECTION: Arrange media attachments with distinct inline and download URLs.
+        var activity = new Activity
+        {
+            Id = 84,
+            Title = "Media Source Review",
+            Description = "Verify rendering URLs",
+            ActivityType = new ActivityType { Id = 7, Name = "Workshop", CreatedByUserId = "seed" },
+            ActivityTypeId = 7,
+            CreatedByUserId = "owner",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+
+        var attachments = new[]
+        {
+            new ActivityAttachmentMetadata(12, "photo.jpg", "image/jpeg", 2048, "/download/photo.jpg", "/inline/photo.jpg", "activities/84/photo.jpg", DateTimeOffset.UtcNow, "owner"),
+            new ActivityAttachmentMetadata(13, "clip.mp4", "video/mp4", 4096, "/download/clip.mp4", "/inline/clip.mp4", "activities/84/clip.mp4", DateTimeOffset.UtcNow, "owner")
+        };
+
+        var page = new DetailsModel(
+            new StubActivityService(activity, attachments),
+            new StubActivityAttachmentManager(),
+            NullLogger<DetailsModel>.Instance);
+
+        // SECTION: Act and assert media elements stream inline while actions download files.
+        var html = await RenderDetailsPageAsync(page, activity.Id);
+
+        Assert.Contains("<img src=\"/inline/photo.jpg\"", html, StringComparison.Ordinal);
+        Assert.Contains("<source src=\"/inline/clip.mp4\" type=\"video/mp4\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/download/photo.jpg\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/download/clip.mp4\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<img src=\"/download/photo.jpg\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<source src=\"/download/clip.mp4\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ActivityCard_UsesInlineThumbnailUrlsAndDownloadFileLinks()
+    {
+        // SECTION: Arrange card media with distinct thumbnail and download URLs.
+        var row = new ActivityListRowViewModel(
+            90,
+            "Card Media Review",
+            "Workshop",
+            "Main Hall",
+            "Review card media rendering.",
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow.AddHours(1),
+            DateTimeOffset.UtcNow,
+            "Owner",
+            "owner@example.com",
+            2,
+            1,
+            1,
+            0,
+            new[]
+            {
+                new ActivityMediaPreviewViewModel(1, "thumb.jpg", "image/jpeg", "Photo", "/inline/thumb.jpg", "/download/thumb.jpg", 1024),
+                new ActivityMediaPreviewViewModel(2, "brief.pdf", "application/pdf", "PDF", null, "/download/brief.pdf", 2048)
+            },
+            HasPendingDelete: false,
+            CanEdit: true,
+            CanDelete: true);
+
+        // SECTION: Act and assert card thumbnails and file links use the correct URL intent.
+        var html = await RenderActivityCardAsync(row);
+
+        Assert.Contains("<img src=\"/inline/thumb.jpg\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/download/brief.pdf\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<img src=\"/download/thumb.jpg\"", html, StringComparison.Ordinal);
+    }
 
     [Fact]
     public async Task DetailsPage_LegacyMissingDateRecordStillRenders()
@@ -127,6 +202,34 @@ public sealed class ActivityDetailsPageRenderingTests
             Model = page
         };
         var viewContext = new ViewContext(actionContext, viewResult.View, viewData, page.TempData, writer, new HtmlHelperOptions());
+
+        await viewResult.View.RenderAsync(viewContext);
+        return writer.ToString();
+    }
+
+
+    private static async Task<string> RenderActivityCardAsync(ActivityListRowViewModel row)
+    {
+        // SECTION: Render the activity card partial with MVC services.
+        using var scope = Services.CreateScope();
+        var provider = scope.ServiceProvider;
+        var httpContext = new DefaultHttpContext { RequestServices = provider };
+        var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
+
+        var viewEngine = provider.GetRequiredService<IRazorViewEngine>();
+        var viewResult = viewEngine.GetView(executingFilePath: null, viewPath: "/Pages/Activities/_ActivityCard.cshtml", isMainPage: false);
+        if (!viewResult.Success)
+        {
+            throw new InvalidOperationException("Unable to locate Activities card partial view.");
+        }
+
+        await using var writer = new StringWriter();
+        var tempData = new TempDataDictionary(httpContext, provider.GetRequiredService<ITempDataProvider>());
+        var viewData = new ViewDataDictionary<ActivityListRowViewModel>(new EmptyModelMetadataProvider(), new ModelStateDictionary())
+        {
+            Model = row
+        };
+        var viewContext = new ViewContext(actionContext, viewResult.View, viewData, tempData, writer, new HtmlHelperOptions());
 
         await viewResult.View.RenderAsync(viewContext);
         return writer.ToString();
