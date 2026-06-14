@@ -171,7 +171,12 @@ public sealed class IndexModel : PageModel
         var normalizedView = string.Equals(View, "table", StringComparison.OrdinalIgnoreCase) ? "table" : "cards";
         View = normalizedView;
         var groups = rows
-            .GroupBy(row => new { row.ScheduledStartUtc?.Year, row.ScheduledStartUtc?.Month, FallbackYear = row.CreatedAtUtc.Year, FallbackMonth = row.CreatedAtUtc.Month })
+            .GroupBy(row =>
+            {
+                // SECTION: Card month groups use the same IST boundary as displayed card dates
+                var groupDate = IstClock.ToIst(row.ScheduledStartUtc ?? row.CreatedAtUtc);
+                return new { Year = (int?)groupDate.Year, Month = (int?)groupDate.Month, FallbackYear = groupDate.Year, FallbackMonth = groupDate.Month };
+            })
             .Select(group => new
             {
                 Year = group.Key.Year ?? group.Key.FallbackYear,

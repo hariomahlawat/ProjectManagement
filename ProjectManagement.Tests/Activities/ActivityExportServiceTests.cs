@@ -164,6 +164,9 @@ public sealed class ActivityExportServiceTests
         public Task<ActivityListResult> ListAsync(ActivityListRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(_result);
 
+        public Task<bool> ExistsByTypeAndTitleAsync(int activityTypeId, string title, int? excludingActivityId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
         public Task<ActivityReviewSummaryResult> GetReviewSummaryAsync(ActivityListRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new ActivityReviewSummaryResult(0, 0, 0, 0, 0));
 

@@ -356,8 +356,10 @@
         </div>
     </section>
 
-    <!-- SECTION: Admin details -->
-    <section class="pm-card pm-shadow mb-4" aria-labelledby="activity-admin-heading">
+    @if (Model.CanManage)
+    {
+        <!-- SECTION: Admin details -->
+        <section class="pm-card pm-shadow mb-4" aria-labelledby="activity-admin-heading">
         <div class="pm-card-header">
             <h2 class="h5 mb-0" id="activity-admin-heading">Admin details</h2>
         </div>
@@ -385,7 +387,8 @@
                 <dd class="col-sm-9">@ResolveDeleteRequestStatus()</dd>
             </dl>
         </div>
-    </section>
+        </section>
+    }
 </div>
 
 @await Html.PartialAsync("_DeleteConfirmModal")
