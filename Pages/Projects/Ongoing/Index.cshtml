@@ -557,7 +557,7 @@ else
                                 <div class="ongoing-remarks__title-wrap">
                                     <span class="ongoing-remarks__title">Remarks summary</span>
                                     <span class="ongoing-remarks__title-sep">·</span>
-                                    <span class="ongoing-remarks__subtitle">Internal remarks (last 10 days)</span>
+                                    <span class="ongoing-remarks__subtitle">Internal remarks</span>
                                 </div>
                                 @if (hasExpandableInternalRemarks)
                                 {
@@ -577,7 +577,7 @@ else
                                 <div class="ongoing-remarks__column ongoing-remarks__column--internal">
                                     @if (item.RecentInternalRemarks.Count == 0)
                                     {
-                                        <p class="small text-muted mb-0">No internal remarks in the last 10 days.</p>
+                                        <p class="small text-muted mb-0">No internal remarks available.</p>
                                     }
                                     else
                                     {
