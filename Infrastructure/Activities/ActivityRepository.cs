@@ -231,16 +231,16 @@ namespace ProjectManagement.Infrastructure.Activities
         {
             // SECTION: Provider-aware case-insensitive activity search
             var term = search.Trim();
-            var like = $"%{term}%";
+            var like = BuildEscapedLikePattern(term);
             var providerName = _dbContext.Database.ProviderName ?? string.Empty;
 
             if (providerName.Contains("Npgsql", StringComparison.OrdinalIgnoreCase))
             {
                 return query.Where(x =>
-                    EF.Functions.ILike(x.Title, like) ||
-                    (x.Description != null && EF.Functions.ILike(x.Description, like)) ||
-                    (x.Location != null && EF.Functions.ILike(x.Location, like)) ||
-                    EF.Functions.ILike(x.ActivityType.Name, like));
+                    EF.Functions.ILike(x.Title, like, "\\") ||
+                    (x.Description != null && EF.Functions.ILike(x.Description, like, "\\")) ||
+                    (x.Location != null && EF.Functions.ILike(x.Location, like, "\\")) ||
+                    EF.Functions.ILike(x.ActivityType.Name, like, "\\"));
             }
 
             if (providerName.Contains("InMemory", StringComparison.OrdinalIgnoreCase))
@@ -257,10 +257,16 @@ namespace ProjectManagement.Infrastructure.Activities
             var normalizedLike = like.ToLowerInvariant();
 
             return query.Where(x =>
-                EF.Functions.Like(x.Title.ToLower(), normalizedLike) ||
-                (x.Description != null && EF.Functions.Like(x.Description.ToLower(), normalizedLike)) ||
-                (x.Location != null && EF.Functions.Like(x.Location.ToLower(), normalizedLike)) ||
-                EF.Functions.Like(x.ActivityType.Name.ToLower(), normalizedLike));
+                EF.Functions.Like(x.Title.ToLower(), normalizedLike, "\\") ||
+                (x.Description != null && EF.Functions.Like(x.Description.ToLower(), normalizedLike, "\\")) ||
+                (x.Location != null && EF.Functions.Like(x.Location.ToLower(), normalizedLike, "\\")) ||
+                EF.Functions.Like(x.ActivityType.Name.ToLower(), normalizedLike, "\\"));
+        }
+
+        private static string BuildEscapedLikePattern(string term)
+        {
+            // SECTION: Escape LIKE wildcard characters so search keeps literal contains semantics
+            return $"%{term.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal)}%";
         }
 
         private static IQueryable<Activity> ApplyMediaFilter(IQueryable<Activity> query, ActivityMediaFilter mediaFilter)

@@ -445,6 +445,9 @@ public sealed class ActivityIndexPageTests
             return Task.FromResult(_result);
         }
 
+        public Task<ActivityReviewSummaryResult> GetReviewSummaryAsync(ActivityListRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ActivityReviewSummaryResult(_result.TotalCount, 0, 0, 0, 0));
+
         public Task<IReadOnlyList<ActivityAttachmentMetadata>> GetAttachmentMetadataAsync(int activityId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
         public Task<ActivityAttachment> AddAttachmentAsync(int activityId, ActivityAttachmentUpload upload, CancellationToken cancellationToken = default) => throw new NotImplementedException();

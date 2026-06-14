@@ -126,6 +126,9 @@ public sealed class ActivityDeleteRequestServiceTests : IDisposable
         public Task<ActivityListResult> ListAsync(ActivityListRequest request, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
+        public Task<ActivityReviewSummaryResult> GetReviewSummaryAsync(ActivityListRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ActivityReviewSummaryResult(0, 0, 0, 0, 0));
+
         public Task<IReadOnlyList<ActivityAttachmentMetadata>> GetAttachmentMetadataAsync(int activityId, CancellationToken cancellationToken = default) =>
             throw new NotImplementedException();
 
