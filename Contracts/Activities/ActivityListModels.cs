@@ -77,3 +77,15 @@ public sealed record ActivityListResult(
     int PageSize,
     ActivityListSort Sort,
     bool SortDescending);
+
+/// <summary>
+/// Full-result review summary for the activity list. Counts intentionally ignore
+/// <see cref="ActivityListRequest.MediaFilter" /> so media chips can act as
+/// stable navigation buckets while other base filters remain applied.
+/// </summary>
+public sealed record ActivityReviewSummaryResult(
+    int All,
+    int WithMedia,
+    int Photos,
+    int Documents,
+    int Videos);

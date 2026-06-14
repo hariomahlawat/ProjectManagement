@@ -144,6 +144,17 @@ public sealed class ActivityService : IActivityService
         return _activityRepository.ListAsync(normalized, cancellationToken);
     }
 
+    public Task<ActivityReviewSummaryResult> GetReviewSummaryAsync(ActivityListRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request is null)
+        {
+            throw new ArgumentNullException(nameof(request));
+        }
+
+        // SECTION: Full-result review summary
+        return _activityRepository.GetReviewSummaryAsync(request, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ActivityAttachmentMetadata>> GetAttachmentMetadataAsync(int activityId,
                                                                                            CancellationToken cancellationToken = default)
     {
