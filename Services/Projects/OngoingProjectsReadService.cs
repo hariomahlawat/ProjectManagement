@@ -36,6 +36,7 @@ namespace ProjectManagement.Services.Projects
             string? leadPoUserId,
             string? search,
             string? presentStageCode,
+            string? stageFlow,
             CancellationToken cancellationToken)
         {
             // base query – active projects only
@@ -485,9 +486,16 @@ namespace ProjectManagement.Services.Projects
 
             // SECTION: Operational ordering for review dashboard
             var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+            var reverseStageFlow = string.Equals(
+                stageFlow,
+                "reverse",
+                StringComparison.OrdinalIgnoreCase);
 
-            return result
-                .OrderBy(row => row.CurrentStageSortOrder)
+            IOrderedEnumerable<OngoingProjectRowDto> ordered = reverseStageFlow
+                ? result.OrderByDescending(row => row.CurrentStageSortOrder)
+                : result.OrderBy(row => row.CurrentStageSortOrder);
+
+            return ordered
                 .ThenBy(row =>
                     row.CurrentStagePdc.HasValue && row.CurrentStagePdc.Value < today ? 0 : 1)
                 .ThenBy(row => row.CurrentStagePdc ?? DateOnly.MaxValue)

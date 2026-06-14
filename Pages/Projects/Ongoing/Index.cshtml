@@ -235,6 +235,7 @@
                    asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
                    asp-route-Search="@Model.Search"
                    asp-route-View="timeline"
+                   asp-route-StageFlow="@Model.StageFlow"
                    class="segmented__item @(isTableView ? string.Empty : "is-active")"
                    role="tab"
                    aria-selected="@(!isTableView)"
@@ -247,6 +248,7 @@
                    asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
                    asp-route-Search="@Model.Search"
                    asp-route-View="table"
+                   asp-route-StageFlow="@Model.StageFlow"
                    class="segmented__item @(isTableView ? "is-active" : string.Empty)"
                    role="tab"
                    aria-selected="@isTableView"
@@ -254,6 +256,26 @@
                     Table view
                 </a>
             </div>
+            @if (!isTableView)
+            {
+                <!-- SECTION: Timeline stage flow selector -->
+                <div class="d-flex align-items-center gap-2">
+                    <label asp-for="StageFlow" class="form-label mb-0 small text-muted">
+                        Stage flow
+                    </label>
+                    <select asp-for="StageFlow"
+                            class="form-select form-select-sm"
+                            data-stage-flow-select>
+                        <option value="forward">Early → Later</option>
+                        <option value="reverse">Later → Early</option>
+                    </select>
+                </div>
+            }
+            else
+            {
+                <!-- SECTION: Preserve stage flow while table view owns its existing ordering -->
+                <input type="hidden" asp-for="StageFlow" />
+            }
             @if (hasFilters)
             {
                 <!-- SECTION: Clear filters -->
@@ -262,6 +284,7 @@
                    asp-route-PresentStageCode=""
                    asp-route-ProjectOfficerId=""
                    asp-route-Search=""
+                   asp-route-View="@Model.View"
                    class="cmdbar__link-button">
                     Clear filters
                 </a>
@@ -277,6 +300,7 @@
                asp-route-ProjectOfficerId="@Model.ProjectOfficerId"
                asp-route-Search="@Model.Search"
                asp-route-View="@Model.View"
+               asp-route-StageFlow="@Model.StageFlow"
                class="btn btn-sm btn-outline-secondary">
                 Export
             </a>
