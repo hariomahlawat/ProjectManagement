@@ -65,6 +65,78 @@ public class ActivityRepositoryTests
         Assert.Equal("files/plan.pdf", stored.Attachments.First().StorageKey);
     }
 
+
+    [Theory]
+    [InlineData("safety brief", true)]
+    [InlineData("SAFETY BRIEF", true)]
+    [InlineData("Different Brief", false)]
+    public async Task ExistsByTypeAndTitleAsync_UsesCaseInsensitiveDatabaseLookup(string title, bool expected)
+    {
+        await using var context = CreateContext();
+        var repository = new ActivityRepository(context);
+
+        // SECTION: Arrange activities for duplicate lookup
+        var type = new ActivityType
+        {
+            Name = "Training",
+            CreatedByUserId = "system"
+        };
+        context.ActivityTypes.Add(type);
+        await context.SaveChangesAsync();
+
+        context.Activities.Add(new Activity
+        {
+            Title = "Safety Brief",
+            ActivityTypeId = type.Id,
+            CreatedByUserId = "user-1"
+        });
+        await context.SaveChangesAsync();
+
+        // SECTION: Act and assert
+        var exists = await repository.ExistsByTypeAndTitleAsync(type.Id, title, null);
+
+        Assert.Equal(expected, exists);
+    }
+
+    [Fact]
+    public async Task ExistsByTypeAndTitleAsync_ExcludesRequestedActivityAndDeletedRows()
+    {
+        await using var context = CreateContext();
+        var repository = new ActivityRepository(context);
+
+        // SECTION: Arrange active, edited, and deleted activities
+        var type = new ActivityType
+        {
+            Name = "Workshops",
+            CreatedByUserId = "system"
+        };
+        context.ActivityTypes.Add(type);
+        await context.SaveChangesAsync();
+
+        var editedActivity = new Activity
+        {
+            Title = "Editable Brief",
+            ActivityTypeId = type.Id,
+            CreatedByUserId = "user-1"
+        };
+        var deletedActivity = new Activity
+        {
+            Title = "Deleted Brief",
+            ActivityTypeId = type.Id,
+            CreatedByUserId = "user-1",
+            IsDeleted = true
+        };
+        context.Activities.AddRange(editedActivity, deletedActivity);
+        await context.SaveChangesAsync();
+
+        // SECTION: Act and assert
+        var selfExists = await repository.ExistsByTypeAndTitleAsync(type.Id, "editable brief", editedActivity.Id);
+        var deletedExists = await repository.ExistsByTypeAndTitleAsync(type.Id, "deleted brief", null);
+
+        Assert.False(selfExists);
+        Assert.False(deletedExists);
+    }
+
     [Fact]
     public async Task ListByTypeAsync_FiltersDeletedAndOrdersBySchedule()
     {

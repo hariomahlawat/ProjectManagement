@@ -11,6 +11,8 @@ namespace ProjectManagement.Contracts.Activities
 
         Task<IReadOnlyList<Activity>> ListByTypeAsync(int activityTypeId, CancellationToken cancellationToken = default);
 
+        Task<bool> ExistsByTypeAndTitleAsync(int activityTypeId, string title, int? excludingActivityId, CancellationToken cancellationToken = default);
+
         Task<ActivityListResult> ListAsync(ActivityListRequest request, CancellationToken cancellationToken = default);
 
         Task<ActivityReviewSummaryResult> GetReviewSummaryAsync(ActivityListRequest request, CancellationToken cancellationToken = default);

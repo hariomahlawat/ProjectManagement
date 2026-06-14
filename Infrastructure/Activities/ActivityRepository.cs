@@ -51,6 +51,31 @@ namespace ProjectManagement.Infrastructure.Activities
                 .ToListAsync(cancellationToken);
         }
 
+        public Task<bool> ExistsByTypeAndTitleAsync(int activityTypeId, string title, int? excludingActivityId, CancellationToken cancellationToken = default)
+        {
+            // SECTION: Provider-aware duplicate activity title lookup
+            var normalizedTitle = title.Trim();
+            var query = _dbContext.Activities
+                .AsNoTracking()
+                .Where(x => x.ActivityTypeId == activityTypeId && !x.IsDeleted);
+
+            if (excludingActivityId.HasValue)
+            {
+                query = query.Where(x => x.Id != excludingActivityId.Value);
+            }
+
+            var providerName = _dbContext.Database.ProviderName ?? string.Empty;
+
+            if (providerName.Contains("Npgsql", StringComparison.OrdinalIgnoreCase))
+            {
+                return query.AnyAsync(x => EF.Functions.ILike(x.Title, normalizedTitle), cancellationToken);
+            }
+
+            var normalizedComparisonTitle = normalizedTitle.ToLower();
+
+            return query.AnyAsync(x => x.Title.ToLower() == normalizedComparisonTitle, cancellationToken);
+        }
+
         public async Task<ActivityListResult> ListAsync(ActivityListRequest request, CancellationToken cancellationToken = default)
         {
             if (request is null)
