@@ -8,6 +8,7 @@
   const categorySelect = form.querySelector('[name="ProjectCategoryId"]');
   const stageSelect = form.querySelector('[name="PresentStageCode"]');
   const officerSelect = form.querySelector('[name="ProjectOfficerId"]');
+  const stageFlowSelect = form.querySelector('[name="StageFlow"]');
   const searchInput = form.querySelector('[name="Search"]');
 
   function submitFilters() {
@@ -37,6 +38,7 @@
   categorySelect?.addEventListener('change', submitFilters);
   stageSelect?.addEventListener('change', submitFilters);
   officerSelect?.addEventListener('change', submitFilters);
+  stageFlowSelect?.addEventListener('change', submitFilters);
 
   // Pressing Enter in the search box already submits the form, but this keeps behaviour explicit
   searchInput?.addEventListener('keydown', (event) => {

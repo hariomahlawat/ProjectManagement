@@ -60,6 +60,10 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         [BindProperty(SupportsGet = true)]
         public string? View { get; set; }
 
+        // SECTION: Timeline stage flow selector
+        [BindProperty(SupportsGet = true)]
+        public string StageFlow { get; set; } = "forward";
+
         public IReadOnlyList<SelectListItem> ProjectCategoryOptions { get; private set; }
             = Array.Empty<SelectListItem>();
 
@@ -103,6 +107,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         public async Task OnGetAsync(CancellationToken cancellationToken)
         {
             View = NormalizeView(View);
+            StageFlow = NormalizeStageFlow(StageFlow);
             await LoadCategoriesAsync(cancellationToken);
 
             var officerId = Normalize(ProjectOfficerId);
@@ -120,6 +125,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
                 officerId,
                 search,
                 PresentStageCode,
+                StageFlow,
                 cancellationToken);
 
             // SECTION: Inline external remark editing access + IST date
@@ -131,6 +137,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
 
         public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
         {
+            StageFlow = NormalizeStageFlow(StageFlow);
             var officerId = Normalize(ProjectOfficerId);
             var search = Normalize(Search);
             PresentStageCode = NormalizeStageCode(PresentStageCode);
@@ -142,6 +149,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
                 officerId,
                 search,
                 PresentStageCode,
+                StageFlow,
                 cancellationToken);
 
             var now = _clock.UtcNow;
@@ -377,6 +385,17 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             }
 
             return "timeline";
+        }
+
+        // SECTION: Stage flow normalization
+        private static string NormalizeStageFlow(string? value)
+        {
+            if (string.Equals(value, "reverse", StringComparison.OrdinalIgnoreCase))
+            {
+                return "reverse";
+            }
+
+            return "forward";
         }
 
         // SECTION: IST helper (yyyy-MM-dd)
