@@ -654,26 +654,8 @@ else
     <!-- SECTION: Table view -->
     <section @(isTableView ? string.Empty : "hidden")>
         @{
-            var orderedCategories = Model.ProjectCategoryOptions
-                .Where(option => !string.IsNullOrWhiteSpace(option.Value))
-                .Select(option => new
-                {
-                    Id = int.TryParse(option.Value, out var id) ? id : 0,
-                    option.Text
-                })
-                .Where(option => option.Id > 0)
-                .ToList();
-
-            // SECTION: Group categorized and uncategorized items
-            var itemsByCategory = Model.Items
-                .Where(item => item.ProjectCategoryId.HasValue)
-                .GroupBy(item => item.ProjectCategoryId!.Value)
-                .ToDictionary(group => group.Key, group => group.OrderBy(x => x.ProjectName).ToList());
-
-            var uncategorizedItems = Model.Items
-                .Where(item => !item.ProjectCategoryId.HasValue)
-                .OrderBy(item => item.ProjectName)
-                .ToList();
+            // SECTION: Preserve service-provided operational order in table view
+            var tableRows = Model.Items;
         }
 
         <!-- SECTION: Table inline remark metadata -->
@@ -714,171 +696,76 @@ else
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var category in orderedCategories)
+                        @foreach (var row in tableRows)
                         {
-                            if (!itemsByCategory.TryGetValue(category.Id, out var rows) || rows.Count == 0)
-                            {
-                                continue;
-                            }
+                            // SECTION: Latest external remark metadata
+                            var latestExternal = row.LatestExternalRemark;
+                            var remarkBody = latestExternal?.Body ?? string.Empty;
+                            var remarkEventDate = latestExternal?.EventDate.ToString("yyyy-MM-dd") ?? Model.TodayIstIso;
+                            var remarkScope = latestExternal?.Scope.ToString() ?? RemarkScope.General.ToString();
+                            var remarkRowVersion = latestExternal?.RowVersion ?? string.Empty;
+                            var remarkId = latestExternal?.Id ?? 0;
+                            var hasRemarkBody = !string.IsNullOrWhiteSpace(remarkBody);
 
-                            <tr class="table-light">
-                                <td colspan="8" class="fw-semibold text-uppercase text-muted small">
-                                    @category.Text (@rows.Count)
-                                </td>
-                            </tr>
-
-                            @foreach (var row in rows)
-                            {
-                                // SECTION: Latest external remark metadata
-                                var latestExternal = row.LatestExternalRemark;
-                                var remarkBody = latestExternal?.Body ?? string.Empty;
-                                var remarkEventDate = latestExternal?.EventDate.ToString("yyyy-MM-dd") ?? Model.TodayIstIso;
-                                var remarkScope = latestExternal?.Scope.ToString() ?? RemarkScope.General.ToString();
-                                var remarkRowVersion = latestExternal?.RowVersion ?? string.Empty;
-                                var remarkId = latestExternal?.Id ?? 0;
-                                var hasRemarkBody = !string.IsNullOrWhiteSpace(remarkBody);
-
-                                <tr>
-                                    <td class="col-project">
-                                        <!-- SECTION: Project name cell (thumbnail + link) -->
-                                        <div class="projcell">
-                                            @if (row.CoverPhotoId.HasValue)
-                                            {
-                                                <img class="projcell__thumb"
-                                                     src="@Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.CoverPhotoId.Value, size = "xs", v = row.CoverPhotoVersion })"
-                                                     alt=""
-                                                     loading="lazy" />
-                                            }
-                                            else
-                                            {
-                                                <div class="projcell__thumb projcell__thumb--placeholder" aria-hidden="true">
-                                                    <span class="bi bi-image" aria-hidden="true"></span>
-                                                </div>
-                                            }
-                                            <div class="projcell__text">
-                                                <a asp-page="/Projects/Overview"
-                                                   asp-route-id="@row.ProjectId"
-                                                   class="project-link text-decoration-none fw-semibold">
-                                                    @row.ProjectName
-                                                </a>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="col-category">@FormatValue(row.ProjectCategoryName)</td>
-                                    <td class="col-cost" title="@row.CostLakhsFull">@row.CostLakhsShort</td>
-                                    <td class="col-date">@FormatMilestoneDate(row.IpaDate)</td>
-                                    <td class="col-date">@FormatMilestoneDate(row.AonDate)</td>
-                                    <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
-                                    <td class="col-pdc">@FormatDate(row.PresentStagePdc)</td>
-                                    <td class="col-remarks js-ongoing-remark-cell"
-                                        data-project-id="@row.ProjectId"
-                                        data-remark-id="@remarkId"
-                                        data-row-version="@remarkRowVersion"
-                                        data-event-date="@remarkEventDate"
-                                        data-scope="@remarkScope"
-                                        data-type="@remarkType"
-                                        data-actor-role="@actorRole"
-                                        data-remark-body="@remarkBody"
-                                        data-current-text="@remarkBody"
-                                        data-empty-text="N/A"
-                                        data-can-edit="@(Model.CanInlineEditExternalRemarks ? "1" : "0")">
-                                        @if (Model.CanInlineEditExternalRemarks)
+                            <tr>
+                                <td class="col-project">
+                                    <!-- SECTION: Project name cell (thumbnail + link) -->
+                                    <div class="projcell">
+                                        @if (row.CoverPhotoId.HasValue)
                                         {
-                                            <div class="pm-remark-text @(hasRemarkBody ? string.Empty : "text-muted fst-italic")"
-                                                 title="Double-click to edit">
-                                                @FormatValue(remarkBody)
-                                            </div>
+                                            <img class="projcell__thumb"
+                                                 src="@Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.CoverPhotoId.Value, size = "xs", v = row.CoverPhotoVersion })"
+                                                 alt=""
+                                                 loading="lazy" />
                                         }
                                         else
                                         {
-                                            <div class="pm-remark-text @(hasRemarkBody ? string.Empty : "text-muted fst-italic")">
-                                                @FormatValue(remarkBody)
+                                            <div class="projcell__thumb projcell__thumb--placeholder" aria-hidden="true">
+                                                <span class="bi bi-image" aria-hidden="true"></span>
                                             </div>
                                         }
-                                    </td>
-                                </tr>
-                            }
-                        }
-
-                        @if (uncategorizedItems is { Count: > 0 })
-                        {
-                            <tr class="table-light">
-                                <td colspan="8" class="fw-semibold text-uppercase text-muted small">
-                                    Uncategorized (@uncategorizedItems.Count)
+                                        <div class="projcell__text">
+                                            <a asp-page="/Projects/Overview"
+                                               asp-route-id="@row.ProjectId"
+                                               class="project-link text-decoration-none fw-semibold">
+                                                @row.ProjectName
+                                            </a>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="col-category">@FormatValue(row.ProjectCategoryName)</td>
+                                <td class="col-cost" title="@row.CostLakhsFull">@row.CostLakhsShort</td>
+                                <td class="col-date">@FormatMilestoneDate(row.IpaDate)</td>
+                                <td class="col-date">@FormatMilestoneDate(row.AonDate)</td>
+                                <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
+                                <td class="col-pdc">@FormatDate(row.PresentStagePdc)</td>
+                                <td class="col-remarks js-ongoing-remark-cell"
+                                    data-project-id="@row.ProjectId"
+                                    data-remark-id="@remarkId"
+                                    data-row-version="@remarkRowVersion"
+                                    data-event-date="@remarkEventDate"
+                                    data-scope="@remarkScope"
+                                    data-type="@remarkType"
+                                    data-actor-role="@actorRole"
+                                    data-remark-body="@remarkBody"
+                                    data-current-text="@remarkBody"
+                                    data-empty-text="N/A"
+                                    data-can-edit="@(Model.CanInlineEditExternalRemarks ? "1" : "0")">
+                                    @if (Model.CanInlineEditExternalRemarks)
+                                    {
+                                        <div class="pm-remark-text @(hasRemarkBody ? string.Empty : "text-muted fst-italic")"
+                                             title="Double-click to edit">
+                                            @FormatValue(remarkBody)
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="pm-remark-text @(hasRemarkBody ? string.Empty : "text-muted fst-italic")">
+                                            @FormatValue(remarkBody)
+                                        </div>
+                                    }
                                 </td>
                             </tr>
-
-                            foreach (var row in uncategorizedItems)
-                            {
-                                // SECTION: Latest external remark metadata
-                                var latestExternal = row.LatestExternalRemark;
-                                var remarkBody = latestExternal?.Body ?? string.Empty;
-                                var remarkEventDate = latestExternal?.EventDate.ToString("yyyy-MM-dd") ?? Model.TodayIstIso;
-                                var remarkScope = latestExternal?.Scope.ToString() ?? RemarkScope.General.ToString();
-                                var remarkRowVersion = latestExternal?.RowVersion ?? string.Empty;
-                                var remarkId = latestExternal?.Id ?? 0;
-                                var hasRemarkBody = !string.IsNullOrWhiteSpace(remarkBody);
-
-                                <tr>
-                                    <td class="col-project">
-                                        <!-- SECTION: Project name cell (thumbnail + link) -->
-                                        <div class="projcell">
-                                            @if (row.CoverPhotoId.HasValue)
-                                            {
-                                                <img class="projcell__thumb"
-                                                     src="@Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.CoverPhotoId.Value, size = "xs", v = row.CoverPhotoVersion })"
-                                                     alt=""
-                                                     loading="lazy" />
-                                            }
-                                            else
-                                            {
-                                                <div class="projcell__thumb projcell__thumb--placeholder" aria-hidden="true">
-                                                    <span class="bi bi-image" aria-hidden="true"></span>
-                                                </div>
-                                            }
-                                            <div class="projcell__text">
-                                                <a asp-page="/Projects/Overview"
-                                                   asp-route-id="@row.ProjectId"
-                                                   class="project-link text-decoration-none fw-semibold">
-                                                    @row.ProjectName
-                                                </a>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="col-category">@FormatValue(row.ProjectCategoryName)</td>
-                                    <td class="col-cost" title="@row.CostLakhsFull">@row.CostLakhsShort</td>
-                                    <td class="col-date">@FormatMilestoneDate(row.IpaDate)</td>
-                                    <td class="col-date">@FormatMilestoneDate(row.AonDate)</td>
-                                    <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
-                                    <td class="col-pdc">@FormatDate(row.PresentStagePdc)</td>
-                                    <td class="col-remarks js-ongoing-remark-cell"
-                                        data-project-id="@row.ProjectId"
-                                        data-remark-id="@remarkId"
-                                        data-row-version="@remarkRowVersion"
-                                        data-event-date="@remarkEventDate"
-                                        data-scope="@remarkScope"
-                                        data-type="@remarkType"
-                                        data-actor-role="@actorRole"
-                                        data-remark-body="@remarkBody"
-                                        data-current-text="@remarkBody"
-                                        data-empty-text="N/A"
-                                        data-can-edit="@(Model.CanInlineEditExternalRemarks ? "1" : "0")">
-                                        @if (Model.CanInlineEditExternalRemarks)
-                                        {
-                                            <div class="pm-remark-text @(hasRemarkBody ? string.Empty : "text-muted fst-italic")"
-                                                 title="Double-click to edit">
-                                                @FormatValue(remarkBody)
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            <div class="pm-remark-text @(hasRemarkBody ? string.Empty : "text-muted fst-italic")">
-                                                @FormatValue(remarkBody)
-                                            </div>
-                                        }
-                                    </td>
-                                </tr>
-                            }
                         }
                     </tbody>
                 </table>
