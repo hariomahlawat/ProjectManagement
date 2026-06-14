@@ -104,8 +104,8 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         public IReadOnlyList<OngoingProjectRowDto> Items { get; private set; }
             = Array.Empty<OngoingProjectRowDto>();
 
-        public IReadOnlyList<OngoingProjectRowDto> BucketCountItems { get; private set; }
-            = Array.Empty<OngoingProjectRowDto>();
+        // SECTION: Stage bucket counts source
+        public OngoingStageBucketCountsDto BucketCounts { get; private set; } = OngoingStageBucketCountsDto.Empty;
 
         // SECTION: Inline external remark editing metadata
         public bool CanInlineEditExternalRemarks { get; private set; }
@@ -141,13 +141,10 @@ namespace ProjectManagement.Pages.Projects.Ongoing
                 StageFlow,
                 cancellationToken);
 
-            BucketCountItems = await _ongoingService.GetAsync(
+            BucketCounts = await _ongoingService.GetStageBucketCountsAsync(
                 ProjectCategoryId,
                 officerId,
                 search,
-                null,
-                null,
-                StageFlow,
                 cancellationToken);
 
             // SECTION: Inline external remark editing access + IST date
@@ -226,35 +223,11 @@ namespace ProjectManagement.Pages.Projects.Ongoing
             ChipTotalCount = Items.Count;
 
             // SECTION: Stage bucket breakdown
-            BucketApvlCount = 0;
-            BucketAonCount = 0;
-            BucketProcCount = 0;
-            BucketDevpCount = 0;
-            BucketUnknownCount = 0;
-
-            foreach (var item in BucketCountItems)
-            {
-                var bucket = StageBuckets.Of(item.CurrentStageCode);
-
-                switch (bucket)
-                {
-                    case ProjectManagement.Models.Stages.StageBucket.Approval:
-                        BucketApvlCount++;
-                        break;
-                    case ProjectManagement.Models.Stages.StageBucket.Aon:
-                        BucketAonCount++;
-                        break;
-                    case ProjectManagement.Models.Stages.StageBucket.Procurement:
-                        BucketProcCount++;
-                        break;
-                    case ProjectManagement.Models.Stages.StageBucket.Development:
-                        BucketDevpCount++;
-                        break;
-                    default:
-                        BucketUnknownCount++;
-                        break;
-                }
-            }
+            BucketApvlCount = BucketCounts.Approval;
+            BucketAonCount = BucketCounts.Aon;
+            BucketProcCount = BucketCounts.Procurement;
+            BucketDevpCount = BucketCounts.Development;
+            BucketUnknownCount = BucketCounts.Unknown;
 
             var categoryLookup = _categories.ToDictionary(c => c.Id);
 
