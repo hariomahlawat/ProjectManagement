@@ -97,7 +97,31 @@
         <div class="pm-card pm-shadow activities-table-card">
             <div class="pm-card-body table-responsive">
                 <table class="table table-hover align-middle activities-table">
-                    <thead><tr><th>Activity</th><th>Type</th><th>Event date</th><th>Remarks</th><th>Media</th><th class="text-end">Actions</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th scope="col">
+                                <a class="activities-sort-link" asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: 1, sort: ActivityListSort.Title, sortDir: Model.GetSortDirectionFor(ActivityListSort.Title))">
+                                    <span>Activity</span>
+                                    <i class="@Model.GetSortIconClass(ActivityListSort.Title)" aria-hidden="true"></i>
+                                </a>
+                            </th>
+                            <th scope="col">
+                                <a class="activities-sort-link" asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: 1, sort: ActivityListSort.ActivityType, sortDir: Model.GetSortDirectionFor(ActivityListSort.ActivityType))">
+                                    <span>Type</span>
+                                    <i class="@Model.GetSortIconClass(ActivityListSort.ActivityType)" aria-hidden="true"></i>
+                                </a>
+                            </th>
+                            <th scope="col">
+                                <a class="activities-sort-link" asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: 1, sort: ActivityListSort.ScheduledStart, sortDir: Model.GetSortDirectionFor(ActivityListSort.ScheduledStart))">
+                                    <span>Event date</span>
+                                    <i class="@Model.GetSortIconClass(ActivityListSort.ScheduledStart)" aria-hidden="true"></i>
+                                </a>
+                            </th>
+                            <th scope="col">Remarks</th>
+                            <th scope="col">Media</th>
+                            <th scope="col" class="text-end">Actions</th>
+                        </tr>
+                    </thead>
                     <tbody>
                     @foreach (var row in vm!.Rows)
                     {
