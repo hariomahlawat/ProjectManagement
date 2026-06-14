@@ -30,22 +30,34 @@ public sealed class ActivityIndexPageTests
         var now = DateTimeOffset.UtcNow;
         var result = new ActivityListResult(new List<ActivityListItem>
         {
-            new(1,
-                "Engagement A",
-                "Briefing",
-                1,
-                "HQ",
-                now.AddDays(1),
-                now.AddDays(1).AddHours(2),
-                now.AddDays(-2),
-                "user-1",
-                "Avery Manager",
-                "avery@example.test",
-                3,
-                1,
-                1,
-                1,
-                false)
+            new ActivityListItem(
+                Id: 1,
+                Title: "Engagement A",
+                ActivityTypeName: "Briefing",
+                ActivityTypeId: 1,
+                Location: "HQ",
+                RemarksPreview: "Executive briefing with stakeholders.",
+                ScheduledStartUtc: now.AddDays(1),
+                ScheduledEndUtc: now.AddDays(1).AddHours(2),
+                CreatedAtUtc: now.AddDays(-2),
+                CreatedByUserId: "user-1",
+                CreatedByDisplayName: "Avery Manager",
+                CreatedByEmail: "avery@example.test",
+                AttachmentCount: 3,
+                PdfAttachmentCount: 1,
+                PhotoAttachmentCount: 1,
+                VideoAttachmentCount: 1,
+                MediaPreviews: new[]
+                {
+                    new ActivityMediaPreview(
+                        AttachmentId: 10,
+                        FileName: "briefing-photo.jpg",
+                        ContentType: "image/jpeg",
+                        MediaKind: "Photo",
+                        StorageKey: "activities/1/briefing-photo.jpg",
+                        SizeBytes: 2048)
+                },
+                HasPendingDelete: false)
         }, 1, 1, 25, ActivityListSort.ScheduledStart, true);
 
         var activityService = new StubActivityService(result);
@@ -83,22 +95,25 @@ public sealed class ActivityIndexPageTests
         var now = DateTimeOffset.UtcNow;
         var result = new ActivityListResult(new List<ActivityListItem>
         {
-            new(5,
-                "Stakeholder Sync",
-                "Briefing",
-                3,
-                "HQ",
-                now.AddDays(3),
-                null,
-                now.AddDays(-1),
-                "po-user",
-                "Poppy Officer",
-                "poppy@example.test",
-                2,
-                0,
-                1,
-                1,
-                false)
+            new ActivityListItem(
+                Id: 5,
+                Title: "Stakeholder Sync",
+                ActivityTypeName: "Briefing",
+                ActivityTypeId: 3,
+                Location: "HQ",
+                RemarksPreview: "Coordinate stakeholder updates.",
+                ScheduledStartUtc: now.AddDays(3),
+                ScheduledEndUtc: null,
+                CreatedAtUtc: now.AddDays(-1),
+                CreatedByUserId: "po-user",
+                CreatedByDisplayName: "Poppy Officer",
+                CreatedByEmail: "poppy@example.test",
+                AttachmentCount: 2,
+                PdfAttachmentCount: 0,
+                PhotoAttachmentCount: 1,
+                VideoAttachmentCount: 1,
+                MediaPreviews: Array.Empty<ActivityMediaPreview>(),
+                HasPendingDelete: false)
         }, 1, 1, 25, ActivityListSort.ScheduledStart, true);
 
         var activityService = new StubActivityService(result);
@@ -132,22 +147,25 @@ public sealed class ActivityIndexPageTests
         var now = DateTimeOffset.UtcNow;
         var result = new ActivityListResult(new List<ActivityListItem>
         {
-            new(2,
-                "Workshop",
-                "Training",
-                2,
-                null,
-                now.AddDays(2),
-                null,
-                now.AddDays(-3),
-                "owner-2",
-                "Olivia Owner",
-                "olivia@example.test",
-                1,
-                0,
-                1,
-                0,
-                false)
+            new ActivityListItem(
+                Id: 2,
+                Title: "Workshop",
+                ActivityTypeName: "Training",
+                ActivityTypeId: 2,
+                Location: null,
+                RemarksPreview: null,
+                ScheduledStartUtc: now.AddDays(2),
+                ScheduledEndUtc: null,
+                CreatedAtUtc: now.AddDays(-3),
+                CreatedByUserId: "owner-2",
+                CreatedByDisplayName: "Olivia Owner",
+                CreatedByEmail: "olivia@example.test",
+                AttachmentCount: 1,
+                PdfAttachmentCount: 0,
+                PhotoAttachmentCount: 1,
+                VideoAttachmentCount: 0,
+                MediaPreviews: Array.Empty<ActivityMediaPreview>(),
+                HasPendingDelete: false)
         }, 1, 1, 25, ActivityListSort.ScheduledStart, true);
 
         var activityService = new StubActivityService(result);
