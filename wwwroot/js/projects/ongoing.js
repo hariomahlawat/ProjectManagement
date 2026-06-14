@@ -7,6 +7,7 @@
 
   const categorySelect = form.querySelector('[name="ProjectCategoryId"]');
   const stageSelect = form.querySelector('[name="PresentStageCode"]');
+  const stageBucketInput = form.querySelector('[name="StageBucket"]');
   const officerSelect = form.querySelector('[name="ProjectOfficerId"]');
   const stageFlowSelect = form.querySelector('[name="StageFlow"]');
   const searchInput = form.querySelector('[name="Search"]');
@@ -19,6 +20,31 @@
       form.submit();
     }
   }
+
+  // SECTION: Stage bucket quick-filter interactions
+  const stageBucketChips = document.querySelectorAll('.js-stage-bucket-chip');
+
+  stageBucketChips.forEach((chip) => {
+    chip.addEventListener('click', () => {
+      if (!stageBucketInput) {
+        return;
+      }
+
+      const selectedBucket = chip.dataset.stageBucket ?? '';
+      const currentBucket = stageBucketInput.value ?? '';
+
+      if (currentBucket === selectedBucket) {
+        stageBucketInput.value = '';
+      } else {
+        stageBucketInput.value = selectedBucket;
+        if (stageSelect) {
+          stageSelect.value = '';
+        }
+      }
+
+      submitFilters();
+    });
+  });
 
   // SECTION: KPI chip interactions
   const kpiChips = document.querySelectorAll('.js-kpi-chip');
@@ -36,7 +62,13 @@
   });
 
   categorySelect?.addEventListener('change', submitFilters);
-  stageSelect?.addEventListener('change', submitFilters);
+  stageSelect?.addEventListener('change', () => {
+    if (stageBucketInput) {
+      stageBucketInput.value = '';
+    }
+
+    submitFilters();
+  });
   officerSelect?.addEventListener('change', submitFilters);
   stageFlowSelect?.addEventListener('change', submitFilters);
 
