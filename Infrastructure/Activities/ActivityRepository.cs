@@ -137,19 +137,21 @@ namespace ProjectManagement.Infrastructure.Activities
                     x.CreatedByUser != null ? x.CreatedByUser.Email : null,
                     x.Attachments.Count,
                     x.Attachments.AsQueryable().Count(ActivityAttachmentClassifier.IsPdfExpression),
+                    x.Attachments.AsQueryable().Count(ActivityAttachmentClassifier.IsDocumentExpression),
                     x.Attachments.AsQueryable().Count(ActivityAttachmentClassifier.IsPhotoExpression),
                     x.Attachments.AsQueryable().Count(ActivityAttachmentClassifier.IsVideoExpression),
                     x.Attachments
                         .OrderByDescending(a => a.ContentType != null && a.ContentType.ToLower().StartsWith("image/"))
                         .ThenByDescending(a => a.ContentType != null && a.ContentType.ToLower().StartsWith("video/"))
                         .ThenByDescending(a => (a.ContentType != null && a.ContentType.ToLower() == "application/pdf") || (a.OriginalFileName != null && a.OriginalFileName.ToLower().EndsWith(".pdf")))
+                        .ThenByDescending(a => (a.ContentType != null && (a.ContentType.ToLower().Contains("document") || a.ContentType.ToLower().Contains("spreadsheet") || a.ContentType.ToLower().Contains("presentation") || a.ContentType.ToLower().Contains("wordprocessingml") || a.ContentType.ToLower().Contains("spreadsheetml") || a.ContentType.ToLower().Contains("presentationml") || a.ContentType.ToLower().Contains("officedocument"))) || (a.OriginalFileName != null && (a.OriginalFileName.ToLower().EndsWith(".doc") || a.OriginalFileName.ToLower().EndsWith(".docx") || a.OriginalFileName.ToLower().EndsWith(".xls") || a.OriginalFileName.ToLower().EndsWith(".xlsx") || a.OriginalFileName.ToLower().EndsWith(".ppt") || a.OriginalFileName.ToLower().EndsWith(".pptx"))))
                         .ThenByDescending(a => a.UploadedAtUtc)
                         .Take(3)
                         .Select(a => new ActivityMediaPreview(
                             a.Id,
                             a.OriginalFileName,
                             a.ContentType,
-                            a.ContentType != null && a.ContentType.ToLower().StartsWith("image/") ? ActivityAttachmentClassifier.PhotoLabel : a.ContentType != null && a.ContentType.ToLower().StartsWith("video/") ? ActivityAttachmentClassifier.VideoLabel : ((a.ContentType != null && a.ContentType.ToLower() == "application/pdf") || (a.OriginalFileName != null && a.OriginalFileName.ToLower().EndsWith(".pdf"))) ? ActivityAttachmentClassifier.PdfLabel : ActivityAttachmentClassifier.DocumentLabel,
+                            a.ContentType != null && a.ContentType.ToLower().StartsWith("image/") ? ActivityAttachmentClassifier.PhotoLabel : a.ContentType != null && a.ContentType.ToLower().StartsWith("video/") ? ActivityAttachmentClassifier.VideoLabel : ((a.ContentType != null && a.ContentType.ToLower() == "application/pdf") || (a.OriginalFileName != null && a.OriginalFileName.ToLower().EndsWith(".pdf"))) ? ActivityAttachmentClassifier.PdfLabel : ((a.ContentType != null && (a.ContentType.ToLower().Contains("document") || a.ContentType.ToLower().Contains("spreadsheet") || a.ContentType.ToLower().Contains("presentation") || a.ContentType.ToLower().Contains("wordprocessingml") || a.ContentType.ToLower().Contains("spreadsheetml") || a.ContentType.ToLower().Contains("presentationml") || a.ContentType.ToLower().Contains("officedocument"))) || (a.OriginalFileName != null && (a.OriginalFileName.ToLower().EndsWith(".doc") || a.OriginalFileName.ToLower().EndsWith(".docx") || a.OriginalFileName.ToLower().EndsWith(".xls") || a.OriginalFileName.ToLower().EndsWith(".xlsx") || a.OriginalFileName.ToLower().EndsWith(".ppt") || a.OriginalFileName.ToLower().EndsWith(".pptx")))) ? ActivityAttachmentClassifier.DocumentLabel : ActivityAttachmentClassifier.OtherLabel,
                             a.StorageKey,
                             a.FileSize))
                         .ToList(),

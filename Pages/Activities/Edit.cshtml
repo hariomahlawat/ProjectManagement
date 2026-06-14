@@ -61,6 +61,18 @@
             </div>
         </div>
 
+        @if (isEdit && Model.ExistingAttachmentCount > 0)
+        {
+            <!-- SECTION: Existing media summary -->
+            <div class="alert alert-light border d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+                <div>
+                    <strong>Existing media</strong>
+                    <div class="small text-muted">@Model.ExistingAttachmentCount attachment@(Model.ExistingAttachmentCount == 1 ? string.Empty : "s") already uploaded.</div>
+                </div>
+                <a asp-page="./Details" asp-route-id="@Model.Input.Id" class="btn btn-sm btn-outline-primary">View media gallery</a>
+            </div>
+        }
+
         <!-- SECTION: Media / Documents -->
         <div class="card mb-3">
             <div class="card-header">Media / Documents</div>
@@ -118,9 +130,15 @@
         </div>
 
         <!-- SECTION: Actions -->
-        <div class="d-flex justify-content-between">
+        <div class="d-flex flex-wrap justify-content-between gap-2">
             <a asp-page="/Activities/Index" class="btn btn-outline-secondary">Cancel</a>
-            <button type="submit" class="btn btn-primary">@(isEdit ? "Save activity" : "Save activity")</button>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="submit" name="SaveMode" value="save" class="btn btn-primary">Save activity</button>
+                @if (!isEdit)
+                {
+                    <button type="submit" name="SaveMode" value="save-add-another" class="btn btn-outline-primary">Save and add another</button>
+                }
+            </div>
         </div>
     </form>
 </div>

@@ -124,6 +124,7 @@ public sealed class ActivityDetailsPageRenderingTests
             2,
             1,
             1,
+            1,
             0,
             new[]
             {

@@ -18,6 +18,12 @@ internal sealed class ActivityAttachmentValidator : IActivityAttachmentValidator
     private static readonly string[] AllowedContentTypeList =
     {
         "application/pdf",
+        "application/msword",
+        "application/vnd.ms-excel",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "image/png",
         "image/jpeg",
         "video/mp4",
@@ -31,6 +37,12 @@ internal sealed class ActivityAttachmentValidator : IActivityAttachmentValidator
         new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
         {
             ["application/pdf"] = new[] { ".pdf" },
+            ["application/msword"] = new[] { ".doc" },
+            ["application/vnd.ms-excel"] = new[] { ".xls" },
+            ["application/vnd.ms-powerpoint"] = new[] { ".ppt" },
+            ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] = new[] { ".docx" },
+            ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"] = new[] { ".xlsx" },
+            ["application/vnd.openxmlformats-officedocument.presentationml.presentation"] = new[] { ".pptx" },
             ["image/png"] = new[] { ".png" },
             ["image/jpeg"] = new[] { ".jpg", ".jpeg" },
             ["video/mp4"] = new[] { ".mp4" },

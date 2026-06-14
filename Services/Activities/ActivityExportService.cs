@@ -24,11 +24,12 @@ public sealed class ActivityExportService : IActivityExportService
     private const int EndDateColumn = 5;
     private const int CreatedDateColumn = 6;
     private const int CreatedByColumn = 7;
-    private const int PdfAttachmentsColumn = 8;
-    private const int PhotoAttachmentsColumn = 9;
-    private const int VideoAttachmentsColumn = 10;
-    private const int TotalAttachmentsColumn = 11;
-    private const int AttachmentLinksColumn = 12;
+    private const int DocumentAttachmentsColumn = 8;
+    private const int PdfAttachmentsColumn = 9;
+    private const int PhotoAttachmentsColumn = 10;
+    private const int VideoAttachmentsColumn = 11;
+    private const int TotalAttachmentsColumn = 12;
+    private const int AttachmentLinksColumn = 13;
 
     public const string ExcelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -124,6 +125,7 @@ public sealed class ActivityExportService : IActivityExportService
             "End date",
             "Created date",
             "Created by",
+            "Document attachments",
             "PDF attachments",
             "Photo attachments",
             "Video attachments",
@@ -162,6 +164,7 @@ public sealed class ActivityExportService : IActivityExportService
             worksheet.Cell(rowNumber, CreatedByColumn).Value = ResolveCreatedBy(item);
 
             // SECTION: Attachment counts
+            worksheet.Cell(rowNumber, DocumentAttachmentsColumn).Value = item.DocumentAttachmentCount;
             worksheet.Cell(rowNumber, PdfAttachmentsColumn).Value = item.PdfAttachmentCount;
             worksheet.Cell(rowNumber, PhotoAttachmentsColumn).Value = item.PhotoAttachmentCount;
             worksheet.Cell(rowNumber, VideoAttachmentsColumn).Value = item.VideoAttachmentCount;

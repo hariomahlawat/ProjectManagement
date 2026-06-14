@@ -565,10 +565,10 @@ public class ActivityServiceTests : IDisposable
         var worksheet = workbook.Worksheet("Activities");
 
         Assert.Equal("Title", worksheet.Cell(1, 1).GetString());
-        Assert.Equal("Attachment links", worksheet.Cell(1, 11).GetString());
+        Assert.Equal("Attachment links", worksheet.Cell(1, 13).GetString());
 
-        var attachmentsCell = worksheet.Cell(2, 11);
-        Assert.Equal(2, worksheet.Cell(2, 10).GetValue<int>());
+        var attachmentsCell = worksheet.Cell(2, 13);
+        Assert.Equal(2, worksheet.Cell(2, 12).GetValue<int>());
         Assert.Contains("HYPERLINK", attachmentsCell.FormulaA1, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("plan.pdf", attachmentsCell.FormulaA1, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("photo.jpg", attachmentsCell.FormulaA1, StringComparison.OrdinalIgnoreCase);

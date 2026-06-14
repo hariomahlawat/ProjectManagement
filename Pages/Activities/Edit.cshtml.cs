@@ -25,12 +25,18 @@ public sealed class EditModel : PageModel
 {
     private static readonly IReadOnlyList<string> AttachmentExtensions = new[]
     {
-        "pdf", "png", "jpg", "jpeg", "mp4", "mov", "webm"
+        "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "png", "jpg", "jpeg", "mp4", "mov", "webm"
     };
 
     private static readonly IReadOnlyList<string> AttachmentContentTypes = new[]
     {
         "application/pdf",
+        "application/msword",
+        "application/vnd.ms-excel",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "image/png",
         "image/jpeg",
         "video/mp4",
@@ -40,7 +46,7 @@ public sealed class EditModel : PageModel
 
     private static readonly IReadOnlyList<string> AttachmentSummaryLabels = new[]
     {
-        "PDF", "PNG", "JPG/JPEG", "MP4", "MOV", "WEBM"
+        "PDF", "DOC/DOCX", "XLS/XLSX", "PPT/PPTX", "PNG", "JPG/JPEG", "MP4", "MOV", "WEBM"
     };
 
     private readonly IActivityService _activityService;
@@ -67,6 +73,9 @@ public sealed class EditModel : PageModel
 
     public IReadOnlyList<SelectListItem> ActivityTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
+    [BindProperty]
+    public string? SaveMode { get; set; }
+
     public bool IsEdit => Input?.Id is int id && id > 0;
 
     public int ExistingAttachmentCount { get; private set; }
@@ -86,12 +95,24 @@ public sealed class EditModel : PageModel
     public string AttachmentAcceptAttribute => string.Join(',', new[]
     {
         "application/pdf",
+        "application/msword",
+        "application/vnd.ms-excel",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "image/png",
         "image/jpeg",
         "video/mp4",
         "video/quicktime",
         "video/webm",
         ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".ppt",
+        ".pptx",
         ".png",
         ".jpg",
         ".jpeg",
@@ -217,6 +238,12 @@ public sealed class EditModel : PageModel
             _logger.LogError(ex, "Failed to upload attachments for activity {ActivityId}", activity.Id);
             TempData["Error"] = "Activity saved, but attachments could not be uploaded.";
             return RedirectToPage("./Index");
+        }
+
+        if (isNew && string.Equals(SaveMode, "save-add-another", StringComparison.OrdinalIgnoreCase))
+        {
+            TempData["ToastMessage"] = "Activity saved. Add another activity.";
+            return RedirectToPage("./Edit");
         }
 
         TempData["ToastMessage"] = isNew ? "Activity created." : "Activity updated.";
