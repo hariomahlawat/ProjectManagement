@@ -254,7 +254,10 @@
             </div>
             <div class="cmdbar__field cmdbar__field--search">
                 <label asp-for="Search" class="cmdbar__label">Search by project name</label>
-                <input asp-for="Search" class="form-control form-control-sm" />
+                <input asp-for="Search"
+                       class="form-control form-control-sm"
+                       placeholder="Type and press Enter"
+                       title="Press Enter to search" />
             </div>
         </div>
 
@@ -318,15 +321,13 @@
                    asp-route-PresentStageCode=""
                    asp-route-ProjectOfficerId=""
                    asp-route-Search=""
+                   asp-route-StageBucket=""
+                   asp-route-StageFlow="forward"
                    asp-route-View="@Model.View"
                    class="cmdbar__link-button">
                     Clear filters
                 </a>
             }
-            <button type="submit" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-funnel" aria-hidden="true"></i>
-                <span>Filter</span>
-            </button>
             <a asp-page="./Index"
                asp-page-handler="Export"
                asp-route-ProjectCategoryId="@Model.ProjectCategoryId"
