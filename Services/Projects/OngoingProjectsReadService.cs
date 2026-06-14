@@ -41,7 +41,7 @@ namespace ProjectManagement.Services.Projects
             CancellationToken cancellationToken)
         {
             // SECTION: Base project scope
-            var q = BuildActiveProjectsQuery()
+            IQueryable<Project> q = BuildActiveProjectsQuery()
                 .Include(p => p.Category)
                 .Include(p => p.LeadPoUser);
 
