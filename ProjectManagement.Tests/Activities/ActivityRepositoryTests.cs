@@ -449,4 +449,55 @@ public class ActivityRepositoryTests
         Assert.Equal("14 Jun 2026 IST event", item.Title);
     }
 
+    [Theory]
+    [InlineData("mou", "MoU with IIT Hyderabad")]
+    [InlineData("iit", "MoU with IIT Hyderabad")]
+    public async Task ListAsync_SearchUsesCaseInsensitiveMatching(string search, string expectedTitle)
+    {
+        await using var context = CreateContext();
+        var repository = new ActivityRepository(context);
+
+        var type = new ActivityType
+        {
+            Name = "Industry Collaboration",
+            CreatedByUserId = "system"
+        };
+
+        var otherType = new ActivityType
+        {
+            Name = "Operations",
+            CreatedByUserId = "system"
+        };
+
+        context.ActivityTypes.AddRange(type, otherType);
+        await context.SaveChangesAsync();
+
+        // SECTION: Mixed-case search data
+        context.Activities.AddRange(
+            new Activity
+            {
+                Title = "MoU with IIT Hyderabad",
+                Description = "Strategic academic partnership",
+                Location = "Hyderabad",
+                ActivityTypeId = type.Id,
+                CreatedByUserId = "user-1",
+                CreatedAtUtc = DateTimeOffset.UtcNow.AddHours(-1)
+            },
+            new Activity
+            {
+                Title = "Routine status meeting",
+                Description = "No matching institution",
+                Location = "Pune",
+                ActivityTypeId = otherType.Id,
+                CreatedByUserId = "user-1",
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            });
+        await context.SaveChangesAsync();
+
+        var result = await repository.ListAsync(new ActivityListRequest(Search: search, PageSize: 10));
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal(expectedTitle, item.Title);
+    }
+
 }
