@@ -32,6 +32,7 @@ public sealed class ActivityExportService : IActivityExportService
             throw new ArgumentNullException(nameof(request));
         }
 
+        // SECTION: Export follows the Activities index media-filter behavior
         var listRequest = new ActivityListRequest(1,
             0,
             request.Sort,
@@ -40,7 +41,7 @@ public sealed class ActivityExportService : IActivityExportService
             request.ToDate,
             request.ActivityTypeId,
             request.CreatedByUserId,
-            request.AttachmentType,
+            ActivityAttachmentTypeFilter.Any,
             request.Search,
             request.MediaFilter);
 

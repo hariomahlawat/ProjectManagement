@@ -352,6 +352,63 @@ public class ActivityRepositoryTests
         Assert.False(item.HasPendingDelete);
     }
 
+
+    [Fact]
+    public async Task ListAsync_StillHonorsAttachmentTypeForNonIndexWorkflows()
+    {
+        // SECTION: Arrange activities that prove the legacy attachment-type filter still works when used directly.
+        await using var context = CreateContext();
+        var repository = new ActivityRepository(context);
+
+        var type = new ActivityType { Name = "Media", CreatedByUserId = "seed" };
+        context.ActivityTypes.Add(type);
+        await context.SaveChangesAsync();
+
+        context.Activities.AddRange(
+            new Activity
+            {
+                Title = "PDF activity",
+                CreatedByUserId = "owner",
+                ActivityTypeId = type.Id,
+                Attachments =
+                {
+                    new ActivityAttachment
+                    {
+                        StorageKey = "files/report.pdf",
+                        OriginalFileName = "report.pdf",
+                        ContentType = "application/pdf",
+                        UploadedByUserId = "owner"
+                    }
+                }
+            },
+            new Activity
+            {
+                Title = "Photo activity",
+                CreatedByUserId = "owner",
+                ActivityTypeId = type.Id,
+                Attachments =
+                {
+                    new ActivityAttachment
+                    {
+                        StorageKey = "files/photo.jpg",
+                        OriginalFileName = "photo.jpg",
+                        ContentType = "image/jpeg",
+                        UploadedByUserId = "owner"
+                    }
+                }
+            });
+        await context.SaveChangesAsync();
+
+        // SECTION: Act
+        var result = await repository.ListAsync(new ActivityListRequest(
+            PageSize: 10,
+            AttachmentType: ActivityAttachmentTypeFilter.Photo));
+
+        // SECTION: Assert
+        var item = Assert.Single(result.Items);
+        Assert.Equal("Photo activity", item.Title);
+    }
+
     [Fact]
     public async Task ListAsync_FlagsPendingDeleteRequests()
     {

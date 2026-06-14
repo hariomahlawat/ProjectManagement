@@ -249,6 +249,35 @@ public sealed class ActivityIndexPageTests
     }
 
     [Fact]
+    public async Task OnGetAsync_IgnoresStaleAttachmentTypeWhenBuildingMediaFilterRequest()
+    {
+        // SECTION: Arrange a stale legacy AttachmentType query value alongside the redesigned media filter.
+        var activityService = new StubActivityService(new ActivityListResult(Array.Empty<ActivityListItem>(), 0, 1, 25, ActivityListSort.ScheduledStart, true));
+        var typeService = new StubActivityTypeService(Array.Empty<ActivityType>());
+        var exportService = new StubActivityExportService();
+        var deleteRequestService = new StubActivityDeleteRequestService();
+
+        var services = new ServiceCollection().BuildServiceProvider();
+        var user = new ApplicationUser { Id = "viewer", UserName = "viewer" };
+        using var userManager = new StubUserManager(user, services);
+
+        var page = new IndexModel(activityService, typeService, exportService, deleteRequestService, userManager)
+        {
+            AttachmentType = ActivityAttachmentTypeFilter.Photo,
+            MediaFilter = ActivityMediaFilter.WithMedia
+        };
+        ConfigurePage(page, CreatePrincipal("viewer", null));
+
+        // SECTION: Act and assert only ActivityMediaFilter scopes the index request.
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.NotNull(activityService.LastListRequest);
+        Assert.Equal(ActivityAttachmentTypeFilter.Any, activityService.LastListRequest!.AttachmentType);
+        Assert.Equal(ActivityMediaFilter.WithMedia, activityService.LastListRequest.MediaFilter);
+        Assert.DoesNotContain("AttachmentType", page.BuildRoute(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task OnPostExportAsync_UsesFiltersAndReturnsFile()
     {
         var activityService = new StubActivityService(new ActivityListResult(Array.Empty<ActivityListItem>(), 0, 1, 25, ActivityListSort.ScheduledStart, true));
@@ -268,7 +297,8 @@ public sealed class ActivityIndexPageTests
             FromDate = new DateOnly(2024, 1, 1),
             ToDate = new DateOnly(2024, 1, 31),
             ActivityTypeId = 7,
-            AttachmentType = ActivityAttachmentTypeFilter.Photo
+            AttachmentType = ActivityAttachmentTypeFilter.Photo,
+            MediaFilter = ActivityMediaFilter.Photos
         };
         ConfigurePage(page, CreatePrincipal("viewer", null));
 
@@ -286,7 +316,8 @@ public sealed class ActivityIndexPageTests
         Assert.Equal(new DateOnly(2024, 1, 1), request.FromDate);
         Assert.Equal(new DateOnly(2024, 1, 31), request.ToDate);
         Assert.Equal(7, request.ActivityTypeId);
-        Assert.Equal(ActivityAttachmentTypeFilter.Photo, request.AttachmentType);
+        Assert.Equal(ActivityAttachmentTypeFilter.Any, request.AttachmentType);
+        Assert.Equal(ActivityMediaFilter.Photos, request.MediaFilter);
     }
 
     [Fact]
@@ -406,7 +437,13 @@ public sealed class ActivityIndexPageTests
 
         public Task<IReadOnlyList<Activity>> ListByTypeAsync(int activityTypeId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
-        public Task<ActivityListResult> ListAsync(ActivityListRequest request, CancellationToken cancellationToken = default) => Task.FromResult(_result);
+        public ActivityListRequest? LastListRequest { get; private set; }
+
+        public Task<ActivityListResult> ListAsync(ActivityListRequest request, CancellationToken cancellationToken = default)
+        {
+            LastListRequest = request;
+            return Task.FromResult(_result);
+        }
 
         public Task<IReadOnlyList<ActivityAttachmentMetadata>> GetAttachmentMetadataAsync(int activityId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
