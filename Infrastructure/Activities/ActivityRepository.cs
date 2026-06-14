@@ -162,7 +162,7 @@ namespace ProjectManagement.Infrastructure.Activities
                 .Where(x => !x.IsDeleted);
         }
 
-        private static IQueryable<Activity> ApplyBaseReviewFilters(IQueryable<Activity> query, ActivityListRequest request)
+        private IQueryable<Activity> ApplyBaseReviewFilters(IQueryable<Activity> query, ActivityListRequest request)
         {
             // SECTION: Base review filters shared by rows and summary
             if (request.ActivityTypeId.HasValue)
@@ -177,12 +177,7 @@ namespace ProjectManagement.Infrastructure.Activities
 
             if (!string.IsNullOrWhiteSpace(request.Search))
             {
-                var term = request.Search.Trim();
-                query = query.Where(x =>
-                    x.Title.Contains(term) ||
-                    (x.Description != null && x.Description.Contains(term)) ||
-                    (x.Location != null && x.Location.Contains(term)) ||
-                    x.ActivityType.Name.Contains(term));
+                query = ApplySearchFilter(query, request.Search);
             }
 
             if (request.FromDate.HasValue)
@@ -206,6 +201,42 @@ namespace ProjectManagement.Infrastructure.Activities
                 ActivityAttachmentTypeFilter.Video => query.Where(x => x.Attachments.Any(a => a.ContentType.StartsWith("video/"))),
                 _ => query
             };
+        }
+
+        private IQueryable<Activity> ApplySearchFilter(IQueryable<Activity> query, string search)
+        {
+            // SECTION: Provider-aware case-insensitive activity search
+            var term = search.Trim();
+            var like = $"%{term}%";
+            var providerName = _dbContext.Database.ProviderName ?? string.Empty;
+
+            if (providerName.Contains("Npgsql", StringComparison.OrdinalIgnoreCase))
+            {
+                return query.Where(x =>
+                    EF.Functions.ILike(x.Title, like) ||
+                    (x.Description != null && EF.Functions.ILike(x.Description, like)) ||
+                    (x.Location != null && EF.Functions.ILike(x.Location, like)) ||
+                    EF.Functions.ILike(x.ActivityType.Name, like));
+            }
+
+            if (providerName.Contains("InMemory", StringComparison.OrdinalIgnoreCase))
+            {
+                var normalizedTerm = term.ToLowerInvariant();
+
+                return query.Where(x =>
+                    x.Title.ToLower().Contains(normalizedTerm) ||
+                    (x.Description != null && x.Description.ToLower().Contains(normalizedTerm)) ||
+                    (x.Location != null && x.Location.ToLower().Contains(normalizedTerm)) ||
+                    x.ActivityType.Name.ToLower().Contains(normalizedTerm));
+            }
+
+            var normalizedLike = like.ToLowerInvariant();
+
+            return query.Where(x =>
+                EF.Functions.Like(x.Title.ToLower(), normalizedLike) ||
+                (x.Description != null && EF.Functions.Like(x.Description.ToLower(), normalizedLike)) ||
+                (x.Location != null && EF.Functions.Like(x.Location.ToLower(), normalizedLike)) ||
+                EF.Functions.Like(x.ActivityType.Name.ToLower(), normalizedLike));
         }
 
         private static IQueryable<Activity> ApplyMediaFilter(IQueryable<Activity> query, ActivityMediaFilter mediaFilter)
