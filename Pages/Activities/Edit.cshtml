@@ -26,7 +26,7 @@
         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
         <div class="card mb-3">
-            <div class="card-header">Activity details</div>
+            <div class="card-header">Basic details</div>
             <div class="card-body">
                 <div class="mb-3">
                     <label asp-for="Input.Title" class="form-label"></label>
@@ -58,8 +58,8 @@
                     </div>
                 </div>
                 <div class="mt-3">
-                    <label asp-for="Input.Description" class="form-label"></label>
-                    <textarea asp-for="Input.Description" class="form-control" rows="4" maxlength="2000"></textarea>
+                    <label asp-for="Input.Description" class="form-label">Remarks / Brief</label>
+                    <textarea asp-for="Input.Description" class="form-control" rows="6" maxlength="2000" placeholder="Record key points, outcome, decisions, follow-up or brief summary of the activity."></textarea>
                     <div class="form-text" data-char-count-for="Input_Description">0/2000</div>
                     <span asp-validation-for="Input.Description" class="text-danger"></span>
                 </div>
@@ -67,12 +67,12 @@
         </div>
 
         <div class="card mb-4">
-            <div class="card-header">Attachments</div>
+            <div class="card-header">Media / Documents</div>
             <div class="card-body">
                 @if (canUpload)
                 {
                     <div class="mb-3" data-doc-dropzone>
-                        <label class="form-label" asp-for="Input.Files">Upload supporting files</label>
+                        <label class="form-label" asp-for="Input.Files">Attach photos, videos or documents related to the activity</label>
                         <div class="doc-request-drop border border-2 border-secondary-subtle rounded-3 p-4 text-center" data-doc-drop-target tabindex="0" role="button" aria-describedby="activity-upload-help">
                             <div class="fw-semibold" data-doc-drop-label>Drag &amp; drop files or browse</div>
                             <div class="text-muted small" data-doc-drop-filename></div>
@@ -104,7 +104,7 @@
 
         <div class="d-flex justify-content-between">
             <a asp-page="/Activities/Index" class="btn btn-outline-secondary">Cancel</a>
-            <button type="submit" class="btn btn-primary">@(isEdit ? "Save changes" : "Create activity")</button>
+            <button type="submit" class="btn btn-primary">@(isEdit ? "Save activity" : "Save activity")</button>
         </div>
     </form>
 </div>
