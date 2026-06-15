@@ -33,6 +33,23 @@ internal sealed class ActivityAttachmentValidator : IActivityAttachmentValidator
 
     private static readonly HashSet<string> AllowedContentTypes = new(AllowedContentTypeList, StringComparer.OrdinalIgnoreCase);
 
+    // SECTION: Browser fallback MIME handling
+    private static readonly HashSet<string> UnknownContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        string.Empty,
+        "application/octet-stream"
+    };
+
+    private static readonly string[] OfficeDocumentExtensions =
+    {
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".ppt",
+        ".pptx"
+    };
+
     private static readonly IReadOnlyDictionary<string, string[]> AllowedExtensionsByContentType =
         new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
         {
@@ -89,18 +106,24 @@ internal sealed class ActivityAttachmentValidator : IActivityAttachmentValidator
             AddError(nameof(upload.FileName), "File name must be 260 characters or fewer.");
         }
 
-        if (string.IsNullOrWhiteSpace(upload.ContentType) || !AllowedContentTypes.Contains(upload.ContentType))
+        // SECTION: File type validation
+        var extension = string.IsNullOrWhiteSpace(upload.FileName)
+            ? string.Empty
+            : Path.GetExtension(upload.FileName);
+        var contentType = NormalizeContentType(upload.ContentType);
+        var hasAllowedContentType = AllowedContentTypes.Contains(contentType);
+        var hasAllowedUnknownOfficeExtension = IsUnknownContentType(contentType) && IsOfficeDocumentExtension(extension);
+
+        if (!hasAllowedContentType && !hasAllowedUnknownOfficeExtension)
         {
             AddError(nameof(upload.ContentType),
                 $"File type is not allowed. Allowed types: {string.Join(", ", AllowedContentTypeList)}.");
         }
 
         if (!string.IsNullOrWhiteSpace(upload.FileName) &&
-            !string.IsNullOrWhiteSpace(upload.ContentType) &&
-            AllowedExtensionsByContentType.TryGetValue(upload.ContentType, out var allowedExtensions))
+            hasAllowedContentType &&
+            AllowedExtensionsByContentType.TryGetValue(contentType, out var allowedExtensions))
         {
-            var extension = Path.GetExtension(upload.FileName);
-
             if (string.IsNullOrWhiteSpace(extension))
             {
                 AddError(nameof(upload.FileName), "File must include an extension.");
@@ -130,6 +153,23 @@ internal sealed class ActivityAttachmentValidator : IActivityAttachmentValidator
         {
             upload.Content.Seek(0, SeekOrigin.Begin);
         }
+    }
+
+    // SECTION: Content type helpers
+    private static string NormalizeContentType(string? contentType)
+    {
+        return string.IsNullOrWhiteSpace(contentType) ? string.Empty : contentType.Trim();
+    }
+
+    private static bool IsUnknownContentType(string contentType)
+    {
+        return UnknownContentTypes.Contains(contentType);
+    }
+
+    private static bool IsOfficeDocumentExtension(string? extension)
+    {
+        return !string.IsNullOrWhiteSpace(extension) &&
+            OfficeDocumentExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
     }
 
     public static string SanitizeFileName(string fileName)
