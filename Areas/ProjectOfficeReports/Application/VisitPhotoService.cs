@@ -154,19 +154,28 @@ public sealed class VisitPhotoService : IVisitPhotoService
             return VisitPhotoUploadResult.Invalid("Only JPEG, PNG, or WebP images are supported.");
         }
 
-        // load the image
+        // SECTION: Metadata dimension safety
+        buffer.Position = 0;
+        var imageInfo = await Image.IdentifyAsync(buffer, cancellationToken);
+        if (imageInfo == null)
+        {
+            return VisitPhotoUploadResult.Invalid("Unsupported image format.");
+        }
+
+        if (ExceedsDimensionLimits(imageInfo.Width, imageInfo.Height))
+        {
+            return VisitPhotoUploadResult.Invalid(GetDimensionLimitMessage());
+        }
+
+        // SECTION: Decode and orientation normalization
         buffer.Position = 0;
         using var sourceImage = await Image.LoadAsync<Rgba32>(buffer, cancellationToken);
         sourceImage.Mutate(x => x.AutoOrient());
 
-        // SECTION: Pixel dimension safety
-        var megapixels = (long)sourceImage.Width * sourceImage.Height;
-        if (sourceImage.Width > _options.MaxWidthPixels ||
-            sourceImage.Height > _options.MaxHeightPixels ||
-            megapixels > (long)_options.MaxMegapixels * 1_000_000)
+        // SECTION: Oriented pixel dimension safety
+        if (ExceedsDimensionLimits(sourceImage.Width, sourceImage.Height))
         {
-            return VisitPhotoUploadResult.Invalid(
-                $"Image dimensions are too large. Please upload an image up to {_options.MaxWidthPixels} × {_options.MaxHeightPixels} pixels and {_options.MaxMegapixels} megapixels.");
+            return VisitPhotoUploadResult.Invalid(GetDimensionLimitMessage());
         }
 
         // NOTE: we no longer reject small images.
@@ -402,6 +411,19 @@ public sealed class VisitPhotoService : IVisitPhotoService
             _logger.LogWarning(ex, "Failed to open visit photo asset {Size} for visit {VisitId} photo {PhotoId}", normalized, visitId, photoId);
             return null;
         }
+    }
+
+    private bool ExceedsDimensionLimits(int width, int height)
+    {
+        var megapixels = (long)width * height;
+        return width > _options.MaxWidthPixels ||
+            height > _options.MaxHeightPixels ||
+            megapixels > (long)_options.MaxMegapixels * 1_000_000;
+    }
+
+    private string GetDimensionLimitMessage()
+    {
+        return $"Image dimensions are too large. Please upload an image up to {_options.MaxWidthPixels} × {_options.MaxHeightPixels} pixels and {_options.MaxMegapixels} megapixels.";
     }
 
     private async Task DeletePhysicalAssetsAsync(string storageKey, CancellationToken cancellationToken)
