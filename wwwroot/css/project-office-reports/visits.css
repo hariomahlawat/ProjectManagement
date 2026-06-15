@@ -571,12 +571,14 @@
 }
 
     .visit-log-table thead th {
+        padding: 0.5rem 0.9rem;
         font-weight: 700;
         background: #f9fafb;
         border-bottom: 1px solid var(--visit-border-subtle, #e5e7eb);
     }
 
     .visit-log-table tbody td {
+        padding: 0.55rem 0.9rem;
         border-bottom: 1px solid var(--visit-border-subtle, #e5e7eb);
     }
 
@@ -616,17 +618,17 @@
 .visit-log-record__visitor {
     color: var(--visit-text-heading, #111827);
     font-weight: 600;
-    line-height: 1.25;
+    line-height: 1.22;
 }
 
 .visit-log-record__remarks {
     display: -webkit-box;
     max-width: 42rem;
-    margin-top: 0.18rem;
+    margin-top: 0.16rem;
     overflow: hidden;
-    color: var(--visit-text-muted, #64748b);
-    font-size: 0.84rem;
-    line-height: 1.3;
+    color: rgba(100, 116, 139, 0.9);
+    font-size: 0.82rem;
+    line-height: 1.25;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
 }
@@ -652,6 +654,12 @@
     align-items: center;
     gap: 0.3rem;
     color: var(--visit-text-heading, #111827);
+}
+
+.visit-log-photos i,
+.visit-log-photos .bi {
+    color: var(--visit-text-muted, #64748b);
+    opacity: 0.85;
 }
 
 .visit-log-photos__empty {
