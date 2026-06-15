@@ -1,5 +1,5 @@
 /* -------------------------------------------------
-   Project Office Reports – Visits & Social media
+   Project Office Reports â€“ Visits & Social media
    Layout aligned with Analytics page
 -------------------------------------------------- */
 
@@ -20,7 +20,7 @@
 }
 
 /* -------------------------------------------------
-   Shell – follow Analytics page horizontal rhythm
+   Shell â€“ follow Analytics page horizontal rhythm
 -------------------------------------------------- */
 
 .visit-shell {
@@ -52,7 +52,7 @@
 }
 
 /* -------------------------------------------------
-   KPI strip – mirror Analytics card look
+   KPI strip â€“ mirror Analytics card look
 -------------------------------------------------- */
 
 .kpi-strip {
@@ -186,7 +186,7 @@
 }
 
 /* -------------------------------------------------
-   Table – analytics style, horizontal rules only
+   Table â€“ analytics style, horizontal rules only
 -------------------------------------------------- */
 
 .visit-table {
@@ -268,7 +268,7 @@
     }
 
 /* -------------------------------------------------
-   Charts wrappers – force white background
+   Charts wrappers â€“ force white background
 -------------------------------------------------- */
 
 .visit-chart-card {
@@ -283,13 +283,13 @@
         background-color: #ffffff !important;
     }
 
-/* Sometimes charts live directly in .card – normalise */
+/* Sometimes charts live directly in .card â€“ normalise */
 .visit-shell canvas {
     background-color: #ffffff;
 }
 
 /* -------------------------------------------------
-   Modals – keep close to default but slightly softer
+   Modals â€“ keep close to default but slightly softer
 -------------------------------------------------- */
 
 .modal-content {
@@ -320,4 +320,172 @@
 .visit-shell .section-divider {
     margin: 24px 0 16px;
     border-top: 1px solid var(--visit-border-soft);
+}
+
+/* -------------------------------------------------
+   SECTION: Visits dashboard Phase 1 hierarchy
+-------------------------------------------------- */
+
+.visit-page-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.visit-page-head__text h1 {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+}
+
+.visit-page-head__text p {
+    margin: 0.35rem 0 0;
+    color: var(--bs-secondary-color);
+    max-width: 56rem;
+}
+
+.visit-page-head__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.visit-page-head .visit-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+}
+
+.visit-kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 1rem;
+    box-shadow: 0 0.75rem 1.75rem rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+}
+
+.visit-kpi-strip__item {
+    padding: 0.9rem 1rem;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-right: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.visit-kpi-strip__item:last-child {
+    border-right: 0;
+}
+
+.visit-kpi-strip__label {
+    color: var(--bs-secondary-color);
+    font-size: 0.875rem;
+}
+
+.visit-kpi-strip__value {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--bs-body-color);
+}
+
+.visit-section-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.visit-section-head h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.visit-section-head p {
+    margin: 0.2rem 0 0;
+    color: var(--visit-text-muted);
+    font-size: 0.875rem;
+}
+
+.visit-log-section {
+    margin-bottom: 1.5rem;
+}
+
+.visit-analytics-section {
+    margin-top: 1.5rem;
+}
+
+.visit-analytics-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(20rem, 1fr);
+    gap: 1rem;
+}
+
+.visit-analytics-grid .visit-chart-card {
+    min-height: 22rem;
+    padding: 0;
+}
+
+.visit-analytics-grid .visit-chart-card canvas {
+    max-height: 18rem;
+}
+
+@media (max-width: 992px) {
+    .visit-kpi-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .visit-kpi-strip__item:nth-child(2) {
+        border-right: 0;
+    }
+
+    .visit-kpi-strip__item:nth-child(1),
+    .visit-kpi-strip__item:nth-child(2) {
+        border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .visit-analytics-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .visit-page-head {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .visit-page-head__actions {
+        justify-content: flex-start;
+    }
+
+    .visit-section-head {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 576px) {
+    .visit-kpi-strip {
+        grid-template-columns: 1fr;
+    }
+
+    .visit-kpi-strip__item {
+        border-right: 0;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .visit-kpi-strip__item:last-child {
+        border-bottom: 0;
+    }
 }

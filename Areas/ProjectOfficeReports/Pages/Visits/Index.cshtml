@@ -92,25 +92,21 @@
 <partial name="_ToastMessages" model="toastMessages" />
 
 <div class="visit-shell visit-tracker visit-shell--tight">
-    <!-- top bar -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3 mt-1">
-        <div>
-            <nav aria-label="Breadcrumb" class="visit-breadcrumb mb-1">
+    <!-- SECTION: Compact page header and actions -->
+    <div class="visit-page-head">
+        <div class="visit-page-head__text">
+            <nav aria-label="Breadcrumb" class="visit-breadcrumb">
                 <ol class="breadcrumb mb-0">
                     <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
                     <li class="breadcrumb-item active" aria-current="page">Visits to SDD</li>
                 </ol>
             </nav>
-            <div class="d-flex align-items-center gap-3">
-                <h2 class="h2 mb-1">Visits to SDD</h2>
-            </div>
-            <p class="text-muted small mb-0 mt-2">
-                Track inbound visits to SDD by dignitaries, courses and delegations, with strength, remarks and photos.
-            </p>
+            <h1>Visits to SDD</h1>
+            <p>Track inbound visits to SDD by dignitaries, courses and delegations.</p>
         </div>
-        <div class="d-flex flex-wrap gap-2">
+        <div class="visit-page-head__actions">
             <button type="button" class="btn btn-outline-secondary d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#visitsFiltersModal">
-                <i class="bi bi-sliders"></i>
+                <i class="bi bi-sliders" aria-hidden="true"></i>
                 <span>Filters</span>
                 @if (hasFilters)
                 {
@@ -123,113 +119,37 @@
             @if (Model.Items.Count > 0)
             {
                 <button type="button" class="btn btn-outline-secondary d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#exportVisitsModal">
-                    <i class="bi bi-file-earmark-spreadsheet"></i>
+                    <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
                     <span>Export</span>
                 </button>
             }
             @if (Model.CanManage)
             {
                 <a asp-page="New" class="btn btn-primary d-inline-flex align-items-center gap-1">
-                    <i class="bi bi-plus-circle"></i>
+                    <i class="bi bi-plus-circle" aria-hidden="true"></i>
                     <span>Record visit</span>
                 </a>
             }
         </div>
     </div>
 
-    <!-- KPI strip -->
-    <section class="kpi-strip mb-3" aria-label="Key visit metrics">
-        <div class="kpi-card kpi-card--blue">
-            <div class="kpi-card__top">
-                <i class="bi bi-calendar3-week" aria-hidden="true"></i>
-                <span>Visits in last 12 months</span>
-            </div>
-            <div class="kpi-card__value">@Model.VisitsLastYear</div>
-            @if (hasFilters)
-            {
-                <div class="kpi-card__hint">based on filtered set</div>
-            }
+    <!-- SECTION: Compact KPI strip -->
+    <section class="visit-kpi-strip" aria-label="Visit summary">
+        <div class="visit-kpi-strip__item">
+            <span class="visit-kpi-strip__label">Visits / 12 mo</span>
+            <strong class="visit-kpi-strip__value">@Model.VisitsLastYear</strong>
         </div>
-        <div class="kpi-card kpi-card--teal">
-            <div class="kpi-card__top">
-                <i class="bi bi-person-fill-check" aria-hidden="true"></i>
-                <span>People in last 12 months</span>
-            </div>
-            <div class="kpi-card__value">@Model.PeopleLastYear</div>
-            @if (hasFilters)
-            {
-                <div class="kpi-card__hint">sum of strength</div>
-            }
+        <div class="visit-kpi-strip__item">
+            <span class="visit-kpi-strip__label">People / 12 mo</span>
+            <strong class="visit-kpi-strip__value">@Model.PeopleLastYear</strong>
         </div>
-        <div class="kpi-card kpi-card--green">
-            <div class="kpi-card__top">
-                <i class="bi bi-calendar2" aria-hidden="true"></i>
-                <span>Visits in last 30 days</span>
-            </div>
-            <div class="kpi-card__value">@Model.VisitsLast30</div>
+        <div class="visit-kpi-strip__item">
+            <span class="visit-kpi-strip__label">Visits / 30 d</span>
+            <strong class="visit-kpi-strip__value">@Model.VisitsLast30</strong>
         </div>
-        <div class="kpi-card kpi-card--amber">
-            <div class="kpi-card__top">
-                <i class="bi bi-people-fill" aria-hidden="true"></i>
-                <span>People in last 30 days</span>
-            </div>
-            <div class="kpi-card__value">@Model.PeopleLast30</div>
-        </div>
-    </section>
-
-    <!-- charts -->
-    <section class="row g-3 mb-3 align-items-stretch" aria-label="Visit analytics charts">
-        <div class="col-lg-8">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <div>
-                            <h3 class="h6 mb-0" id="visits-monthly-title">Visits &amp; strength – last 12 months</h3>
-                            <p class="text-muted small mb-0">Bars show visits, line shows people (strength).</p>
-                        </div>
-                        <button type="button"
-                                class="btn btn-sm btn-outline-secondary"
-                                data-chart-download="visits-monthly"
-                                aria-label="Download visits and strength chart">
-                            <i class="bi bi-download" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                    <div id="visits-monthly-chart"
-                         data-monthly='@System.Text.Json.JsonSerializer.Serialize(monthlyPoints, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })'
-                         class="position-relative pm-util-minh-260">
-                        <canvas id="visits-monthly-canvas" class="w-100 h-100" role="img" aria-labelledby="visits-monthly-title"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex flex-column">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <div>
-                            <h3 class="h6 mb-0" id="visits-type-title">Visits by type</h3>
-                            <p class="text-muted small mb-0">Distribution of visit categories.</p>
-                        </div>
-                        <div class="d-flex gap-2 align-items-center">
-                            <select id="visits-type-range" class="form-select form-select-sm w-auto" aria-label="Select time range for visits by type chart">
-                                <option value="lastYear" selected>Last 12 months</option>
-                                <option value="all">All time</option>
-                            </select>
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-secondary"
-                                    data-chart-download="visits-type"
-                                    aria-label="Download visits by type chart">
-                                <i class="bi bi-download" aria-hidden="true"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div id="visits-type-chart"
-                         data-types='@System.Text.Json.JsonSerializer.Serialize(allVisitTypes, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })'
-                         class="flex-grow-1 pm-util-minh-240">
-                        <canvas id="visits-type-canvas" class="w-100 h-100" role="img" aria-labelledby="visits-type-title"></canvas>
-                    </div>
-                </div>
-            </div>
+        <div class="visit-kpi-strip__item">
+            <span class="visit-kpi-strip__label">People / 30 d</span>
+            <strong class="visit-kpi-strip__value">@Model.PeopleLast30</strong>
         </div>
     </section>
 
@@ -256,26 +176,31 @@
         </div>
     }
 
-    <!-- table -->
-    <section aria-label="Recent visits">
-        <div class="d-flex justify-content-between align-items-center mb-2">
+    <!-- SECTION: Visit log -->
+    <section class="visit-log-section" aria-label="Recent visits">
+        <div class="visit-section-head">
             <div>
                 <h2 class="h6 mb-0">Visit log</h2>
                 <p class="text-muted small mb-0">Chronological list of recent visits.</p>
             </div>
             <div class="d-flex align-items-center gap-2">
-                @if (!hasFilters && Model.TotalItems > ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.IndexModel.DashboardRowLimit)
+                @if (Model.TotalItems > Model.Items.Count)
                 {
                     <span class="text-muted small">
-                        Showing latest @Model.Items.Count of @Model.TotalItems
+                        @(hasFilters ? $"Showing {Model.Items.Count} of {Model.TotalItems}" : $"Showing latest {Model.Items.Count} of {Model.TotalItems}")
                     </span>
-                    <a asp-page="All" class="btn btn-link btn-sm text-decoration-none">
+                    <a asp-page="All"
+                       asp-route-VisitTypeId="@Model.VisitTypeId"
+                       asp-route-From="@fromValue"
+                       asp-route-To="@toValue"
+                       asp-route-Q="@Model.Q"
+                       class="btn btn-link btn-sm text-decoration-none">
                         View all
                     </a>
                 }
                 else if (hasFilters)
                 {
-                    <span class="text-muted small">@Model.Items.Count item@(Model.Items.Count == 1 ? "" : "s")</span>
+                    <span class="text-muted small">Showing @Model.Items.Count item@(Model.Items.Count == 1 ? "" : "s")</span>
                 }
             </div>
         </div>
@@ -343,6 +268,67 @@
             </div>
         }
     </section>
+
+    <!-- SECTION: Analytics charts -->
+    <section class="visit-analytics-section" aria-label="Visit analytics charts">
+        <div class="visit-section-head">
+            <div>
+                <h2>Analytics</h2>
+                <p>Trends and distribution of visits to SDD.</p>
+            </div>
+        </div>
+        <div class="visit-analytics-grid">
+            <div class="card border-0 shadow-sm visit-chart-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <h3 class="h6 mb-0" id="visits-monthly-title">Visits &amp; strength – last 12 months</h3>
+                            <p class="text-muted small mb-0">Bars show visits, line shows people (strength).</p>
+                        </div>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary"
+                                data-chart-download="visits-monthly"
+                                aria-label="Download visits and strength chart">
+                            <i class="bi bi-download" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div id="visits-monthly-chart"
+                         data-monthly='@System.Text.Json.JsonSerializer.Serialize(monthlyPoints, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })'
+                         class="position-relative pm-util-minh-260">
+                        <canvas id="visits-monthly-canvas" class="w-100 h-100" role="img" aria-labelledby="visits-monthly-title"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="card border-0 shadow-sm visit-chart-card">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <h3 class="h6 mb-0" id="visits-type-title">Visits by type</h3>
+                            <p class="text-muted small mb-0">Distribution of visit categories.</p>
+                        </div>
+                        <div class="d-flex gap-2 align-items-center">
+                            <select id="visits-type-range" class="form-select form-select-sm w-auto" aria-label="Select time range for visits by type chart">
+                                <option value="lastYear" selected>Last 12 months</option>
+                                <option value="all">All time</option>
+                            </select>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary"
+                                    data-chart-download="visits-type"
+                                    aria-label="Download visits by type chart">
+                                <i class="bi bi-download" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="visits-type-chart"
+                         data-types='@System.Text.Json.JsonSerializer.Serialize(allVisitTypes, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })'
+                         class="flex-grow-1 pm-util-minh-240">
+                        <canvas id="visits-type-canvas" class="w-100 h-100" role="img" aria-labelledby="visits-type-title"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
 </div>
 
 <!-- FILTER MODAL -->
