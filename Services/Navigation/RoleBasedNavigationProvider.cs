@@ -78,6 +78,12 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
+                Text = "Project Ideas",
+                Page = "/ProjectIdeas/Index",
+                Icon = "bi-lightbulb"
+            },
+            new()
+            {
                 Text = "Proliferation compendium",
                 Page = "/Projects/Compendium/Index",
                 Icon = "bi-file-earmark-pdf"

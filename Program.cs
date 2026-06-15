@@ -384,6 +384,11 @@ builder.Services.AddHostedService<UserPurgeWorker>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddSingleton<IActionTrackerClock, SystemActionTrackerClock>();
 builder.Services.AddScoped<ITodoService, TodoService>();
+// SECTION: Project Ideas services
+builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaReadService>();
+builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaCommandService>();
+builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaPermissionService>();
+builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaDocumentService>();
 builder.Services.AddScoped<ActionTaskPermissionService>();
 builder.Services.AddScoped<ActionTaskReportBuilder>();
 builder.Services.AddScoped<ActionTaskRouteStateHelper>();

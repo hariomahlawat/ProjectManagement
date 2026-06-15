@@ -25,6 +25,7 @@ using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Data.Projects;
 using ProjectManagement.Models.Projects;
 using ProjectManagement.Models.IndustryPartners;
+using ProjectManagement.Models.ProjectIdeas;
 
 namespace ProjectManagement.Data
 {
@@ -143,6 +144,10 @@ namespace ProjectManagement.Data
         public DbSet<DocumentCategory> DocumentCategories => Set<DocumentCategory>();
         public DbSet<DocRepoFavourite> DocRepoFavourites => Set<DocRepoFavourite>();
         public DbSet<DocRepoAotsView> DocRepoAotsViews => Set<DocRepoAotsView>();
+        public DbSet<ProjectIdea> ProjectIdeas => Set<ProjectIdea>();
+        public DbSet<ProjectIdeaComment> ProjectIdeaComments => Set<ProjectIdeaComment>();
+        public DbSet<ProjectIdeaNote> ProjectIdeaNotes => Set<ProjectIdeaNote>();
+        public DbSet<ProjectIdeaDocument> ProjectIdeaDocuments => Set<ProjectIdeaDocument>();
 
         // SECTION: PostgreSQL text search helpers
         public static string TsHeadline(string config, string text, NpgsqlTsQuery query, string options) => throw new NotSupportedException();
@@ -194,6 +199,42 @@ namespace ProjectManagement.Data
                     AccessFailedCount = 0,
                     PhoneNumberConfirmed = false
                 });
+
+
+            // SECTION: Project Ideas module
+            builder.Entity<ProjectIdea>(e =>
+            {
+                e.HasIndex(x => x.Status);
+                e.HasIndex(x => x.AssignedProjectOfficerUserId);
+                e.HasIndex(x => x.AssignedHodUserId);
+                e.HasIndex(x => x.CreatedAt);
+                e.HasIndex(x => x.UpdatedAt);
+                e.HasIndex(x => x.IsDeleted);
+                e.HasOne(x => x.AssignedProjectOfficerUser).WithMany().HasForeignKey(x => x.AssignedProjectOfficerUserId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.AssignedHodUser).WithMany().HasForeignKey(x => x.AssignedHodUserId).OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<ProjectIdeaComment>(e =>
+            {
+                e.HasIndex(x => x.IsDeleted);
+                e.HasOne(x => x.ProjectIdea).WithMany(x => x.Comments).HasForeignKey(x => x.ProjectIdeaId).OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<ProjectIdeaNote>(e =>
+            {
+                e.HasIndex(x => x.IsDeleted);
+                e.HasOne(x => x.ProjectIdea).WithMany(x => x.Notes).HasForeignKey(x => x.ProjectIdeaId).OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<ProjectIdeaDocument>(e =>
+            {
+                e.HasIndex(x => x.IsDeleted);
+                e.HasOne(x => x.ProjectIdea).WithMany(x => x.Documents).HasForeignKey(x => x.ProjectIdeaId).OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.UploadedByUser).WithMany().HasForeignKey(x => x.UploadedByUserId).OnDelete(DeleteBehavior.Restrict);
+            });
 
             builder.Entity<OfficeCategory>(e =>
             {
