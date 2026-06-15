@@ -68,6 +68,58 @@ public sealed class VisitService
             .ToList();
     }
 
+
+    // SECTION: Paged visit register search
+    public async Task<VisitPagedResult> SearchPagedAsync(VisitQueryOptions options, int pageNumber, int pageSize, CancellationToken cancellationToken)
+    {
+        if (options is null)
+        {
+            throw new ArgumentNullException(nameof(options));
+        }
+
+        pageNumber = Math.Max(1, pageNumber);
+        pageSize = pageSize is 25 or 50 or 100 ? pageSize : 25;
+
+        var query = CreateFilteredQuery(options);
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var rows = await query
+            .OrderByDescending(x => x.DateOfVisit)
+            .ThenByDescending(x => x.CreatedAtUtc)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new
+            {
+                x.Id,
+                x.DateOfVisit,
+                x.VisitTypeId,
+                VisitTypeName = x.VisitType!.Name,
+                x.VisitorName,
+                x.Remarks,
+                x.Strength,
+                PhotoCount = x.Photos.Count,
+                VisitTypeIsActive = x.VisitType.IsActive,
+                x.RowVersion
+            })
+            .ToListAsync(cancellationToken);
+
+        var items = rows
+            .Select(x => new VisitListItem(
+                x.Id,
+                x.DateOfVisit,
+                x.VisitTypeId,
+                x.VisitTypeName,
+                x.VisitorName,
+                BuildRemarksPreview(x.Remarks),
+                x.Strength,
+                x.PhotoCount,
+                x.VisitTypeIsActive,
+                x.RowVersion))
+            .ToList();
+
+        return new VisitPagedResult(items, totalCount);
+    }
+
     public async Task<IReadOnlyList<VisitExportRow>> ExportAsync(VisitQueryOptions options, CancellationToken cancellationToken)
     {
         if (options is null)
@@ -345,6 +397,8 @@ public sealed class VisitService
 }
 
 public sealed record VisitQueryOptions(Guid? VisitTypeId, DateOnly? StartDate, DateOnly? EndDate, string? RemarksQuery);
+
+public sealed record VisitPagedResult(IReadOnlyList<VisitListItem> Items, int TotalCount);
 
 public sealed record VisitListItem(Guid Id, DateOnly DateOfVisit, Guid VisitTypeId, string VisitTypeName, string VisitorName, string? RemarksPreview, int Strength, int PhotoCount, bool VisitTypeIsActive, byte[] RowVersion);
 

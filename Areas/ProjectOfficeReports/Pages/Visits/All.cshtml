@@ -1,4 +1,4 @@
-﻿@page
+@page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.AllModel
 @{
     ViewData["Title"] = "All visits to SDD";
@@ -17,7 +17,7 @@
 }
 
 <div class="visit-shell visit-tracker visit-shell--tight">
-    <div class="d-flex justify-content-between align-items-center mb-3 mt-1">
+    <div class="visit-register-head d-flex justify-content-between align-items-center mt-1">
         <div>
             <nav aria-label="Breadcrumb" class="visit-breadcrumb mb-1">
                 <ol class="breadcrumb mb-0">
@@ -31,6 +31,10 @@
         </div>
         <div class="d-flex gap-2">
             <form method="post" asp-page-handler="Export">
+                <input type="hidden" name="VisitTypeId" value="@Model.VisitTypeId" />
+                <input type="hidden" name="From" value="@(fromValue ?? string.Empty)" />
+                <input type="hidden" name="To" value="@(toValue ?? string.Empty)" />
+                <input type="hidden" name="Q" value="@Model.Q" />
                 <button type="submit" class="btn btn-outline-secondary d-inline-flex align-items-center gap-1">
                     <i class="bi bi-file-earmark-spreadsheet"></i>
                     <span>Export</span>
@@ -39,47 +43,72 @@
         </div>
     </div>
 
-    <form method="get" class="row g-3 mb-3">
-        <div class="col-md-3">
+    <form method="get" class="visit-register-filters">
+        <input type="hidden" name="PageNumber" value="1" />
+        <input type="hidden" name="PageSize" value="@Model.PageSize" />
+        <div>
             <label asp-for="VisitTypeId" class="form-label">Visit type</label>
             <select asp-for="VisitTypeId" asp-items="Model.VisitTypeOptions" class="form-select"></select>
         </div>
-        <div class="col-md-2">
+        <div>
             <label class="form-label" for="from-date">From</label>
             <input id="from-date" name="From" type="date" value="@(fromValue ?? string.Empty)" class="form-control" />
         </div>
-        <div class="col-md-2">
+        <div>
             <label class="form-label" for="to-date">To</label>
             <input id="to-date" name="To" type="date" value="@(toValue ?? string.Empty)" class="form-control" />
         </div>
-        <div class="col-md-3">
+        <div>
             <label class="form-label" for="search-filter">Visitor or remarks</label>
             <input id="search-filter" name="Q" value="@Model.Q" class="form-control" placeholder="Search visitor or remarks" />
         </div>
-        <div class="col-md-2 d-flex align-items-end gap-2">
+        <div class="visit-register-filters__actions">
             <button type="submit" class="btn btn-primary">Apply</button>
-            <a asp-page="All" class="btn btn-outline-secondary">Reset</a>
+            <a asp-page="All" class="btn btn-outline-secondary">Clear</a>
         </div>
     </form>
+
+    @* SECTION: Register count and page size controls *@
+    <div class="visit-register-toolbar">
+        <div class="visit-register-toolbar__count">
+            Showing @Model.ShowingFrom–@Model.ShowingTo of @Model.TotalItems
+        </div>
+
+        <form method="get" class="visit-register-toolbar__page-size">
+            <input type="hidden" name="VisitTypeId" value="@Model.VisitTypeId" />
+            <input type="hidden" name="From" value="@(fromValue ?? string.Empty)" />
+            <input type="hidden" name="To" value="@(toValue ?? string.Empty)" />
+            <input type="hidden" name="Q" value="@Model.Q" />
+            <input type="hidden" name="PageNumber" value="1" />
+
+            <label for="PageSize">Rows</label>
+            <select id="PageSize" name="PageSize" class="form-select form-select-sm">
+                <option value="25" selected="@(Model.PageSize == 25)">25</option>
+                <option value="50" selected="@(Model.PageSize == 50)">50</option>
+                <option value="100" selected="@(Model.PageSize == 100)">100</option>
+            </select>
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Apply</button>
+        </form>
+    </div>
 
     @if (Model.Items.Count == 0)
     {
         <div class="visit-empty visit-empty--subtle text-center py-5">
             <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-clipboard2-minus"></i></div>
             <h2 class="visit-empty__title">No visits found</h2>
-            <p class="visit-empty__subtitle">Try adjusting your filters.</p>
+            <p class="visit-empty__subtitle">Try changing filters or clearing the search.</p>
         </div>
     }
     else
     {
         <div class="card border-0 shadow-sm">
             <div class="table-responsive">
-                <table class="table align-middle mb-0 visit-table">
+                <table class="table align-middle mb-0 visit-table visit-register-table">
                     <thead class="table-light">
                         <tr>
                             <th scope="col">Date</th>
                             <th scope="col">Visit type</th>
-                            <th scope="col">Visitor</th>
+                            <th scope="col">Visitor / Remarks</th>
                             <th scope="col">Strength</th>
                             <th scope="col">Photos</th>
                             <th scope="col" class="text-end">Actions</th>
@@ -100,9 +129,24 @@
                                         <span class="badge bg-warning-subtle text-warning-emphasis mt-1">Type inactive</span>
                                     }
                                 </td>
-                                <td>@item.VisitorName</td>
+                                <td class="visit-register-record">
+                                    <div class="visit-register-record__visitor">@item.VisitorName</div>
+                                    @if (!string.IsNullOrWhiteSpace(item.RemarksPreview))
+                                    {
+                                        <div class="visit-register-record__remarks">@item.RemarksPreview</div>
+                                    }
+                                </td>
                                 <td>@item.Strength</td>
-                                <td>@item.PhotoCount</td>
+                                <td class="visit-register-photos">
+                                    @if (item.PhotoCount > 0)
+                                    {
+                                        <span>@item.PhotoCount photo@(item.PhotoCount == 1 ? "" : "s")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="visit-register-photos__empty">No photos</span>
+                                    }
+                                </td>
                                 <td class="text-end">
                                     <a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-secondary btn-sm">View</a>
                                     @if (Model.CanManage)
@@ -116,5 +160,32 @@
                 </table>
             </div>
         </div>
+        @* SECTION: Register pagination controls *@
+        @if (Model.TotalPages > 1)
+        {
+            <nav class="visit-pagination" aria-label="All visits pagination">
+                <a class="btn btn-outline-secondary btn-sm @(Model.PageNumber <= 1 ? "disabled" : null)"
+                   asp-page="./All"
+                   asp-route-PageNumber="@(Model.PageNumber - 1)"
+                   asp-route-PageSize="@Model.PageSize"
+                   asp-route-VisitTypeId="@Model.VisitTypeId"
+                   asp-route-From="@(fromValue ?? string.Empty)"
+                   asp-route-To="@(toValue ?? string.Empty)"
+                   asp-route-Q="@Model.Q"
+                   aria-disabled="@(Model.PageNumber <= 1)">Previous</a>
+
+                <span class="visit-pagination__status">Page @Model.PageNumber of @Model.TotalPages</span>
+
+                <a class="btn btn-outline-secondary btn-sm @(Model.PageNumber >= Model.TotalPages ? "disabled" : null)"
+                   asp-page="./All"
+                   asp-route-PageNumber="@(Model.PageNumber + 1)"
+                   asp-route-PageSize="@Model.PageSize"
+                   asp-route-VisitTypeId="@Model.VisitTypeId"
+                   asp-route-From="@(fromValue ?? string.Empty)"
+                   asp-route-To="@(toValue ?? string.Empty)"
+                   asp-route-Q="@Model.Q"
+                   aria-disabled="@(Model.PageNumber >= Model.TotalPages)">Next</a>
+            </nav>
+        }
     }
 </div>

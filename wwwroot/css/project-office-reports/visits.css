@@ -666,3 +666,162 @@
     color: var(--visit-text-muted, #64748b);
     font-size: 0.86rem;
 }
+
+/* -------------------------------------------------
+   SECTION: All visits historical register
+-------------------------------------------------- */
+
+.visit-register-head {
+    margin-bottom: 1rem;
+}
+
+.visit-register-filters {
+    display: grid;
+    grid-template-columns: minmax(12rem, 1.2fr) minmax(9rem, 0.8fr) minmax(9rem, 0.8fr) minmax(16rem, 1.4fr) auto;
+    gap: 0.75rem;
+    align-items: end;
+    margin-top: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.visit-register-filters__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+.visit-register-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.6rem;
+    color: var(--visit-text-muted, #64748b);
+    font-size: 0.86rem;
+}
+
+.visit-register-toolbar__page-size {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.visit-register-toolbar__page-size select {
+    min-width: 4.5rem;
+}
+
+.visit-register-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+}
+
+.visit-register-table thead th {
+    padding: 0.55rem 0.9rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--visit-text-muted, #64748b);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: #f9fafb;
+    border-bottom: 1px solid var(--visit-border-subtle, #e5e7eb);
+}
+
+.visit-register-table tbody td {
+    padding: 0.58rem 0.9rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--visit-border-subtle, #e5e7eb);
+    background: #fff;
+}
+
+.visit-register-table tbody tr:hover td {
+    background: var(--visit-row-hover, #f5f7ff);
+}
+
+.visit-register-table th:nth-child(1),
+.visit-register-table td:nth-child(1) {
+    width: 10rem;
+}
+
+.visit-register-table th:nth-child(2),
+.visit-register-table td:nth-child(2) {
+    width: 10rem;
+}
+
+.visit-register-table th:nth-child(4),
+.visit-register-table td:nth-child(4) {
+    width: 7rem;
+}
+
+.visit-register-table th:nth-child(5),
+.visit-register-table td:nth-child(5) {
+    width: 8rem;
+}
+
+.visit-register-table th:nth-child(6),
+.visit-register-table td:nth-child(6) {
+    width: 8rem;
+}
+
+.visit-register-record {
+    min-width: 16rem;
+}
+
+.visit-register-record__visitor {
+    font-weight: 500;
+    color: var(--visit-text-heading, #111827);
+    line-height: 1.2;
+}
+
+.visit-register-record__remarks {
+    display: -webkit-box;
+    margin-top: 0.15rem;
+    overflow: hidden;
+    color: var(--visit-text-muted, #64748b);
+    font-size: 0.82rem;
+    line-height: 1.25;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+}
+
+.visit-register-photos {
+    white-space: nowrap;
+}
+
+.visit-register-photos__empty {
+    color: var(--visit-text-muted, #64748b);
+    font-size: 0.86rem;
+}
+
+.visit-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 0.9rem;
+}
+
+.visit-pagination__status {
+    color: var(--visit-text-muted, #64748b);
+    font-size: 0.86rem;
+}
+
+@media (max-width: 992px) {
+    .visit-register-filters {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 576px) {
+    .visit-register-head,
+    .visit-register-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .visit-register-filters {
+        grid-template-columns: 1fr;
+    }
+}
