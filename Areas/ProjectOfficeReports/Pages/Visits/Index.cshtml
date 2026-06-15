@@ -95,14 +95,26 @@
     <!-- SECTION: Compact page header and actions -->
     <div class="visit-page-head">
         <div class="visit-page-head__text">
-            <nav aria-label="Breadcrumb" class="visit-breadcrumb">
-                <ol class="breadcrumb mb-0">
-                    <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Visits to SDD</li>
-                </ol>
-            </nav>
             <h1>Visits to SDD</h1>
             <p>Track inbound visits to SDD by dignitaries, courses and delegations.</p>
+            <div class="visit-inline-metrics" aria-label="Visit summary">
+                <span>
+                    <strong>@Model.VisitsLastYear</strong>
+                    visits / 12 mo
+                </span>
+                <span>
+                    <strong>@Model.PeopleLastYear</strong>
+                    people / 12 mo
+                </span>
+                <span>
+                    <strong>@Model.VisitsLast30</strong>
+                    visits / 30 d
+                </span>
+                <span>
+                    <strong>@Model.PeopleLast30</strong>
+                    people / 30 d
+                </span>
+            </div>
         </div>
         <div class="visit-page-head__actions">
             <button type="button" class="btn btn-outline-secondary d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#visitsFiltersModal">
@@ -133,25 +145,6 @@
         </div>
     </div>
 
-    <!-- SECTION: Compact KPI strip -->
-    <section class="visit-kpi-strip" aria-label="Visit summary">
-        <div class="visit-kpi-strip__item">
-            <span class="visit-kpi-strip__label">Visits / 12 mo</span>
-            <strong class="visit-kpi-strip__value">@Model.VisitsLastYear</strong>
-        </div>
-        <div class="visit-kpi-strip__item">
-            <span class="visit-kpi-strip__label">People / 12 mo</span>
-            <strong class="visit-kpi-strip__value">@Model.PeopleLastYear</strong>
-        </div>
-        <div class="visit-kpi-strip__item">
-            <span class="visit-kpi-strip__label">Visits / 30 d</span>
-            <strong class="visit-kpi-strip__value">@Model.VisitsLast30</strong>
-        </div>
-        <div class="visit-kpi-strip__item">
-            <span class="visit-kpi-strip__label">People / 30 d</span>
-            <strong class="visit-kpi-strip__value">@Model.PeopleLast30</strong>
-        </div>
-    </section>
 
     <!-- active filter chips -->
     @if (hasFilters)
