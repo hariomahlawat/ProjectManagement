@@ -675,40 +675,69 @@
     margin-bottom: 1rem;
 }
 
-.visit-register-filters {
+.visit-shell .visit-register-filters {
     display: grid;
-    grid-template-columns: minmax(12rem, 1.2fr) minmax(9rem, 0.8fr) minmax(9rem, 0.8fr) minmax(16rem, 1.4fr) auto;
+    grid-template-columns: minmax(12rem, 1.1fr) minmax(9rem, 0.8fr) minmax(9rem, 0.8fr) minmax(16rem, 1.4fr) auto;
     gap: 0.75rem;
     align-items: end;
-    margin-top: 1rem;
-    margin-bottom: 1.25rem;
+    margin: 1rem 0 1.25rem;
 }
 
-.visit-register-filters__actions {
+.visit-shell .visit-register-filters > * {
+    min-width: 0;
+}
+
+.visit-register-filter-field {
+    min-width: 0;
+}
+
+.visit-register-filter-field label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.86rem;
+    font-weight: 500;
+    color: var(--visit-text-heading, #111827);
+}
+
+.visit-register-filter-actions {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
     white-space: nowrap;
 }
 
-.visit-register-toolbar {
+.visit-shell .visit-register-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    margin-bottom: 0.6rem;
+    margin: 0.25rem 0 0.6rem;
     color: var(--visit-text-muted, #64748b);
     font-size: 0.86rem;
+}
+
+.visit-register-toolbar__count {
+    min-width: 0;
 }
 
 .visit-register-toolbar__page-size {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
+    margin-left: auto;
+    white-space: nowrap;
 }
 
-.visit-register-toolbar__page-size select {
+.visit-register-toolbar__page-size label {
+    margin: 0;
+    color: var(--visit-text-muted, #64748b);
+}
+
+.visit-register-toolbar__page-size .form-select {
+    width: auto;
     min-width: 4.5rem;
+    padding-top: 0.2rem;
+    padding-bottom: 0.2rem;
 }
 
 .visit-register-table {
@@ -747,7 +776,8 @@
 
 .visit-register-table th:nth-child(2),
 .visit-register-table td:nth-child(2) {
-    width: 10rem;
+    width: 11rem;
+    white-space: nowrap;
 }
 
 .visit-register-table th:nth-child(4),
@@ -756,43 +786,63 @@
 }
 
 .visit-register-table th:nth-child(5),
-.visit-register-table td:nth-child(5) {
+.visit-register-table td:nth-child(5),
+.visit-register-photos {
     width: 8rem;
+    white-space: nowrap;
 }
 
 .visit-register-table th:nth-child(6),
 .visit-register-table td:nth-child(6) {
-    width: 8rem;
+    width: 9rem;
+    white-space: nowrap;
 }
 
-.visit-register-record {
-    min-width: 16rem;
+.visit-register-table td.text-end,
+.visit-register-actions {
+    white-space: nowrap;
 }
 
-.visit-register-record__visitor {
+.visit-register-record-cell {
+    min-width: 0;
+    max-width: 1px;
+    width: auto;
+}
+
+.visit-register-table .visit-register-record {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.visit-register-table .visit-register-record__visitor {
     font-weight: 500;
     color: var(--visit-text-heading, #111827);
     line-height: 1.2;
 }
 
-.visit-register-record__remarks {
+.visit-register-table .visit-register-record__remarks {
     display: -webkit-box;
     margin-top: 0.15rem;
     overflow: hidden;
+    max-width: 100%;
     color: var(--visit-text-muted, #64748b);
     font-size: 0.82rem;
     line-height: 1.25;
     -webkit-line-clamp: 1;
+    line-clamp: 1;
     -webkit-box-orient: vertical;
-}
-
-.visit-register-photos {
-    white-space: nowrap;
 }
 
 .visit-register-photos__empty {
     color: var(--visit-text-muted, #64748b);
     font-size: 0.86rem;
+}
+
+.visit-register-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.25rem;
 }
 
 .visit-pagination {
@@ -809,8 +859,12 @@
 }
 
 @media (max-width: 992px) {
-    .visit-register-filters {
+    .visit-shell .visit-register-filters {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .visit-register-filter-actions {
+        align-self: end;
     }
 }
 
@@ -821,7 +875,15 @@
         flex-direction: column;
     }
 
-    .visit-register-filters {
+    .visit-shell .visit-register-filters {
         grid-template-columns: 1fr;
+    }
+
+    .visit-register-filter-actions {
+        justify-content: flex-start;
+    }
+
+    .visit-register-toolbar__page-size {
+        margin-left: 0;
     }
 }

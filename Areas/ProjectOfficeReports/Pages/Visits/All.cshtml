@@ -43,26 +43,27 @@
         </div>
     </div>
 
+    @* SECTION: Register filters *@
     <form method="get" class="visit-register-filters">
         <input type="hidden" name="PageNumber" value="1" />
         <input type="hidden" name="PageSize" value="@Model.PageSize" />
-        <div>
-            <label asp-for="VisitTypeId" class="form-label">Visit type</label>
+        <div class="visit-register-filter-field">
+            <label asp-for="VisitTypeId">Visit type</label>
             <select asp-for="VisitTypeId" asp-items="Model.VisitTypeOptions" class="form-select"></select>
         </div>
-        <div>
-            <label class="form-label" for="from-date">From</label>
+        <div class="visit-register-filter-field">
+            <label for="from-date">From</label>
             <input id="from-date" name="From" type="date" value="@(fromValue ?? string.Empty)" class="form-control" />
         </div>
-        <div>
-            <label class="form-label" for="to-date">To</label>
+        <div class="visit-register-filter-field">
+            <label for="to-date">To</label>
             <input id="to-date" name="To" type="date" value="@(toValue ?? string.Empty)" class="form-control" />
         </div>
-        <div>
-            <label class="form-label" for="search-filter">Visitor or remarks</label>
-            <input id="search-filter" name="Q" value="@Model.Q" class="form-control" placeholder="Search visitor or remarks" />
+        <div class="visit-register-filter-field">
+            <label for="search-filter">Search</label>
+            <input id="search-filter" name="Q" value="@Model.Q" class="form-control" placeholder="Search visitor, remarks or type" />
         </div>
-        <div class="visit-register-filters__actions">
+        <div class="visit-register-filter-actions">
             <button type="submit" class="btn btn-primary">Apply</button>
             <a asp-page="All" class="btn btn-outline-secondary">Clear</a>
         </div>
@@ -71,7 +72,14 @@
     @* SECTION: Register count and page size controls *@
     <div class="visit-register-toolbar">
         <div class="visit-register-toolbar__count">
-            Showing @Model.ShowingFrom–@Model.ShowingTo of @Model.TotalItems
+            @if (Model.TotalItems > 0)
+            {
+                <span>Showing @Model.ShowingFrom–@Model.ShowingTo of @Model.TotalItems</span>
+            }
+            else
+            {
+                <span>No visits found</span>
+            }
         </div>
 
         <form method="get" class="visit-register-toolbar__page-size">
@@ -82,12 +90,11 @@
             <input type="hidden" name="PageNumber" value="1" />
 
             <label for="PageSize">Rows</label>
-            <select id="PageSize" name="PageSize" class="form-select form-select-sm">
+            <select id="PageSize" name="PageSize" class="form-select form-select-sm" data-visit-page-size-submit>
                 <option value="25" selected="@(Model.PageSize == 25)">25</option>
                 <option value="50" selected="@(Model.PageSize == 50)">50</option>
                 <option value="100" selected="@(Model.PageSize == 100)">100</option>
             </select>
-            <button type="submit" class="btn btn-outline-secondary btn-sm">Apply</button>
         </form>
     </div>
 
@@ -129,12 +136,14 @@
                                         <span class="badge bg-warning-subtle text-warning-emphasis mt-1">Type inactive</span>
                                     }
                                 </td>
-                                <td class="visit-register-record">
-                                    <div class="visit-register-record__visitor">@item.VisitorName</div>
-                                    @if (!string.IsNullOrWhiteSpace(item.RemarksPreview))
-                                    {
-                                        <div class="visit-register-record__remarks">@item.RemarksPreview</div>
-                                    }
+                                <td class="visit-register-record-cell">
+                                    <div class="visit-register-record">
+                                        <div class="visit-register-record__visitor">@item.VisitorName</div>
+                                        @if (!string.IsNullOrWhiteSpace(item.RemarksPreview))
+                                        {
+                                            <div class="visit-register-record__remarks">@item.RemarksPreview</div>
+                                        }
+                                    </div>
                                 </td>
                                 <td>@item.Strength</td>
                                 <td class="visit-register-photos">
@@ -148,11 +157,13 @@
                                     }
                                 </td>
                                 <td class="text-end">
-                                    <a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-secondary btn-sm">View</a>
-                                    @if (Model.CanManage)
-                                    {
-                                        <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm">Edit</a>
-                                    }
+                                    <div class="visit-register-actions">
+                                        <a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-secondary btn-sm">View</a>
+                                        @if (Model.CanManage)
+                                        {
+                                            <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm">Edit</a>
+                                        }
+                                    </div>
                                 </td>
                             </tr>
                         }
@@ -189,3 +200,12 @@
         }
     }
 </div>
+
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/visits.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script type="module" src="~/js/pages/project-office-reports/visits.js" asp-append-version="true"></script>
+}
