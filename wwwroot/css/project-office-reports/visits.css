@@ -672,7 +672,15 @@
 -------------------------------------------------- */
 
 .visit-register-head {
-    margin-bottom: 1rem;
+    margin-bottom: 0.35rem;
+}
+
+.visit-register-head h2 {
+    line-height: 1.15;
+}
+
+.visit-register-head p {
+    margin-top: 0.2rem !important;
 }
 
 .visit-shell .visit-register-filters {
@@ -680,7 +688,7 @@
     grid-template-columns: minmax(12rem, 1.1fr) minmax(9rem, 0.8fr) minmax(9rem, 0.8fr) minmax(16rem, 1.4fr) auto;
     gap: 0.75rem;
     align-items: end;
-    margin: 0.75rem 0 0.85rem;
+    margin: 0.45rem 0 0.55rem;
 }
 
 .visit-shell .visit-register-filters > * {
@@ -711,7 +719,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    margin: 0 0 0.55rem;
+    margin: 0 0 0.35rem;
     color: var(--visit-text-muted, #64748b);
     font-size: 0.86rem;
 }
