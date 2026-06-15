@@ -340,6 +340,150 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task UploadingOverLimitMetadataDimensionsFailsBeforeDecodingPixels()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var now = new DateTimeOffset(2024, 9, 10, 8, 0, 0, TimeSpan.Zero);
+        var visit = await CreateVisitAsync(db, now);
+        var tempRoot = Path.Combine(Path.GetTempPath(), "pm-visit-photos-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var photoOptions = Options.Create(new VisitPhotoOptions
+            {
+                MaxWidthPixels = 1000,
+                MaxHeightPixels = 1000,
+                MaxMegapixels = 1
+            });
+
+            await using var imageStream = CreatePngMetadataStream(width: 5000, height: 5000);
+            var photoService = new VisitPhotoService(
+                db,
+                new TestClock(now.AddMinutes(5)),
+                new RecordingAudit(),
+                photoOptions,
+                new TestUploadRootProvider(tempRoot),
+                NullLogger<VisitPhotoService>.Instance);
+
+            var result = await photoService.UploadAsync(
+                visit.Id,
+                imageStream,
+                "oversized.png",
+                "image/png",
+                null,
+                "creator",
+                CancellationToken.None);
+
+            Assert.Equal(VisitPhotoUploadOutcome.InvalidImage, result.Outcome);
+            Assert.Contains("Image dimensions are too large", result.Errors.Single());
+            Assert.Empty(await db.VisitPhotos.ToListAsync());
+            Assert.Empty(Directory.EnumerateFileSystemEntries(tempRoot));
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, true);
+            }
+        }
+    }
+
+    // SECTION: Visit fixture helpers
+    private static async Task<Visit> CreateVisitAsync(ApplicationDbContext db, DateTimeOffset now)
+    {
+        var visitType = new VisitType
+        {
+            Id = Guid.NewGuid(),
+            Name = "Site Visit",
+            CreatedAtUtc = now,
+            CreatedByUserId = "creator",
+            IsActive = true
+        };
+
+        var visit = new Visit
+        {
+            Id = Guid.NewGuid(),
+            VisitTypeId = visitType.Id,
+            DateOfVisit = DateOnly.FromDateTime(now.Date),
+            VisitorName = "Dimension Tester",
+            Strength = 4,
+            CreatedAtUtc = now,
+            CreatedByUserId = "creator",
+            LastModifiedAtUtc = now,
+            LastModifiedByUserId = "creator"
+        };
+
+        db.VisitTypes.Add(visitType);
+        db.Visits.Add(visit);
+        await db.SaveChangesAsync();
+        return visit;
+    }
+
+    // SECTION: PNG metadata fixture helpers
+    private static MemoryStream CreatePngMetadataStream(int width, int height)
+    {
+        var stream = new MemoryStream();
+        stream.Write(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 });
+
+        var ihdr = new byte[13];
+        WriteBigEndianInt32(ihdr, 0, width);
+        WriteBigEndianInt32(ihdr, 4, height);
+        ihdr[8] = 8;
+        ihdr[9] = 2;
+
+        WritePngChunk(stream, "IHDR", ihdr);
+        WritePngChunk(stream, "IEND", Array.Empty<byte>());
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static void WritePngChunk(Stream stream, string chunkType, byte[] data)
+    {
+        WriteBigEndianInt32(stream, data.Length);
+        var typeBytes = System.Text.Encoding.ASCII.GetBytes(chunkType);
+        stream.Write(typeBytes);
+        stream.Write(data);
+        WriteBigEndianInt32(stream, unchecked((int)CalculateCrc(typeBytes, data)));
+    }
+
+    private static uint CalculateCrc(byte[] typeBytes, byte[] data)
+    {
+        var crc = 0xffffffffu;
+        foreach (var value in typeBytes.Concat(data))
+        {
+            crc ^= value;
+            for (var bit = 0; bit < 8; bit++)
+            {
+                crc = (crc & 1) == 1 ? 0xedb88320u ^ (crc >> 1) : crc >> 1;
+            }
+        }
+
+        return crc ^ 0xffffffffu;
+    }
+
+    private static void WriteBigEndianInt32(Stream stream, int value)
+    {
+        stream.WriteByte((byte)(value >> 24));
+        stream.WriteByte((byte)(value >> 16));
+        stream.WriteByte((byte)(value >> 8));
+        stream.WriteByte((byte)value);
+    }
+
+    private static void WriteBigEndianInt32(byte[] target, int offset, int value)
+    {
+        target[offset] = (byte)(value >> 24);
+        target[offset + 1] = (byte)(value >> 16);
+        target[offset + 2] = (byte)(value >> 8);
+        target[offset + 3] = (byte)value;
+    }
+
     private static void ConfigurePageContext(PageModel page, ClaimsPrincipal user)
     {
         var httpContext = new DefaultHttpContext();
