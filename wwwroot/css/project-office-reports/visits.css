@@ -680,7 +680,7 @@
     grid-template-columns: minmax(12rem, 1.1fr) minmax(9rem, 0.8fr) minmax(9rem, 0.8fr) minmax(16rem, 1.4fr) auto;
     gap: 0.75rem;
     align-items: end;
-    margin: 1rem 0 1.25rem;
+    margin: 0.75rem 0 0.85rem;
 }
 
 .visit-shell .visit-register-filters > * {
@@ -711,7 +711,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    margin: 0.25rem 0 0.6rem;
+    margin: 0 0 0.55rem;
     color: var(--visit-text-muted, #64748b);
     font-size: 0.86rem;
 }
@@ -825,9 +825,10 @@
     margin-top: 0.15rem;
     overflow: hidden;
     max-width: 100%;
-    color: var(--visit-text-muted, #64748b);
+    color: #64748b;
     font-size: 0.82rem;
     line-height: 1.25;
+    opacity: 0.95;
     -webkit-line-clamp: 1;
     line-clamp: 1;
     -webkit-box-orient: vertical;
