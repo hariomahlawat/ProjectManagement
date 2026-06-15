@@ -17,6 +17,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits;
 [Authorize]
 public class AllModel : PageModel
 {
+    private static readonly int[] AllowedPageSizes = [25, 50, 100];
+
     private readonly VisitService _visitService;
     private readonly VisitTypeService _visitTypeService;
     private readonly IVisitExportService _visitExportService;
@@ -46,6 +48,24 @@ public class AllModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string? Q { get; set; }
 
+    [BindProperty(SupportsGet = true)]
+    public int PageNumber { get; set; } = 1;
+
+    [BindProperty(SupportsGet = true)]
+    public int PageSize { get; set; } = 25;
+
+    public int TotalItems { get; private set; }
+
+    public int TotalPages => PageSize <= 0
+        ? 1
+        : Math.Max(1, (int)Math.Ceiling((double)TotalItems / PageSize));
+
+    public int ShowingFrom => TotalItems == 0
+        ? 0
+        : ((PageNumber - 1) * PageSize) + 1;
+
+    public int ShowingTo => Math.Min(PageNumber * PageSize, TotalItems);
+
     public IReadOnlyList<VisitListItem> Items { get; private set; } = Array.Empty<VisitListItem>();
 
     public IReadOnlyList<SelectListItem> VisitTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
@@ -55,14 +75,20 @@ public class AllModel : PageModel
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         CanManage = IsManager();
+        NormalizePaging();
         await PopulateVisitTypesAsync(cancellationToken);
-        var all = await _visitService.SearchAsync(BuildQuery(), cancellationToken);
 
-        // for the "all" view we show everything, sorted
-        Items = all
-            .OrderByDescending(v => v.DateOfVisit)
-            .ThenByDescending(v => v.PhotoCount)
-            .ToList();
+        // SECTION: Historical register pagination
+        var result = await _visitService.SearchPagedAsync(BuildQuery(), PageNumber, PageSize, cancellationToken);
+        TotalItems = result.TotalCount;
+        ClampPageNumber();
+
+        if (PageNumber != 1 && result.TotalCount > 0 && result.Items.Count == 0)
+        {
+            result = await _visitService.SearchPagedAsync(BuildQuery(), PageNumber, PageSize, cancellationToken);
+        }
+
+        Items = result.Items;
     }
 
     public async Task<IActionResult> OnPostExportAsync(CancellationToken cancellationToken)
@@ -101,6 +127,28 @@ public class AllModel : PageModel
     private VisitQueryOptions BuildQuery()
     {
         return new VisitQueryOptions(VisitTypeId, ParseDate(From), ParseDate(To), Q);
+    }
+
+    // SECTION: Paging normalization
+    private void NormalizePaging()
+    {
+        if (!AllowedPageSizes.Contains(PageSize))
+        {
+            PageSize = 25;
+        }
+
+        if (PageNumber < 1)
+        {
+            PageNumber = 1;
+        }
+    }
+
+    private void ClampPageNumber()
+    {
+        if (TotalPages > 0 && PageNumber > TotalPages)
+        {
+            PageNumber = TotalPages;
+        }
     }
 
     private async Task PopulateVisitTypesAsync(CancellationToken cancellationToken)
