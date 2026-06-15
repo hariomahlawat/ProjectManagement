@@ -547,6 +547,24 @@ function initPhotoUploadInputs() {
     });
 }
 
+
+// ----------------------------------------------------
+// VISIT REGISTER TOOLBAR
+// ----------------------------------------------------
+
+// SECTION: Page-size auto-submit
+function initVisitRegisterPageSize() {
+    const pageSizeControls = document.querySelectorAll('[data-visit-page-size-submit]');
+
+    pageSizeControls.forEach(control => {
+        control.addEventListener('change', () => {
+            if (control.form) {
+                control.form.submit();
+            }
+        });
+    });
+}
+
 // ----------------------------------------------------
 // INITIALISE EVERYTHING
 // ----------------------------------------------------
@@ -557,6 +575,7 @@ function init() {
     initDisableOnSubmit();
     initVisitsCharts();
     initPhotoUploadInputs();
+    initVisitRegisterPageSize();
 }
 
 if (document.readyState === 'loading') {

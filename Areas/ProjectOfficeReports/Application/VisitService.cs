@@ -195,15 +195,21 @@ public sealed class VisitService
             var text = options.RemarksQuery.Trim();
             if (_db.Database.IsNpgsql())
             {
+                var pattern = $"%{text}%";
+
                 query = query.Where(x =>
-                    EF.Functions.ILike(x.VisitorName, $"%{text}%") ||
-                    (x.Remarks != null && EF.Functions.ILike(x.Remarks, $"%{text}%")));
+                    EF.Functions.ILike(x.VisitorName, pattern) ||
+                    (x.Remarks != null && EF.Functions.ILike(x.Remarks, pattern)) ||
+                    EF.Functions.ILike(x.VisitType!.Name, pattern));
             }
             else
             {
+                var normalizedText = text.ToLowerInvariant();
+
                 query = query.Where(x =>
-                    x.VisitorName.Contains(text) ||
-                    (x.Remarks != null && x.Remarks.Contains(text)));
+                    x.VisitorName.ToLower().Contains(normalizedText) ||
+                    (x.Remarks != null && x.Remarks.ToLower().Contains(normalizedText)) ||
+                    x.VisitType!.Name.ToLower().Contains(normalizedText));
             }
         }
 
