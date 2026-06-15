@@ -242,13 +242,26 @@ public class ActivityAttachmentValidatorTests
     [Theory]
     [InlineData("notes.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")]
     [InlineData("sheet.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
-    public void Validate_RejectsRemovedOfficeDocumentTypes(string fileName, string contentType)
+    [InlineData("slides.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")]
+    public void Validate_AllowsOfficeDocumentTypes(string fileName, string contentType)
     {
         var upload = new ActivityAttachmentUpload(new MemoryStream(new byte[] { 1 }), fileName, contentType, 1);
 
-        var ex = Assert.Throws<ActivityValidationException>(() => _validator.Validate(upload));
+        _validator.Validate(upload);
+    }
 
-        Assert.Contains(nameof(upload.ContentType), ex.Errors.Keys);
+    [Theory]
+    [InlineData("notes.docx", "application/octet-stream")]
+    [InlineData("sheet.xlsx", "application/octet-stream")]
+    [InlineData("slides.pptx", "application/octet-stream")]
+    [InlineData("legacy.doc", "")]
+    [InlineData("legacy.xls", "")]
+    [InlineData("legacy.ppt", "")]
+    public void Validate_AllowsOfficeDocumentsWhenBrowserReportsUnknownContentType(string fileName, string contentType)
+    {
+        var upload = new ActivityAttachmentUpload(new MemoryStream(new byte[] { 1 }), fileName, contentType, 1);
+
+        _validator.Validate(upload);
     }
 
     [Fact]
