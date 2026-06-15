@@ -34,22 +34,38 @@ public sealed class VisitService
 
         var query = CreateFilteredQuery(options);
 
-        var list = await query
+        // SECTION: Visit log projection
+        var rows = await query
             .OrderByDescending(x => x.DateOfVisit)
             .ThenByDescending(x => x.CreatedAtUtc)
+            .Select(x => new
+            {
+                x.Id,
+                x.DateOfVisit,
+                x.VisitTypeId,
+                VisitTypeName = x.VisitType!.Name,
+                x.VisitorName,
+                x.Remarks,
+                x.Strength,
+                PhotoCount = x.Photos.Count,
+                VisitTypeIsActive = x.VisitType.IsActive,
+                x.RowVersion
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows
             .Select(x => new VisitListItem(
                 x.Id,
                 x.DateOfVisit,
                 x.VisitTypeId,
-                x.VisitType!.Name,
+                x.VisitTypeName,
                 x.VisitorName,
+                BuildRemarksPreview(x.Remarks),
                 x.Strength,
-                x.Photos.Count,
-                x.VisitType.IsActive,
+                x.PhotoCount,
+                x.VisitTypeIsActive,
                 x.RowVersion))
-            .ToListAsync(cancellationToken);
-
-        return list;
+            .ToList();
     }
 
     public async Task<IReadOnlyList<VisitExportRow>> ExportAsync(VisitQueryOptions options, CancellationToken cancellationToken)
@@ -140,6 +156,23 @@ public sealed class VisitService
         }
 
         return query;
+    }
+
+    // SECTION: Visit log preview helpers
+    private static string? BuildRemarksPreview(string? remarks, int maxLength = 180)
+    {
+        if (string.IsNullOrWhiteSpace(remarks))
+        {
+            return null;
+        }
+
+        var normalized = string.Join(
+            " ",
+            remarks.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        return normalized.Length <= maxLength
+            ? normalized
+            : normalized[..maxLength].TrimEnd() + "…";
     }
 
     public async Task<VisitDetails?> GetDetailsAsync(Guid id, CancellationToken cancellationToken)
@@ -313,7 +346,7 @@ public sealed class VisitService
 
 public sealed record VisitQueryOptions(Guid? VisitTypeId, DateOnly? StartDate, DateOnly? EndDate, string? RemarksQuery);
 
-public sealed record VisitListItem(Guid Id, DateOnly DateOfVisit, Guid VisitTypeId, string VisitTypeName, string VisitorName, int Strength, int PhotoCount, bool VisitTypeIsActive, byte[] RowVersion);
+public sealed record VisitListItem(Guid Id, DateOnly DateOfVisit, Guid VisitTypeId, string VisitTypeName, string VisitorName, string? RemarksPreview, int Strength, int PhotoCount, bool VisitTypeIsActive, byte[] RowVersion);
 
 public sealed record VisitExportRow(
     DateOnly DateOfVisit,
