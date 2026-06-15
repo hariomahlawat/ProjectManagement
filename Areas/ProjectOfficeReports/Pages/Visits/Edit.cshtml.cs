@@ -46,10 +46,14 @@ public class EditModel : PageModel
 
     public int VisitPhotoMaxFiles => _photoOptions.MaxFilesPerUpload;
 
+    public long VisitPhotoMaxBatchBytes => _photoOptions.MaxBatchSizeBytes;
+
+    public int VisitPhotoMaxBatchMb => Math.Max(1, (int)Math.Floor(VisitPhotoMaxBatchBytes / 1024d / 1024d));
+
     public int VisitPhotoMaxMb => Math.Max(1, (int)Math.Floor(VisitPhotoMaxBytes / 1024d / 1024d));
 
     public string VisitPhotoHelpText =>
-        $"JPEG, PNG or WebP up to {VisitPhotoMaxMb} MB each. You can select up to {VisitPhotoMaxFiles} files.";
+        $"JPEG, PNG or WebP up to {VisitPhotoMaxMb} MB each and {VisitPhotoMaxBatchMb} MB total. You may upload additional photos; existing photos will not be removed.";
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -176,6 +180,13 @@ public class EditModel : PageModel
         if (uploads.Count > VisitPhotoMaxFiles)
         {
             ModelState.AddModelError(nameof(Uploads), $"You can upload up to {VisitPhotoMaxFiles} photos at a time.");
+            await LoadAsync(visitId, cancellationToken);
+            return Page();
+        }
+
+        if (uploads.Sum(file => file.Length) > VisitPhotoMaxBatchBytes)
+        {
+            ModelState.AddModelError(nameof(Uploads), $"Total upload size cannot exceed {VisitPhotoMaxBatchMb} MB.");
             await LoadAsync(visitId, cancellationToken);
             return Page();
         }
@@ -445,21 +456,25 @@ public class EditModel : PageModel
     public class InputModel
     {
         [Required]
+        [Display(Name = "Visit type")]
         public Guid? VisitTypeId { get; set; }
 
         [Required]
         [DataType(DataType.Date)]
+        [Display(Name = "Date of visit")]
         public DateOnly? DateOfVisit { get; set; }
 
         [Required]
         [StringLength(200)]
-        [Display(Name = "Visitor name")]
+        [Display(Name = "Visitor / course / delegation")]
         public string VisitorName { get; set; } = string.Empty;
 
+        [Display(Name = "Strength")]
         [Range(1, int.MaxValue, ErrorMessage = "Strength must be greater than zero.")]
         public int Strength { get; set; }
 
         [StringLength(2000)]
+        [Display(Name = "Remarks / key observations")]
         public string? Remarks { get; set; }
     }
 

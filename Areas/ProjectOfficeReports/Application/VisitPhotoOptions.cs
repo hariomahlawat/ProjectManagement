@@ -6,9 +6,19 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 public sealed class VisitPhotoOptions
 {
     // SECTION: Upload limits
-    public long MaxFileSizeBytes { get; set; } = 10 * 1024 * 1024;
+    public long MaxFileSizeBytes { get; set; } = 20 * 1024 * 1024;
 
     public int MaxFilesPerUpload { get; set; } = 20;
+
+    public long MaxBatchSizeBytes { get; set; } = 100 * 1024 * 1024;
+
+    public int MaxPhotosPerVisit { get; set; } = 50;
+
+    public int MaxWidthPixels { get; set; } = 10000;
+
+    public int MaxHeightPixels { get; set; } = 10000;
+
+    public int MaxMegapixels { get; set; } = 60;
 
     // SECTION: Validation thresholds
     public int MinWidth { get; set; } = 720;

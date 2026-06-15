@@ -46,10 +46,14 @@ public class NewModel : PageModel
 
     public int VisitPhotoMaxFiles => _photoOptions.MaxFilesPerUpload;
 
+    public long VisitPhotoMaxBatchBytes => _photoOptions.MaxBatchSizeBytes;
+
+    public int VisitPhotoMaxBatchMb => Math.Max(1, (int)Math.Floor(VisitPhotoMaxBatchBytes / 1024d / 1024d));
+
     public int VisitPhotoMaxMb => Math.Max(1, (int)Math.Floor(VisitPhotoMaxBytes / 1024d / 1024d));
 
     public string VisitPhotoHelpText =>
-        $"JPEG, PNG or WebP up to {VisitPhotoMaxMb} MB each. You can select up to {VisitPhotoMaxFiles} files, or leave this empty and add photos later.";
+        $"JPEG, PNG or WebP up to {VisitPhotoMaxMb} MB each and {VisitPhotoMaxBatchMb} MB total. Selected photos will be uploaded after the visit is saved.";
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -60,6 +64,9 @@ public class NewModel : PageModel
 
     [BindProperty]
     public List<IFormFile>? Uploads { get; set; }
+
+    [BindProperty]
+    public string? SaveMode { get; set; }
 
     public IReadOnlyList<SelectListItem> VisitTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -93,6 +100,11 @@ public class NewModel : PageModel
         if (uploads.Count > VisitPhotoMaxFiles)
         {
             ModelState.AddModelError(nameof(Uploads), $"You can upload up to {VisitPhotoMaxFiles} photos at a time.");
+        }
+
+        if (uploads.Sum(file => file.Length) > VisitPhotoMaxBatchBytes)
+        {
+            ModelState.AddModelError(nameof(Uploads), $"Total upload size cannot exceed {VisitPhotoMaxBatchMb} MB.");
         }
 
         if (uploads.Any(file => file.Length == 0))
@@ -175,6 +187,12 @@ public class NewModel : PageModel
             }
 
             TempData["ToastMessage"] = toastMessage;
+            if (string.Equals(SaveMode, "save-add-another", StringComparison.OrdinalIgnoreCase))
+            {
+                TempData["ToastMessage"] = $"{toastMessage} Add another visit to SDD.";
+                return RedirectToPage("New");
+            }
+
             return RedirectToPage("Index");
         }
 
@@ -224,21 +242,25 @@ public class NewModel : PageModel
     public class InputModel
     {
         [Required]
+        [Display(Name = "Visit type")]
         public Guid? VisitTypeId { get; set; }
 
         [Required]
         [DataType(DataType.Date)]
+        [Display(Name = "Date of visit")]
         public DateOnly? DateOfVisit { get; set; }
 
         [Required]
         [StringLength(200)]
-        [Display(Name = "Visitor name")]
+        [Display(Name = "Visitor / course / delegation")]
         public string VisitorName { get; set; } = string.Empty;
 
+        [Display(Name = "Strength")]
         [Range(1, int.MaxValue, ErrorMessage = "Strength must be greater than zero.")]
         public int Strength { get; set; } = 1;
 
         [StringLength(2000)]
+        [Display(Name = "Remarks / key observations")]
         public string? Remarks { get; set; }
     }
 }
