@@ -110,10 +110,44 @@ function updateButtonToBusyState(button) {
 }
 
 /**
- * prevent locking the form when client-side validation fails
+ * Submit locking helpers
+ */
+function resolveSubmitter(form, event) {
+    if (event.submitter instanceof HTMLElement) {
+        return event.submitter;
+    }
+
+    if (document.activeElement instanceof HTMLElement && form.contains(document.activeElement)) {
+        const activeElement = document.activeElement;
+        if (activeElement.matches('button[type="submit"], input[type="submit"], input[type="image"]')) {
+            return activeElement;
+        }
+    }
+
+    return form.querySelector('[type="submit"]');
+}
+
+function preserveSubmitterValue(form, submitter) {
+    const name = submitter.getAttribute('name');
+    if (!name) {
+        return;
+    }
+
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = name;
+    hidden.value = submitter.getAttribute('value') || '';
+    hidden.dataset.visitsSubmitterValue = 'true';
+    form.appendChild(hidden);
+}
+
+/**
+ * Prevent locking the form when client-side validation fails.
  */
 function disableFormOnSubmit(form) {
     form.addEventListener('submit', event => {
+        const submitter = resolveSubmitter(form, event);
+
         setTimeout(() => {
             if (event.defaultPrevented) {
                 return;
@@ -124,11 +158,11 @@ function disableFormOnSubmit(form) {
                 return;
             }
 
-            const submitter = form.querySelector('[type="submit"]');
             if (!submitter || submitter.disabled) {
                 return;
             }
 
+            preserveSubmitterValue(form, submitter);
             submitter.disabled = true;
             updateButtonToBusyState(submitter);
         }, 0);
