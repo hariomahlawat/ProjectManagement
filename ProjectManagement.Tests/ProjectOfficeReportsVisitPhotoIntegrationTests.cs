@@ -29,6 +29,7 @@ using ProjectManagement.Services.Storage;
 using ProjectManagement.Tests.Fakes;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.PixelFormats;
 using Xunit;
 
@@ -395,6 +396,62 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
         }
     }
 
+
+    [Fact]
+    public async Task UploadingExifRotatedPhotoUsesOrientedDimensionsForLimitChecks()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var now = new DateTimeOffset(2024, 9, 10, 9, 0, 0, TimeSpan.Zero);
+        var visit = await CreateVisitAsync(db, now);
+        var tempRoot = Path.Combine(Path.GetTempPath(), "pm-visit-photos-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var photoOptions = Options.Create(new VisitPhotoOptions
+            {
+                MaxWidthPixels = 5000,
+                MaxHeightPixels = 3000,
+                MaxMegapixels = 12
+            });
+
+            await using var imageStream = await CreateExifRotatedImageStreamAsync(width: 2500, height: 4500);
+            var photoService = new VisitPhotoService(
+                db,
+                new TestClock(now.AddMinutes(5)),
+                new RecordingAudit(),
+                photoOptions,
+                new TestUploadRootProvider(tempRoot),
+                NullLogger<VisitPhotoService>.Instance);
+
+            var result = await photoService.UploadAsync(
+                visit.Id,
+                imageStream,
+                "portrait-rotated.jpg",
+                "image/jpeg",
+                null,
+                "creator",
+                CancellationToken.None);
+
+            Assert.Equal(VisitPhotoUploadOutcome.Success, result.Outcome);
+            var photo = Assert.Single(await db.VisitPhotos.ToListAsync());
+            Assert.Equal(4500, photo.Width);
+            Assert.Equal(2500, photo.Height);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, true);
+            }
+        }
+    }
+
     // SECTION: Visit fixture helpers
     private static async Task<Visit> CreateVisitAsync(ApplicationDbContext db, DateTimeOffset now)
     {
@@ -528,6 +585,21 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
             new IdentityErrorDescriber(),
             services,
             NullLogger<UserManager<ApplicationUser>>.Instance);
+    }
+
+    // SECTION: Image fixture helpers
+    private static async Task<MemoryStream> CreateExifRotatedImageStreamAsync(int width, int height)
+    {
+        var stream = new MemoryStream();
+        using var image = new Image<Rgba32>(width, height, new Rgba32(80, 140, 220));
+
+        var exif = new ExifProfile();
+        exif.SetValue(ExifTag.Orientation, (ushort)6);
+        image.Metadata.ExifProfile = exif;
+
+        await image.SaveAsync(stream, new JpegEncoder { Quality = 85 });
+        stream.Position = 0;
+        return stream;
     }
 
     private static async Task<MemoryStream> CreateImageStreamAsync(int width, int height)

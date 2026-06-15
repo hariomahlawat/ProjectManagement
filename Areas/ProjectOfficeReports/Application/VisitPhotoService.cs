@@ -162,7 +162,7 @@ public sealed class VisitPhotoService : IVisitPhotoService
             return VisitPhotoUploadResult.Invalid("Unsupported image format.");
         }
 
-        if (ExceedsDimensionLimits(imageInfo.Width, imageInfo.Height))
+        if (ExceedsPreDecodeDimensionLimits(imageInfo.Width, imageInfo.Height))
         {
             return VisitPhotoUploadResult.Invalid(GetDimensionLimitMessage());
         }
@@ -413,12 +413,29 @@ public sealed class VisitPhotoService : IVisitPhotoService
         }
     }
 
+    // SECTION: Dimension validation helpers
+    private bool ExceedsPreDecodeDimensionLimits(int width, int height)
+    {
+        var megapixels = (long)width * height;
+        return megapixels > (long)_options.MaxMegapixels * 1_000_000 ||
+            !FitsDimensionAxes(width, height);
+    }
+
     private bool ExceedsDimensionLimits(int width, int height)
     {
         var megapixels = (long)width * height;
-        return width > _options.MaxWidthPixels ||
-            height > _options.MaxHeightPixels ||
-            megapixels > (long)_options.MaxMegapixels * 1_000_000;
+        return megapixels > (long)_options.MaxMegapixels * 1_000_000 ||
+            !FitsDimensionLimits(width, height);
+    }
+
+    private bool FitsDimensionAxes(int width, int height)
+    {
+        return FitsDimensionLimits(width, height) || FitsDimensionLimits(height, width);
+    }
+
+    private bool FitsDimensionLimits(int width, int height)
+    {
+        return width <= _options.MaxWidthPixels && height <= _options.MaxHeightPixels;
     }
 
     private string GetDimensionLimitMessage()
