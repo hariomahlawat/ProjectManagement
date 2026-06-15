@@ -672,15 +672,22 @@
 -------------------------------------------------- */
 
 .visit-register-head {
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.25rem;
 }
 
-.visit-register-head h2 {
+.visit-shell .visit-register-head h2 {
+    margin-bottom: 0.15rem;
     line-height: 1.15;
 }
 
-.visit-register-head p {
-    margin-top: 0.2rem !important;
+.visit-shell .visit-register-head p {
+    margin: 0.15rem 0 0;
+    line-height: 1.3;
+}
+
+.visit-register-export {
+    display: flex;
+    gap: 0.5rem;
 }
 
 .visit-shell .visit-register-filters {
@@ -688,7 +695,7 @@
     grid-template-columns: minmax(12rem, 1.1fr) minmax(9rem, 0.8fr) minmax(9rem, 0.8fr) minmax(16rem, 1.4fr) auto;
     gap: 0.75rem;
     align-items: end;
-    margin: 0.45rem 0 0.55rem;
+    margin: 0.4rem 0 0.45rem;
 }
 
 .visit-shell .visit-register-filters > * {
@@ -719,7 +726,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    margin: 0 0 0.35rem;
+    margin: 0 0 0.3rem;
     color: var(--visit-text-muted, #64748b);
     font-size: 0.86rem;
 }
@@ -746,6 +753,10 @@
     min-width: 4.5rem;
     padding-top: 0.2rem;
     padding-bottom: 0.2rem;
+}
+
+.visit-shell .visit-register-table-wrap {
+    margin-top: 0;
 }
 
 .visit-register-table {
