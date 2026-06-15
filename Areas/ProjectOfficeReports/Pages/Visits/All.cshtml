@@ -1,7 +1,7 @@
 ﻿@page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.AllModel
 @{
-    ViewData["Title"] = "All visits";
+    ViewData["Title"] = "All visits to SDD";
 
     string? fromValue = Model.From;
     if (!string.IsNullOrWhiteSpace(fromValue) && DateOnly.TryParse(fromValue, out var parsedFrom))
@@ -22,12 +22,12 @@
             <nav aria-label="Breadcrumb" class="visit-breadcrumb mb-1">
                 <ol class="breadcrumb mb-0">
                     <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                    <li class="breadcrumb-item"><a asp-page="Index">Visit tracker</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">All visits</li>
+                    <li class="breadcrumb-item"><a asp-page="Index">Visits to SDD</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">All visits to SDD</li>
                 </ol>
             </nav>
-            <h2 class="h3 mb-0">All visits</h2>
-            <p class="text-muted small mb-0 mt-1">Full historical view with filtering and export.</p>
+            <h2 class="h3 mb-0">All visits to SDD</h2>
+            <p class="text-muted small mb-0 mt-1">Full historical view of inbound visits to SDD with filtering and export.</p>
         </div>
         <div class="d-flex gap-2">
             <form method="post" asp-page-handler="Export">

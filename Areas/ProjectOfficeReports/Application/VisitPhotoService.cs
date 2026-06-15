@@ -99,6 +99,11 @@ public sealed class VisitPhotoService : IVisitPhotoService
         _db.Entry(visit).Property(x => x.RowVersion).OriginalValue = visit.RowVersion;
 
         // SECTION: Stream pre-validation
+        if (visit.Photos.Count >= _options.MaxPhotosPerVisit)
+        {
+            return VisitPhotoUploadResult.Invalid($"A visit can have a maximum of {_options.MaxPhotosPerVisit} photos.");
+        }
+
         if (content.CanSeek)
         {
             if (content.Length == 0)
@@ -153,6 +158,16 @@ public sealed class VisitPhotoService : IVisitPhotoService
         buffer.Position = 0;
         using var sourceImage = await Image.LoadAsync<Rgba32>(buffer, cancellationToken);
         sourceImage.Mutate(x => x.AutoOrient());
+
+        // SECTION: Pixel dimension safety
+        var megapixels = (long)sourceImage.Width * sourceImage.Height;
+        if (sourceImage.Width > _options.MaxWidthPixels ||
+            sourceImage.Height > _options.MaxHeightPixels ||
+            megapixels > (long)_options.MaxMegapixels * 1_000_000)
+        {
+            return VisitPhotoUploadResult.Invalid(
+                $"Image dimensions are too large. Please upload an image up to {_options.MaxWidthPixels} × {_options.MaxHeightPixels} pixels and {_options.MaxMegapixels} megapixels.");
+        }
 
         // NOTE: we no longer reject small images.
         // If you still want to know it was small, we log it.

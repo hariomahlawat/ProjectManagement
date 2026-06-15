@@ -1,7 +1,7 @@
 @page "{id:guid}"
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.EditModel
 @{
-    ViewData["Title"] = "Edit Visit";
+    ViewData["Title"] = "Edit visit to SDD";
     var toastMessages = new List<VisitToastMessage>();
     if (TempData.TryGetValue("ToastMessage", out var toastMessageValue) && toastMessageValue is string toastMessage && !string.IsNullOrWhiteSpace(toastMessage))
     {
@@ -26,8 +26,8 @@
         <nav aria-label="Breadcrumb" class="visit-breadcrumb">
             <ol class="breadcrumb mb-0">
                 <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                <li class="breadcrumb-item"><a asp-page="Index">Visit tracker</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Edit visit</li>
+                <li class="breadcrumb-item"><a asp-page="Index">Visits to SDD</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit visit to SDD</li>
             </ol>
         </nav>
         <div class="visit-access-card">
@@ -45,8 +45,8 @@ else if (Model.PhotoGallery is null)
         <nav aria-label="Breadcrumb" class="visit-breadcrumb">
             <ol class="breadcrumb mb-0">
                 <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                <li class="breadcrumb-item"><a asp-page="Index">Visit tracker</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Edit visit</li>
+                <li class="breadcrumb-item"><a asp-page="Index">Visits to SDD</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit visit to SDD</li>
             </ol>
         </nav>
         <div class="visit-access-card">
@@ -64,16 +64,16 @@ else
         <nav aria-label="Breadcrumb" class="visit-breadcrumb">
             <ol class="breadcrumb mb-0">
                 <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                <li class="breadcrumb-item"><a asp-page="Index">Visit tracker</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Edit visit</li>
+                <li class="breadcrumb-item"><a asp-page="Index">Visits to SDD</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit visit to SDD</li>
             </ol>
         </nav>
 
         <section class="visit-hero visit-hero--form">
             <div class="visit-hero__content">
                 <span class="visit-hero__eyebrow">Update oversight</span>
-                <h1 class="visit-hero__title">Edit visit record</h1>
-                <p class="visit-hero__subtitle">Refine the narrative, adjust team details, and enrich the media collection for this visit.</p>
+                <h1 class="visit-hero__title">Edit visit to SDD</h1>
+                <p class="visit-hero__subtitle">Safely correct inbound visit details and manage photo evidence for this visit to SDD.</p>
                 <div class="visit-hero__meta">
                     @if (!string.IsNullOrWhiteSpace(visitDateDisplay))
                     {
@@ -95,8 +95,8 @@ else
             <div class="visit-form-layout__primary">
                 <div class="visit-form-card">
                     <div class="visit-form-card__header">
-                        <h2 class="visit-form-card__title">Core information</h2>
-                        <p class="visit-form-card__subtitle">Keep the foundational visit details accurate to maintain reporting fidelity.</p>
+                        <h2 class="visit-form-card__title">Visit details</h2>
+                        <p class="visit-form-card__subtitle">Keep the date, type, visitor, strength, and remarks accurate for reporting fidelity.</p>
                     </div>
                     <form method="post" novalidate class="visit-form" data-visits-disable-on-submit>
                         <input type="hidden" asp-for="RowVersion" />
@@ -169,7 +169,7 @@ else
                 <div class="visit-form-card">
                     <div class="visit-form-card__header">
                         <h2 class="visit-form-card__title">Upload additional photos</h2>
-                        <p class="visit-form-card__subtitle">Drop in multiple images at once. Captions will apply to the entire batch.</p>
+                        <p class="visit-form-card__subtitle">You may upload additional photos. Existing photos will not be removed.</p>
                     </div>
                     <form method="post"
                           enctype="multipart/form-data"
@@ -183,7 +183,7 @@ else
                         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
                         <div class="visit-form-grid visit-form-grid--single">
                             <div class="visit-form-grid__field">
-                                <label class="form-label" for="visit-edit-photo">Photos</label>
+                                <label class="form-label" for="visit-edit-photo">Photo evidence</label>
                                 <input id="visit-edit-photo"
                                        class="form-control"
                                        type="file"
@@ -213,8 +213,8 @@ else
             <div class="visit-media__gallery">
                 <div class="visit-form-card visit-form-card--gallery">
                     <div class="visit-form-card__header">
-                        <h2 class="visit-form-card__title">Photo gallery</h2>
-                        <p class="visit-form-card__subtitle">Manage the visual narrative linked to this visit.</p>
+                        <h2 class="visit-form-card__title">Existing photo evidence</h2>
+                        <p class="visit-form-card__subtitle">@totalPhotos photo@(totalPhotos == 1 ? string.Empty : "s") uploaded. @(Model.CoverPhotoId.HasValue ? "Cover photo is set." : "No cover photo selected.")</p>
                     </div>
                     <div class="visit-form-card__body">
                         <partial name="_PhotosPartial" model="Model.PhotoGallery" />

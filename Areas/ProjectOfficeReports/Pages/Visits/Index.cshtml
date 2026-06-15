@@ -2,7 +2,7 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.IndexModel
 @using System.Linq
 @{
-    ViewData["Title"] = "Visits";
+    ViewData["Title"] = "Visits to SDD";
 
     // normalize incoming dates for inputs
     string? fromValue = Model.From;
@@ -98,14 +98,14 @@
             <nav aria-label="Breadcrumb" class="visit-breadcrumb mb-1">
                 <ol class="breadcrumb mb-0">
                     <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Visit tracker</li>
+                    <li class="breadcrumb-item active" aria-current="page">Visits to SDD</li>
                 </ol>
             </nav>
             <div class="d-flex align-items-center gap-3">
                 <h2 class="h2 mb-1">Visits to SDD</h2>
             </div>
             <p class="text-muted small mb-0 mt-2">
-                Track SDD visits by civilian/military dignitaries and officer courses, with dates, strength and photos.
+                Track inbound visits to SDD by dignitaries, courses and delegations, with strength, remarks and photos.
             </p>
         </div>
         <div class="d-flex flex-wrap gap-2">
@@ -131,7 +131,7 @@
             {
                 <a asp-page="New" class="btn btn-primary d-inline-flex align-items-center gap-1">
                     <i class="bi bi-plus-circle"></i>
-                    <span>Record a visit</span>
+                    <span>Record visit</span>
                 </a>
             }
         </div>
@@ -332,15 +332,6 @@
                                             @if (Model.CanManage)
                                             {
                                                 <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm">Edit</a>
-                                                <form method="post" asp-page-handler="Delete" class="d-inline" data-visits-disable-on-submit data-confirm="Delete this visit?">
-                                                    <input type="hidden" name="id" value="@item.Id" />
-                                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(item.RowVersion)" />
-                                                    <input type="hidden" name="VisitTypeId" value="@(Model.VisitTypeId.HasValue? Model.VisitTypeId.ToString() : string.Empty)" />
-                                                    <input type="hidden" name="From" value="@Model.From" />
-                                                    <input type="hidden" name="To" value="@Model.To" />
-                                                    <input type="hidden" name="Q" value="@Model.Q" />
-                                                    <button type="submit" class="btn btn-outline-danger btn-sm" data-visits-busy-label="Deleting…">Delete</button>
-                                                </form>
                                             }
                                         </div>
                                     </td>
