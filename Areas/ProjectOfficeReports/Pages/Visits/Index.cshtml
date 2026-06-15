@@ -212,12 +212,12 @@
         {
             <div class="card border-0 shadow-sm">
                 <div class="table-responsive">
-                    <table class="table align-middle mb-0 visit-table">
+                    <table class="table align-middle mb-0 visit-table visit-log-table">
                         <thead class="table-light">
                             <tr>
                                 <th scope="col">Date</th>
-                                <th scope="col">Visit type</th>
-                                <th scope="col">Visitor</th>
+                                <th scope="col">Type</th>
+                                <th scope="col">Visitor / Remarks</th>
                                 <th scope="col">Strength</th>
                                 <th scope="col">Photos</th>
                                 <th scope="col" class="text-end">Actions</th>
@@ -238,13 +238,33 @@
                                             <span class="badge bg-warning-subtle text-warning-emphasis mt-1">Type inactive</span>
                                         }
                                     </td>
-                                    <td>@item.VisitorName</td>
-                                    <td>
-                                        <div class="fw-semibold">@item.Strength</div>
-                                        <div class="text-muted small">people</div>
+                                    <td class="visit-log-record">
+                                        <div class="visit-log-record__visitor">@item.VisitorName</div>
+                                        @if (!string.IsNullOrWhiteSpace(item.RemarksPreview))
+                                        {
+                                            <div class="visit-log-record__remarks">@item.RemarksPreview</div>
+                                        }
                                     </td>
-                                    <td>@item.PhotoCount</td>
-                                    <td class="text-end">
+                                    <td class="visit-log-strength">
+                                        <strong>@item.Strength</strong>
+                                        <span>@(item.Strength == 1 ? "person" : "people")</span>
+                                    </td>
+                                    <td class="visit-log-photos">
+                                        @if (item.PhotoCount > 0)
+                                        {
+                                            <span class="visit-log-photos__count">
+                                                <i class="bi bi-images" aria-hidden="true"></i>
+                                                <span class="visually-hidden">Photos:</span>
+                                                @item.PhotoCount
+                                                <span>@(item.PhotoCount == 1 ? "photo" : "photos")</span>
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="visit-log-photos__empty">No photos</span>
+                                        }
+                                    </td>
+                                    <td class="text-end visit-log-actions">
                                         <div class="btn-group" role="group">
                                             <a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-secondary btn-sm">View</a>
                                             @if (Model.CanManage)

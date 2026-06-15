@@ -560,3 +560,101 @@
         border-bottom: 0;
     }
 }
+
+/* -------------------------------------------------
+   Visit log – seamless record list
+-------------------------------------------------- */
+
+.visit-log-table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+    .visit-log-table thead th {
+        font-weight: 700;
+        background: #f9fafb;
+        border-bottom: 1px solid var(--visit-border-subtle, #e5e7eb);
+    }
+
+    .visit-log-table tbody td {
+        border-bottom: 1px solid var(--visit-border-subtle, #e5e7eb);
+    }
+
+    .visit-log-table tbody tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .visit-log-table th:nth-child(1),
+    .visit-log-table td:nth-child(1) {
+        width: 11rem;
+    }
+
+    .visit-log-table th:nth-child(2),
+    .visit-log-table td:nth-child(2) {
+        width: 11rem;
+    }
+
+    .visit-log-table th:nth-child(4),
+    .visit-log-table td:nth-child(4) {
+        width: 8rem;
+    }
+
+    .visit-log-table th:nth-child(5),
+    .visit-log-table td:nth-child(5) {
+        width: 7rem;
+    }
+
+    .visit-log-table th:nth-child(6),
+    .visit-log-table td:nth-child(6) {
+        width: 8rem;
+    }
+
+.visit-log-record {
+    min-width: 16rem;
+}
+
+.visit-log-record__visitor {
+    color: var(--visit-text-heading, #111827);
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.visit-log-record__remarks {
+    display: -webkit-box;
+    max-width: 42rem;
+    margin-top: 0.18rem;
+    overflow: hidden;
+    color: var(--visit-text-muted, #64748b);
+    font-size: 0.84rem;
+    line-height: 1.3;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.visit-log-strength,
+.visit-log-photos,
+.visit-log-actions {
+    white-space: nowrap;
+}
+
+    .visit-log-strength strong {
+        font-weight: 700;
+    }
+
+    .visit-log-strength span {
+        margin-left: 0.2rem;
+        color: var(--visit-text-muted, #64748b);
+        font-size: 0.86rem;
+    }
+
+.visit-log-photos__count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--visit-text-heading, #111827);
+}
+
+.visit-log-photos__empty {
+    color: var(--visit-text-muted, #64748b);
+    font-size: 0.86rem;
+}
