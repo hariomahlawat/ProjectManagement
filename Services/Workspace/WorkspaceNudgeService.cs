@@ -13,8 +13,15 @@ public sealed class WorkspaceNudgeService
         .OrderBy(s => s.SortOrder)
         .ThenBy(s => s.StageCode)
         .FirstOrDefault(s => s.Status == StageStatus.InProgress)
-        ?? project.ProjectStages.Where(s => s.Status == StageStatus.Completed).OrderByDescending(s => s.SortOrder).FirstOrDefault()
-        ?? project.ProjectStages.OrderBy(s => s.SortOrder).ThenBy(s => s.StageCode).FirstOrDefault(s => s.Status == StageStatus.NotStarted);
+        ?? project.ProjectStages
+            .OrderBy(s => s.SortOrder)
+            .ThenBy(s => s.StageCode)
+            .FirstOrDefault(s => s.Status == StageStatus.NotStarted)
+        ?? project.ProjectStages
+            .Where(s => s.Status == StageStatus.Completed)
+            .OrderByDescending(s => s.SortOrder)
+            .ThenByDescending(s => s.StageCode)
+            .FirstOrDefault();
 
     public static DateTime? LastPoRemark(Project project, string userId) => project.Remarks()
         .Where(r => !r.IsDeleted && r.AuthorUserId == userId && r.AuthorRole == RemarkActorRole.ProjectOfficer)

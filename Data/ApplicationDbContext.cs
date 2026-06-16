@@ -1243,7 +1243,7 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => new { x.ProjectId, x.TotId });
                 e.HasIndex(x => x.DocRepoDocumentId);
                 e.HasOne(x => x.Project)
-                    .WithMany()
+                    .WithMany(x => x.Documents)
                     .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
                 e.HasOne(x => x.Stage)
@@ -2349,7 +2349,7 @@ namespace ProjectManagement.Data
                     .HasDatabaseName("IX_Remarks_ProjectId_IsDeleted_Scope_CreatedAtUtc")
                     .IsDescending(false, false, false, true);
                 e.HasOne(x => x.Project)
-                    .WithMany()
+                    .WithMany(x => x.Remarks)
                     .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
