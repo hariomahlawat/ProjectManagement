@@ -11,6 +11,29 @@ namespace ProjectManagement.Services.Projects;
     /// </summary>
     public static class PresentStageHelper
     {
+        // SECTION: Entity-stage resolution shared by project overview, ongoing projects, and workspace modules.
+        public static ProjectStage? Resolve(IEnumerable<ProjectStage>? stages)
+        {
+            if (stages is null)
+            {
+                return null;
+            }
+
+            var orderedStages = stages
+                .OrderBy(stage => stage.SortOrder)
+                .ThenBy(stage => stage.StageCode)
+                .ToList();
+
+            if (orderedStages.Count == 0)
+            {
+                return null;
+            }
+
+            return orderedStages.FirstOrDefault(stage => stage.Status == StageStatus.InProgress)
+                ?? orderedStages.FirstOrDefault(stage => stage.Status != StageStatus.Completed && stage.Status != StageStatus.Skipped)
+                ?? orderedStages.LastOrDefault();
+        }
+
         public static PresentStageSnapshot ComputePresentStageAndAge(
             IReadOnlyList<ProjectStageStatusSnapshot> stages,
             IWorkflowStageMetadataProvider workflowStageMetadataProvider,
