@@ -155,6 +155,213 @@ namespace ProjectManagement.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectIdeas.ProjectIdea", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ArchiveReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("AssignedHodUserId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("AssignedProjectOfficerUserId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedHodUserId");
+
+                    b.HasIndex("AssignedProjectOfficerUserId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("UpdatedAt");
+
+                    b.ToTable("ProjectIdeas");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectIdeas.ProjectIdeaComment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CommentText")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ProjectIdeaId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("ProjectIdeaId");
+
+                    b.ToTable("ProjectIdeaComments");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectIdeas.ProjectIdeaDocument", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int>("ProjectIdeaId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("UploadedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("ProjectIdeaId");
+
+                    b.HasIndex("UploadedByUserId");
+
+                    b.ToTable("ProjectIdeaDocuments");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectIdeas.ProjectIdeaNote", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPinned")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ProjectIdeaId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("ProjectIdeaId");
+
+                    b.ToTable("ProjectIdeaNotes");
+                });
+
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcAttachment", b =>
                 {
                     b.Property<long>("Id")
@@ -7745,6 +7952,89 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Attachments");
                 });
 
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectIdeas.ProjectIdea", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "AssignedHodUser")
+                        .WithMany()
+                        .HasForeignKey("AssignedHodUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "AssignedProjectOfficerUser")
+                        .WithMany()
+                        .HasForeignKey("AssignedProjectOfficerUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AssignedHodUser");
+
+                    b.Navigation("AssignedProjectOfficerUser");
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectIdeas.ProjectIdeaComment", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.ProjectIdeas.ProjectIdea", "ProjectIdea")
+                        .WithMany("Comments")
+                        .HasForeignKey("ProjectIdeaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("ProjectIdea");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectIdeas.ProjectIdeaDocument", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ProjectIdeas.ProjectIdea", "ProjectIdea")
+                        .WithMany("Documents")
+                        .HasForeignKey("ProjectIdeaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "UploadedByUser")
+                        .WithMany()
+                        .HasForeignKey("UploadedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ProjectIdea");
+
+                    b.Navigation("UploadedByUser");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectIdeas.ProjectIdeaNote", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.ProjectIdeas.ProjectIdea", "ProjectIdea")
+                        .WithMany("Notes")
+                        .HasForeignKey("ProjectIdeaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("ProjectIdea");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Activities.Activity", b =>
                 {
                     b.Navigation("Attachments");
@@ -7858,6 +8148,16 @@ namespace ProjectManagement.Migrations
             modelBuilder.Entity("ProjectManagement.Models.Workflow", b =>
                 {
                     b.Navigation("Statuses");
+                });
+
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectIdeas.ProjectIdea", b =>
+                {
+                    b.Navigation("Comments");
+
+                    b.Navigation("Documents");
+
+                    b.Navigation("Notes");
                 });
 #pragma warning restore 612, 618
         }
