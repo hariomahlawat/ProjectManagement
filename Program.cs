@@ -740,7 +740,11 @@ app.Use(async (ctx, next) =>
     var isAttachmentResponse =
         ctx.Request.Path.StartsWithSegments("/files", StringComparison.OrdinalIgnoreCase);
 
-    var isDocumentPreviewContext = isDocumentViewer || isDocumentPreview || isAttachmentResponse;
+    var isProjectIdeaPreview =
+        ctx.Request.Path.StartsWithSegments("/ProjectIdeas/Details", StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(ctx.Request.Query["handler"], "Preview", StringComparison.OrdinalIgnoreCase);
+
+    var isDocumentPreviewContext = isDocumentViewer || isDocumentPreview || isAttachmentResponse || isProjectIdeaPreview;
 
     if (isDocumentPreviewContext)
     {
