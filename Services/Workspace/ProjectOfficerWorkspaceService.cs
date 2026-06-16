@@ -49,14 +49,25 @@ public sealed class ProjectOfficerWorkspaceService
             // SECTION: Date-only action task dates are normalized after materialization because Npgsql cannot translate SpecifyKind for date columns.
             var dueDateUtc = DateTime.SpecifyKind(t.DueDate.Date, DateTimeKind.Utc);
             var daysOverdue = overdueTaskIds.Contains(t.Id) ? (_clock.IstToday - t.DueDate.Date).Days : (int?)null;
-            return new WorkspaceTaskVm { TaskId = t.Id, Title = t.Title, Priority = t.Priority, Status = t.Status, DueDateUtc = dueDateUtc, IsOverdue = daysOverdue.HasValue, DaysOverdue = daysOverdue, OpenUrl = $"/ActionTasks?viewMode=MyWork&taskId={t.Id}" };
+            return new WorkspaceTaskVm { TaskId = t.Id, Title = t.Title, Priority = t.Priority, Status = t.Status, DueDateUtc = dueDateUtc, IsOverdue = daysOverdue.HasValue, DaysOverdue = daysOverdue, OpenUrl = WorkspaceRouteHelper.ActionTask(t.Id) };
         }).ToList();
         var ideas = await _db.ProjectIdeas.AsNoTracking().Include(i => i.Comments).Include(i => i.Notes).Include(i => i.Documents).Where(i => !i.IsDeleted && (i.AssignedProjectOfficerUserId == userId || i.CreatedByUserId == userId) && i.Status != ProjectIdeaStatuses.Archived).OrderByDescending(i => i.UpdatedAt).Take(6).ToListAsync(ct);
-        var ideaVms = ideas.Select(i => { var last = new[] { i.UpdatedAt }.Concat(i.Comments.Where(c => !c.IsDeleted).Select(c => c.CreatedAt)).Concat(i.Notes.Where(n => !n.IsDeleted).Select(n => n.UpdatedAt)).Concat(i.Documents.Where(d => !d.IsDeleted).Select(d => d.UploadedAt)).DefaultIfEmpty(i.UpdatedAt).Max(); return new WorkspaceIdeaVm { IdeaId = i.Id, Title = i.Title, Status = ProjectIdeaStatuses.ToDisplay(i.Status), LastActivityAtUtc = last, NeedsUpdate = (today.DayNumber - WorkspaceNudgeService.ToIstDate(last).DayNumber) > 15 && (i.Status == ProjectIdeaStatuses.Active || i.Status == ProjectIdeaStatuses.OnHold), CommentCount = i.Comments.Count(c => !c.IsDeleted), DocumentCount = i.Documents.Count(d => !d.IsDeleted), OpenUrl = $"/ProjectIdeas/Details/{i.Id}" }; }).ToList();
-        var reminders = await _db.TodoItems.AsNoTracking().Where(t => t.OwnerId == userId && t.Status != TodoStatus.Done && t.DeletedUtc == null).OrderByDescending(t => t.IsPinned).ThenBy(t => t.DueAtUtc).Take(5).Select(t => new WorkspaceReminderVm { ReminderId = t.Id, Title = t.Title, Priority = t.Priority.ToString(), DueAtUtc = t.DueAtUtc, IsPinned = t.IsPinned, OpenUrl = "/Tasks" }).ToListAsync(ct);
+        var ideaVms = ideas.Select(i => { var last = new[] { i.UpdatedAt }.Concat(i.Comments.Where(c => !c.IsDeleted).Select(c => c.CreatedAt)).Concat(i.Notes.Where(n => !n.IsDeleted).Select(n => n.UpdatedAt)).Concat(i.Documents.Where(d => !d.IsDeleted).Select(d => d.UploadedAt)).DefaultIfEmpty(i.UpdatedAt).Max(); return new WorkspaceIdeaVm { IdeaId = i.Id, Title = i.Title, Status = ProjectIdeaStatuses.ToDisplay(i.Status), LastActivityAtUtc = last, NeedsUpdate = (today.DayNumber - WorkspaceNudgeService.ToIstDate(last).DayNumber) > 15 && (i.Status == ProjectIdeaStatuses.Active || i.Status == ProjectIdeaStatuses.OnHold), CommentCount = i.Comments.Count(c => !c.IsDeleted), DocumentCount = i.Documents.Count(d => !d.IsDeleted), OpenUrl = WorkspaceRouteHelper.ProjectIdea(i.Id) }; }).ToList();
+        var reminders = await _db.TodoItems.AsNoTracking().Where(t => t.OwnerId == userId && t.Status != TodoStatus.Done && t.DeletedUtc == null).OrderByDescending(t => t.IsPinned).ThenBy(t => t.DueAtUtc).Take(5).Select(t => new WorkspaceReminderVm { ReminderId = t.Id, Title = t.Title, Priority = t.Priority.ToString(), DueAtUtc = t.DueAtUtc, IsPinned = t.IsPinned, OpenUrl = WorkspaceRouteHelper.PersonalReminders() }).ToListAsync(ct);
         var health = await _health.CalculateForProjectsAsync(projects, userId, ct);
-        var pending = _nudges.BuildPendingWithMe(projects, tasks, ideaVms, userId, today).ToList();
-        pending.InsertRange(0, await BuildReturnedItemsAsync(userId, ct));
+        var returnedItems = await BuildReturnedItemsAsync(userId, ct);
+        var pending = returnedItems
+            .Concat(_nudges.BuildPendingWithMe(projects, tasks, ideaVms, userId, today))
+            .GroupBy(i => $"{i.Type}:{i.Title}")
+            .Select(g => g
+                .OrderBy(i => WorkspaceSeverityRank(i.Severity))
+                .ThenBy(i => WorkspacePendingPriority(i.Detail))
+                .ThenByDescending(i => i.DueOrEventDateUtc)
+                .First())
+            .OrderBy(i => WorkspaceSeverityRank(i.Severity))
+            .ThenBy(i => WorkspacePendingPriority(i.Detail))
+            .ThenByDescending(i => i.DueOrEventDateUtc)
+            .ToList();
         var waitingOnOthers = await BuildWaitingOnOthersAsync(userId, myWorkQueue.SubmittedAwaitingClosureTasks, ct);
         var matrix = projects.Take(6).Select(p => BuildMatrixRow(p, health[p.Id], userId, today)).ToList();
         var engagement = await BuildEngagementAsync(userId, user, monthStart, ct);
@@ -71,19 +82,19 @@ public sealed class ProjectOfficerWorkspaceService
     private async Task<IReadOnlyList<WorkspaceAttentionItemVm>> BuildWaitingOnOthersAsync(string userId, IReadOnlyList<ActionTaskItem> submittedAwaitingClosureTasks, CancellationToken ct)
     {
         var items = new List<WorkspaceAttentionItemVm>();
-        items.AddRange(submittedAwaitingClosureTasks.Select(t => new WorkspaceAttentionItemVm { Type = "Task", Title = t.Title, Detail = "Submitted and awaiting closure", Severity = "Info", BadgeText = "Task", ActionText = "View", ActionUrl = $"/ActionTasks?viewMode=MyWork&taskId={t.Id}", DueOrEventDateUtc = DateTime.SpecifyKind(t.SubmittedOn?.Date ?? t.DueDate.Date, DateTimeKind.Utc) }));
+        items.AddRange(submittedAwaitingClosureTasks.Select(t => new WorkspaceAttentionItemVm { Type = "Task", Title = t.Title, Detail = "Submitted and awaiting closure", Severity = "Info", BadgeText = "Task", ActionText = "View", ActionUrl = WorkspaceRouteHelper.ActionTask(t.Id), DueOrEventDateUtc = DateTime.SpecifyKind(t.SubmittedOn?.Date ?? t.DueDate.Date, DateTimeKind.Utc) }));
 
         var pendingPlans = await _db.PlanVersions.AsNoTracking().Include(p => p.Project).Where(p => p.SubmittedByUserId == userId && p.Status == PlanVersionStatus.PendingApproval).OrderByDescending(p => p.SubmittedOn).Take(5).ToListAsync(ct);
-        items.AddRange(pendingPlans.Select(p => new WorkspaceAttentionItemVm { Type = "Timeline", Title = p.Project?.Name ?? "Timeline plan", Detail = "Timeline plan submitted, pending approval", Severity = "Info", BadgeText = "Plan", ActionText = "View", ActionUrl = $"/Projects/Timeline/EditPlan/{p.ProjectId}", DueOrEventDateUtc = p.SubmittedOn?.UtcDateTime }));
+        items.AddRange(pendingPlans.Select(p => new WorkspaceAttentionItemVm { Type = "Timeline", Title = p.Project?.Name ?? "Timeline plan", Detail = "Timeline plan submitted, pending approval", Severity = "Info", BadgeText = "Plan", ActionText = "View status", ActionUrl = WorkspaceRouteHelper.ProjectTimeline(p.ProjectId), DueOrEventDateUtc = p.SubmittedOn?.UtcDateTime }));
 
         var pendingStages = await _db.StageChangeRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Pending").OrderByDescending(r => r.RequestedOn).Take(5).ToListAsync(ct);
-        items.AddRange(pendingStages.Select(r => new WorkspaceAttentionItemVm { Type = "Stage", Title = r.StageCode, Detail = "Stage change request pending approval", Severity = "Info", BadgeText = "Stage", ActionText = "View", ActionUrl = $"/Projects/Overview/{r.ProjectId}", DueOrEventDateUtc = r.RequestedOn.UtcDateTime }));
+        items.AddRange(pendingStages.Select(r => new WorkspaceAttentionItemVm { Type = "Stage", Title = r.StageCode, Detail = "Stage change request pending approval", Severity = "Info", BadgeText = "Stage", ActionText = "View", ActionUrl = WorkspaceRouteHelper.ProjectOverview(r.ProjectId), DueOrEventDateUtc = r.RequestedOn.UtcDateTime }));
 
         var pendingMeta = await _db.ProjectMetaChangeRequests.AsNoTracking().Include(r => r.Project).Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Pending").OrderByDescending(r => r.RequestedOnUtc).Take(5).ToListAsync(ct);
-        items.AddRange(pendingMeta.Select(r => new WorkspaceAttentionItemVm { Type = "Metadata", Title = r.Project?.Name ?? "Metadata change", Detail = "Metadata change request pending approval", Severity = "Info", BadgeText = "Meta", ActionText = "View", ActionUrl = $"/Projects/Overview/{r.ProjectId}", DueOrEventDateUtc = r.RequestedOnUtc.UtcDateTime }));
+        items.AddRange(pendingMeta.Select(r => new WorkspaceAttentionItemVm { Type = "Metadata", Title = r.Project?.Name ?? "Metadata change", Detail = "Metadata change request pending approval", Severity = "Info", BadgeText = "Meta", ActionText = "View", ActionUrl = WorkspaceRouteHelper.ProjectOverview(r.ProjectId), DueOrEventDateUtc = r.RequestedOnUtc.UtcDateTime }));
 
         var pendingDocuments = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.Status == ProjectDocumentRequestStatus.Submitted).OrderByDescending(r => r.RequestedAtUtc).Take(5).ToListAsync(ct);
-        items.AddRange(pendingDocuments.Select(r => new WorkspaceAttentionItemVm { Type = "Document", Title = r.Title, Detail = "Document request pending moderation", Severity = "Info", BadgeText = "Doc", ActionText = "View", ActionUrl = $"/Projects/Overview/{r.ProjectId}", DueOrEventDateUtc = r.RequestedAtUtc.UtcDateTime }));
+        items.AddRange(pendingDocuments.Select(r => new WorkspaceAttentionItemVm { Type = "Document", Title = r.Title, Detail = "Document request pending moderation", Severity = "Info", BadgeText = "Doc", ActionText = "View", ActionUrl = WorkspaceRouteHelper.ProjectOverview(r.ProjectId), DueOrEventDateUtc = r.RequestedAtUtc.UtcDateTime }));
         return items.OrderByDescending(i => i.DueOrEventDateUtc).Take(12).ToList();
     }
 
@@ -92,7 +103,7 @@ public sealed class ProjectOfficerWorkspaceService
     {
         var items = new List<WorkspaceAttentionItemVm>();
         var returnedCutoffUtc = DateTimeOffset.UtcNow.AddDays(-30);
-        var rejectedPlans = await _db.PlanVersions.AsNoTracking().Include(p => p.Project).Where(p => p.CreatedByUserId == userId && p.RejectedOn.HasValue && p.RejectedOn >= returnedCutoffUtc).OrderByDescending(p => p.RejectedOn).Take(10).ToListAsync(ct);
+        var rejectedPlans = await _db.PlanVersions.AsNoTracking().Include(p => p.Project).Where(p => (p.CreatedByUserId == userId || p.SubmittedByUserId == userId) && p.RejectedOn.HasValue && p.RejectedOn >= returnedCutoffUtc).OrderByDescending(p => p.RejectedOn).Take(10).ToListAsync(ct);
         var rejectedPlanProjectIds = rejectedPlans.Select(p => p.ProjectId).ToArray();
         var newerPlanProjects = await _db.PlanVersions.AsNoTracking().Where(p => rejectedPlanProjectIds.Contains(p.ProjectId) && (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Approved)).Select(p => new { p.ProjectId, EventAt = p.SubmittedOn ?? p.ApprovedOn ?? p.CreatedOn }).ToListAsync(ct);
         rejectedPlans = rejectedPlans.Where(p => !newerPlanProjects.Any(n => n.ProjectId == p.ProjectId && p.RejectedOn.HasValue && n.EventAt > p.RejectedOn.Value)).Take(5).ToList();
@@ -102,23 +113,44 @@ public sealed class ProjectOfficerWorkspaceService
         var rejectedStageProjectIds = rejectedStages.Select(r => r.ProjectId).ToArray();
         var newerStageProjects = await _db.StageChangeRequests.AsNoTracking().Where(r => rejectedStageProjectIds.Contains(r.ProjectId) && (r.DecisionStatus == "Pending" || r.DecisionStatus == "Approved")).Select(r => new { r.ProjectId, EventAt = r.DecidedOn ?? r.RequestedOn }).ToListAsync(ct);
         rejectedStages = rejectedStages.Where(r => !newerStageProjects.Any(n => n.ProjectId == r.ProjectId && r.DecidedOn.HasValue && n.EventAt > r.DecidedOn.Value)).Take(5).ToList();
-        items.AddRange(rejectedStages.Select(r => new WorkspaceAttentionItemVm { Type = "Stage", Title = r.StageCode, Detail = "Stage change request rejected", Severity = "Danger", BadgeText = "Returned", ActionText = "Correct", ActionUrl = $"/Projects/Timeline/EditActuals/{r.ProjectId}", DueOrEventDateUtc = r.DecidedOn?.UtcDateTime }));
+        items.AddRange(rejectedStages.Select(r => new WorkspaceAttentionItemVm { Type = "Stage", Title = r.StageCode, Detail = "Stage change request rejected", Severity = "Danger", BadgeText = "Returned", ActionText = "Correct", ActionUrl = WorkspaceRouteHelper.ProjectTimeline(r.ProjectId), DueOrEventDateUtc = r.DecidedOn?.UtcDateTime }));
 
         var rejectedMeta = await _db.ProjectMetaChangeRequests.AsNoTracking().Include(r => r.Project).Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Rejected" && r.DecidedOnUtc.HasValue && r.DecidedOnUtc.Value >= returnedCutoffUtc).OrderByDescending(r => r.DecidedOnUtc).Take(10).ToListAsync(ct);
         var rejectedMetaProjectIds = rejectedMeta.Select(r => r.ProjectId).ToArray();
         var newerMetaProjects = await _db.ProjectMetaChangeRequests.AsNoTracking().Where(r => rejectedMetaProjectIds.Contains(r.ProjectId) && (r.DecisionStatus == "Pending" || r.DecisionStatus == "Approved")).Select(r => new { r.ProjectId, EventAt = r.DecidedOnUtc ?? r.RequestedOnUtc }).ToListAsync(ct);
         rejectedMeta = rejectedMeta.Where(r => !newerMetaProjects.Any(n => n.ProjectId == r.ProjectId && r.DecidedOnUtc.HasValue && n.EventAt > r.DecidedOnUtc.Value)).Take(5).ToList();
-        items.AddRange(rejectedMeta.Select(r => new WorkspaceAttentionItemVm { Type = "Metadata", Title = r.Project?.Name ?? "Metadata change", Detail = "Metadata change request rejected", Severity = "Danger", BadgeText = "Returned", ActionText = "Correct", ActionUrl = $"/Projects/Meta/Request/{r.ProjectId}", DueOrEventDateUtc = r.DecidedOnUtc?.UtcDateTime }));
+        items.AddRange(rejectedMeta.Select(r => new WorkspaceAttentionItemVm { Type = "Metadata", Title = r.Project?.Name ?? "Metadata change", Detail = "Metadata change request rejected", Severity = "Danger", BadgeText = "Returned", ActionText = "Correct", ActionUrl = WorkspaceRouteHelper.ProjectMetaRequest(r.ProjectId), DueOrEventDateUtc = r.DecidedOnUtc?.UtcDateTime }));
 
         var rejectedDocuments = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.Status == ProjectDocumentRequestStatus.Rejected && r.ReviewedAtUtc.HasValue && r.ReviewedAtUtc.Value >= returnedCutoffUtc).OrderByDescending(r => r.ReviewedAtUtc).Take(10).ToListAsync(ct);
         var rejectedDocumentProjectIds = rejectedDocuments.Select(r => r.ProjectId).ToArray();
         var newerDocumentProjects = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => rejectedDocumentProjectIds.Contains(r.ProjectId) && (r.Status == ProjectDocumentRequestStatus.Submitted || r.Status == ProjectDocumentRequestStatus.Approved)).Select(r => new { r.ProjectId, EventAt = r.ReviewedAtUtc ?? r.RequestedAtUtc }).ToListAsync(ct);
         rejectedDocuments = rejectedDocuments.Where(r => !newerDocumentProjects.Any(n => n.ProjectId == r.ProjectId && r.ReviewedAtUtc.HasValue && n.EventAt > r.ReviewedAtUtc.Value)).Take(5).ToList();
-        items.AddRange(rejectedDocuments.Select(r => new WorkspaceAttentionItemVm { Type = "Document", Title = r.Title, Detail = "Document request rejected", Severity = "Danger", BadgeText = "Returned", ActionText = "Correct", ActionUrl = $"/Projects/Documents/UploadRequest?id={r.ProjectId}", DueOrEventDateUtc = r.ReviewedAtUtc?.UtcDateTime }));
+        items.AddRange(rejectedDocuments.Select(r => new WorkspaceAttentionItemVm { Type = "Document", Title = r.Title, Detail = "Document request rejected", Severity = "Danger", BadgeText = "Returned", ActionText = "Correct", ActionUrl = WorkspaceRouteHelper.ProjectDocumentRequest(r.ProjectId), DueOrEventDateUtc = r.ReviewedAtUtc?.UtcDateTime }));
         return items.OrderByDescending(i => i.DueOrEventDateUtc).Take(12).ToList();
     }
     private WorkspaceProjectMatrixRowVm BuildMatrixRow(Project p, WorkspaceRecordHealthVm health, string userId, DateOnly today)
-    { var stage = WorkspaceNudgeService.GetCurrentStage(p); var action = _nudges.GetNextAction(p, health, userId, today, out var url); var last = WorkspaceNudgeService.LastPoRemark(p, userId); var overdue = _nudges.IsCurrentStageOverdue(stage, today); var issue = _nudges.HasCurrentStageTimelineIssue(stage); return new WorkspaceProjectMatrixRowVm { ProjectId = p.Id, ProjectName = p.Name, CurrentStageCode = stage?.StageCode ?? "—", CurrentStageName = stage?.StageCode ?? "Not started", DaysInCurrentStage = WorkspaceNudgeService.GetCurrentStageAgeDays(p, today), UpdateStatus = _nudges.GetUpdateStatus(last, today), TimelineStatus = p.ProjectStages.Any(s => s.RequiresBackfill) || overdue ? "ActionRequired" : issue ? "Attention" : "Ok", RecordStatus = health.HealthPercent >= 80 ? "Ok" : health.HealthPercent >= 60 ? "Attention" : "ActionRequired", RecordHealthPercent = health.HealthPercent, RecordGapCount = health.Gaps.Count, LastPoRemarkAtUtc = last, HasBackfill = p.ProjectStages.Any(s => s.RequiresBackfill), HasCurrentStageIssue = issue, HasOverdueCurrentStage = overdue, NextActionText = action, NextActionUrl = url, OpenUrl = $"/Projects/Overview/{p.Id}", AddRemarkUrl = $"/Projects/Remarks/{p.Id}", TimelineUrl = $"/Projects/Timeline/EditActuals/{p.Id}" }; }
+    { var stage = WorkspaceNudgeService.GetCurrentStage(p); var action = _nudges.GetNextAction(p, health, userId, today, out var url); var last = WorkspaceNudgeService.LastPoRemark(p, userId); var overdue = _nudges.IsCurrentStageOverdue(stage, today); var issue = _nudges.HasCurrentStageTimelineIssue(stage); return new WorkspaceProjectMatrixRowVm { ProjectId = p.Id, ProjectName = p.Name, CurrentStageCode = stage?.StageCode ?? "—", CurrentStageName = stage?.StageCode ?? "Not started", DaysInCurrentStage = WorkspaceNudgeService.GetCurrentStageAgeDays(p, today), UpdateStatus = _nudges.GetUpdateStatus(last, today), TimelineStatus = p.ProjectStages.Any(s => s.RequiresBackfill) || overdue ? "ActionRequired" : issue ? "Attention" : "Ok", RecordStatus = health.HealthPercent >= 80 ? "Ok" : health.HealthPercent >= 60 ? "Attention" : "ActionRequired", RecordHealthPercent = health.HealthPercent, RecordGapCount = health.Gaps.Count, LastPoRemarkAtUtc = last, HasBackfill = p.ProjectStages.Any(s => s.RequiresBackfill), HasCurrentStageIssue = issue, HasOverdueCurrentStage = overdue, NextActionText = action, NextActionUrl = url, OpenUrl = WorkspaceRouteHelper.ProjectOverview(p.Id), AddRemarkUrl = WorkspaceRouteHelper.ProjectRemarks(p.Id), TimelineUrl = WorkspaceRouteHelper.ProjectTimeline(p.Id) }; }
+    // SECTION: Pending item ordering keeps returned corrections above lower-priority nudges.
+    private static int WorkspaceSeverityRank(string severity) => severity switch
+    {
+        "Danger" => 0,
+        "Warning" => 1,
+        "Info" => 2,
+        _ => 3
+    };
+
+    private static int WorkspacePendingPriority(string detail)
+    {
+        if (detail.Contains("returned", StringComparison.OrdinalIgnoreCase) ||
+            detail.Contains("rejected", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (detail.Contains("backfill", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (detail.Contains("overdue", StringComparison.OrdinalIgnoreCase)) return 2;
+        if (detail.Contains("actual start", StringComparison.OrdinalIgnoreCase)) return 3;
+        if (detail.Contains("planned due", StringComparison.OrdinalIgnoreCase)) return 4;
+        if (detail.Contains("remark", StringComparison.OrdinalIgnoreCase)) return 5;
+        return 6;
+    }
+
     private async Task<WorkspaceEngagementVm> BuildEngagementAsync(string userId, ApplicationUser? user, DateTime monthStart, CancellationToken ct)
     {
         // SECTION: ERP engagement dates are materialized before DateTimeOffset-to-DateTime conversion to avoid provider coercion failures.
@@ -145,6 +177,14 @@ public sealed class ProjectOfficerWorkspaceService
 
         return new WorkspaceEngagementVm { LastLoginUtc = user?.LastLoginUtc, LastActivityUtc = activeDates.OrderByDescending(d => d).Select(d => (DateTime?)d).FirstOrDefault() ?? user?.LastLoginUtc, LoginsThisMonth = authEvents.Count, ActiveDaysThisMonth = activeDates.Count, ActionsRecordedThisMonth = auditDates.Count + remarkRows.Count + taskAuditRows.Count + documentRows.Count + ideaCommentRows.Count + ideaNoteRows.Count + ideaDocumentRows.Count, RemarksPostedThisMonth = remarkRows.Count, TasksUpdatedThisMonth = taskAuditRows.Count, DocumentsUploadedThisMonth = documentRows.Count, EngagementLabel = activeDates.Count >= 8 ? "Active" : "Getting Started" };
     }
-    private static IReadOnlyList<WorkspaceQuickActionVm> BuildQuickActions() => new[] { new WorkspaceQuickActionVm { Text = "Open My Projects", Url = "/Projects/Ongoing", Icon = "bi-kanban" }, new WorkspaceQuickActionVm { Text = "Open Timeline", Url = "/Projects/Ongoing", Icon = "bi-calendar-check" }, new WorkspaceQuickActionVm { Text = "Open Documents", Url = "/Projects/Ongoing", Icon = "bi-folder2-open" }, new WorkspaceQuickActionVm { Text = "View My Official Tasks", Url = "/ActionTasks?viewMode=MyWork", Icon = "bi-list-task" }, new WorkspaceQuickActionVm { Text = "Open Project Ideas", Url = "/ProjectIdeas", Icon = "bi-lightbulb" }, new WorkspaceQuickActionVm { Text = "Open Personal Reminders", Url = "/Tasks", Icon = "bi-pin-angle" } };
+    // SECTION: Quick actions only point to durable, direct workspace destinations.
+    private static IReadOnlyList<WorkspaceQuickActionVm> BuildQuickActions()
+        => new List<WorkspaceQuickActionVm>
+        {
+            new() { Text = "Open My Projects", Url = "/Projects/Ongoing", Icon = "bi-kanban" },
+            new() { Text = "View My Official Tasks", Url = WorkspaceRouteHelper.ActionTasksMyWork(), Icon = "bi-list-check" },
+            new() { Text = "Open My Project Ideas", Url = WorkspaceRouteHelper.ProjectIdeasMine(), Icon = "bi-lightbulb" },
+            new() { Text = "Open Personal Reminders", Url = WorkspaceRouteHelper.PersonalReminders(), Icon = "bi-pin-angle" }
+        };
     private static IReadOnlyList<WorkspaceKpiVm> BuildKpis(ProjectOfficerWorkspaceVm vm) => new[] { new WorkspaceKpiVm { Title = "Portfolio Health", Value = $"{vm.PortfolioHealthPercent}%", Caption = vm.PortfolioHealthLabel, Severity = vm.PortfolioHealthPercent >= 80 ? "Good" : vm.PortfolioHealthPercent >= 60 ? "Warning" : "Danger", Icon = "bi-heart-pulse" }, new WorkspaceKpiVm { Title = "Pending With Me", Value = vm.PendingWithMeCount.ToString(), Caption = "Actionable nudges", Severity = vm.PendingWithMeCount == 0 ? "Good" : "Warning", Icon = "bi-inbox" }, new WorkspaceKpiVm { Title = "Overdue Tasks", Value = vm.OverdueTaskCount.ToString(), Caption = "Official tasks", Severity = vm.OverdueTaskCount == 0 ? "Good" : "Danger", Icon = "bi-exclamation-triangle" }, new WorkspaceKpiVm { Title = "Record Gaps", Value = vm.RecordGapCount.ToString(), Caption = "Current-stage focused", Severity = vm.RecordGapCount == 0 ? "Good" : "Warning", Icon = "bi-folder-check" }, new WorkspaceKpiVm { Title = "ERP Engagement", Value = vm.Engagement.ActiveDaysThisMonth.ToString(), Caption = "Active days this month", Severity = "Info", Icon = "bi-activity" } };
 }

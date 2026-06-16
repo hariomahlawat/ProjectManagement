@@ -42,6 +42,32 @@ public static class WorkspaceDisplayHelpers
         "ActionRequired" => "Action Required",
         "NotApplicable" => "N/A",
         "Ok" => "OK",
+        "Attention" => "Attention",
         _ => status
+    };
+
+    // SECTION: Record-health color classes map scores to human-readable health bands.
+    public static string HealthCss(int percent)
+    {
+        if (percent >= 80) return "good";
+        if (percent >= 60) return "attention";
+        return "danger";
+    }
+
+    // SECTION: Improvement labels turn internal checklist gaps into action wording.
+    public static string ImprovementLabel(string gap) => gap switch
+    {
+        "Basic metadata incomplete" => "Complete basic project details",
+        "Category / technical category / project type incomplete" => "Complete project classification",
+        "Timeline backfill required" => "Clear timeline backfill",
+        "Required current/past stage facts missing" => "Update required stage facts",
+        "No PO remark in last 10 days" => "Add a fresh PO remark",
+        "No PO remark has been added yet" => "Add first PO remark",
+        "No project document uploaded" => "Upload at least one project document",
+        "Current stage overdue" => "Review overdue current stage",
+        "Current stage actual start missing" => "Update current stage actual start",
+        "Current stage planned due missing" => "Update current stage planned due date",
+        _ when gap.Contains("completion date missing", StringComparison.OrdinalIgnoreCase) => "Update current stage completion date",
+        _ => gap
     };
 }

@@ -36,7 +36,7 @@ public sealed class ProjectRecordHealthService
             var lastRemark = WorkspaceNudgeService.LastPoRemark(project, userId);
             if (lastRemark.HasValue && (today.DayNumber - WorkspaceNudgeService.ToIstDate(lastRemark.Value).DayNumber) <= 10) score += 15; else gaps.Add(lastRemark.HasValue ? "No PO remark in last 10 days" : "No PO remark has been added yet");
             if (project.Documents.Any(d => d.Status == ProjectDocumentStatus.Published)) score += 10; else gaps.Add("No project document uploaded");
-            results[project.Id] = new WorkspaceRecordHealthVm { ProjectId = project.Id, ProjectName = project.Name, HealthPercent = Math.Clamp(score, 0, 100), HealthLabel = Label(score), Gaps = gaps, OpenUrl = $"/Projects/Overview/{project.Id}" };
+            results[project.Id] = new WorkspaceRecordHealthVm { ProjectId = project.Id, ProjectName = project.Name, HealthPercent = Math.Clamp(score, 0, 100), HealthLabel = Label(score), Gaps = gaps, OpenUrl = WorkspaceRouteHelper.ProjectOverview(project.Id) };
         }
         return results;
     }
