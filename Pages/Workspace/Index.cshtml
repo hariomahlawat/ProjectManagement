@@ -1,0 +1,36 @@
+@page "/Workspace"
+@model ProjectManagement.Pages.Workspace.IndexModel
+@{
+    ViewData["Title"] = "My Workspace";
+    ViewData["UseFullWidth"] = true;
+}
+@section Styles { <link rel="stylesheet" href="~/css/workspace.css" asp-append-version="true" /> }
+<div class="workspace-page">
+    <header class="workspace-hero">
+        <div><p class="workspace-eyebrow">My Workspace</p><h1>My Workspace</h1><p>@Model.Workspace.RoleTitle</p></div>
+        <div class="workspace-hero__meta"><span>Generated @Model.Workspace.GeneratedAtUtc.ToString("dd MMM yyyy HH:mm") UTC</span><span>Last login @(Model.Workspace.Engagement.LastLoginUtc?.ToString("dd MMM yyyy") ?? "—")</span></div>
+    </header>
+    <section class="workspace-kpis" aria-label="Workspace KPIs">
+        @foreach (var kpi in Model.Workspace.Kpis) { <article class="workspace-kpi workspace-severity-@kpi.Severity.ToLowerInvariant()"><i class="bi @kpi.Icon"></i><div><span>@kpi.Title</span><strong>@kpi.Value</strong><small>@kpi.Caption</small></div></article> }
+    </section>
+    <div class="workspace-grid">
+        <main class="workspace-main">
+            <section class="workspace-card"><div class="workspace-card__head"><h2>Pending With Me</h2><a href="/Projects/Ongoing">View all</a></div>
+                @if (!Model.Workspace.PendingWithMe.Any()) { <p class="workspace-empty">All clear. No urgent action is pending with you.</p> } else { <div class="workspace-attention-list">@foreach (var item in Model.Workspace.PendingWithMe) { <article class="workspace-attention workspace-severity-@item.Severity.ToLowerInvariant()"><span>@item.BadgeText</span><div><strong>@item.Title</strong><p>@item.Detail</p></div><a class="btn btn-sm btn-primary" href="@item.ActionUrl">@item.ActionText</a></article> }</div> }
+            </section>
+            <section class="workspace-card"><div class="workspace-card__head"><h2>Project Portfolio Matrix</h2><a href="/Projects/Ongoing">View all</a></div>
+                @if (!Model.Workspace.ProjectMatrix.Any()) { <p class="workspace-empty">No projects are currently assigned to you.</p> } else { <div class="workspace-table-wrap"><table class="workspace-table"><thead><tr><th>Project</th><th>Current Stage &amp; Age</th><th>Update</th><th>Timeline</th><th>Record Health</th><th>Next Action</th></tr></thead><tbody>@foreach (var row in Model.Workspace.ProjectMatrix) { <tr><td><a href="@row.OpenUrl">@row.ProjectName</a></td><td>@row.CurrentStageCode @if (row.DaysInCurrentStage.HasValue) { <small>· @row.DaysInCurrentStage days</small> }</td><td><span class="workspace-dot workspace-dot-@row.UpdateStatus.ToLowerInvariant()"></span>@row.UpdateStatus</td><td><span class="workspace-dot workspace-dot-@row.TimelineStatus.ToLowerInvariant()"></span>@row.TimelineStatus</td><td><strong>@row.RecordHealthPercent%</strong> <small>@row.RecordGapCount gaps</small></td><td><a class="btn btn-sm btn-outline-primary" href="@row.NextActionUrl">@row.NextActionText</a></td></tr> }</tbody></table></div> }
+            </section>
+            <section class="workspace-card"><div class="workspace-card__head"><h2>My Official Tasks</h2><a href="/ActionTasks/MyWork">View all</a></div>
+                @if (!Model.Workspace.OfficialTasks.Any()) { <p class="workspace-empty">No official tasks are pending.</p> } else { <div class="workspace-task-list">@foreach (var task in Model.Workspace.OfficialTasks) { <article><div><strong>@task.Title</strong><p>@task.ContextLabel · @task.Priority · @task.Status</p></div><span class="@(task.IsOverdue ? "text-danger" : "text-muted")">@(task.IsOverdue ? $"Overdue {task.DaysOverdue}d" : task.DueDateUtc?.ToString("dd MMM") ?? "No due date")</span><a class="btn btn-sm btn-outline-primary" href="@task.OpenUrl">Open</a></article> }</div> }
+            </section>
+        </main>
+        <aside class="workspace-rail">
+            <section class="workspace-card"><h2>Quick Actions</h2><div class="workspace-quick-actions">@foreach (var action in Model.Workspace.QuickActions) { <a href="@action.Url"><i class="bi @action.Icon"></i>@action.Text</a> }</div></section>
+            <section class="workspace-card"><h2>Project Record Health Summary</h2>@foreach (var h in Model.Workspace.RecordHealth) { <article class="workspace-health"><strong>@h.ProjectName</strong><span>@h.HealthPercent%</span><small>@string.Join("; ", h.Gaps.Take(2))</small></article> }</section>
+            <section class="workspace-card"><h2>My Project Ideas</h2>@if (!Model.Workspace.Ideas.Any()) { <p class="workspace-empty">No project ideas are currently assigned to you.</p> } else { foreach (var idea in Model.Workspace.Ideas) { <article class="workspace-mini-row"><div><strong>@idea.Title</strong><small>@idea.Status · @idea.CommentCount comments · @idea.DocumentCount docs</small></div><a href="@idea.OpenUrl">Open</a></article> } }</section>
+            <section class="workspace-card"><h2>Personal Reminders</h2>@if (!Model.Workspace.PersonalReminders.Any()) { <p class="workspace-empty">No personal reminders.</p> } else { foreach (var r in Model.Workspace.PersonalReminders) { <article class="workspace-mini-row"><div><strong>@r.Title</strong><small>@r.Priority @(r.IsPinned ? "· pinned" : string.Empty)</small></div><a href="@r.OpenUrl">Open</a></article> } }</section>
+            <section class="workspace-card"><h2>ERP Engagement</h2><p class="workspace-engagement"><strong>Active @Model.Workspace.Engagement.ActiveDaysThisMonth days this month</strong><span>@Model.Workspace.Engagement.ActionsRecordedThisMonth actions recorded</span><span>@Model.Workspace.Engagement.RemarksPostedThisMonth remarks posted</span><span>@Model.Workspace.Engagement.TasksUpdatedThisMonth tasks updated</span></p></section>
+        </aside>
+    </div>
+</div>
