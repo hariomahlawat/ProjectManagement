@@ -278,7 +278,7 @@ public sealed class ActivityIndexPageTests
         Assert.NotNull(activityService.LastListRequest);
         Assert.Equal(ActivityAttachmentTypeFilter.Any, activityService.LastListRequest!.AttachmentType);
         Assert.Equal(ActivityMediaFilter.WithMedia, activityService.LastListRequest.MediaFilter);
-        Assert.DoesNotContain("AttachmentType", page.BuildRoute(), StringComparer.OrdinalIgnoreCase);
+        Assert.False(page.BuildRoute().ContainsKey("AttachmentType"));
     }
 
     [Fact]
