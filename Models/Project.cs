@@ -5,6 +5,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Remarks;
 
 namespace ProjectManagement.Models
 {
@@ -115,6 +116,8 @@ namespace ProjectManagement.Models
         private ICollection<ProjectStage> _projectStages = new List<ProjectStage>();
         private ICollection<ProjectPhoto> _photos = new List<ProjectPhoto>();
         private ICollection<ProjectVideo> _videos = new List<ProjectVideo>();
+        private ICollection<Remark> _remarks = new List<Remark>();
+        private ICollection<ProjectDocument> _documents = new List<ProjectDocument>();
 
         public ICollection<ProjectStage> ProjectStages
         {
@@ -128,6 +131,18 @@ namespace ProjectManagement.Models
         {
             get => ProjectStages;
             set => ProjectStages = value;
+        }
+
+        public ICollection<Remark> Remarks
+        {
+            get => _remarks;
+            set => _remarks = value ?? new List<Remark>();
+        }
+
+        public ICollection<ProjectDocument> Documents
+        {
+            get => _documents;
+            set => _documents = value ?? new List<ProjectDocument>();
         }
 
         public ICollection<ProjectPhoto> Photos
