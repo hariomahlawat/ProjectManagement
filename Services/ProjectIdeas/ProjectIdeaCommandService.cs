@@ -17,6 +17,42 @@ public class ProjectIdeaCommandService
 
     // SECTION: Collaboration commands
     public async Task AddCommentAsync(ProjectIdea idea, string text, string userId) { _db.ProjectIdeaComments.Add(new ProjectIdeaComment { ProjectIdeaId = idea.Id, CommentText = text, CreatedByUserId = userId }); idea.UpdatedAt = DateTime.UtcNow; await _db.SaveChangesAsync(); }
-    public async Task AddNoteAsync(ProjectIdea idea, string title, string body, bool pinned, string userId) { _db.ProjectIdeaNotes.Add(new ProjectIdeaNote { ProjectIdeaId = idea.Id, Title = title, Body = body, IsPinned = pinned, CreatedByUserId = userId }); idea.UpdatedAt = DateTime.UtcNow; await _db.SaveChangesAsync(); }
-    public async Task SoftDeleteNoteAsync(int noteId) { var note = await _db.ProjectIdeaNotes.FirstOrDefaultAsync(x => x.Id == noteId); if (note is not null) { note.IsDeleted = true; await _db.SaveChangesAsync(); } }
+    public async Task AddNoteAsync(ProjectIdea idea, string title, string body, bool pinned, string userId)
+    {
+        if (pinned)
+        {
+            var existingPinnedNotes = await _db.ProjectIdeaNotes
+                .Where(n => n.ProjectIdeaId == idea.Id && !n.IsDeleted && n.IsPinned)
+                .ToListAsync();
+
+            foreach (var note in existingPinnedNotes)
+            {
+                note.IsPinned = false;
+                note.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        _db.ProjectIdeaNotes.Add(new ProjectIdeaNote { ProjectIdeaId = idea.Id, Title = title, Body = body, IsPinned = pinned, CreatedByUserId = userId, UpdatedAt = DateTime.UtcNow });
+        idea.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+    }
+    public async Task SoftDeleteNoteAsync(int noteId)
+    {
+        var note = await _db.ProjectIdeaNotes.FirstOrDefaultAsync(x => x.Id == noteId);
+        if (note is null)
+        {
+            return;
+        }
+
+        note.IsDeleted = true;
+        note.UpdatedAt = DateTime.UtcNow;
+
+        var idea = await _db.ProjectIdeas.FirstOrDefaultAsync(i => i.Id == note.ProjectIdeaId);
+        if (idea is not null)
+        {
+            idea.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync();
+    }
 }

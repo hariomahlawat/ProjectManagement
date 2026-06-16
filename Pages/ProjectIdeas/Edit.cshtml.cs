@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Services.ProjectIdeas;
@@ -31,9 +31,13 @@ public class EditModel : PageModel
     [BindProperty]
     public InputModel Input { get; set; } = new();
 
-    public SelectList UserOptions { get; private set; } = default!;
+    public SelectList ProjectOfficerOptions { get; private set; } = default!;
+    public SelectList HodOptions { get; private set; } = default!;
 
-    public SelectList StatusOptions { get; } = new(ProjectIdeaStatuses.All.Select(x => new { Value = x, Text = ProjectIdeaStatuses.ToDisplay(x) }), "Value", "Text");
+    public SelectList EditableStatusOptions { get; } = new(new[] { new { Value = ProjectIdeaStatuses.Active, Text = "Active" }, new { Value = ProjectIdeaStatuses.OnHold, Text = "On Hold" } }, "Value", "Text");
+
+    [TempData] public string? StatusMessage { get; set; }
+    [TempData] public string? ErrorMessage { get; set; }
 
     public class InputModel
     {
@@ -58,7 +62,7 @@ public class EditModel : PageModel
     {
         var idea = await _read.GetDetailsAsync(id);
         if (idea is null) return NotFound();
-        if (!_permissions.CanEditIdea(User, idea)) return Forbid();
+        if (!_permissions.CanEditIdeaCore(User, idea)) return Forbid();
 
         Input = new()
         {
@@ -78,20 +82,12 @@ public class EditModel : PageModel
     {
         var idea = await _read.GetDetailsAsync(Input.Id);
         if (idea is null) return NotFound();
-        if (!_permissions.CanEditIdea(User, idea)) return Forbid();
+        if (!_permissions.CanEditIdeaCore(User, idea)) return Forbid();
 
         var requestedStatus = Input.Status;
-        var statusChanged = !string.Equals(idea.Status, requestedStatus, StringComparison.OrdinalIgnoreCase);
-        var archiveStateChanged = statusChanged && (string.Equals(idea.Status, ProjectIdeaStatuses.Archived, StringComparison.OrdinalIgnoreCase) || string.Equals(requestedStatus, ProjectIdeaStatuses.Archived, StringComparison.OrdinalIgnoreCase));
-
-        if (!ProjectIdeaStatuses.All.Contains(requestedStatus))
+        if (!IsEditableStatus(requestedStatus))
         {
-            ModelState.AddModelError("Input.Status", "Select a valid status.");
-        }
-
-        if (archiveStateChanged && !_permissions.CanArchiveIdea(User))
-        {
-            ModelState.AddModelError("Input.Status", "Only Admin, HoD, or Comdt users can archive or restore project ideas.");
+            ModelState.AddModelError("Input.Status", "Select Active or On Hold. Use the archive action to archive an idea.");
         }
 
         if (!ModelState.IsValid)
@@ -100,30 +96,29 @@ public class EditModel : PageModel
             return Page();
         }
 
-        idea.Title = Input.Title;
-        idea.Description = Input.Description;
+        idea.Title = Input.Title.Trim();
+        idea.Description = Input.Description.Trim();
         idea.AssignedProjectOfficerUserId = Input.AssignedProjectOfficerUserId;
         idea.AssignedHodUserId = Input.AssignedHodUserId;
         idea.Status = requestedStatus;
 
-        if (statusChanged && requestedStatus == ProjectIdeaStatuses.Archived)
-        {
-            idea.ArchivedAt = DateTime.UtcNow;
-        }
-        else if (requestedStatus != ProjectIdeaStatuses.Archived)
-        {
-            idea.ArchivedAt = null;
-            idea.ArchiveReason = null;
-        }
-
         await _commands.UpdateAsync(idea);
+        StatusMessage = "Idea updated.";
         return RedirectToPage("Details", new { id = idea.Id });
     }
 
     // SECTION: Lookup loading
     private async Task LoadUsersAsync()
     {
-        var list = await _users.Users.OrderBy(u => u.FullName).Select(u => new { u.Id, Name = string.IsNullOrWhiteSpace(u.FullName) ? u.UserName : u.FullName }).ToListAsync();
-        UserOptions = new SelectList(list, "Id", "Name");
+        ProjectOfficerOptions = BuildSelectList(await _users.GetUsersInRoleAsync(RoleNames.ProjectOfficer));
+        HodOptions = BuildSelectList(await _users.GetUsersInRoleAsync(RoleNames.HoD));
     }
+
+    private static SelectList BuildSelectList(IEnumerable<ApplicationUser> users)
+    {
+        return new SelectList(users.OrderBy(DisplayName).Select(u => new { u.Id, Name = DisplayName(u) }), "Id", "Name");
+    }
+
+    private static string DisplayName(ApplicationUser user) => string.IsNullOrWhiteSpace(user.FullName) ? user.UserName ?? user.Email ?? user.Id : user.FullName;
+    private static bool IsEditableStatus(string status) => status == ProjectIdeaStatuses.Active || status == ProjectIdeaStatuses.OnHold;
 }

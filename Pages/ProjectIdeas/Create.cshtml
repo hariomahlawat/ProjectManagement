@@ -1,6 +1,37 @@
 @page
 @model ProjectManagement.Pages.ProjectIdeas.CreateModel
-@{ ViewData["Title"] = "Create Idea"; }
+@{
+    ViewData["Title"] = "Create Idea";
+}
 <link rel="stylesheet" href="~/css/project-ideas.css" asp-append-version="true" />
-<div class="pi-page pi-form-page"><a asp-page="Index" class="pi-back">← Back to Ideation Board</a><div class="pi-form-card"><h1><span class="bi bi-lightbulb"></span> Create Idea</h1><p class="pi-muted">Only HoD, Admin, and Comdt roles can create new ideas.</p><form method="post"><div asp-validation-summary="ModelOnly" class="text-danger"></div><label>Idea Title *</label><input asp-for="Input.Title" class="form-control" /><span asp-validation-for="Input.Title" class="text-danger"></span><label>What is the idea? *</label><textarea asp-for="Input.Description" class="form-control" rows="5"></textarea><span asp-validation-for="Input.Description" class="text-danger"></span><label>Assigned Project Officer</label><select asp-for="Input.AssignedProjectOfficerUserId" asp-items="Model.UserOptions" class="form-select"><option value="">Unassigned</option></select><label>Assigned HoD</label><select asp-for="Input.AssignedHodUserId" asp-items="Model.UserOptions" class="form-select"><option value="">Unassigned</option></select><label>Initial Status</label><select asp-for="Input.Status" asp-items="Model.StatusOptions" class="form-select"></select><button class="pi-btn pi-btn-primary" type="submit">Create Idea</button></form></div></div>
+
+<div class="pi-page pi-form-page">
+    <a asp-page="Index" class="pi-back">← Back to Ideation Board</a>
+    <div class="pi-form-card">
+        <h1><span class="bi bi-lightbulb"></span> Create Idea</h1>
+        <p class="pi-muted">Only HoD, Admin, and Comdt roles can create new ideas.</p>
+
+        @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+        {
+            <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+        }
+
+        <form method="post">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <label>Idea Title *</label>
+            <input asp-for="Input.Title" class="form-control" />
+            <span asp-validation-for="Input.Title" class="text-danger"></span>
+            <label>What is the idea? *</label>
+            <textarea asp-for="Input.Description" class="form-control" rows="5"></textarea>
+            <span asp-validation-for="Input.Description" class="text-danger"></span>
+            <label>Assigned Project Officer</label>
+            <select asp-for="Input.AssignedProjectOfficerUserId" asp-items="Model.ProjectOfficerOptions" class="form-select"><option value="">Unassigned</option></select>
+            <label>Assigned HoD</label>
+            <select asp-for="Input.AssignedHodUserId" asp-items="Model.HodOptions" class="form-select"><option value="">Unassigned</option></select>
+            <label>Initial Status</label>
+            <select asp-for="Input.Status" asp-items="Model.EditableStatusOptions" class="form-select"></select>
+            <button class="pi-btn pi-btn-primary" type="submit">Create Idea</button>
+        </form>
+    </div>
+</div>
 @section Scripts { <partial name="_ValidationScriptsPartial" /> }
