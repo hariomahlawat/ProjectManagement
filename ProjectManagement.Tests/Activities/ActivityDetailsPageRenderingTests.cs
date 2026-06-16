@@ -24,6 +24,7 @@ using ProjectManagement.Pages.Activities;
 using ProjectManagement.Services.Activities;
 using ProjectManagement.ViewModels.Activities;
 using Xunit;
+using Activity = ProjectManagement.Models.Activities.Activity;
 
 namespace ProjectManagement.Tests.Activities;
 
