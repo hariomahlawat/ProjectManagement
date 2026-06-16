@@ -33,6 +33,7 @@ public class DetailsModel : PageModel
     public bool CanAddNote { get; private set; }
     public bool CanUpload { get; private set; }
     public bool IsArchived => Idea.Status == ProjectIdeaStatuses.Archived;
+    public IReadOnlyList<ProjectIdeaDocument> Documents { get; private set; } = Array.Empty<ProjectIdeaDocument>();
 
     [TempData] public string? StatusMessage { get; set; }
     [TempData] public string? ErrorMessage { get; set; }
@@ -119,6 +120,31 @@ public class DetailsModel : PageModel
         return RedirectToPage(new { id });
     }
 
+    public async Task<IActionResult> OnGetPreviewAsync(int id, int documentId)
+    {
+        if (!await LoadAsync(id)) return NotFound();
+        if (!_permissions.CanViewIdea(User, Idea)) return Forbid();
+
+        var document = await _documents.GetAsync(documentId);
+        if (document is null || document.ProjectIdeaId != id || document.IsDeleted) return NotFound();
+
+        if (!IsImage(document) && !IsPdf(document))
+        {
+            return BadRequest("Preview is available only for PDF and image files.");
+        }
+
+        string absolutePath;
+        try { absolutePath = _documents.GetAbsolutePath(document); }
+        catch (InvalidOperationException) { return NotFound(); }
+
+        if (!System.IO.File.Exists(absolutePath)) return NotFound();
+
+        var contentType = string.IsNullOrWhiteSpace(document.ContentType) ? GetPreviewContentType(document) : document.ContentType;
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+
+        return PhysicalFile(absolutePath, contentType, enableRangeProcessing: true);
+    }
+
     public async Task<IActionResult> OnGetDownloadAsync(int id, int documentId)
     {
         if (!await LoadAsync(id)) return NotFound();
@@ -134,11 +160,84 @@ public class DetailsModel : PageModel
         if (!System.IO.File.Exists(absolutePath)) return NotFound();
 
         var contentType = string.IsNullOrWhiteSpace(document.ContentType) ? "application/octet-stream" : document.ContentType;
-        return PhysicalFile(absolutePath, contentType, document.OriginalFileName);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+
+        return PhysicalFile(absolutePath, contentType, document.OriginalFileName, enableRangeProcessing: true);
     }
 
-    // SECTION: View helpers
+    // SECTION: Attachment view helpers
     public bool CanDeleteDocument(ProjectIdeaDocument document) => _permissions.CanDeleteDocument(User, document, Idea);
+
+    public string DisplayUser(ProjectManagement.Models.ApplicationUser user) => user.FullName ?? user.UserName ?? user.Email ?? "Unknown";
+
+    public static bool IsImage(ProjectIdeaDocument document)
+    {
+        var extension = Path.GetExtension(document.OriginalFileName);
+        return extension.Equals(".png", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsPdf(ProjectIdeaDocument document)
+    {
+        var extension = Path.GetExtension(document.OriginalFileName);
+        return extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static string FileExtension(ProjectIdeaDocument document)
+    {
+        var extension = Path.GetExtension(document.OriginalFileName);
+        return string.IsNullOrWhiteSpace(extension) ? "FILE" : extension.TrimStart('.').ToUpperInvariant();
+    }
+
+    public static string FileIcon(ProjectIdeaDocument document)
+    {
+        var extension = Path.GetExtension(document.OriginalFileName).ToLowerInvariant();
+        return extension switch
+        {
+            ".pdf" => "bi-file-earmark-pdf",
+            ".doc" or ".docx" => "bi-file-earmark-word",
+            ".xls" or ".xlsx" => "bi-file-earmark-excel",
+            ".ppt" or ".pptx" => "bi-file-earmark-ppt",
+            ".png" or ".jpg" or ".jpeg" => "bi-file-earmark-image",
+            _ => "bi-file-earmark"
+        };
+    }
+
+    public static string FileTypeClass(ProjectIdeaDocument document)
+    {
+        var extension = Path.GetExtension(document.OriginalFileName).ToLowerInvariant();
+        return extension switch
+        {
+            ".pdf" => "pdf",
+            ".doc" or ".docx" => "word",
+            ".xls" or ".xlsx" => "excel",
+            ".ppt" or ".pptx" => "ppt",
+            ".png" or ".jpg" or ".jpeg" => "image",
+            _ => "file"
+        };
+    }
+
+    public static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        double kb = bytes / 1024d;
+        if (kb < 1024) return $"{kb:0.#} KB";
+        double mb = kb / 1024d;
+        return $"{mb:0.#} MB";
+    }
+
+    private static string GetPreviewContentType(ProjectIdeaDocument document)
+    {
+        var extension = Path.GetExtension(document.OriginalFileName).ToLowerInvariant();
+        return extension switch
+        {
+            ".pdf" => "application/pdf",
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            _ => "application/octet-stream"
+        };
+    }
 
     public static string Initials(string? name)
     {
@@ -161,6 +260,10 @@ public class DetailsModel : PageModel
         CanAddComment = _permissions.CanAddComment(User, idea);
         CanAddNote = _permissions.CanAddNote(User, idea);
         CanUpload = _permissions.CanUploadDocument(User, idea);
+        Documents = idea.Documents
+            .Where(d => !d.IsDeleted)
+            .OrderByDescending(d => d.UploadedAt)
+            .ToList();
         return true;
     }
 

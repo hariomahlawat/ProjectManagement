@@ -127,31 +127,90 @@
             }
         </section>
 
-        <section class="pi-panel">
-            <h2><span class="bi bi-folder2-open"></span> Documents</h2>
-            @foreach (var d in Model.Idea.Documents.OrderByDescending(d => d.UploadedAt))
+        @* SECTION: Documents and images attachments panel *@
+        <section class="pi-panel idea-attachments-card">
+            <div class="idea-section-header">
+                <div>
+                    <h2><span class="bi bi-folder2-open"></span> Documents &amp; Images</h2>
+                    <p>Supporting files, PDFs, screenshots and reference material.</p>
+                </div>
+                @if (Model.CanUpload)
+                {
+                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#uploadDocumentModal">
+                        <span class="bi bi-cloud-upload"></span> Upload
+                    </button>
+                }
+            </div>
+
+            @if (!Model.Documents.Any())
             {
-                <div class="pi-doc">
-                    <span class="bi bi-file-earmark"></span>
-                    <div>
-                        <b>@d.OriginalFileName</b>
-                        <small>@(d.ContentType ?? "file") · @(d.FileSizeBytes / 1024) KB · @d.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</small>
-                    </div>
-                    <a asp-page-handler="Download" asp-route-id="@Model.Idea.Id" asp-route-documentId="@d.Id" title="Download"><span class="bi bi-download"></span></a>
-                    @if (Model.CanDeleteDocument(d))
-                    {
-                        <form method="post" asp-page-handler="DeleteDocument" asp-route-id="@Model.Idea.Id" asp-route-documentId="@d.Id">
-                            <button title="Delete" class="pi-link-button"><span class="bi bi-trash"></span></button>
-                        </form>
-                    }
+                <div class="idea-empty-attachments">
+                    <span class="bi bi-folder-plus"></span>
+                    <strong>No documents or images yet</strong>
+                    <span>Upload feasibility notes, sketches, PDFs, screenshots or reference files.</span>
                 </div>
             }
-            @if (Model.CanUpload)
+            else
             {
-                <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" asp-route-id="@Model.Idea.Id" class="pi-inline-form">
-                    <input type="file" name="DocumentUpload" />
-                    <button class="pi-btn pi-btn-primary">Upload Document</button>
-                </form>
+                <div class="idea-attachment-list">
+                    @foreach (var document in Model.Documents)
+                    {
+                        var isImage = DetailsModel.IsImage(document);
+                        var isPdf = DetailsModel.IsPdf(document);
+                        var previewUrl = Url.Page("/ProjectIdeas/Details", "Preview", new { id = Model.Idea.Id, documentId = document.Id });
+                        var downloadUrl = Url.Page("/ProjectIdeas/Details", "Download", new { id = Model.Idea.Id, documentId = document.Id });
+
+                        <div class="idea-attachment-row">
+                            <div class="idea-attachment-leading">
+                                @if (isImage)
+                                {
+                                    <button type="button" class="idea-attachment-thumb image" data-bs-toggle="modal" data-bs-target="#previewDocumentModal" data-preview-url="@previewUrl" data-download-url="@downloadUrl" data-file-name="@document.OriginalFileName" data-file-type="image" aria-label="Preview @document.OriginalFileName">
+                                        <img src="@previewUrl" alt="@document.OriginalFileName" />
+                                    </button>
+                                }
+                                else
+                                {
+                                    <div class="idea-attachment-icon @DetailsModel.FileTypeClass(document)" aria-hidden="true">
+                                        <span class="bi @DetailsModel.FileIcon(document)"></span>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="idea-attachment-body">
+                                <div class="idea-attachment-name" title="@document.OriginalFileName">@document.OriginalFileName</div>
+                                <div class="idea-attachment-meta">
+                                    <span>@DetailsModel.FileExtension(document)</span>
+                                    <span>@DetailsModel.FormatFileSize(document.FileSizeBytes)</span>
+                                    <span>@document.UploadedAt.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt")</span>
+                                    @if (document.UploadedByUser is not null)
+                                    {
+                                        <span>Uploaded by @Model.DisplayUser(document.UploadedByUser)</span>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="idea-attachment-actions">
+                                @if (isImage || isPdf)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#previewDocumentModal" data-preview-url="@previewUrl" data-download-url="@downloadUrl" data-file-name="@document.OriginalFileName" data-file-type="@(isPdf ? "pdf" : "image")">
+                                        <span class="bi bi-eye"></span> View
+                                    </button>
+                                }
+                                <a class="btn btn-sm btn-outline-secondary" asp-page-handler="Download" asp-route-id="@Model.Idea.Id" asp-route-documentId="@document.Id">
+                                    <span class="bi bi-download"></span> Download
+                                </a>
+                                @if (Model.CanDeleteDocument(document))
+                                {
+                                    <form method="post" asp-page-handler="DeleteDocument" asp-route-id="@Model.Idea.Id" asp-route-documentId="@document.Id" class="d-inline js-confirm-delete-attachment">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <span class="bi bi-trash"></span> Delete
+                                        </button>
+                                    </form>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
             }
         </section>
     </div>
@@ -181,4 +240,55 @@
             </form>
         </div>
     </div>
+}
+
+@* SECTION: Attachment preview modal *@
+<div class="modal fade" id="previewDocumentModal" tabindex="-1" aria-labelledby="previewDocumentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content idea-preview-modal">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="previewDocumentModalLabel">Preview</h5>
+                    <div class="small text-muted" id="previewDocumentFileName"></div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <a id="previewDocumentDownload" class="btn btn-sm btn-outline-primary" href="#" target="_blank" rel="noopener">
+                        <span class="bi bi-download"></span> Download
+                    </a>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div id="previewDocumentContainer" class="idea-preview-container"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* SECTION: Document upload modal *@
+@if (Model.CanUpload)
+{
+    <div class="modal fade" id="uploadDocumentModal" tabindex="-1" aria-labelledby="uploadDocumentModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" asp-route-id="@Model.Idea.Id" class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="uploadDocumentModalLabel">Upload Document or Image</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <label asp-for="DocumentUpload" class="form-label">Select file</label>
+                    <input asp-for="DocumentUpload" type="file" class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg" />
+                    <div class="form-text">Allowed: PDF, Word, Excel, PowerPoint, PNG, JPG. Max size: 20 MB.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><span class="bi bi-cloud-upload"></span> Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script src="~/js/pages/project-ideas-details.js" asp-append-version="true" defer></script>
 }
