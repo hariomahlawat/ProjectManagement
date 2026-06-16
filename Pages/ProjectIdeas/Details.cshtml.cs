@@ -142,7 +142,7 @@ public class DetailsModel : PageModel
         var contentType = string.IsNullOrWhiteSpace(document.ContentType) ? GetPreviewContentType(document) : document.ContentType;
         Response.Headers["X-Content-Type-Options"] = "nosniff";
 
-        return PhysicalFile(absolutePath, contentType, enableRangeProcessing: true);
+        return CreatePhysicalFileResult(absolutePath, contentType);
     }
 
     public async Task<IActionResult> OnGetDownloadAsync(int id, int documentId)
@@ -162,7 +162,17 @@ public class DetailsModel : PageModel
         var contentType = string.IsNullOrWhiteSpace(document.ContentType) ? "application/octet-stream" : document.ContentType;
         Response.Headers["X-Content-Type-Options"] = "nosniff";
 
-        return PhysicalFile(absolutePath, contentType, document.OriginalFileName, enableRangeProcessing: true);
+        return CreatePhysicalFileResult(absolutePath, contentType, document.OriginalFileName);
+    }
+
+    // SECTION: File response helpers
+    private static PhysicalFileResult CreatePhysicalFileResult(string absolutePath, string contentType, string? downloadName = null)
+    {
+        return new PhysicalFileResult(absolutePath, contentType)
+        {
+            EnableRangeProcessing = true,
+            FileDownloadName = downloadName
+        };
     }
 
     // SECTION: Attachment view helpers
