@@ -32,6 +32,7 @@ public class DetailsModel : PageModel
     public bool CanAddComment { get; private set; }
     public bool CanAddNote { get; private set; }
     public bool CanUpload { get; private set; }
+    public bool IsArchived => Idea.Status == ProjectIdeaStatuses.Archived;
 
     [TempData] public string? StatusMessage { get; set; }
     [TempData] public string? ErrorMessage { get; set; }
@@ -75,8 +76,14 @@ public class DetailsModel : PageModel
     public async Task<IActionResult> OnPostArchiveAsync(int id)
     {
         if (!await LoadAsync(id)) return NotFound();
-        if (!_permissions.CanArchiveIdea(User)) return Forbid();
-        await _commands.ArchiveAsync(Idea, ArchiveReason?.Trim());
+        if (!_permissions.CanArchiveIdea(User) || IsArchived) return Forbid();
+        if (string.IsNullOrWhiteSpace(ArchiveReason))
+        {
+            ErrorMessage = "Please enter a closing note or reason before archiving the idea.";
+            return RedirectToPage(new { id });
+        }
+
+        await _commands.ArchiveAsync(Idea, ArchiveReason.Trim());
         StatusMessage = "Idea archived.";
         return RedirectToPage(new { id });
     }
