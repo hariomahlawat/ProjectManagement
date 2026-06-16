@@ -2,6 +2,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.Remarks;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Services.Workspace;
@@ -9,19 +10,35 @@ namespace ProjectManagement.Services.Workspace;
 public sealed class WorkspaceNudgeService
 {
     // SECTION: Current-stage helpers
-    public static ProjectStage? GetCurrentStage(Project project) => project.ProjectStages
-        .OrderBy(s => s.SortOrder)
-        .ThenBy(s => s.StageCode)
-        .FirstOrDefault(s => s.Status == StageStatus.InProgress)
-        ?? project.ProjectStages
+    public static ProjectStage? GetCurrentStage(Project project)
+    {
+        var orderedStages = project.ProjectStages
             .OrderBy(s => s.SortOrder)
             .ThenBy(s => s.StageCode)
-            .FirstOrDefault(s => s.Status == StageStatus.NotStarted)
-        ?? project.ProjectStages
-            .Where(s => s.Status == StageStatus.Completed)
-            .OrderByDescending(s => s.SortOrder)
-            .ThenByDescending(s => s.StageCode)
+            .ToList();
+
+        return orderedStages.FirstOrDefault(s => s.Status == StageStatus.InProgress)
+            ?? orderedStages.FirstOrDefault(s => s.Status != StageStatus.Completed && s.Status != StageStatus.Skipped)
+            ?? orderedStages.LastOrDefault();
+    }
+
+    public static int? GetCurrentStageAgeDays(Project project, DateOnly today)
+    {
+        var current = GetCurrentStage(project);
+        if (current?.Status == StageStatus.InProgress && current.ActualStart is { } actualStart)
+        {
+            return Math.Max(0, today.DayNumber - actualStart.DayNumber);
+        }
+
+        var lastCompleted = project.ProjectStages
+            .Where(s => s.Status == StageStatus.Completed && s.CompletedOn.HasValue)
+            .OrderByDescending(s => s.CompletedOn)
             .FirstOrDefault();
+
+        return lastCompleted?.CompletedOn is { } completedOn
+            ? Math.Max(0, today.DayNumber - completedOn.DayNumber)
+            : null;
+    }
 
     public static DateTime? LastPoRemark(Project project, string userId) => project.Remarks()
         .Where(r => !r.IsDeleted && r.AuthorUserId == userId && r.AuthorRole == RemarkActorRole.ProjectOfficer)
@@ -40,7 +57,7 @@ public sealed class WorkspaceNudgeService
     {
         if (stage is null) return false;
         if (stage.Status == StageStatus.InProgress) return stage.ActualStart is null || stage.PlannedDue is null;
-        if (stage.Status == StageStatus.Completed) return stage.CompletedOn is null || stage.ActualStart is null;
+        if (stage.Status == StageStatus.Completed) return stage.CompletedOn is null;
         return false;
     }
 
@@ -55,10 +72,10 @@ public sealed class WorkspaceNudgeService
             var stage = GetCurrentStage(project);
             var lastRemark = LastPoRemark(project, userId);
             var daysSinceRemark = lastRemark is null ? (int?)null : today.DayNumber - DateOnly.FromDateTime(lastRemark.Value).DayNumber;
-            if (project.ProjectStages.Any(s => s.RequiresBackfill)) items.Add(ProjectItem(project, "Timeline backfill required", "Danger", "Complete Backfill", $"/Projects/Timeline/EditPlan/{project.Id}"));
-            if (IsCurrentStageOverdue(stage, today)) items.Add(ProjectItem(project, $"Current stage overdue by {today.DayNumber - stage!.PlannedDue!.Value.DayNumber} days", "Danger", "Update Timeline", $"/Projects/Timeline/EditPlan/{project.Id}"));
-            if (HasCurrentStageTimelineIssue(stage)) items.Add(ProjectItem(project, StageTimelineDetail(stage), "Warning", "Update Current Stage", $"/Projects/Timeline/EditPlan/{project.Id}"));
-            if (lastRemark is null || daysSinceRemark > 7) items.Add(ProjectItem(project, lastRemark is null ? "No PO remark has been added yet" : $"No PO remark added in last {daysSinceRemark} days", daysSinceRemark > 10 || lastRemark is null ? "Danger" : "Warning", "Add Remark", $"/Projects/Remarks/Index?projectId={project.Id}"));
+            if (project.ProjectStages.Any(s => s.RequiresBackfill)) items.Add(ProjectItem(project, "Timeline backfill required", "Danger", "Complete Backfill", $"/Projects/Timeline/EditActuals/{project.Id}"));
+            if (IsCurrentStageOverdue(stage, today)) items.Add(ProjectItem(project, $"Current stage overdue by {today.DayNumber - stage!.PlannedDue!.Value.DayNumber} days", "Danger", "Update Timeline", $"/Projects/Timeline/EditActuals/{project.Id}"));
+            if (HasCurrentStageTimelineIssue(stage)) items.Add(ProjectItem(project, StageTimelineDetail(stage), "Warning", "Update Current Stage", $"/Projects/Timeline/EditActuals/{project.Id}"));
+            if (lastRemark is null || daysSinceRemark > 7) items.Add(ProjectItem(project, lastRemark is null ? "No PO remark has been added yet" : $"No PO remark added in last {daysSinceRemark} days", daysSinceRemark > 10 || lastRemark is null ? "Danger" : "Warning", "Add Remark", $"/Projects/Remarks/{project.Id}"));
         }
         items.AddRange(tasks.Where(t => t.IsOverdue).Select(t => new WorkspaceAttentionItemVm { Type = "Task", Title = t.Title, Detail = $"Overdue by {t.DaysOverdue} days", Severity = "Danger", BadgeText = "Task", ActionText = "Open Task", ActionUrl = t.OpenUrl, DueOrEventDateUtc = t.DueDateUtc }));
         items.AddRange(tasks.Where(t => !t.IsOverdue && t.DueDateUtc is { } due && DateOnly.FromDateTime(due).DayNumber <= today.DayNumber + 7).Select(t => new WorkspaceAttentionItemVm { Type = "Task", Title = t.Title, Detail = DateOnly.FromDateTime(t.DueDateUtc!.Value) == today ? "Due today" : "Due this week", Severity = "Warning", BadgeText = "Task", ActionText = "Open Task", ActionUrl = t.OpenUrl, DueOrEventDateUtc = t.DueDateUtc }));
@@ -69,10 +86,10 @@ public sealed class WorkspaceNudgeService
     public string GetNextAction(Project project, WorkspaceRecordHealthVm health, string userId, DateOnly today, out string url)
     {
         var stage = GetCurrentStage(project); url = $"/Projects/Overview/{project.Id}";
-        if (project.ProjectStages.Any(s => s.RequiresBackfill)) { url = $"/Projects/Timeline/EditPlan/{project.Id}"; return "Complete backfill"; }
-        if (IsCurrentStageOverdue(stage, today)) { url = $"/Projects/Timeline/EditPlan/{project.Id}"; return "Update current stage"; }
-        if (HasCurrentStageTimelineIssue(stage)) { url = $"/Projects/Timeline/EditPlan/{project.Id}"; return "Update current stage dates"; }
-        if (GetUpdateStatus(LastPoRemark(project, userId), today) == "ActionRequired") { url = $"/Projects/Remarks/Index?projectId={project.Id}"; return "Add remark"; }
+        if (project.ProjectStages.Any(s => s.RequiresBackfill)) { url = $"/Projects/Timeline/EditActuals/{project.Id}"; return "Complete backfill"; }
+        if (IsCurrentStageOverdue(stage, today)) { url = $"/Projects/Timeline/EditActuals/{project.Id}"; return "Update current stage"; }
+        if (HasCurrentStageTimelineIssue(stage)) { url = $"/Projects/Timeline/EditActuals/{project.Id}"; return "Update current stage dates"; }
+        if (GetUpdateStatus(LastPoRemark(project, userId), today) == "ActionRequired") { url = $"/Projects/Remarks/{project.Id}"; return "Add remark"; }
         if (health.HealthPercent < 80) return "Complete project data";
         return "Review project";
     }
