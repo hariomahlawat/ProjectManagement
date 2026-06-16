@@ -11,23 +11,151 @@ namespace ProjectManagement.Pages.ProjectIdeas;
 [Authorize]
 public class DetailsModel : PageModel
 {
-    private readonly ProjectIdeaReadService _read; private readonly ProjectIdeaCommandService _commands; private readonly ProjectIdeaPermissionService _permissions; private readonly ProjectIdeaDocumentService _documents;
-    public DetailsModel(ProjectIdeaReadService read, ProjectIdeaCommandService commands, ProjectIdeaPermissionService permissions, ProjectIdeaDocumentService documents) { _read = read; _commands = commands; _permissions = permissions; _documents = documents; }
-    public ProjectIdea Idea { get; private set; } = default!; public bool CanEdit { get; private set; } public bool CanArchive { get; private set; } public bool CanAddComment { get; private set; } public bool CanAddNote { get; private set; } public bool CanUpload { get; private set; }
+    private readonly ProjectIdeaReadService _read;
+    private readonly ProjectIdeaCommandService _commands;
+    private readonly ProjectIdeaPermissionService _permissions;
+    private readonly ProjectIdeaDocumentService _documents;
+
+    public DetailsModel(ProjectIdeaReadService read, ProjectIdeaCommandService commands, ProjectIdeaPermissionService permissions, ProjectIdeaDocumentService documents)
+    {
+        _read = read;
+        _commands = commands;
+        _permissions = permissions;
+        _documents = documents;
+    }
+
+    // SECTION: Page state
+    public ProjectIdea Idea { get; private set; } = default!;
+    public bool CanEdit { get; private set; }
+    public bool CanArchive { get; private set; }
+    public bool CanRestore { get; private set; }
+    public bool CanAddComment { get; private set; }
+    public bool CanAddNote { get; private set; }
+    public bool CanUpload { get; private set; }
+
+    [TempData] public string? StatusMessage { get; set; }
+    [TempData] public string? ErrorMessage { get; set; }
+
+    // SECTION: Bound form state
     [BindProperty, Required, MaxLength(4000)] public string CommentText { get; set; } = string.Empty;
     [BindProperty, Required, MaxLength(200)] public string NoteTitle { get; set; } = string.Empty;
     [BindProperty, Required] public string NoteBody { get; set; } = string.Empty;
     [BindProperty] public bool IsPinned { get; set; }
     [BindProperty, MaxLength(1000)] public string? ArchiveReason { get; set; }
     [BindProperty] public IFormFile? DocumentUpload { get; set; }
-    public async Task<IActionResult> OnGetAsync(int id) => await LoadAsync(id) ? Page() : NotFound();
-    public async Task<IActionResult> OnPostCommentAsync(int id) { if (!await LoadAsync(id)) return NotFound(); if (!CanAddComment) return Forbid(); if (string.IsNullOrWhiteSpace(CommentText)) return RedirectToPage(new { id }); await _commands.AddCommentAsync(Idea, CommentText.Trim(), CurrentUserId()); return RedirectToPage(new { id }); }
-    public async Task<IActionResult> OnPostNoteAsync(int id) { if (!await LoadAsync(id)) return NotFound(); if (!CanAddNote) return Forbid(); if (string.IsNullOrWhiteSpace(NoteTitle) || string.IsNullOrWhiteSpace(NoteBody)) return RedirectToPage(new { id }); await _commands.AddNoteAsync(Idea, NoteTitle.Trim(), NoteBody.Trim(), IsPinned, CurrentUserId()); return RedirectToPage(new { id }); }
-    public async Task<IActionResult> OnPostArchiveAsync(int id) { if (!await LoadAsync(id)) return NotFound(); if (!CanArchive) return Forbid(); await _commands.ArchiveAsync(Idea, ArchiveReason); return RedirectToPage(new { id }); }
-    public async Task<IActionResult> OnPostRestoreAsync(int id) { if (!await LoadAsync(id)) return NotFound(); if (!CanArchive) return Forbid(); await _commands.RestoreAsync(Idea); return RedirectToPage(new { id }); }
-    public async Task<IActionResult> OnPostUploadAsync(int id) { if (!await LoadAsync(id)) return NotFound(); if (!CanUpload) return Forbid(); if (DocumentUpload is not null) await _documents.UploadAsync(Idea, DocumentUpload, CurrentUserId()); return RedirectToPage(new { id }); }
-    public async Task<IActionResult> OnPostDeleteDocumentAsync(int id, int documentId) { if (!await LoadAsync(id)) return NotFound(); var doc = Idea.Documents.FirstOrDefault(x => x.Id == documentId); if (doc is null) return NotFound(); if (!_permissions.CanDeleteDocument(User, doc, Idea)) return Forbid(); await _documents.SoftDeleteAsync(doc); return RedirectToPage(new { id }); }
-    public async Task<IActionResult> OnGetDownloadAsync(int id, int documentId) { if (!await LoadAsync(id)) return NotFound(); var doc = await _documents.GetAsync(documentId); if (doc is null || doc.ProjectIdeaId != id) return NotFound(); var path = _documents.GetAbsolutePath(doc); return PhysicalFile(path, doc.ContentType ?? "application/octet-stream", doc.OriginalFileName); }
-    private async Task<bool> LoadAsync(int id) { var idea = await _read.GetDetailsAsync(id); if (idea is null) return false; Idea = idea; CanEdit = _permissions.CanEditIdea(User, idea); CanArchive = _permissions.CanArchiveIdea(User); CanAddComment = _permissions.CanAddComment(User, idea); CanAddNote = _permissions.CanAddNote(User, idea); CanUpload = _permissions.CanUploadDocument(User, idea); return true; }
+
+    // SECTION: Page handlers
+    public async Task<IActionResult> OnGetAsync(int id)
+    {
+        if (!await LoadAsync(id)) return NotFound();
+        if (!_permissions.CanViewIdea(User, Idea)) return Forbid();
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostCommentAsync(int id)
+    {
+        if (!await LoadAsync(id)) return NotFound();
+        if (!_permissions.CanAddComment(User, Idea)) return Forbid();
+        if (string.IsNullOrWhiteSpace(CommentText)) { ErrorMessage = "Comment cannot be empty."; return RedirectToPage(new { id }); }
+        await _commands.AddCommentAsync(Idea, CommentText.Trim(), CurrentUserId());
+        StatusMessage = "Comment added.";
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostNoteAsync(int id)
+    {
+        if (!await LoadAsync(id)) return NotFound();
+        if (!_permissions.CanAddNote(User, Idea)) return Forbid();
+        if (string.IsNullOrWhiteSpace(NoteTitle) || string.IsNullOrWhiteSpace(NoteBody)) { ErrorMessage = "Note title and body are required."; return RedirectToPage(new { id }); }
+        await _commands.AddNoteAsync(Idea, NoteTitle.Trim(), NoteBody.Trim(), IsPinned, CurrentUserId());
+        StatusMessage = "Note added.";
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostArchiveAsync(int id)
+    {
+        if (!await LoadAsync(id)) return NotFound();
+        if (!_permissions.CanArchiveIdea(User)) return Forbid();
+        await _commands.ArchiveAsync(Idea, ArchiveReason?.Trim());
+        StatusMessage = "Idea archived.";
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostRestoreAsync(int id)
+    {
+        if (!await LoadAsync(id)) return NotFound();
+        if (!_permissions.CanRestoreIdea(User)) return Forbid();
+        await _commands.RestoreAsync(Idea);
+        StatusMessage = "Idea restored.";
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostUploadAsync(int id)
+    {
+        if (!await LoadAsync(id)) return NotFound();
+        if (!_permissions.CanUploadDocument(User, Idea)) return Forbid();
+        if (DocumentUpload is null) { ErrorMessage = "Please select a document to upload."; return RedirectToPage(new { id }); }
+        var result = await _documents.UploadAsync(Idea, DocumentUpload, CurrentUserId());
+        if (!result.Success) { ErrorMessage = result.Error ?? "Document upload failed."; return RedirectToPage(new { id }); }
+        StatusMessage = "Document uploaded successfully.";
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostDeleteDocumentAsync(int id, int documentId)
+    {
+        if (!await LoadAsync(id)) return NotFound();
+        var doc = await _documents.GetAsync(documentId);
+        if (doc is null || doc.ProjectIdeaId != id || doc.IsDeleted) return NotFound();
+        if (!_permissions.CanDeleteDocument(User, doc, Idea)) return Forbid();
+        await _documents.SoftDeleteAsync(doc);
+        StatusMessage = "Document deleted.";
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnGetDownloadAsync(int id, int documentId)
+    {
+        if (!await LoadAsync(id)) return NotFound();
+        if (!_permissions.CanViewIdea(User, Idea)) return Forbid();
+
+        var document = await _documents.GetAsync(documentId);
+        if (document is null || document.ProjectIdeaId != id || document.IsDeleted) return NotFound();
+
+        string absolutePath;
+        try { absolutePath = _documents.GetAbsolutePath(document); }
+        catch (InvalidOperationException) { return NotFound(); }
+
+        if (!System.IO.File.Exists(absolutePath)) return NotFound();
+
+        var contentType = string.IsNullOrWhiteSpace(document.ContentType) ? "application/octet-stream" : document.ContentType;
+        return PhysicalFile(absolutePath, contentType, document.OriginalFileName);
+    }
+
+    // SECTION: View helpers
+    public bool CanDeleteDocument(ProjectIdeaDocument document) => _permissions.CanDeleteDocument(User, document, Idea);
+
+    public static string Initials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "U";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return "U";
+        if (parts.Length == 1) return char.ToUpperInvariant(parts[0][0]).ToString();
+        return string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+    }
+
+    // SECTION: Internal loading
+    private async Task<bool> LoadAsync(int id)
+    {
+        var idea = await _read.GetDetailsAsync(id);
+        if (idea is null) return false;
+        Idea = idea;
+        CanEdit = _permissions.CanEditIdeaCore(User, idea);
+        CanArchive = _permissions.CanArchiveIdea(User);
+        CanRestore = _permissions.CanRestoreIdea(User);
+        CanAddComment = _permissions.CanAddComment(User, idea);
+        CanAddNote = _permissions.CanAddNote(User, idea);
+        CanUpload = _permissions.CanUploadDocument(User, idea);
+        return true;
+    }
+
     private string CurrentUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 }
