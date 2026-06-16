@@ -50,8 +50,9 @@ public sealed class ProjectRecordHealthService
             await LoadIdsAsync(_db.ProjectPncFacts.Where(x => projectIds.Contains(x.ProjectId)).Select(x => x.ProjectId), ct),
             await LoadIdsAsync(_db.ProjectSupplyOrderFacts.Where(x => projectIds.Contains(x.ProjectId)).Select(x => x.ProjectId), ct));
 
+    // SECTION: Project ID materialization
     private static async Task<HashSet<int>> LoadIdsAsync(IQueryable<int> query, CancellationToken ct)
-        => (await query.AsNoTracking().ToListAsync(ct)).ToHashSet();
+        => (await query.ToListAsync(ct)).ToHashSet();
 
     private static bool HasRequiredFacts(Project project, StageFactPresence facts, ProjectStage? current)
     {
