@@ -23,7 +23,20 @@ public sealed class ProjectOfficerWorkspaceService
         var monthStart = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var user = await _users.FindByIdAsync(userId);
         var projects = await _db.Projects.AsNoTracking().Include(p => p.ProjectStages).Include(p => p.Remarks).Include(p => p.Documents).Where(p => p.LeadPoUserId == userId && !p.IsDeleted && p.LifecycleStatus != ProjectLifecycleStatus.Completed).OrderBy(p => p.Name).Take(50).ToListAsync(ct);
-        var tasks = await _db.ActionTasks.AsNoTracking().Where(t => !t.IsDeleted && t.AssignedToUserId == userId && t.Status != ActionTaskStatuses.Closed).OrderBy(t => t.DueDate).Take(8).Select(t => new WorkspaceTaskVm { TaskId = t.Id, Title = t.Title, Priority = t.Priority, Status = t.Status, DueDateUtc = DateTime.SpecifyKind(t.DueDate, DateTimeKind.Utc), IsOverdue = t.DueDate.Date < DateTime.UtcNow.Date && t.Status != ActionTaskStatuses.Closed, DaysOverdue = t.DueDate.Date < DateTime.UtcNow.Date ? (DateTime.UtcNow.Date - t.DueDate.Date).Days : null, OpenUrl = $"/ActionTasks?viewMode=MyWork&taskId={t.Id}" }).ToListAsync(ct);
+        var todayUtc = DateTime.UtcNow.Date;
+        var taskRows = await _db.ActionTasks.AsNoTracking()
+            .Where(t => !t.IsDeleted && t.AssignedToUserId == userId && t.Status != ActionTaskStatuses.Closed)
+            .OrderBy(t => t.DueDate)
+            .Take(8)
+            .Select(t => new { t.Id, t.Title, t.Priority, t.Status, t.DueDate })
+            .ToListAsync(ct);
+        var tasks = taskRows.Select(t =>
+        {
+            // SECTION: Date-only action task dates are normalized after materialization because Npgsql cannot translate SpecifyKind for date columns.
+            var dueDateUtc = DateTime.SpecifyKind(t.DueDate.Date, DateTimeKind.Utc);
+            var daysOverdue = t.DueDate.Date < todayUtc ? (todayUtc - t.DueDate.Date).Days : (int?)null;
+            return new WorkspaceTaskVm { TaskId = t.Id, Title = t.Title, Priority = t.Priority, Status = t.Status, DueDateUtc = dueDateUtc, IsOverdue = daysOverdue.HasValue && t.Status != ActionTaskStatuses.Closed, DaysOverdue = daysOverdue, OpenUrl = $"/ActionTasks?viewMode=MyWork&taskId={t.Id}" };
+        }).ToList();
         var ideas = await _db.ProjectIdeas.AsNoTracking().Include(i => i.Comments).Include(i => i.Documents).Where(i => !i.IsDeleted && (i.AssignedProjectOfficerUserId == userId || i.CreatedByUserId == userId) && i.Status != ProjectIdeaStatuses.Archived).OrderByDescending(i => i.UpdatedAt).Take(6).ToListAsync(ct);
         var ideaVms = ideas.Select(i => { var last = new[] { i.UpdatedAt }.Concat(i.Comments.Where(c => !c.IsDeleted).Select(c => c.CreatedAt)).Concat(i.Documents.Where(d => !d.IsDeleted).Select(d => d.UploadedAt)).DefaultIfEmpty(i.UpdatedAt).Max(); return new WorkspaceIdeaVm { IdeaId = i.Id, Title = i.Title, Status = ProjectIdeaStatuses.ToDisplay(i.Status), LastActivityAtUtc = last, NeedsUpdate = (DateTime.UtcNow.Date - last.Date).Days > 15 && (i.Status == ProjectIdeaStatuses.Active || i.Status == ProjectIdeaStatuses.OnHold), CommentCount = i.Comments.Count(c => !c.IsDeleted), DocumentCount = i.Documents.Count(d => !d.IsDeleted), OpenUrl = $"/ProjectIdeas/Details/{i.Id}" }; }).ToList();
         var reminders = await _db.TodoItems.AsNoTracking().Where(t => t.OwnerId == userId && t.Status != TodoStatus.Done && t.DeletedUtc == null).OrderByDescending(t => t.IsPinned).ThenBy(t => t.DueAtUtc).Take(5).Select(t => new WorkspaceReminderVm { ReminderId = t.Id, Title = t.Title, Priority = t.Priority.ToString(), DueAtUtc = t.DueAtUtc, IsPinned = t.IsPinned, OpenUrl = "/Tasks" }).ToListAsync(ct);
