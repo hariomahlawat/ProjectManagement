@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Workspace;
 using ProjectManagement.ViewModels.Workspace;
@@ -21,6 +22,7 @@ public class IndexModel : PageModel
     {
         var userId = _userManager.GetUserId(User);
         if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+        if (!User.IsInRole(RoleNames.ProjectOfficer)) return RedirectToPage("/Dashboard/Index");
         Workspace = await _workspaceService.GetProjectOfficerWorkspaceAsync(userId, User, ct);
         return Page();
     }
