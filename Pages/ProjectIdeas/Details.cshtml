@@ -44,12 +44,12 @@
             {
                 <a class="pi-btn" asp-page="Edit" asp-route-id="@Model.Idea.Id"><span class="bi bi-pencil"></span> Edit</a>
             }
-            @if (Model.CanArchive && Model.Idea.Status != ProjectIdeaStatuses.Archived)
+            @* SECTION: Archive action *@
+            @if (Model.CanArchive && !Model.IsArchived)
             {
-                <form method="post" asp-page-handler="Archive" asp-route-id="@Model.Idea.Id">
-                    <input name="ArchiveReason" placeholder="Closing note / reason" />
-                    <button class="pi-btn pi-btn-danger" type="submit"><span class="bi bi-archive"></span> Archive</button>
-                </form>
+                <button type="button" class="pi-btn pi-btn-danger" data-bs-toggle="modal" data-bs-target="#archiveIdeaModal">
+                    <span class="bi bi-archive"></span> Archive
+                </button>
             }
             @if (Model.CanRestore && Model.Idea.Status == ProjectIdeaStatuses.Archived)
             {
@@ -59,6 +59,23 @@
             }
         </div>
     </section>
+
+
+    @* SECTION: Archived read-only banner *@
+    @if (Model.IsArchived)
+    {
+        <div class="alert alert-secondary d-flex align-items-start gap-2">
+            <i class="bi bi-archive mt-1"></i>
+            <div>
+                <strong>This idea is archived.</strong>
+                <div>It is retained for historical reference. Restore it to make changes.</div>
+                @if (!string.IsNullOrWhiteSpace(Model.Idea.ArchiveReason))
+                {
+                    <div class="mt-2"><strong>Closing note:</strong> @Model.Idea.ArchiveReason</div>
+                }
+            </div>
+        </div>
+    }
 
     <div class="pi-workspace">
         <section class="pi-panel">
@@ -139,3 +156,29 @@
         </section>
     </div>
 </div>
+
+@* SECTION: Archive confirmation modal *@
+@if (Model.CanArchive && !Model.IsArchived)
+{
+    <div class="modal fade" id="archiveIdeaModal" tabindex="-1" aria-labelledby="archiveIdeaModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <form method="post" asp-page-handler="Archive" asp-route-id="@Model.Idea.Id" class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="archiveIdeaModalLabel">Archive Idea</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3">
+                        Please enter a closing note/reason. This idea will become read-only and retained for historical reference.
+                    </p>
+                    <label class="form-label" for="ArchiveReason">Closing note / reason</label>
+                    <textarea id="ArchiveReason" name="ArchiveReason" class="form-control" required maxlength="1000" rows="4" placeholder="Enter reason for archiving this idea"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Archive Idea</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}

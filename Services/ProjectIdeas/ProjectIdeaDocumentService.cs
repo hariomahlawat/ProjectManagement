@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Application.Security;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Data;
 using ProjectManagement.Models.ProjectIdeas;
@@ -29,19 +30,26 @@ public class ProjectIdeaDocumentService
     private const long MaxFileSizeBytes = 20 * 1024 * 1024;
     private readonly ApplicationDbContext _db;
     private readonly IUploadRootProvider _uploadRootProvider;
+    private readonly IFileSecurityValidator _fileSecurityValidator;
 
-    public ProjectIdeaDocumentService(ApplicationDbContext db, IUploadRootProvider uploadRootProvider)
+    public ProjectIdeaDocumentService(ApplicationDbContext db, IUploadRootProvider uploadRootProvider, IFileSecurityValidator fileSecurityValidator)
     {
         _db = db;
         _uploadRootProvider = uploadRootProvider;
+        _fileSecurityValidator = fileSecurityValidator;
     }
 
     // SECTION: Upload and storage
     public async Task<(bool Success, string? Error)> UploadAsync(ProjectIdea idea, IFormFile file, string userId)
     {
+        if (idea is null)
+        {
+            return (false, "Idea not found.");
+        }
+
         if (file is null || file.Length == 0)
         {
-            return (false, "Please select a valid file.");
+            return (false, "Please select a valid document.");
         }
 
         if (file.Length > MaxFileSizeBytes)
@@ -49,42 +57,85 @@ public class ProjectIdeaDocumentService
             return (false, "File size must be 20 MB or less.");
         }
 
-        var extension = Path.GetExtension(file.FileName);
+        var originalFileName = Path.GetFileName(file.FileName);
+        if (string.IsNullOrWhiteSpace(originalFileName))
+        {
+            originalFileName = "document";
+        }
+
+        var extension = Path.GetExtension(originalFileName);
         if (string.IsNullOrWhiteSpace(extension) || !AllowedExtensions.Contains(extension))
         {
             return (false, "This file type is not allowed.");
         }
 
-        if (!string.IsNullOrWhiteSpace(file.ContentType) && !AllowedContentTypes.Contains(file.ContentType))
+        var contentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
+        if (!AllowedContentTypes.Contains(contentType))
         {
             return (false, "The uploaded file content type is not allowed.");
         }
 
         var storedFileName = $"{Guid.NewGuid():N}{extension.ToLowerInvariant()}";
         var relativeFolder = Path.Combine("ProjectIdeas", idea.Id.ToString(), "Documents");
-        var absoluteFolder = Path.Combine(_uploadRootProvider.RootPath, relativeFolder);
-        Directory.CreateDirectory(absoluteFolder);
-        var absolutePath = Path.Combine(absoluteFolder, storedFileName);
-
-        await using (var stream = File.Create(absolutePath))
+        var relativePath = Path.Combine(relativeFolder, storedFileName).Replace('\\', '/');
+        if (relativePath.Length > 500)
         {
-            await file.CopyToAsync(stream);
+            return (false, "Generated storage path is too long.");
         }
 
-        _db.ProjectIdeaDocuments.Add(new ProjectIdeaDocument
+        var root = Path.GetFullPath(_uploadRootProvider.RootPath);
+        var protectedRoot = EnsureTrailingSeparator(root);
+        var absoluteFolder = Path.GetFullPath(Path.Combine(root, relativeFolder));
+        var absolutePath = Path.GetFullPath(Path.Combine(absoluteFolder, storedFileName));
+        if (!absoluteFolder.StartsWith(protectedRoot, StringComparison.OrdinalIgnoreCase)
+            || !absolutePath.StartsWith(protectedRoot, StringComparison.OrdinalIgnoreCase))
         {
-            ProjectIdeaId = idea.Id,
-            OriginalFileName = Path.GetFileName(file.FileName),
-            StoredFileName = storedFileName,
-            FilePath = Path.Combine(relativeFolder, storedFileName).Replace('\\', '/'),
-            ContentType = file.ContentType,
-            FileSizeBytes = file.Length,
-            UploadedByUserId = userId
-        });
+            return (false, "Invalid storage path.");
+        }
 
-        idea.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-        return (true, null);
+        _fileSecurityValidator.ValidateRelativePath(relativePath);
+        var tempFile = Path.GetTempFileName();
+
+        try
+        {
+            await using (var stream = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            if (!await _fileSecurityValidator.IsSafeAsync(tempFile, contentType))
+            {
+                SafeDelete(tempFile);
+                return (false, "File failed security checks.");
+            }
+
+            Directory.CreateDirectory(absoluteFolder);
+            File.Move(tempFile, absolutePath, overwrite: true);
+            tempFile = string.Empty;
+
+            _db.ProjectIdeaDocuments.Add(new ProjectIdeaDocument
+            {
+                ProjectIdeaId = idea.Id,
+                OriginalFileName = Truncate(originalFileName, 255),
+                StoredFileName = Truncate(storedFileName, 255),
+                FilePath = relativePath,
+                ContentType = Truncate(contentType, 100),
+                FileSizeBytes = file.Length,
+                UploadedByUserId = userId,
+                UploadedAt = DateTime.UtcNow,
+                IsDeleted = false
+            });
+
+            idea.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            return (true, null);
+        }
+        catch
+        {
+            SafeDelete(tempFile);
+            SafeDelete(absolutePath);
+            return (false, "Document upload failed. Please try again.");
+        }
     }
 
     // SECTION: Document lookup and deletion
@@ -120,9 +171,7 @@ public class ProjectIdeaDocumentService
         }
 
         var root = Path.GetFullPath(_uploadRootProvider.RootPath);
-        var protectedRoot = root.EndsWith(Path.DirectorySeparatorChar)
-            ? root
-            : root + Path.DirectorySeparatorChar;
+        var protectedRoot = EnsureTrailingSeparator(root);
         var relativePath = document.FilePath
             .Replace('/', Path.DirectorySeparatorChar)
             .Replace('\\', Path.DirectorySeparatorChar);
@@ -134,5 +183,21 @@ public class ProjectIdeaDocumentService
         }
 
         return fullPath;
+    }
+
+    // SECTION: File helper utilities
+    private static string EnsureTrailingSeparator(string path) => path.EndsWith(Path.DirectorySeparatorChar) ? path : path + Path.DirectorySeparatorChar;
+
+    private static void SafeDelete(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return;
+        try { if (File.Exists(path)) File.Delete(path); }
+        catch { /* Suppress cleanup errors deliberately. */ }
+    }
+
+    private static string Truncate(string? value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        return value.Length <= maxLength ? value : value[..maxLength];
     }
 }

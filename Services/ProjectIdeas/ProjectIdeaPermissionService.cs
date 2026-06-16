@@ -32,19 +32,20 @@ public class ProjectIdeaPermissionService
             || string.Equals(idea.CreatedByUserId, userId, StringComparison.Ordinal);
     }
 
-    public bool CanEditIdeaCore(ClaimsPrincipal user, ProjectIdea idea) => IsPrivileged(user);
+    public bool CanEditIdeaCore(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && IsPrivileged(user);
     public bool CanEditIdea(ClaimsPrincipal user, ProjectIdea idea) => CanEditIdeaCore(user, idea);
     public bool CanArchiveIdea(ClaimsPrincipal user) => IsPrivileged(user);
     public bool CanRestoreIdea(ClaimsPrincipal user) => IsPrivileged(user);
 
     // SECTION: Collaboration permissions
-    public bool CanAddComment(ClaimsPrincipal user, ProjectIdea idea) => CanViewIdea(user, idea);
-    public bool CanAddNote(ClaimsPrincipal user, ProjectIdea idea) => IsPrivileged(user) || IsAssignedProjectOfficer(user, idea);
-    public bool CanUploadDocument(ClaimsPrincipal user, ProjectIdea idea) => IsPrivileged(user) || IsAssignedProjectOfficer(user, idea);
+    public bool CanAddComment(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && CanViewIdea(user, idea);
+    public bool CanAddNote(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
+    public bool CanUploadDocument(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
 
     public bool CanDeleteDocument(ClaimsPrincipal user, ProjectIdeaDocument document, ProjectIdea idea)
     {
-        return CanViewIdea(user, idea)
+        return !IsArchived(idea)
+            && CanViewIdea(user, idea)
             && (IsPrivileged(user)
                 || IsAssignedProjectOfficer(user, idea)
                 || string.Equals(GetUserId(user), document.UploadedByUserId, StringComparison.Ordinal));
@@ -66,4 +67,9 @@ public class ProjectIdeaPermissionService
     }
 
     private static string? GetUserId(ClaimsPrincipal user) => user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+    private static bool IsArchived(ProjectIdea idea)
+    {
+        return string.Equals(idea.Status, ProjectIdeaStatuses.Archived, StringComparison.Ordinal);
+    }
 }

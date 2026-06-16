@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Services.ProjectIdeas;
 
@@ -25,7 +26,9 @@ public class IndexModel : PageModel
     {
         if (!ProjectIdeaStatuses.All.Contains(Status)) Status = ProjectIdeaStatuses.Active;
         CanCreate = _permissions.CanCreateIdea(User);
-        Ideas = await _read.GetBoardIdeasAsync(Status, Query, MyIdeas, User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var canViewAll = User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.HoD) || User.IsInRole(RoleNames.Comdt);
+        Ideas = await _read.GetBoardIdeasAsync(Status, Query, MyIdeas, userId, canViewAll);
     }
 
     public static DateTime LastActivity(ProjectIdea idea) => ProjectIdeaReadService.GetLastActivity(idea);
