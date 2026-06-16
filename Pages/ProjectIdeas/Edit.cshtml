@@ -1,6 +1,7 @@
 @page "{id:int}"
 @model ProjectManagement.Pages.ProjectIdeas.EditModel
 @{
+    ViewData["UseFullWidth"] = true;
     ViewData["Title"] = "Edit Idea";
 }
 <link rel="stylesheet" href="~/css/project-ideas.css" asp-append-version="true" />
@@ -15,22 +16,37 @@
             <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
         }
 
-        <form method="post">
+        <form method="post" class="pi-form-grid">
             <input type="hidden" asp-for="Input.Id" />
-            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-            <label>Title</label>
-            <input asp-for="Input.Title" class="form-control" />
-            <span asp-validation-for="Input.Title" class="text-danger"></span>
-            <label>Description</label>
-            <textarea asp-for="Input.Description" class="form-control" rows="5"></textarea>
-            <span asp-validation-for="Input.Description" class="text-danger"></span>
-            <label>Assigned Project Officer</label>
-            <select asp-for="Input.AssignedProjectOfficerUserId" asp-items="Model.ProjectOfficerOptions" class="form-select"><option value="">Unassigned</option></select>
-            <label>Assigned HoD</label>
-            <select asp-for="Input.AssignedHodUserId" asp-items="Model.HodOptions" class="form-select"><option value="">Unassigned</option></select>
-            <label>Status</label>
-            <select asp-for="Input.Status" asp-items="Model.EditableStatusOptions" class="form-select"></select>
-            <button class="pi-btn pi-btn-primary">Save Changes</button>
+            @* SECTION: Idea basics *@
+            <div asp-validation-summary="ModelOnly" class="text-danger pi-form-field-wide"></div>
+            <div class="pi-form-field pi-form-field-wide">
+                <label>Title</label>
+                <input asp-for="Input.Title" class="form-control" />
+                <span asp-validation-for="Input.Title" class="text-danger"></span>
+            </div>
+            <div class="pi-form-field pi-form-field-wide">
+                <label>Description</label>
+                <textarea asp-for="Input.Description" class="form-control" rows="5"></textarea>
+                <span asp-validation-for="Input.Description" class="text-danger"></span>
+            </div>
+
+            @* SECTION: Ownership and status *@
+            <div class="pi-form-field">
+                <label>Assigned Project Officer</label>
+                <select asp-for="Input.AssignedProjectOfficerUserId" asp-items="Model.ProjectOfficerOptions" class="form-select"><option value="">Unassigned</option></select>
+            </div>
+            <div class="pi-form-field">
+                <label>Assigned HoD</label>
+                <select asp-for="Input.AssignedHodUserId" asp-items="Model.HodOptions" class="form-select"><option value="">Unassigned</option></select>
+            </div>
+            <div class="pi-form-field pi-form-field-wide">
+                <label>Status</label>
+                <select asp-for="Input.Status" asp-items="Model.EditableStatusOptions" class="form-select"></select>
+            </div>
+            <div class="pi-form-actions">
+                <button class="pi-btn pi-btn-primary">Save Changes</button>
+            </div>
         </form>
     </div>
 </div>
