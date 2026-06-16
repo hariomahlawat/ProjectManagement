@@ -7485,7 +7485,7 @@ namespace ProjectManagement.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("ProjectManagement.Models.Project", "Project")
-                        .WithMany()
+                        .WithMany("Documents")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -7753,7 +7753,7 @@ namespace ProjectManagement.Migrations
             modelBuilder.Entity("ProjectManagement.Models.Remarks.Remark", b =>
                 {
                     b.HasOne("ProjectManagement.Models.Project", "Project")
-                        .WithMany()
+                        .WithMany("Remarks")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -8075,9 +8075,13 @@ namespace ProjectManagement.Migrations
 
             modelBuilder.Entity("ProjectManagement.Models.Project", b =>
                 {
+                    b.Navigation("Documents");
+
                     b.Navigation("Photos");
 
                     b.Navigation("ProjectStages");
+
+                    b.Navigation("Remarks");
 
                     b.Navigation("Tot");
 
