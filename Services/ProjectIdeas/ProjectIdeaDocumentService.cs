@@ -70,7 +70,8 @@ public class ProjectIdeaDocumentService
         }
 
         var contentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
-        if (!AllowedContentTypes.Contains(contentType))
+        if (!string.Equals(contentType, "application/octet-stream", StringComparison.OrdinalIgnoreCase) &&
+            !AllowedContentTypes.Contains(contentType))
         {
             return (false, "The uploaded file content type is not allowed.");
         }
@@ -93,11 +94,12 @@ public class ProjectIdeaDocumentService
             return (false, "Invalid storage path.");
         }
 
-        _fileSecurityValidator.ValidateRelativePath(relativePath);
-        var tempFile = Path.GetTempFileName();
+        var tempFile = string.Empty;
 
         try
         {
+            _fileSecurityValidator.ValidateRelativePath(relativePath);
+            tempFile = Path.GetTempFileName();
             await using (var stream = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
             {
                 await file.CopyToAsync(stream);

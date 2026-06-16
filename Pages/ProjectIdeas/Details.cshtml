@@ -181,10 +181,10 @@
                                 <div class="idea-attachment-meta">
                                     <span>@DetailsModel.FileExtension(document)</span>
                                     <span>@DetailsModel.FormatFileSize(document.FileSizeBytes)</span>
-                                    <span>@document.UploadedAt.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt")</span>
+                                    <span>@document.UploadedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
                                     @if (document.UploadedByUser is not null)
                                     {
-                                        <span>Uploaded by @Model.DisplayUser(document.UploadedByUser)</span>
+                                        <span title="Uploaded by @Model.DisplayUser(document.UploadedByUser)">By @Model.DisplayUser(document.UploadedByUser)</span>
                                     }
                                 </div>
                             </div>
@@ -252,7 +252,7 @@
                     <div class="small text-muted" id="previewDocumentFileName"></div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <a id="previewDocumentDownload" class="btn btn-sm btn-outline-primary" href="#" target="_blank" rel="noopener">
+                    <a id="previewDocumentDownload" class="btn btn-sm btn-outline-primary" href="#">
                         <span class="bi bi-download"></span> Download
                     </a>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>

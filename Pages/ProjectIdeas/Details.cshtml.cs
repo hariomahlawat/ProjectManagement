@@ -139,10 +139,9 @@ public class DetailsModel : PageModel
 
         if (!System.IO.File.Exists(absolutePath)) return NotFound();
 
-        var contentType = string.IsNullOrWhiteSpace(document.ContentType) ? GetPreviewContentType(document) : document.ContentType;
         Response.Headers["X-Content-Type-Options"] = "nosniff";
 
-        return CreatePhysicalFileResult(absolutePath, contentType);
+        return CreatePhysicalFileResult(absolutePath, GetPreviewContentType(document));
     }
 
     public async Task<IActionResult> OnGetDownloadAsync(int id, int documentId)

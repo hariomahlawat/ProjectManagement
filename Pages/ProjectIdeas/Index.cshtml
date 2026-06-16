@@ -90,26 +90,33 @@
             @foreach (var idea in Model.Ideas)
             {
                 <a class="pi-idea-card" asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id">
-                    <div class="pi-card-main">
-                        <div class="pi-icon"><span class="bi bi-lightbulb"></span></div>
+                    <div class="pi-card-top">
+                        <div class="pi-card-icon"><span class="bi bi-lightbulb"></span></div>
                         <div class="pi-card-content">
                             <div class="pi-card-heading">
-                                <h2>@idea.Title</h2>
+                                <div class="pi-card-title-wrap">
+                                    <h2>@idea.Title</h2>
+                                    <p class="pi-clamp">@idea.Description</p>
+                                </div>
                                 <span class="pi-status pi-status-@idea.Status.ToLowerInvariant()">@ProjectIdeaStatuses.ToDisplay(idea.Status)</span>
                             </div>
-                            <p class="pi-clamp">@idea.Description</p>
                         </div>
                     </div>
 
-                    <div class="pi-meta">
-                        <div class="pi-meta-row"><span>Assigned PO</span><b>@Model.DisplayUser(idea.AssignedProjectOfficerUser)</b></div>
-                        <div class="pi-meta-row"><span>Assigned HoD</span><b>@Model.DisplayUser(idea.AssignedHodUser)</b></div>
-                        <div class="pi-meta-row"><span>Last activity</span><b>@Model.DisplayDateTime(IndexModel.LastActivity(idea))</b></div>
+                    <div class="pi-card-submeta">
+                        <span>
+                            <span class="bi bi-person"></span>
+                            PO: @Model.DisplayUser(idea.AssignedProjectOfficerUser)
+                        </span>
+                        <span>
+                            <span class="bi bi-clock"></span>
+                            Updated @Model.DisplayDateTime(IndexModel.LastActivity(idea))
+                        </span>
                     </div>
 
                     <div class="pi-card-footer">
                         <span><span class="bi bi-chat"></span> @idea.Comments.Count(c => !c.IsDeleted)</span>
-                        <span><span class="bi bi-file-earmark"></span> @idea.Documents.Count(d => !d.IsDeleted)</span>
+                        <span><span class="bi bi-paperclip"></span> @idea.Documents.Count(d => !d.IsDeleted)</span>
                     </div>
                 </a>
             }
