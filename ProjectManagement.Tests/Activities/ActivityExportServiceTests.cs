@@ -161,7 +161,7 @@ public sealed class ActivityExportServiceTests
         public Dictionary<int, Activity> ActivityById { get; } = new();
 
         public Task<Activity?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
-            Task.FromResult(ActivityById.TryGetValue(id, out var activity) ? activity : new Activity { Id = id, Title = "Readiness Review", CreatedByUserId = "user-1" });
+            Task.FromResult<Activity?>(ActivityById.TryGetValue(id, out var activity) ? activity : new Activity { Id = id, Title = "Readiness Review", CreatedByUserId = "user-1" });
 
         public Task<IReadOnlyList<Activity>> ListByTypeAsync(int activityTypeId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<Activity>>(Array.Empty<Activity>());
