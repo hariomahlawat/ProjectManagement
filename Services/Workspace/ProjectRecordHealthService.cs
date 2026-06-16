@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
@@ -19,7 +20,7 @@ public sealed class ProjectRecordHealthService
     {
         var ids = projects.Select(p => p.Id).ToArray();
         var factPresence = await LoadStageFactPresenceAsync(ids, ct);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DateOnly.FromDateTime(IstClock.ToIst(DateTime.UtcNow));
         var results = new Dictionary<int, WorkspaceRecordHealthVm>();
         foreach (var project in projects)
         {
@@ -28,11 +29,12 @@ public sealed class ProjectRecordHealthService
             if (!string.IsNullOrWhiteSpace(project.Description) && !string.IsNullOrWhiteSpace(project.HodUserId) && !string.IsNullOrWhiteSpace(project.LeadPoUserId)) score += 15; else gaps.Add("Basic metadata incomplete");
             if (project.CategoryId.HasValue && project.TechnicalCategoryId.HasValue && project.ProjectTypeId.HasValue) score += 15; else gaps.Add("Category / technical category / project type incomplete");
             var current = WorkspaceNudgeService.GetCurrentStage(project);
-            if (!_nudges.HasCurrentStageTimelineIssue(current) && !_nudges.IsCurrentStageOverdue(current, today)) score += 15; else gaps.Add("Current stage timeline details are incomplete");
+            var currentStageGaps = GetCurrentStageGaps(current, today);
+            if (currentStageGaps.Count == 0) score += 15; else gaps.AddRange(currentStageGaps);
             if (!project.ProjectStages.Any(s => s.RequiresBackfill)) score += 15; else gaps.Add("Timeline backfill required");
             if (HasRequiredFacts(project, factPresence, current)) score += 15; else gaps.Add("Required current/past stage facts missing");
             var lastRemark = WorkspaceNudgeService.LastPoRemark(project, userId);
-            if (lastRemark.HasValue && (DateTime.UtcNow.Date - lastRemark.Value.Date).Days <= 10) score += 15; else gaps.Add(lastRemark.HasValue ? "No PO remark in last 10 days" : "No PO remark has been added yet");
+            if (lastRemark.HasValue && (today.DayNumber - WorkspaceNudgeService.ToIstDate(lastRemark.Value).DayNumber) <= 10) score += 15; else gaps.Add(lastRemark.HasValue ? "No PO remark in last 10 days" : "No PO remark has been added yet");
             if (project.Documents.Any(d => d.Status == ProjectDocumentStatus.Published)) score += 10; else gaps.Add("No project document uploaded");
             results[project.Id] = new WorkspaceRecordHealthVm { ProjectId = project.Id, ProjectName = project.Name, HealthPercent = Math.Clamp(score, 0, 100), HealthLabel = Label(score), Gaps = gaps, OpenUrl = $"/Projects/Overview/{project.Id}" };
         }
@@ -53,6 +55,18 @@ public sealed class ProjectRecordHealthService
     // SECTION: Project ID materialization
     private static async Task<HashSet<int>> LoadIdsAsync(IQueryable<int> query, CancellationToken ct)
         => (await query.ToListAsync(ct)).ToHashSet();
+
+    // SECTION: Current-stage gap wording separates overdue and missing-date fixes.
+    private IReadOnlyList<string> GetCurrentStageGaps(ProjectStage? stage, DateOnly today)
+    {
+        var gaps = new List<string>();
+        if (_nudges.IsCurrentStageOverdue(stage, today)) gaps.Add("Current stage overdue");
+        if (stage is null) return gaps;
+        if (stage.Status == StageStatus.InProgress && stage.ActualStart is null) gaps.Add("Current stage actual start missing");
+        if (stage.Status == StageStatus.InProgress && stage.PlannedDue is null) gaps.Add("Current stage planned due missing");
+        if (stage.Status == StageStatus.Completed && stage.CompletedOn is null) gaps.Add($"{stage.StageCode} stage completion date missing");
+        return gaps;
+    }
 
     private static bool HasRequiredFacts(Project project, StageFactPresence facts, ProjectStage? current)
     {

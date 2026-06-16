@@ -1,12 +1,9 @@
-using System;
-using System.Collections.Generic;
-
 namespace ProjectManagement.ViewModels.Workspace;
 
 public sealed class ProjectOfficerWorkspaceVm
 {
     public string UserDisplayName { get; set; } = string.Empty;
-    public string RoleTitle { get; set; } = "Project Officer Workboard";
+    public string RoleTitle { get; set; } = "Project Officer Workspace";
     public DateTime GeneratedAtUtc { get; set; } = DateTime.UtcNow;
     public int PortfolioHealthPercent { get; set; }
     public string PortfolioHealthLabel { get; set; } = "Good";
@@ -36,3 +33,15 @@ public sealed class WorkspaceRecordHealthVm { public int ProjectId { get; set; }
 public sealed class WorkspaceEngagementVm { public DateTime? LastLoginUtc { get; set; } public DateTime? LastActivityUtc { get; set; } public int LoginsThisMonth { get; set; } public int ActiveDaysThisMonth { get; set; } public int ActionsRecordedThisMonth { get; set; } public int RemarksPostedThisMonth { get; set; } public int TasksUpdatedThisMonth { get; set; } public int DocumentsUploadedThisMonth { get; set; } public string EngagementLabel { get; set; } = "Active"; }
 public sealed class WorkspaceQuickActionVm { public string Text { get; set; } = string.Empty; public string Url { get; set; } = string.Empty; public string Icon { get; set; } = "bi-arrow-right"; }
 public sealed class WorkspaceReminderVm { public Guid ReminderId { get; set; } public string Title { get; set; } = string.Empty; public string Priority { get; set; } = string.Empty; public DateTimeOffset? DueAtUtc { get; set; } public bool IsPinned { get; set; } public string OpenUrl { get; set; } = string.Empty; }
+
+public static class WorkspaceDisplayHelpers
+{
+    // SECTION: Compact status labels keep matrix chips readable.
+    public static string StatusLabel(string status) => status switch
+    {
+        "ActionRequired" => "Action Required",
+        "NotApplicable" => "N/A",
+        "Ok" => "OK",
+        _ => status
+    };
+}
