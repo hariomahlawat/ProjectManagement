@@ -71,7 +71,7 @@ public sealed class ProjectOfficerWorkspaceService
         var aotsDocuments = await LoadUnreadAotsDocumentsAsync(userId, ct);
         var timelineAlerts = _nudges.BuildTimelineAlerts(projects, today).ToList();
         var dailyActionCount = remarksDue.Count + officialTasksDue.Count + ideasNeedingUpdate.Count + aotsUnreadCount;
-        var actionQueue = BuildActionQueue(returnedItems, officialTasksDue, remarksDue, ideasNeedingUpdate, aotsDocuments, timelineAlerts);
+        var actionQueue = BuildActionQueue(returnedItems, officialTasksDue, remarksDue, ideasNeedingUpdate, aotsDocuments);
 
         var pending = returnedItems
             .Concat(remarksDue)
@@ -140,7 +140,7 @@ public sealed class ProjectOfficerWorkspaceService
             RecordHealth = health.Values.OrderBy(h => h.HealthPercent).Take(5).ToList(),
             ImproveScoreItems = BuildImproveScoreItems(health.Values, maxItems: 4),
             ImproveProjects = BuildImproveProjects(health.Values, maxProjects: 3),
-            NextBestAction = BuildNextBestActionFromQueue(actionQueue),
+            NextBestAction = BuildNextBestAction(actionQueue, timelineAlerts),
             PersonalReminders = reminders,
             QuickActions = BuildQuickActions(userId),
             MyProjectsUrl = myProjectsUrl
@@ -295,8 +295,7 @@ public sealed class ProjectOfficerWorkspaceService
         IReadOnlyList<WorkspaceTaskVm> otherAssignedTasksDue,
         IReadOnlyList<WorkspaceAttentionItemVm> remarksDue,
         IReadOnlyList<WorkspaceIdeaVm> ideasNeedingUpdate,
-        IReadOnlyList<WorkspaceAotsDocumentVm> aotsDocuments,
-        IReadOnlyList<WorkspaceAttentionItemVm> timelineAlerts)
+        IReadOnlyList<WorkspaceAotsDocumentVm> aotsDocuments)
     {
         var items = new List<WorkspaceActionQueueItemVm>();
 
@@ -367,19 +366,6 @@ public sealed class ProjectOfficerWorkspaceService
             SortDateUtc = document.CreatedAtUtc
         }));
 
-        items.AddRange(timelineAlerts.Select(item => new WorkspaceActionQueueItemVm
-        {
-            Type = "Timeline",
-            BadgeText = item.BadgeText,
-            Title = item.Title,
-            Detail = item.Detail,
-            Meta = "Timeline",
-            Severity = item.Severity,
-            ActionText = item.ActionText,
-            ActionUrl = item.ActionUrl,
-            SortDateUtc = item.DueOrEventDateUtc
-        }));
-
         return items
             .OrderBy(GetActionQueuePriority)
             .ThenByDescending(i => i.SortDateUtc)
@@ -387,26 +373,29 @@ public sealed class ProjectOfficerWorkspaceService
             .ToList();
     }
 
-    // SECTION: Next best action mirrors the first row in the unified action queue.
-    private static WorkspaceAttentionItemVm? BuildNextBestActionFromQueue(IReadOnlyList<WorkspaceActionQueueItemVm> queue)
+    // SECTION: Next best action mirrors the daily queue, falling back to timeline follow-up only when daily actions are clear.
+    private static WorkspaceAttentionItemVm? BuildNextBestAction(
+        IReadOnlyList<WorkspaceActionQueueItemVm> actionQueue,
+        IReadOnlyList<WorkspaceAttentionItemVm> timelineAlerts)
     {
-        var first = queue.FirstOrDefault();
-        if (first is null)
+        var first = actionQueue.FirstOrDefault();
+
+        if (first is not null)
         {
-            return null;
+            return new WorkspaceAttentionItemVm
+            {
+                Type = first.Type,
+                Title = first.Title,
+                Detail = first.Detail,
+                Severity = first.Severity,
+                BadgeText = first.BadgeText,
+                ActionText = first.ActionText,
+                ActionUrl = first.ActionUrl,
+                DueOrEventDateUtc = first.SortDateUtc
+            };
         }
 
-        return new WorkspaceAttentionItemVm
-        {
-            Type = first.Type,
-            Title = first.Title,
-            Detail = first.Detail,
-            Severity = first.Severity,
-            BadgeText = first.BadgeText,
-            ActionText = first.ActionText,
-            ActionUrl = first.ActionUrl,
-            DueOrEventDateUtc = first.SortDateUtc
-        };
+        return timelineAlerts.FirstOrDefault();
     }
 
     // SECTION: Queue priority keeps returned corrections and overdue work first.
@@ -420,7 +409,6 @@ public sealed class ProjectOfficerWorkspaceService
             "Idea" => 3,
             "AOTS" => 4,
             "Task" => 5,
-            "Timeline" => 6,
             _ => 9
         };
     }
@@ -738,10 +726,10 @@ public sealed class ProjectOfficerWorkspaceService
         return new[]
         {
             new WorkspaceRailItemVm { Label = "Today", Icon = "bi-calendar-check", Count = vm.DailyActionCount, Anchor = "#today", IsPrimary = true },
-            new WorkspaceRailItemVm { Label = "Remarks Due", Icon = "bi-chat-left-text", Count = vm.RemarksDueCount, Anchor = "#remarks" },
-            new WorkspaceRailItemVm { Label = "Other Assigned Tasks", Icon = "bi-list-check", Count = vm.OfficialTaskCount, Anchor = "#other-tasks" },
-            new WorkspaceRailItemVm { Label = "Project Ideas", Icon = "bi-lightbulb", Count = vm.AssignedIdeaCount, Anchor = "#project-ideas" },
-            new WorkspaceRailItemVm { Label = "AOTS", Icon = "bi-file-earmark-text", Count = vm.AotsUnreadCount, Anchor = "#aots" },
+            new WorkspaceRailItemVm { Label = "Remarks Due", Icon = "bi-chat-left-text", Count = vm.RemarksDueCount, Anchor = "#action-queue" },
+            new WorkspaceRailItemVm { Label = "Other Assigned Tasks", Icon = "bi-list-check", Count = vm.OfficialTaskCount, Anchor = "#action-queue" },
+            new WorkspaceRailItemVm { Label = "My Ideas", Icon = "bi-lightbulb", Count = vm.AssignedIdeaCount, Anchor = "#my-ideas-reminders" },
+            new WorkspaceRailItemVm { Label = "AOTS", Icon = "bi-file-earmark-text", Count = vm.AotsUnreadCount, Anchor = "#action-queue" },
             new WorkspaceRailItemVm { Label = "Assigned Projects", Icon = "bi-kanban", Count = vm.AssignedProjectCount, Anchor = "#assigned-projects" },
             new WorkspaceRailItemVm { Label = "Reminders", Icon = "bi-bell", Count = vm.PersonalReminders.Count, Anchor = "#reminders" }
         };

@@ -125,6 +125,7 @@ public sealed class WorkspaceAttentionItemVm
 
     public DateTime? DueOrEventDateUtc { get; set; }
 }
+
 public sealed class WorkspaceProjectMatrixRowVm
 {
     public int ProjectId { get; set; }
@@ -167,6 +168,7 @@ public sealed class WorkspaceProjectMatrixRowVm
 
     public string TimelineUrl { get; set; } = string.Empty;
 }
+
 public sealed class WorkspaceTaskVm
 {
     public int TaskId { get; set; }
@@ -187,6 +189,7 @@ public sealed class WorkspaceTaskVm
 
     public string OpenUrl { get; set; } = string.Empty;
 }
+
 public sealed class WorkspaceIdeaVm
 {
     public int IdeaId { get; set; }
@@ -344,6 +347,23 @@ public static class WorkspaceDisplayHelpers
         }
 
         return "danger";
+    }
+
+
+    // SECTION: Record-health labels translate percentages into user-friendly bands.
+    public static string HealthBandLabel(int percent)
+    {
+        if (percent >= 80)
+        {
+            return "Good";
+        }
+
+        if (percent >= 60)
+        {
+            return "Review";
+        }
+
+        return "Needs Work";
     }
 
     // SECTION: Improvement labels turn internal checklist gaps into action wording.
