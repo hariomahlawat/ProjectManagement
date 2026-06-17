@@ -13,8 +13,8 @@
     align-items: center;
     background: linear-gradient(135deg, #113b83, #2452a4);
     color: #fff;
-    border-radius: 20px;
-    padding: 1.05rem 1.25rem;
+    border-radius: 18px;
+    padding: 0.8rem 1.05rem;
     box-shadow: 0 16px 38px rgba(19, 47, 94, 0.18);
 }
 
@@ -28,7 +28,7 @@
 
 .workspace-hero h1 {
     margin: 0;
-    font-size: clamp(1.25rem, 2vw, 1.65rem);
+    font-size: clamp(1.15rem, 1.6vw, 1.45rem);
     font-weight: 850;
     letter-spacing: -0.02em;
 }
@@ -102,6 +102,60 @@
 .workspace-severity-warning { border-left-color: #f59f00; }
 .workspace-severity-danger { border-left-color: #dc3545; }
 
+
+/* SECTION: Portfolio health visuals */
+.workspace-health-ring {
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: conic-gradient(#198754 calc(var(--health) * 1%), #e9eef6 0);
+}
+
+.workspace-health-ring span {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: #fff;
+    display: grid;
+    place-items: center;
+    font-size: 0.72rem;
+    font-weight: 850;
+    color: #172033;
+}
+
+.workspace-health-ring-good { background: conic-gradient(#198754 calc(var(--health) * 1%), #e9eef6 0); }
+.workspace-health-ring-attention { background: conic-gradient(#f59f00 calc(var(--health) * 1%), #e9eef6 0); }
+.workspace-health-ring-danger { background: conic-gradient(#dc3545 calc(var(--health) * 1%), #e9eef6 0); }
+
+.workspace-urgency {
+    font-size: 0.72rem;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+
+.workspace-urgency-danger { color: #dc3545; }
+.workspace-urgency-warning { color: #f59f00; }
+.workspace-urgency-info { color: #0d6efd; }
+
+.workspace-health-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.28rem 0.58rem;
+    font-size: 0.76rem;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.workspace-health-pill-good { background: #e9f8ef; color: #146c43; }
+.workspace-health-pill-attention { background: #fff4d8; color: #8a5a00; }
+.workspace-health-pill-danger { background: #fff1f1; color: #c1121f; }
+
 /* SECTION: Layout and cards */
 .workspace-grid {
     display: grid;
@@ -158,6 +212,10 @@
     margin: 0;
 }
 
+.workspace-empty-compact {
+    padding: 0.65rem 0.8rem;
+}
+
 /* SECTION: Chips and status labels */
 .workspace-chip,
 .workspace-status {
@@ -174,6 +232,7 @@
 .workspace-chip { background: #eef4ff; color: #24447c; }
 .workspace-chip-muted { background: #eef1f6; color: #667085; }
 .workspace-chip-danger { background: #fff1f1; color: #c1121f; }
+.workspace-chip-warning { background: #fff4d8; color: #8a5a00; }
 .workspace-status { background: #f8fafc; color: #344054; }
 .workspace-dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: #adb5bd; }
 .workspace-dot-ok { background: #198754; }
@@ -189,11 +248,22 @@
     gap: 0.65rem;
 }
 
-.workspace-attention,
+.workspace-attention {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.8rem;
+    border: 1px solid #eef1f6;
+    border-radius: 15px;
+    padding: 0.78rem 0.85rem;
+    background: #fff;
+    transition: border-color 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
+}
+
 .workspace-task-list article,
 .workspace-mini-row {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 0.8rem;
     border: 1px solid #eef1f6;
@@ -306,12 +376,30 @@
 }
 
 .workspace-improve-list li {
-    padding: 0.45rem 0.55rem;
+    list-style-position: outside;
+}
+
+.workspace-improve-list a {
+    display: block;
+    padding: 0.52rem 0.62rem;
     background: #fff8e6;
     border: 1px solid #ffe3a3;
     border-radius: 10px;
-    font-weight: 700;
+    font-weight: 750;
     color: #694700;
+    text-decoration: none;
+}
+
+.workspace-improve-list a:hover {
+    background: #fff1c2;
+    border-color: #ffd166;
+}
+
+.workspace-improve-list small {
+    display: block;
+    margin-top: 0.15rem;
+    color: #8a6d20;
+    font-weight: 600;
 }
 
 .workspace-mini-row small,
@@ -320,10 +408,31 @@
     color: #667085;
 }
 
-.workspace-engagement {
+.workspace-engagement-grid {
     display: grid;
-    gap: 0.35rem;
-    margin: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.workspace-engagement-grid div {
+    background: #f8fafc;
+    border: 1px solid #eef1f6;
+    border-radius: 12px;
+    padding: 0.6rem;
+}
+
+.workspace-engagement-grid span {
+    display: block;
+    color: #667085;
+    font-size: 0.76rem;
+    font-weight: 650;
+}
+
+.workspace-engagement-grid strong {
+    display: block;
+    margin-top: 0.12rem;
+    font-size: 1.05rem;
+    color: #172033;
 }
 
 /* SECTION: Responsive behavior */
