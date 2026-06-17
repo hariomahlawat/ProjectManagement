@@ -4,6 +4,7 @@ public sealed class ProjectOfficerWorkspaceVm
 {
     public string UserDisplayName { get; set; } = string.Empty;
     public string RoleTitle { get; set; } = "Project Officer Workspace";
+    public string MyProjectsUrl { get; set; } = string.Empty;
     public DateTime GeneratedAtUtc { get; set; } = DateTime.UtcNow;
     public int PortfolioHealthPercent { get; set; }
     public string PortfolioHealthLabel { get; set; } = "Good";
