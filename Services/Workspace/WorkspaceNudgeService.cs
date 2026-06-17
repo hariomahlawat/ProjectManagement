@@ -71,9 +71,50 @@ public sealed class WorkspaceNudgeService
             if (lastRemark is null || daysSinceRemark > 7) items.Add(ProjectItem(project, lastRemark is null ? "No PO remark has been added yet" : $"No PO remark added in last {daysSinceRemark} days", daysSinceRemark > 10 || lastRemark is null ? "Danger" : "Warning", "Add Remark", WorkspaceRouteHelper.ProjectRemarks(project.Id)));
         }
 
-        items.AddRange(tasks.Where(t => t.IsOverdue).Select(t => new WorkspaceAttentionItemVm { Type = "Task", Title = t.Title, Detail = $"Overdue by {t.DaysOverdue} days", Severity = "Danger", BadgeText = "Task", ActionText = "Open Task", ActionUrl = t.OpenUrl, DueOrEventDateUtc = t.DueDateUtc }));
-        items.AddRange(tasks.Where(t => !t.IsOverdue && t.DueDateUtc is { } due && ToIstDate(due).DayNumber <= today.DayNumber + 7).Select(t => new WorkspaceAttentionItemVm { Type = "Task", Title = t.Title, Detail = ToIstDate(t.DueDateUtc!.Value) == today ? "Due today" : "Due this week", Severity = "Warning", BadgeText = "Task", ActionText = "Open Task", ActionUrl = t.OpenUrl, DueOrEventDateUtc = t.DueDateUtc }));
-        items.AddRange(ideas.Where(i => i.NeedsUpdate).Select(i => new WorkspaceAttentionItemVm { Type = "Idea", Title = i.Title, Detail = $"No update in last {Math.Max(0, today.DayNumber - ToIstDate(i.LastActivityAtUtc).DayNumber)} days", Severity = "Warning", BadgeText = "Idea", ActionText = "Open Idea", ActionUrl = i.OpenUrl, DueOrEventDateUtc = i.LastActivityAtUtc }));
+        items.AddRange(tasks
+            .Where(t => t.IsOverdue)
+            .Select(t => new WorkspaceAttentionItemVm
+            {
+                Type = "Task",
+                Title = t.Title,
+                Detail = $"Overdue by {t.DaysOverdue} days",
+                Severity = "Danger",
+                BadgeText = "Task",
+                ActionText = "Open Task",
+                ActionUrl = t.OpenUrl,
+                DueOrEventDateUtc = t.DueDateUtc
+            }));
+
+        items.AddRange(tasks
+            .Where(t =>
+                !t.IsOverdue &&
+                t.DueDateUtc is { } due &&
+                ToIstDate(due).DayNumber <= today.DayNumber + 7)
+            .Select(t => new WorkspaceAttentionItemVm
+            {
+                Type = "Task",
+                Title = t.Title,
+                Detail = ToIstDate(t.DueDateUtc!.Value) == today ? "Due today" : "Due this week",
+                Severity = "Warning",
+                BadgeText = "Task",
+                ActionText = "Open Task",
+                ActionUrl = t.OpenUrl,
+                DueOrEventDateUtc = t.DueDateUtc
+            }));
+
+        items.AddRange(ideas
+            .Where(i => i.NeedsUpdate)
+            .Select(i => new WorkspaceAttentionItemVm
+            {
+                Type = "Idea",
+                Title = i.Title,
+                Detail = $"No update in last {Math.Max(0, today.DayNumber - ToIstDate(i.LastActivityAtUtc).DayNumber)} days",
+                Severity = "Warning",
+                BadgeText = "Idea",
+                ActionText = "Open Idea",
+                ActionUrl = i.OpenUrl,
+                DueOrEventDateUtc = i.LastActivityAtUtc
+            }));
         return PrioritizePendingItems(items).Take(12).ToList();
     }
 
@@ -89,7 +130,21 @@ public sealed class WorkspaceNudgeService
     }
 
     // SECTION: View-model factories
-    private static WorkspaceAttentionItemVm ProjectItem(Project project, string detail, string severity, string action, string url) => new() { Type = "Project", Title = project.Name, Detail = detail, Severity = severity, BadgeText = "Project", ActionText = action, ActionUrl = url };
+    private static WorkspaceAttentionItemVm ProjectItem(
+        Project project,
+        string detail,
+        string severity,
+        string action,
+        string url) => new()
+        {
+            Type = "Project",
+            Title = project.Name,
+            Detail = detail,
+            Severity = severity,
+            BadgeText = "Project",
+            ActionText = action,
+            ActionUrl = url
+        };
     private static string StageTimelineDetail(ProjectStage? stage) => stage is null ? "Current stage timeline details are incomplete" : stage.Status == StageStatus.InProgress && stage.ActualStart is null ? "Current stage actual start missing" : stage.Status == StageStatus.InProgress && stage.PlannedDue is null ? "Current stage planned due missing" : stage.Status == StageStatus.Completed && stage.CompletedOn is null ? $"{stage.StageCode} stage completion date missing" : "Current stage timeline details are incomplete";
 
     // SECTION: Pending item grouping avoids showing multiple lower-priority nudges for the same project.

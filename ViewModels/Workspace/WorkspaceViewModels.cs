@@ -8,6 +8,7 @@ public sealed class ProjectOfficerWorkspaceVm
     public DateTime GeneratedAtUtc { get; set; } = DateTime.UtcNow;
     public int PortfolioHealthPercent { get; set; }
     public string PortfolioHealthLabel { get; set; } = "Good";
+    public string RecordHealthSummaryLabel { get; set; } = "Good";
     public int AssignedProjectCount { get; set; }
     public int PendingWithMeCount { get; set; }
     public int OverdueTaskCount { get; set; }
@@ -22,6 +23,8 @@ public sealed class ProjectOfficerWorkspaceVm
     public IReadOnlyList<WorkspaceIdeaVm> Ideas { get; set; } = Array.Empty<WorkspaceIdeaVm>();
     public IReadOnlyList<WorkspaceRecordHealthVm> RecordHealth { get; set; } = Array.Empty<WorkspaceRecordHealthVm>();
     public IReadOnlyList<WorkspaceImprovementVm> ImproveScoreItems { get; set; } = Array.Empty<WorkspaceImprovementVm>();
+    public IReadOnlyList<WorkspaceProjectImprovementVm> ImproveProjects { get; set; } = Array.Empty<WorkspaceProjectImprovementVm>();
+    public WorkspaceAttentionItemVm? NextBestFix { get; set; }
     public IReadOnlyList<WorkspaceQuickActionVm> QuickActions { get; set; } = Array.Empty<WorkspaceQuickActionVm>();
     public IReadOnlyList<WorkspaceReminderVm> PersonalReminders { get; set; } = Array.Empty<WorkspaceReminderVm>();
 }
@@ -148,6 +151,21 @@ public sealed class WorkspaceImprovementVm
     public string Gap { get; set; } = string.Empty;
 
     public string Label { get; set; } = string.Empty;
+
+    public string Url { get; set; } = string.Empty;
+
+    public string Severity { get; set; } = "Warning";
+}
+
+public sealed class WorkspaceProjectImprovementVm
+{
+    public int ProjectId { get; set; }
+
+    public string ProjectName { get; set; } = string.Empty;
+
+    public int FixCount { get; set; }
+
+    public IReadOnlyList<string> FixLabels { get; set; } = Array.Empty<string>();
 
     public string Url { get; set; } = string.Empty;
 
