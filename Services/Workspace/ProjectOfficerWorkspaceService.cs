@@ -72,7 +72,7 @@ public sealed class ProjectOfficerWorkspaceService
         var matrix = projects.Take(6).Select(p => BuildMatrixRow(p, health[p.Id], userId, today)).ToList();
         var engagement = await BuildEngagementAsync(userId, user, monthStart, ct);
         var avgHealth = health.Count == 0 ? 100 : (int)Math.Round(health.Values.Average(h => h.HealthPercent));
-        var vm = new ProjectOfficerWorkspaceVm { UserDisplayName = string.IsNullOrWhiteSpace(user?.FullName) ? principal.Identity?.Name ?? "Project Officer" : user.FullName, PortfolioHealthPercent = avgHealth, PortfolioHealthLabel = avgHealth >= 80 ? "Good" : avgHealth >= 60 ? "Attention" : "Needs Work", AssignedProjectCount = projects.Count, PendingWithMeCount = pending.Count, OverdueTaskCount = tasks.Count(t => t.IsOverdue), RecordGapCount = health.Values.Sum(h => h.Gaps.Count), AssignedIdeaCount = ideaVms.Count, Engagement = engagement, PendingWithMe = pending.Take(5).ToList(), WaitingOnOthers = waitingOnOthers.Take(5).ToList(), ProjectMatrix = matrix, OfficialTasks = tasks.Take(5).ToList(), Ideas = ideaVms.Take(4).ToList(), RecordHealth = health.Values.OrderBy(h => h.HealthPercent).Take(5).ToList(), PersonalReminders = reminders, QuickActions = BuildQuickActions() };
+        var vm = new ProjectOfficerWorkspaceVm { UserDisplayName = string.IsNullOrWhiteSpace(user?.FullName) ? principal.Identity?.Name ?? "Project Officer" : user.FullName, PortfolioHealthPercent = avgHealth, PortfolioHealthLabel = avgHealth >= 80 ? "Good" : avgHealth >= 60 ? "Attention" : "Needs Work", AssignedProjectCount = projects.Count, PendingWithMeCount = pending.Count, OverdueTaskCount = tasks.Count(t => t.IsOverdue), RecordGapCount = health.Values.Sum(h => h.Gaps.Count), AssignedIdeaCount = ideaVms.Count, Engagement = engagement, PendingWithMe = pending.Take(5).ToList(), WaitingOnOthers = waitingOnOthers.Take(5).ToList(), ProjectMatrix = matrix, OfficialTasks = tasks.Take(5).ToList(), Ideas = ideaVms.Take(4).ToList(), RecordHealth = health.Values.OrderBy(h => h.HealthPercent).Take(5).ToList(), PersonalReminders = reminders, QuickActions = BuildQuickActions(userId), MyProjectsUrl = WorkspaceRouteHelper.MyProjects(userId) };
         vm.Kpis = BuildKpis(vm);
         return vm;
     }
@@ -107,7 +107,7 @@ public sealed class ProjectOfficerWorkspaceService
         var rejectedPlanProjectIds = rejectedPlans.Select(p => p.ProjectId).ToArray();
         var newerPlanProjects = await _db.PlanVersions.AsNoTracking().Where(p => rejectedPlanProjectIds.Contains(p.ProjectId) && (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Approved)).Select(p => new { p.ProjectId, EventAt = p.SubmittedOn ?? p.ApprovedOn ?? p.CreatedOn }).ToListAsync(ct);
         rejectedPlans = rejectedPlans.Where(p => !newerPlanProjects.Any(n => n.ProjectId == p.ProjectId && p.RejectedOn.HasValue && n.EventAt > p.RejectedOn.Value)).Take(5).ToList();
-        items.AddRange(rejectedPlans.Select(p => new WorkspaceAttentionItemVm { Type = "Timeline", Title = p.Project?.Name ?? "Timeline plan", Detail = "Timeline plan returned for correction", Severity = "Danger", BadgeText = "Returned", ActionText = "Correct", ActionUrl = $"/Projects/Timeline/EditPlan/{p.ProjectId}", DueOrEventDateUtc = p.RejectedOn?.UtcDateTime }));
+        items.AddRange(rejectedPlans.Select(p => new WorkspaceAttentionItemVm { Type = "Timeline", Title = p.Project?.Name ?? "Timeline plan", Detail = "Timeline plan returned for correction", Severity = "Danger", BadgeText = "Returned", ActionText = "Correct", ActionUrl = WorkspaceRouteHelper.ProjectTimeline(p.ProjectId), DueOrEventDateUtc = p.RejectedOn?.UtcDateTime }));
 
         var rejectedStages = await _db.StageChangeRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Rejected" && r.DecidedOn.HasValue && r.DecidedOn.Value >= returnedCutoffUtc).OrderByDescending(r => r.DecidedOn).Take(10).ToListAsync(ct);
         var rejectedStageProjectIds = rejectedStages.Select(r => r.ProjectId).ToArray();
@@ -178,10 +178,10 @@ public sealed class ProjectOfficerWorkspaceService
         return new WorkspaceEngagementVm { LastLoginUtc = user?.LastLoginUtc, LastActivityUtc = activeDates.OrderByDescending(d => d).Select(d => (DateTime?)d).FirstOrDefault() ?? user?.LastLoginUtc, LoginsThisMonth = authEvents.Count, ActiveDaysThisMonth = activeDates.Count, ActionsRecordedThisMonth = auditDates.Count + remarkRows.Count + taskAuditRows.Count + documentRows.Count + ideaCommentRows.Count + ideaNoteRows.Count + ideaDocumentRows.Count, RemarksPostedThisMonth = remarkRows.Count, TasksUpdatedThisMonth = taskAuditRows.Count, DocumentsUploadedThisMonth = documentRows.Count, EngagementLabel = activeDates.Count >= 8 ? "Active" : "Getting Started" };
     }
     // SECTION: Quick actions only point to durable, direct workspace destinations.
-    private static IReadOnlyList<WorkspaceQuickActionVm> BuildQuickActions()
+    private static IReadOnlyList<WorkspaceQuickActionVm> BuildQuickActions(string userId)
         => new List<WorkspaceQuickActionVm>
         {
-            new() { Text = "Open My Projects", Url = "/Projects/Ongoing", Icon = "bi-kanban" },
+            new() { Text = "Open My Projects", Url = WorkspaceRouteHelper.MyProjects(userId), Icon = "bi-kanban" },
             new() { Text = "View My Official Tasks", Url = WorkspaceRouteHelper.ActionTasksMyWork(), Icon = "bi-list-check" },
             new() { Text = "Open My Project Ideas", Url = WorkspaceRouteHelper.ProjectIdeasMine(), Icon = "bi-lightbulb" },
             new() { Text = "Open Personal Reminders", Url = WorkspaceRouteHelper.PersonalReminders(), Icon = "bi-pin-angle" }

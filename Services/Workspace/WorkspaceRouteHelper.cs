@@ -1,3 +1,5 @@
+using System;
+
 namespace ProjectManagement.Services.Workspace;
 
 internal static class WorkspaceRouteHelper
@@ -17,6 +19,9 @@ internal static class WorkspaceRouteHelper
 
     public static string ProjectDocumentRequest(int projectId)
         => $"/Projects/Documents/UploadRequest?id={projectId}";
+
+    public static string MyProjects(string userId)
+        => $"/Projects/Ongoing?ProjectOfficerId={Uri.EscapeDataString(userId)}";
 
     // SECTION: Workspace cross-module routes
     public static string ActionTask(int taskId)
