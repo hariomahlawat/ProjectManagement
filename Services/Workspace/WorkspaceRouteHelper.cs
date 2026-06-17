@@ -11,6 +11,9 @@ internal static class WorkspaceRouteHelper
     public static string ProjectTimeline(int projectId)
         => $"/Projects/Overview/{projectId}#timeline";
 
+    public static string ProjectMedia(int projectId)
+        => $"/Projects/Overview/{projectId}#media";
+
     public static string ProjectRemarks(int projectId)
         => $"/Projects/Remarks/{projectId}";
 
