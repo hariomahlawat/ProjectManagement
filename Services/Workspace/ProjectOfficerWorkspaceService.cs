@@ -47,50 +47,19 @@ public sealed class ProjectOfficerWorkspaceService
         var monthStart = new DateTime(istNow.Year, istNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var user = await _users.FindByIdAsync(userId);
         var myProjectsUrl = WorkspaceRouteHelper.MyProjects(userId);
-        var projects = await _db.Projects
-            .AsNoTracking()
-            .Include(p => p.ProjectStages)
-            .Include(p => p.Remarks)
-            .Include(p => p.Documents)
-            .Where(p =>
-                p.LeadPoUserId == userId &&
-                !p.IsDeleted &&
-                p.LifecycleStatus != ProjectLifecycleStatus.Completed)
-            .OrderBy(p => p.Name)
-            .Take(50)
-            .ToListAsync(ct);
-        var taskRows = await _db.ActionTasks.AsNoTracking()
-            .Where(t => !t.IsDeleted && t.AssignedToUserId == userId && t.Status != ActionTaskStatuses.Closed && t.Status != ActionTaskStatuses.Backlog)
-            .OrderBy(t => t.DueDate)
-            .Take(50)
-            .ToListAsync(ct);
-        var myWorkQueue = _myWorkQueueBuilder.Build(taskRows, activeSprint: null);
-        var orderedTaskRows = myWorkQueue.ActionRequiredTasks
-            .Concat(myWorkQueue.CurrentWorkTasks)
-            .Concat(myWorkQueue.SubmittedAwaitingClosureTasks)
-            .Concat(myWorkQueue.AllMyTasks)
-            .GroupBy(t => t.Id)
-            .Select(g => g.First())
-            .Take(8)
-            .ToList();
-        var overdueTaskIds = myWorkQueue.OverdueTasks.Select(t => t.Id).ToHashSet();
-        var tasks = orderedTaskRows.Select(t =>
-        {
-            // SECTION: Date-only action task dates are normalized after materialization because Npgsql cannot translate SpecifyKind for date columns.
-            var dueDateUtc = DateTime.SpecifyKind(t.DueDate.Date, DateTimeKind.Utc);
-            var daysOverdue = overdueTaskIds.Contains(t.Id) ? (_clock.IstToday - t.DueDate.Date).Days : (int?)null;
-            return new WorkspaceTaskVm { TaskId = t.Id, Title = t.Title, Priority = t.Priority, Status = t.Status, DueDateUtc = dueDateUtc, IsOverdue = daysOverdue.HasValue, DaysOverdue = daysOverdue, OpenUrl = WorkspaceRouteHelper.ActionTask(t.Id) };
-        }).ToList();
-        var ideas = await _db.ProjectIdeas.AsNoTracking().Include(i => i.Comments).Include(i => i.Notes).Include(i => i.Documents).Where(i => !i.IsDeleted && (i.AssignedProjectOfficerUserId == userId || i.CreatedByUserId == userId) && i.Status != ProjectIdeaStatuses.Archived).OrderByDescending(i => i.UpdatedAt).Take(6).ToListAsync(ct);
-        var ideaVms = ideas.Select(i => { var last = new[] { i.UpdatedAt }.Concat(i.Comments.Where(c => !c.IsDeleted).Select(c => c.CreatedAt)).Concat(i.Notes.Where(n => !n.IsDeleted).Select(n => n.UpdatedAt)).Concat(i.Documents.Where(d => !d.IsDeleted).Select(d => d.UploadedAt)).DefaultIfEmpty(i.UpdatedAt).Max(); return new WorkspaceIdeaVm { IdeaId = i.Id, Title = i.Title, Status = ProjectIdeaStatuses.ToDisplay(i.Status), LastActivityAtUtc = last, NeedsUpdate = (today.DayNumber - WorkspaceNudgeService.ToIstDate(last).DayNumber) > 15 && (i.Status == ProjectIdeaStatuses.Active || i.Status == ProjectIdeaStatuses.OnHold), CommentCount = i.Comments.Count(c => !c.IsDeleted), DocumentCount = i.Documents.Count(d => !d.IsDeleted), OpenUrl = WorkspaceRouteHelper.ProjectIdea(i.Id) }; }).ToList();
-        var reminders = await _db.TodoItems.AsNoTracking().Where(t => t.OwnerId == userId && t.Status != TodoStatus.Done && t.DeletedUtc == null).OrderByDescending(t => t.IsPinned).ThenBy(t => t.DueAtUtc).Take(5).Select(t => new WorkspaceReminderVm { ReminderId = t.Id, Title = t.Title, Priority = t.Priority.ToString(), DueAtUtc = t.DueAtUtc, IsPinned = t.IsPinned, OpenUrl = WorkspaceRouteHelper.PersonalReminders() }).ToListAsync(ct);
+
+        var projects = await LoadAssignedProjectsAsync(userId, ct);
+        var tasks = await LoadOtherAssignedTasksAsync(userId, today, ct);
+        var ideaVms = await LoadProjectIdeasAsync(userId, today, ct);
+        var reminders = await LoadPersonalRemindersAsync(userId, ct);
         var health = await _health.CalculateForProjectsAsync(projects, userId, ct);
+
         var remarksDue = _nudges.BuildRemarksDue(projects, userId, today).ToList();
         var returnedItems = await BuildReturnedItemsAsync(userId, ct);
         var officialTasksDue = tasks
             .Where(t => t.IsOverdue || IsDueSoon(t.DueDateUtc, today))
             .OrderByDescending(t => t.IsOverdue)
-            .ThenBy(t => t.DueDateUtc)
+            .ThenBy(t => t.DueDateUtc ?? DateTime.MaxValue)
             .Take(5)
             .ToList();
         var ideasNeedingUpdate = ideaVms
@@ -101,6 +70,9 @@ public sealed class ProjectOfficerWorkspaceService
         var aotsUnreadCount = await _aotsUnreadService.GetUnreadCountAsync(userId, ct);
         var aotsDocuments = await LoadUnreadAotsDocumentsAsync(userId, ct);
         var timelineAlerts = _nudges.BuildTimelineAlerts(projects, today).ToList();
+        var dailyActionCount = remarksDue.Count + officialTasksDue.Count + ideasNeedingUpdate.Count + aotsUnreadCount;
+        var actionQueue = BuildActionQueue(returnedItems, officialTasksDue, remarksDue, ideasNeedingUpdate, aotsDocuments, timelineAlerts);
+
         var pending = returnedItems
             .Concat(remarksDue)
             .Concat(officialTasksDue.Select(ToAttentionItem))
@@ -117,10 +89,18 @@ public sealed class ProjectOfficerWorkspaceService
             .ThenBy(i => WorkspacePendingPriority(i.Detail))
             .ThenByDescending(i => i.DueOrEventDateUtc)
             .ToList();
+
+        var taskRows = await _db.ActionTasks
+            .AsNoTracking()
+            .Where(t => !t.IsDeleted && t.AssignedToUserId == userId && t.Status != ActionTaskStatuses.Closed && t.Status != ActionTaskStatuses.Backlog)
+            .OrderBy(t => t.DueDate)
+            .ToListAsync(ct);
+        var myWorkQueue = _myWorkQueueBuilder.Build(taskRows, activeSprint: null);
         var waitingOnOthers = await BuildWaitingOnOthersAsync(userId, myWorkQueue.SubmittedAwaitingClosureTasks, ct);
         var matrix = projects.Take(6).Select(p => BuildMatrixRow(p, health[p.Id], userId, today)).ToList();
         var engagement = await BuildEngagementAsync(userId, user, monthStart, ct);
         var avgHealth = health.Count == 0 ? 100 : (int)Math.Round(health.Values.Average(h => h.HealthPercent));
+
         var vm = new ProjectOfficerWorkspaceVm
         {
             UserDisplayName = string.IsNullOrWhiteSpace(user?.FullName)
@@ -128,11 +108,10 @@ public sealed class ProjectOfficerWorkspaceService
                 : user.FullName,
             PortfolioHealthPercent = avgHealth,
             PortfolioHealthLabel = avgHealth >= 80 ? "Good" : avgHealth >= 60 ? "Attention" : "Needs Work",
-            RecordHealthSummaryLabel = avgHealth >= 80
-                ? "Good"
-                : avgHealth >= 60 ? "Attention" : "Needs Work",
+            RecordHealthSummaryLabel = avgHealth >= 80 ? "Good" : avgHealth >= 60 ? "Attention" : "Needs Work",
             AssignedProjectCount = projects.Count,
             PendingWithMeCount = pending.Count,
+            DailyActionCount = dailyActionCount,
             OverdueTaskCount = tasks.Count(t => t.IsOverdue),
             RemarksDueCount = remarksDue.Count,
             OfficialTaskCount = tasks.Count,
@@ -143,6 +122,7 @@ public sealed class ProjectOfficerWorkspaceService
             AssignedIdeaCount = ideaVms.Count,
             Engagement = engagement,
             PendingWithMe = pending.Take(5).ToList(),
+            ActionQueue = actionQueue,
             RemarksDue = remarksDue.Take(5).ToList(),
             OfficialTasksDue = officialTasksDue,
             IdeasNeedingUpdate = ideasNeedingUpdate,
@@ -160,14 +140,139 @@ public sealed class ProjectOfficerWorkspaceService
             RecordHealth = health.Values.OrderBy(h => h.HealthPercent).Take(5).ToList(),
             ImproveScoreItems = BuildImproveScoreItems(health.Values, maxItems: 4),
             ImproveProjects = BuildImproveProjects(health.Values, maxProjects: 3),
-            NextBestAction = BuildNextBestAction(returnedItems, officialTasksDue, remarksDue, ideasNeedingUpdate, aotsDocuments, timelineAlerts),
+            NextBestAction = BuildNextBestActionFromQueue(actionQueue),
             PersonalReminders = reminders,
             QuickActions = BuildQuickActions(userId),
             MyProjectsUrl = myProjectsUrl
         };
+
         vm.Kpis = BuildKpis(vm);
         vm.RailItems = BuildRailItems(vm);
         return vm;
+    }
+
+    // SECTION: Assigned projects include current-stage context for the workspace matrix.
+    private async Task<IReadOnlyList<Project>> LoadAssignedProjectsAsync(string userId, CancellationToken ct)
+    {
+        return await _db.Projects
+            .AsNoTracking()
+            .Include(p => p.ProjectStages)
+            .Include(p => p.Remarks)
+            .Include(p => p.Documents)
+            .Where(p =>
+                p.LeadPoUserId == userId &&
+                !p.IsDeleted &&
+                p.LifecycleStatus != ProjectLifecycleStatus.Completed)
+            .OrderBy(p => p.Name)
+            .Take(50)
+            .ToListAsync(ct);
+    }
+
+    // SECTION: Other assigned tasks are loaded in full before previews are trimmed.
+    private async Task<IReadOnlyList<WorkspaceTaskVm>> LoadOtherAssignedTasksAsync(string userId, DateOnly today, CancellationToken ct)
+    {
+        var taskRows = await _db.ActionTasks
+            .AsNoTracking()
+            .Where(t =>
+                !t.IsDeleted &&
+                t.AssignedToUserId == userId &&
+                t.Status != ActionTaskStatuses.Closed &&
+                t.Status != ActionTaskStatuses.Backlog)
+            .OrderBy(t => t.DueDate)
+            .ToListAsync(ct);
+        var myWorkQueue = _myWorkQueueBuilder.Build(taskRows, activeSprint: null);
+        var overdueTaskIds = myWorkQueue.OverdueTasks.Select(t => t.Id).ToHashSet();
+
+        return myWorkQueue.ActionRequiredTasks
+            .Concat(myWorkQueue.CurrentWorkTasks)
+            .Concat(myWorkQueue.SubmittedAwaitingClosureTasks)
+            .Concat(myWorkQueue.AllMyTasks)
+            .GroupBy(t => t.Id)
+            .Select(g => BuildWorkspaceTaskVm(g.First(), overdueTaskIds, today))
+            .ToList();
+    }
+
+    // SECTION: Project ideas are loaded before preview trimming so stale and assigned counts remain accurate.
+    private async Task<IReadOnlyList<WorkspaceIdeaVm>> LoadProjectIdeasAsync(string userId, DateOnly today, CancellationToken ct)
+    {
+        var ideas = await _db.ProjectIdeas
+            .AsNoTracking()
+            .Include(i => i.Comments)
+            .Include(i => i.Notes)
+            .Include(i => i.Documents)
+            .Where(i =>
+                !i.IsDeleted &&
+                (i.AssignedProjectOfficerUserId == userId || i.CreatedByUserId == userId) &&
+                i.Status != ProjectIdeaStatuses.Archived)
+            .OrderByDescending(i => i.UpdatedAt)
+            .ToListAsync(ct);
+
+        return ideas.Select(i => BuildWorkspaceIdeaVm(i, today)).ToList();
+    }
+
+    // SECTION: Personal reminders stay separate from the operational action queue.
+    private async Task<IReadOnlyList<WorkspaceReminderVm>> LoadPersonalRemindersAsync(string userId, CancellationToken ct)
+    {
+        return await _db.TodoItems
+            .AsNoTracking()
+            .Where(t => t.OwnerId == userId && t.Status != TodoStatus.Done && t.DeletedUtc == null)
+            .OrderByDescending(t => t.IsPinned)
+            .ThenBy(t => t.DueAtUtc)
+            .Take(5)
+            .Select(t => new WorkspaceReminderVm
+            {
+                ReminderId = t.Id,
+                Title = t.Title,
+                Priority = t.Priority.ToString(),
+                DueAtUtc = t.DueAtUtc,
+                IsPinned = t.IsPinned,
+                OpenUrl = WorkspaceRouteHelper.PersonalReminders()
+            })
+            .ToListAsync(ct);
+    }
+
+    // SECTION: Task rows are converted once so counts and previews share one model.
+    private static WorkspaceTaskVm BuildWorkspaceTaskVm(ActionTaskItem row, HashSet<int> overdueTaskIds, DateOnly today)
+    {
+        var dueDateUtc = DateTime.SpecifyKind(row.DueDate.Date, DateTimeKind.Utc);
+        var daysOverdue = overdueTaskIds.Contains(row.Id) ? today.DayNumber - DateOnly.FromDateTime(row.DueDate.Date).DayNumber : (int?)null;
+
+        return new WorkspaceTaskVm
+        {
+            TaskId = row.Id,
+            Title = row.Title,
+            ContextLabel = "Other assigned task",
+            Priority = row.Priority,
+            Status = row.Status,
+            DueDateUtc = dueDateUtc,
+            IsOverdue = daysOverdue.HasValue,
+            DaysOverdue = daysOverdue,
+            OpenUrl = WorkspaceRouteHelper.ActionTask(row.Id)
+        };
+    }
+
+    // SECTION: Idea activity is centralized so preview and stale counts use identical rules.
+    private static WorkspaceIdeaVm BuildWorkspaceIdeaVm(ProjectIdea idea, DateOnly today)
+    {
+        var last = new[] { idea.UpdatedAt }
+            .Concat(idea.Comments.Where(c => !c.IsDeleted).Select(c => c.CreatedAt))
+            .Concat(idea.Notes.Where(n => !n.IsDeleted).Select(n => n.UpdatedAt))
+            .Concat(idea.Documents.Where(d => !d.IsDeleted).Select(d => d.UploadedAt))
+            .DefaultIfEmpty(idea.UpdatedAt)
+            .Max();
+
+        return new WorkspaceIdeaVm
+        {
+            IdeaId = idea.Id,
+            Title = idea.Title,
+            Status = ProjectIdeaStatuses.ToDisplay(idea.Status),
+            LastActivityAtUtc = last,
+            NeedsUpdate = (today.DayNumber - WorkspaceNudgeService.ToIstDate(last).DayNumber) > 15 &&
+                (idea.Status == ProjectIdeaStatuses.Active || idea.Status == ProjectIdeaStatuses.OnHold),
+            CommentCount = idea.Comments.Count(c => !c.IsDeleted),
+            DocumentCount = idea.Documents.Count(d => !d.IsDeleted),
+            OpenUrl = WorkspaceRouteHelper.ProjectIdea(idea.Id)
+        };
     }
 
     // SECTION: Due-soon detection uses the workspace IST operating date.
@@ -184,31 +289,140 @@ public sealed class ProjectOfficerWorkspaceService
         return days >= 0 && days <= 3;
     }
 
-    // SECTION: Next best action prioritizes daily operations over record cleanup.
-    private static WorkspaceAttentionItemVm? BuildNextBestAction(
+    // SECTION: Unified action queue prioritizes operational work without four competing inbox columns.
+    private static IReadOnlyList<WorkspaceActionQueueItemVm> BuildActionQueue(
         IReadOnlyList<WorkspaceAttentionItemVm> returnedItems,
-        IReadOnlyList<WorkspaceTaskVm> officialTasksDue,
+        IReadOnlyList<WorkspaceTaskVm> otherAssignedTasksDue,
         IReadOnlyList<WorkspaceAttentionItemVm> remarksDue,
         IReadOnlyList<WorkspaceIdeaVm> ideasNeedingUpdate,
         IReadOnlyList<WorkspaceAotsDocumentVm> aotsDocuments,
         IReadOnlyList<WorkspaceAttentionItemVm> timelineAlerts)
     {
-        var returned = returnedItems.FirstOrDefault();
-        if (returned is not null) return returned;
+        var items = new List<WorkspaceActionQueueItemVm>();
 
-        var overdueTask = officialTasksDue.FirstOrDefault(t => t.IsOverdue);
-        if (overdueTask is not null) return ToAttentionItem(overdueTask);
+        items.AddRange(returnedItems.Select(item => new WorkspaceActionQueueItemVm
+        {
+            Type = "Returned",
+            BadgeText = item.BadgeText,
+            Title = item.Title,
+            Detail = item.Detail,
+            Meta = "Returned item",
+            Severity = item.Severity,
+            ActionText = item.ActionText,
+            ActionUrl = item.ActionUrl,
+            SortDateUtc = item.DueOrEventDateUtc
+        }));
 
-        var remark = remarksDue.FirstOrDefault();
-        if (remark is not null) return remark;
+        items.AddRange(otherAssignedTasksDue.Select(task => new WorkspaceActionQueueItemVm
+        {
+            Type = "Task",
+            BadgeText = task.IsOverdue ? "Overdue" : "Task",
+            Title = task.Title,
+            Detail = task.IsOverdue && task.DaysOverdue.HasValue
+                ? $"Overdue by {task.DaysOverdue.Value} days"
+                : task.DueDateUtc.HasValue ? $"Due {task.DueDateUtc.Value:dd MMM}" : "Assigned task",
+            Meta = $"{task.Priority} · {task.Status}",
+            Severity = task.IsOverdue ? "Danger" : "Warning",
+            ActionText = "Open",
+            ActionUrl = task.OpenUrl,
+            SortDateUtc = task.DueDateUtc
+        }));
 
-        var idea = ideasNeedingUpdate.FirstOrDefault();
-        if (idea is not null) return ToAttentionItem(idea);
+        items.AddRange(remarksDue.Select(item => new WorkspaceActionQueueItemVm
+        {
+            Type = "Remark",
+            BadgeText = "Remark",
+            Title = item.Title,
+            Detail = item.Detail,
+            Meta = "Project update",
+            Severity = item.Severity,
+            ActionText = "Add Remark",
+            ActionUrl = item.ActionUrl,
+            SortDateUtc = item.DueOrEventDateUtc
+        }));
 
-        var aots = aotsDocuments.FirstOrDefault();
-        if (aots is not null) return ToAttentionItem(aots);
+        items.AddRange(ideasNeedingUpdate.Select(idea => new WorkspaceActionQueueItemVm
+        {
+            Type = "Idea",
+            BadgeText = "Idea",
+            Title = idea.Title,
+            Detail = "Project idea needs update",
+            Meta = $"{idea.CommentCount} comments · {idea.DocumentCount} docs",
+            Severity = "Warning",
+            ActionText = "Open",
+            ActionUrl = idea.OpenUrl,
+            SortDateUtc = idea.LastActivityAtUtc
+        }));
 
-        return timelineAlerts.FirstOrDefault();
+        items.AddRange(aotsDocuments.Select(document => new WorkspaceActionQueueItemVm
+        {
+            Type = "AOTS",
+            BadgeText = "AOTS",
+            Title = document.Subject,
+            Detail = "Unread AOTS document",
+            Meta = $"{document.Office} · {document.Category}",
+            Severity = "Warning",
+            ActionText = "Review",
+            ActionUrl = document.OpenUrl,
+            SortDateUtc = document.CreatedAtUtc
+        }));
+
+        items.AddRange(timelineAlerts.Select(item => new WorkspaceActionQueueItemVm
+        {
+            Type = "Timeline",
+            BadgeText = item.BadgeText,
+            Title = item.Title,
+            Detail = item.Detail,
+            Meta = "Timeline",
+            Severity = item.Severity,
+            ActionText = item.ActionText,
+            ActionUrl = item.ActionUrl,
+            SortDateUtc = item.DueOrEventDateUtc
+        }));
+
+        return items
+            .OrderBy(GetActionQueuePriority)
+            .ThenByDescending(i => i.SortDateUtc)
+            .Take(8)
+            .ToList();
+    }
+
+    // SECTION: Next best action mirrors the first row in the unified action queue.
+    private static WorkspaceAttentionItemVm? BuildNextBestActionFromQueue(IReadOnlyList<WorkspaceActionQueueItemVm> queue)
+    {
+        var first = queue.FirstOrDefault();
+        if (first is null)
+        {
+            return null;
+        }
+
+        return new WorkspaceAttentionItemVm
+        {
+            Type = first.Type,
+            Title = first.Title,
+            Detail = first.Detail,
+            Severity = first.Severity,
+            BadgeText = first.BadgeText,
+            ActionText = first.ActionText,
+            ActionUrl = first.ActionUrl,
+            DueOrEventDateUtc = first.SortDateUtc
+        };
+    }
+
+    // SECTION: Queue priority keeps returned corrections and overdue work first.
+    private static int GetActionQueuePriority(WorkspaceActionQueueItemVm item)
+    {
+        return item.Type switch
+        {
+            "Returned" => 0,
+            "Task" when item.Severity == "Danger" => 1,
+            "Remark" => 2,
+            "Idea" => 3,
+            "AOTS" => 4,
+            "Task" => 5,
+            "Timeline" => 6,
+            _ => 9
+        };
     }
 
     private static WorkspaceAttentionItemVm ToAttentionItem(WorkspaceTaskVm task) => new()
@@ -523,7 +737,7 @@ public sealed class ProjectOfficerWorkspaceService
     {
         return new[]
         {
-            new WorkspaceRailItemVm { Label = "Today", Icon = "bi-calendar-check", Count = vm.PendingWithMeCount, Anchor = "#today", IsPrimary = true },
+            new WorkspaceRailItemVm { Label = "Today", Icon = "bi-calendar-check", Count = vm.DailyActionCount, Anchor = "#today", IsPrimary = true },
             new WorkspaceRailItemVm { Label = "Remarks Due", Icon = "bi-chat-left-text", Count = vm.RemarksDueCount, Anchor = "#remarks" },
             new WorkspaceRailItemVm { Label = "Other Assigned Tasks", Icon = "bi-list-check", Count = vm.OfficialTaskCount, Anchor = "#other-tasks" },
             new WorkspaceRailItemVm { Label = "Project Ideas", Icon = "bi-lightbulb", Count = vm.AssignedIdeaCount, Anchor = "#project-ideas" },

@@ -1,4 +1,4 @@
-/* SECTION: Workspace shell and hero */
+/* SECTION: Workspace shell */
 .workspace-page {
     background: #f6f8fb;
     border-radius: 0;
@@ -6,17 +6,6 @@
     color: #1f2937;
 }
 
-.workspace-hero {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    align-items: center;
-    background: linear-gradient(135deg, #17366f, #24447c);
-    color: #fff;
-    border-radius: 12px;
-    padding: 0.72rem 0.95rem;
-    box-shadow: 0 8px 20px rgba(19, 47, 94, 0.12);
-}
 
 .workspace-eyebrow {
     margin: 0 0 0.12rem;
@@ -27,83 +16,16 @@
     opacity: 0.75;
 }
 
-.workspace-hero h1 {
-    margin: 0;
-    font-size: clamp(1.05rem, 1.35vw, 1.28rem);
-    font-weight: 650;
-    letter-spacing: -0.015em;
-}
 
-.workspace-hero p {
-    margin: 0.14rem 0 0;
-    font-size: 0.86rem;
-    opacity: 0.86;
-}
 
-.workspace-hero__meta {
-    display: flex;
-    flex-direction: column;
-    gap: 0.18rem;
-    text-align: right;
-    font-size: 0.76rem;
-    opacity: 0.78;
-}
 
-/* SECTION: KPI strip */
-.workspace-kpis {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(145px, 1fr));
-    gap: 0.7rem;
-    margin: 0.75rem 0;
-}
+/* SECTION: Workspace severity accents */
 
-.workspace-kpi {
-    display: flex;
-    gap: 0.65rem;
-    align-items: center;
-    background: #fff;
-    border-radius: 12px;
-    padding: 0.72rem 0.78rem;
-    box-shadow: 0 4px 14px rgba(20, 32, 55, 0.045);
-    border: 1px solid #e8edf5;
-    border-left: 3px solid #94a3b8;
-}
 
-.workspace-kpi i {
-    width: 32px;
-    height: 32px;
-    display: grid;
-    place-items: center;
-    border-radius: 999px;
-    background: #f1f5f9;
-    color: #24447c;
-    font-size: 0.98rem;
-}
 
-.workspace-kpi span,
-.workspace-kpi small {
-    display: block;
-}
 
-.workspace-kpi span {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: #64748b;
-}
 
-.workspace-kpi strong {
-    display: block;
-    margin-top: 0.06rem;
-    font-size: 1.18rem;
-    line-height: 1.05;
-    font-weight: 650;
-    color: #0f172a;
-}
 
-.workspace-kpi small {
-    font-size: 0.74rem;
-    color: #64748b;
-}
 
 .workspace-severity-good {
     border-left-color: #4f9d69;
@@ -122,39 +44,10 @@
 }
 
 /* SECTION: Portfolio health visuals */
-.workspace-health-ring {
-    width: 38px;
-    height: 38px;
-    flex: 0 0 38px;
-    border-radius: 999px;
-    display: grid;
-    place-items: center;
-    background: conic-gradient(#4f9d69 calc(var(--health) * 1%), #e9eef6 0);
-}
 
-.workspace-health-ring span {
-    width: 28px;
-    height: 28px;
-    border-radius: 999px;
-    background: #fff;
-    display: grid;
-    place-items: center;
-    font-size: 0.64rem;
-    font-weight: 650;
-    color: #1f2937;
-}
 
-.workspace-health-ring-good {
-    background: conic-gradient(#4f9d69 calc(var(--health) * 1%), #e9eef6 0);
-}
 
-.workspace-health-ring-attention {
-    background: conic-gradient(#d99a22 calc(var(--health) * 1%), #e9eef6 0);
-}
 
-.workspace-health-ring-danger {
-    background: conic-gradient(#c94b55 calc(var(--health) * 1%), #e9eef6 0);
-}
 
 .workspace-urgency {
     font-size: 0.66rem;
@@ -417,6 +310,125 @@
     color: #0f172a;
 }
 
+
+/* SECTION: Unified workspace action queue */
+.workspace-action-queue {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.workspace-action-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(120px, 180px) auto;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.62rem 0.72rem;
+    border: 1px solid #e8edf5;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.workspace-action-row__main {
+    min-width: 0;
+}
+
+.workspace-action-row__main strong {
+    display: block;
+    max-width: 100%;
+    color: #0f172a;
+    font-size: 0.86rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.workspace-action-row__main p {
+    margin: 0.08rem 0 0;
+    color: #64748b;
+    font-size: 0.76rem;
+}
+
+.workspace-action-row small {
+    color: #64748b;
+    font-size: 0.74rem;
+    line-height: 1.25;
+}
+
+.workspace-action-row > a {
+    font-size: 0.78rem;
+    font-weight: 550;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.workspace-chip-remark {
+    background: #fff4dc;
+    color: #8a6414;
+}
+
+.workspace-chip-task {
+    background: #eef3fb;
+    color: #315176;
+}
+
+.workspace-chip-idea {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.workspace-chip-aots {
+    background: #fff4dc;
+    color: #8a6414;
+}
+
+.workspace-chip-timeline,
+.workspace-chip-returned {
+    background: #fbeaec;
+    color: #9f303a;
+}
+
+.workspace-action-clearline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.6rem;
+    color: #64748b;
+    font-size: 0.76rem;
+}
+
+.workspace-action-clearline span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.65rem;
+    border-radius: 999px;
+    padding: 0.18rem 0.55rem;
+    background: #f8fafc;
+    border: 1px solid #e8edf5;
+}
+
+.workspace-anchor {
+    display: block;
+    position: relative;
+    top: -90px;
+    visibility: hidden;
+}
+
+@media (max-width: 900px) {
+    .workspace-action-row {
+        grid-template-columns: 1fr;
+        align-items: start;
+    }
+
+    .workspace-action-row small {
+        display: block;
+    }
+
+    .workspace-action-row > a {
+        justify-self: start;
+    }
+}
+
 /* SECTION: Project matrix */
 .workspace-table-wrap {
     overflow-x: auto;
@@ -577,33 +589,20 @@
 
 /* SECTION: Responsive behavior */
 @media (max-width: 1100px) {
-    .workspace-kpis {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
+    
     .workspace-grid {
         grid-template-columns: 1fr;
     }
 
-    .workspace-hero {
-        align-items: flex-start;
-        flex-direction: column;
+    
     }
-
-    .workspace-hero__meta {
-        text-align: left;
-    }
-}
 
 @media (max-width: 576px) {
     .workspace-page {
         padding: 0.75rem;
     }
 
-    .workspace-kpis {
-        grid-template-columns: 1fr;
-    }
-
+    
     .workspace-attention,
     .workspace-task-list article,
     .workspace-mini-row {
@@ -611,9 +610,6 @@
         align-items: flex-start;
     }
 
-    .workspace-hero {
-        border-radius: 12px;
-    }
 }
 
 /* SECTION: Record health bands */
@@ -630,72 +626,20 @@
 }
 
 /* SECTION: Redesigned workspace information architecture */
-.workspace-hero-simple {
-    justify-content: flex-start;
-}
-
 .workspace-section-subtitle {
     margin: 0.12rem 0 0;
     color: #64748b;
     font-size: 0.78rem;
 }
 
- .workspace-action-tabs {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.75rem;
-}
+ 
 
-.workspace-action-tabs section {
-    border: 1px solid #e8edf5;
-    border-radius: 10px;
-    padding: 0.7rem;
-    background: #fbfcfe;
-}
 
-.workspace-action-tabs h3 {
-    margin: 0 0 0.55rem;
-    font-size: 0.82rem;
-    font-weight: 650;
-    color: #334155;
-}
 
-.workspace-action-list {
-    display: grid;
-    gap: 0.5rem;
-}
 
-.workspace-action-list article {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 0.55rem;
-    align-items: center;
-    padding: 0.45rem 0;
-    border-bottom: 1px solid #edf2f7;
-}
 
-.workspace-action-list article:last-child {
-    border-bottom: 0;
-}
 
-.workspace-action-list strong {
-    display: block;
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: #0f172a;
-}
 
-.workspace-action-list p {
-    margin: 0.05rem 0 0;
-    color: #64748b;
-    font-size: 0.76rem;
-}
-
-.workspace-action-list a {
-    font-size: 0.76rem;
-    font-weight: 550;
-    text-decoration: none;
-}
 
 .workspace-action-secondary {
     display: grid;
@@ -848,7 +792,6 @@
 }
 
 @media (max-width: 1100px) {
-    .workspace-action-tabs,
     .workspace-action-secondary,
     .workspace-split-grid {
         grid-template-columns: 1fr;
@@ -971,35 +914,9 @@
     white-space: nowrap;
 }
 
-.workspace-count-pills {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 0.55rem;
-    margin-bottom: 0.75rem;
-}
 
-.workspace-count-pill {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-height: 2.45rem;
-    padding: 0.45rem 0.55rem;
-    border: 1px solid #e8edf5;
-    border-radius: 9px;
-    background: #fff;
-    color: #334155;
-    text-decoration: none;
-}
 
-.workspace-count-pill span {
-    font-weight: 650;
-    color: #0f172a;
-}
 
-.workspace-count-pill small {
-    color: #64748b;
-    font-size: 0.74rem;
-}
 
 /* SECTION: Workbench content grid */
 .workspace-main-grid {
@@ -1015,15 +932,7 @@
     align-content: start;
 }
 
-.workspace-action-tabs {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.75rem;
-}
 
-.workspace-action-tabs-four {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-}
 
 .workspace-section-link {
     display: inline-block;
@@ -1031,16 +940,6 @@
     font-size: 0.76rem;
     font-weight: 550;
     text-decoration: none;
-}
-
-@media (max-width: 1280px) {
-    .workspace-action-tabs-four {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .workspace-count-pills {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
 }
 
 @media (max-width: 1100px) {
@@ -1060,12 +959,6 @@
     }
 
     .workspace-main-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .workspace-action-tabs,
-    .workspace-action-tabs-four,
-    .workspace-count-pills {
         grid-template-columns: 1fr;
     }
 
