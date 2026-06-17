@@ -17,14 +17,7 @@
 }
 
 
-
-
 /* SECTION: Workspace severity accents */
-
-
-
-
-
 
 
 .workspace-severity-good {
@@ -44,9 +37,6 @@
 }
 
 /* SECTION: Portfolio health visuals */
-
-
-
 
 
 .workspace-urgency {
@@ -95,19 +85,6 @@
 }
 
 /* SECTION: Layout and cards */
-.workspace-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 340px;
-    gap: 1rem;
-}
-
-.workspace-main,
-.workspace-rail {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
 .workspace-card {
     background: #fff;
     border: 1px solid #e8edf5;
@@ -254,63 +231,6 @@
     background: #94a3b8;
 }
 
-/* SECTION: Attention and task lists */
-.workspace-attention-list,
-.workspace-task-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.65rem;
-}
-
-.workspace-attention {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
-    align-items: center;
-    gap: 0.65rem;
-    border: 1px solid #e8edf5;
-    border-radius: 10px;
-    padding: 0.62rem 0.72rem;
-    background: #fff;
-    transition: border-color 0.12s ease, box-shadow 0.12s ease;
-}
-
-.workspace-task-list article,
-.workspace-mini-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    align-items: center;
-    gap: 0.65rem;
-    border: 1px solid #e8edf5;
-    border-radius: 10px;
-    padding: 0.62rem 0.72rem;
-    background: #fff;
-    transition: border-color 0.12s ease, box-shadow 0.12s ease;
-}
-
-.workspace-attention:hover,
-.workspace-task-list article:hover,
-.workspace-mini-row:hover {
-    border-color: rgba(49, 95, 186, 0.18);
-    box-shadow: 0 4px 12px rgba(20, 32, 55, 0.045);
-    transform: none;
-}
-
-.workspace-attention p,
-.workspace-task-list p {
-    margin: 0;
-    color: #64748b;
-    font-size: 0.8rem;
-}
-
-.workspace-attention strong,
-.workspace-task-list strong,
-.workspace-mini-row strong {
-    font-size: 0.86rem;
-    font-weight: 600;
-    color: #0f172a;
-}
-
-
 /* SECTION: Unified workspace action queue */
 .workspace-action-queue {
     display: grid;
@@ -326,6 +246,24 @@
     border: 1px solid #e8edf5;
     border-radius: 10px;
     background: #fff;
+}
+
+.workspace-action-row-next {
+    border-color: #c9d8f3;
+    background: #fbfdff;
+}
+
+.workspace-next-marker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 650;
+    white-space: nowrap;
+    background: #edf4ff;
+    color: #24447c;
 }
 
 .workspace-action-row__main {
@@ -418,6 +356,10 @@
     .workspace-action-row {
         grid-template-columns: 1fr;
         align-items: start;
+    }
+
+    .workspace-action-row__main strong {
+        white-space: normal;
     }
 
     .workspace-action-row small {
@@ -519,41 +461,6 @@
     font-weight: 600;
 }
 
-.workspace-improve-list {
-    display: grid;
-    gap: 0.45rem;
-    margin: 0;
-    padding-left: 1.1rem;
-}
-
-.workspace-improve-list li {
-    list-style-position: outside;
-}
-
-.workspace-improve-list a {
-    display: block;
-    padding: 0.48rem 0.56rem;
-    background: #fffaf0;
-    border: 1px solid #f1ddb0;
-    border-radius: 8px;
-    font-weight: 600;
-    color: #654a12;
-    text-decoration: none;
-}
-
-.workspace-improve-list a:hover {
-    background: #fff4d8;
-    border-color: #e7c979;
-}
-
-.workspace-improve-list small {
-    display: block;
-    margin-top: 0.12rem;
-    color: #8a6d20;
-    font-weight: 500;
-}
-
-.workspace-mini-row small,
 .workspace-engagement span {
     display: block;
     color: #64748b;
@@ -588,26 +495,9 @@
 }
 
 /* SECTION: Responsive behavior */
-@media (max-width: 1100px) {
-    
-    .workspace-grid {
-        grid-template-columns: 1fr;
-    }
-
-    
-    }
-
 @media (max-width: 576px) {
     .workspace-page {
         padding: 0.75rem;
-    }
-
-    
-    .workspace-attention,
-    .workspace-task-list article,
-    .workspace-mini-row {
-        grid-template-columns: 1fr;
-        align-items: flex-start;
     }
 
 }
@@ -634,35 +524,6 @@
 
  
 
-
-
-
-
-
-
-
-.workspace-action-secondary {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid #edf2f7;
-}
-
-.workspace-action-secondary h3 {
-    margin: 0 0 0.4rem;
-    font-size: 0.8rem;
-    font-weight: 650;
-    color: #334155;
-}
-
-.workspace-action-secondary a {
-    display: block;
-    font-size: 0.76rem;
-    text-decoration: none;
-    margin-bottom: 0.35rem;
-}
 
 .workspace-inline-clear {
     margin: 0;
@@ -792,7 +653,6 @@
 }
 
 @media (max-width: 1100px) {
-    .workspace-action-secondary,
     .workspace-split-grid {
         grid-template-columns: 1fr;
     }
@@ -915,9 +775,6 @@
 }
 
 
-
-
-
 /* SECTION: Workbench content grid */
 .workspace-main-grid {
     display: grid;
@@ -931,7 +788,6 @@
     gap: 0.85rem;
     align-content: start;
 }
-
 
 
 .workspace-section-link {
