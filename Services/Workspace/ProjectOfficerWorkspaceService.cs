@@ -28,6 +28,7 @@ public sealed class ProjectOfficerWorkspaceService
         var istNow = IstClock.ToIst(_clock.UtcNow);
         var monthStart = new DateTime(istNow.Year, istNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var user = await _users.FindByIdAsync(userId);
+        var myProjectsUrl = WorkspaceRouteHelper.MyProjects(userId);
         var projects = await _db.Projects.AsNoTracking().Include(p => p.ProjectStages).Include(p => p.Remarks).Include(p => p.Documents).Where(p => p.LeadPoUserId == userId && !p.IsDeleted && p.LifecycleStatus != ProjectLifecycleStatus.Completed).OrderBy(p => p.Name).Take(50).ToListAsync(ct);
         var taskRows = await _db.ActionTasks.AsNoTracking()
             .Where(t => !t.IsDeleted && t.AssignedToUserId == userId && t.Status != ActionTaskStatuses.Closed && t.Status != ActionTaskStatuses.Backlog)
@@ -72,7 +73,7 @@ public sealed class ProjectOfficerWorkspaceService
         var matrix = projects.Take(6).Select(p => BuildMatrixRow(p, health[p.Id], userId, today)).ToList();
         var engagement = await BuildEngagementAsync(userId, user, monthStart, ct);
         var avgHealth = health.Count == 0 ? 100 : (int)Math.Round(health.Values.Average(h => h.HealthPercent));
-        var vm = new ProjectOfficerWorkspaceVm { UserDisplayName = string.IsNullOrWhiteSpace(user?.FullName) ? principal.Identity?.Name ?? "Project Officer" : user.FullName, PortfolioHealthPercent = avgHealth, PortfolioHealthLabel = avgHealth >= 80 ? "Good" : avgHealth >= 60 ? "Attention" : "Needs Work", AssignedProjectCount = projects.Count, PendingWithMeCount = pending.Count, OverdueTaskCount = tasks.Count(t => t.IsOverdue), RecordGapCount = health.Values.Sum(h => h.Gaps.Count), AssignedIdeaCount = ideaVms.Count, Engagement = engagement, PendingWithMe = pending.Take(5).ToList(), WaitingOnOthers = waitingOnOthers.Take(5).ToList(), ProjectMatrix = matrix, OfficialTasks = tasks.Take(5).ToList(), Ideas = ideaVms.Take(4).ToList(), RecordHealth = health.Values.OrderBy(h => h.HealthPercent).Take(5).ToList(), PersonalReminders = reminders, QuickActions = BuildQuickActions(userId), MyProjectsUrl = WorkspaceRouteHelper.MyProjects(userId) };
+        var vm = new ProjectOfficerWorkspaceVm { UserDisplayName = string.IsNullOrWhiteSpace(user?.FullName) ? principal.Identity?.Name ?? "Project Officer" : user.FullName, PortfolioHealthPercent = avgHealth, PortfolioHealthLabel = avgHealth >= 80 ? "Good" : avgHealth >= 60 ? "Attention" : "Needs Work", AssignedProjectCount = projects.Count, PendingWithMeCount = pending.Count, OverdueTaskCount = tasks.Count(t => t.IsOverdue), RecordGapCount = health.Values.Sum(h => h.Gaps.Count), AssignedIdeaCount = ideaVms.Count, Engagement = engagement, PendingWithMe = pending.Take(5).ToList(), WaitingOnOthers = waitingOnOthers.Take(5).ToList(), ProjectMatrix = matrix, OfficialTasks = tasks.Take(5).ToList(), Ideas = ideaVms.OrderByDescending(i => i.NeedsUpdate).ThenByDescending(i => i.LastActivityAtUtc).Take(4).ToList(), RecordHealth = health.Values.OrderBy(h => h.HealthPercent).Take(5).ToList(), ImproveScoreItems = BuildImproveScoreItems(health.Values, maxItems: 4), PersonalReminders = reminders, QuickActions = BuildQuickActions(userId, pending), MyProjectsUrl = myProjectsUrl };
         vm.Kpis = BuildKpis(vm);
         return vm;
     }
@@ -175,16 +176,66 @@ public sealed class ProjectOfficerWorkspaceService
             .Distinct()
             .ToList();
 
-        return new WorkspaceEngagementVm { LastLoginUtc = user?.LastLoginUtc, LastActivityUtc = activeDates.OrderByDescending(d => d).Select(d => (DateTime?)d).FirstOrDefault() ?? user?.LastLoginUtc, LoginsThisMonth = authEvents.Count, ActiveDaysThisMonth = activeDates.Count, ActionsRecordedThisMonth = auditDates.Count + remarkRows.Count + taskAuditRows.Count + documentRows.Count + ideaCommentRows.Count + ideaNoteRows.Count + ideaDocumentRows.Count, RemarksPostedThisMonth = remarkRows.Count, TasksUpdatedThisMonth = taskAuditRows.Count, DocumentsUploadedThisMonth = documentRows.Count, EngagementLabel = activeDates.Count >= 8 ? "Active" : "Getting Started" };
+        return new WorkspaceEngagementVm { LastLoginUtc = user?.LastLoginUtc, LastActivityUtc = activeDates.OrderByDescending(d => d).Select(d => (DateTime?)d).FirstOrDefault() ?? user?.LastLoginUtc, LoginsThisMonth = authEvents.Count, ActiveDaysThisMonth = activeDates.Count, ActionsRecordedThisMonth = auditDates.Count + remarkRows.Count + taskAuditRows.Count + documentRows.Count + ideaCommentRows.Count + ideaNoteRows.Count + ideaDocumentRows.Count, RemarksPostedThisMonth = remarkRows.Count, TasksUpdatedThisMonth = taskAuditRows.Count, DocumentsUploadedThisMonth = documentRows.Count + ideaDocumentRows.Count, EngagementLabel = activeDates.Count >= 8 ? "Active" : "Getting Started" };
     }
-    // SECTION: Quick actions only point to durable, direct workspace destinations.
-    private static IReadOnlyList<WorkspaceQuickActionVm> BuildQuickActions(string userId)
-        => new List<WorkspaceQuickActionVm>
+    // SECTION: Improve-score actions convert record health gaps into direct correction links.
+    private static IReadOnlyList<WorkspaceImprovementVm> BuildImproveScoreItems(IEnumerable<WorkspaceRecordHealthVm> healthRows, int maxItems)
+    {
+        var items = new List<WorkspaceImprovementVm>();
+
+        foreach (var health in healthRows.OrderBy(h => h.HealthPercent))
         {
-            new() { Text = "Open My Projects", Url = WorkspaceRouteHelper.MyProjects(userId), Icon = "bi-kanban" },
-            new() { Text = "View My Official Tasks", Url = WorkspaceRouteHelper.ActionTasksMyWork(), Icon = "bi-list-check" },
-            new() { Text = "Open My Project Ideas", Url = WorkspaceRouteHelper.ProjectIdeasMine(), Icon = "bi-lightbulb" },
-            new() { Text = "Open Personal Reminders", Url = WorkspaceRouteHelper.PersonalReminders(), Icon = "bi-pin-angle" }
-        };
-    private static IReadOnlyList<WorkspaceKpiVm> BuildKpis(ProjectOfficerWorkspaceVm vm) => new[] { new WorkspaceKpiVm { Title = "Portfolio Health", Value = $"{vm.PortfolioHealthPercent}%", Caption = vm.PortfolioHealthLabel, Severity = vm.PortfolioHealthPercent >= 80 ? "Good" : vm.PortfolioHealthPercent >= 60 ? "Warning" : "Danger", Icon = "bi-heart-pulse" }, new WorkspaceKpiVm { Title = "Pending With Me", Value = vm.PendingWithMeCount.ToString(), Caption = "Actionable nudges", Severity = vm.PendingWithMeCount == 0 ? "Good" : "Warning", Icon = "bi-inbox" }, new WorkspaceKpiVm { Title = "Overdue Tasks", Value = vm.OverdueTaskCount.ToString(), Caption = "Official tasks", Severity = vm.OverdueTaskCount == 0 ? "Good" : "Danger", Icon = "bi-exclamation-triangle" }, new WorkspaceKpiVm { Title = "Record Gaps", Value = vm.RecordGapCount.ToString(), Caption = "Current-stage focused", Severity = vm.RecordGapCount == 0 ? "Good" : "Warning", Icon = "bi-folder-check" }, new WorkspaceKpiVm { Title = "ERP Engagement", Value = vm.Engagement.ActiveDaysThisMonth.ToString(), Caption = "Active days this month", Severity = "Info", Icon = "bi-activity" } };
+            foreach (var gap in health.Gaps)
+            {
+                items.Add(new WorkspaceImprovementVm
+                {
+                    ProjectId = health.ProjectId,
+                    ProjectName = health.ProjectName,
+                    Gap = gap,
+                    Label = WorkspaceDisplayHelpers.ImprovementLabel(gap),
+                    Url = ResolveImprovementUrl(health.ProjectId, gap),
+                    Severity = health.HealthPercent < 60 ? "Danger" : "Warning"
+                });
+            }
+        }
+
+        return items
+            .GroupBy(i => i.Label)
+            .Select(g => g.First())
+            .Take(maxItems)
+            .ToList();
+    }
+
+    // SECTION: Improvement routing points each gap to the most relevant correction workflow.
+    private static string ResolveImprovementUrl(int projectId, string gap)
+    {
+        if (gap.Contains("remark", StringComparison.OrdinalIgnoreCase)) return WorkspaceRouteHelper.ProjectRemarks(projectId);
+        if (gap.Contains("backfill", StringComparison.OrdinalIgnoreCase) || gap.Contains("current stage", StringComparison.OrdinalIgnoreCase) || gap.Contains("completion date", StringComparison.OrdinalIgnoreCase)) return WorkspaceRouteHelper.ProjectTimeline(projectId);
+        if (gap.Contains("classification", StringComparison.OrdinalIgnoreCase) || gap.Contains("metadata", StringComparison.OrdinalIgnoreCase)) return WorkspaceRouteHelper.ProjectMetaRequest(projectId);
+        if (gap.Contains("document", StringComparison.OrdinalIgnoreCase)) return WorkspaceRouteHelper.ProjectDocumentRequest(projectId);
+        return WorkspaceRouteHelper.ProjectOverview(projectId);
+    }
+
+    // SECTION: Quick actions prioritize the highest pending correction before durable workspace destinations.
+    private static IReadOnlyList<WorkspaceQuickActionVm> BuildQuickActions(string userId, IReadOnlyList<WorkspaceAttentionItemVm> pendingItems)
+    {
+        var actions = new List<WorkspaceQuickActionVm>();
+        var topPriority = pendingItems.FirstOrDefault();
+        if (topPriority is not null)
+        {
+            actions.Add(new WorkspaceQuickActionVm { Text = $"Fix Top Priority: {topPriority.ActionText}", Url = topPriority.ActionUrl, Icon = "bi-lightning-charge" });
+        }
+
+        actions.AddRange(new[]
+        {
+            new WorkspaceQuickActionVm { Text = "Open My Projects", Url = WorkspaceRouteHelper.MyProjects(userId), Icon = "bi-kanban" },
+            new WorkspaceQuickActionVm { Text = "View My Official Tasks", Url = WorkspaceRouteHelper.ActionTasksMyWork(), Icon = "bi-list-check" },
+            new WorkspaceQuickActionVm { Text = "Open My Project Ideas", Url = WorkspaceRouteHelper.ProjectIdeasMine(), Icon = "bi-lightbulb" },
+            new WorkspaceQuickActionVm { Text = "Open Personal Reminders", Url = WorkspaceRouteHelper.PersonalReminders(), Icon = "bi-pin-angle" }
+        });
+
+        return actions;
+    }
+
+    private static IReadOnlyList<WorkspaceKpiVm> BuildKpis(ProjectOfficerWorkspaceVm vm) => new[] { new WorkspaceKpiVm { Title = "Portfolio Health", Value = $"{vm.PortfolioHealthPercent}%", Caption = vm.PortfolioHealthLabel, Severity = vm.PortfolioHealthPercent >= 80 ? "Good" : vm.PortfolioHealthPercent >= 60 ? "Warning" : "Danger", Icon = "bi-heart-pulse" }, new WorkspaceKpiVm { Title = "Pending With Me", Value = vm.PendingWithMeCount.ToString(), Caption = "Actionable nudges", Severity = vm.PendingWithMeCount == 0 ? "Good" : "Warning", Icon = "bi-inbox" }, new WorkspaceKpiVm { Title = "Overdue Tasks", Value = vm.OverdueTaskCount.ToString(), Caption = "Official tasks", Severity = vm.OverdueTaskCount == 0 ? "Good" : "Danger", Icon = "bi-exclamation-triangle" }, new WorkspaceKpiVm { Title = "Record Gaps", Value = vm.RecordGapCount.ToString(), Caption = $"Across {vm.AssignedProjectCount} assigned projects", Severity = vm.RecordGapCount == 0 ? "Good" : "Warning", Icon = "bi-folder-check" }, new WorkspaceKpiVm { Title = "ERP Engagement", Value = vm.Engagement.ActiveDaysThisMonth.ToString(), Caption = "Active days this month", Severity = "Info", Icon = "bi-activity" } };
 }

@@ -4,7 +4,6 @@
 @{
     ViewData["Title"] = "My Workspace";
     ViewData["UseFullWidth"] = true;
-    var improvementGaps = Model.Workspace.RecordHealth.SelectMany(h => h.Gaps).Distinct().Take(4).ToList();
 }
 @section Styles { <link rel="stylesheet" href="~/css/workspace.css" asp-append-version="true" /> }
 <div class="workspace-page">
@@ -47,10 +46,10 @@
         </main>
         <aside class="workspace-rail">
             <section class="workspace-card workspace-card-clean"><h2>Quick Actions</h2><div class="workspace-quick-actions">@foreach (var action in Model.Workspace.QuickActions) { <a href="@action.Url"><i class="bi @action.Icon"></i>@action.Text</a> }</div></section>
-            <section class="workspace-card workspace-card-clean"><h2>Improve score by…</h2>@if (!improvementGaps.Any()) { <p class="workspace-empty">Record health is looking good. Keep remarks and documents current.</p> } else { <ol class="workspace-improve-list">@foreach (var gap in improvementGaps) { <li>@WorkspaceDisplayHelpers.ImprovementLabel(gap)</li> }</ol> }</section>
+            <section class="workspace-card workspace-card-clean"><h2>Improve score by…</h2>@if (!Model.Workspace.ImproveScoreItems.Any()) { <p class="workspace-empty">Record health is looking good. Keep remarks and documents current.</p> } else { <ol class="workspace-improve-list">@foreach (var item in Model.Workspace.ImproveScoreItems) { <li><a href="@item.Url">@item.Label</a><small>@item.ProjectName</small></li> }</ol> }</section>
             <section class="workspace-card workspace-card-clean"><h2>Project Record Health</h2>@foreach (var h in Model.Workspace.RecordHealth) { <article class="workspace-health workspace-health-@WorkspaceDisplayHelpers.HealthCss(h.HealthPercent)"><strong>@h.ProjectName</strong><span>@h.HealthPercent%</span><small>@string.Join("; ", h.Gaps.Take(2).Select(WorkspaceDisplayHelpers.ImprovementLabel))</small></article> }</section>
             <section class="workspace-card workspace-card-clean"><h2>My Project Ideas</h2>@if (!Model.Workspace.Ideas.Any()) { <p class="workspace-empty">No project ideas are currently assigned to you.</p> } else { foreach (var idea in Model.Workspace.Ideas) { <article class="workspace-mini-row"><div><strong>@idea.Title</strong><small>@idea.Status · @idea.CommentCount comments · @idea.DocumentCount docs</small></div><a href="@idea.OpenUrl">Open</a></article> } }</section>
-            <section class="workspace-card workspace-card-clean"><h2>Personal Reminders</h2>@if (!Model.Workspace.PersonalReminders.Any()) { <p class="workspace-empty">No personal reminders.</p> } else { foreach (var r in Model.Workspace.PersonalReminders) { <article class="workspace-mini-row"><div><strong>@r.Title</strong><small>@r.Priority @(r.IsPinned ? "· pinned" : string.Empty)</small></div><a href="@r.OpenUrl">Open</a></article> } }</section>
+            <section class="workspace-card workspace-card-clean"><h2>Personal Reminders</h2>@if (!Model.Workspace.PersonalReminders.Any()) { <p class="workspace-empty">No personal reminders.</p> } else { foreach (var r in Model.Workspace.PersonalReminders) { <article class="workspace-mini-row"><div><strong>@r.Title</strong><small>@r.Priority · @WorkspaceDisplayHelpers.FormatReminderDate(r.DueAtUtc) @(r.IsPinned ? "· pinned" : string.Empty)</small></div><a href="@r.OpenUrl">Open</a></article> } }</section>
             <section class="workspace-card workspace-card-clean"><h2>ERP Engagement</h2><p class="workspace-engagement"><strong>@Model.Workspace.Engagement.EngagementLabel · @Model.Workspace.Engagement.ActiveDaysThisMonth active days</strong><span>@Model.Workspace.Engagement.ActionsRecordedThisMonth actions recorded</span><span>@Model.Workspace.Engagement.RemarksPostedThisMonth remarks posted</span><span>@Model.Workspace.Engagement.TasksUpdatedThisMonth tasks updated</span><span>@Model.Workspace.Engagement.DocumentsUploadedThisMonth documents uploaded</span></p></section>
         </aside>
     </div>
