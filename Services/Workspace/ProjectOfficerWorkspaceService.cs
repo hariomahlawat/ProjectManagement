@@ -7,6 +7,7 @@ using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.ActionTasks;
+using ProjectManagement.Services.DocRepo;
 using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Services.Workspace;
@@ -19,13 +20,15 @@ public sealed class ProjectOfficerWorkspaceService
     private readonly WorkspaceNudgeService _nudges;
     private readonly ActionTaskMyWorkQueueBuilder _myWorkQueueBuilder;
     private readonly IActionTrackerClock _clock;
+    private readonly IAotsUnreadService _aotsUnreadService;
     public ProjectOfficerWorkspaceService(
         ApplicationDbContext db,
         UserManager<ApplicationUser> users,
         ProjectRecordHealthService health,
         WorkspaceNudgeService nudges,
         ActionTaskMyWorkQueueBuilder myWorkQueueBuilder,
-        IActionTrackerClock clock)
+        IActionTrackerClock clock,
+        IAotsUnreadService aotsUnreadService)
     {
         _db = db;
         _users = users;
@@ -33,6 +36,7 @@ public sealed class ProjectOfficerWorkspaceService
         _nudges = nudges;
         _myWorkQueueBuilder = myWorkQueueBuilder;
         _clock = clock;
+        _aotsUnreadService = aotsUnreadService;
     }
 
     // SECTION: Workspace composition
@@ -94,11 +98,14 @@ public sealed class ProjectOfficerWorkspaceService
             .OrderByDescending(i => i.LastActivityAtUtc)
             .Take(5)
             .ToList();
+        var aotsUnreadCount = await _aotsUnreadService.GetUnreadCountAsync(userId, ct);
+        var aotsDocuments = await LoadUnreadAotsDocumentsAsync(userId, ct);
         var timelineAlerts = _nudges.BuildTimelineAlerts(projects, today).ToList();
         var pending = returnedItems
             .Concat(remarksDue)
             .Concat(officialTasksDue.Select(ToAttentionItem))
             .Concat(ideasNeedingUpdate.Select(ToAttentionItem))
+            .Concat(aotsDocuments.Select(ToAttentionItem))
             .Concat(timelineAlerts)
             .GroupBy(i => $"{i.Type}:{i.Title}")
             .Select(g => g
@@ -130,6 +137,8 @@ public sealed class ProjectOfficerWorkspaceService
             RemarksDueCount = remarksDue.Count,
             OfficialTaskCount = tasks.Count,
             IdeasNeedingUpdateCount = ideaVms.Count(i => i.NeedsUpdate),
+            AotsUnreadCount = aotsUnreadCount,
+            AotsUrl = WorkspaceRouteHelper.AotsInbox(),
             RecordGapCount = health.Values.Sum(h => h.Gaps.Count),
             AssignedIdeaCount = ideaVms.Count,
             Engagement = engagement,
@@ -137,6 +146,7 @@ public sealed class ProjectOfficerWorkspaceService
             RemarksDue = remarksDue.Take(5).ToList(),
             OfficialTasksDue = officialTasksDue,
             IdeasNeedingUpdate = ideasNeedingUpdate,
+            AotsDocuments = aotsDocuments,
             ReturnedItems = returnedItems.Take(5).ToList(),
             TimelineAlerts = timelineAlerts.Take(5).ToList(),
             WaitingOnOthers = waitingOnOthers.Take(5).ToList(),
@@ -150,13 +160,13 @@ public sealed class ProjectOfficerWorkspaceService
             RecordHealth = health.Values.OrderBy(h => h.HealthPercent).Take(5).ToList(),
             ImproveScoreItems = BuildImproveScoreItems(health.Values, maxItems: 4),
             ImproveProjects = BuildImproveProjects(health.Values, maxProjects: 3),
-            NextBestFix = pending.FirstOrDefault(),
-            NextBestAction = BuildNextBestAction(returnedItems, officialTasksDue, remarksDue, ideasNeedingUpdate, timelineAlerts),
+            NextBestAction = BuildNextBestAction(returnedItems, officialTasksDue, remarksDue, ideasNeedingUpdate, aotsDocuments, timelineAlerts),
             PersonalReminders = reminders,
             QuickActions = BuildQuickActions(userId),
             MyProjectsUrl = myProjectsUrl
         };
         vm.Kpis = BuildKpis(vm);
+        vm.RailItems = BuildRailItems(vm);
         return vm;
     }
 
@@ -180,6 +190,7 @@ public sealed class ProjectOfficerWorkspaceService
         IReadOnlyList<WorkspaceTaskVm> officialTasksDue,
         IReadOnlyList<WorkspaceAttentionItemVm> remarksDue,
         IReadOnlyList<WorkspaceIdeaVm> ideasNeedingUpdate,
+        IReadOnlyList<WorkspaceAotsDocumentVm> aotsDocuments,
         IReadOnlyList<WorkspaceAttentionItemVm> timelineAlerts)
     {
         var returned = returnedItems.FirstOrDefault();
@@ -194,6 +205,9 @@ public sealed class ProjectOfficerWorkspaceService
         var idea = ideasNeedingUpdate.FirstOrDefault();
         if (idea is not null) return ToAttentionItem(idea);
 
+        var aots = aotsDocuments.FirstOrDefault();
+        if (aots is not null) return ToAttentionItem(aots);
+
         return timelineAlerts.FirstOrDefault();
     }
 
@@ -202,13 +216,25 @@ public sealed class ProjectOfficerWorkspaceService
         Type = "Task",
         Title = task.Title,
         Detail = task.IsOverdue
-            ? task.DaysOverdue.HasValue ? $"Official task overdue by {task.DaysOverdue.Value} days" : "Official task overdue"
-            : "Official task due soon",
+            ? task.DaysOverdue.HasValue ? $"Assigned task overdue by {task.DaysOverdue.Value} days" : "Assigned task overdue"
+            : "Assigned task due soon",
         Severity = task.IsOverdue ? "Danger" : "Warning",
         BadgeText = "Task",
         ActionText = "Open Task",
         ActionUrl = task.OpenUrl,
         DueOrEventDateUtc = task.DueDateUtc
+    };
+
+    private static WorkspaceAttentionItemVm ToAttentionItem(WorkspaceAotsDocumentVm document) => new()
+    {
+        Type = "AOTS",
+        Title = document.Subject,
+        Detail = "Unread AOTS document",
+        Severity = "Warning",
+        BadgeText = "AOTS",
+        ActionText = "Review",
+        ActionUrl = document.OpenUrl,
+        DueOrEventDateUtc = document.CreatedAtUtc
     };
 
     private static WorkspaceAttentionItemVm ToAttentionItem(WorkspaceIdeaVm idea) => new()
@@ -222,6 +248,35 @@ public sealed class ProjectOfficerWorkspaceService
         ActionUrl = idea.OpenUrl,
         DueOrEventDateUtc = idea.LastActivityAtUtc
     };
+
+    // SECTION: AOTS documents reuse the repository unread-view rule for daily review.
+    private async Task<IReadOnlyList<WorkspaceAotsDocumentVm>> LoadUnreadAotsDocumentsAsync(
+        string userId,
+        CancellationToken ct)
+    {
+        return await _db.Documents
+            .AsNoTracking()
+            .Where(document =>
+                document.IsAots &&
+                !document.IsDeleted &&
+                !document.IsExternal &&
+                document.IsActive &&
+                !_db.DocRepoAotsViews.Any(view =>
+                    view.DocumentId == document.Id &&
+                    view.UserId == userId))
+            .OrderByDescending(document => document.CreatedAtUtc)
+            .Take(5)
+            .Select(document => new WorkspaceAotsDocumentVm
+            {
+                DocumentId = document.Id,
+                Subject = document.Subject,
+                Category = document.DocumentCategory.Name,
+                Office = document.OfficeCategory.Name,
+                CreatedAtUtc = document.CreatedAtUtc,
+                OpenUrl = WorkspaceRouteHelper.AotsReader(document.Id)
+            })
+            .ToListAsync(ct);
+    }
 
 
     // SECTION: Waiting-on-others summarizes submissions that are no longer actionable by the PO.
@@ -443,8 +498,9 @@ public sealed class ProjectOfficerWorkspaceService
         return new[]
         {
             new WorkspaceQuickActionVm { Text = "Open My Projects", Url = WorkspaceRouteHelper.MyProjects(userId), Icon = "bi-kanban" },
-            new WorkspaceQuickActionVm { Text = "View My Official Tasks", Url = WorkspaceRouteHelper.ActionTasksMyWork(), Icon = "bi-list-check" },
+            new WorkspaceQuickActionVm { Text = "View Other Assigned Tasks", Url = WorkspaceRouteHelper.ActionTasksMyWork(), Icon = "bi-list-check" },
             new WorkspaceQuickActionVm { Text = "Open My Project Ideas", Url = WorkspaceRouteHelper.ProjectIdeasMine(), Icon = "bi-lightbulb" },
+            new WorkspaceQuickActionVm { Text = "Open AOTS Inbox", Url = WorkspaceRouteHelper.AotsInbox(), Icon = "bi-file-earmark-text" },
             new WorkspaceQuickActionVm { Text = "Open Personal Reminders", Url = WorkspaceRouteHelper.PersonalReminders(), Icon = "bi-pin-angle" }
         };
     }
@@ -455,9 +511,25 @@ public sealed class ProjectOfficerWorkspaceService
         return new[]
         {
             new WorkspaceKpiVm { Title = "Remarks Due", Value = vm.RemarksDueCount.ToString(), Caption = "Project updates", Severity = vm.RemarksDueCount == 0 ? "Good" : "Warning", Icon = "bi-chat-left-text" },
-            new WorkspaceKpiVm { Title = "Official Tasks", Value = vm.OfficialTaskCount.ToString(), Caption = vm.OverdueTaskCount == 0 ? "No overdue task" : $"{vm.OverdueTaskCount} overdue", Severity = vm.OverdueTaskCount == 0 ? "Good" : "Danger", Icon = "bi-list-check" },
+            new WorkspaceKpiVm { Title = "Other Assigned Tasks", Value = vm.OfficialTaskCount.ToString(), Caption = vm.OverdueTaskCount == 0 ? "No overdue assigned task" : $"{vm.OverdueTaskCount} overdue", Severity = vm.OverdueTaskCount == 0 ? "Good" : "Danger", Icon = "bi-list-check" },
             new WorkspaceKpiVm { Title = "Project Ideas", Value = vm.AssignedIdeaCount.ToString(), Caption = vm.IdeasNeedingUpdateCount == 0 ? "No stale idea" : $"{vm.IdeasNeedingUpdateCount} need update", Severity = vm.IdeasNeedingUpdateCount == 0 ? "Good" : "Warning", Icon = "bi-lightbulb" },
+            new WorkspaceKpiVm { Title = "AOTS", Value = vm.AotsUnreadCount.ToString(), Caption = vm.AotsUnreadCount == 0 ? "All read" : "Unread documents", Severity = vm.AotsUnreadCount == 0 ? "Good" : "Warning", Icon = "bi-file-earmark-text" },
             new WorkspaceKpiVm { Title = "Assigned Projects", Value = vm.AssignedProjectCount.ToString(), Caption = "Currently with you", Severity = "Info", Icon = "bi-kanban" }
+        };
+    }
+
+    // SECTION: Local workspace rail anchors daily-action sections without changing global navigation.
+    private static IReadOnlyList<WorkspaceRailItemVm> BuildRailItems(ProjectOfficerWorkspaceVm vm)
+    {
+        return new[]
+        {
+            new WorkspaceRailItemVm { Label = "Today", Icon = "bi-calendar-check", Count = vm.PendingWithMeCount, Anchor = "#today", IsPrimary = true },
+            new WorkspaceRailItemVm { Label = "Remarks Due", Icon = "bi-chat-left-text", Count = vm.RemarksDueCount, Anchor = "#remarks" },
+            new WorkspaceRailItemVm { Label = "Other Assigned Tasks", Icon = "bi-list-check", Count = vm.OfficialTaskCount, Anchor = "#other-tasks" },
+            new WorkspaceRailItemVm { Label = "Project Ideas", Icon = "bi-lightbulb", Count = vm.AssignedIdeaCount, Anchor = "#project-ideas" },
+            new WorkspaceRailItemVm { Label = "AOTS", Icon = "bi-file-earmark-text", Count = vm.AotsUnreadCount, Anchor = "#aots" },
+            new WorkspaceRailItemVm { Label = "Assigned Projects", Icon = "bi-kanban", Count = vm.AssignedProjectCount, Anchor = "#assigned-projects" },
+            new WorkspaceRailItemVm { Label = "Reminders", Icon = "bi-bell", Count = vm.PersonalReminders.Count, Anchor = "#reminders" }
         };
     }
 }

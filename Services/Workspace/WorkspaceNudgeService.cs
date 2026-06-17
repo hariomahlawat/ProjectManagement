@@ -33,8 +33,13 @@ public sealed class WorkspaceNudgeService
             : null;
     }
 
+    // SECTION: Workspace project update remark
+    // Any remark by the assigned Project Officer user counts as a project update,
+    // even if the user posted it under another role such as HoD.
     public static DateTime? LastPoRemark(Project project, string userId) => project.Remarks
-        .Where(r => !r.IsDeleted && r.AuthorUserId == userId && r.AuthorRole == RemarkActorRole.ProjectOfficer)
+        .Where(r =>
+            !r.IsDeleted &&
+            r.AuthorUserId == userId)
         .OrderByDescending(r => r.CreatedAtUtc)
         .Select(r => (DateTime?)r.CreatedAtUtc)
         .FirstOrDefault();
