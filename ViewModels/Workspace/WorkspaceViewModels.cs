@@ -369,6 +369,14 @@ public static class WorkspaceDisplayHelpers
     // SECTION: Improvement labels turn internal checklist gaps into action wording.
     public static string ImprovementLabel(string gap) => gap switch
     {
+        "Brief description pending" => "Add brief description",
+        "Add at least 3 project photos" => "Add project photos",
+        "Upload at least 3 project documents" => "Upload project documents",
+        "Add at least 1 project video" => "Add project video",
+        "Update applicable budget details" => "Update budget details",
+        "Clear timeline backfill" => "Clear timeline backfill",
+        "Update current stage timeline" => "Update current stage timeline",
+        "Add recent project remark" => "Add recent project remark",
         "Basic metadata incomplete" => "Complete basic project details",
         "Category / technical category / project type incomplete" => "Complete project classification",
         "Timeline backfill required" => "Clear timeline backfill",

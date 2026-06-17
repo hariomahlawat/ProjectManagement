@@ -170,7 +170,7 @@
                                             </td>
                                             <td>
                                                 <a class="workspace-health-pill workspace-health-pill-@WorkspaceDisplayHelpers.HealthCss(row.RecordHealthPercent)"
-                                                   title="@($"{row.RecordHealthPercent}% record health; {row.RecordGapCount} fixes identified")"
+                                                   title="@($"{row.RecordHealthPercent}% project data completeness; {row.RecordGapCount} details pending")"
                                                    href="@row.OpenUrl">
                                                     @WorkspaceDisplayHelpers.HealthBandLabel(row.RecordHealthPercent) · @row.RecordGapCount
                                                 </a>
@@ -293,12 +293,12 @@
                     </div>
                 </section>
 
-                @* SECTION: Quiet grouped record cleanup *@
+                @* SECTION: Quiet grouped project data gaps *@
                 <section class="workspace-card workspace-card-clean">
-                    <h2>Record Cleanup</h2>
+                    <h2>Project Data Gaps</h2>
                     @if (!Model.Workspace.ImproveProjects.Any())
                     {
-                        <p class="workspace-inline-clear">No cleanup priority.</p>
+                        <p class="workspace-inline-clear">Project data looks complete.</p>
                     }
                     else
                     {
@@ -308,7 +308,7 @@
                                 <article>
                                     <div>
                                         <strong>@item.ProjectName</strong>
-                                        <p>@item.FixCount fix@(item.FixCount == 1 ? "" : "es") identified</p>
+                                        <p>@item.FixCount detail@(item.FixCount == 1 ? "" : "s") pending</p>
                                     </div>
                                     <a href="@item.Url">Open</a>
                                 </article>

@@ -663,10 +663,38 @@ public sealed class ProjectOfficerWorkspaceService
     // SECTION: Improvement routing points each gap to the most relevant correction workflow.
     private static string ResolveImprovementUrl(int projectId, string gap)
     {
-        if (gap.Contains("remark", StringComparison.OrdinalIgnoreCase)) return WorkspaceRouteHelper.ProjectRemarks(projectId);
-        if (gap.Contains("backfill", StringComparison.OrdinalIgnoreCase) || gap.Contains("current stage", StringComparison.OrdinalIgnoreCase) || gap.Contains("completion date", StringComparison.OrdinalIgnoreCase)) return WorkspaceRouteHelper.ProjectTimeline(projectId);
-        if (gap.Contains("classification", StringComparison.OrdinalIgnoreCase) || gap.Contains("metadata", StringComparison.OrdinalIgnoreCase)) return WorkspaceRouteHelper.ProjectMetaRequest(projectId);
-        if (gap.Contains("document", StringComparison.OrdinalIgnoreCase)) return WorkspaceRouteHelper.ProjectDocumentRequest(projectId);
+        if (gap.Contains("remark", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkspaceRouteHelper.ProjectRemarks(projectId);
+        }
+
+        if (gap.Contains("backfill", StringComparison.OrdinalIgnoreCase) ||
+            gap.Contains("current stage timeline", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkspaceRouteHelper.ProjectTimeline(projectId);
+        }
+
+        if (gap.Contains("document", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkspaceRouteHelper.ProjectDocumentRequest(projectId);
+        }
+
+        if (gap.Contains("photo", StringComparison.OrdinalIgnoreCase) ||
+            gap.Contains("video", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkspaceRouteHelper.ProjectMedia(projectId);
+        }
+
+        if (gap.Contains("budget", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkspaceRouteHelper.ProjectOverview(projectId);
+        }
+
+        if (gap.Contains("description", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkspaceRouteHelper.ProjectMetaRequest(projectId);
+        }
+
         return WorkspaceRouteHelper.ProjectOverview(projectId);
     }
 
