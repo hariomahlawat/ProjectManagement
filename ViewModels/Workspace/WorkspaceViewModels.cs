@@ -4,7 +4,7 @@ public sealed class ProjectOfficerWorkspaceVm
 {
     public string UserDisplayName { get; set; } = string.Empty;
     public string RoleTitle { get; set; } = "Project Officer Workspace";
-    public string MyProjectsUrl { get; set; } = string.Empty;
+    public string MyProjectsUrl { get; set; } = "/Projects/Ongoing";
     public DateTime GeneratedAtUtc { get; set; } = DateTime.UtcNow;
     public int PortfolioHealthPercent { get; set; }
     public string PortfolioHealthLabel { get; set; } = "Good";
@@ -21,6 +21,7 @@ public sealed class ProjectOfficerWorkspaceVm
     public IReadOnlyList<WorkspaceTaskVm> OfficialTasks { get; set; } = Array.Empty<WorkspaceTaskVm>();
     public IReadOnlyList<WorkspaceIdeaVm> Ideas { get; set; } = Array.Empty<WorkspaceIdeaVm>();
     public IReadOnlyList<WorkspaceRecordHealthVm> RecordHealth { get; set; } = Array.Empty<WorkspaceRecordHealthVm>();
+    public IReadOnlyList<WorkspaceImprovementVm> ImproveScoreItems { get; set; } = Array.Empty<WorkspaceImprovementVm>();
     public IReadOnlyList<WorkspaceQuickActionVm> QuickActions { get; set; } = Array.Empty<WorkspaceQuickActionVm>();
     public IReadOnlyList<WorkspaceReminderVm> PersonalReminders { get; set; } = Array.Empty<WorkspaceReminderVm>();
 }
@@ -30,6 +31,7 @@ public sealed class WorkspaceAttentionItemVm { public string Type { get; set; } 
 public sealed class WorkspaceProjectMatrixRowVm { public int ProjectId { get; set; } public string ProjectName { get; set; } = string.Empty; public string CurrentStageCode { get; set; } = string.Empty; public string CurrentStageName { get; set; } = string.Empty; public int? DaysInCurrentStage { get; set; } public string UpdateStatus { get; set; } = "Ok"; public string TimelineStatus { get; set; } = "Ok"; public string RecordStatus { get; set; } = "Ok"; public string TaskStatus { get; set; } = "NotApplicable"; public int RecordHealthPercent { get; set; } public int RecordGapCount { get; set; } public DateTime? LastPoRemarkAtUtc { get; set; } public bool HasBackfill { get; set; } public bool HasCurrentStageIssue { get; set; } public bool HasOverdueCurrentStage { get; set; } public string NextActionText { get; set; } = "Open"; public string NextActionUrl { get; set; } = string.Empty; public string OpenUrl { get; set; } = string.Empty; public string AddRemarkUrl { get; set; } = string.Empty; public string TimelineUrl { get; set; } = string.Empty; }
 public sealed class WorkspaceTaskVm { public int TaskId { get; set; } public string Title { get; set; } = string.Empty; public string ContextLabel { get; set; } = "Miscellaneous"; public string Priority { get; set; } = string.Empty; public string Status { get; set; } = string.Empty; public DateTime? DueDateUtc { get; set; } public bool IsOverdue { get; set; } public int? DaysOverdue { get; set; } public string OpenUrl { get; set; } = string.Empty; }
 public sealed class WorkspaceIdeaVm { public int IdeaId { get; set; } public string Title { get; set; } = string.Empty; public string Status { get; set; } = string.Empty; public DateTime LastActivityAtUtc { get; set; } public bool NeedsUpdate { get; set; } public int CommentCount { get; set; } public int DocumentCount { get; set; } public string OpenUrl { get; set; } = string.Empty; }
+public sealed class WorkspaceImprovementVm { public int ProjectId { get; set; } public string ProjectName { get; set; } = string.Empty; public string Gap { get; set; } = string.Empty; public string Label { get; set; } = string.Empty; public string Url { get; set; } = string.Empty; public string Severity { get; set; } = "Warning"; }
 public sealed class WorkspaceRecordHealthVm { public int ProjectId { get; set; } public string ProjectName { get; set; } = string.Empty; public int HealthPercent { get; set; } public string HealthLabel { get; set; } = "Good"; public IReadOnlyList<string> Gaps { get; set; } = Array.Empty<string>(); public string OpenUrl { get; set; } = string.Empty; }
 public sealed class WorkspaceEngagementVm { public DateTime? LastLoginUtc { get; set; } public DateTime? LastActivityUtc { get; set; } public int LoginsThisMonth { get; set; } public int ActiveDaysThisMonth { get; set; } public int ActionsRecordedThisMonth { get; set; } public int RemarksPostedThisMonth { get; set; } public int TasksUpdatedThisMonth { get; set; } public int DocumentsUploadedThisMonth { get; set; } public string EngagementLabel { get; set; } = "Active"; }
 public sealed class WorkspaceQuickActionVm { public string Text { get; set; } = string.Empty; public string Url { get; set; } = string.Empty; public string Icon { get; set; } = "bi-arrow-right"; }
@@ -47,11 +49,29 @@ public static class WorkspaceDisplayHelpers
         _ => status
     };
 
+    // SECTION: Compact status labels keep dense table cells readable.
+    public static string CompactStatusLabel(string status) => status switch
+    {
+        "ActionRequired" => "Action",
+        "NotApplicable" => "N/A",
+        "Ok" => "OK",
+        "Attention" => "Attention",
+        _ => status
+    };
+
     // SECTION: Record-health color classes map scores to human-readable health bands.
     public static string HealthCss(int percent)
     {
-        if (percent >= 80) return "good";
-        if (percent >= 60) return "attention";
+        if (percent >= 80)
+        {
+            return "good";
+        }
+
+        if (percent >= 60)
+        {
+            return "attention";
+        }
+
         return "danger";
     }
 
@@ -71,4 +91,33 @@ public static class WorkspaceDisplayHelpers
         _ when gap.Contains("completion date missing", StringComparison.OrdinalIgnoreCase) => "Update current stage completion date",
         _ => gap
     };
+
+    // SECTION: Urgency labels translate pending item details into short visual badges.
+    public static string UrgencyLabel(WorkspaceAttentionItemVm item)
+    {
+        if (item.Detail.Contains("backfill", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Critical";
+        }
+
+        if (item.Detail.Contains("overdue", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Overdue";
+        }
+
+        return item.Severity switch
+        {
+            "Danger" => "Action",
+            "Warning" => "Attention",
+            _ => "Info"
+        };
+    }
+
+    // SECTION: Reminder due-date display is shared by workspace reminder cards.
+    public static string FormatReminderDate(DateTimeOffset? dueAtUtc)
+    {
+        return dueAtUtc.HasValue
+            ? $"Due {dueAtUtc.Value.LocalDateTime:dd MMM}"
+            : "No due date";
+    }
 }
