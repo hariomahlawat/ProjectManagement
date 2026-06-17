@@ -43,7 +43,18 @@ public sealed class ProjectOfficerWorkspaceService
         var monthStart = new DateTime(istNow.Year, istNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var user = await _users.FindByIdAsync(userId);
         var myProjectsUrl = WorkspaceRouteHelper.MyProjects(userId);
-        var projects = await _db.Projects.AsNoTracking().Include(p => p.ProjectStages).Include(p => p.Remarks).Include(p => p.Documents).Where(p => p.LeadPoUserId == userId && !p.IsDeleted && p.LifecycleStatus != ProjectLifecycleStatus.Completed).OrderBy(p => p.Name).Take(50).ToListAsync(ct);
+        var projects = await _db.Projects
+            .AsNoTracking()
+            .Include(p => p.ProjectStages)
+            .Include(p => p.Remarks)
+            .Include(p => p.Documents)
+            .Where(p =>
+                p.LeadPoUserId == userId &&
+                !p.IsDeleted &&
+                p.LifecycleStatus != ProjectLifecycleStatus.Completed)
+            .OrderBy(p => p.Name)
+            .Take(50)
+            .ToListAsync(ct);
         var taskRows = await _db.ActionTasks.AsNoTracking()
             .Where(t => !t.IsDeleted && t.AssignedToUserId == userId && t.Status != ActionTaskStatuses.Closed && t.Status != ActionTaskStatuses.Backlog)
             .OrderBy(t => t.DueDate)
@@ -94,6 +105,9 @@ public sealed class ProjectOfficerWorkspaceService
                 : user.FullName,
             PortfolioHealthPercent = avgHealth,
             PortfolioHealthLabel = avgHealth >= 80 ? "Good" : avgHealth >= 60 ? "Attention" : "Needs Work",
+            RecordHealthSummaryLabel = avgHealth >= 80
+                ? "Good"
+                : avgHealth >= 60 ? "Attention" : "Needs Work",
             AssignedProjectCount = projects.Count,
             PendingWithMeCount = pending.Count,
             OverdueTaskCount = tasks.Count(t => t.IsOverdue),
@@ -111,8 +125,10 @@ public sealed class ProjectOfficerWorkspaceService
                 .ToList(),
             RecordHealth = health.Values.OrderBy(h => h.HealthPercent).Take(5).ToList(),
             ImproveScoreItems = BuildImproveScoreItems(health.Values, maxItems: 4),
+            ImproveProjects = BuildImproveProjects(health.Values, maxProjects: 3),
+            NextBestFix = pending.FirstOrDefault(),
             PersonalReminders = reminders,
-            QuickActions = BuildQuickActions(userId, pending),
+            QuickActions = BuildQuickActions(userId),
             MyProjectsUrl = myProjectsUrl
         };
         vm.Kpis = BuildKpis(vm);
@@ -309,68 +325,85 @@ public sealed class ProjectOfficerWorkspaceService
         return WorkspaceRouteHelper.ProjectOverview(projectId);
     }
 
-    // SECTION: Quick actions prioritize the highest pending correction before durable workspace destinations.
-    private static IReadOnlyList<WorkspaceQuickActionVm> BuildQuickActions(string userId, IReadOnlyList<WorkspaceAttentionItemVm> pendingItems)
+    // SECTION: Group record-health gaps by project to avoid repetitive right-rail rows.
+    private static IReadOnlyList<WorkspaceProjectImprovementVm> BuildImproveProjects(
+        IEnumerable<WorkspaceRecordHealthVm> healthRows,
+        int maxProjects)
     {
-        var actions = new List<WorkspaceQuickActionVm>();
-        var topPriority = pendingItems.FirstOrDefault();
-        if (topPriority is not null)
-        {
-            actions.Add(new WorkspaceQuickActionVm { Text = $"Fix Top Priority: {topPriority.ActionText}", Url = topPriority.ActionUrl, Icon = "bi-lightning-charge" });
-        }
+        return healthRows
+            .Where(h => h.Gaps.Any())
+            .OrderBy(h => h.HealthPercent)
+            .Take(maxProjects)
+            .Select(h => new WorkspaceProjectImprovementVm
+            {
+                ProjectId = h.ProjectId,
+                ProjectName = h.ProjectName,
+                FixCount = h.Gaps.Count,
+                FixLabels = h.Gaps
+                    .Take(3)
+                    .Select(WorkspaceDisplayHelpers.ImprovementLabel)
+                    .ToList(),
+                Url = WorkspaceRouteHelper.ProjectOverview(h.ProjectId),
+                Severity = h.HealthPercent < 60 ? "Danger" : "Warning"
+            })
+            .ToList();
+    }
 
-        actions.AddRange(new[]
+    // SECTION: Quick actions keep only durable workspace destinations.
+    private static IReadOnlyList<WorkspaceQuickActionVm> BuildQuickActions(string userId)
+    {
+        return new[]
         {
             new WorkspaceQuickActionVm { Text = "Open My Projects", Url = WorkspaceRouteHelper.MyProjects(userId), Icon = "bi-kanban" },
             new WorkspaceQuickActionVm { Text = "View My Official Tasks", Url = WorkspaceRouteHelper.ActionTasksMyWork(), Icon = "bi-list-check" },
             new WorkspaceQuickActionVm { Text = "Open My Project Ideas", Url = WorkspaceRouteHelper.ProjectIdeasMine(), Icon = "bi-lightbulb" },
             new WorkspaceQuickActionVm { Text = "Open Personal Reminders", Url = WorkspaceRouteHelper.PersonalReminders(), Icon = "bi-pin-angle" }
-        });
-
-        return actions;
+        };
     }
 
-    private static IReadOnlyList<WorkspaceKpiVm> BuildKpis(ProjectOfficerWorkspaceVm vm) => new[]
+    // SECTION: Compact KPI strip highlights only essential workspace summary facts.
+    private static IReadOnlyList<WorkspaceKpiVm> BuildKpis(ProjectOfficerWorkspaceVm vm)
     {
-        new WorkspaceKpiVm
+        return new[]
         {
-            Title = "Portfolio Health",
-            Value = $"{vm.PortfolioHealthPercent}%",
-            Caption = vm.PortfolioHealthLabel,
-            Severity = vm.PortfolioHealthPercent >= 80 ? "Good" : vm.PortfolioHealthPercent >= 60 ? "Warning" : "Danger",
-            Icon = "bi-heart-pulse"
-        },
-        new WorkspaceKpiVm
-        {
-            Title = "Pending With Me",
-            Value = vm.PendingWithMeCount.ToString(),
-            Caption = "Actionable nudges",
-            Severity = vm.PendingWithMeCount == 0 ? "Good" : "Warning",
-            Icon = "bi-inbox"
-        },
-        new WorkspaceKpiVm
-        {
-            Title = "Overdue Tasks",
-            Value = vm.OverdueTaskCount.ToString(),
-            Caption = "Official tasks",
-            Severity = vm.OverdueTaskCount == 0 ? "Good" : "Danger",
-            Icon = "bi-exclamation-triangle"
-        },
-        new WorkspaceKpiVm
-        {
-            Title = "Record Gaps",
-            Value = vm.RecordGapCount.ToString(),
-            Caption = $"Across {vm.AssignedProjectCount} assigned projects",
-            Severity = vm.RecordGapCount == 0 ? "Good" : "Warning",
-            Icon = "bi-folder-check"
-        },
-        new WorkspaceKpiVm
-        {
-            Title = "ERP Engagement",
-            Value = vm.Engagement.ActiveDaysThisMonth.ToString(),
-            Caption = "Active days this month",
-            Severity = "Info",
-            Icon = "bi-activity"
-        }
-    };
+            new WorkspaceKpiVm
+            {
+                Title = "Needs Attention",
+                Value = vm.PendingWithMeCount.ToString(),
+                Caption = vm.PendingWithMeCount == 0
+                    ? "Clear"
+                    : "Highest priority items",
+                Severity = vm.PendingWithMeCount == 0 ? "Good" : "Warning",
+                Icon = "bi-inbox"
+            },
+            new WorkspaceKpiVm
+            {
+                Title = "Assigned Projects",
+                Value = vm.AssignedProjectCount.ToString(),
+                Caption = "Currently with you",
+                Severity = "Info",
+                Icon = "bi-kanban"
+            },
+            new WorkspaceKpiVm
+            {
+                Title = "Official Tasks",
+                Value = vm.OfficialTasks.Count.ToString(),
+                Caption = vm.OverdueTaskCount == 0
+                    ? "No overdue task"
+                    : $"{vm.OverdueTaskCount} overdue",
+                Severity = vm.OverdueTaskCount == 0 ? "Good" : "Danger",
+                Icon = "bi-list-check"
+            },
+            new WorkspaceKpiVm
+            {
+                Title = "Record Health",
+                Value = vm.RecordHealthSummaryLabel,
+                Caption = $"{vm.RecordGapCount} fixes identified",
+                Severity = vm.PortfolioHealthPercent >= 80
+                    ? "Good"
+                    : vm.PortfolioHealthPercent >= 60 ? "Warning" : "Danger",
+                Icon = "bi-folder-check"
+            }
+        };
+    }
 }

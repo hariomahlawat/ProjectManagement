@@ -628,3 +628,204 @@
 .workspace-health-danger span {
     color: #c94b55;
 }
+
+/* SECTION: Redesigned workspace information architecture */
+.workspace-hero-simple {
+    justify-content: flex-start;
+}
+
+.workspace-section-subtitle {
+    margin: 0.12rem 0 0;
+    color: #64748b;
+    font-size: 0.78rem;
+}
+
+.workspace-inbox-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.workspace-inbox-pane {
+    border: 1px solid #e8edf5;
+    border-radius: 10px;
+    padding: 0.7rem;
+    background: #fbfcfe;
+}
+
+.workspace-inbox-pane h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.82rem;
+    font-weight: 650;
+    color: #334155;
+}
+
+.workspace-inbox-list {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.workspace-inbox-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid #edf2f7;
+}
+
+.workspace-inbox-item:last-child {
+    border-bottom: 0;
+}
+
+.workspace-inbox-item strong {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.workspace-inbox-item p {
+    margin: 0;
+    font-size: 0.76rem;
+    color: #64748b;
+}
+
+.workspace-inbox-item a {
+    font-size: 0.76rem;
+    font-weight: 550;
+    text-decoration: none;
+}
+
+.workspace-inline-clear {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.78rem;
+    background: #f8fafc;
+    border: 1px dashed #d9e2ef;
+    border-radius: 8px;
+    padding: 0.45rem 0.55rem;
+}
+
+.workspace-split-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+}
+
+.workspace-subhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.55rem;
+}
+
+.workspace-subhead h3 {
+    margin: 0;
+    font-size: 0.84rem;
+    font-weight: 650;
+    color: #334155;
+}
+
+.workspace-subhead a {
+    font-size: 0.76rem;
+    text-decoration: none;
+    font-weight: 550;
+}
+
+.workspace-slim-list {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.workspace-slim-list article {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.48rem 0;
+    border-bottom: 1px solid #edf2f7;
+}
+
+.workspace-slim-list article:last-child {
+    border-bottom: 0;
+}
+
+.workspace-slim-list strong {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.workspace-slim-list p {
+    margin: 0.08rem 0 0;
+    color: #64748b;
+    font-size: 0.76rem;
+}
+
+.workspace-slim-list a {
+    font-size: 0.76rem;
+    font-weight: 550;
+    text-decoration: none;
+}
+
+.workspace-next-fix {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.workspace-next-fix strong {
+    font-size: 0.9rem;
+    font-weight: 650;
+    color: #0f172a;
+}
+
+.workspace-next-fix p {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.78rem;
+}
+
+.workspace-improve-projects {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.workspace-improve-projects article {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.6rem;
+    align-items: center;
+    padding: 0.58rem 0;
+    border-bottom: 1px solid #edf2f7;
+}
+
+.workspace-improve-projects article:last-child {
+    border-bottom: 0;
+}
+
+.workspace-improve-projects strong {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.workspace-improve-projects p {
+    margin: 0.1rem 0 0;
+    color: #64748b;
+    font-size: 0.76rem;
+}
+
+.workspace-improve-projects a {
+    font-size: 0.76rem;
+    font-weight: 550;
+    text-decoration: none;
+}
+
+@media (max-width: 1100px) {
+    .workspace-inbox-grid,
+    .workspace-split-grid {
+        grid-template-columns: 1fr;
+    }
+}
