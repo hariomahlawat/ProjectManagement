@@ -26,16 +26,193 @@ public sealed class ProjectOfficerWorkspaceVm
     public IReadOnlyList<WorkspaceReminderVm> PersonalReminders { get; set; } = Array.Empty<WorkspaceReminderVm>();
 }
 
-public sealed class WorkspaceKpiVm { public string Title { get; set; } = string.Empty; public string Value { get; set; } = string.Empty; public string Caption { get; set; } = string.Empty; public string Severity { get; set; } = "Info"; public string Icon { get; set; } = "bi-circle"; public string? Url { get; set; } }
-public sealed class WorkspaceAttentionItemVm { public string Type { get; set; } = string.Empty; public string Title { get; set; } = string.Empty; public string Detail { get; set; } = string.Empty; public string Severity { get; set; } = "Info"; public string BadgeText { get; set; } = string.Empty; public string ActionText { get; set; } = string.Empty; public string ActionUrl { get; set; } = string.Empty; public DateTime? DueOrEventDateUtc { get; set; } }
-public sealed class WorkspaceProjectMatrixRowVm { public int ProjectId { get; set; } public string ProjectName { get; set; } = string.Empty; public string CurrentStageCode { get; set; } = string.Empty; public string CurrentStageName { get; set; } = string.Empty; public int? DaysInCurrentStage { get; set; } public string UpdateStatus { get; set; } = "Ok"; public string TimelineStatus { get; set; } = "Ok"; public string RecordStatus { get; set; } = "Ok"; public string TaskStatus { get; set; } = "NotApplicable"; public int RecordHealthPercent { get; set; } public int RecordGapCount { get; set; } public DateTime? LastPoRemarkAtUtc { get; set; } public bool HasBackfill { get; set; } public bool HasCurrentStageIssue { get; set; } public bool HasOverdueCurrentStage { get; set; } public string NextActionText { get; set; } = "Open"; public string NextActionUrl { get; set; } = string.Empty; public string OpenUrl { get; set; } = string.Empty; public string AddRemarkUrl { get; set; } = string.Empty; public string TimelineUrl { get; set; } = string.Empty; }
-public sealed class WorkspaceTaskVm { public int TaskId { get; set; } public string Title { get; set; } = string.Empty; public string ContextLabel { get; set; } = "Miscellaneous"; public string Priority { get; set; } = string.Empty; public string Status { get; set; } = string.Empty; public DateTime? DueDateUtc { get; set; } public bool IsOverdue { get; set; } public int? DaysOverdue { get; set; } public string OpenUrl { get; set; } = string.Empty; }
-public sealed class WorkspaceIdeaVm { public int IdeaId { get; set; } public string Title { get; set; } = string.Empty; public string Status { get; set; } = string.Empty; public DateTime LastActivityAtUtc { get; set; } public bool NeedsUpdate { get; set; } public int CommentCount { get; set; } public int DocumentCount { get; set; } public string OpenUrl { get; set; } = string.Empty; }
-public sealed class WorkspaceImprovementVm { public int ProjectId { get; set; } public string ProjectName { get; set; } = string.Empty; public string Gap { get; set; } = string.Empty; public string Label { get; set; } = string.Empty; public string Url { get; set; } = string.Empty; public string Severity { get; set; } = "Warning"; }
-public sealed class WorkspaceRecordHealthVm { public int ProjectId { get; set; } public string ProjectName { get; set; } = string.Empty; public int HealthPercent { get; set; } public string HealthLabel { get; set; } = "Good"; public IReadOnlyList<string> Gaps { get; set; } = Array.Empty<string>(); public string OpenUrl { get; set; } = string.Empty; }
-public sealed class WorkspaceEngagementVm { public DateTime? LastLoginUtc { get; set; } public DateTime? LastActivityUtc { get; set; } public int LoginsThisMonth { get; set; } public int ActiveDaysThisMonth { get; set; } public int ActionsRecordedThisMonth { get; set; } public int RemarksPostedThisMonth { get; set; } public int TasksUpdatedThisMonth { get; set; } public int DocumentsUploadedThisMonth { get; set; } public string EngagementLabel { get; set; } = "Active"; }
-public sealed class WorkspaceQuickActionVm { public string Text { get; set; } = string.Empty; public string Url { get; set; } = string.Empty; public string Icon { get; set; } = "bi-arrow-right"; }
-public sealed class WorkspaceReminderVm { public Guid ReminderId { get; set; } public string Title { get; set; } = string.Empty; public string Priority { get; set; } = string.Empty; public DateTimeOffset? DueAtUtc { get; set; } public bool IsPinned { get; set; } public string OpenUrl { get; set; } = string.Empty; }
+public sealed class WorkspaceKpiVm
+{
+    public string Title { get; set; } = string.Empty;
+
+    public string Value { get; set; } = string.Empty;
+
+    public string Caption { get; set; } = string.Empty;
+
+    public string Severity { get; set; } = "Info";
+
+    public string Icon { get; set; } = "bi-circle";
+
+    public string? Url { get; set; }
+}
+public sealed class WorkspaceAttentionItemVm
+{
+    public string Type { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Detail { get; set; } = string.Empty;
+
+    public string Severity { get; set; } = "Info";
+
+    public string BadgeText { get; set; } = string.Empty;
+
+    public string ActionText { get; set; } = string.Empty;
+
+    public string ActionUrl { get; set; } = string.Empty;
+
+    public DateTime? DueOrEventDateUtc { get; set; }
+}
+public sealed class WorkspaceProjectMatrixRowVm
+{
+    public int ProjectId { get; set; }
+
+    public string ProjectName { get; set; } = string.Empty;
+
+    public string CurrentStageCode { get; set; } = string.Empty;
+
+    public string CurrentStageName { get; set; } = string.Empty;
+
+    public int? DaysInCurrentStage { get; set; }
+
+    public string UpdateStatus { get; set; } = "Ok";
+
+    public string TimelineStatus { get; set; } = "Ok";
+
+    public string RecordStatus { get; set; } = "Ok";
+
+    public string TaskStatus { get; set; } = "NotApplicable";
+
+    public int RecordHealthPercent { get; set; }
+
+    public int RecordGapCount { get; set; }
+
+    public DateTime? LastPoRemarkAtUtc { get; set; }
+
+    public bool HasBackfill { get; set; }
+
+    public bool HasCurrentStageIssue { get; set; }
+
+    public bool HasOverdueCurrentStage { get; set; }
+
+    public string NextActionText { get; set; } = "Open";
+
+    public string NextActionUrl { get; set; } = string.Empty;
+
+    public string OpenUrl { get; set; } = string.Empty;
+
+    public string AddRemarkUrl { get; set; } = string.Empty;
+
+    public string TimelineUrl { get; set; } = string.Empty;
+}
+public sealed class WorkspaceTaskVm
+{
+    public int TaskId { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+
+    public string ContextLabel { get; set; } = "Miscellaneous";
+
+    public string Priority { get; set; } = string.Empty;
+
+    public string Status { get; set; } = string.Empty;
+
+    public DateTime? DueDateUtc { get; set; }
+
+    public bool IsOverdue { get; set; }
+
+    public int? DaysOverdue { get; set; }
+
+    public string OpenUrl { get; set; } = string.Empty;
+}
+public sealed class WorkspaceIdeaVm
+{
+    public int IdeaId { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Status { get; set; } = string.Empty;
+
+    public DateTime LastActivityAtUtc { get; set; }
+
+    public bool NeedsUpdate { get; set; }
+
+    public int CommentCount { get; set; }
+
+    public int DocumentCount { get; set; }
+
+    public string OpenUrl { get; set; } = string.Empty;
+}
+
+public sealed class WorkspaceImprovementVm
+{
+    public int ProjectId { get; set; }
+
+    public string ProjectName { get; set; } = string.Empty;
+
+    public string Gap { get; set; } = string.Empty;
+
+    public string Label { get; set; } = string.Empty;
+
+    public string Url { get; set; } = string.Empty;
+
+    public string Severity { get; set; } = "Warning";
+}
+
+public sealed class WorkspaceRecordHealthVm
+{
+    public int ProjectId { get; set; }
+
+    public string ProjectName { get; set; } = string.Empty;
+
+    public int HealthPercent { get; set; }
+
+    public string HealthLabel { get; set; } = "Good";
+
+    public IReadOnlyList<string> Gaps { get; set; } = Array.Empty<string>();
+
+    public string OpenUrl { get; set; } = string.Empty;
+}
+
+public sealed class WorkspaceEngagementVm
+{
+    public DateTime? LastLoginUtc { get; set; }
+
+    public DateTime? LastActivityUtc { get; set; }
+
+    public int LoginsThisMonth { get; set; }
+
+    public int ActiveDaysThisMonth { get; set; }
+
+    public int ActionsRecordedThisMonth { get; set; }
+
+    public int RemarksPostedThisMonth { get; set; }
+
+    public int TasksUpdatedThisMonth { get; set; }
+
+    public int DocumentsUploadedThisMonth { get; set; }
+
+    public string EngagementLabel { get; set; } = "Active";
+}
+
+public sealed class WorkspaceQuickActionVm
+{
+    public string Text { get; set; } = string.Empty;
+
+    public string Url { get; set; } = string.Empty;
+
+    public string Icon { get; set; } = "bi-arrow-right";
+}
+
+public sealed class WorkspaceReminderVm
+{
+    public Guid ReminderId { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Priority { get; set; } = string.Empty;
+
+    public DateTimeOffset? DueAtUtc { get; set; }
+
+    public bool IsPinned { get; set; }
+
+    public string OpenUrl { get; set; } = string.Empty;
+}
 
 public static class WorkspaceDisplayHelpers
 {
@@ -57,6 +234,18 @@ public static class WorkspaceDisplayHelpers
         "Ok" => "OK",
         "Attention" => "Attention",
         _ => status
+    };
+
+
+    // SECTION: Matrix action labels are shortened for dense enterprise table rows.
+    public static string CompactActionLabel(string action) => action switch
+    {
+        "Complete backfill" => "Backfill",
+        "Update current stage" => "Update stage",
+        "Update current stage dates" => "Update dates",
+        "Add remark" => "Remark",
+        "Complete project data" => "Complete data",
+        _ => action
     };
 
     // SECTION: Record-health color classes map scores to human-readable health bands.
