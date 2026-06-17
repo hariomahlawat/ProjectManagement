@@ -81,9 +81,25 @@ public sealed class ProjectOfficerWorkspaceService
         var ideaVms = ideas.Select(i => { var last = new[] { i.UpdatedAt }.Concat(i.Comments.Where(c => !c.IsDeleted).Select(c => c.CreatedAt)).Concat(i.Notes.Where(n => !n.IsDeleted).Select(n => n.UpdatedAt)).Concat(i.Documents.Where(d => !d.IsDeleted).Select(d => d.UploadedAt)).DefaultIfEmpty(i.UpdatedAt).Max(); return new WorkspaceIdeaVm { IdeaId = i.Id, Title = i.Title, Status = ProjectIdeaStatuses.ToDisplay(i.Status), LastActivityAtUtc = last, NeedsUpdate = (today.DayNumber - WorkspaceNudgeService.ToIstDate(last).DayNumber) > 15 && (i.Status == ProjectIdeaStatuses.Active || i.Status == ProjectIdeaStatuses.OnHold), CommentCount = i.Comments.Count(c => !c.IsDeleted), DocumentCount = i.Documents.Count(d => !d.IsDeleted), OpenUrl = WorkspaceRouteHelper.ProjectIdea(i.Id) }; }).ToList();
         var reminders = await _db.TodoItems.AsNoTracking().Where(t => t.OwnerId == userId && t.Status != TodoStatus.Done && t.DeletedUtc == null).OrderByDescending(t => t.IsPinned).ThenBy(t => t.DueAtUtc).Take(5).Select(t => new WorkspaceReminderVm { ReminderId = t.Id, Title = t.Title, Priority = t.Priority.ToString(), DueAtUtc = t.DueAtUtc, IsPinned = t.IsPinned, OpenUrl = WorkspaceRouteHelper.PersonalReminders() }).ToListAsync(ct);
         var health = await _health.CalculateForProjectsAsync(projects, userId, ct);
+        var remarksDue = _nudges.BuildRemarksDue(projects, userId, today).ToList();
         var returnedItems = await BuildReturnedItemsAsync(userId, ct);
+        var officialTasksDue = tasks
+            .Where(t => t.IsOverdue || IsDueSoon(t.DueDateUtc, today))
+            .OrderByDescending(t => t.IsOverdue)
+            .ThenBy(t => t.DueDateUtc)
+            .Take(5)
+            .ToList();
+        var ideasNeedingUpdate = ideaVms
+            .Where(i => i.NeedsUpdate)
+            .OrderByDescending(i => i.LastActivityAtUtc)
+            .Take(5)
+            .ToList();
+        var timelineAlerts = _nudges.BuildTimelineAlerts(projects, today).ToList();
         var pending = returnedItems
-            .Concat(_nudges.BuildPendingWithMe(projects, tasks, ideaVms, userId, today))
+            .Concat(remarksDue)
+            .Concat(officialTasksDue.Select(ToAttentionItem))
+            .Concat(ideasNeedingUpdate.Select(ToAttentionItem))
+            .Concat(timelineAlerts)
             .GroupBy(i => $"{i.Type}:{i.Title}")
             .Select(g => g
                 .OrderBy(i => WorkspaceSeverityRank(i.Severity))
@@ -111,10 +127,18 @@ public sealed class ProjectOfficerWorkspaceService
             AssignedProjectCount = projects.Count,
             PendingWithMeCount = pending.Count,
             OverdueTaskCount = tasks.Count(t => t.IsOverdue),
+            RemarksDueCount = remarksDue.Count,
+            OfficialTaskCount = tasks.Count,
+            IdeasNeedingUpdateCount = ideaVms.Count(i => i.NeedsUpdate),
             RecordGapCount = health.Values.Sum(h => h.Gaps.Count),
             AssignedIdeaCount = ideaVms.Count,
             Engagement = engagement,
             PendingWithMe = pending.Take(5).ToList(),
+            RemarksDue = remarksDue.Take(5).ToList(),
+            OfficialTasksDue = officialTasksDue,
+            IdeasNeedingUpdate = ideasNeedingUpdate,
+            ReturnedItems = returnedItems.Take(5).ToList(),
+            TimelineAlerts = timelineAlerts.Take(5).ToList(),
             WaitingOnOthers = waitingOnOthers.Take(5).ToList(),
             ProjectMatrix = matrix,
             OfficialTasks = tasks.Take(5).ToList(),
@@ -127,6 +151,7 @@ public sealed class ProjectOfficerWorkspaceService
             ImproveScoreItems = BuildImproveScoreItems(health.Values, maxItems: 4),
             ImproveProjects = BuildImproveProjects(health.Values, maxProjects: 3),
             NextBestFix = pending.FirstOrDefault(),
+            NextBestAction = BuildNextBestAction(returnedItems, officialTasksDue, remarksDue, ideasNeedingUpdate, timelineAlerts),
             PersonalReminders = reminders,
             QuickActions = BuildQuickActions(userId),
             MyProjectsUrl = myProjectsUrl
@@ -134,6 +159,69 @@ public sealed class ProjectOfficerWorkspaceService
         vm.Kpis = BuildKpis(vm);
         return vm;
     }
+
+    // SECTION: Due-soon detection uses the workspace IST operating date.
+    private static bool IsDueSoon(DateTime? dueDateUtc, DateOnly today)
+    {
+        if (!dueDateUtc.HasValue)
+        {
+            return false;
+        }
+
+        var due = DateOnly.FromDateTime(dueDateUtc.Value);
+        var days = due.DayNumber - today.DayNumber;
+
+        return days >= 0 && days <= 3;
+    }
+
+    // SECTION: Next best action prioritizes daily operations over record cleanup.
+    private static WorkspaceAttentionItemVm? BuildNextBestAction(
+        IReadOnlyList<WorkspaceAttentionItemVm> returnedItems,
+        IReadOnlyList<WorkspaceTaskVm> officialTasksDue,
+        IReadOnlyList<WorkspaceAttentionItemVm> remarksDue,
+        IReadOnlyList<WorkspaceIdeaVm> ideasNeedingUpdate,
+        IReadOnlyList<WorkspaceAttentionItemVm> timelineAlerts)
+    {
+        var returned = returnedItems.FirstOrDefault();
+        if (returned is not null) return returned;
+
+        var overdueTask = officialTasksDue.FirstOrDefault(t => t.IsOverdue);
+        if (overdueTask is not null) return ToAttentionItem(overdueTask);
+
+        var remark = remarksDue.FirstOrDefault();
+        if (remark is not null) return remark;
+
+        var idea = ideasNeedingUpdate.FirstOrDefault();
+        if (idea is not null) return ToAttentionItem(idea);
+
+        return timelineAlerts.FirstOrDefault();
+    }
+
+    private static WorkspaceAttentionItemVm ToAttentionItem(WorkspaceTaskVm task) => new()
+    {
+        Type = "Task",
+        Title = task.Title,
+        Detail = task.IsOverdue
+            ? task.DaysOverdue.HasValue ? $"Official task overdue by {task.DaysOverdue.Value} days" : "Official task overdue"
+            : "Official task due soon",
+        Severity = task.IsOverdue ? "Danger" : "Warning",
+        BadgeText = "Task",
+        ActionText = "Open Task",
+        ActionUrl = task.OpenUrl,
+        DueOrEventDateUtc = task.DueDateUtc
+    };
+
+    private static WorkspaceAttentionItemVm ToAttentionItem(WorkspaceIdeaVm idea) => new()
+    {
+        Type = "Idea",
+        Title = idea.Title,
+        Detail = "Project idea needs update",
+        Severity = "Warning",
+        BadgeText = "Idea",
+        ActionText = "Open Idea",
+        ActionUrl = idea.OpenUrl,
+        DueOrEventDateUtc = idea.LastActivityAtUtc
+    };
 
 
     // SECTION: Waiting-on-others summarizes submissions that are no longer actionable by the PO.
@@ -361,49 +449,15 @@ public sealed class ProjectOfficerWorkspaceService
         };
     }
 
-    // SECTION: Compact KPI strip highlights only essential workspace summary facts.
+    // SECTION: Compact KPI strip highlights daily updates before project health.
     private static IReadOnlyList<WorkspaceKpiVm> BuildKpis(ProjectOfficerWorkspaceVm vm)
     {
         return new[]
         {
-            new WorkspaceKpiVm
-            {
-                Title = "Needs Attention",
-                Value = vm.PendingWithMeCount.ToString(),
-                Caption = vm.PendingWithMeCount == 0
-                    ? "Clear"
-                    : "Highest priority items",
-                Severity = vm.PendingWithMeCount == 0 ? "Good" : "Warning",
-                Icon = "bi-inbox"
-            },
-            new WorkspaceKpiVm
-            {
-                Title = "Assigned Projects",
-                Value = vm.AssignedProjectCount.ToString(),
-                Caption = "Currently with you",
-                Severity = "Info",
-                Icon = "bi-kanban"
-            },
-            new WorkspaceKpiVm
-            {
-                Title = "Official Tasks",
-                Value = vm.OfficialTasks.Count.ToString(),
-                Caption = vm.OverdueTaskCount == 0
-                    ? "No overdue task"
-                    : $"{vm.OverdueTaskCount} overdue",
-                Severity = vm.OverdueTaskCount == 0 ? "Good" : "Danger",
-                Icon = "bi-list-check"
-            },
-            new WorkspaceKpiVm
-            {
-                Title = "Record Health",
-                Value = vm.RecordHealthSummaryLabel,
-                Caption = $"{vm.RecordGapCount} fixes identified",
-                Severity = vm.PortfolioHealthPercent >= 80
-                    ? "Good"
-                    : vm.PortfolioHealthPercent >= 60 ? "Warning" : "Danger",
-                Icon = "bi-folder-check"
-            }
+            new WorkspaceKpiVm { Title = "Remarks Due", Value = vm.RemarksDueCount.ToString(), Caption = "Project updates", Severity = vm.RemarksDueCount == 0 ? "Good" : "Warning", Icon = "bi-chat-left-text" },
+            new WorkspaceKpiVm { Title = "Official Tasks", Value = vm.OfficialTaskCount.ToString(), Caption = vm.OverdueTaskCount == 0 ? "No overdue task" : $"{vm.OverdueTaskCount} overdue", Severity = vm.OverdueTaskCount == 0 ? "Good" : "Danger", Icon = "bi-list-check" },
+            new WorkspaceKpiVm { Title = "Project Ideas", Value = vm.AssignedIdeaCount.ToString(), Caption = vm.IdeasNeedingUpdateCount == 0 ? "No stale idea" : $"{vm.IdeasNeedingUpdateCount} need update", Severity = vm.IdeasNeedingUpdateCount == 0 ? "Good" : "Warning", Icon = "bi-lightbulb" },
+            new WorkspaceKpiVm { Title = "Assigned Projects", Value = vm.AssignedProjectCount.ToString(), Caption = "Currently with you", Severity = "Info", Icon = "bi-kanban" }
         };
     }
 }

@@ -17,6 +17,14 @@ public sealed class ProjectOfficerWorkspaceVm
     public WorkspaceEngagementVm Engagement { get; set; } = new();
     public IReadOnlyList<WorkspaceKpiVm> Kpis { get; set; } = Array.Empty<WorkspaceKpiVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> PendingWithMe { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
+    public IReadOnlyList<WorkspaceAttentionItemVm> RemarksDue { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
+    public IReadOnlyList<WorkspaceTaskVm> OfficialTasksDue { get; set; } = Array.Empty<WorkspaceTaskVm>();
+    public IReadOnlyList<WorkspaceIdeaVm> IdeasNeedingUpdate { get; set; } = Array.Empty<WorkspaceIdeaVm>();
+    public IReadOnlyList<WorkspaceAttentionItemVm> ReturnedItems { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
+    public IReadOnlyList<WorkspaceAttentionItemVm> TimelineAlerts { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
+    public int OfficialTaskCount { get; set; }
+    public int RemarksDueCount { get; set; }
+    public int IdeasNeedingUpdateCount { get; set; }
     public IReadOnlyList<WorkspaceAttentionItemVm> WaitingOnOthers { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceProjectMatrixRowVm> ProjectMatrix { get; set; } = Array.Empty<WorkspaceProjectMatrixRowVm>();
     public IReadOnlyList<WorkspaceTaskVm> OfficialTasks { get; set; } = Array.Empty<WorkspaceTaskVm>();
@@ -25,6 +33,7 @@ public sealed class ProjectOfficerWorkspaceVm
     public IReadOnlyList<WorkspaceImprovementVm> ImproveScoreItems { get; set; } = Array.Empty<WorkspaceImprovementVm>();
     public IReadOnlyList<WorkspaceProjectImprovementVm> ImproveProjects { get; set; } = Array.Empty<WorkspaceProjectImprovementVm>();
     public WorkspaceAttentionItemVm? NextBestFix { get; set; }
+    public WorkspaceAttentionItemVm? NextBestAction { get; set; }
     public IReadOnlyList<WorkspaceQuickActionVm> QuickActions { get; set; } = Array.Empty<WorkspaceQuickActionVm>();
     public IReadOnlyList<WorkspaceReminderVm> PersonalReminders { get; set; } = Array.Empty<WorkspaceReminderVm>();
 }
