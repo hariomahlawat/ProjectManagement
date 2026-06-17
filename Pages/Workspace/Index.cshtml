@@ -5,25 +5,36 @@
 @{
     ViewData["Title"] = "My Workspace";
     ViewData["UseFullWidth"] = true;
-    var attentionTitle = Model.Workspace.PendingWithMeCount == 0
-        ? "No urgent items pending today"
-        : $"{Model.Workspace.PendingWithMeCount} item{(Model.Workspace.PendingWithMeCount == 1 ? "" : "s")} need attention today";
+
+    var actionCount =
+        Model.Workspace.RemarksDue.Count +
+        Model.Workspace.OfficialTaskCount +
+        Model.Workspace.IdeasNeedingUpdate.Count +
+        Model.Workspace.ReturnedItems.Count;
+
+    var attentionTitle = actionCount == 0
+        ? "No urgent update pending today"
+        : $"{actionCount} update{(actionCount == 1 ? "" : "s")} need your attention today";
+
+    var attentionSubtitle = actionCount == 0
+        ? "Remarks, tasks and ideas are clear"
+        : "Remarks, tasks and ideas requiring action";
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/workspace.css" asp-append-version="true" />
 }
 
 <div class="workspace-page">
-    @* SECTION: Simplified workboard header *@
+    @* SECTION: Compact daily-action header *@
     <header class="workspace-hero workspace-hero-simple">
         <div>
             <p class="workspace-eyebrow">My Workspace</p>
             <h1>@attentionTitle</h1>
-            <p>Project Officer workboard · Assigned projects, official tasks and ideas</p>
+            <p>@attentionSubtitle</p>
         </div>
     </header>
 
-    @* SECTION: Compact summary strip *@
+    @* SECTION: Compact action summary *@
     <section class="workspace-kpis" aria-label="Workspace KPIs">
         @foreach (var kpi in Model.Workspace.Kpis)
         {
@@ -40,73 +51,133 @@
 
     <div class="workspace-grid">
         <main class="workspace-main">
-            @* SECTION: Primary portfolio workboard *@
-            <section class="workspace-card workspace-portfolio-card">
+            @* SECTION: Primary daily action inbox *@
+            <section class="workspace-card workspace-action-inbox">
                 <div class="workspace-card__head">
                     <div>
-                        <h2>My Project Portfolio</h2>
-                        <p class="workspace-section-subtitle">Assigned projects and next action required</p>
+                        <h2>Action Inbox</h2>
+                        <p class="workspace-section-subtitle">Remarks, tasks and ideas that need your update</p>
                     </div>
-                    <a href="@Model.Workspace.MyProjectsUrl">View all projects</a>
+                    <a href="@WorkspaceRouteHelper.ActionTasksMyWork()">View my work</a>
                 </div>
 
+                <div class="workspace-action-tabs">
+                    <section>
+                        <h3>Remarks Due</h3>
+                        @if (!Model.Workspace.RemarksDue.Any())
+                        {
+                            <p class="workspace-inline-clear">Clear</p>
+                        }
+                        else
+                        {
+                            <div class="workspace-action-list">
+                                @foreach (var item in Model.Workspace.RemarksDue.Take(4))
+                                {
+                                    <article>
+                                        <span class="workspace-chip workspace-chip-warning">Remark</span>
+                                        <div><strong>@item.Title</strong><p>@item.Detail</p></div>
+                                        <a href="@item.ActionUrl">Add Remark</a>
+                                    </article>
+                                }
+                            </div>
+                        }
+                    </section>
+
+                    <section>
+                        <h3>Official Tasks</h3>
+                        @if (!Model.Workspace.OfficialTasksDue.Any())
+                        {
+                            <p class="workspace-inline-clear">Clear</p>
+                        }
+                        else
+                        {
+                            <div class="workspace-action-list">
+                                @foreach (var task in Model.Workspace.OfficialTasksDue.Take(4))
+                                {
+                                    <article>
+                                        <span class="workspace-chip @(task.IsOverdue ? "workspace-chip-danger" : "workspace-chip-muted")">@(task.IsOverdue ? "Overdue" : "Task")</span>
+                                        <div><strong>@task.Title</strong><p>@task.Priority · @task.Status</p></div>
+                                        <a href="@task.OpenUrl">Open</a>
+                                    </article>
+                                }
+                            </div>
+                        }
+                    </section>
+
+                    <section>
+                        <h3>Project Ideas</h3>
+                        @if (!Model.Workspace.IdeasNeedingUpdate.Any())
+                        {
+                            <p class="workspace-inline-clear">Clear</p>
+                        }
+                        else
+                        {
+                            <div class="workspace-action-list">
+                                @foreach (var idea in Model.Workspace.IdeasNeedingUpdate.Take(4))
+                                {
+                                    <article>
+                                        <span class="workspace-chip workspace-chip-warning">Idea</span>
+                                        <div><strong>@idea.Title</strong><p>@idea.CommentCount comments · @idea.DocumentCount docs</p></div>
+                                        <a href="@idea.OpenUrl">Open</a>
+                                    </article>
+                                }
+                            </div>
+                        }
+                    </section>
+                </div>
+
+                @if (Model.Workspace.ReturnedItems.Any() || Model.Workspace.WaitingOnOthers.Any())
+                {
+                    <div class="workspace-action-secondary">
+                        @if (Model.Workspace.ReturnedItems.Any())
+                        {
+                            <div>
+                                <h3>Returned</h3>
+                                @foreach (var item in Model.Workspace.ReturnedItems.Take(3))
+                                {
+                                    <a href="@item.ActionUrl">@item.Title — @item.Detail</a>
+                                }
+                            </div>
+                        }
+                        @if (Model.Workspace.WaitingOnOthers.Any())
+                        {
+                            <div>
+                                <h3>Waiting</h3>
+                                @foreach (var item in Model.Workspace.WaitingOnOthers.Take(3))
+                                {
+                                    <a href="@item.ActionUrl">@item.Title — @item.Detail</a>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </section>
+
+            @* SECTION: Secondary assigned-project review *@
+            <section class="workspace-card workspace-portfolio-card">
+                <div class="workspace-card__head">
+                    <div><h2>Assigned Projects</h2><p class="workspace-section-subtitle">Project stage, update status and next action</p></div>
+                    <a href="@Model.Workspace.MyProjectsUrl">View all projects</a>
+                </div>
                 @if (!Model.Workspace.ProjectMatrix.Any())
                 {
-                    <p class="workspace-empty workspace-empty-compact">
-                        No projects are currently assigned to you.
-                    </p>
+                    <p class="workspace-empty workspace-empty-compact">No projects are currently assigned to you.</p>
                 }
                 else
                 {
                     <div class="workspace-table-wrap">
                         <table class="workspace-table workspace-portfolio-table">
-                            <thead>
-                                <tr>
-                                    <th>Project</th>
-                                    <th>Stage</th>
-                                    <th>Update</th>
-                                    <th>Timeline</th>
-                                    <th>Record</th>
-                                    <th>Next</th>
-                                </tr>
-                            </thead>
+                            <thead><tr><th>Project</th><th>Stage</th><th>Update</th><th>Timeline</th><th>Record</th><th>Next</th></tr></thead>
                             <tbody>
                                 @foreach (var row in Model.Workspace.ProjectMatrix)
                                 {
                                     <tr>
-                                        <td>
-                                            <a href="@row.OpenUrl">@row.ProjectName</a>
-                                        </td>
-                                        <td>
-                                            <span class="workspace-chip workspace-chip-muted">@row.CurrentStageCode</span>
-                                            @if (row.DaysInCurrentStage.HasValue)
-                                            {
-                                                <small>@row.DaysInCurrentStage.Value d</small>
-                                            }
-                                        </td>
-                                        <td>
-                                            <span class="workspace-status workspace-status-@row.UpdateStatus.ToLowerInvariant()">
-                                                <span class="workspace-dot workspace-dot-@row.UpdateStatus.ToLowerInvariant()"></span>
-                                                @WorkspaceDisplayHelpers.CompactStatusLabel(row.UpdateStatus)
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span class="workspace-status workspace-status-@row.TimelineStatus.ToLowerInvariant()">
-                                                <span class="workspace-dot workspace-dot-@row.TimelineStatus.ToLowerInvariant()"></span>
-                                                @WorkspaceDisplayHelpers.CompactStatusLabel(row.TimelineStatus)
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <a class="workspace-health-pill workspace-health-pill-@WorkspaceDisplayHelpers.HealthCss(row.RecordHealthPercent)"
-                                               href="@row.OpenUrl">
-                                                @row.RecordHealthPercent% · @row.RecordGapCount
-                                            </a>
-                                        </td>
-                                        <td>
-                                            <a class="btn btn-sm btn-outline-primary" href="@row.NextActionUrl">
-                                                @WorkspaceDisplayHelpers.CompactActionLabel(row.NextActionText)
-                                            </a>
-                                        </td>
+                                        <td><a href="@row.OpenUrl">@row.ProjectName</a></td>
+                                        <td><span class="workspace-chip workspace-chip-muted">@row.CurrentStageCode</span> @if (row.DaysInCurrentStage.HasValue) { <small>@row.DaysInCurrentStage.Value d</small> }</td>
+                                        <td><span class="workspace-status workspace-status-@row.UpdateStatus.ToLowerInvariant()"><span class="workspace-dot workspace-dot-@row.UpdateStatus.ToLowerInvariant()"></span>@WorkspaceDisplayHelpers.CompactStatusLabel(row.UpdateStatus)</span></td>
+                                        <td><span class="workspace-status workspace-status-@row.TimelineStatus.ToLowerInvariant()"><span class="workspace-dot workspace-dot-@row.TimelineStatus.ToLowerInvariant()"></span>@WorkspaceDisplayHelpers.CompactStatusLabel(row.TimelineStatus)</span></td>
+                                        <td><a class="workspace-health-pill workspace-health-pill-@WorkspaceDisplayHelpers.HealthCss(row.RecordHealthPercent)" href="@row.OpenUrl">@row.RecordHealthPercent% · @row.RecordGapCount</a></td>
+                                        <td><a class="btn btn-sm btn-outline-primary" href="@row.NextActionUrl">@WorkspaceDisplayHelpers.CompactActionLabel(row.NextActionText)</a></td>
                                     </tr>
                                 }
                             </tbody>
@@ -115,235 +186,60 @@
                 }
             </section>
 
-            @* SECTION: Merged work inbox *@
-            <section class="workspace-card workspace-inbox-card">
-                <div class="workspace-card__head">
-                    <div>
-                        <h2>Work Inbox</h2>
-                        <p class="workspace-section-subtitle">Pending actions, waiting items and official tasks</p>
-                    </div>
-                    <a href="@WorkspaceRouteHelper.ActionTasksMyWork()">View my work</a>
-                </div>
-
-                <div class="workspace-inbox-grid">
-                    <div class="workspace-inbox-pane">
-                        <h3>Pending with me</h3>
-
-                        @if (!Model.Workspace.PendingWithMe.Any())
-                        {
-                            <p class="workspace-inline-clear">Clear</p>
-                        }
-                        else
-                        {
-                            <div class="workspace-inbox-list">
-                                @foreach (var item in Model.Workspace.PendingWithMe.Take(4))
-                                {
-                                    <article class="workspace-inbox-item">
-                                        <span class="workspace-urgency workspace-urgency-@item.Severity.ToLowerInvariant()">
-                                            @WorkspaceDisplayHelpers.UrgencyLabel(item)
-                                        </span>
-                                        <div>
-                                            <strong>@item.Title</strong>
-                                            <p>@item.Detail</p>
-                                        </div>
-                                        <a href="@item.ActionUrl">@WorkspaceDisplayHelpers.CompactActionLabel(item.ActionText)</a>
-                                    </article>
-                                }
-                            </div>
-                        }
-                    </div>
-
-                    <div class="workspace-inbox-pane">
-                        <h3>Waiting</h3>
-
-                        @if (!Model.Workspace.WaitingOnOthers.Any())
-                        {
-                            <p class="workspace-inline-clear">Clear</p>
-                        }
-                        else
-                        {
-                            <div class="workspace-inbox-list">
-                                @foreach (var item in Model.Workspace.WaitingOnOthers.Take(3))
-                                {
-                                    <article class="workspace-inbox-item">
-                                        <span class="workspace-chip workspace-chip-muted">@item.BadgeText</span>
-                                        <div>
-                                            <strong>@item.Title</strong>
-                                            <p>@item.Detail</p>
-                                        </div>
-                                        <a href="@item.ActionUrl">@item.ActionText</a>
-                                    </article>
-                                }
-                            </div>
-                        }
-                    </div>
-
-                    <div class="workspace-inbox-pane">
-                        <h3>Official tasks</h3>
-
-                        @if (!Model.Workspace.OfficialTasks.Any())
-                        {
-                            <p class="workspace-inline-clear">Clear</p>
-                        }
-                        else
-                        {
-                            <div class="workspace-inbox-list">
-                                @foreach (var task in Model.Workspace.OfficialTasks.Take(3))
-                                {
-                                    <article class="workspace-inbox-item">
-                                        <span class="workspace-chip @(task.IsOverdue ? "workspace-chip-danger" : "workspace-chip-muted")">
-                                            @(task.IsOverdue ? "Overdue" : "Task")
-                                        </span>
-                                        <div>
-                                            <strong>@task.Title</strong>
-                                            <p>@task.Priority · @task.Status</p>
-                                        </div>
-                                        <a href="@task.OpenUrl">Open</a>
-                                    </article>
-                                }
-                            </div>
-                        }
-                    </div>
-                </div>
-            </section>
-
-            @* SECTION: Combined ideas and reminders *@
+            @* SECTION: Secondary ideas and reminders *@
             <section class="workspace-card workspace-ideas-reminders">
-                <div class="workspace-card__head">
-                    <div>
-                        <h2>Ideas &amp; Reminders</h2>
-                        <p class="workspace-section-subtitle">Early concepts and personal follow-ups</p>
-                    </div>
-                </div>
-
+                <div class="workspace-card__head"><div><h2>Ideas &amp; Reminders</h2><p class="workspace-section-subtitle">Early concepts and personal follow-ups</p></div></div>
                 <div class="workspace-split-grid">
                     <div>
-                        <div class="workspace-subhead">
-                            <h3>Project Ideas</h3>
-                            <a href="/ProjectIdeas?MyIdeas=true">View ideas</a>
-                        </div>
-
-                        @if (!Model.Workspace.Ideas.Any())
-                        {
-                            <p class="workspace-inline-clear">No assigned ideas</p>
-                        }
-                        else
-                        {
-                            <div class="workspace-slim-list">
-                                @foreach (var idea in Model.Workspace.Ideas.Take(4))
-                                {
-                                    <article>
-                                        <div>
-                                            <strong>@idea.Title</strong>
-                                            <p>@idea.Status · @idea.CommentCount comments · @idea.DocumentCount docs</p>
-                                        </div>
-
-                                        @if (idea.NeedsUpdate)
-                                        {
-                                            <span class="workspace-chip workspace-chip-warning">Needs update</span>
-                                        }
-
-                                        <a href="@idea.OpenUrl">Open</a>
-                                    </article>
-                                }
-                            </div>
-                        }
+                        <div class="workspace-subhead"><h3>Project Ideas</h3><a href="/ProjectIdeas?MyIdeas=true">View ideas</a></div>
+                        @if (!Model.Workspace.Ideas.Any()) { <p class="workspace-inline-clear">No assigned ideas</p> }
+                        else { <div class="workspace-slim-list">@foreach (var idea in Model.Workspace.Ideas.Take(4)) { <article><div><strong>@idea.Title</strong><p>@idea.Status · @idea.CommentCount comments · @idea.DocumentCount docs</p></div>@if (idea.NeedsUpdate) { <span class="workspace-chip workspace-chip-warning">Needs update</span> }<a href="@idea.OpenUrl">Open</a></article> }</div> }
                     </div>
-
                     <div>
-                        <div class="workspace-subhead">
-                            <h3>Personal Reminders</h3>
-                            <a href="/Tasks">Open reminders</a>
-                        </div>
-
-                        @if (!Model.Workspace.PersonalReminders.Any())
-                        {
-                            <p class="workspace-inline-clear">No reminders</p>
-                        }
-                        else
-                        {
-                            <div class="workspace-slim-list">
-                                @foreach (var r in Model.Workspace.PersonalReminders.Take(4))
-                                {
-                                    <article>
-                                        <div>
-                                            <strong>@r.Title</strong>
-                                            <p>
-                                                @r.Priority · @WorkspaceDisplayHelpers.FormatReminderDate(r.DueAtUtc)
-                                                @(r.IsPinned ? " · pinned" : string.Empty)
-                                            </p>
-                                        </div>
-                                        <a href="@r.OpenUrl">Open</a>
-                                    </article>
-                                }
-                            </div>
-                        }
+                        <div class="workspace-subhead"><h3>Personal Reminders</h3><a href="/Tasks">Open reminders</a></div>
+                        @if (!Model.Workspace.PersonalReminders.Any()) { <p class="workspace-inline-clear">No reminders</p> }
+                        else { <div class="workspace-slim-list">@foreach (var r in Model.Workspace.PersonalReminders.Take(4)) { <article><div><strong>@r.Title</strong><p>@r.Priority · @WorkspaceDisplayHelpers.FormatReminderDate(r.DueAtUtc)@(r.IsPinned ? " · pinned" : string.Empty)</p></div><a href="@r.OpenUrl">Open</a></article> }</div> }
                     </div>
                 </div>
             </section>
         </main>
 
         <aside class="workspace-rail">
-            @* SECTION: Focused next action *@
+            @* SECTION: Focused next daily action *@
             <section class="workspace-card workspace-next-fix">
-                <h2>Next Best Fix</h2>
-
-                @if (Model.Workspace.NextBestFix is null)
+                <h2>Next Best Action</h2>
+                @if (Model.Workspace.NextBestAction is null)
                 {
-                    <p class="workspace-inline-clear">No immediate fix required</p>
+                    <p class="workspace-inline-clear">No immediate action required</p>
                 }
                 else
                 {
-                    <span class="workspace-urgency workspace-urgency-@Model.Workspace.NextBestFix.Severity.ToLowerInvariant()">
-                        @WorkspaceDisplayHelpers.UrgencyLabel(Model.Workspace.NextBestFix)
-                    </span>
-
-                    <strong>@Model.Workspace.NextBestFix.Title</strong>
-                    <p>@Model.Workspace.NextBestFix.Detail</p>
-
-                    <a class="btn btn-sm btn-primary" href="@Model.Workspace.NextBestFix.ActionUrl">
-                        @Model.Workspace.NextBestFix.ActionText
-                    </a>
+                    <span class="workspace-urgency workspace-urgency-@Model.Workspace.NextBestAction.Severity.ToLowerInvariant()">@WorkspaceDisplayHelpers.UrgencyLabel(Model.Workspace.NextBestAction)</span>
+                    <strong>@Model.Workspace.NextBestAction.Title</strong>
+                    <p>@Model.Workspace.NextBestAction.Detail</p>
+                    <a class="btn btn-sm btn-primary" href="@Model.Workspace.NextBestAction.ActionUrl">@Model.Workspace.NextBestAction.ActionText</a>
                 }
             </section>
 
             @* SECTION: Durable workspace destinations *@
             <section class="workspace-card workspace-card-clean">
                 <h2>Quick Actions</h2>
-                <div class="workspace-quick-actions">
-                    @foreach (var action in Model.Workspace.QuickActions)
-                    {
-                        <a href="@action.Url"><i class="bi @action.Icon"></i>@action.Text</a>
-                    }
-                </div>
+                <div class="workspace-quick-actions">@foreach (var action in Model.Workspace.QuickActions) { <a href="@action.Url"><i class="bi @action.Icon"></i>@action.Text</a> }</div>
             </section>
 
-            @* SECTION: Grouped record-health improvements *@
+            @* SECTION: Quiet grouped record cleanup *@
             <section class="workspace-card workspace-card-clean">
-                <h2>Improve Record Health</h2>
-
+                <h2>Record Cleanup</h2>
                 @if (!Model.Workspace.ImproveProjects.Any())
                 {
-                    <p class="workspace-inline-clear">
-                        Records are looking good.
-                    </p>
+                    <p class="workspace-inline-clear">No cleanup priority.</p>
                 }
                 else
                 {
-                    <div class="workspace-improve-projects">
-                        @foreach (var item in Model.Workspace.ImproveProjects)
+                    <div class="workspace-cleanup-list">
+                        @foreach (var item in Model.Workspace.ImproveProjects.Take(3))
                         {
-                            <article>
-                                <div>
-                                    <strong>@item.ProjectName</strong>
-                                    <p>
-                                        @item.FixCount fix@(item.FixCount == 1 ? "" : "es") ·
-                                        @string.Join(", ", item.FixLabels)
-                                    </p>
-                                </div>
-
-                                <a href="@item.Url">Open</a>
-                            </article>
+                            <article><div><strong>@item.ProjectName</strong><p>@item.FixCount fix@(item.FixCount == 1 ? "" : "es") identified</p></div><a href="@item.Url">Open</a></article>
                         }
                     </div>
                 }

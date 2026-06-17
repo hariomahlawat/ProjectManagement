@@ -56,6 +56,112 @@ public sealed class WorkspaceNudgeService
 
     public bool IsCurrentStageOverdue(ProjectStage? stage, DateOnly today) => stage is not null && stage.Status != StageStatus.Completed && stage.PlannedDue is { } due && due < today;
 
+
+    // SECTION: Daily remark nudges are separated from timeline cleanup so remarks stay prominent.
+    public IReadOnlyList<WorkspaceAttentionItemVm> BuildRemarksDue(
+        IReadOnlyList<Project> projects,
+        string userId,
+        DateOnly today)
+    {
+        var items = new List<WorkspaceAttentionItemVm>();
+
+        foreach (var project in projects)
+        {
+            var lastRemark = GetLastPoRemark(project, userId);
+
+            if (!IsRemarkDue(lastRemark, today))
+            {
+                continue;
+            }
+
+            var detail = lastRemark.HasValue
+                ? $"No PO remark in last {today.DayNumber - ToIstDate(lastRemark.Value).DayNumber} days"
+                : "No PO remark has been added yet";
+
+            items.Add(new WorkspaceAttentionItemVm
+            {
+                Type = "Remark",
+                Title = project.Name,
+                Detail = detail,
+                Severity = "Warning",
+                BadgeText = "Remark",
+                ActionText = "Add Remark",
+                ActionUrl = WorkspaceRouteHelper.ProjectRemarks(project.Id),
+                DueOrEventDateUtc = lastRemark
+            });
+        }
+
+        return items
+            .OrderByDescending(i => i.DueOrEventDateUtc is null)
+            .ThenBy(i => i.DueOrEventDateUtc)
+            .ToList();
+    }
+
+    // SECTION: Timeline alerts stay available as secondary record-health guidance.
+    public IReadOnlyList<WorkspaceAttentionItemVm> BuildTimelineAlerts(
+        IReadOnlyList<Project> projects,
+        DateOnly today)
+    {
+        var items = new List<WorkspaceAttentionItemVm>();
+
+        foreach (var project in projects)
+        {
+            var stage = GetCurrentStage(project);
+
+            if (project.ProjectStages.Any(s => s.RequiresBackfill))
+            {
+                items.Add(new WorkspaceAttentionItemVm
+                {
+                    Type = "Timeline",
+                    Title = project.Name,
+                    Detail = "Timeline backfill required",
+                    Severity = "Danger",
+                    BadgeText = "Timeline",
+                    ActionText = "Backfill",
+                    ActionUrl = WorkspaceRouteHelper.ProjectTimeline(project.Id)
+                });
+
+                continue;
+            }
+
+            if (IsCurrentStageOverdue(stage, today))
+            {
+                var overdueDays = stage?.PlannedDue is { } due
+                    ? today.DayNumber - due.DayNumber
+                    : 0;
+
+                items.Add(new WorkspaceAttentionItemVm
+                {
+                    Type = "Timeline",
+                    Title = project.Name,
+                    Detail = $"Current stage overdue by {overdueDays} days",
+                    Severity = "Danger",
+                    BadgeText = "Timeline",
+                    ActionText = "Timeline",
+                    ActionUrl = WorkspaceRouteHelper.ProjectTimeline(project.Id)
+                });
+
+                continue;
+            }
+
+            if (HasCurrentStageTimelineIssue(stage))
+            {
+                items.Add(new WorkspaceAttentionItemVm
+                {
+                    Type = "Timeline",
+                    Title = project.Name,
+                    Detail = GetCurrentStageIssueLabel(stage),
+                    Severity = "Warning",
+                    BadgeText = "Timeline",
+                    ActionText = "Update",
+                    ActionUrl = WorkspaceRouteHelper.ProjectTimeline(project.Id)
+                });
+            }
+        }
+
+        return items;
+    }
+
     public IReadOnlyList<WorkspaceAttentionItemVm> BuildPendingWithMe(IReadOnlyList<Project> projects, IReadOnlyList<WorkspaceTaskVm> tasks, IReadOnlyList<WorkspaceIdeaVm> ideas, string userId, DateOnly today)
     {
         var items = new List<WorkspaceAttentionItemVm>();
@@ -145,6 +251,21 @@ public sealed class WorkspaceNudgeService
             ActionText = action,
             ActionUrl = url
         };
+    private static DateTime? GetLastPoRemark(Project project, string userId) => LastPoRemark(project, userId);
+
+    private static bool IsRemarkDue(DateTime? lastRemarkAtUtc, DateOnly today)
+    {
+        if (!lastRemarkAtUtc.HasValue)
+        {
+            return true;
+        }
+
+        var last = ToIstDate(lastRemarkAtUtc.Value);
+        return today.DayNumber - last.DayNumber > 10;
+    }
+
+    private static string GetCurrentStageIssueLabel(ProjectStage? stage) => StageTimelineDetail(stage);
+
     private static string StageTimelineDetail(ProjectStage? stage) => stage is null ? "Current stage timeline details are incomplete" : stage.Status == StageStatus.InProgress && stage.ActualStart is null ? "Current stage actual start missing" : stage.Status == StageStatus.InProgress && stage.PlannedDue is null ? "Current stage planned due missing" : stage.Status == StageStatus.Completed && stage.CompletedOn is null ? $"{stage.StageCode} stage completion date missing" : "Current stage timeline details are incomplete";
 
     // SECTION: Pending item grouping avoids showing multiple lower-priority nudges for the same project.
