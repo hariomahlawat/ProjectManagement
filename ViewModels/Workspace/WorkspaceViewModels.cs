@@ -11,6 +11,7 @@ public sealed class ProjectOfficerWorkspaceVm
     public string RecordHealthSummaryLabel { get; set; } = "Good";
     public int AssignedProjectCount { get; set; }
     public int PendingWithMeCount { get; set; }
+    public int DailyActionCount { get; set; }
     public int OverdueTaskCount { get; set; }
     public int RecordGapCount { get; set; }
     public int AssignedIdeaCount { get; set; }
@@ -20,6 +21,7 @@ public sealed class ProjectOfficerWorkspaceVm
     public IReadOnlyList<WorkspaceKpiVm> Kpis { get; set; } = Array.Empty<WorkspaceKpiVm>();
     public IReadOnlyList<WorkspaceRailItemVm> RailItems { get; set; } = Array.Empty<WorkspaceRailItemVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> PendingWithMe { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
+    public IReadOnlyList<WorkspaceActionQueueItemVm> ActionQueue { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> RemarksDue { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceTaskVm> OfficialTasksDue { get; set; } = Array.Empty<WorkspaceTaskVm>();
     public IReadOnlyList<WorkspaceIdeaVm> IdeasNeedingUpdate { get; set; } = Array.Empty<WorkspaceIdeaVm>();
@@ -83,6 +85,28 @@ public sealed class WorkspaceKpiVm
 
     public string? Url { get; set; }
 }
+
+public sealed class WorkspaceActionQueueItemVm
+{
+    public string Type { get; set; } = string.Empty;
+
+    public string BadgeText { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Detail { get; set; } = string.Empty;
+
+    public string Meta { get; set; } = string.Empty;
+
+    public string Severity { get; set; } = "Info";
+
+    public string ActionText { get; set; } = string.Empty;
+
+    public string ActionUrl { get; set; } = string.Empty;
+
+    public DateTime? SortDateUtc { get; set; }
+}
+
 public sealed class WorkspaceAttentionItemVm
 {
     public string Type { get; set; } = string.Empty;
