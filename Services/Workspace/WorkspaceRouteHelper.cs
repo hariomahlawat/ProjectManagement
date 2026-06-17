@@ -38,4 +38,10 @@ internal static class WorkspaceRouteHelper
 
     public static string PersonalReminders()
         => "/Tasks";
+
+    public static string AotsInbox()
+        => "/DocumentRepository/Documents?scope=aots";
+
+    public static string AotsReader(Guid documentId)
+        => $"/DocumentRepository/Documents/Reader/{documentId}?returnUrl={Uri.EscapeDataString(AotsInbox())}";
 }

@@ -14,12 +14,16 @@ public sealed class ProjectOfficerWorkspaceVm
     public int OverdueTaskCount { get; set; }
     public int RecordGapCount { get; set; }
     public int AssignedIdeaCount { get; set; }
+    public int AotsUnreadCount { get; set; }
+    public string AotsUrl { get; set; } = "/DocumentRepository/Documents?scope=aots";
     public WorkspaceEngagementVm Engagement { get; set; } = new();
     public IReadOnlyList<WorkspaceKpiVm> Kpis { get; set; } = Array.Empty<WorkspaceKpiVm>();
+    public IReadOnlyList<WorkspaceRailItemVm> RailItems { get; set; } = Array.Empty<WorkspaceRailItemVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> PendingWithMe { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> RemarksDue { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceTaskVm> OfficialTasksDue { get; set; } = Array.Empty<WorkspaceTaskVm>();
     public IReadOnlyList<WorkspaceIdeaVm> IdeasNeedingUpdate { get; set; } = Array.Empty<WorkspaceIdeaVm>();
+    public IReadOnlyList<WorkspaceAotsDocumentVm> AotsDocuments { get; set; } = Array.Empty<WorkspaceAotsDocumentVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> ReturnedItems { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> TimelineAlerts { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public int OfficialTaskCount { get; set; }
@@ -32,10 +36,37 @@ public sealed class ProjectOfficerWorkspaceVm
     public IReadOnlyList<WorkspaceRecordHealthVm> RecordHealth { get; set; } = Array.Empty<WorkspaceRecordHealthVm>();
     public IReadOnlyList<WorkspaceImprovementVm> ImproveScoreItems { get; set; } = Array.Empty<WorkspaceImprovementVm>();
     public IReadOnlyList<WorkspaceProjectImprovementVm> ImproveProjects { get; set; } = Array.Empty<WorkspaceProjectImprovementVm>();
-    public WorkspaceAttentionItemVm? NextBestFix { get; set; }
     public WorkspaceAttentionItemVm? NextBestAction { get; set; }
     public IReadOnlyList<WorkspaceQuickActionVm> QuickActions { get; set; } = Array.Empty<WorkspaceQuickActionVm>();
     public IReadOnlyList<WorkspaceReminderVm> PersonalReminders { get; set; } = Array.Empty<WorkspaceReminderVm>();
+}
+
+public sealed class WorkspaceRailItemVm
+{
+    public string Label { get; set; } = string.Empty;
+
+    public string Icon { get; set; } = "bi-circle";
+
+    public int Count { get; set; }
+
+    public string Anchor { get; set; } = "#";
+
+    public bool IsPrimary { get; set; }
+}
+
+public sealed class WorkspaceAotsDocumentVm
+{
+    public Guid DocumentId { get; set; }
+
+    public string Subject { get; set; } = string.Empty;
+
+    public string Category { get; set; } = string.Empty;
+
+    public string Office { get; set; } = string.Empty;
+
+    public DateTime CreatedAtUtc { get; set; }
+
+    public string OpenUrl { get; set; } = string.Empty;
 }
 
 public sealed class WorkspaceKpiVm
