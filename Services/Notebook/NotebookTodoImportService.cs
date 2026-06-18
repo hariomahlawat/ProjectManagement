@@ -16,13 +16,14 @@ public sealed class NotebookTodoImportService : INotebookTodoImportService
     // SECTION: Idempotent lazy import from legacy personal tasks
     public async Task ImportForUserIfRequiredAsync(string ownerId, CancellationToken ct = default)
     {
-        var importedTodoIds = await _db.NotebookItems
+        var importedTodoIds = (await _db.NotebookItems
             .AsNoTracking()
             .Where(item =>
                 item.OwnerId == ownerId &&
                 item.LegacyTodoItemId != null)
             .Select(item => item.LegacyTodoItemId!.Value)
-            .ToHashSetAsync(ct);
+            .ToListAsync(ct))
+            .ToHashSet();
 
         var todosToImport = await _db.TodoItems
             .AsNoTracking()
