@@ -734,20 +734,138 @@ public sealed class ProjectOfficerWorkspaceService
         return healthRows
             .Where(h => h.Gaps.Any())
             .OrderBy(h => h.HealthPercent)
+            .ThenByDescending(h => h.Gaps.Count)
             .Take(maxProjects)
-            .Select(h => new WorkspaceProjectImprovementVm
+            .Select(h =>
             {
-                ProjectId = h.ProjectId,
-                ProjectName = h.ProjectName,
-                FixCount = h.Gaps.Count,
-                FixLabels = h.Gaps
-                    .Take(3)
-                    .Select(WorkspaceDisplayHelpers.ImprovementLabel)
-                    .ToList(),
-                Url = WorkspaceRouteHelper.ProjectOverview(h.ProjectId),
-                Severity = h.HealthPercent < 60 ? "Danger" : "Warning"
+                var gapDetails = h.Gaps
+                    .Select(gap => BuildGapDetail(h.ProjectId, gap))
+                    .ToList();
+
+                return new WorkspaceProjectImprovementVm
+                {
+                    ProjectId = h.ProjectId,
+                    ProjectName = h.ProjectName,
+                    FixCount = h.Gaps.Count,
+                    FixLabels = gapDetails
+                        .Take(3)
+                        .Select(detail => detail.Label)
+                        .ToList(),
+                    GapDetails = gapDetails,
+                    Url = WorkspaceRouteHelper.ProjectOverview(h.ProjectId),
+                    Severity = h.HealthPercent < 60 ? "Danger" : "Warning"
+                };
             })
             .ToList();
+    }
+
+    // SECTION: Gap details map record-health service output to direct workspace correction actions.
+    private static WorkspaceProjectGapDetailVm BuildGapDetail(int projectId, string gap)
+    {
+        if (gap.Contains("description", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WorkspaceProjectGapDetailVm
+            {
+                Label = "Brief description pending",
+                ActionText = "Edit details",
+                ActionUrl = WorkspaceRouteHelper.ProjectMetaRequest(projectId),
+                Icon = "bi-card-text",
+                Severity = "Warning"
+            };
+        }
+
+        if (gap.Contains("photo", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WorkspaceProjectGapDetailVm
+            {
+                Label = "Add at least 3 project photos",
+                ActionText = "Add photos",
+                ActionUrl = WorkspaceRouteHelper.ProjectPhotos(projectId),
+                Icon = "bi-images",
+                Severity = "Warning"
+            };
+        }
+
+        if (gap.Contains("document", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WorkspaceProjectGapDetailVm
+            {
+                Label = "Upload at least 3 project documents",
+                ActionText = "Upload",
+                ActionUrl = WorkspaceRouteHelper.ProjectDocumentsTab(projectId),
+                Icon = "bi-file-earmark-text",
+                Severity = "Warning"
+            };
+        }
+
+        if (gap.Contains("video", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WorkspaceProjectGapDetailVm
+            {
+                Label = "Add at least 1 project video",
+                ActionText = "Add video",
+                ActionUrl = WorkspaceRouteHelper.ProjectVideos(projectId),
+                Icon = "bi-camera-video",
+                Severity = "Warning"
+            };
+        }
+
+        if (gap.Contains("budget", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WorkspaceProjectGapDetailVm
+            {
+                Label = "Update applicable budget details",
+                ActionText = "Update",
+                ActionUrl = WorkspaceRouteHelper.ProjectOverview(projectId),
+                Icon = "bi-currency-rupee",
+                Severity = "Warning"
+            };
+        }
+
+        if (gap.Contains("backfill", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WorkspaceProjectGapDetailVm
+            {
+                Label = "Clear timeline backfill",
+                ActionText = "Backfill",
+                ActionUrl = WorkspaceRouteHelper.ProjectTimeline(projectId),
+                Icon = "bi-clock-history",
+                Severity = "Danger"
+            };
+        }
+
+        if (gap.Contains("current stage timeline", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WorkspaceProjectGapDetailVm
+            {
+                Label = "Update current stage timeline",
+                ActionText = "Timeline",
+                ActionUrl = WorkspaceRouteHelper.ProjectTimeline(projectId),
+                Icon = "bi-calendar-check",
+                Severity = "Warning"
+            };
+        }
+
+        if (gap.Contains("remark", StringComparison.OrdinalIgnoreCase))
+        {
+            return new WorkspaceProjectGapDetailVm
+            {
+                Label = "Add recent project remark",
+                ActionText = "Add remark",
+                ActionUrl = WorkspaceRouteHelper.ProjectRemarks(projectId),
+                Icon = "bi-chat-left-text",
+                Severity = "Warning"
+            };
+        }
+
+        return new WorkspaceProjectGapDetailVm
+        {
+            Label = gap,
+            ActionText = "Open",
+            ActionUrl = WorkspaceRouteHelper.ProjectOverview(projectId),
+            Icon = "bi-exclamation-circle",
+            Severity = "Warning"
+        };
     }
 
     // SECTION: Quick actions keep only durable workspace destinations.

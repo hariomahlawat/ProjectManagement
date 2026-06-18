@@ -1014,3 +1014,145 @@
 .workspace-dot-danger {
     background: #c94b55;
 }
+
+/* SECTION: Actionable project data gaps right-rail card */
+.workspace-project-gaps .workspace-card__head {
+    margin-bottom: 0.55rem;
+}
+
+.workspace-gap-list {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.workspace-gap-card {
+    border: 1px solid #e8edf5;
+    border-radius: 12px;
+    padding: 0.72rem;
+    background: #ffffff;
+}
+
+.workspace-gap-card__top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.workspace-gap-card__top strong {
+    display: block;
+    color: #0f172a;
+    font-size: 0.86rem;
+    font-weight: 650;
+    line-height: 1.25;
+}
+
+.workspace-gap-card__top p {
+    margin: 0.2rem 0 0;
+    color: #64748b;
+    font-size: 0.78rem;
+}
+
+.workspace-gap-card__top a {
+    flex: 0 0 auto;
+    font-size: 0.78rem;
+    font-weight: 550;
+    text-decoration: none;
+}
+
+.workspace-gap-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.55rem;
+    color: #64748b;
+    font-size: 0.76rem;
+    line-height: 1.35;
+}
+
+.workspace-gap-summary strong {
+    color: #334155;
+    font-weight: 550;
+}
+
+.workspace-gap-summary em {
+    color: #64748b;
+    font-style: normal;
+}
+
+.workspace-gap-details-native {
+    margin-top: 0.55rem;
+}
+
+.workspace-gap-details-native summary {
+    cursor: pointer;
+    color: #2454c6;
+    font-size: 0.78rem;
+    font-weight: 550;
+}
+
+.workspace-gap-details-native summary:hover {
+    text-decoration: underline;
+}
+
+.workspace-gap-details {
+    margin-top: 0.65rem;
+    border-top: 1px solid #edf2f7;
+    padding-top: 0.55rem;
+}
+
+.workspace-gap-detail-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0;
+}
+
+.workspace-gap-detail-row + .workspace-gap-detail-row {
+    border-top: 1px dashed #edf2f7;
+}
+
+.workspace-gap-detail-row strong {
+    display: block;
+    color: #334155;
+    font-size: 0.78rem;
+    font-weight: 550;
+    line-height: 1.25;
+}
+
+.workspace-gap-detail-row a {
+    color: #2454c6;
+    font-size: 0.76rem;
+    font-weight: 550;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.workspace-gap-detail-row a:hover {
+    text-decoration: underline;
+}
+
+.workspace-gap-detail-icon {
+    width: 1.55rem;
+    height: 1.55rem;
+    border-radius: 999px;
+    display: inline-grid;
+    place-items: center;
+    background: #f8fafc;
+    color: #475569;
+}
+
+.workspace-gap-detail-icon i {
+    font-size: 0.78rem;
+}
+
+.workspace-gap-detail-warning {
+    background: #fff7ed;
+    color: #9a5b00;
+}
+
+.workspace-gap-detail-danger {
+    background: #fff1f2;
+    color: #be123c;
+}

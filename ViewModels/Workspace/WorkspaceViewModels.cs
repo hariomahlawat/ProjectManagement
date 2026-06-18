@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 namespace ProjectManagement.ViewModels.Workspace;
 
@@ -212,6 +213,19 @@ public sealed class WorkspaceImprovementVm
     public string Severity { get; set; } = "Warning";
 }
 
+public sealed class WorkspaceProjectGapDetailVm
+{
+    public string Label { get; set; } = string.Empty;
+
+    public string ActionText { get; set; } = string.Empty;
+
+    public string ActionUrl { get; set; } = string.Empty;
+
+    public string Icon { get; set; } = "bi-dot";
+
+    public string Severity { get; set; } = "Warning";
+}
+
 public sealed class WorkspaceProjectImprovementVm
 {
     public int ProjectId { get; set; }
@@ -221,6 +235,12 @@ public sealed class WorkspaceProjectImprovementVm
     public int FixCount { get; set; }
 
     public IReadOnlyList<string> FixLabels { get; set; } = Array.Empty<string>();
+
+    public IReadOnlyList<WorkspaceProjectGapDetailVm> GapDetails { get; set; } = Array.Empty<WorkspaceProjectGapDetailVm>();
+
+    public IReadOnlyList<WorkspaceProjectGapDetailVm> PreviewGapDetails => GapDetails.Take(3).ToList();
+
+    public int HiddenGapCount => Math.Max(0, GapDetails.Count - PreviewGapDetails.Count);
 
     public string Url { get; set; } = string.Empty;
 
@@ -413,6 +433,20 @@ public static class WorkspaceDisplayHelpers
         "Current stage actual start missing" => "Update current stage actual start",
         "Current stage planned due missing" => "Update current stage planned due date",
         _ when gap.Contains("completion date missing", StringComparison.OrdinalIgnoreCase) => "Update current stage completion date",
+        _ => gap
+    };
+
+    // SECTION: Short gap labels keep right-rail project data summaries scannable.
+    public static string ShortGapLabel(string gap) => gap switch
+    {
+        "Brief description pending" => "Description",
+        "Add at least 3 project photos" => "Photos",
+        "Upload at least 3 project documents" => "Documents",
+        "Add at least 1 project video" => "Video",
+        "Update applicable budget details" => "Budget",
+        "Clear timeline backfill" => "Backfill",
+        "Update current stage timeline" => "Timeline",
+        "Add recent project remark" => "Recent remark",
         _ => gap
     };
 
