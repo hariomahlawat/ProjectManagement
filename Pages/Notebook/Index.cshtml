@@ -76,20 +76,20 @@
                 (Title: "Recent", Items: Model.Notebook.RecentItems)
             };
 
-            foreach (var section in sections.Where(section => section.Items.Any() || section.Title == "Recent"))
+            foreach (var notebookSection in sections.Where(notebookSection => notebookSection.Items.Any() || notebookSection.Title == "Recent"))
             {
                 <section class="notebook-section">
-                    <div class="notebook-section-header"><h2>@section.Title</h2><span>@section.Items.Count item(s)</span></div>
-                    @if (section.Items.Any())
+                    <div class="notebook-section-header"><h2>@notebookSection.Title</h2><span>@notebookSection.Items.Count item(s)</span></div>
+                    @if (notebookSection.Items.Any())
                     {
                         <div class="notebook-board">
-                            @foreach (var item in section.Items)
+                            @foreach (var item in notebookSection.Items)
                             {
                                 <partial name="_NotebookCard" model="@(new NotebookCardRenderVm { Item = item, View = Model.Notebook.View, Query = Model.Notebook.Query, SelectedId = selected?.Id })" />
                             }
                         </div>
                     }
-                    else if (section.Title == "Recent")
+                    else if (notebookSection.Title == "Recent")
                     {
                         <div class="notebook-empty notebook-empty-compact"><h3>@emptyTitle</h3><p>@emptyText</p></div>
                     }
