@@ -21,7 +21,14 @@
         <nav aria-label="Workspace sections">
             @foreach (var item in Model.Workspace.RailItems)
             {
-                <a href="@item.Anchor" class="@(item.IsPrimary ? "active" : string.Empty)">
+                var targetId = item.Anchor?.StartsWith("#") == true
+                    ? item.Anchor[1..]
+                    : string.Empty;
+
+                <a href="@item.Anchor"
+                   class="workspace-rail-link @(item.IsPrimary ? "active" : string.Empty)"
+                   data-workspace-section="@targetId"
+                   aria-current="@(item.IsPrimary ? "true" : null)">
                     <span><i class="bi @item.Icon"></i>@item.Label</span>
                     <em>@item.Count</em>
                 </a>
@@ -305,19 +312,8 @@
                     }
                 </section>
 
-                @* SECTION: Durable workspace destinations *@
-                <section class="workspace-card workspace-card-clean">
-                    <h2>Quick Actions</h2>
-                    <div class="workspace-quick-actions">
-                        @foreach (var action in Model.Workspace.QuickActions)
-                        {
-                            <a href="@action.Url"><i class="bi @action.Icon"></i>@action.Text</a>
-                        }
-                    </div>
-                </section>
-
                 @* SECTION: Actionable project data gaps with direct correction routes *@
-                <section class="workspace-card workspace-project-gaps">
+                <section id="project-data-gaps" class="workspace-card workspace-project-gaps">
                     <div class="workspace-card__head">
                         <div>
                             <h2>Project Data Gaps</h2>
@@ -338,12 +334,15 @@
                             {
                                 <article class="workspace-gap-card">
                                     <div class="workspace-gap-card__top">
-                                        <div>
+                                        <div class="workspace-gap-card__title">
                                             <strong title="@item.ProjectName">@item.ProjectName</strong>
-                                            <p>@item.FixCount detail@(item.FixCount == 1 ? "" : "s") pending</p>
+                                            <p>
+                                                @item.FixCount detail@(item.FixCount == 1 ? "" : "s") pending
+                                                <span class="workspace-gap-band">Needs Work</span>
+                                            </p>
                                         </div>
 
-                                        <a href="@item.Url">Open</a>
+                                        <a class="workspace-subtle-link" href="@item.Url">Open <span aria-hidden="true">→</span></a>
                                     </div>
 
                                     @if (item.PreviewGapDetails.Any())
@@ -360,7 +359,7 @@
                                     }
 
                                     <details class="workspace-gap-details-native">
-                                        <summary>Show details</summary>
+                                        <summary>View pending details</summary>
 
                                         <div class="workspace-gap-details">
                                             @foreach (var gap in item.GapDetails)
@@ -382,7 +381,28 @@
                                 </article>
                             }
                         </div>
+
+                        @if (Model.Workspace.ImproveProjectsHiddenCount > 0)
+                        {
+                            <div class="workspace-gap-more">
+                                <span>
+                                    @Model.Workspace.ImproveProjectsHiddenCount more project@(Model.Workspace.ImproveProjectsHiddenCount == 1 ? "" : "s") with data gaps
+                                </span>
+                                <a href="@Model.Workspace.MyProjectsUrl">View projects</a>
+                            </div>
+                        }
                     }
+                </section>
+
+                @* SECTION: Durable workspace destinations *@
+                <section class="workspace-card workspace-card-clean">
+                    <h2>Quick Actions</h2>
+                    <div class="workspace-quick-actions">
+                        @foreach (var action in Model.Workspace.QuickActions)
+                        {
+                            <a href="@action.Url"><i class="bi @action.Icon"></i>@action.Text</a>
+                        }
+                    </div>
                 </section>
 
                 @* SECTION: ERP engagement remains quiet and factual *@
@@ -400,3 +420,7 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script src="~/js/pages/workspace-index.js" asp-append-version="true"></script>
+}

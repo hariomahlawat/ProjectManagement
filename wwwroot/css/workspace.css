@@ -6,6 +6,32 @@
     color: #1f2937;
 }
 
+.workspace-workbench {
+    display: grid;
+    grid-template-columns: 230px minmax(0, 1fr);
+    gap: 0;
+    padding: 0;
+    background: #f6f8fb;
+}
+
+.workspace-workarea {
+    padding: 0.85rem;
+    min-width: 0;
+}
+
+.workspace-main-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 0.85rem;
+}
+
+.workspace-main,
+.workspace-rail {
+    display: grid;
+    gap: 0.85rem;
+    align-content: start;
+}
+
 
 .workspace-eyebrow {
     margin: 0 0 0.12rem;
@@ -92,6 +118,70 @@
 .workspace-local-rail nav {
     display: grid;
     gap: 0.28rem;
+}
+
+.workspace-local-rail__title {
+    font-size: 0.9rem;
+    font-weight: 650;
+    color: #0f172a;
+    margin: 0 0 0.75rem;
+}
+
+.workspace-local-rail .workspace-rail-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    padding: 0.55rem 0.6rem;
+    border-radius: 9px;
+    color: #334155;
+    text-decoration: none;
+    font-size: 0.84rem;
+    font-weight: 520;
+}
+
+.workspace-local-rail .workspace-rail-link span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.workspace-local-rail .workspace-rail-link i {
+    color: #476083;
+    font-size: 0.95rem;
+}
+
+.workspace-local-rail .workspace-rail-link em {
+    min-width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 999px;
+    display: inline-grid;
+    place-items: center;
+    background: #f1f5f9;
+    color: #475569;
+    font-style: normal;
+    font-size: 0.74rem;
+    font-weight: 600;
+}
+
+.workspace-local-rail .workspace-rail-link.active,
+.workspace-local-rail .workspace-rail-link:hover {
+    background: #edf4ff;
+    color: #17366f;
+}
+
+.workspace-local-rail .workspace-rail-link.active {
+    box-shadow: inset 3px 0 0 #315fba;
+}
+
+.workspace-local-rail .workspace-rail-link.active i {
+    color: #315fba;
+}
+
+.workspace-local-rail .workspace-rail-link.active em {
+    background: #dce8ff;
+    color: #17366f;
 }
 
 .workspace-local-rail__footer {
@@ -619,6 +709,43 @@
 }
 
 /* SECTION: Responsive behavior */
+@media (max-width: 1100px) {
+    .workspace-workbench {
+        grid-template-columns: 1fr;
+    }
+
+    .workspace-local-rail {
+        position: static;
+        min-height: auto;
+        border-right: 0;
+        border-bottom: 1px solid #e6ebf2;
+    }
+
+    .workspace-local-rail nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .workspace-main-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .workspace-split-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 700px) {
+    .workspace-commandbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .workspace-refresh {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
 @media (max-width: 576px) {
     .workspace-page {
         padding: 0.75rem;
@@ -776,218 +903,12 @@
     text-decoration: none;
 }
 
-@media (max-width: 1100px) {
-    .workspace-split-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* SECTION: Workbench shell with local left rail */
-.workspace-workbench {
-    display: grid;
-    grid-template-columns: 230px minmax(0, 1fr);
-    gap: 0;
-    padding: 0;
-    background: #f6f8fb;
-}
-
-.workspace-local-rail {
-    position: sticky;
-    top: 72px;
-    align-self: start;
-    min-height: calc(100vh - 92px);
-    background: #ffffff;
-    border-right: 1px solid #e6ebf2;
-    padding: 0.95rem 0.75rem;
-}
-
-.workspace-local-rail__title {
-    font-size: 0.9rem;
-    font-weight: 650;
-    color: #0f172a;
-    margin: 0 0 0.75rem;
-}
-
-.workspace-local-rail nav {
-    display: grid;
-    gap: 0.28rem;
-}
-
-.workspace-local-rail a {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.65rem;
-    padding: 0.55rem 0.6rem;
-    border-radius: 9px;
-    color: #334155;
-    text-decoration: none;
-    font-size: 0.84rem;
-    font-weight: 520;
-}
-
-.workspace-local-rail a span {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 0;
-}
-
-.workspace-local-rail a i {
-    color: #476083;
-    font-size: 0.95rem;
-}
-
-.workspace-local-rail a em {
-    min-width: 1.5rem;
-    height: 1.5rem;
-    border-radius: 999px;
-    display: inline-grid;
-    place-items: center;
-    background: #f1f5f9;
-    color: #475569;
-    font-style: normal;
-    font-size: 0.74rem;
-    font-weight: 600;
-}
-
-.workspace-local-rail a.active,
-.workspace-local-rail a:hover {
-    background: #edf4ff;
-    color: #17366f;
-}
-
-.workspace-workarea {
-    padding: 0.85rem;
-    min-width: 0;
-}
-
-/* SECTION: Workbench command bar and compact counts */
-.workspace-commandbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    background: #fff;
-    border: 1px solid #e8edf5;
-    border-radius: 12px;
-    padding: 0.8rem 0.95rem;
-    box-shadow: 0 4px 14px rgba(20, 32, 55, 0.035);
-    margin-bottom: 0.75rem;
-}
-
-.workspace-commandbar h1 {
-    margin: 0;
-    font-size: 1.12rem;
-    font-weight: 650;
-    color: #0f172a;
-}
-
-.workspace-commandbar p {
-    margin: 0.14rem 0 0;
-    color: #64748b;
-    font-size: 0.84rem;
-}
-
-.workspace-refresh {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.65rem;
-    color: #64748b;
-    font-size: 0.78rem;
-    white-space: nowrap;
-}
-
-
-/* SECTION: Workbench content grid */
-.workspace-main-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 320px;
-    gap: 0.85rem;
-}
-
-.workspace-main,
-.workspace-rail {
-    display: grid;
-    gap: 0.85rem;
-    align-content: start;
-}
-
-
 .workspace-section-link {
     display: inline-block;
     margin-top: 0.55rem;
     font-size: 0.76rem;
     font-weight: 550;
     text-decoration: none;
-}
-
-@media (max-width: 1100px) {
-    .workspace-workbench {
-        grid-template-columns: 1fr;
-    }
-
-    .workspace-local-rail {
-        position: static;
-        min-height: auto;
-        border-right: 0;
-        border-bottom: 1px solid #e6ebf2;
-    }
-
-    .workspace-local-rail nav {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .workspace-main-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .workspace-commandbar {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-}
-
-@media (max-width: 1100px) {
-    .workspace-workbench {
-        grid-template-columns: 1fr;
-    }
-
-    .workspace-local-rail {
-        position: static;
-        min-height: auto;
-        border-right: 0;
-        border-bottom: 1px solid #e6ebf2;
-    }
-
-    .workspace-main-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 700px) {
-    .workspace-commandbar {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-
-    .workspace-refresh {
-        width: 100%;
-        justify-content: space-between;
-    }
-}
-
-/* SECTION: Production polish overrides for compact workspace shell */
-.workspace-commandbar {
-    background: #ffffff;
-    border: 1px solid #e8edf5;
-    border-left: 4px solid #315fba;
-    padding: 0.85rem 1rem;
-}
-
-.workspace-local-rail {
-    display: flex;
-    flex-direction: column;
 }
 
 .workspace-status-good,
@@ -1039,12 +960,18 @@
     gap: 0.75rem;
 }
 
-.workspace-gap-card__top strong {
+.workspace-gap-card__title {
+    min-width: 0;
+}
+
+.workspace-gap-card__title strong {
     display: block;
     color: #0f172a;
     font-size: 0.86rem;
     font-weight: 650;
     line-height: 1.25;
+    max-width: 100%;
+    overflow-wrap: anywhere;
 }
 
 .workspace-gap-card__top p {
@@ -1058,6 +985,53 @@
     font-size: 0.78rem;
     font-weight: 550;
     text-decoration: none;
+}
+
+
+.workspace-gap-band {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.25rem;
+    border-radius: 999px;
+    padding: 0.08rem 0.38rem;
+    background: #fff1f2;
+    color: #9f303a;
+    font-size: 0.66rem;
+    font-weight: 650;
+    vertical-align: 0.05rem;
+}
+
+.workspace-subtle-link {
+    color: #315fba;
+    font-weight: 550;
+    text-decoration: none;
+}
+
+.workspace-subtle-link:hover {
+    text-decoration: underline;
+}
+
+.workspace-gap-more {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-top: 0.6rem;
+    padding-top: 0.55rem;
+    border-top: 1px dashed #e2e8f0;
+    color: #64748b;
+    font-size: 0.76rem;
+}
+
+.workspace-gap-more a {
+    color: #315fba;
+    font-weight: 550;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.workspace-gap-more a:hover {
+    text-decoration: underline;
 }
 
 .workspace-gap-summary {
