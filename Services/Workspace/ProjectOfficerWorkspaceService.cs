@@ -21,6 +21,11 @@ public sealed class ProjectOfficerWorkspaceService
     private readonly ActionTaskMyWorkQueueBuilder _myWorkQueueBuilder;
     private readonly IActionTrackerClock _clock;
     private readonly IAotsUnreadService _aotsUnreadService;
+
+    private sealed record WorkspaceActionQueueBuildResult(
+        IReadOnlyList<WorkspaceActionQueueItemVm> Items,
+        int TotalCount);
+
     public ProjectOfficerWorkspaceService(
         ApplicationDbContext db,
         UserManager<ApplicationUser> users,
@@ -44,7 +49,17 @@ public sealed class ProjectOfficerWorkspaceService
     {
         var today = DateOnly.FromDateTime(_clock.IstToday);
         var istNow = IstClock.ToIst(_clock.UtcNow);
-        var monthStart = new DateTime(istNow.Year, istNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var istMonthStart = new DateTime(
+            istNow.Year,
+            istNow.Month,
+            1,
+            0,
+            0,
+            0,
+            DateTimeKind.Unspecified);
+        var monthStartUtc = istMonthStart
+            .AddHours(-5)
+            .AddMinutes(-30);
         var user = await _users.FindByIdAsync(userId);
         var myProjectsUrl = WorkspaceRouteHelper.MyProjects(userId);
 
@@ -71,7 +86,13 @@ public sealed class ProjectOfficerWorkspaceService
         var aotsDocuments = await LoadUnreadAotsDocumentsAsync(userId, ct);
         var timelineAlerts = _nudges.BuildTimelineAlerts(projects, today).ToList();
         var dailyActionCount = remarksDue.Count + officialTasksDue.Count + ideasNeedingUpdate.Count + aotsUnreadCount;
-        var actionQueue = BuildActionQueue(returnedItems, officialTasksDue, remarksDue, ideasNeedingUpdate, aotsDocuments);
+        var actionQueueResult = BuildActionQueue(
+            returnedItems,
+            officialTasksDue,
+            remarksDue,
+            ideasNeedingUpdate,
+            aotsDocuments);
+        var actionQueue = actionQueueResult.Items;
 
         var pending = returnedItems
             .Concat(remarksDue)
@@ -98,7 +119,7 @@ public sealed class ProjectOfficerWorkspaceService
         var myWorkQueue = _myWorkQueueBuilder.Build(taskRows, activeSprint: null);
         var waitingOnOthers = await BuildWaitingOnOthersAsync(userId, myWorkQueue.SubmittedAwaitingClosureTasks, ct);
         var matrix = projects.Take(6).Select(p => BuildMatrixRow(p, health[p.Id], userId, today)).ToList();
-        var engagement = await BuildEngagementAsync(userId, user, monthStart, ct);
+        var engagement = await BuildEngagementAsync(userId, user, monthStartUtc, ct);
         var avgHealth = health.Count == 0 ? 100 : (int)Math.Round(health.Values.Average(h => h.HealthPercent));
 
         var vm = new ProjectOfficerWorkspaceVm
@@ -123,6 +144,7 @@ public sealed class ProjectOfficerWorkspaceService
             Engagement = engagement,
             PendingWithMe = pending.Take(5).ToList(),
             ActionQueue = actionQueue,
+            ActionQueueTotalCount = actionQueueResult.TotalCount,
             RemarksDue = remarksDue.Take(5).ToList(),
             OfficialTasksDue = officialTasksDue,
             IdeasNeedingUpdate = ideasNeedingUpdate,
@@ -289,7 +311,7 @@ public sealed class ProjectOfficerWorkspaceService
     }
 
     // SECTION: Unified action queue prioritizes operational work without four competing inbox columns.
-    private static IReadOnlyList<WorkspaceActionQueueItemVm> BuildActionQueue(
+    private static WorkspaceActionQueueBuildResult BuildActionQueue(
         IReadOnlyList<WorkspaceAttentionItemVm> returnedItems,
         IReadOnlyList<WorkspaceTaskVm> otherAssignedTasksDue,
         IReadOnlyList<WorkspaceAttentionItemVm> remarksDue,
@@ -365,11 +387,14 @@ public sealed class ProjectOfficerWorkspaceService
             SortDateUtc = document.CreatedAtUtc
         }));
 
-        return items
+        var orderedItems = items
             .OrderBy(GetActionQueuePriority)
             .ThenByDescending(i => i.SortDateUtc)
-            .Take(8)
             .ToList();
+
+        return new WorkspaceActionQueueBuildResult(
+            orderedItems.Take(8).ToList(),
+            orderedItems.Count);
     }
 
     // SECTION: Next best action mirrors the daily queue, falling back to timeline follow-up only when daily actions are clear.
@@ -673,15 +698,19 @@ public sealed class ProjectOfficerWorkspaceService
             return WorkspaceRouteHelper.ProjectTimeline(projectId);
         }
 
-        if (gap.Contains("document", StringComparison.OrdinalIgnoreCase))
+        if (gap.Contains("photo", StringComparison.OrdinalIgnoreCase))
         {
-            return WorkspaceRouteHelper.ProjectDocumentRequest(projectId);
+            return WorkspaceRouteHelper.ProjectPhotos(projectId);
         }
 
-        if (gap.Contains("photo", StringComparison.OrdinalIgnoreCase) ||
-            gap.Contains("video", StringComparison.OrdinalIgnoreCase))
+        if (gap.Contains("video", StringComparison.OrdinalIgnoreCase))
         {
-            return WorkspaceRouteHelper.ProjectMedia(projectId);
+            return WorkspaceRouteHelper.ProjectVideos(projectId);
+        }
+
+        if (gap.Contains("document", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkspaceRouteHelper.ProjectDocumentsTab(projectId);
         }
 
         if (gap.Contains("budget", StringComparison.OrdinalIgnoreCase))

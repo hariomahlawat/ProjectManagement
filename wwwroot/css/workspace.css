@@ -449,6 +449,26 @@
     color: #15803d;
 }
 
+.workspace-action-more {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.55rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 9px;
+    background: #f8fafc;
+    border: 1px dashed #d7e0ec;
+    color: #64748b;
+    font-size: 0.76rem;
+}
+
+.workspace-action-more a {
+    font-weight: 550;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
 .workspace-anchor {
     display: block;
     position: relative;

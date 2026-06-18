@@ -64,7 +64,7 @@
                         <div>
                             <h2>Action Queue</h2>
                             <p class="workspace-section-subtitle">
-                                Remarks, tasks, project ideas and AOTS documents requiring your action
+                                Prioritised items requiring your action.
                             </p>
                         </div>
                         <a href="@WorkspaceRouteHelper.ActionTasksMyWork()">View my work</a>
@@ -126,6 +126,16 @@
                                 <span><i class="bi bi-check2"></i> AOTS all read</span>
                             }
                         </div>
+
+                        @if (Model.Workspace.ActionQueueHiddenCount > 0)
+                        {
+                            <div class="workspace-action-more">
+                                <span>
+                                    @Model.Workspace.ActionQueueHiddenCount more item@(Model.Workspace.ActionQueueHiddenCount == 1 ? "" : "s") not shown
+                                </span>
+                                <span>Complete or review visible items to surface the rest.</span>
+                            </div>
+                        }
                     }
                 </section>
 
