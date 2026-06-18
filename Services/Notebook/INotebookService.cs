@@ -6,9 +6,24 @@ namespace ProjectManagement.Services.Notebook;
 
 public interface INotebookService
 {
-    Task<NotebookIndexVm> GetIndexAsync(string ownerId, string view, string? query, Guid? selectedId, CancellationToken ct = default);
+    Task<NotebookIndexVm> GetIndexAsync(
+        string ownerId,
+        string view,
+        string? query,
+        Guid? selectedId,
+        bool suppressAutoSelect = false,
+        CancellationToken ct = default);
 
-    Task<Guid> QuickCaptureAsync(string ownerId, string input, NotebookItemType? forcedType = null, CancellationToken ct = default);
+    Task<NotebookWidgetVm> GetWidgetAsync(
+        string ownerId,
+        int take = 5,
+        CancellationToken ct = default);
+
+    Task<Guid> QuickCaptureAsync(
+        string ownerId,
+        string input,
+        NotebookItemType? forcedType = null,
+        CancellationToken ct = default);
 
     Task<Guid> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default);
 

@@ -36,17 +36,40 @@
     });
   };
 
-  const updateFields = () => {
+  let updateFields = () => {
     const selected = selectedTypeName();
 
     for (const group of fieldGroups) {
-      const groupType = normalise(group.getAttribute('data-notebook-type-fields'));
-      const shouldShow = groupType === selected
-        || (selected === 'idea' && groupType === 'note')
-        || (selected === 'draft' && groupType === 'note');
+      const groupTypes = normalise(group.getAttribute('data-notebook-type-fields'))
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+      const shouldShow = groupTypes.includes(selected);
 
       setGroupEnabled(group, shouldShow);
     }
+  };
+
+  const sharedReminder = document.querySelector('[data-notebook-shared-reminder]');
+  const sharedPriority = document.querySelector('[data-notebook-shared-priority]');
+
+  const setSharedEnabled = (container, isEnabled) => {
+    if (!container) {
+      return;
+    }
+
+    container.hidden = !isEnabled;
+    container.querySelectorAll('input, select, textarea').forEach((control) => {
+      control.disabled = !isEnabled;
+    });
+  };
+
+  const originalUpdateFields = updateFields;
+  updateFields = () => {
+    originalUpdateFields();
+    const selected = selectedTypeName();
+    setSharedEnabled(sharedReminder, selected !== 'checklist' && selected !== 'reminder');
+    setSharedEnabled(sharedPriority, selected !== 'checklist' && selected !== 'reminder');
   };
 
   typeSelect.addEventListener('change', updateFields);

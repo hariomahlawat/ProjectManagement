@@ -23,42 +23,202 @@ public class IndexModel : PageModel
     }
 
     // SECTION: Bound notebook state
-    [BindProperty(SupportsGet = true)] public string View { get; set; } = "home";
-    [BindProperty(SupportsGet = true)] public string? Query { get; set; }
-    [BindProperty(SupportsGet = true)] public Guid? SelectedId { get; set; }
-    [BindProperty] public string? QuickCaptureText { get; set; }
-    [BindProperty] public NotebookItemType? ForcedType { get; set; }
-    [BindProperty] public NotebookEditInput Input { get; set; } = new();
-    [BindProperty] public string? TagsText { get; set; }
-    [BindProperty] public string? ChecklistText { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public string View { get; set; } = "home";
+    [BindProperty(SupportsGet = true)]
+    public string? Query { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public Guid? SelectedId { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public string? Mode { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public NotebookItemType? Type { get; set; }
+    [BindProperty]
+    public string? QuickCaptureText { get; set; }
+    [BindProperty]
+    public NotebookItemType? ForcedType { get; set; }
+    [BindProperty]
+    public NotebookEditInput Input { get; set; } = new();
+    [BindProperty]
+    public string? TagsText { get; set; }
+    [BindProperty]
+    public string? ChecklistText { get; set; }
     public NotebookIndexVm Notebook { get; set; } = new();
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
-        var uid = _users.GetUserId(User); if (uid is null) return Unauthorized();
+        var uid = _users.GetUserId(User);
+        if (uid is null)
+        {
+            return Unauthorized();
+        }
         await _import.ImportForUserIfRequiredAsync(uid, ct);
-        Notebook = await _notebook.GetIndexAsync(uid, View, Query, SelectedId, ct);
+        var isCreateMode = IsCreateMode();
+        Notebook = await _notebook.GetIndexAsync(uid, View, Query, SelectedId, isCreateMode, ct);
         PopulateEditorInput();
         return Page();
     }
 
     // SECTION: Thin post handlers
-    public async Task<IActionResult> OnPostQuickCaptureAsync(CancellationToken ct) { var uid = _users.GetUserId(User); if (uid is null) return Unauthorized(); if (!string.IsNullOrWhiteSpace(QuickCaptureText)) SelectedId = await _notebook.QuickCaptureAsync(uid, QuickCaptureText, ForcedType, ct); return RedirectToCurrent(SelectedId); }
-    public async Task<IActionResult> OnPostCreateAsync(CancellationToken ct) { var uid = _users.GetUserId(User); if (uid is null) return Unauthorized(); HydrateInput(); SelectedId = await _notebook.CreateAsync(uid, Input, ct); return RedirectToCurrent(SelectedId); }
-    public async Task<IActionResult> OnPostUpdateAsync(Guid id, CancellationToken ct) { var uid = _users.GetUserId(User); if (uid is null) return Unauthorized(); HydrateInput(); await _notebook.UpdateAsync(uid, id, Input, ct); return RedirectToCurrent(id); }
-    public async Task<IActionResult> OnPostArchiveAsync(Guid id, CancellationToken ct) { var uid = _users.GetUserId(User); if (uid is null) return Unauthorized(); await _notebook.ArchiveAsync(uid, id, ct); return RedirectToCurrent(); }
-    public async Task<IActionResult> OnPostRestoreAsync(Guid id, CancellationToken ct) { var uid = _users.GetUserId(User); if (uid is null) return Unauthorized(); await _notebook.RestoreAsync(uid, id, ct); return RedirectToPage(new { view = "archived", query = Query, selectedId = id }); }
-    public async Task<IActionResult> OnPostDeleteAsync(Guid id, CancellationToken ct) { var uid = _users.GetUserId(User); if (uid is null) return Unauthorized(); await _notebook.DeleteAsync(uid, id, ct); return RedirectToCurrent(); }
-    public async Task<IActionResult> OnPostTogglePinAsync(Guid id, CancellationToken ct) { var uid = _users.GetUserId(User); if (uid is null) return Unauthorized(); await _notebook.TogglePinAsync(uid, id, ct); return RedirectToCurrent(SelectedId ?? id); }
-    public async Task<IActionResult> OnPostToggleFavoriteAsync(Guid id, CancellationToken ct) { var uid = _users.GetUserId(User); if (uid is null) return Unauthorized(); await _notebook.ToggleFavoriteAsync(uid, id, ct); return RedirectToCurrent(SelectedId ?? id); }
-    public async Task<IActionResult> OnPostCompleteAsync(Guid id, bool isComplete, CancellationToken ct) { var uid = _users.GetUserId(User); if (uid is null) return Unauthorized(); await _notebook.CompleteAsync(uid, id, isComplete, ct); return RedirectToCurrent(SelectedId ?? id); }
-    public async Task<IActionResult> OnPostConvertAsync(Guid id, NotebookItemType? newType, CancellationToken ct) { var uid = _users.GetUserId(User); if (uid is null) return Unauthorized(); if (newType is not null) await _notebook.ConvertTypeAsync(uid, id, newType.Value, ct); return RedirectToCurrent(id); }
-    public async Task<IActionResult> OnPostToggleChecklistItemAsync(int checklistItemId, bool isDone, Guid selectedId, CancellationToken ct) { var uid = _users.GetUserId(User); if (uid is null) return Unauthorized(); await _notebook.ToggleChecklistItemAsync(uid, checklistItemId, isDone, ct); return RedirectToCurrent(selectedId); }
+    public async Task<IActionResult> OnPostQuickCaptureAsync(CancellationToken ct)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null)
+        {
+            return Unauthorized();
+        }
+
+        if (!string.IsNullOrWhiteSpace(QuickCaptureText))
+        {
+            SelectedId = await _notebook.QuickCaptureAsync(uid, QuickCaptureText, ForcedType, ct);
+        }
+
+        return RedirectToCurrent(SelectedId);
+    }
+
+    public async Task<IActionResult> OnPostCreateAsync(CancellationToken ct)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null)
+        {
+            return Unauthorized();
+        }
+
+        HydrateInput();
+        SelectedId = await _notebook.CreateAsync(uid, Input, ct);
+        return RedirectToCurrent(SelectedId);
+    }
+
+    public async Task<IActionResult> OnPostUpdateAsync(Guid id, CancellationToken ct)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null)
+        {
+            return Unauthorized();
+        }
+
+        HydrateInput();
+        await _notebook.UpdateAsync(uid, id, Input, ct);
+        return RedirectToCurrent(id);
+    }
+
+    public async Task<IActionResult> OnPostArchiveAsync(Guid id, CancellationToken ct)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null)
+        {
+            return Unauthorized();
+        }
+
+        await _notebook.ArchiveAsync(uid, id, ct);
+        return RedirectToCurrent();
+    }
+
+    public async Task<IActionResult> OnPostRestoreAsync(Guid id, CancellationToken ct)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null)
+        {
+            return Unauthorized();
+        }
+
+        await _notebook.RestoreAsync(uid, id, ct);
+        return RedirectToPage(new { view = "archived", query = Query, selectedId = id });
+    }
+
+    public async Task<IActionResult> OnPostDeleteAsync(Guid id, CancellationToken ct)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null)
+        {
+            return Unauthorized();
+        }
+
+        await _notebook.DeleteAsync(uid, id, ct);
+        return RedirectToCurrent();
+    }
+
+    public async Task<IActionResult> OnPostTogglePinAsync(Guid id, CancellationToken ct)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null)
+        {
+            return Unauthorized();
+        }
+
+        await _notebook.TogglePinAsync(uid, id, ct);
+        return RedirectToCurrent(SelectedId ?? id);
+    }
+
+    public async Task<IActionResult> OnPostToggleFavoriteAsync(Guid id, CancellationToken ct)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null)
+        {
+            return Unauthorized();
+        }
+
+        await _notebook.ToggleFavoriteAsync(uid, id, ct);
+        return RedirectToCurrent(SelectedId ?? id);
+    }
+
+    public async Task<IActionResult> OnPostCompleteAsync(Guid id, bool isComplete, CancellationToken ct)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null)
+        {
+            return Unauthorized();
+        }
+
+        await _notebook.CompleteAsync(uid, id, isComplete, ct);
+        return RedirectToCurrent();
+    }
+
+    public async Task<IActionResult> OnPostConvertAsync(Guid id, NotebookItemType? newType, CancellationToken ct)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null)
+        {
+            return Unauthorized();
+        }
+
+        if (newType is not null)
+        {
+            await _notebook.ConvertTypeAsync(uid, id, newType.Value, ct);
+        }
+
+        return RedirectToCurrent(id);
+    }
+
+    public async Task<IActionResult> OnPostToggleChecklistItemAsync(
+        int checklistItemId,
+        bool isDone,
+        Guid selectedId,
+        CancellationToken ct)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null)
+        {
+            return Unauthorized();
+        }
+
+        await _notebook.ToggleChecklistItemAsync(uid, checklistItemId, isDone, ct);
+        return RedirectToCurrent(selectedId);
+    }
 
     private void PopulateEditorInput()
     {
+        if (IsCreateMode())
+        {
+            Input = new NotebookEditInput { Type = Type ?? NotebookItemType.Note };
+            return;
+        }
+
         var selected = Notebook.SelectedItem;
-        if (selected is null) return;
+        if (selected is null)
+        {
+            return;
+        }
         Input = new NotebookEditInput
         {
             Title = selected.Title,
@@ -85,6 +245,8 @@ public class IndexModel : PageModel
         Input.ChecklistItems = (ChecklistText ?? string.Empty)
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
+
+    private bool IsCreateMode() => string.Equals(Mode, "new", StringComparison.OrdinalIgnoreCase);
 
     private IActionResult RedirectToCurrent(Guid? selectedId = null)
     {

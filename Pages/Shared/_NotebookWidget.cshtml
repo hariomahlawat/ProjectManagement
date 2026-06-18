@@ -1,0 +1,37 @@
+@model ProjectManagement.ViewModels.Notebook.NotebookWidgetVm
+
+@* SECTION: Dashboard notebook widget *@
+<div class="card shadow-sm border-0 notebook-widget">
+    <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <div>
+                <p class="text-uppercase text-muted small fw-bold mb-1">My Notebook</p>
+                <h2 class="h6 mb-0">Personal reminders</h2>
+            </div>
+            <i class="bi bi-journal-bookmark text-primary fs-4" aria-hidden="true"></i>
+        </div>
+
+        <div class="d-flex gap-2 mb-3">
+            <span class="badge text-bg-primary">Due today: @(Model?.DueTodayCount ?? 0)</span>
+            <span class="badge text-bg-danger">Overdue: @(Model?.OverdueCount ?? 0)</span>
+        </div>
+
+        @if (Model is null)
+        {
+            <p class="text-muted small mb-3">Notebook reminders are unavailable right now.</p>
+        }
+        else
+        {
+            <div class="small fw-bold text-muted mb-1">Due / Overdue</div>
+            @await Html.PartialAsync("_NotebookWidgetList", Model.DueItems)
+
+            <div class="small fw-bold text-muted mt-3 mb-1">Pinned</div>
+            @await Html.PartialAsync("_NotebookWidgetList", Model.PinnedItems)
+
+            <div class="small fw-bold text-muted mt-3 mb-1">Sticky Notes</div>
+            @await Html.PartialAsync("_NotebookWidgetList", Model.StickyItems)
+        }
+
+        <a class="btn btn-sm btn-primary w-100 mt-3" asp-page="/Notebook/Index">Open My Notebook</a>
+    </div>
+</div>

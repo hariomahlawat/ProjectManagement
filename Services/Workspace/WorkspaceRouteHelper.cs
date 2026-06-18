@@ -57,6 +57,9 @@ internal static class WorkspaceRouteHelper
     public static string PersonalReminders()
         => "/Notebook?view=today";
 
+    public static string PersonalReminder(Guid itemId)
+        => $"/Notebook?view=today&selectedId={itemId}";
+
     public static string AotsInbox()
         => "/DocumentRepository/Documents?scope=aots";
 
