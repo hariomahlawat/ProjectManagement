@@ -316,24 +316,69 @@
                     </div>
                 </section>
 
-                @* SECTION: Quiet grouped project data gaps *@
-                <section class="workspace-card workspace-card-clean">
-                    <h2>Project Data Gaps</h2>
+                @* SECTION: Actionable project data gaps with direct correction routes *@
+                <section class="workspace-card workspace-project-gaps">
+                    <div class="workspace-card__head">
+                        <div>
+                            <h2>Project Data Gaps</h2>
+                            <p class="workspace-section-subtitle">
+                                Missing details that reduce project data completeness.
+                            </p>
+                        </div>
+                    </div>
+
                     @if (!Model.Workspace.ImproveProjects.Any())
                     {
                         <p class="workspace-inline-clear">Project data looks complete.</p>
                     }
                     else
                     {
-                        <div class="workspace-cleanup-list">
+                        <div class="workspace-gap-list">
                             @foreach (var item in Model.Workspace.ImproveProjects.Take(3))
                             {
-                                <article>
-                                    <div>
-                                        <strong>@item.ProjectName</strong>
-                                        <p>@item.FixCount detail@(item.FixCount == 1 ? "" : "s") pending</p>
+                                <article class="workspace-gap-card">
+                                    <div class="workspace-gap-card__top">
+                                        <div>
+                                            <strong title="@item.ProjectName">@item.ProjectName</strong>
+                                            <p>@item.FixCount detail@(item.FixCount == 1 ? "" : "s") pending</p>
+                                        </div>
+
+                                        <a href="@item.Url">Open</a>
                                     </div>
-                                    <a href="@item.Url">Open</a>
+
+                                    @if (item.PreviewGapDetails.Any())
+                                    {
+                                        <div class="workspace-gap-summary">
+                                            <span>Missing:</span>
+                                            <strong>@string.Join(", ", item.PreviewGapDetails.Select(g => WorkspaceDisplayHelpers.ShortGapLabel(g.Label)))</strong>
+
+                                            @if (item.HiddenGapCount > 0)
+                                            {
+                                                <em>+@item.HiddenGapCount more</em>
+                                            }
+                                        </div>
+                                    }
+
+                                    <details class="workspace-gap-details-native">
+                                        <summary>Show details</summary>
+
+                                        <div class="workspace-gap-details">
+                                            @foreach (var gap in item.GapDetails)
+                                            {
+                                                <div class="workspace-gap-detail-row">
+                                                    <span class="workspace-gap-detail-icon workspace-gap-detail-@gap.Severity.ToLowerInvariant()">
+                                                        <i class="bi @gap.Icon"></i>
+                                                    </span>
+
+                                                    <div>
+                                                        <strong>@gap.Label</strong>
+                                                    </div>
+
+                                                    <a href="@gap.ActionUrl">@gap.ActionText</a>
+                                                </div>
+                                            }
+                                        </div>
+                                    </details>
                                 </article>
                             }
                         </div>
