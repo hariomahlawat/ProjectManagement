@@ -124,8 +124,12 @@ public sealed class NotebookService : INotebookService
             .Select(item => ToListVm(item, bounds))
             .ToArray();
 
-        var autoSelectedId = suppressAutoSelect ? selectedId : selectedId ?? items.FirstOrDefault()?.Id;
-        var selected = await LoadSelectedAsync(ownerId, autoSelectedId, bounds, ct);
+        // SECTION: Board-first selection
+        NotebookItemDetailVm? selected = null;
+        if (selectedId.HasValue)
+        {
+            selected = await LoadSelectedAsync(ownerId, selectedId.Value, bounds, ct);
+        }
 
         return new NotebookIndexVm
         {

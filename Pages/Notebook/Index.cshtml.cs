@@ -44,6 +44,7 @@ public class IndexModel : PageModel
     [BindProperty]
     public string? ChecklistText { get; set; }
     public NotebookIndexVm Notebook { get; set; } = new();
+    public bool HasEditorOpen => SelectedId.HasValue || IsCreateMode();
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
@@ -147,7 +148,7 @@ public class IndexModel : PageModel
         }
 
         await _notebook.TogglePinAsync(uid, id, ct);
-        return RedirectToCurrent(SelectedId ?? id);
+        return RedirectToCurrent(SelectedId);
     }
 
     public async Task<IActionResult> OnPostToggleFavoriteAsync(Guid id, CancellationToken ct)
@@ -159,7 +160,7 @@ public class IndexModel : PageModel
         }
 
         await _notebook.ToggleFavoriteAsync(uid, id, ct);
-        return RedirectToCurrent(SelectedId ?? id);
+        return RedirectToCurrent(SelectedId);
     }
 
     public async Task<IActionResult> OnPostCompleteAsync(Guid id, bool isComplete, CancellationToken ct)
