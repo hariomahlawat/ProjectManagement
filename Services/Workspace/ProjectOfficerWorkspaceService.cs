@@ -243,19 +243,29 @@ public sealed class ProjectOfficerWorkspaceService
     // SECTION: Personal reminders stay separate from the operational action queue.
     private async Task<IReadOnlyList<WorkspaceReminderVm>> LoadPersonalRemindersAsync(string userId, CancellationToken ct)
     {
-        return await _db.TodoItems
+        var endTodayLocal = DateTime.SpecifyKind(_clock.IstToday.AddDays(1), DateTimeKind.Unspecified);
+        var endTodayUtc = new DateTimeOffset(
+            TimeZoneInfo.ConvertTimeToUtc(endTodayLocal, IstClock.TimeZone),
+            TimeSpan.Zero);
+
+        return await _db.NotebookItems
             .AsNoTracking()
-            .Where(t => t.OwnerId == userId && t.Status != TodoStatus.Done && t.DeletedUtc == null)
-            .OrderByDescending(t => t.IsPinned)
-            .ThenBy(t => t.DueAtUtc)
+            .Where(item =>
+                item.OwnerId == userId &&
+                item.DeletedAtUtc == null &&
+                item.Status == NotebookItemStatus.Active &&
+                item.ReminderAtUtc != null &&
+                item.ReminderAtUtc < endTodayUtc)
+            .OrderByDescending(item => item.IsPinned)
+            .ThenBy(item => item.ReminderAtUtc)
             .Take(5)
-            .Select(t => new WorkspaceReminderVm
+            .Select(item => new WorkspaceReminderVm
             {
-                ReminderId = t.Id,
-                Title = t.Title,
-                Priority = t.Priority.ToString(),
-                DueAtUtc = t.DueAtUtc,
-                IsPinned = t.IsPinned,
+                ReminderId = item.Id,
+                Title = item.Title,
+                Priority = item.Priority.ToString(),
+                DueAtUtc = item.ReminderAtUtc,
+                IsPinned = item.IsPinned,
                 OpenUrl = WorkspaceRouteHelper.PersonalReminders()
             })
             .ToListAsync(ct);

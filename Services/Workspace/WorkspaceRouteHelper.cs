@@ -55,7 +55,7 @@ internal static class WorkspaceRouteHelper
         => "/ProjectIdeas?MyIdeas=true";
 
     public static string PersonalReminders()
-        => "/Tasks";
+        => "/Notebook?view=today";
 
     public static string AotsInbox()
         => "/DocumentRepository/Documents?scope=aots";

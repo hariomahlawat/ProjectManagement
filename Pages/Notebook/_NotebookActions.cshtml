@@ -1,4 +1,5 @@
 @model ProjectManagement.ViewModels.Notebook.NotebookItemActionVm
+@using ProjectManagement.Models
 <form method="post" class="notebook-actions">
     <input type="hidden" name="id" value="@Model.Item.Id" />
     <input type="hidden" name="View" value="@Model.View" />
@@ -6,7 +7,7 @@
     <input type="hidden" name="SelectedId" value="@Model.SelectedId" />
     <button asp-page-handler="TogglePin" title="Pin" type="submit"><i class="bi @(Model.Item.IsPinned ? "bi-pin-angle-fill" : "bi-pin-angle")"></i></button>
     <button asp-page-handler="ToggleFavorite" title="Favourite" type="submit"><i class="bi @(Model.Item.IsFavorite ? "bi-star-fill" : "bi-star")"></i></button>
-    @if (Model.Item.Status == ProjectManagement.Models.NotebookItemStatus.Archived)
+    @if (Model.Item.Status == NotebookItemStatus.Archived)
     {
         <button asp-page-handler="Restore" type="submit">Restore</button>
     }
@@ -14,5 +15,16 @@
     {
         <button asp-page-handler="Archive" type="submit">Archive</button>
     }
+    <label class="notebook-convert-action">
+        <span class="visually-hidden">Convert type</span>
+        <select name="newType" aria-label="Convert item type">
+            <option value="">Convert…</option>
+            @foreach (var type in Enum.GetValues<NotebookItemType>().Where(type => type != Model.Item.Type))
+            {
+                <option value="@type">Convert to @type</option>
+            }
+        </select>
+        <button asp-page-handler="Convert" type="submit">Go</button>
+    </label>
     <button asp-page-handler="Delete" class="text-danger" type="submit">Delete</button>
 </form>

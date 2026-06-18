@@ -47,7 +47,7 @@
         <section class="notebook-content @(Model.Notebook.View == "sticky" ? "notebook-sticky-grid" : "")">
             @foreach (var item in Model.Notebook.Items)
             {
-                if (Model.Notebook.View == "sticky" || item.Type == NotebookItemType.Sticky)
+                if (Model.Notebook.View == "sticky")
                 {
                     <article class="notebook-sticky-card notebook-sticky-@item.ColorKey">
                         <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-query="@Model.Notebook.Query" asp-route-selectedId="@item.Id"><div class="notebook-sticky-top"><span class="notebook-type-chip">Sticky</span>@if (item.IsPinned) { <i class="bi bi-pin-angle-fill"></i> } @if (item.ReminderAtUtc is not null) { <i class="bi bi-bell"></i> }</div><h3>@item.Title</h3></a>
@@ -91,36 +91,20 @@
             <input type="hidden" asp-for="View" />
             <input type="hidden" asp-for="Query" />
             <label>Title<input asp-for="Input.Title" required maxlength="220" /></label>
-            <label>Type<select asp-for="Input.Type" asp-items="Html.GetEnumSelectList<NotebookItemType>()"></select></label>
-            @if (selectedType == NotebookItemType.Checklist)
-            {
+            <label>Type<select asp-for="Input.Type" asp-items="Html.GetEnumSelectList<NotebookItemType>()" data-notebook-type-select></select></label>
+            <label>Body<textarea asp-for="Input.BodyMarkdown" data-autoresize></textarea></label>
+            <div class="notebook-editor-fields" data-notebook-type-fields="Checklist">
                 <label class="notebook-field-prominent">Checklist items<textarea asp-for="ChecklistText" placeholder="One checklist item per line"></textarea></label>
-                <label>Reminder (IST)<input asp-for="Input.ReminderLocal" type="datetime-local" /></label>
-                <label>Priority<select asp-for="Input.Priority" asp-items="Html.GetEnumSelectList<NotebookPriority>()"></select></label>
-                <label>Tags<input asp-for="TagsText" placeholder="procurement, docs" /></label>
-                <label>Optional notes<textarea asp-for="Input.BodyMarkdown" data-autoresize></textarea></label>
-            }
-            else if (selectedType == NotebookItemType.Sticky)
-            {
-                <label>Quick note<textarea asp-for="Input.BodyMarkdown" class="notebook-sticky-editor" data-autoresize></textarea></label>
+            </div>
+            <div class="notebook-editor-fields" data-notebook-type-fields="Sticky">
                 <label>Colour<select asp-for="Input.ColorKey"><option>blue</option><option>amber</option><option>green</option><option>rose</option><option>slate</option></select></label>
-                <label>Reminder (IST)<input asp-for="Input.ReminderLocal" type="datetime-local" /></label>
-                <label>Tags<input asp-for="TagsText" placeholder="procurement, docs" /></label>
-            }
-            else if (selectedType == NotebookItemType.Reminder)
-            {
-                <label class="notebook-field-prominent">Reminder date/time (IST)<input asp-for="Input.ReminderLocal" type="datetime-local" /></label>
-                <label>Priority<select asp-for="Input.Priority" asp-items="Html.GetEnumSelectList<NotebookPriority>()"></select></label>
-                <label>Notes<textarea asp-for="Input.BodyMarkdown" data-autoresize></textarea></label>
-                <label>Tags<input asp-for="TagsText" placeholder="procurement, docs" /></label>
-            }
-            else
-            {
-                <label>Body<textarea asp-for="Input.BodyMarkdown" data-autoresize></textarea></label>
-                <label>Tags<input asp-for="TagsText" placeholder="procurement, docs" /></label>
-                <label>Reminder (IST)<input asp-for="Input.ReminderLocal" type="datetime-local" /></label>
-                <label>Priority<select asp-for="Input.Priority" asp-items="Html.GetEnumSelectList<NotebookPriority>()"></select></label>
-            }
+            </div>
+            <div class="notebook-editor-fields" data-notebook-type-fields="Reminder">
+                <p class="notebook-editor-hint">Use the Reminder (IST) field below to schedule this item.</p>
+            </div>
+            <label>Tags<input asp-for="TagsText" placeholder="procurement, docs" /></label>
+            <label data-notebook-shared-reminder>Reminder (IST)<input asp-for="Input.ReminderLocal" type="datetime-local" /></label>
+            <label>Priority<select asp-for="Input.Priority" asp-items="Html.GetEnumSelectList<NotebookPriority>()"></select></label>
             <div class="notebook-checks"><label><input asp-for="Input.IsPinned" /> Pin</label><label><input asp-for="Input.IsFavorite" /> Favourite</label></div>
             <button class="btn btn-primary" type="submit">Save</button>
         </form>

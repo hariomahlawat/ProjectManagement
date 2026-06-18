@@ -394,3 +394,24 @@
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
+.notebook-convert-action {
+    display: inline-flex;
+    gap: .25rem;
+    align-items: center;
+}
+
+.notebook-convert-action select {
+    max-width: 8.5rem;
+    padding: .2rem .45rem;
+    color: #475569;
+    background: rgba(248, 250, 252, .9);
+    border: 0;
+    border-radius: 999px;
+}
+
+.notebook-editor-hint {
+    margin: 0;
+    color: #64748b;
+    font-size: .85rem;
+}
