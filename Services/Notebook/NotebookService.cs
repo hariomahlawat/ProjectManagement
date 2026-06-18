@@ -113,13 +113,14 @@ public sealed class NotebookService : INotebookService
             .Concat(due.Select(item => item.Id))
             .ToHashSet();
 
+        // SECTION: Home recent items exclude cards already shown in priority sections before limiting
         var recent = (await activeQuery
-                .Where(item => item.Status == NotebookItemStatus.Active)
+                .Where(item =>
+                    item.Status == NotebookItemStatus.Active &&
+                    !homeShownIds.Contains(item.Id))
                 .OrderByDescending(item => item.UpdatedAtUtc)
-                .Take(30)
+                .Take(12)
                 .ToListAsync(ct))
-            .Where(item => !homeShownIds.Contains(item.Id))
-            .Take(12)
             .Select(item => ToListVm(item, bounds))
             .ToArray();
 
