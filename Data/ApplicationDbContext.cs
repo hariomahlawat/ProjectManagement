@@ -50,6 +50,11 @@ namespace ProjectManagement.Data
         public DbSet<ProjectTechStatus> ProjectTechStatuses => Set<ProjectTechStatus>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
+        public DbSet<NotebookItem> NotebookItems => Set<NotebookItem>();
+        public DbSet<NotebookChecklistItem> NotebookChecklistItems => Set<NotebookChecklistItem>();
+        public DbSet<NotebookTag> NotebookTags => Set<NotebookTag>();
+        public DbSet<NotebookItemTag> NotebookItemTags => Set<NotebookItemTag>();
+        public DbSet<NotebookAttachment> NotebookAttachments => Set<NotebookAttachment>();
         public DbSet<ActionTaskItem> ActionTasks => Set<ActionTaskItem>();
         public DbSet<ActionSprint> ActionSprints => Set<ActionSprint>();
         public DbSet<ActionSprintAuditLog> ActionSprintAuditLogs => Set<ActionSprintAuditLog>();
@@ -200,6 +205,47 @@ namespace ProjectManagement.Data
                     PhoneNumberConfirmed = false
                 });
 
+
+
+            // SECTION: My Notebook module
+            builder.Entity<NotebookItem>(entity =>
+            {
+                entity.HasIndex(x => new { x.OwnerId, x.Status, x.Type });
+                entity.HasIndex(x => new { x.OwnerId, x.IsPinned, x.UpdatedAtUtc });
+                entity.HasIndex(x => new { x.OwnerId, x.ReminderAtUtc });
+                entity.HasIndex(x => new { x.OwnerId, x.LegacyTodoItemId });
+                entity.HasIndex(x => x.DeletedAtUtc);
+                entity.Property(x => x.Type).HasConversion<byte>();
+                entity.Property(x => x.Status).HasConversion<byte>();
+                entity.Property(x => x.Priority).HasConversion<byte>();
+                entity.HasOne(x => x.Owner).WithMany().HasForeignKey(x => x.OwnerId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<NotebookChecklistItem>(entity =>
+            {
+                entity.HasIndex(x => new { x.NotebookItemId, x.SortOrder });
+                entity.HasOne(x => x.NotebookItem).WithMany(x => x.ChecklistItems).HasForeignKey(x => x.NotebookItemId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<NotebookTag>(entity =>
+            {
+                entity.HasIndex(x => new { x.OwnerId, x.NormalizedName }).IsUnique();
+                entity.HasOne(x => x.Owner).WithMany().HasForeignKey(x => x.OwnerId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<NotebookItemTag>(entity =>
+            {
+                entity.HasKey(x => new { x.NotebookItemId, x.NotebookTagId });
+                entity.HasOne(x => x.NotebookItem).WithMany(x => x.Tags).HasForeignKey(x => x.NotebookItemId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.NotebookTag).WithMany(x => x.Items).HasForeignKey(x => x.NotebookTagId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<NotebookAttachment>(entity =>
+            {
+                entity.HasIndex(x => x.NotebookItemId);
+                entity.HasOne(x => x.NotebookItem).WithMany(x => x.Attachments).HasForeignKey(x => x.NotebookItemId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.UploadedBy).WithMany().HasForeignKey(x => x.UploadedById).OnDelete(DeleteBehavior.Restrict);
+            });
 
             // SECTION: Project Ideas module
             builder.Entity<ProjectIdea>(e =>

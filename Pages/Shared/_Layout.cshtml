@@ -62,6 +62,10 @@
                        class="pm-top-tabs__item @(string.Equals(currentPage, "/Calendar/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
                         Calendar
                     </a>
+                    <a asp-page="/Notebook/Index"
+                       class="pm-top-tabs__item @(string.Equals(currentPage, "/Notebook/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
+                        Notebook
+                    </a>
                     <a asp-page="/Projects/Ongoing/Index"
                        class="pm-top-tabs__item @(isOngoingProjectsPage ? "is-active" : string.Empty)">
                         Projects
