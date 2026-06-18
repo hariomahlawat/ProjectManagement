@@ -8,10 +8,10 @@
     <input type="hidden" name="Query" value="@Model.Query" />
     <input type="hidden" name="SelectedId" value="@Model.SelectedId" />
 
-    <button asp-page-handler="TogglePin" title="Pin" type="submit" class="notebook-icon-action">
+    <button asp-page-handler="TogglePin" title="Pin" type="submit" class="notebook-action-icon">
         <i class="bi @(Model.Item.IsPinned ? "bi-pin-angle-fill" : "bi-pin-angle")"></i>
     </button>
-    <button asp-page-handler="ToggleFavorite" title="Favourite" type="submit" class="notebook-icon-action">
+    <button asp-page-handler="ToggleFavorite" title="Favourite" type="submit" class="notebook-action-icon">
         <i class="bi @(Model.Item.IsFavorite ? "bi-star-fill" : "bi-star")"></i>
     </button>
 

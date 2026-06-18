@@ -500,3 +500,252 @@
     color: #0f172a;
     font-size: 1rem;
 }
+
+/* SECTION: Card board layout */
+.notebook-board {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(235px, 1fr));
+    gap: .9rem;
+    align-items: start;
+}
+
+.notebook-board-wide {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.notebook-section { margin-top: 1rem; }
+
+.notebook-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 1.1rem 0 .6rem;
+}
+
+.notebook-section-header h2 {
+    margin: 0;
+    color: #0f172a;
+    font-size: .92rem;
+    font-weight: 700;
+}
+
+.notebook-section-header span {
+    color: #64748b;
+    font-size: .78rem;
+}
+
+/* SECTION: Integrated capture */
+.notebook-capture-panel {
+    padding: .6rem;
+    margin-top: 1rem;
+    background: #fff;
+    border: 1px solid #dfe7f3;
+    border-radius: 18px;
+    box-shadow: 0 14px 32px rgba(15, 23, 42, .06);
+}
+
+.notebook-capture-form {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+}
+
+.notebook-capture-form input {
+    flex: 1;
+    padding: .85rem .9rem;
+    background: #f8fafc;
+    border: 0;
+    border-radius: 12px;
+    outline: 0;
+}
+
+.notebook-create-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    padding-top: .55rem;
+    margin-top: .55rem;
+    border-top: 1px solid #edf2f7;
+}
+
+.notebook-create-chip {
+    display: inline-flex;
+    gap: .35rem;
+    align-items: center;
+    padding: .34rem .65rem;
+    color: #315fba;
+    text-decoration: none;
+    background: #f8fbff;
+    border: 1px solid #dbe4f0;
+    border-radius: 999px;
+    font-size: .8rem;
+    font-weight: 600;
+}
+
+button.notebook-create-chip { cursor: pointer; }
+
+.notebook-create-chip:hover {
+    color: #315fba;
+    background: #edf4ff;
+    border-color: #bcd0ff;
+}
+
+/* SECTION: Shared notebook cards */
+.notebook-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 150px;
+    background: #fff;
+    border: 1px solid #e3e9f2;
+    border-radius: 16px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, .06);
+    transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.notebook-card:hover {
+    border-color: #bfd0f5;
+    box-shadow: 0 16px 36px rgba(15, 23, 42, .09);
+    transform: translateY(-1px);
+}
+
+.notebook-card.is-selected {
+    border-color: #4f73ff;
+    box-shadow: 0 0 0 2px rgba(79, 115, 255, .18), 0 16px 36px rgba(15, 23, 42, .09);
+}
+
+.notebook-card-body {
+    flex: 1;
+    padding: 1rem 1rem .75rem;
+}
+
+.notebook-card-link { color: inherit; text-decoration: none; }
+.notebook-card-link:hover { color: inherit; }
+
+.notebook-card-topline,
+.notebook-card-indicators {
+    display: flex;
+    gap: .45rem;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.notebook-card-indicators { justify-content: flex-end; color: #64748b; }
+
+.notebook-card-title {
+    margin: .45rem 0 .35rem;
+    color: #0f172a;
+    font-size: .98rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.notebook-card-preview {
+    display: -webkit-box;
+    margin: .25rem 0 0;
+    overflow: hidden;
+    color: #64748b;
+    font-size: .84rem;
+    line-height: 1.45;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+}
+
+.notebook-card-color-white { background: #fff; }
+.notebook-card-color-blue { background: #f3f7ff; border-color: #d8e5ff; }
+.notebook-card-color-amber { background: #fff8e7; border-color: #f7df9e; }
+.notebook-card-color-green { background: #effaf3; border-color: #cdeed8; }
+.notebook-card-color-rose { background: #fff1f3; border-color: #f8cdd5; }
+.notebook-card-color-slate { background: #f8fafc; border-color: #dfe7ef; }
+
+.notebook-sticky-surface { min-height: 180px; }
+.notebook-sticky-surface.notebook-sticky-blue { background: #edf5ff; }
+.notebook-sticky-surface.notebook-sticky-amber { background: #fff5d6; }
+.notebook-sticky-surface.notebook-sticky-green { background: #e8f8ee; }
+.notebook-sticky-surface.notebook-sticky-rose { background: #ffecef; }
+.notebook-sticky-surface.notebook-sticky-slate { background: #f5f8fb; }
+.notebook-sticky-surface.notebook-sticky-white { background: #fff; }
+
+.notebook-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .28rem;
+    margin-top: .55rem;
+}
+
+.notebook-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    max-width: 8rem;
+    padding: .12rem .45rem;
+    overflow: hidden;
+    color: #475569;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: rgba(255, 255, 255, .65);
+    border: 1px solid rgba(148, 163, 184, .35);
+    border-radius: 999px;
+    font-size: .68rem;
+    font-weight: 600;
+}
+
+/* SECTION: Quiet card actions */
+.notebook-card-actions {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .55rem .75rem .75rem;
+    opacity: .75;
+    transition: opacity .16s ease;
+}
+
+.notebook-card:hover .notebook-card-actions,
+.notebook-card:focus-within .notebook-card-actions { opacity: 1; }
+
+.notebook-actions { display: flex; flex-wrap: wrap; gap: .35rem; width: 100%; margin-top: 0; }
+
+.notebook-action-icon,
+.notebook-card-more summary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    color: #475569;
+    background: rgba(255, 255, 255, .7);
+    border: 0;
+    border-radius: 999px;
+}
+
+.notebook-action-icon:hover,
+.notebook-card-more summary:hover {
+    color: #315fba;
+    background: #eaf1ff;
+}
+
+.notebook-action-done {
+    padding: .28rem .65rem !important;
+    color: #166534 !important;
+    background: #ecfdf3 !important;
+    border: 1px solid #bbf7d0 !important;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 700;
+}
+
+/* SECTION: Lighter editor */
+.notebook-editor-panel { max-height: calc(100vh - 2rem); overflow: auto; }
+.notebook-title-field input { padding: .8rem .9rem; color: #0f172a; font-size: 1.05rem; font-weight: 700; }
+.notebook-editor-primary,
+.notebook-editor-details { display: grid; gap: .75rem; }
+.notebook-editor-primary { padding: .75rem; background: #fbfdff; border: 1px solid #e7eef7; border-radius: 16px; }
+.notebook-editor-details { padding-top: .75rem; border-top: 1px solid #edf2f7; }
+.notebook-editor-details h3 { margin: 0; color: #64748b; font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.notebook-editor-footer { position: sticky; bottom: 0; padding-top: .75rem; background: #fff; border-top: 1px solid #e5edf5; }
+.notebook-empty-compact { padding: 1.25rem; }
+
+@media (max-width: 760px) {
+    .notebook-capture-form { flex-direction: column; align-items: stretch; }
+}

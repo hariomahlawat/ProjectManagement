@@ -1,0 +1,87 @@
+@model ProjectManagement.ViewModels.Notebook.NotebookCardRenderVm
+@using ProjectManagement.Models
+@using ProjectManagement.ViewModels.Notebook
+@{
+    var item = Model.Item;
+    var isSelected = Model.SelectedId == item.Id;
+    var colorClass = $"notebook-card-color-{(string.IsNullOrWhiteSpace(item.ColorKey) ? "white" : item.ColorKey)}";
+    var stickyClass = Model.UseStickySurface ? $"notebook-sticky-surface notebook-sticky-{item.ColorKey}" : string.Empty;
+    var tags = item.Tags.Take(3).ToArray();
+    var extraTags = Math.Max(0, item.Tags.Count - tags.Length);
+}
+
+@* SECTION: Notebook board card *@
+<article class="notebook-card @colorClass @stickyClass @(isSelected ? "is-selected" : string.Empty)">
+    <div class="notebook-card-body">
+        <a class="notebook-card-link" asp-page="/Notebook/Index" asp-route-view="@Model.View" asp-route-query="@Model.Query" asp-route-selectedId="@item.Id">
+            <div class="notebook-card-topline">
+                <span class="notebook-type-chip">@item.Type</span>
+                <span class="notebook-card-indicators">
+                    @if (item.IsPinned) { <i class="bi bi-pin-angle-fill" title="Pinned"></i> }
+                    @if (item.IsFavorite) { <i class="bi bi-star-fill" title="Favourite"></i> }
+                    @if (item.ReminderAtUtc is not null) { <i class="bi bi-bell" title="Reminder"></i> }
+                </span>
+            </div>
+            <h3 class="notebook-card-title">@item.Title</h3>
+            @if (!string.IsNullOrWhiteSpace(item.Preview))
+            {
+                <p class="notebook-card-preview">@item.Preview</p>
+            }
+        </a>
+
+        @if (item.Type == NotebookItemType.Checklist)
+        {
+            <div class="notebook-checklist-preview">
+                @if (item.ChecklistTotal == 0)
+                {
+                    <div class="notebook-checklist-empty">No checklist items yet</div>
+                }
+                else
+                {
+                    foreach (var checklistItem in item.ChecklistPreviewItems)
+                    {
+                        <form method="post" asp-page-handler="ToggleChecklistItem" class="notebook-check-row">
+                            <input type="hidden" name="checklistItemId" value="@checklistItem.Id" />
+                            <input type="hidden" name="isDone" value="@(!checklistItem.IsDone)" />
+                            <input type="hidden" name="selectedId" value="@item.Id" />
+                            <input type="hidden" name="View" value="@Model.View" />
+                            <input type="hidden" name="Query" value="@Model.Query" />
+                            <button type="submit" class="notebook-check-toggle @(checklistItem.IsDone ? "is-done" : string.Empty)">
+                                <i class="bi @(checklistItem.IsDone ? "bi-check-square" : "bi-square")"></i><span>@checklistItem.Text</span>
+                            </button>
+                        </form>
+                    }
+                    <strong>@item.ChecklistDone/@item.ChecklistTotal complete</strong>
+                }
+            </div>
+        }
+
+        <div class="notebook-card-meta">
+            @if (item.ReminderAtUtc is not null)
+            {
+                <span class="@(item.IsOverdue ? "text-danger" : string.Empty)"><i class="bi bi-bell"></i> @item.ReminderDisplay</span>
+            }
+            @if (item.ChecklistTotal > 0 && item.Type != NotebookItemType.Checklist)
+            {
+                <span>@item.ChecklistDone/@item.ChecklistTotal done</span>
+            }
+        </div>
+
+        @if (tags.Any())
+        {
+            <div class="notebook-card-tags" aria-label="Tags">
+                @foreach (var tag in tags)
+                {
+                    <span class="notebook-tag-chip">#@tag</span>
+                }
+                @if (extraTags > 0)
+                {
+                    <span class="notebook-tag-chip">+@extraTags</span>
+                }
+            </div>
+        }
+    </div>
+    <div class="notebook-card-actions">
+        <partial name="_NotebookActions" model="@(new NotebookItemActionVm { Item = item, View = Model.View, Query = Model.Query, SelectedId = Model.SelectedId })" />
+    </div>
+</article>

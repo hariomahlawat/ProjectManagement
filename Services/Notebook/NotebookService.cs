@@ -84,7 +84,7 @@ public sealed class NotebookService : INotebookService
         var pinned = (await activeQuery
                 .Where(item => item.IsPinned)
                 .OrderByDescending(item => item.UpdatedAtUtc)
-                .Take(8)
+                .Take(6)
                 .ToListAsync(ct))
             .Select(item => ToListVm(item, bounds))
             .ToArray();
@@ -103,8 +103,23 @@ public sealed class NotebookService : INotebookService
                     item.ReminderAtUtc != null &&
                     item.ReminderAtUtc < bounds.EndUtc)
                 .OrderBy(item => item.ReminderAtUtc)
-                .Take(10)
+                .Take(6)
                 .ToListAsync(ct))
+            .Select(item => ToListVm(item, bounds))
+            .ToArray();
+
+
+        var homeShownIds = pinned.Select(item => item.Id)
+            .Concat(due.Select(item => item.Id))
+            .ToHashSet();
+
+        var recent = (await activeQuery
+                .Where(item => item.Status == NotebookItemStatus.Active)
+                .OrderByDescending(item => item.UpdatedAtUtc)
+                .Take(30)
+                .ToListAsync(ct))
+            .Where(item => !homeShownIds.Contains(item.Id))
+            .Take(12)
             .Select(item => ToListVm(item, bounds))
             .ToArray();
 
@@ -119,6 +134,7 @@ public sealed class NotebookService : INotebookService
             PinnedItems = pinned,
             StickyItems = sticky,
             DueItems = due,
+            RecentItems = recent,
             SelectedItem = selected,
             Summary = await BuildSummary(ownerId, bounds, ct),
             RailItems = await BuildRail(ownerId, view, bounds, ct),
@@ -361,8 +377,8 @@ public sealed class NotebookService : INotebookService
 
     private static string CleanColor(string? color, NotebookItemType type)
     {
-        var allowedColors = new[] { "blue", "amber", "green", "rose", "slate" };
-        return allowedColors.Contains(color) ? color! : type == NotebookItemType.Sticky ? "blue" : "slate";
+        var allowedColors = new[] { "white", "blue", "amber", "green", "rose", "slate" };
+        return allowedColors.Contains(color) ? color! : type == NotebookItemType.Sticky ? "blue" : "white";
     }
 
     private static string NormalizeView(string? view)
@@ -419,7 +435,7 @@ public sealed class NotebookService : INotebookService
         ReminderDisplay = NotebookReminderFormatter.FormatReminder(item.ReminderAtUtc),
         IsPinned = item.IsPinned,
         IsFavorite = item.IsFavorite,
-        ColorKey = item.ColorKey ?? "blue",
+        ColorKey = item.ColorKey ?? "white",
         UpdatedAtUtc = item.UpdatedAtUtc,
         Tags = item.Tags
             .Select(tag => tag.NotebookTag?.Name ?? string.Empty)

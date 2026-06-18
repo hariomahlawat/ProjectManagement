@@ -19,6 +19,8 @@ public sealed class NotebookIndexVm
 
     public IReadOnlyList<NotebookItemListVm> DueItems { get; set; } = Array.Empty<NotebookItemListVm>();
 
+    public IReadOnlyList<NotebookItemListVm> RecentItems { get; set; } = Array.Empty<NotebookItemListVm>();
+
     public IReadOnlyList<NotebookTagVm> Tags { get; set; } = Array.Empty<NotebookTagVm>();
 
     public NotebookItemDetailVm? SelectedItem { get; set; }
@@ -61,7 +63,7 @@ public class NotebookItemListVm
 
     public bool IsFavorite { get; set; }
 
-    public string ColorKey { get; set; } = "blue";
+    public string ColorKey { get; set; } = "white";
 
     public DateTimeOffset UpdatedAtUtc { get; set; }
 
@@ -161,6 +163,19 @@ public sealed class NotebookWidgetItemVm
     public bool IsOverdue { get; set; }
 
     public string OpenUrl { get; set; } = string.Empty;
+}
+
+public sealed class NotebookCardRenderVm
+{
+    public NotebookItemListVm Item { get; set; } = new();
+
+    public string View { get; set; } = "home";
+
+    public string? Query { get; set; }
+
+    public Guid? SelectedId { get; set; }
+
+    public bool UseStickySurface { get; set; }
 }
 
 public sealed class NotebookItemActionVm
