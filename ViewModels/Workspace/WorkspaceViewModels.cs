@@ -18,7 +18,6 @@ public sealed class ProjectOfficerWorkspaceVm
     public int AotsUnreadCount { get; set; }
     public string AotsUrl { get; set; } = "/DocumentRepository/Documents?scope=aots";
     public WorkspaceEngagementVm Engagement { get; set; } = new();
-    public IReadOnlyList<WorkspaceKpiVm> Kpis { get; set; } = Array.Empty<WorkspaceKpiVm>();
     public IReadOnlyList<WorkspaceRailItemVm> RailItems { get; set; } = Array.Empty<WorkspaceRailItemVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> PendingWithMe { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceActionQueueItemVm> ActionQueue { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
@@ -69,21 +68,6 @@ public sealed class WorkspaceAotsDocumentVm
     public DateTime CreatedAtUtc { get; set; }
 
     public string OpenUrl { get; set; } = string.Empty;
-}
-
-public sealed class WorkspaceKpiVm
-{
-    public string Title { get; set; } = string.Empty;
-
-    public string Value { get; set; } = string.Empty;
-
-    public string Caption { get; set; } = string.Empty;
-
-    public string Severity { get; set; } = "Info";
-
-    public string Icon { get; set; } = "bi-circle";
-
-    public string? Url { get; set; }
 }
 
 public sealed class WorkspaceActionQueueItemVm
@@ -321,6 +305,43 @@ public static class WorkspaceDisplayHelpers
         _ => status
     };
 
+
+
+    // SECTION: Timeline matrix labels separate data gaps from overdue performance states.
+    public static string TimelineStatusLabel(WorkspaceProjectMatrixRowVm row)
+    {
+        if (row.HasBackfill)
+        {
+            return "Backfill";
+        }
+
+        if (row.HasOverdueCurrentStage)
+        {
+            return "Overdue";
+        }
+
+        if (row.HasCurrentStageIssue)
+        {
+            return "Update";
+        }
+
+        return "OK";
+    }
+
+    public static string TimelineStatusCss(WorkspaceProjectMatrixRowVm row)
+    {
+        if (row.HasBackfill || row.HasOverdueCurrentStage)
+        {
+            return "danger";
+        }
+
+        if (row.HasCurrentStageIssue)
+        {
+            return "warning";
+        }
+
+        return "good";
+    }
 
     // SECTION: Matrix action labels are shortened for dense enterprise table rows.
     public static string CompactActionLabel(string action) => action switch

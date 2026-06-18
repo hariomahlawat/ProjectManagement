@@ -27,19 +27,32 @@
                 </a>
             }
         </nav>
+        <div class="workspace-local-rail__footer">
+            <span>Workspace mode</span>
+            <strong>Project Officer</strong>
+        </div>
     </aside>
 
     <div class="workspace-workarea">
         @* SECTION: Slim command bar for daily actions *@
         <div class="workspace-commandbar" id="today">
-            <div>
-                <p class="workspace-eyebrow">My Workspace</p>
-                <h1>@dailyActionTitle</h1>
-                <p>Project remarks, other assigned tasks, project ideas and AOTS documents.</p>
+            <div class="workspace-commandbar__identity">
+                <div class="workspace-commandbar__icon">
+                    <i class="bi bi-layout-text-window-reverse"></i>
+                </div>
+
+                <div>
+                    <p class="workspace-eyebrow">My Workspace</p>
+                    <h1>@dailyActionTitle</h1>
+                    <p>Daily updates and documents requiring your action.</p>
+                </div>
             </div>
+
             <div class="workspace-refresh">
                 <span>Last refreshed @DateTime.Now.ToString("HH:mm")</span>
-                <a class="btn btn-sm btn-outline-primary" href="/Workspace"><i class="bi bi-arrow-clockwise"></i> Refresh</a>
+                <a class="btn btn-sm btn-outline-primary" href="/Workspace">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </a>
             </div>
         </div>
 
@@ -100,17 +113,17 @@
                         <div class="workspace-action-clearline">
                             @if (!Model.Workspace.OfficialTasksDue.Any())
                             {
-                                <span>Other assigned tasks: Clear</span>
+                                <span><i class="bi bi-check2"></i> Other assigned tasks clear</span>
                             }
 
                             @if (!Model.Workspace.IdeasNeedingUpdate.Any())
                             {
-                                <span>Project ideas: Clear</span>
+                                <span><i class="bi bi-check2"></i> Project ideas clear</span>
                             }
 
                             @if (!Model.Workspace.AotsDocuments.Any())
                             {
-                                <span>AOTS: All read</span>
+                                <span><i class="bi bi-check2"></i> AOTS all read</span>
                             }
                         </div>
                     }
@@ -163,9 +176,9 @@
                                                 </span>
                                             </td>
                                             <td>
-                                                <span class="workspace-status workspace-status-@row.TimelineStatus.ToLowerInvariant()">
-                                                    <span class="workspace-dot workspace-dot-@row.TimelineStatus.ToLowerInvariant()"></span>
-                                                    @WorkspaceDisplayHelpers.CompactStatusLabel(row.TimelineStatus)
+                                                <span class="workspace-status workspace-status-@WorkspaceDisplayHelpers.TimelineStatusCss(row)">
+                                                    <span class="workspace-dot workspace-dot-@WorkspaceDisplayHelpers.TimelineStatusCss(row)"></span>
+                                                    @WorkspaceDisplayHelpers.TimelineStatusLabel(row)
                                                 </span>
                                             </td>
                                             <td>
