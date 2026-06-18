@@ -52,6 +52,29 @@
                     <p class="workspace-eyebrow">My Workspace</p>
                     <h1>@dailyActionTitle</h1>
                     <p>Daily updates and documents requiring your action.</p>
+
+                    @if (Model.Workspace.CommandChips.Any())
+                    {
+                        <div class="workspace-command-chips" aria-label="Attention summary">
+                            @foreach (var chip in Model.Workspace.CommandChips)
+                            {
+                                var chipState = chip.State?.ToLowerInvariant() ?? "neutral";
+
+                                <span class="workspace-command-chip workspace-command-chip-@chipState">
+                                    <i class="bi @chip.Icon"></i>
+                                    @if (chip.Count > 0)
+                                    {
+                                        <strong>@chip.Count</strong>
+                                        <span>@chip.Label</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@chip.Label clear</span>
+                                    }
+                                </span>
+                            }
+                        </div>
+                    }
                 </div>
             </div>
 
@@ -261,7 +284,8 @@
                             }
                         </div>
 
-                        <div id="reminders">
+                        <div>
+                            <span id="reminders" class="workspace-anchor"></span>
                             <div class="workspace-subhead">
                                 <h3>Personal Reminders</h3>
                                 <a href="/Tasks">Open reminders</a>
@@ -289,6 +313,82 @@
                         </div>
                     </div>
                 </section>
+
+                @* SECTION: Compact data completeness analytics for assigned-project records *@
+                @if (Model.Workspace.AssignedProjectCount > 0)
+                {
+                    var insight = Model.Workspace.DataCompletenessInsight;
+
+                    <section id="data-completeness-insights" class="workspace-card workspace-data-insights">
+                        <div class="workspace-card__head">
+                            <div>
+                                <h2>Project Data Completeness Insights</h2>
+                                <p class="workspace-section-subtitle">
+                                    Common data gaps across your assigned projects.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="workspace-insight-grid">
+                            <div class="workspace-insight-summary">
+                                <div class="workspace-insight-metric">
+                                    <span>Average completeness</span>
+                                    <strong>@insight.AverageCompletenessPercent%</strong>
+                                </div>
+
+                                <div class="workspace-insight-metric">
+                                    <span>Projects with gaps</span>
+                                    <strong>@insight.ProjectsWithGapsCount / @insight.AssignedProjectsCount</strong>
+                                </div>
+
+                                <div class="workspace-insight-metric">
+                                    <span>Most common gap</span>
+                                    <strong>@insight.MostCommonGapLabel</strong>
+                                </div>
+                            </div>
+
+                            <div class="workspace-gap-bars">
+                                @if (insight.GapFrequencies.Any())
+                                {
+                                    @foreach (var gap in insight.GapFrequencies)
+                                    {
+                                        <div class="workspace-gap-bar-row">
+                                            <div class="workspace-gap-bar-label">
+                                                <span>@gap.Label</span>
+                                                <strong>@gap.Count</strong>
+                                            </div>
+                                            <progress class="workspace-gap-bar-progress" value="@gap.PercentOfMax" max="100">@gap.PercentOfMax%</progress>
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    <p class="workspace-inline-clear">No recurring data gaps found.</p>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="workspace-insight-footer">
+                            @if (!string.IsNullOrWhiteSpace(insight.NeedsMostAttentionProjectName))
+                            {
+                                <span>
+                                    Needs most attention:
+                                    <strong>@insight.NeedsMostAttentionProjectName</strong>
+                                    (@insight.NeedsMostAttentionProjectScore%)
+                                </span>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(insight.BestProjectName))
+                            {
+                                <span>
+                                    Best record:
+                                    <strong>@insight.BestProjectName</strong>
+                                    (@insight.BestProjectScore%)
+                                </span>
+                            }
+                        </div>
+                    </section>
+                }
             </main>
 
             <aside class="workspace-rail">

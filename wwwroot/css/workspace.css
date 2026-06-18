@@ -1068,3 +1068,173 @@
     background: #fff1f2;
     color: #be123c;
 }
+
+/* SECTION: Stable workspace anchor offsets */
+#today,
+#action-queue,
+#assigned-projects,
+#project-data-gaps,
+#my-ideas-reminders,
+#reminders {
+    scroll-margin-top: 92px;
+}
+
+/* SECTION: Compact command-bar action composition chips */
+.workspace-command-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.38rem;
+    margin-top: 0.45rem;
+}
+
+.workspace-command-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    min-height: 1.65rem;
+    border-radius: 999px;
+    padding: 0.18rem 0.55rem;
+    border: 1px solid #e6ebf2;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 0.74rem;
+    font-weight: 500;
+}
+
+.workspace-command-chip i {
+    font-size: 0.78rem;
+}
+
+.workspace-command-chip strong {
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.workspace-command-chip-attention {
+    background: #fff7ed;
+    border-color: #fed7aa;
+    color: #9a5b00;
+}
+
+.workspace-command-chip-attention strong {
+    color: #8a4b00;
+}
+
+.workspace-command-chip-clear {
+    background: #f8fafc;
+    color: #64748b;
+}
+
+/* SECTION: Project data completeness insights card */
+.workspace-data-insights {
+    margin-top: 0.9rem;
+}
+
+.workspace-insight-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.4fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.workspace-insight-summary {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.workspace-insight-metric {
+    border: 1px solid #e8edf5;
+    border-radius: 10px;
+    background: #f8fafc;
+    padding: 0.65rem 0.75rem;
+}
+
+.workspace-insight-metric span {
+    display: block;
+    color: #64748b;
+    font-size: 0.74rem;
+    margin-bottom: 0.2rem;
+}
+
+.workspace-insight-metric strong {
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.workspace-gap-bars {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.workspace-gap-bar-row {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.workspace-gap-bar-label {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    color: #334155;
+    font-size: 0.78rem;
+}
+
+.workspace-gap-bar-label span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.workspace-gap-bar-label strong {
+    color: #0f172a;
+    font-weight: 650;
+}
+
+.workspace-gap-bar-progress {
+    width: 100%;
+    height: 0.45rem;
+    border: 0;
+    border-radius: 999px;
+    overflow: hidden;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.workspace-gap-bar-progress::-webkit-progress-bar {
+    background: #edf2f7;
+    border-radius: 999px;
+}
+
+.workspace-gap-bar-progress::-webkit-progress-value {
+    background: linear-gradient(90deg, #315fba, #7aa2ff);
+    border-radius: 999px;
+}
+
+.workspace-gap-bar-progress::-moz-progress-bar {
+    background: linear-gradient(90deg, #315fba, #7aa2ff);
+    border-radius: 999px;
+}
+
+.workspace-insight-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.1rem;
+    margin-top: 0.85rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed #e2e8f0;
+    color: #64748b;
+    font-size: 0.77rem;
+}
+
+.workspace-insight-footer strong {
+    color: #0f172a;
+    font-weight: 650;
+}
+
+@media (max-width: 900px) {
+    .workspace-insight-grid {
+        grid-template-columns: 1fr;
+    }
+}

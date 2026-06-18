@@ -1,91 +1,113 @@
-// SECTION: Workspace left-rail scroll spy
+// SECTION: Workspace deterministic left-rail smooth scroll navigation
 (() => {
     const links = Array.from(document.querySelectorAll('.workspace-rail-link'));
     if (!links.length) {
         return;
     }
 
-    // SECTION: Build a section index that supports several rail links sharing one target.
-    const sectionMap = new Map();
-    const activeLinkByTarget = new Map();
+    const sectionEntries = links
+        .map(link => {
+            const target = link.getAttribute('data-workspace-section');
+            const section = target ? document.getElementById(target) : null;
 
-    for (const link of links) {
-        const target = link.getAttribute('data-workspace-section');
-        if (!target) {
-            continue;
-        }
+            return {
+                target,
+                section,
+                link
+            };
+        })
+        .filter(entry => entry.target && entry.section);
 
-        const section = document.getElementById(target);
-        if (!section) {
-            continue;
-        }
-
-        const mapped = sectionMap.get(target) || { section, links: [] };
-        mapped.links.push(link);
-        sectionMap.set(target, mapped);
-
-        if (link.classList.contains('active') || !activeLinkByTarget.has(target)) {
-            activeLinkByTarget.set(target, link);
-        }
+    if (!sectionEntries.length) {
+        return;
     }
 
-    // SECTION: Activate one rail link while remembering the user's choice for shared targets.
-    const setActive = (target, preferredLink = null) => {
+    let manualScrollInProgress = false;
+    let manualScrollTimer = null;
+
+    const setActive = (target) => {
         for (const link of links) {
             link.classList.remove('active');
             link.removeAttribute('aria-current');
         }
 
-        const mapped = sectionMap.get(target);
-        if (!mapped) {
-            return;
+        const entry = sectionEntries.find(item => item.target === target);
+        if (entry) {
+            entry.link.classList.add('active');
+            entry.link.setAttribute('aria-current', 'true');
         }
-
-        const linkToActivate = mapped.links.includes(preferredLink)
-            ? preferredLink
-            : activeLinkByTarget.get(target) || mapped.links[0];
-
-        activeLinkByTarget.set(target, linkToActivate);
-        linkToActivate.classList.add('active');
-        linkToActivate.setAttribute('aria-current', 'true');
     };
 
-    // SECTION: Preserve the exact clicked rail item even when anchors are shared.
-    for (const link of links) {
-        link.addEventListener('click', () => {
-            const target = link.getAttribute('data-workspace-section');
-            if (target) {
-                setActive(target, link);
+    for (const entry of sectionEntries) {
+        entry.link.addEventListener('click', event => {
+            event.preventDefault();
+
+            manualScrollInProgress = true;
+            setActive(entry.target);
+
+            entry.section.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+
+            window.history.replaceState(null, '', `#${entry.target}`);
+
+            if (manualScrollTimer) {
+                window.clearTimeout(manualScrollTimer);
             }
+
+            manualScrollTimer = window.setTimeout(() => {
+                manualScrollInProgress = false;
+            }, 700);
         });
     }
 
-    if (!('IntersectionObserver' in window)) {
-        return;
-    }
+    const getCurrentSection = () => {
+        const viewportReference = window.scrollY + 120;
+        const orderedEntries = sectionEntries
+            .map(entry => ({
+                ...entry,
+                top: entry.section.getBoundingClientRect().top + window.scrollY
+            }))
+            .sort((a, b) => a.top - b.top);
+        let current = orderedEntries[0];
 
-    // SECTION: Observe workspace content sections and keep the rail synced while scrolling.
-    const preferredTargets = ['today', 'action-queue', 'assigned-projects', 'my-ideas-reminders', 'reminders']
-        .filter(target => sectionMap.has(target));
+        for (const entry of orderedEntries) {
+            if (entry.top <= viewportReference) {
+                current = entry;
+            } else {
+                break;
+            }
+        }
 
-    const observer = new IntersectionObserver((entries) => {
-        const visible = entries
-            .filter(entry => entry.isIntersecting)
-            .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        return current;
+    };
 
-        if (!visible.length) {
+    const updateActiveFromScroll = () => {
+        if (manualScrollInProgress) {
             return;
         }
 
-        const target = visible[0].target.id;
-        setActive(target);
-    }, {
-        root: null,
-        rootMargin: '-18% 0px -65% 0px',
-        threshold: [0.15, 0.35, 0.55]
-    });
+        const current = getCurrentSection();
+        if (current) {
+            setActive(current.target);
+        }
+    };
 
-    for (const target of preferredTargets) {
-        observer.observe(sectionMap.get(target).section);
-    }
+    let ticking = false;
+
+    window.addEventListener('scroll', () => {
+        if (ticking) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            updateActiveFromScroll();
+            ticking = false;
+        });
+
+        ticking = true;
+    }, { passive: true });
+
+    updateActiveFromScroll();
 })();
