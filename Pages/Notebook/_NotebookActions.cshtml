@@ -1,8 +1,18 @@
-@model ProjectManagement.ViewModels.Notebook.NotebookItemListVm
+@model ProjectManagement.ViewModels.Notebook.NotebookItemActionVm
 <form method="post" class="notebook-actions">
-    <input type="hidden" name="id" value="@Model.Id" />
-    <button asp-page-handler="TogglePin" title="Pin" type="submit"><i class="bi @(Model.IsPinned ? "bi-pin-angle-fill" : "bi-pin-angle")"></i></button>
-    <button asp-page-handler="ToggleFavorite" title="Favourite" type="submit"><i class="bi @(Model.IsFavorite ? "bi-star-fill" : "bi-star")"></i></button>
-    @if (Model.Status == ProjectManagement.Models.NotebookItemStatus.Archived) { <button asp-page-handler="Restore" type="submit">Restore</button> } else { <button asp-page-handler="Archive" type="submit">Archive</button> }
+    <input type="hidden" name="id" value="@Model.Item.Id" />
+    <input type="hidden" name="View" value="@Model.View" />
+    <input type="hidden" name="Query" value="@Model.Query" />
+    <input type="hidden" name="SelectedId" value="@Model.SelectedId" />
+    <button asp-page-handler="TogglePin" title="Pin" type="submit"><i class="bi @(Model.Item.IsPinned ? "bi-pin-angle-fill" : "bi-pin-angle")"></i></button>
+    <button asp-page-handler="ToggleFavorite" title="Favourite" type="submit"><i class="bi @(Model.Item.IsFavorite ? "bi-star-fill" : "bi-star")"></i></button>
+    @if (Model.Item.Status == ProjectManagement.Models.NotebookItemStatus.Archived)
+    {
+        <button asp-page-handler="Restore" type="submit">Restore</button>
+    }
+    else
+    {
+        <button asp-page-handler="Archive" type="submit">Archive</button>
+    }
     <button asp-page-handler="Delete" class="text-danger" type="submit">Delete</button>
 </form>
