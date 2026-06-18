@@ -240,6 +240,12 @@ public sealed class WorkspaceProjectImprovementVm
 
     public IReadOnlyList<WorkspaceProjectGapDetailVm> GapDetails { get; set; } = Array.Empty<WorkspaceProjectGapDetailVm>();
 
+    public int HealthPercent { get; set; }
+
+    public string HealthLabel { get; set; } = string.Empty;
+
+    public string HealthCss { get; set; } = string.Empty;
+
     public IReadOnlyList<WorkspaceProjectGapDetailVm> PreviewGapDetails => GapDetails.Take(3).ToList();
 
     public int HiddenGapCount => Math.Max(0, GapDetails.Count - PreviewGapDetails.Count);

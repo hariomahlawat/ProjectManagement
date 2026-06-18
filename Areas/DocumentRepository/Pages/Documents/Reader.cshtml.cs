@@ -24,18 +24,21 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         private readonly IDocStorage _storage;
         private readonly ILogger<ReaderModel> _logger;
         private readonly IAuthorizationService _authorizationService;
+        private readonly IAotsUnreadService _aotsUnreadService;
 
         // SECTION: Constructor
         public ReaderModel(
             ApplicationDbContext db,
             IDocStorage storage,
             ILogger<ReaderModel> logger,
-            IAuthorizationService authorizationService)
+            IAuthorizationService authorizationService,
+            IAotsUnreadService aotsUnreadService)
         {
             _db = db;
             _storage = storage;
             _logger = logger;
             _authorizationService = authorizationService;
+            _aotsUnreadService = aotsUnreadService;
         }
 
         // SECTION: View data
@@ -187,7 +190,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             // SECTION: AOTS view tracking
             if (doc.IsAots && !IsFileMissing && !string.IsNullOrWhiteSpace(userId))
             {
-                IsAotsSeen = await EnsureAotsViewLoggedAsync(id, userId, cancellationToken);
+                IsAotsSeen = await _aotsUnreadService.MarkAsReadAsync(id, userId, cancellationToken);
             }
 
             return Page();

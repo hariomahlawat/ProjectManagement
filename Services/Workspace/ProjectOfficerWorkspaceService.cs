@@ -91,7 +91,8 @@ public sealed class ProjectOfficerWorkspaceService
             officialTasksDue,
             remarksDue,
             ideasNeedingUpdate,
-            aotsDocuments);
+            aotsDocuments,
+            aotsUnreadCount);
         var actionQueue = actionQueueResult.Items;
 
         var pending = returnedItems
@@ -136,7 +137,7 @@ public sealed class ProjectOfficerWorkspaceService
             DailyActionCount = dailyActionCount,
             OverdueTaskCount = tasks.Count(t => t.IsOverdue),
             RemarksDueCount = remarksDue.Count,
-            OfficialTaskCount = tasks.Count,
+            OfficialTaskCount = officialTasksDue.Count,
             IdeasNeedingUpdateCount = ideaVms.Count(i => i.NeedsUpdate),
             AotsUnreadCount = aotsUnreadCount,
             AotsUrl = WorkspaceRouteHelper.AotsInbox(),
@@ -318,7 +319,8 @@ public sealed class ProjectOfficerWorkspaceService
         IReadOnlyList<WorkspaceTaskVm> otherAssignedTasksDue,
         IReadOnlyList<WorkspaceAttentionItemVm> remarksDue,
         IReadOnlyList<WorkspaceIdeaVm> ideasNeedingUpdate,
-        IReadOnlyList<WorkspaceAotsDocumentVm> aotsDocuments)
+        IReadOnlyList<WorkspaceAotsDocumentVm> aotsDocuments,
+        int aotsUnreadTotalCount)
     {
         var items = new List<WorkspaceActionQueueItemVm>();
 
@@ -394,9 +396,16 @@ public sealed class ProjectOfficerWorkspaceService
             .ThenByDescending(i => i.SortDateUtc)
             .ToList();
 
+        var totalCount =
+            returnedItems.Count
+            + otherAssignedTasksDue.Count
+            + remarksDue.Count
+            + ideasNeedingUpdate.Count
+            + aotsUnreadTotalCount;
+
         return new WorkspaceActionQueueBuildResult(
             orderedItems.Take(8).ToList(),
-            orderedItems.Count);
+            totalCount);
     }
 
     // SECTION: Next best action mirrors the daily queue, falling back to timeline follow-up only when daily actions are clear.
@@ -761,6 +770,9 @@ public sealed class ProjectOfficerWorkspaceService
                         .Select(detail => detail.Label)
                         .ToList(),
                     GapDetails = gapDetails,
+                    HealthPercent = h.HealthPercent,
+                    HealthLabel = WorkspaceDisplayHelpers.HealthBandLabel(h.HealthPercent),
+                    HealthCss = WorkspaceDisplayHelpers.HealthCss(h.HealthPercent),
                     Url = WorkspaceRouteHelper.ProjectOverview(h.ProjectId),
                     Severity = h.HealthPercent < 60 ? "Danger" : "Warning"
                 };
