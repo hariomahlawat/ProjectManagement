@@ -32,7 +32,6 @@ namespace ProjectManagement.Pages.Dashboard
     [Authorize]
     public class IndexModel : PageModel
     {
-        private readonly ITodoService _todo;
         private readonly INotebookService _notebook;
         private readonly UserManager<ApplicationUser> _users;
         private readonly Data.ApplicationDbContext _db;
@@ -43,7 +42,6 @@ namespace ProjectManagement.Pages.Dashboard
         private static readonly TimeZoneInfo IST = IstClock.TimeZone;
 
         public IndexModel(
-            ITodoService todo,
             INotebookService notebook,
             UserManager<ApplicationUser> users,
             Data.ApplicationDbContext db,
@@ -52,7 +50,6 @@ namespace ProjectManagement.Pages.Dashboard
             ISearchHealthService searchHealthService,
             ILogger<IndexModel> logger)
         {
-            _todo = todo;
             _notebook = notebook;
             _users = users;
             _db = db;
@@ -86,8 +83,6 @@ namespace ProjectManagement.Pages.Dashboard
             public bool IsHoliday { get; set; }
         }
 
-        [BindProperty]
-        public string? NewTitle { get; set; }
 
         public async Task OnGetAsync(CancellationToken cancellationToken)
         {
@@ -593,142 +588,5 @@ namespace ProjectManagement.Pages.Dashboard
             public int CoverPhotoVersion { get; init; }
         }
 
-        public async Task<IActionResult> OnPostAddAsync()
-        {
-            if (string.IsNullOrWhiteSpace(NewTitle))
-                return RedirectToPage();
-
-            var uid = _users.GetUserId(User);
-            if (uid == null) return Unauthorized();
-
-            TodoQuickParser.Parse(NewTitle, out var clean, out var dueLocal, out var prio);
-            clean = clean.Trim();
-            if (string.IsNullOrEmpty(clean))
-            {
-                TempData["Error"] = "Task title cannot be empty.";
-                return RedirectToPage();
-            }
-
-            try
-            {
-                await _todo.CreateAsync(uid, clean, dueLocal, prio);
-            }
-            catch (InvalidOperationException ex)
-            {
-                TempData["Error"] = ex.Message;
-            }
-            return RedirectToPage();
-        }
-
-        public async Task<IActionResult> OnPostToggleAsync(Guid id, bool done)
-        {
-            var uid = _users.GetUserId(User);
-            if (uid == null) return Unauthorized();
-            try
-            {
-                await _todo.ToggleDoneAsync(uid, id, done);
-                if (done) TempData["UndoId"] = id.ToString();
-            }
-            catch (InvalidOperationException ex)
-            {
-                TempData["Error"] = ex.Message;
-            }
-            return RedirectToPage();
-        }
-
-        public async Task<IActionResult> OnPostDeleteAsync(Guid id)
-        {
-            var uid = _users.GetUserId(User);
-            if (uid == null) return Unauthorized();
-            try
-            {
-                await _todo.DeleteAsync(uid, id);
-            }
-            catch (InvalidOperationException ex)
-            {
-                TempData["Error"] = ex.Message;
-            }
-            return RedirectToPage();
-        }
-
-        public async Task<IActionResult> OnPostPinAsync(Guid id, bool pin)
-        {
-            var uid = _users.GetUserId(User);
-            if (uid == null) return Unauthorized();
-            try
-            {
-                await _todo.EditAsync(uid, id, pinned: pin);
-            }
-            catch (InvalidOperationException ex)
-            {
-                TempData["Error"] = ex.Message;
-            }
-            return RedirectToPage();
-        }
-
-        public async Task<IActionResult> OnPostEditAsync(Guid id, string priority)
-        {
-            var uid = _users.GetUserId(User);
-            if (uid == null) return Unauthorized();
-            TodoPriority prio = TodoPriority.Normal;
-            Enum.TryParse(priority, out prio);
-            try
-            {
-                await _todo.EditAsync(uid, id, priority: prio);
-            }
-            catch (InvalidOperationException ex)
-            {
-                TempData["Error"] = ex.Message;
-            }
-            return RedirectToPage();
-        }
-
-        public async Task<IActionResult> OnPostSnoozeAsync(Guid id, string preset)
-        {
-            var uid = _users.GetUserId(User);
-            if (uid == null) return Unauthorized();
-
-            var nowIst = GetNowIst();
-
-            DateTimeOffset? dueLocal = preset switch
-            {
-                "today_pm" => NextOccurrenceTodayOrTomorrow(18, 0),          // Today 6 PM or tomorrow if passed
-                "tom_am"   => new DateTimeOffset(nowIst.Date.AddDays(1).AddHours(10), nowIst.Offset),
-                "next_mon" => NextMondayAt(10, 0),
-                "clear"    => null,
-                _          => null
-            };
-            try
-            {
-                await _todo.EditAsync(uid, id, dueAtLocal: dueLocal, updateDueDate: true);
-            }
-            catch (InvalidOperationException ex)
-            {
-                TempData["Error"] = ex.Message;
-            }
-            return RedirectToPage();
-        }
-
-        internal virtual DateTimeOffset GetNowIst() =>
-            TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IST);
-
-        private static DateTimeOffset NextOccurrenceTodayOrTomorrow(int h, int m)
-        {
-            var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IST);
-            var candidate = new DateTimeOffset(nowIst.Year, nowIst.Month, nowIst.Day, h, m, 0, nowIst.Offset);
-            // If time already passed (with a tiny 1-minute grace), bump to next day
-            if (candidate <= nowIst.AddMinutes(1)) candidate = candidate.AddDays(1);
-            return candidate;
-        }
-
-        private static DateTimeOffset NextMondayAt(int h, int m)
-        {
-            var ist = IST;
-            var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist);
-            int daysToMon = ((int)DayOfWeek.Monday - (int)nowIst.DayOfWeek + 7) % 7;
-            if (daysToMon == 0) daysToMon = 7;
-            var next = nowIst.Date.AddDays(daysToMon).AddHours(h).AddMinutes(m);
-            return new DateTimeOffset(next, nowIst.Offset);
-        }
     }
 }

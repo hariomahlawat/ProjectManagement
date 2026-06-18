@@ -4,14 +4,15 @@
 @{
     var item = Model.Item;
     var isSelected = Model.SelectedId == item.Id;
-    var colorClass = $"notebook-card-color-{(string.IsNullOrWhiteSpace(item.ColorKey) ? "white" : item.ColorKey)}";
+    var fallbackColor = string.IsNullOrWhiteSpace(item.ColorKey) && item.Type == NotebookItemType.Reminder ? "amber" : "white";
+    var colorClass = $"notebook-card-color-{(string.IsNullOrWhiteSpace(item.ColorKey) ? fallbackColor : item.ColorKey)}";
     var stickyClass = Model.UseStickySurface ? $"notebook-sticky-surface notebook-sticky-{item.ColorKey}" : string.Empty;
     var tags = item.Tags.Take(3).ToArray();
     var extraTags = Math.Max(0, item.Tags.Count - tags.Length);
 }
 
 @* SECTION: Notebook board card *@
-<article class="notebook-card @colorClass @stickyClass @(isSelected ? "is-selected" : string.Empty)">
+<article class="notebook-card @colorClass @stickyClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty)">
     <div class="notebook-card-body">
         <a class="notebook-card-link" asp-page="/Notebook/Index" asp-route-view="@Model.View" asp-route-query="@Model.Query" asp-route-selectedId="@item.Id">
             <div class="notebook-card-topline">
