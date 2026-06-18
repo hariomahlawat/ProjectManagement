@@ -76,6 +76,9 @@
                 (Title: "Recent", Items: Model.Notebook.RecentItems)
             };
 
+            var hasAnyHomeItems = sections.Any(notebookSection => notebookSection.Items.Any());
+
+            @* SECTION: Home sections only show an empty state when the whole home board is empty *@
             foreach (var notebookSection in sections.Where(notebookSection => notebookSection.Items.Any() || notebookSection.Title == "Recent"))
             {
                 <section class="notebook-section">
@@ -89,7 +92,7 @@
                             }
                         </div>
                     }
-                    else if (notebookSection.Title == "Recent")
+                    else if (notebookSection.Title == "Recent" && !hasAnyHomeItems)
                     {
                         <div class="notebook-empty notebook-empty-compact"><h3>@emptyTitle</h3><p>@emptyText</p></div>
                     }
