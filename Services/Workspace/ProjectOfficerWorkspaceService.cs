@@ -121,6 +121,7 @@ public sealed class ProjectOfficerWorkspaceService
         var matrix = projects.Take(6).Select(p => BuildMatrixRow(p, health[p.Id], userId, today)).ToList();
         var engagement = await BuildEngagementAsync(userId, user, monthStartUtc, ct);
         var avgHealth = health.Count == 0 ? 100 : (int)Math.Round(health.Values.Average(h => h.HealthPercent));
+        var improveProjectsResult = BuildImproveProjects(health.Values, maxProjects: 3);
 
         var vm = new ProjectOfficerWorkspaceVm
         {
@@ -161,7 +162,8 @@ public sealed class ProjectOfficerWorkspaceService
                 .ToList(),
             RecordHealth = health.Values.OrderBy(h => h.HealthPercent).Take(5).ToList(),
             ImproveScoreItems = BuildImproveScoreItems(health.Values, maxItems: 4),
-            ImproveProjects = BuildImproveProjects(health.Values, maxProjects: 3),
+            ImproveProjects = improveProjectsResult.Items,
+            ImproveProjectsTotalCount = improveProjectsResult.TotalCount,
             NextBestAction = BuildNextBestAction(actionQueue, timelineAlerts),
             PersonalReminders = reminders,
             QuickActions = BuildQuickActions(userId),
@@ -726,15 +728,22 @@ public sealed class ProjectOfficerWorkspaceService
         return WorkspaceRouteHelper.ProjectOverview(projectId);
     }
 
+    private sealed record WorkspaceImproveProjectsBuildResult(
+        IReadOnlyList<WorkspaceProjectImprovementVm> Items,
+        int TotalCount);
+
     // SECTION: Group record-health gaps by project to avoid repetitive right-rail rows.
-    private static IReadOnlyList<WorkspaceProjectImprovementVm> BuildImproveProjects(
+    private static WorkspaceImproveProjectsBuildResult BuildImproveProjects(
         IEnumerable<WorkspaceRecordHealthVm> healthRows,
         int maxProjects)
     {
-        return healthRows
+        var projectsWithGaps = healthRows
             .Where(h => h.Gaps.Any())
             .OrderBy(h => h.HealthPercent)
             .ThenByDescending(h => h.Gaps.Count)
+            .ToList();
+
+        var items = projectsWithGaps
             .Take(maxProjects)
             .Select(h =>
             {
@@ -757,6 +766,8 @@ public sealed class ProjectOfficerWorkspaceService
                 };
             })
             .ToList();
+
+        return new WorkspaceImproveProjectsBuildResult(items, projectsWithGaps.Count);
     }
 
     // SECTION: Gap details map record-health service output to direct workspace correction actions.

@@ -42,6 +42,8 @@ public sealed class ProjectOfficerWorkspaceVm
     public IReadOnlyList<WorkspaceRecordHealthVm> RecordHealth { get; set; } = Array.Empty<WorkspaceRecordHealthVm>();
     public IReadOnlyList<WorkspaceImprovementVm> ImproveScoreItems { get; set; } = Array.Empty<WorkspaceImprovementVm>();
     public IReadOnlyList<WorkspaceProjectImprovementVm> ImproveProjects { get; set; } = Array.Empty<WorkspaceProjectImprovementVm>();
+    public int ImproveProjectsTotalCount { get; set; }
+    public int ImproveProjectsHiddenCount => Math.Max(0, ImproveProjectsTotalCount - ImproveProjects.Count);
     public WorkspaceAttentionItemVm? NextBestAction { get; set; }
     public IReadOnlyList<WorkspaceQuickActionVm> QuickActions { get; set; } = Array.Empty<WorkspaceQuickActionVm>();
     public IReadOnlyList<WorkspaceReminderVm> PersonalReminders { get; set; } = Array.Empty<WorkspaceReminderVm>();
