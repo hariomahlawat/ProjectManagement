@@ -1,0 +1,91 @@
+@page
+@model ProjectManagement.Pages.Notebook.IndexModel
+@using ProjectManagement.Models
+@{
+    ViewData["Title"] = "My Notebook";
+    ViewData["UseFullWidth"] = true;
+    var selected = Model.Notebook.SelectedItem;
+}
+@section Styles { <link rel="stylesheet" href="~/css/notebook.css" asp-append-version="true" /> }
+
+<div class="notebook-shell">
+    <aside class="notebook-rail" aria-label="Notebook views">
+        <div class="notebook-rail__brand"><i class="bi bi-journal-bookmark"></i><span>My Notebook</span></div>
+        <a class="notebook-rail__item @(Model.Notebook.View == "home" ? "is-active" : "")" asp-page="/Notebook/Index" asp-route-view="home"><i class="bi bi-house"></i><span>Home</span><b>@Model.Notebook.Summary.TotalActive</b></a>
+        @foreach (var item in Model.Notebook.RailItems)
+        {
+            <a class="notebook-rail__item @(item.IsActive ? "is-active" : "")" href="@item.Url"><i class="bi @item.Icon"></i><span>@item.Label</span><b>@item.Count</b></a>
+        }
+    </aside>
+
+    <main class="notebook-main">
+        <section class="notebook-commandbar">
+            <div><p class="eyebrow">Personal workspace</p><h1>My Notebook</h1><p>Notes, reminders, checklists, ideas and drafts in one professional place.</p></div>
+            <form method="get" class="notebook-search"><input type="hidden" name="view" value="@Model.Notebook.View" /><i class="bi bi-search"></i><input name="Query" value="@Model.Query" placeholder="Search title, body or tags" /></form>
+        </section>
+
+        <section class="notebook-quick-capture">
+            <form method="post" asp-page-handler="QuickCapture" class="notebook-capture">
+                <input type="hidden" asp-for="View" />
+                <input asp-for="QuickCaptureText" placeholder="Write a note, reminder, idea or checklist..." autocomplete="off" />
+                <button class="btn btn-primary" type="submit">Capture</button>
+                <button class="btn btn-outline-primary" type="submit" name="ForcedType" value="Sticky">Sticky</button>
+                <button class="btn btn-outline-secondary" type="submit" name="ForcedType" value="Checklist">Checklist</button>
+            </form>
+        </section>
+
+        @if (Model.Notebook.View == "home")
+        {
+            <section class="notebook-home-grid">
+                <article><span>Due today</span><strong>@Model.Notebook.Summary.DueToday</strong></article><article><span>Overdue</span><strong>@Model.Notebook.Summary.Overdue</strong></article><article><span>Pinned</span><strong>@Model.Notebook.Summary.PinnedCount</strong></article><article><span>Sticky notes</span><strong>@Model.Notebook.Summary.StickyCount</strong></article>
+            </section>
+            <h2 class="notebook-section-title">Pinned and due</h2>
+        }
+
+        <section class="notebook-content @(Model.Notebook.View == "sticky" ? "notebook-sticky-grid" : "")">
+            @foreach (var item in Model.Notebook.Items)
+            {
+                if (Model.Notebook.View == "sticky" || item.Type == NotebookItemType.Sticky)
+                {
+                    <article class="notebook-sticky-card notebook-sticky-@item.ColorKey">
+                        <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-selectedId="@item.Id"><h3>@item.Title</h3></a>
+                        <p>@item.Preview</p><div class="notebook-card-meta">@foreach (var tag in item.Tags) { <span>#@tag</span> }</div>
+                        <div class="notebook-row-actions"><partial name="_NotebookActions" model="item" /></div>
+                    </article>
+                }
+                else
+                {
+                    <article class="notebook-list-card @(selected?.Id == item.Id ? "is-selected" : "")">
+                        <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-selectedId="@item.Id"><span class="notebook-type-chip">@item.Type</span><h3>@item.Title</h3><p>@item.Preview</p></a>
+                        <div class="notebook-card-meta">@if (item.ReminderAtUtc is not null) { <span class="@(item.IsOverdue ? "text-danger" : "")"><i class="bi bi-bell"></i> @item.ReminderAtUtc.Value.ToLocalTime().ToString("dd MMM HH:mm")</span> } @if (item.ChecklistTotal > 0) { <span>@item.ChecklistDone/@item.ChecklistTotal done</span> } @foreach (var tag in item.Tags) { <span>#@tag</span> }</div>
+                        <partial name="_NotebookActions" model="item" />
+                    </article>
+                }
+            }
+            @if (!Model.Notebook.Items.Any()) { <div class="notebook-empty">No notebook items yet. Use quick capture to start.</div> }
+        </section>
+    </main>
+
+    <aside class="notebook-editor-panel">
+        <h2>@(selected is null ? "New item" : "Edit item")</h2>
+        <form method="post" asp-page-handler="@(selected is null ? "Create" : "Update")" asp-route-id="@selected?.Id" class="notebook-editor-form">
+            <input type="hidden" asp-for="View" />
+            <label>Title<input asp-for="Input.Title" required maxlength="220" /></label>
+            <label>Type<select asp-for="Input.Type" asp-items="Html.GetEnumSelectList<NotebookItemType>()"></select></label>
+            <label>Body<textarea asp-for="Input.BodyMarkdown" data-autoresize></textarea></label>
+            <label>Reminder<input asp-for="Input.ReminderAtUtc" type="datetime-local" /></label>
+            <label>Priority<select asp-for="Input.Priority" asp-items="Html.GetEnumSelectList<NotebookPriority>()"></select></label>
+            <label>Tags<input asp-for="TagsText" placeholder="procurement, docs" /></label>
+            <label>Checklist<textarea asp-for="ChecklistText" placeholder="One item per line"></textarea></label>
+            <label>Colour<select asp-for="Input.ColorKey"><option>blue</option><option>amber</option><option>green</option><option>rose</option><option>slate</option></select></label>
+            <div class="notebook-checks"><label><input asp-for="Input.IsPinned" /> Pin</label><label><input asp-for="Input.IsFavorite" /> Favourite</label></div>
+            <button class="btn btn-primary" type="submit">Save</button>
+        </form>
+        @if (selected?.ChecklistItems.Any() == true)
+        {
+            <div class="notebook-checklist-toggle">@foreach (var c in selected.ChecklistItems) { <form method="post" asp-page-handler="ToggleChecklistItem"><input type="hidden" name="checklistItemId" value="@c.Id" /><input type="hidden" name="selectedId" value="@selected.Id" /><input type="hidden" asp-for="View" /><label><input type="checkbox" name="isDone" value="true" checked="@c.IsDone" data-submit-on-change /> @c.Text</label></form> }</div>
+        }
+    </aside>
+</div>
+
+@section Scripts { <script src="~/js/pages/notebook-index.js" asp-append-version="true"></script> }

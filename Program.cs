@@ -57,6 +57,7 @@ using ProjectManagement.Services.Ffc;
 using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Notifications;
+using ProjectManagement.Services.Notebook;
 using ProjectManagement.Services.Search;
 using ProjectManagement.Services.Ocr;
 using ProjectManagement.Services.Plans;
@@ -384,6 +385,9 @@ builder.Services.AddHostedService<UserPurgeWorker>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddSingleton<IActionTrackerClock, SystemActionTrackerClock>();
 builder.Services.AddScoped<ITodoService, TodoService>();
+// SECTION: My Notebook services
+builder.Services.AddScoped<INotebookService, NotebookService>();
+builder.Services.AddScoped<INotebookTodoImportService, NotebookTodoImportService>();
 // SECTION: Project Ideas services
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaReadService>();
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaCommandService>();
