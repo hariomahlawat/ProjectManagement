@@ -3,6 +3,7 @@ using ProjectManagement.Infrastructure;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.ViewModels.Workspace;
 
@@ -39,6 +40,7 @@ public sealed class ProjectRecordHealthService
         var projectIds = projects.Select(p => p.Id).ToArray();
         var mediaCounts = await LoadMediaCountsAsync(projectIds, ct);
         var factCompleteness = await LoadStageFactCompletenessAsync(projectIds, ct);
+        var pncApplicability = await LoadPncApplicabilityAsync(projectIds, ct);
         var today = DateOnly.FromDateTime(IstClock.ToIst(DateTime.UtcNow));
         var results = new Dictionary<int, WorkspaceRecordHealthVm>();
 
@@ -51,7 +53,7 @@ public sealed class ProjectRecordHealthService
             score += ScorePhotos(project.Id, mediaCounts, gaps);
             score += ScoreDocuments(project.Id, mediaCounts, gaps);
             score += ScoreVideo(project.Id, mediaCounts, gaps);
-            score += ScoreBudgetMetrics(project, factCompleteness, gaps);
+            score += ScoreBudgetMetrics(project, factCompleteness, pncApplicability, gaps);
             score += ScoreBackfill(project, gaps);
             score += ScoreCurrentStageTimeline(project, gaps);
             score += ScoreRecentPoRemark(project, userId, today, gaps);
@@ -68,6 +70,36 @@ public sealed class ProjectRecordHealthService
         }
 
         return results;
+    }
+
+    // SECTION: PNC applicability comes from the latest approved plan and defaults to applicable when unknown.
+    private async Task<IReadOnlyDictionary<int, bool>> LoadPncApplicabilityAsync(
+        int[] projectIds,
+        CancellationToken ct)
+    {
+        var planRows = await _db.PlanVersions
+            .AsNoTracking()
+            .Where(plan =>
+                projectIds.Contains(plan.ProjectId) &&
+                plan.Status == PlanVersionStatus.Approved)
+            .Select(plan => new
+            {
+                plan.ProjectId,
+                plan.PncApplicable,
+                plan.CreatedOn,
+                plan.SubmittedOn,
+                plan.ApprovedOn
+            })
+            .ToListAsync(ct);
+
+        return planRows
+            .GroupBy(plan => plan.ProjectId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(plan => plan.ApprovedOn ?? plan.SubmittedOn ?? plan.CreatedOn)
+                    .First()
+                    .PncApplicable);
     }
 
     // SECTION: Media and document count loading keeps the assigned-project query lightweight.
@@ -241,6 +273,7 @@ public sealed class ProjectRecordHealthService
     private static int ScoreBudgetMetrics(
         Project project,
         StageFactCompleteness facts,
+        IReadOnlyDictionary<int, bool> pncApplicability,
         List<string> gaps)
     {
         var expected = new List<bool>();
@@ -265,7 +298,9 @@ public sealed class ProjectRecordHealthService
             expected.Add(facts.Commercial.Contains(project.Id));
         }
 
-        if (HasReachedStage(project, StageCodes.PNC))
+        var isPncApplicable = !pncApplicability.TryGetValue(project.Id, out var applicable) || applicable;
+
+        if (isPncApplicable && HasReachedStage(project, StageCodes.PNC))
         {
             expected.Add(facts.Pnc.Contains(project.Id));
         }

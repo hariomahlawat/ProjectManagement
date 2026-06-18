@@ -11,8 +11,23 @@ internal static class WorkspaceRouteHelper
     public static string ProjectTimeline(int projectId)
         => $"/Projects/Overview/{projectId}#timeline";
 
-    public static string ProjectMedia(int projectId)
-        => $"/Projects/Overview/{projectId}#media";
+    public static string ProjectMedia(int projectId, string mediaTab)
+    {
+        var safeTab = string.IsNullOrWhiteSpace(mediaTab)
+            ? "documents"
+            : mediaTab.Trim().ToLowerInvariant();
+
+        return $"/Projects/Overview/{projectId}?mediaTab={Uri.EscapeDataString(safeTab)}#media";
+    }
+
+    public static string ProjectPhotos(int projectId)
+        => ProjectMedia(projectId, "photos");
+
+    public static string ProjectVideos(int projectId)
+        => ProjectMedia(projectId, "videos");
+
+    public static string ProjectDocumentsTab(int projectId)
+        => ProjectMedia(projectId, "documents");
 
     public static string ProjectRemarks(int projectId)
         => $"/Projects/Remarks/{projectId}";
