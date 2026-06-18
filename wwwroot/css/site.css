@@ -9138,3 +9138,11 @@ body {
 .pm-desc-editor .toastui-editor-contents {
     font-size: 0.95rem;
 }
+
+/* SECTION: Shared anchor offset for sticky application headers */
+.page-anchor {
+    display: block;
+    position: relative;
+    top: -90px;
+    visibility: hidden;
+}

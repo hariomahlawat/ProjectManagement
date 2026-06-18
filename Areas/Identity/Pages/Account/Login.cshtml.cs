@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Data;
+using ProjectManagement.Configuration;
 
 namespace ProjectManagement.Areas.Identity.Pages.Account
 {
@@ -20,12 +21,14 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly ILogger<LoginModel> _logger;
         private readonly ApplicationDbContext _db;
+        private readonly UserManager<ApplicationUser> _userManager;
 
         public LoginModel(SignInManager<ApplicationUser> signInManager, ILogger<LoginModel> logger, ApplicationDbContext db)
         {
             _signInManager = signInManager;
             _logger = logger;
             _db = db;
+            _userManager = signInManager.UserManager;
         }
 
         [BindProperty]
@@ -49,9 +52,19 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
 
         private const string GenericLoginError = "Invalid username or password.";
 
+        // SECTION: Role-aware landing keeps Project Officer daily work front-and-center.
+        private async Task<string> GetDefaultLandingUrlAsync(ApplicationUser user)
+        {
+            if (await _userManager.IsInRoleAsync(user, RoleNames.ProjectOfficer))
+            {
+                return Url.Content("~/Workspace");
+            }
+
+            return Url.Content("~/Dashboard/Index");
+        }
+
         public async Task<IActionResult> OnPostAsync(string? returnUrl = null)
         {
-            returnUrl ??= Url.Content("~/Dashboard/Index");
             if (!ModelState.IsValid) return Page();
 
             var result = await _signInManager.PasswordSignInAsync(Input.UserName, Input.Password, Input.RememberMe, lockoutOnFailure: true);
@@ -81,6 +94,16 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
                     });
                     await _db.SaveChangesAsync();
                 }
+                if (user is not null && (string.IsNullOrWhiteSpace(returnUrl) || !Url.IsLocalUrl(returnUrl)))
+                {
+                    returnUrl = await GetDefaultLandingUrlAsync(user);
+                }
+
+                if (string.IsNullOrWhiteSpace(returnUrl) || !Url.IsLocalUrl(returnUrl))
+                {
+                    returnUrl = Url.Content("~/Dashboard/Index");
+                }
+
                 _logger.LogInformation("User logged in.");
                 return LocalRedirect(returnUrl);
             }

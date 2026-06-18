@@ -17,6 +17,103 @@
 }
 
 
+
+/* SECTION: Command bar and local workspace rail */
+.workspace-commandbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    background: #ffffff;
+    border: 1px solid #e8edf5;
+    border-left: 4px solid #315fba;
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+    box-shadow: 0 4px 14px rgba(20, 32, 55, 0.035);
+    margin-bottom: 0.75rem;
+}
+
+.workspace-commandbar__identity {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+.workspace-commandbar__icon {
+    width: 2.35rem;
+    height: 2.35rem;
+    border-radius: 12px;
+    display: inline-grid;
+    place-items: center;
+    background: #edf4ff;
+    color: #24447c;
+    flex: 0 0 auto;
+}
+
+.workspace-commandbar__icon i {
+    font-size: 1.05rem;
+}
+
+.workspace-commandbar h1 {
+    margin: 0;
+    font-size: 1.12rem;
+    font-weight: 650;
+    color: #0f172a;
+}
+
+.workspace-commandbar p {
+    margin: 0.14rem 0 0;
+    color: #64748b;
+    font-size: 0.84rem;
+}
+
+.workspace-refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    color: #64748b;
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+.workspace-local-rail {
+    position: sticky;
+    top: 72px;
+    align-self: start;
+    min-height: calc(100vh - 92px);
+    background: #ffffff;
+    border-right: 1px solid #e6ebf2;
+    padding: 0.95rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.workspace-local-rail nav {
+    display: grid;
+    gap: 0.28rem;
+}
+
+.workspace-local-rail__footer {
+    margin-top: auto;
+    padding: 0.75rem 0.6rem;
+    border-top: 1px solid #edf2f7;
+    color: #64748b;
+    font-size: 0.74rem;
+}
+
+.workspace-local-rail__footer span,
+.workspace-local-rail__footer strong {
+    display: block;
+}
+
+.workspace-local-rail__footer strong {
+    margin-top: 0.15rem;
+    color: #0f172a;
+    font-size: 0.82rem;
+    font-weight: 650;
+}
+
 /* SECTION: Workspace severity accents */
 
 
@@ -250,7 +347,8 @@
 
 .workspace-action-row-next {
     border-color: #c9d8f3;
-    background: #fbfdff;
+    background: linear-gradient(90deg, #fbfdff 0%, #ffffff 78%);
+    box-shadow: inset 3px 0 0 #315fba;
 }
 
 .workspace-next-marker {
@@ -338,11 +436,17 @@
 .workspace-action-clearline span {
     display: inline-flex;
     align-items: center;
+    gap: 0.25rem;
     min-height: 1.65rem;
     border-radius: 999px;
     padding: 0.18rem 0.55rem;
     background: #f8fafc;
     border: 1px solid #e8edf5;
+    color: #64748b;
+}
+
+.workspace-action-clearline i {
+    color: #15803d;
 }
 
 .workspace-anchor {
@@ -822,4 +926,71 @@
         align-items: flex-start;
         flex-direction: column;
     }
+}
+
+@media (max-width: 1100px) {
+    .workspace-workbench {
+        grid-template-columns: 1fr;
+    }
+
+    .workspace-local-rail {
+        position: static;
+        min-height: auto;
+        border-right: 0;
+        border-bottom: 1px solid #e6ebf2;
+    }
+
+    .workspace-main-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 700px) {
+    .workspace-commandbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .workspace-refresh {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+/* SECTION: Production polish overrides for compact workspace shell */
+.workspace-commandbar {
+    background: #ffffff;
+    border: 1px solid #e8edf5;
+    border-left: 4px solid #315fba;
+    padding: 0.85rem 1rem;
+}
+
+.workspace-local-rail {
+    display: flex;
+    flex-direction: column;
+}
+
+.workspace-status-good,
+.workspace-dot-good {
+    color: #2f6f46;
+}
+
+.workspace-status-warning {
+    color: #8a6414;
+}
+
+.workspace-status-danger {
+    color: #9f303a;
+}
+
+.workspace-dot-good {
+    background: #4f9d69;
+}
+
+.workspace-dot-warning {
+    background: #d99a22;
+}
+
+.workspace-dot-danger {
+    background: #c94b55;
 }

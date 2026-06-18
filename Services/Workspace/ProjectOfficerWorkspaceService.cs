@@ -146,7 +146,6 @@ public sealed class ProjectOfficerWorkspaceService
             MyProjectsUrl = myProjectsUrl
         };
 
-        vm.Kpis = BuildKpis(vm);
         vm.RailItems = BuildRailItems(vm);
         return vm;
     }
@@ -732,19 +731,6 @@ public sealed class ProjectOfficerWorkspaceService
             new WorkspaceQuickActionVm { Text = "Open My Project Ideas", Url = WorkspaceRouteHelper.ProjectIdeasMine(), Icon = "bi-lightbulb" },
             new WorkspaceQuickActionVm { Text = "Open AOTS Inbox", Url = WorkspaceRouteHelper.AotsInbox(), Icon = "bi-file-earmark-text" },
             new WorkspaceQuickActionVm { Text = "Open Personal Reminders", Url = WorkspaceRouteHelper.PersonalReminders(), Icon = "bi-pin-angle" }
-        };
-    }
-
-    // SECTION: Compact KPI strip highlights daily updates before project health.
-    private static IReadOnlyList<WorkspaceKpiVm> BuildKpis(ProjectOfficerWorkspaceVm vm)
-    {
-        return new[]
-        {
-            new WorkspaceKpiVm { Title = "Remarks Due", Value = vm.RemarksDueCount.ToString(), Caption = "Project updates", Severity = vm.RemarksDueCount == 0 ? "Good" : "Warning", Icon = "bi-chat-left-text" },
-            new WorkspaceKpiVm { Title = "Other Assigned Tasks", Value = vm.OfficialTaskCount.ToString(), Caption = vm.OverdueTaskCount == 0 ? "No overdue assigned task" : $"{vm.OverdueTaskCount} overdue", Severity = vm.OverdueTaskCount == 0 ? "Good" : "Danger", Icon = "bi-list-check" },
-            new WorkspaceKpiVm { Title = "Project Ideas", Value = vm.AssignedIdeaCount.ToString(), Caption = vm.IdeasNeedingUpdateCount == 0 ? "No stale idea" : $"{vm.IdeasNeedingUpdateCount} need update", Severity = vm.IdeasNeedingUpdateCount == 0 ? "Good" : "Warning", Icon = "bi-lightbulb" },
-            new WorkspaceKpiVm { Title = "AOTS", Value = vm.AotsUnreadCount.ToString(), Caption = vm.AotsUnreadCount == 0 ? "All read" : "Unread documents", Severity = vm.AotsUnreadCount == 0 ? "Good" : "Warning", Icon = "bi-file-earmark-text" },
-            new WorkspaceKpiVm { Title = "Assigned Projects", Value = vm.AssignedProjectCount.ToString(), Caption = "Currently with you", Severity = "Info", Icon = "bi-kanban" }
         };
     }
 

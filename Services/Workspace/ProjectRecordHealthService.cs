@@ -38,7 +38,7 @@ public sealed class ProjectRecordHealthService
     {
         var projectIds = projects.Select(p => p.Id).ToArray();
         var mediaCounts = await LoadMediaCountsAsync(projectIds, ct);
-        var factPresence = await LoadStageFactPresenceAsync(projectIds, ct);
+        var factCompleteness = await LoadStageFactCompletenessAsync(projectIds, ct);
         var today = DateOnly.FromDateTime(IstClock.ToIst(DateTime.UtcNow));
         var results = new Dictionary<int, WorkspaceRecordHealthVm>();
 
@@ -51,9 +51,9 @@ public sealed class ProjectRecordHealthService
             score += ScorePhotos(project.Id, mediaCounts, gaps);
             score += ScoreDocuments(project.Id, mediaCounts, gaps);
             score += ScoreVideo(project.Id, mediaCounts, gaps);
-            score += ScoreBudgetMetrics(project, factPresence, gaps);
+            score += ScoreBudgetMetrics(project, factCompleteness, gaps);
             score += ScoreBackfill(project, gaps);
-            score += ScoreCurrentStageTimeline(project, today, gaps);
+            score += ScoreCurrentStageTimeline(project, gaps);
             score += ScoreRecentPoRemark(project, userId, today, gaps);
 
             results[project.Id] = new WorkspaceRecordHealthVm
@@ -107,19 +107,57 @@ public sealed class ProjectRecordHealthService
                 videoCounts.GetValueOrDefault(id)));
     }
 
-    // SECTION: Stage-specific fact presence supports stage-aware budget completeness.
-    private async Task<StageFactPresence> LoadStageFactPresenceAsync(int[] projectIds, CancellationToken ct)
-        => new(
-            await LoadIdsAsync(_db.ProjectIpaFacts.Where(x => projectIds.Contains(x.ProjectId)).Select(x => x.ProjectId), ct),
-            await LoadIdsAsync(_db.ProjectAonFacts.Where(x => projectIds.Contains(x.ProjectId)).Select(x => x.ProjectId), ct),
-            await LoadIdsAsync(_db.ProjectBenchmarkFacts.Where(x => projectIds.Contains(x.ProjectId)).Select(x => x.ProjectId), ct),
-            await LoadIdsAsync(_db.ProjectCommercialFacts.Where(x => projectIds.Contains(x.ProjectId)).Select(x => x.ProjectId), ct),
-            await LoadIdsAsync(_db.ProjectPncFacts.Where(x => projectIds.Contains(x.ProjectId)).Select(x => x.ProjectId), ct),
-            await LoadIdsAsync(_db.ProjectSupplyOrderFacts.Where(x => projectIds.Contains(x.ProjectId)).Select(x => x.ProjectId), ct));
+    // SECTION: Stage-specific fact completeness validates meaningful budget values.
+    private async Task<StageFactCompleteness> LoadStageFactCompletenessAsync(
+        int[] projectIds,
+        CancellationToken ct)
+    {
+        var ipa = await _db.ProjectIpaFacts
+            .AsNoTracking()
+            .Where(f => projectIds.Contains(f.ProjectId) && f.IpaCost > 0)
+            .Select(f => f.ProjectId)
+            .ToHashSetAsync(ct);
 
-    // SECTION: Project ID materialization
-    private static async Task<HashSet<int>> LoadIdsAsync(IQueryable<int> query, CancellationToken ct)
-        => (await query.ToListAsync(ct)).ToHashSet();
+        var aon = await _db.ProjectAonFacts
+            .AsNoTracking()
+            .Where(f => projectIds.Contains(f.ProjectId) && f.AonCost > 0)
+            .Select(f => f.ProjectId)
+            .ToHashSetAsync(ct);
+
+        var benchmark = await _db.ProjectBenchmarkFacts
+            .AsNoTracking()
+            .Where(f => projectIds.Contains(f.ProjectId) && f.BenchmarkCost > 0)
+            .Select(f => f.ProjectId)
+            .ToHashSetAsync(ct);
+
+        var commercial = await _db.ProjectCommercialFacts
+            .AsNoTracking()
+            .Where(f => projectIds.Contains(f.ProjectId) && f.L1Cost > 0)
+            .Select(f => f.ProjectId)
+            .ToHashSetAsync(ct);
+
+        var pnc = await _db.ProjectPncFacts
+            .AsNoTracking()
+            .Where(f => projectIds.Contains(f.ProjectId) && f.PncCost > 0)
+            .Select(f => f.ProjectId)
+            .ToHashSetAsync(ct);
+
+        var supplyOrder = await _db.ProjectSupplyOrderFacts
+            .AsNoTracking()
+            .Where(f =>
+                projectIds.Contains(f.ProjectId) &&
+                f.SupplyOrderDate != default)
+            .Select(f => f.ProjectId)
+            .ToHashSetAsync(ct);
+
+        return new StageFactCompleteness(
+            ipa,
+            aon,
+            benchmark,
+            commercial,
+            pnc,
+            supplyOrder);
+    }
 
     // SECTION: Completeness scoring metrics
     private static int ScoreBriefDescription(Project project, List<string> gaps)
@@ -202,7 +240,7 @@ public sealed class ProjectRecordHealthService
 
     private static int ScoreBudgetMetrics(
         Project project,
-        StageFactPresence facts,
+        StageFactCompleteness facts,
         List<string> gaps)
     {
         var expected = new List<bool>();
@@ -266,7 +304,6 @@ public sealed class ProjectRecordHealthService
 
     private int ScoreCurrentStageTimeline(
         Project project,
-        DateOnly today,
         List<string> gaps)
     {
         var current = WorkspaceNudgeService.GetCurrentStage(project);
@@ -276,8 +313,7 @@ public sealed class ProjectRecordHealthService
             return 10;
         }
 
-        if (_nudges.IsCurrentStageOverdue(current, today) ||
-            _nudges.HasCurrentStageTimelineIssue(current))
+        if (_nudges.HasCurrentStageTimelineIssue(current))
         {
             gaps.Add(GapCurrentStageTimeline);
             return 0;
@@ -323,7 +359,7 @@ public sealed class ProjectRecordHealthService
 
     private sealed record ProjectDataCounts(int PhotoCount, int DocumentCount, int VideoCount);
 
-    private sealed record StageFactPresence(
+    private sealed record StageFactCompleteness(
         HashSet<int> Ipa,
         HashSet<int> Aon,
         HashSet<int> Benchmark,
