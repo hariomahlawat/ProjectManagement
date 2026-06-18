@@ -15,5 +15,25 @@ public interface INotebookService
 }
 public sealed class NotebookEditInput
 {
-    public string Title { get; set; } = string.Empty; public string? BodyMarkdown { get; set; } public NotebookItemType Type { get; set; } = NotebookItemType.Note; public NotebookPriority Priority { get; set; } = NotebookPriority.Normal; public DateTimeOffset? ReminderAtUtc { get; set; } public bool IsPinned { get; set; } public bool IsFavorite { get; set; } public string? ColorKey { get; set; } public IReadOnlyList<string> Tags { get; set; } = Array.Empty<string>(); public IReadOnlyList<string> ChecklistItems { get; set; } = Array.Empty<string>();
+    public string Title { get; set; } = string.Empty;
+
+    public string? BodyMarkdown { get; set; }
+
+    public NotebookItemType Type { get; set; } = NotebookItemType.Note;
+
+    public NotebookPriority Priority { get; set; } = NotebookPriority.Normal;
+
+    public DateTimeOffset? ReminderAtUtc { get; set; }
+
+    public string? ReminderLocal { get; set; }
+
+    public bool IsPinned { get; set; }
+
+    public bool IsFavorite { get; set; }
+
+    public string? ColorKey { get; set; }
+
+    public IReadOnlyList<string> Tags { get; set; } = Array.Empty<string>();
+
+    public IReadOnlyList<string> ChecklistItems { get; set; } = Array.Empty<string>();
 }

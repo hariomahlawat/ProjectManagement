@@ -8163,6 +8163,133 @@ namespace ProjectManagement.Migrations
 
                     b.Navigation("Notes");
                 });
+
+            // SECTION: My Notebook module
+            modelBuilder.Entity("ProjectManagement.Models.NotebookItem", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
+                    b.Property<DateTimeOffset?>("ArchivedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<string>("BodyMarkdown").HasColumnType("text");
+                    b.Property<string>("ColorKey").HasMaxLength(24).HasColumnType("character varying(24)");
+                    b.Property<DateTimeOffset?>("CompletedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<DateTimeOffset?>("DeletedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<bool>("IsFavorite").HasColumnType("boolean");
+                    b.Property<bool>("IsPinned").HasColumnType("boolean");
+                    b.Property<Guid?>("LegacyTodoItemId").HasColumnType("uuid");
+                    b.Property<string>("OwnerId").IsRequired().HasColumnType("text");
+                    b.Property<byte>("Priority").HasColumnType("smallint");
+                    b.Property<DateTimeOffset?>("ReminderAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<int>("SortOrder").HasColumnType("integer");
+                    b.Property<byte>("Status").HasColumnType("smallint");
+                    b.Property<string>("Title").IsRequired().HasMaxLength(220).HasColumnType("character varying(220)");
+                    b.Property<byte>("Type").HasColumnType("smallint");
+                    b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
+                    b.HasIndex("DeletedAtUtc");
+                    b.HasIndex("OwnerId", "IsPinned", "UpdatedAtUtc");
+                    b.HasIndex("OwnerId", "LegacyTodoItemId");
+                    b.HasIndex("OwnerId", "ReminderAtUtc");
+                    b.HasIndex("OwnerId", "Status", "Type");
+                    b.ToTable("NotebookItems");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookChecklistItem", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("integer").HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
+                    b.Property<DateTimeOffset?>("CompletedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<bool>("IsDone").HasColumnType("boolean");
+                    b.Property<Guid>("NotebookItemId").HasColumnType("uuid");
+                    b.Property<int>("SortOrder").HasColumnType("integer");
+                    b.Property<string>("Text").IsRequired().HasMaxLength(300).HasColumnType("character varying(300)");
+                    b.HasKey("Id");
+                    b.HasIndex("NotebookItemId", "SortOrder");
+                    b.ToTable("NotebookChecklistItems");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookTag", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("integer").HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
+                    b.Property<string>("Name").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
+                    b.Property<string>("NormalizedName").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)");
+                    b.Property<string>("OwnerId").IsRequired().HasColumnType("text");
+                    b.HasKey("Id");
+                    b.HasIndex("OwnerId", "NormalizedName").IsUnique();
+                    b.ToTable("NotebookTags");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookItemTag", b =>
+                {
+                    b.Property<Guid>("NotebookItemId").HasColumnType("uuid");
+                    b.Property<int>("NotebookTagId").HasColumnType("integer");
+                    b.HasKey("NotebookItemId", "NotebookTagId");
+                    b.HasIndex("NotebookTagId");
+                    b.ToTable("NotebookItemTags");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookAttachment", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("integer").HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
+                    b.Property<string>("ContentType").HasMaxLength(128).HasColumnType("character varying(128)");
+                    b.Property<Guid>("NotebookItemId").HasColumnType("uuid");
+                    b.Property<string>("OriginalFileName").IsRequired().HasMaxLength(255).HasColumnType("character varying(255)");
+                    b.Property<string>("RelativePath").IsRequired().HasMaxLength(512).HasColumnType("character varying(512)");
+                    b.Property<long>("SizeBytes").HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("UploadedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<string>("UploadedById").IsRequired().HasColumnType("text");
+                    b.HasKey("Id");
+                    b.HasIndex("NotebookItemId");
+                    b.HasIndex("UploadedById");
+                    b.ToTable("NotebookAttachments");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookItem", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "Owner").WithMany().HasForeignKey("OwnerId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookChecklistItem", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.NotebookItem", "NotebookItem").WithMany("ChecklistItems").HasForeignKey("NotebookItemId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.Navigation("NotebookItem");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookTag", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "Owner").WithMany().HasForeignKey("OwnerId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookItemTag", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.NotebookItem", "NotebookItem").WithMany("Tags").HasForeignKey("NotebookItemId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("ProjectManagement.Models.NotebookTag", "NotebookTag").WithMany("Items").HasForeignKey("NotebookTagId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.Navigation("NotebookItem");
+                    b.Navigation("NotebookTag");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookAttachment", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.NotebookItem", "NotebookItem").WithMany("Attachments").HasForeignKey("NotebookItemId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "UploadedBy").WithMany().HasForeignKey("UploadedById").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("NotebookItem");
+                    b.Navigation("UploadedBy");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookItem", b =>
+                {
+                    b.Navigation("Attachments");
+                    b.Navigation("ChecklistItems");
+                    b.Navigation("Tags");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.NotebookTag", b =>
+                {
+                    b.Navigation("Items");
+                });
+
 #pragma warning restore 612, 618
         }
     }
