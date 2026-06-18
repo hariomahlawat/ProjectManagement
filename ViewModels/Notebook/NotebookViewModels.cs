@@ -135,6 +135,34 @@ public sealed class NotebookSummaryVm
     public int ChecklistCount { get; set; }
 }
 
+public sealed class NotebookWidgetVm
+{
+    public int DueTodayCount { get; set; }
+
+    public int OverdueCount { get; set; }
+
+    public IReadOnlyList<NotebookWidgetItemVm> DueItems { get; set; } = Array.Empty<NotebookWidgetItemVm>();
+
+    public IReadOnlyList<NotebookWidgetItemVm> PinnedItems { get; set; } = Array.Empty<NotebookWidgetItemVm>();
+
+    public IReadOnlyList<NotebookWidgetItemVm> StickyItems { get; set; } = Array.Empty<NotebookWidgetItemVm>();
+}
+
+public sealed class NotebookWidgetItemVm
+{
+    public Guid Id { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+
+    public NotebookItemType Type { get; set; }
+
+    public DateTimeOffset? ReminderAtUtc { get; set; }
+
+    public bool IsOverdue { get; set; }
+
+    public string OpenUrl { get; set; } = string.Empty;
+}
+
 public sealed class NotebookItemActionVm
 {
     public NotebookItemListVm Item { get; set; } = new();

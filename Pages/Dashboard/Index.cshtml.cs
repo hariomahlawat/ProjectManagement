@@ -9,6 +9,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Notebook;
 using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Helpers;
 using System;
@@ -23,6 +24,7 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.ViewModels.Dashboard;
+using ProjectManagement.ViewModels.Notebook;
 using Microsoft.Extensions.Logging;
 
 namespace ProjectManagement.Pages.Dashboard
@@ -31,6 +33,7 @@ namespace ProjectManagement.Pages.Dashboard
     public class IndexModel : PageModel
     {
         private readonly ITodoService _todo;
+        private readonly INotebookService _notebook;
         private readonly UserManager<ApplicationUser> _users;
         private readonly Data.ApplicationDbContext _db;
         private readonly IProjectPulseService _projectPulse;
@@ -41,6 +44,7 @@ namespace ProjectManagement.Pages.Dashboard
 
         public IndexModel(
             ITodoService todo,
+            INotebookService notebook,
             UserManager<ApplicationUser> users,
             Data.ApplicationDbContext db,
             IProjectPulseService projectPulse,
@@ -49,6 +53,7 @@ namespace ProjectManagement.Pages.Dashboard
             ILogger<IndexModel> logger)
         {
             _todo = todo;
+            _notebook = notebook;
             _users = users;
             _db = db;
             _projectPulse = projectPulse;
@@ -57,7 +62,7 @@ namespace ProjectManagement.Pages.Dashboard
             _logger = logger;
         }
 
-        public TodoWidgetResult? TodoWidget { get; set; }
+        public NotebookWidgetVm? NotebookWidget { get; set; }
         public List<UpcomingEventVM> UpcomingEvents { get; set; } = new();
         public List<MyProjectsSection> MyProjectSections { get; private set; } = new();
         public bool HasMyProjects => MyProjectSections.Any(section => section.Items.Count > 0);
@@ -87,17 +92,17 @@ namespace ProjectManagement.Pages.Dashboard
         public async Task OnGetAsync(CancellationToken cancellationToken)
         {
             var uid = _users.GetUserId(User);
-            // SECTION: Todo widget load with fault isolation
+            // SECTION: Notebook widget load with fault isolation
             if (uid != null)
             {
                 try
                 {
-                    TodoWidget = await _todo.GetWidgetAsync(uid, take: 20);
+                    NotebookWidget = await _notebook.GetWidgetAsync(uid, take: 5, cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Dashboard widget failed: Todo");
-                    TodoWidget = null;
+                    _logger.LogError(ex, "Dashboard widget failed: Notebook");
+                    NotebookWidget = null;
                 }
             }
             // END SECTION

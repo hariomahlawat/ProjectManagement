@@ -415,3 +415,88 @@
     color: #64748b;
     font-size: .85rem;
 }
+
+/* SECTION: New item flow */
+.notebook-new-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin: -.25rem 0 1rem;
+}
+
+/* SECTION: Interactive checklist rows */
+.notebook-check-row {
+    margin: 0;
+}
+
+.notebook-check-toggle {
+    display: flex;
+    width: 100%;
+    gap: .45rem;
+    align-items: center;
+    padding: 0;
+    color: #334155;
+    text-align: left;
+    background: transparent;
+    border: 0;
+}
+
+.notebook-check-toggle.is-done {
+    color: #64748b;
+    text-decoration: line-through;
+}
+
+/* SECTION: Quiet card overflow actions */
+.notebook-card-more {
+    position: relative;
+}
+
+.notebook-card-more summary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    list-style: none;
+    cursor: pointer;
+    background: rgba(248, 250, 252, .9);
+    border-radius: 999px;
+}
+
+.notebook-card-more summary::-webkit-details-marker {
+    display: none;
+}
+
+.notebook-card-more__menu {
+    position: absolute;
+    right: 0;
+    z-index: 5;
+    display: grid;
+    min-width: 10rem;
+    padding: .35rem;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 16px 32px rgba(15, 23, 42, .14);
+}
+
+.notebook-card-more__menu button {
+    width: 100%;
+    text-align: left;
+    border-radius: 8px;
+}
+
+.notebook-action-done {
+    color: #166534 !important;
+    background: #dcfce7 !important;
+}
+
+.notebook-editor-complete {
+    margin-top: .75rem;
+}
+
+.notebook-empty h3 {
+    margin: 0 0 .35rem;
+    color: #0f172a;
+    font-size: 1rem;
+}

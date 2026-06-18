@@ -28,6 +28,7 @@ public sealed class NotebookService : INotebookService
         string view,
         string? query,
         Guid? selectedId,
+        bool suppressAutoSelect = false,
         CancellationToken ct = default)
     {
         view = NormalizeView(view);
@@ -40,7 +41,7 @@ public sealed class NotebookService : INotebookService
             .Include(item => item.ChecklistItems)
             .Where(item => item.OwnerId == ownerId && item.DeletedAtUtc == null);
 
-        var activeQuery = VisibleItems(baseQuery);
+        var activeQuery = ActiveItems(baseQuery);
 
         if (!string.IsNullOrWhiteSpace(query))
         {
@@ -107,7 +108,8 @@ public sealed class NotebookService : INotebookService
             .Select(item => ToListVm(item, bounds))
             .ToArray();
 
-        var selected = await LoadSelectedAsync(ownerId, selectedId ?? items.FirstOrDefault()?.Id, bounds, ct);
+        var autoSelectedId = suppressAutoSelect ? selectedId : selectedId ?? items.FirstOrDefault()?.Id;
+        var selected = await LoadSelectedAsync(ownerId, autoSelectedId, bounds, ct);
 
         return new NotebookIndexVm
         {
@@ -121,6 +123,80 @@ public sealed class NotebookService : INotebookService
             Summary = await BuildSummary(ownerId, bounds, ct),
             RailItems = await BuildRail(ownerId, view, bounds, ct),
             Tags = await BuildTags(ownerId, ct)
+        };
+    }
+
+
+    public async Task<NotebookWidgetVm> GetWidgetAsync(
+        string ownerId,
+        int take = 5,
+        CancellationToken ct = default)
+    {
+        var nowUtc = _clock.UtcNow;
+        var bounds = TodayBounds(nowUtc);
+
+        var baseQuery = _db.NotebookItems
+            .AsNoTracking()
+            .Where(item =>
+                item.OwnerId == ownerId &&
+                item.DeletedAtUtc == null &&
+                item.Status == NotebookItemStatus.Active);
+
+        var reminderQuery = baseQuery.Where(item => item.ReminderAtUtc != null);
+
+        var dueItems = await reminderQuery
+            .Where(item => item.ReminderAtUtc < bounds.EndUtc)
+            .OrderBy(item => item.ReminderAtUtc)
+            .Take(take)
+            .Select(item => new NotebookWidgetItemVm
+            {
+                Id = item.Id,
+                Title = item.Title,
+                Type = item.Type,
+                ReminderAtUtc = item.ReminderAtUtc,
+                IsOverdue = item.ReminderAtUtc < nowUtc,
+                OpenUrl = $"/Notebook?view=today&selectedId={item.Id}"
+            })
+            .ToListAsync(ct);
+
+        var pinnedItems = await baseQuery
+            .Where(item => item.IsPinned)
+            .OrderByDescending(item => item.UpdatedAtUtc)
+            .Take(take)
+            .Select(item => new NotebookWidgetItemVm
+            {
+                Id = item.Id,
+                Title = item.Title,
+                Type = item.Type,
+                ReminderAtUtc = item.ReminderAtUtc,
+                OpenUrl = $"/Notebook?view=home&selectedId={item.Id}"
+            })
+            .ToListAsync(ct);
+
+        var stickyItems = await baseQuery
+            .Where(item => item.Type == NotebookItemType.Sticky)
+            .OrderByDescending(item => item.UpdatedAtUtc)
+            .Take(take)
+            .Select(item => new NotebookWidgetItemVm
+            {
+                Id = item.Id,
+                Title = item.Title,
+                Type = item.Type,
+                ReminderAtUtc = item.ReminderAtUtc,
+                OpenUrl = $"/Notebook?view=sticky&selectedId={item.Id}"
+            })
+            .ToListAsync(ct);
+
+        return new NotebookWidgetVm
+        {
+            DueTodayCount = await reminderQuery.CountAsync(item =>
+                item.ReminderAtUtc >= bounds.StartUtc &&
+                item.ReminderAtUtc < bounds.EndUtc,
+                ct),
+            OverdueCount = await reminderQuery.CountAsync(item => item.ReminderAtUtc < bounds.StartUtc, ct),
+            DueItems = dueItems,
+            PinnedItems = pinnedItems,
+            StickyItems = stickyItems
         };
     }
 
@@ -297,7 +373,7 @@ public sealed class NotebookService : INotebookService
 
     private static IQueryable<NotebookItem> VisibleItems(IQueryable<NotebookItem> query)
     {
-        return query.Where(item => item.Status != NotebookItemStatus.Archived);
+        return query.Where(item => item.Status == NotebookItemStatus.Active);
     }
 
     private static IQueryable<NotebookItem> ActiveItems(IQueryable<NotebookItem> query)
@@ -435,7 +511,7 @@ public sealed class NotebookService : INotebookService
             .Where(item =>
                 item.OwnerId == ownerId &&
                 item.DeletedAtUtc == null &&
-                item.Status != NotebookItemStatus.Archived);
+                item.Status == NotebookItemStatus.Active);
 
         return new NotebookSummaryVm
         {
@@ -460,7 +536,7 @@ public sealed class NotebookService : INotebookService
 
         async Task<int> CountAsync(string view) => view switch
         {
-            "home" => await query.CountAsync(item => item.Status != NotebookItemStatus.Archived, ct),
+            "home" => await query.CountAsync(item => item.Status == NotebookItemStatus.Active, ct),
             "today" => await query.CountAsync(item =>
                 item.Status == NotebookItemStatus.Active &&
                 item.ReminderAtUtc != null &&

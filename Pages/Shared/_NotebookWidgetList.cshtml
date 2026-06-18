@@ -1,0 +1,19 @@
+@model IReadOnlyList<ProjectManagement.ViewModels.Notebook.NotebookWidgetItemVm>
+
+@if (!Model.Any())
+{
+    <p class="text-muted small mb-0">Nothing here.</p>
+}
+else
+{
+    <ul class="list-unstyled mb-0 small">
+        @foreach (var item in Model)
+        {
+            <li class="d-flex align-items-start gap-2 py-1">
+                <i class="bi @(item.IsOverdue ? "bi-exclamation-circle text-danger" : "bi-dot text-primary")" aria-hidden="true"></i>
+                <a class="text-decoration-none flex-grow-1" href="@item.OpenUrl">@item.Title</a>
+                <span class="text-muted">@item.Type</span>
+            </li>
+        }
+    </ul>
+}

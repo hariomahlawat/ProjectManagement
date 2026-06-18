@@ -266,7 +266,7 @@ public sealed class ProjectOfficerWorkspaceService
                 Priority = item.Priority.ToString(),
                 DueAtUtc = item.ReminderAtUtc,
                 IsPinned = item.IsPinned,
-                OpenUrl = WorkspaceRouteHelper.PersonalReminders()
+                OpenUrl = WorkspaceRouteHelper.PersonalReminder(item.Id)
             })
             .ToListAsync(ct);
     }
@@ -916,7 +916,7 @@ public sealed class ProjectOfficerWorkspaceService
             new WorkspaceQuickActionVm { Text = "View Other Assigned Tasks", Url = WorkspaceRouteHelper.ActionTasksMyWork(), Icon = "bi-list-check" },
             new WorkspaceQuickActionVm { Text = "Open My Project Ideas", Url = WorkspaceRouteHelper.ProjectIdeasMine(), Icon = "bi-lightbulb" },
             new WorkspaceQuickActionVm { Text = "Open AOTS Inbox", Url = WorkspaceRouteHelper.AotsInbox(), Icon = "bi-file-earmark-text" },
-            new WorkspaceQuickActionVm { Text = "Open Personal Reminders", Url = WorkspaceRouteHelper.PersonalReminders(), Icon = "bi-pin-angle" }
+            new WorkspaceQuickActionVm { Text = "Open My Notebook", Url = WorkspaceRouteHelper.PersonalReminders(), Icon = "bi-journal-bookmark" }
         };
     }
 
