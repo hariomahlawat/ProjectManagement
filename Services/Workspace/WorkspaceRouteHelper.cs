@@ -30,10 +30,10 @@ internal static class WorkspaceRouteHelper
         => ProjectMedia(projectId, "documents");
 
     public static string ProjectRemarks(int projectId)
-        => $"/Projects/Remarks/{projectId}";
+        => $"/Projects/Overview/{projectId}#remarks";
 
     public static string ProjectMetaRequest(int projectId)
-        => $"/Projects/Meta/Request/{projectId}";
+        => $"/Projects/Overview/{projectId}";
 
     public static string ProjectDocumentRequest(int projectId)
         => $"/Projects/Documents/UploadRequest?id={projectId}";

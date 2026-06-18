@@ -653,28 +653,6 @@
     color: #315fba;
 }
 
-.workspace-health {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 0.1rem 0.5rem;
-    border-bottom: 1px solid #e8edf5;
-    padding: 0.52rem 0;
-}
-
-.workspace-health:last-child {
-    border-bottom: 0;
-}
-
-.workspace-health small {
-    grid-column: 1 / -1;
-    color: #64748b;
-}
-
-.workspace-health-band {
-    font-size: 0.76rem;
-    font-weight: 600;
-}
-
 .workspace-engagement span {
     display: block;
     color: #64748b;
@@ -751,19 +729,6 @@
         padding: 0.75rem;
     }
 
-}
-
-/* SECTION: Record health bands */
-.workspace-health-good span {
-    color: #4f9d69;
-}
-
-.workspace-health-attention span {
-    color: #d99a22;
-}
-
-.workspace-health-danger span {
-    color: #c94b55;
 }
 
 /* SECTION: Redesigned workspace information architecture */
@@ -867,50 +832,6 @@
     font-size: 0.78rem;
 }
 
-.workspace-cleanup-list {
-    display: grid;
-    gap: 0.6rem;
-}
-
-.workspace-cleanup-list article {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.6rem;
-    align-items: center;
-    padding: 0.48rem 0;
-    border-bottom: 1px solid #edf2f7;
-}
-
-.workspace-cleanup-list article:last-child {
-    border-bottom: 0;
-}
-
-.workspace-cleanup-list strong {
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: #0f172a;
-}
-
-.workspace-cleanup-list p {
-    margin: 0.1rem 0 0;
-    color: #64748b;
-    font-size: 0.76rem;
-}
-
-.workspace-cleanup-list a {
-    font-size: 0.76rem;
-    font-weight: 550;
-    text-decoration: none;
-}
-
-.workspace-section-link {
-    display: inline-block;
-    margin-top: 0.55rem;
-    font-size: 0.76rem;
-    font-weight: 550;
-    text-decoration: none;
-}
-
 .workspace-status-good,
 .workspace-dot-good {
     color: #2f6f46;
@@ -988,17 +909,34 @@
 }
 
 
+/* SECTION: Project Data Gaps */
 .workspace-gap-band {
     display: inline-flex;
     align-items: center;
     margin-left: 0.25rem;
     border-radius: 999px;
     padding: 0.08rem 0.38rem;
-    background: #fff1f2;
-    color: #9f303a;
     font-size: 0.66rem;
     font-weight: 650;
     vertical-align: 0.05rem;
+}
+
+.workspace-gap-band-danger,
+.workspace-gap-band-needs-work {
+    background: #fff1f2;
+    color: #9f303a;
+}
+
+.workspace-gap-band-warning,
+.workspace-gap-band-attention,
+.workspace-gap-band-review {
+    background: #fff7ed;
+    color: #9a5b00;
+}
+
+.workspace-gap-band-good {
+    background: #ecfdf3;
+    color: #166534;
 }
 
 .workspace-subtle-link {

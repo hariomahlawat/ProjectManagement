@@ -338,7 +338,7 @@
                                             <strong title="@item.ProjectName">@item.ProjectName</strong>
                                             <p>
                                                 @item.FixCount detail@(item.FixCount == 1 ? "" : "s") pending
-                                                <span class="workspace-gap-band">Needs Work</span>
+                                                <span class="workspace-gap-band workspace-gap-band-@item.HealthCss">@item.HealthLabel</span>
                                             </p>
                                         </div>
 
