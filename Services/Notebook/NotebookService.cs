@@ -31,7 +31,7 @@ public sealed class NotebookService : INotebookService
         CancellationToken ct = default)
     {
         view = NormalizeView(view);
-        var bounds = TodayBounds();
+        var bounds = TodayBounds(_clock.UtcNow);
 
         var baseQuery = _db.NotebookItems
             .AsNoTracking()
@@ -40,7 +40,7 @@ public sealed class NotebookService : INotebookService
             .Include(item => item.ChecklistItems)
             .Where(item => item.OwnerId == ownerId && item.DeletedAtUtc == null);
 
-        var activeQuery = baseQuery.Where(item => item.Status != NotebookItemStatus.Archived);
+        var activeQuery = VisibleItems(baseQuery);
 
         if (!string.IsNullOrWhiteSpace(query))
         {
@@ -50,6 +50,9 @@ public sealed class NotebookService : INotebookService
                 (item.BodyMarkdown != null && EF.Functions.ILike(item.BodyMarkdown, $"%{search}%")) ||
                 item.Tags.Any(tag => EF.Functions.ILike(tag.NotebookTag!.Name, $"%{search}%")));
         }
+
+        var activeStatusQuery = ActiveItems(activeQuery);
+        var remindersQuery = ReminderItems(activeStatusQuery);
 
         var filteredQuery = view switch
         {
@@ -62,7 +65,7 @@ public sealed class NotebookService : INotebookService
                 item.Status == NotebookItemStatus.Active),
             "notes" => activeQuery.Where(item => item.Type == NotebookItemType.Note),
             "checklists" => activeQuery.Where(item => item.Type == NotebookItemType.Checklist),
-            "reminders" => activeQuery.Where(item => item.Type == NotebookItemType.Reminder || item.ReminderAtUtc != null),
+            "reminders" => remindersQuery,
             "archived" => baseQuery.Where(item => item.Status == NotebookItemStatus.Archived),
             _ => activeQuery
         };
@@ -128,7 +131,7 @@ public sealed class NotebookService : INotebookService
         NotebookItemType? forcedType = null,
         CancellationToken ct = default)
     {
-        var parsed = NotebookQuickCaptureParser.Parse(input, forcedType);
+        var parsed = NotebookQuickCaptureParser.Parse(input, _clock.UtcNow, forcedType);
         return CreateAsync(ownerId, new NotebookEditInput
         {
             Title = parsed.Title,
@@ -178,9 +181,8 @@ public sealed class NotebookService : INotebookService
         item.IsFavorite = input.IsFavorite;
         item.ColorKey = CleanColor(input.ColorKey, input.Type);
         item.UpdatedAtUtc = _clock.UtcNow;
-        item.ChecklistItems.Clear();
 
-        ApplyChecklist(item, input.ChecklistItems, item.UpdatedAtUtc);
+        SyncChecklistItems(item, input.ChecklistItems, item.UpdatedAtUtc);
         await SyncTags(item, ownerId, input.Tags, ct);
         await _db.SaveChangesAsync(ct);
         await _audit.LogAsync("Notebook.Update", userId: ownerId, data: new Dictionary<string, string?> { ["Id"] = id.ToString() });
@@ -243,6 +245,7 @@ public sealed class NotebookService : INotebookService
     {
         var item = await LoadOwned(ownerId, id, ct);
         item.Type = newType;
+        item.ColorKey = CleanColor(item.ColorKey, newType);
         item.UpdatedAtUtc = _clock.UtcNow;
         await _db.SaveChangesAsync(ct);
     }
@@ -266,6 +269,7 @@ public sealed class NotebookService : INotebookService
     private async Task<NotebookItem> LoadOwned(string ownerId, Guid id, CancellationToken ct) =>
         await _db.NotebookItems
             .Include(item => item.Tags)
+                .ThenInclude(itemTag => itemTag.NotebookTag)
             .Include(item => item.ChecklistItems)
             .FirstOrDefaultAsync(item =>
                 item.Id == id &&
@@ -291,11 +295,40 @@ public sealed class NotebookService : INotebookService
         return allowedViews.Contains(view) ? view! : "home";
     }
 
-    private static (DateTimeOffset StartUtc, DateTimeOffset EndUtc) TodayBounds()
+    private static IQueryable<NotebookItem> VisibleItems(IQueryable<NotebookItem> query)
     {
-        var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Ist);
-        var startIst = new DateTimeOffset(nowIst.Date, nowIst.Offset);
-        return (TimeZoneInfo.ConvertTime(startIst, TimeZoneInfo.Utc), TimeZoneInfo.ConvertTime(startIst.AddDays(1), TimeZoneInfo.Utc));
+        return query.Where(item => item.Status != NotebookItemStatus.Archived);
+    }
+
+    private static IQueryable<NotebookItem> ActiveItems(IQueryable<NotebookItem> query)
+    {
+        return query.Where(item => item.Status == NotebookItemStatus.Active);
+    }
+
+    private static IQueryable<NotebookItem> ReminderItems(IQueryable<NotebookItem> query)
+    {
+        return query.Where(item =>
+            item.Type == NotebookItemType.Reminder ||
+            item.ReminderAtUtc != null);
+    }
+
+    private static (DateTimeOffset StartUtc, DateTimeOffset EndUtc) TodayBounds(DateTimeOffset nowUtc)
+    {
+        var nowIst = TimeZoneInfo.ConvertTime(nowUtc, Ist);
+        var startLocal = nowIst.Date;
+        var endLocal = startLocal.AddDays(1);
+
+        var startUtc = TimeZoneInfo.ConvertTimeToUtc(
+            DateTime.SpecifyKind(startLocal, DateTimeKind.Unspecified),
+            Ist);
+
+        var endUtc = TimeZoneInfo.ConvertTimeToUtc(
+            DateTime.SpecifyKind(endLocal, DateTimeKind.Unspecified),
+            Ist);
+
+        return (
+            new DateTimeOffset(startUtc, TimeSpan.Zero),
+            new DateTimeOffset(endUtc, TimeSpan.Zero));
     }
 
     private static NotebookItemListVm ToListVm(NotebookItem item, (DateTimeOffset StartUtc, DateTimeOffset EndUtc) bounds) => new()
@@ -445,10 +478,7 @@ public sealed class NotebookService : INotebookService
                 item.Status == NotebookItemStatus.Active &&
                 item.Type == NotebookItemType.Checklist,
                 ct),
-            "reminders" => await query.CountAsync(item =>
-                item.Status == NotebookItemStatus.Active &&
-                item.Type == NotebookItemType.Reminder,
-                ct),
+            "reminders" => await ReminderItems(ActiveItems(query)).CountAsync(ct),
             "archived" => await query.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
             _ => 0
         };
@@ -480,18 +510,24 @@ public sealed class NotebookService : INotebookService
         return list;
     }
 
-    private async Task<IReadOnlyList<NotebookTagVm>> BuildTags(string ownerId, CancellationToken ct) =>
-        await _db.NotebookTags
+    private async Task<IReadOnlyList<NotebookTagVm>> BuildTags(string ownerId, CancellationToken ct)
+    {
+        return await _db.NotebookTags
             .AsNoTracking()
             .Where(tag => tag.OwnerId == ownerId)
-            .OrderBy(tag => tag.Name)
             .Select(tag => new NotebookTagVm
             {
                 Id = tag.Id,
                 Name = tag.Name,
-                Count = tag.Items.Count
+                Count = tag.Items.Count(join =>
+                    join.NotebookItem != null &&
+                    join.NotebookItem.DeletedAtUtc == null &&
+                    join.NotebookItem.Status == NotebookItemStatus.Active)
             })
+            .Where(tag => tag.Count > 0)
+            .OrderBy(tag => tag.Name)
             .ToArrayAsync(ct);
+    }
 
     private static void ApplyChecklist(NotebookItem item, IReadOnlyList<string> lines, DateTimeOffset now)
     {
@@ -507,26 +543,105 @@ public sealed class NotebookService : INotebookService
         }
     }
 
+    private void SyncChecklistItems(NotebookItem item, IReadOnlyList<string> lines, DateTimeOffset now)
+    {
+        var desiredLines = lines
+            .Select(line => line?.Trim())
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(line => line![..Math.Min(line.Length, 300)])
+            .ToList();
+
+        var existingItems = item.ChecklistItems
+            .OrderBy(row => row.SortOrder)
+            .ToList();
+
+        var usedExistingIds = new HashSet<int>();
+        var nextSortOrder = 0;
+
+        foreach (var desiredText in desiredLines)
+        {
+            var existing = existingItems.FirstOrDefault(row =>
+                !usedExistingIds.Contains(row.Id) &&
+                string.Equals(row.Text.Trim(), desiredText, StringComparison.OrdinalIgnoreCase));
+
+            if (existing is not null)
+            {
+                existing.Text = desiredText;
+                existing.SortOrder = nextSortOrder++;
+                usedExistingIds.Add(existing.Id);
+                continue;
+            }
+
+            item.ChecklistItems.Add(new NotebookChecklistItem
+            {
+                NotebookItemId = item.Id,
+                Text = desiredText,
+                IsDone = false,
+                SortOrder = nextSortOrder++,
+                CreatedAtUtc = now
+            });
+        }
+
+        foreach (var row in existingItems.Where(row => !usedExistingIds.Contains(row.Id)))
+        {
+            item.ChecklistItems.Remove(row);
+        }
+    }
+
     private async Task SyncTags(NotebookItem item, string ownerId, IReadOnlyList<string> tags, CancellationToken ct)
     {
-        item.Tags.Clear();
-        var normalizedTags = tags
+        var requestedNames = tags
             .Select(tag => tag.Trim().TrimStart('#'))
             .Where(tag => tag.Length > 0)
             .Select(tag => tag[..Math.Min(tag.Length, 64)])
-            .Distinct(StringComparer.OrdinalIgnoreCase);
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .ToList();
 
-        foreach (var name in normalizedTags)
+        var requestedKeys = requestedNames
+            .Select(NormalizeTag)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var existingJoins = item.Tags.ToList();
+        var existingByKey = existingJoins
+            .Where(join => join.NotebookTag is not null)
+            .ToDictionary(
+                join => join.NotebookTag!.NormalizedName,
+                join => join,
+                StringComparer.OrdinalIgnoreCase);
+
+        foreach (var join in existingJoins)
         {
-            var normalizedName = name.ToUpperInvariant();
+            var existingKey = join.NotebookTag?.NormalizedName;
+            if (string.IsNullOrWhiteSpace(existingKey) || !requestedKeys.Contains(existingKey))
+            {
+                item.Tags.Remove(join);
+            }
+        }
+
+        foreach (var requestedName in requestedNames)
+        {
+            var normalizedName = NormalizeTag(requestedName);
+            if (existingByKey.ContainsKey(normalizedName))
+            {
+                continue;
+            }
+
             var tag = await _db.NotebookTags.FirstOrDefaultAsync(
                 notebookTag => notebookTag.OwnerId == ownerId && notebookTag.NormalizedName == normalizedName,
-                ct) ?? new NotebookTag
+                ct);
+
+            if (tag is null)
+            {
+                tag = new NotebookTag
                 {
                     OwnerId = ownerId,
-                    Name = name,
+                    Name = requestedName,
                     NormalizedName = normalizedName
                 };
+
+                _db.NotebookTags.Add(tag);
+            }
 
             item.Tags.Add(new NotebookItemTag
             {
@@ -535,4 +650,6 @@ public sealed class NotebookService : INotebookService
             });
         }
     }
+
+    private static string NormalizeTag(string tag) => tag.ToUpperInvariant();
 }

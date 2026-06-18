@@ -7,33 +7,26 @@ namespace ProjectManagement.Services.Notebook;
 public interface INotebookService
 {
     Task<NotebookIndexVm> GetIndexAsync(string ownerId, string view, string? query, Guid? selectedId, CancellationToken ct = default);
+
     Task<Guid> QuickCaptureAsync(string ownerId, string input, NotebookItemType? forcedType = null, CancellationToken ct = default);
+
     Task<Guid> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default);
+
     Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, CancellationToken ct = default);
-    Task ArchiveAsync(string ownerId, Guid id, CancellationToken ct = default); Task RestoreAsync(string ownerId, Guid id, CancellationToken ct = default); Task DeleteAsync(string ownerId, Guid id, CancellationToken ct = default);
-    Task TogglePinAsync(string ownerId, Guid id, CancellationToken ct = default); Task ToggleFavoriteAsync(string ownerId, Guid id, CancellationToken ct = default); Task CompleteAsync(string ownerId, Guid id, bool isComplete, CancellationToken ct = default); Task ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, CancellationToken ct = default); Task ToggleChecklistItemAsync(string ownerId, int checklistItemId, bool isDone, CancellationToken ct = default);
-}
-public sealed class NotebookEditInput
-{
-    public string Title { get; set; } = string.Empty;
 
-    public string? BodyMarkdown { get; set; }
+    Task ArchiveAsync(string ownerId, Guid id, CancellationToken ct = default);
 
-    public NotebookItemType Type { get; set; } = NotebookItemType.Note;
+    Task RestoreAsync(string ownerId, Guid id, CancellationToken ct = default);
 
-    public NotebookPriority Priority { get; set; } = NotebookPriority.Normal;
+    Task DeleteAsync(string ownerId, Guid id, CancellationToken ct = default);
 
-    public DateTimeOffset? ReminderAtUtc { get; set; }
+    Task TogglePinAsync(string ownerId, Guid id, CancellationToken ct = default);
 
-    public string? ReminderLocal { get; set; }
+    Task ToggleFavoriteAsync(string ownerId, Guid id, CancellationToken ct = default);
 
-    public bool IsPinned { get; set; }
+    Task CompleteAsync(string ownerId, Guid id, bool isComplete, CancellationToken ct = default);
 
-    public bool IsFavorite { get; set; }
+    Task ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, CancellationToken ct = default);
 
-    public string? ColorKey { get; set; }
-
-    public IReadOnlyList<string> Tags { get; set; } = Array.Empty<string>();
-
-    public IReadOnlyList<string> ChecklistItems { get; set; } = Array.Empty<string>();
+    Task ToggleChecklistItemAsync(string ownerId, int checklistItemId, bool isDone, CancellationToken ct = default);
 }
