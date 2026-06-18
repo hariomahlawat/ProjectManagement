@@ -112,43 +112,43 @@ public sealed class ProjectRecordHealthService
         int[] projectIds,
         CancellationToken ct)
     {
-        var ipa = await _db.ProjectIpaFacts
+        var ipa = (await _db.ProjectIpaFacts
             .AsNoTracking()
             .Where(f => projectIds.Contains(f.ProjectId) && f.IpaCost > 0)
             .Select(f => f.ProjectId)
-            .ToHashSetAsync(ct);
+            .ToListAsync(ct)).ToHashSet();
 
-        var aon = await _db.ProjectAonFacts
+        var aon = (await _db.ProjectAonFacts
             .AsNoTracking()
             .Where(f => projectIds.Contains(f.ProjectId) && f.AonCost > 0)
             .Select(f => f.ProjectId)
-            .ToHashSetAsync(ct);
+            .ToListAsync(ct)).ToHashSet();
 
-        var benchmark = await _db.ProjectBenchmarkFacts
+        var benchmark = (await _db.ProjectBenchmarkFacts
             .AsNoTracking()
             .Where(f => projectIds.Contains(f.ProjectId) && f.BenchmarkCost > 0)
             .Select(f => f.ProjectId)
-            .ToHashSetAsync(ct);
+            .ToListAsync(ct)).ToHashSet();
 
-        var commercial = await _db.ProjectCommercialFacts
+        var commercial = (await _db.ProjectCommercialFacts
             .AsNoTracking()
             .Where(f => projectIds.Contains(f.ProjectId) && f.L1Cost > 0)
             .Select(f => f.ProjectId)
-            .ToHashSetAsync(ct);
+            .ToListAsync(ct)).ToHashSet();
 
-        var pnc = await _db.ProjectPncFacts
+        var pnc = (await _db.ProjectPncFacts
             .AsNoTracking()
             .Where(f => projectIds.Contains(f.ProjectId) && f.PncCost > 0)
             .Select(f => f.ProjectId)
-            .ToHashSetAsync(ct);
+            .ToListAsync(ct)).ToHashSet();
 
-        var supplyOrder = await _db.ProjectSupplyOrderFacts
+        var supplyOrder = (await _db.ProjectSupplyOrderFacts
             .AsNoTracking()
             .Where(f =>
                 projectIds.Contains(f.ProjectId) &&
                 f.SupplyOrderDate != default)
             .Select(f => f.ProjectId)
-            .ToHashSetAsync(ct);
+            .ToListAsync(ct)).ToHashSet();
 
         return new StageFactCompleteness(
             ipa,
