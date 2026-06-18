@@ -144,6 +144,12 @@ public sealed class ProjectOfficerWorkspaceService
             RecordGapCount = health.Values.Sum(h => h.Gaps.Count),
             AssignedIdeaCount = ideaVms.Count,
             Engagement = engagement,
+            CommandChips = BuildCommandChips(
+                remarksDue.Count,
+                aotsUnreadCount,
+                officialTasksDue.Count,
+                ideasNeedingUpdate.Count),
+            DataCompletenessInsight = BuildDataCompletenessInsight(projects.Count, health),
             PendingWithMe = pending.Take(5).ToList(),
             ActionQueue = actionQueue,
             ActionQueueTotalCount = actionQueueResult.TotalCount,
@@ -904,18 +910,93 @@ public sealed class ProjectOfficerWorkspaceService
         };
     }
 
-    // SECTION: Local workspace rail anchors daily-action sections without changing global navigation.
+    // SECTION: Command-bar composition chips summarize actionable work without adding dashboard clutter.
+    private static IReadOnlyList<WorkspaceCommandChipVm> BuildCommandChips(
+        int remarksDueCount,
+        int aotsUnreadCount,
+        int otherAssignedTasksDueCount,
+        int ideasNeedingUpdateCount)
+    {
+        return new List<WorkspaceCommandChipVm>
+        {
+            new() { Label = remarksDueCount == 1 ? "Remark" : "Remarks", Count = remarksDueCount, Icon = "bi-chat-left-text", State = remarksDueCount > 0 ? "Attention" : "Clear" },
+            new() { Label = "AOTS", Count = aotsUnreadCount, Icon = "bi-file-earmark-text", State = aotsUnreadCount > 0 ? "Attention" : "Clear" },
+            new() { Label = "Other Tasks", Count = otherAssignedTasksDueCount, Icon = "bi-list-check", State = otherAssignedTasksDueCount > 0 ? "Attention" : "Clear" },
+            new() { Label = "Ideas", Count = ideasNeedingUpdateCount, Icon = "bi-lightbulb", State = ideasNeedingUpdateCount > 0 ? "Attention" : "Clear" }
+        };
+    }
+
+    // SECTION: Project data completeness insights convert record-health gaps into useful portfolio signals.
+    private static WorkspaceDataCompletenessInsightVm BuildDataCompletenessInsight(
+        int assignedProjectsCount,
+        IReadOnlyDictionary<int, WorkspaceRecordHealthVm> health)
+    {
+        if (assignedProjectsCount == 0)
+        {
+            return new WorkspaceDataCompletenessInsightVm();
+        }
+
+        var healthItems = health.Values.ToList();
+        if (!healthItems.Any())
+        {
+            return new WorkspaceDataCompletenessInsightVm { AssignedProjectsCount = assignedProjectsCount };
+        }
+
+        var gapGroups = healthItems
+            .SelectMany(h => h.Gaps)
+            .Select(WorkspaceDisplayHelpers.ShortGapLabel)
+            .GroupBy(label => label)
+            .Select(group => new { Label = group.Key, Count = group.Count() })
+            .OrderByDescending(group => group.Count)
+            .ThenBy(group => group.Label)
+            .Take(6)
+            .ToList();
+
+        var maxGapCount = gapGroups.Count > 0 ? gapGroups.Max(group => group.Count) : 0;
+        var gapFrequencies = gapGroups
+            .Select(group => new WorkspaceGapFrequencyVm
+            {
+                Label = group.Label,
+                Count = group.Count,
+                PercentOfMax = maxGapCount == 0 ? 0 : Math.Max(8, (int)Math.Round(group.Count * 100m / maxGapCount))
+            })
+            .ToList();
+
+        var best = healthItems
+            .OrderByDescending(h => h.HealthPercent)
+            .ThenBy(h => h.ProjectName)
+            .FirstOrDefault();
+        var worst = healthItems
+            .OrderBy(h => h.HealthPercent)
+            .ThenByDescending(h => h.Gaps.Count)
+            .ThenBy(h => h.ProjectName)
+            .FirstOrDefault();
+
+        return new WorkspaceDataCompletenessInsightVm
+        {
+            AverageCompletenessPercent = (int)Math.Round(healthItems.Average(h => h.HealthPercent)),
+            ProjectsWithGapsCount = healthItems.Count(h => h.Gaps.Any()),
+            AssignedProjectsCount = assignedProjectsCount,
+            MostCommonGapLabel = gapFrequencies.FirstOrDefault()?.Label ?? "None",
+            BestProjectName = best?.ProjectName,
+            BestProjectScore = best?.HealthPercent,
+            NeedsMostAttentionProjectName = worst?.ProjectName,
+            NeedsMostAttentionProjectScore = worst?.HealthPercent,
+            GapFrequencies = gapFrequencies
+        };
+    }
+
+    // SECTION: Local workspace rail uses unique section anchors for deterministic scroll navigation.
     private static IReadOnlyList<WorkspaceRailItemVm> BuildRailItems(ProjectOfficerWorkspaceVm vm)
     {
-        return new[]
+        return new List<WorkspaceRailItemVm>
         {
-            new WorkspaceRailItemVm { Label = "Today", Icon = "bi-calendar-check", Count = vm.DailyActionCount, Anchor = "#today", IsPrimary = true },
-            new WorkspaceRailItemVm { Label = "Remarks Due", Icon = "bi-chat-left-text", Count = vm.RemarksDueCount, Anchor = "#action-queue" },
-            new WorkspaceRailItemVm { Label = "Other Assigned Tasks", Icon = "bi-list-check", Count = vm.OfficialTaskCount, Anchor = "#action-queue" },
-            new WorkspaceRailItemVm { Label = "My Ideas", Icon = "bi-lightbulb", Count = vm.AssignedIdeaCount, Anchor = "#my-ideas-reminders" },
-            new WorkspaceRailItemVm { Label = "AOTS", Icon = "bi-file-earmark-text", Count = vm.AotsUnreadCount, Anchor = "#action-queue" },
-            new WorkspaceRailItemVm { Label = "Assigned Projects", Icon = "bi-kanban", Count = vm.AssignedProjectCount, Anchor = "#assigned-projects" },
-            new WorkspaceRailItemVm { Label = "Reminders", Icon = "bi-bell", Count = vm.PersonalReminders.Count, Anchor = "#reminders" }
+            new() { Label = "Today", Icon = "bi-calendar-check", Anchor = "#today", Count = vm.DailyActionCount, IsPrimary = true },
+            new() { Label = "Action Queue", Icon = "bi-list-check", Anchor = "#action-queue", Count = vm.ActionQueueTotalCount },
+            new() { Label = "Assigned Projects", Icon = "bi-kanban", Anchor = "#assigned-projects", Count = vm.AssignedProjectCount },
+            new() { Label = "Project Data Gaps", Icon = "bi-folder-x", Anchor = "#project-data-gaps", Count = vm.ImproveProjectsTotalCount },
+            new() { Label = "My Ideas", Icon = "bi-lightbulb", Anchor = "#my-ideas-reminders", Count = vm.AssignedIdeaCount },
+            new() { Label = "Reminders", Icon = "bi-bell", Anchor = "#reminders", Count = vm.PersonalReminders.Count }
         };
     }
 }

@@ -21,6 +21,8 @@ public sealed class ProjectOfficerWorkspaceVm
     public int AotsUnreadCount { get; set; }
     public string AotsUrl { get; set; } = "/DocumentRepository/Documents?scope=aots";
     public WorkspaceEngagementVm Engagement { get; set; } = new();
+    public IReadOnlyList<WorkspaceCommandChipVm> CommandChips { get; set; } = Array.Empty<WorkspaceCommandChipVm>();
+    public WorkspaceDataCompletenessInsightVm DataCompletenessInsight { get; set; } = new();
     public IReadOnlyList<WorkspaceRailItemVm> RailItems { get; set; } = Array.Empty<WorkspaceRailItemVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> PendingWithMe { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceActionQueueItemVm> ActionQueue { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
@@ -47,6 +49,47 @@ public sealed class ProjectOfficerWorkspaceVm
     public WorkspaceAttentionItemVm? NextBestAction { get; set; }
     public IReadOnlyList<WorkspaceQuickActionVm> QuickActions { get; set; } = Array.Empty<WorkspaceQuickActionVm>();
     public IReadOnlyList<WorkspaceReminderVm> PersonalReminders { get; set; } = Array.Empty<WorkspaceReminderVm>();
+}
+
+public sealed class WorkspaceCommandChipVm
+{
+    public string Label { get; set; } = string.Empty;
+
+    public int Count { get; set; }
+
+    public string State { get; set; } = "Neutral";
+
+    public string Icon { get; set; } = "bi-dot";
+}
+
+public sealed class WorkspaceDataCompletenessInsightVm
+{
+    public int AverageCompletenessPercent { get; set; }
+
+    public int ProjectsWithGapsCount { get; set; }
+
+    public int AssignedProjectsCount { get; set; }
+
+    public string MostCommonGapLabel { get; set; } = "None";
+
+    public string? BestProjectName { get; set; }
+
+    public int? BestProjectScore { get; set; }
+
+    public string? NeedsMostAttentionProjectName { get; set; }
+
+    public int? NeedsMostAttentionProjectScore { get; set; }
+
+    public IReadOnlyList<WorkspaceGapFrequencyVm> GapFrequencies { get; set; } = Array.Empty<WorkspaceGapFrequencyVm>();
+}
+
+public sealed class WorkspaceGapFrequencyVm
+{
+    public string Label { get; set; } = string.Empty;
+
+    public int Count { get; set; }
+
+    public int PercentOfMax { get; set; }
 }
 
 public sealed class WorkspaceRailItemVm
