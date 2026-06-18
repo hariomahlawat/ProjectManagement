@@ -10,6 +10,7 @@ const path = require('node:path');
 const projectTestsRoot = path.join('wwwroot', 'js', 'projects');
 const explicitTests = [
   path.join('wwwroot', 'js', 'pages', 'action-tasks', 'index.test.js'),
+  path.join('wwwroot', 'js', 'pages', 'workspace-index.test.js'),
   path.join('wwwroot', 'js', 'calendar.test.js'),
 ];
 
