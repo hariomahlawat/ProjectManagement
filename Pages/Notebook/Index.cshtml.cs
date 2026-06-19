@@ -50,7 +50,8 @@ public class IndexModel : PageModel
     [BindProperty]
     public string? ChecklistText { get; set; }
     public NotebookIndexVm Notebook { get; set; } = new();
-    public bool HasEditorOpen => SelectedId.HasValue || IsCreateMode();
+    public bool UseLegacyEditor => SelectedId.HasValue || IsCreateMode();
+    public bool HasEditorOpen => UseLegacyEditor;
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
@@ -60,11 +61,13 @@ public class IndexModel : PageModel
             return Unauthorized();
         }
         await _import.ImportForUserIfRequiredAsync(uid, ct);
-        if (SelectedId.HasValue && !Note.HasValue)
+        if (SelectedId.HasValue)
         {
             return RedirectToPage(new { note = SelectedId, view = View, query = Query, filter = Filter, tag = Tag });
         }
-        SelectedId = Note;
+
+        // SECTION: The modern note query opens the JavaScript modal only.
+        SelectedId = null;
         NormalizeLegacyTypeView();
         var isCreateMode = IsCreateMode();
         Notebook = await _notebook.GetIndexAsync(uid, View, Query, Filter, Tag, SelectedId, ct);

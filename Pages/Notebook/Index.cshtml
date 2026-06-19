@@ -27,7 +27,7 @@
 }
 @section Styles { <link rel="stylesheet" href="~/css/notebook.css" asp-append-version="true" /> }
 
-<div class="notebook-shell @(Model.HasEditorOpen ? "has-editor" : "editor-collapsed")" data-board-view="grid">
+<div class="notebook-shell @(Model.UseLegacyEditor ? "has-editor" : "editor-collapsed")" data-board-view="grid">
     <aside class="notebook-rail" aria-label="Notebook views">
         <div class="notebook-rail__brand"><i class="bi bi-journal-bookmark"></i><span>My Notebook</span></div>
         @foreach (var item in Model.Notebook.RailItems)
@@ -43,24 +43,33 @@
         </section>
 
         @* SECTION: Expandable async notebook composer *@
-        <section class="notebook-composer" aria-label="Create a notebook item" data-notebook-composer data-state="collapsed">
-            <div class="notebook-composer__collapsed" data-composer-collapsed>
-                <button type="button" class="notebook-composer__trigger" data-composer-open-note>Take a note…</button>
-                <button type="button" class="notebook-composer__checklist-trigger" data-composer-open-checklist aria-label="Create checklist"><i class="bi bi-check2-square"></i></button>
-            </div>
-            <div class="notebook-composer__expanded" data-composer-expanded hidden>
-                <div class="notebook-composer__top">
-                    <input type="text" data-composer-title maxlength="220" placeholder="Title" aria-label="Note title" />
-                    <button type="button" data-composer-pin aria-label="Pin note"><i class="bi bi-pin-angle"></i></button>
-                </div>
-                <textarea data-composer-body maxlength="20000" placeholder="Take a note…" aria-label="Note body"></textarea>
-                <div data-composer-checklist hidden></div>
-                <div class="notebook-composer__footer">
-                    <span data-composer-status aria-live="polite"></span>
-                    <button type="button" data-composer-close>Close</button>
-                </div>
-            </div>
-        </section>
+        @if (string.Equals(Model.Notebook.View, "home", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(Model.Query) && string.IsNullOrWhiteSpace(Model.Tag))
+        {
+                    <section class="notebook-composer" aria-label="Create a notebook item" data-notebook-composer data-state="collapsed">
+                        <div class="notebook-composer__collapsed" data-composer-collapsed>
+                            <button type="button" class="notebook-composer__trigger" data-composer-open-note>Take a note…</button>
+                            <button type="button" class="notebook-composer__checklist-trigger" data-composer-open-checklist aria-label="Create checklist"><i class="bi bi-check2-square"></i></button>
+                        </div>
+                        <div class="notebook-composer__expanded" data-composer-expanded hidden>
+                            <div class="notebook-composer__top">
+                                <input type="text" data-composer-title maxlength="220" placeholder="Title" aria-label="Note title" />
+                                <button type="button" data-composer-pin aria-label="Pin note"><i class="bi bi-pin-angle"></i></button>
+                            </div>
+                            <textarea data-composer-body maxlength="20000" placeholder="Take a note…" aria-label="Note body"></textarea>
+                            <div data-composer-checklist hidden></div>
+                            <div class="notebook-composer__footer">
+                                <span data-composer-status aria-live="polite"></span>
+                                <button type="button" data-composer-close>Close</button>
+                            </div>
+                        </div>
+                    </section>
+        }
+
+        @* SECTION: Visible async operation errors *@
+        <div class="notebook-global-error" data-notebook-global-error role="alert" hidden>
+            <span data-notebook-global-error-text></span>
+            <button type="button" data-notebook-global-error-close aria-label="Dismiss error">×</button>
+        </div>
 
         @* SECTION: Toolbar view controls *@
         <section class="notebook-viewbar" aria-label="Notebook view controls">
@@ -109,7 +118,7 @@
                 </div>
                 @if (!hasAnyHomeItems)
                 {
-                    <div class="notebook-empty notebook-empty-compact" data-notebook-empty><h3>@emptyTitle</h3><p>@emptyText</p></div>
+                    <div class="notebook-empty notebook-empty-compact" data-notebook-empty-state><h3>@emptyTitle</h3><p>@emptyText</p></div>
                 }
             </section>
         }
@@ -130,13 +139,13 @@
                         _ => "Note"
                     };
                     var cta = Model.Notebook.View is "archived" or "completed" ? null : $"New {emptyType}";
-                    <div class="notebook-empty"><h3>@emptyTitle</h3><p>@emptyText</p>@if (cta is not null) { <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-mode="new" asp-route-type="@emptyType" class="btn btn-sm btn-primary">@cta</a> }</div>
+                    <div class="notebook-empty" data-notebook-empty-state><h3>@emptyTitle</h3><p>@emptyText</p>@if (cta is not null) { <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-mode="new" asp-route-type="@emptyType" class="btn btn-sm btn-primary">@cta</a> }</div>
                 }
             </section>
         }
     </main>
 
-    @if (Model.HasEditorOpen)
+    @if (Model.UseLegacyEditor)
     {
     <aside class="notebook-editor-drawer">
         <div class="notebook-editor-header"><h2>@(isCreateMode || selected is null ? $"New {Model.Input.Type.ToString().ToLowerInvariant()}" : "Edit item")</h2><a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-query="@Model.Notebook.Query" asp-route-filter="@Model.Notebook.Filter" asp-route-tag="@Model.Notebook.Tag" class="notebook-editor-close" aria-label="Close editor"><i class="bi bi-x-lg"></i></a></div>
@@ -166,7 +175,7 @@
                                 <input type="hidden" name="ChecklistRows[@rowIndex].Id" value="@row.Id" />
                                 <input type="hidden" name="ChecklistRows[@rowIndex].SortOrder" value="@row.SortOrder" />
                                 <input type="hidden" name="ChecklistRows[@rowIndex].IsDone" value="@(row.IsDone ? "true" : "false")" />
-                                <input name="ChecklistRows[@rowIndex].Text" value="@row.Text" maxlength="300" />
+                                <input name="ChecklistRows[@rowIndex].Text" value="@row.Text" maxlength="500" />
                             </label>
                             rowIndex++;
                         }
@@ -175,7 +184,7 @@
                         <label class="notebook-checklist-edit-row notebook-checklist-add-row">
                             <input type="hidden" name="ChecklistRows[@rowIndex].SortOrder" value="@rowIndex" />
                             <input type="hidden" name="ChecklistRows[@rowIndex].IsDone" value="false" />
-                            <input name="ChecklistRows[@rowIndex].Text" value="" maxlength="300" placeholder="Add another checklist item" />
+                            <input name="ChecklistRows[@rowIndex].Text" value="" maxlength="500" placeholder="Add another checklist item" />
                         </label>
                     }
                     else

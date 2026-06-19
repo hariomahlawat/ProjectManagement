@@ -12,25 +12,54 @@ async function loadModule(fileName) {
 }
 
 // SECTION: Autosave sequencing tests.
-test('notebook autosave flush waits for an active save and ignores stale saved callbacks', async () => {
+test('notebook autosave serialises rapid edits and uses latest payload after an active save', async () => {
   const { createAutosave } = await loadModule('notebook-autosave.js');
+  const calls = [];
   const saved = [];
+  let version = 'v1';
   let releaseFirst;
   const first = new Promise((resolve) => { releaseFirst = resolve; });
   const autosave = createAutosave({
     delay: 1,
-    save: (payload, revision) => revision === 1 ? first.then(() => payload) : Promise.resolve(payload),
-    onSaved: (result) => saved.push(result.value)
+    save: async (payload) => {
+      calls.push(payload);
+      if (calls.length === 1) await first;
+      return { version: calls.length === 1 ? 'v2' : 'v3', value: payload.value };
+    },
+    onSaved: (result) => { version = result.version; saved.push(result.value); }
   });
 
-  autosave.schedule(() => ({ value: 'first' }));
+  autosave.schedule(() => ({ value: 'first', version }));
   await new Promise((resolve) => setTimeout(resolve, 5));
-  autosave.schedule(() => ({ value: 'second' }));
-  await autosave.flush();
+  autosave.schedule(() => ({ value: 'second', version }));
   releaseFirst();
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await autosave.flush();
 
-  assert.deepEqual(saved, ['second']);
+  assert.deepEqual(calls, [
+    { value: 'first', version: 'v1' },
+    { value: 'second', version: 'v2' }
+  ]);
+  assert.deepEqual(saved, ['first', 'second']);
+});
+
+test('notebook autosave keeps failed saves dirty for retry', async () => {
+  const { createAutosave } = await loadModule('notebook-autosave.js');
+  const calls = [];
+  const errors = [];
+  let fail = true;
+  const autosave = createAutosave({
+    delay: 1,
+    save: async (payload) => { calls.push(payload.value); if (fail) throw new Error('network'); return payload; },
+    onError: (error) => errors.push(error.message)
+  });
+
+  autosave.schedule(() => ({ value: 'draft' }));
+  await assert.rejects(() => autosave.flush(), /network/);
+  fail = false;
+  await autosave.flush();
+
+  assert.deepEqual(calls, ['draft', 'draft']);
+  assert.deepEqual(errors, ['network']);
 });
 
 test('notebook autosave routes timer errors to onError without unhandled rejection', async () => {

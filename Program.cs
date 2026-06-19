@@ -2344,8 +2344,7 @@ using (var scope = app.Services.CreateScope())
 
     if (db.Database.IsRelational())
     {
-        await db.Database.MigrateAsync();
-
+        // SECTION: Startup schema repairs only; migrations are owned by the earlier migration gate.
         var projectStagesExists = true;
         if (db.Database.IsNpgsql())
         {

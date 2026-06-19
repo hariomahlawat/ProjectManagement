@@ -28,6 +28,14 @@ public sealed class SetNotebookPinRequest
     public bool IsPinned { get; set; }
 }
 
+public sealed class ToggleChecklistItemRequest
+{
+    public bool IsDone { get; set; }
+
+    [Required]
+    public Guid Version { get; set; }
+}
+
 // SECTION: Notebook API response contracts
 public sealed class NotebookChecklistRowResponse
 {

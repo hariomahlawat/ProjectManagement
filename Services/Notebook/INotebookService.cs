@@ -55,6 +55,8 @@ public interface INotebookService
     Task<Guid> DuplicateAsync(string ownerId, Guid id, CancellationToken ct = default);
 
     Task ToggleChecklistItemAsync(string ownerId, int checklistItemId, bool isDone, CancellationToken ct = default);
+
+    Task<NotebookItemDetailVm> ToggleChecklistItemAsync(string ownerId, Guid itemId, int checklistItemId, bool isDone, Guid expectedVersion, CancellationToken ct = default);
 }
 
 // SECTION: My Notebook editor contract
