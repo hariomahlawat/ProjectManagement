@@ -30,6 +30,8 @@ public interface INotebookService
 
     Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, CancellationToken ct = default);
 
+    Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, string expectedVersion, CancellationToken ct = default);
+
     Task ArchiveAsync(string ownerId, Guid id, CancellationToken ct = default);
 
     Task RestoreAsync(string ownerId, Guid id, CancellationToken ct = default);

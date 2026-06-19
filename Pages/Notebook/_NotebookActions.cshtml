@@ -25,6 +25,10 @@
             <button asp-page-handler="Convert" name="newType" value="@(Model.Item.Type == NotebookItemType.Checklist ? NotebookItemType.Note : NotebookItemType.Checklist)" type="submit" role="menuitem">@(Model.Item.Type == NotebookItemType.Checklist ? "Hide checkboxes" : "Show checkboxes")</button>
             @if (Model.Item.Status == NotebookItemStatus.Archived)
             {
+                <button asp-page-handler="Restore" type="submit" role="menuitem" data-action="restore-note">Restore</button>
+            }
+            else if (Model.Item.Status == NotebookItemStatus.Completed)
+            {
                 <button asp-page-handler="Complete" name="isComplete" value="false" type="submit" role="menuitem" data-action="reopen-note">Reopen</button>
             }
             else

@@ -57,14 +57,28 @@ public sealed class NotebookController : Controller
     {
         var validation = ValidateRequest(request);
         if (validation is not null) return validation;
-        var existing = await _notebook.GetDetailAsync(CurrentUserId(), id, ct);
+        var uid = CurrentUserId();
+        var existing = await _notebook.GetDetailAsync(uid, id, ct);
         if (existing is null) return NotFound();
-        if (!string.IsNullOrWhiteSpace(request.Version) && !string.Equals(existing.Version, request.Version, StringComparison.OrdinalIgnoreCase))
+
+        try
         {
-            return Conflict(new { message = "This note was changed in another tab. Reload the latest version before continuing.", version = existing.Version });
+            if (!string.IsNullOrWhiteSpace(request.Version))
+            {
+                await _notebook.UpdateAsync(uid, id, ToInput(request), request.Version, ct);
+            }
+            else
+            {
+                await _notebook.UpdateAsync(uid, id, ToInput(request), ct);
+            }
         }
-        await _notebook.UpdateAsync(CurrentUserId(), id, ToInput(request), ct);
-        return Ok(ToResponse((await _notebook.GetDetailAsync(CurrentUserId(), id, ct))!));
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+        {
+            var latest = await _notebook.GetDetailAsync(uid, id, ct);
+            return Conflict(new { message = "This note was changed in another tab. Reload the latest version before continuing.", version = latest?.Version });
+        }
+
+        return Ok(ToResponse((await _notebook.GetDetailAsync(uid, id, ct))!));
     }
 
     [HttpPost("{id:guid}/pin")]

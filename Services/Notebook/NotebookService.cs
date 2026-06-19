@@ -268,9 +268,15 @@ public sealed class NotebookService : INotebookService
         return item.Id;
     }
 
-    public async Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, CancellationToken ct = default)
+    public Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, CancellationToken ct = default) =>
+        UpdateAsync(ownerId, id, input, expectedVersion: null, ct);
+
+    public async Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, string expectedVersion, CancellationToken ct = default) =>
+        await UpdateAsync(ownerId, id, input, string.IsNullOrWhiteSpace(expectedVersion) ? null : expectedVersion, ct);
+
+    private async Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, string? expectedVersion, CancellationToken ct)
     {
-        var item = await LoadOwned(ownerId, id, ct);
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
         item.Title = CleanTitle(input.Title);
         item.BodyMarkdown = input.BodyMarkdown;
         item.Type = input.Type;
@@ -486,6 +492,42 @@ public sealed class NotebookService : INotebookService
                 item.OwnerId == ownerId &&
                 item.DeletedAtUtc == null,
                 ct) ?? throw new KeyNotFoundException();
+
+
+    private async Task<NotebookItem> LoadOwnedForUpdate(string ownerId, Guid id, string? expectedVersion, CancellationToken ct)
+    {
+        var query = _db.NotebookItems
+            .Include(item => item.Tags)
+                .ThenInclude(itemTag => itemTag.NotebookTag)
+            .Include(item => item.ChecklistItems)
+            .Where(item =>
+                item.Id == id &&
+                item.OwnerId == ownerId &&
+                item.DeletedAtUtc == null);
+
+        if (!string.IsNullOrWhiteSpace(expectedVersion))
+        {
+            query = Guid.TryParse(expectedVersion, out var parsedVersion)
+                ? query.Where(item => item.Version == parsedVersion)
+                : query.Where(item => false);
+        }
+
+        var item = await query.FirstOrDefaultAsync(ct);
+        if (item is not null)
+        {
+            return item;
+        }
+
+        var exists = await _db.NotebookItems.AnyAsync(item =>
+            item.Id == id &&
+            item.OwnerId == ownerId &&
+            item.DeletedAtUtc == null,
+            ct);
+
+        throw exists && !string.IsNullOrWhiteSpace(expectedVersion)
+            ? new DbUpdateConcurrencyException("The notebook item version no longer matches the submitted version.")
+            : new KeyNotFoundException();
+    }
 
     private static string CleanTitle(string title)
     {
