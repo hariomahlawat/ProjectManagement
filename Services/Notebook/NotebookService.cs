@@ -172,7 +172,7 @@ public sealed class NotebookService : INotebookService
                 Type = item.Type,
                 ReminderAtUtc = item.ReminderAtUtc,
                 IsOverdue = item.ReminderAtUtc < nowUtc,
-                OpenUrl = $"/Notebook?view=today&selectedId={item.Id}"
+                OpenUrl = $"/Notebook?view=today&note={item.Id}"
             })
             .ToListAsync(ct);
 
@@ -186,7 +186,7 @@ public sealed class NotebookService : INotebookService
                 Title = item.Title,
                 Type = item.Type,
                 ReminderAtUtc = item.ReminderAtUtc,
-                OpenUrl = $"/Notebook?view=home&selectedId={item.Id}"
+                OpenUrl = $"/Notebook?view=home&note={item.Id}"
             })
             .ToListAsync(ct);
 
@@ -200,7 +200,7 @@ public sealed class NotebookService : INotebookService
                 Title = item.Title,
                 Type = item.Type,
                 ReminderAtUtc = item.ReminderAtUtc,
-                OpenUrl = $"/Notebook?view=sticky&selectedId={item.Id}"
+                OpenUrl = $"/Notebook?view=sticky&note={item.Id}"
             })
             .ToListAsync(ct);
 
@@ -257,7 +257,8 @@ public sealed class NotebookService : INotebookService
             IsFavorite = input.IsFavorite,
             ColorKey = CleanColor(input.ColorKey, input.Type),
             CreatedAtUtc = now,
-            UpdatedAtUtc = now
+            UpdatedAtUtc = now,
+            Version = Guid.NewGuid()
         };
 
         ApplyChecklist(item, input.ChecklistRows.Any() ? input.ChecklistRows : input.ChecklistItems.Select((text, index) => new NotebookChecklistEditRow { Text = text, SortOrder = index }).ToArray(), now);
@@ -285,8 +286,7 @@ public sealed class NotebookService : INotebookService
         item.IsPinned = input.IsPinned;
         item.IsFavorite = input.IsFavorite;
         item.ColorKey = CleanColor(input.ColorKey, input.Type);
-        item.UpdatedAtUtc = _clock.UtcNow;
-        item.Version = Guid.NewGuid();
+        Touch(item, _clock.UtcNow);
 
         SyncChecklistItems(item, input.ChecklistRows.Any() ? input.ChecklistRows : input.ChecklistItems.Select((text, index) => new NotebookChecklistEditRow { Text = text, SortOrder = index }).ToArray(), item.UpdatedAtUtc);
         await SyncTags(item, ownerId, input.Tags, ct);
@@ -299,8 +299,7 @@ public sealed class NotebookService : INotebookService
         var item = await LoadOwned(ownerId, id, ct);
         item.Status = NotebookItemStatus.Archived;
         item.ArchivedAtUtc = _clock.UtcNow;
-        item.UpdatedAtUtc = item.ArchivedAtUtc.Value;
-        item.Version = Guid.NewGuid();
+        Touch(item, item.ArchivedAtUtc.Value);
         await _db.SaveChangesAsync(ct);
         await _audit.LogAsync("Notebook.Archive", userId: ownerId);
     }
@@ -310,8 +309,7 @@ public sealed class NotebookService : INotebookService
         var item = await LoadOwned(ownerId, id, ct);
         item.Status = NotebookItemStatus.Active;
         item.ArchivedAtUtc = null;
-        item.UpdatedAtUtc = _clock.UtcNow;
-        item.Version = Guid.NewGuid();
+        Touch(item, _clock.UtcNow);
         await _db.SaveChangesAsync(ct);
     }
 
@@ -320,8 +318,7 @@ public sealed class NotebookService : INotebookService
         var item = await LoadOwned(ownerId, id, ct);
         item.Status = NotebookItemStatus.Active;
         item.CompletedAtUtc = null;
-        item.UpdatedAtUtc = _clock.UtcNow;
-        item.Version = Guid.NewGuid();
+        Touch(item, _clock.UtcNow);
         await _db.SaveChangesAsync(ct);
     }
 
@@ -329,8 +326,7 @@ public sealed class NotebookService : INotebookService
     {
         var item = await LoadOwned(ownerId, id, ct);
         item.DeletedAtUtc = _clock.UtcNow;
-        item.UpdatedAtUtc = item.DeletedAtUtc.Value;
-        item.Version = Guid.NewGuid();
+        Touch(item, item.DeletedAtUtc.Value);
         await _db.SaveChangesAsync(ct);
         await _audit.LogAsync("Notebook.Delete", userId: ownerId);
     }
@@ -339,8 +335,7 @@ public sealed class NotebookService : INotebookService
     {
         var item = await LoadOwned(ownerId, id, ct);
         item.IsPinned = !item.IsPinned;
-        item.UpdatedAtUtc = _clock.UtcNow;
-        item.Version = Guid.NewGuid();
+        Touch(item, _clock.UtcNow);
         await _db.SaveChangesAsync(ct);
     }
 
@@ -348,8 +343,7 @@ public sealed class NotebookService : INotebookService
     {
         var item = await LoadOwned(ownerId, id, ct);
         item.IsPinned = isPinned;
-        item.UpdatedAtUtc = _clock.UtcNow;
-        item.Version = Guid.NewGuid();
+        Touch(item, _clock.UtcNow);
         await _db.SaveChangesAsync(ct);
     }
 
@@ -357,8 +351,7 @@ public sealed class NotebookService : INotebookService
     {
         var item = await LoadOwned(ownerId, id, ct);
         item.IsFavorite = !item.IsFavorite;
-        item.UpdatedAtUtc = _clock.UtcNow;
-        item.Version = Guid.NewGuid();
+        Touch(item, _clock.UtcNow);
         await _db.SaveChangesAsync(ct);
     }
 
@@ -366,9 +359,9 @@ public sealed class NotebookService : INotebookService
     {
         var item = await LoadOwned(ownerId, id, ct);
         item.Status = isComplete ? NotebookItemStatus.Completed : NotebookItemStatus.Active;
-        item.CompletedAtUtc = isComplete ? _clock.UtcNow : null;
-        item.UpdatedAtUtc = _clock.UtcNow;
-        item.Version = Guid.NewGuid();
+        var now = _clock.UtcNow;
+        item.CompletedAtUtc = isComplete ? now : null;
+        Touch(item, now);
         await _db.SaveChangesAsync(ct);
     }
 
@@ -398,7 +391,7 @@ public sealed class NotebookService : INotebookService
                 item.ChecklistItems.Add(new NotebookChecklistItem
                 {
                     NotebookItemId = item.Id,
-                    Text = line[..Math.Min(line.Length, 300)],
+                    Text = line[..Math.Min(line.Length, NotebookLimits.ChecklistTextMaxLength)],
                     SortOrder = sortOrder++,
                     CreatedAtUtc = now
                 });
@@ -417,8 +410,7 @@ public sealed class NotebookService : INotebookService
 
         item.Type = newType;
         item.ColorKey = CleanColor(item.ColorKey, newType);
-        item.UpdatedAtUtc = now;
-        item.Version = Guid.NewGuid();
+        Touch(item, now);
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
     }
@@ -434,12 +426,13 @@ public sealed class NotebookService : INotebookService
             BodyMarkdown = source.BodyMarkdown,
             Type = source.Type,
             Priority = source.Priority,
-            ReminderAtUtc = source.ReminderAtUtc,
-            IsPinned = source.IsPinned,
+            ReminderAtUtc = null,
+            IsPinned = false,
             IsFavorite = false,
             ColorKey = CleanColor(source.ColorKey, source.Type),
             CreatedAtUtc = now,
-            UpdatedAtUtc = now
+            UpdatedAtUtc = now,
+            Version = Guid.NewGuid()
         };
 
         foreach (var row in source.ChecklistItems.OrderBy(row => row.SortOrder))
@@ -476,12 +469,20 @@ public sealed class NotebookService : INotebookService
                 ct) ?? throw new KeyNotFoundException();
 
         checklistItem.IsDone = isDone;
-        checklistItem.CompletedAtUtc = isDone ? _clock.UtcNow : null;
-        checklistItem.NotebookItem!.UpdatedAtUtc = _clock.UtcNow;
+        var now = _clock.UtcNow;
+        checklistItem.CompletedAtUtc = isDone ? now : null;
+        Touch(checklistItem.NotebookItem!, now);
         await _db.SaveChangesAsync(ct);
     }
 
     // SECTION: Helpers
+
+    private static void Touch(NotebookItem item, DateTimeOffset now)
+    {
+        item.UpdatedAtUtc = now;
+        item.Version = Guid.NewGuid();
+    }
+
     private async Task<NotebookItem> LoadOwned(string ownerId, Guid id, CancellationToken ct) =>
         await _db.NotebookItems
             .Include(item => item.Tags)
@@ -532,7 +533,7 @@ public sealed class NotebookService : INotebookService
     private static string CleanTitle(string title)
     {
         var trimmed = title.Trim();
-        return string.IsNullOrWhiteSpace(trimmed) ? "Untitled" : trimmed[..Math.Min(trimmed.Length, 220)];
+        return string.IsNullOrWhiteSpace(trimmed) ? "Untitled" : trimmed[..Math.Min(trimmed.Length, NotebookLimits.TitleMaxLength)];
     }
 
     private static string CleanColor(string? color, NotebookItemType type)
@@ -841,7 +842,7 @@ public sealed class NotebookService : INotebookService
             var text = row.Text.Trim();
             item.ChecklistItems.Add(new NotebookChecklistItem
             {
-                Text = text[..Math.Min(text.Length, 300)],
+                Text = text[..Math.Min(text.Length, NotebookLimits.ChecklistTextMaxLength)],
                 IsDone = row.IsDone,
                 SortOrder = sortOrder++,
                 CreatedAtUtc = now,
@@ -857,14 +858,25 @@ public sealed class NotebookService : INotebookService
             .OrderBy(row => row.SortOrder)
             .ToList();
 
+        var submittedIds = requestedRows.Where(row => row.Id.HasValue).Select(row => row.Id!.Value).ToArray();
+        if (submittedIds.Length != submittedIds.Distinct().Count())
+        {
+            throw new ArgumentException("Duplicate checklist row ids are not allowed.");
+        }
+
         var existingById = item.ChecklistItems.ToDictionary(row => row.Id);
-        var requestedIds = requestedRows.Where(row => row.Id.HasValue).Select(row => row.Id!.Value).ToHashSet();
+        if (submittedIds.Any(id => !existingById.ContainsKey(id)))
+        {
+            throw new ArgumentException("Checklist row ids must belong to the notebook item.");
+        }
+
+        var requestedIds = submittedIds.ToHashSet();
         var nextSortOrder = 0;
 
         foreach (var requested in requestedRows)
         {
             var text = requested.Text.Trim();
-            text = text[..Math.Min(text.Length, 300)];
+            text = text[..Math.Min(text.Length, NotebookLimits.ChecklistTextMaxLength)];
 
             if (requested.Id.HasValue && existingById.TryGetValue(requested.Id.Value, out var existing))
             {
@@ -897,9 +909,9 @@ public sealed class NotebookService : INotebookService
         var requestedNames = tags
             .Select(tag => tag.Trim().TrimStart('#'))
             .Where(tag => tag.Length > 0)
-            .Select(tag => tag[..Math.Min(tag.Length, 64)])
+            .Select(tag => tag[..Math.Min(tag.Length, NotebookLimits.LabelNameMaxLength)])
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(12)
+            .Take(NotebookLimits.MaxLabelsPerItem)
             .ToList();
 
         var requestedKeys = requestedNames

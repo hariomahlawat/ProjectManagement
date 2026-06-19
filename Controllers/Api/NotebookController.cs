@@ -11,6 +11,7 @@ namespace ProjectManagement.Controllers.Api;
 [Authorize]
 [ApiController]
 [AutoValidateAntiforgeryToken]
+[TypeFilter(typeof(NotebookApiExceptionFilter))]
 [Route("api/notebook/items")]
 public sealed class NotebookController : Controller
 {
@@ -58,24 +59,13 @@ public sealed class NotebookController : Controller
         var validation = ValidateRequest(request);
         if (validation is not null) return validation;
         var uid = CurrentUserId();
-        var existing = await _notebook.GetDetailAsync(uid, id, ct);
-        if (existing is null) return NotFound();
-
-        try
+        if (!string.IsNullOrWhiteSpace(request.Version))
         {
-            if (!string.IsNullOrWhiteSpace(request.Version))
-            {
-                await _notebook.UpdateAsync(uid, id, ToInput(request), request.Version, ct);
-            }
-            else
-            {
-                await _notebook.UpdateAsync(uid, id, ToInput(request), ct);
-            }
+            await _notebook.UpdateAsync(uid, id, ToInput(request), request.Version, ct);
         }
-        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+        else
         {
-            var latest = await _notebook.GetDetailAsync(uid, id, ct);
-            return Conflict(new { message = "This note was changed in another tab. Reload the latest version before continuing.", version = latest?.Version });
+            await _notebook.UpdateAsync(uid, id, ToInput(request), ct);
         }
 
         return Ok(ToResponse((await _notebook.GetDetailAsync(uid, id, ct))!));
@@ -96,6 +86,35 @@ public sealed class NotebookController : Controller
 
     [HttpPost("{id:guid}/reopen")]
     public async Task<IActionResult> Reopen(Guid id, CancellationToken ct) { await _notebook.ReopenAsync(CurrentUserId(), id, ct); return NoContent(); }
+
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        await _notebook.DeleteAsync(CurrentUserId(), id, ct);
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/restore")]
+    public async Task<IActionResult> Restore(Guid id, CancellationToken ct)
+    {
+        await _notebook.RestoreAsync(CurrentUserId(), id, ct);
+        return Ok(ToResponse((await _notebook.GetDetailAsync(CurrentUserId(), id, ct))!));
+    }
+
+    [HttpPost("{id:guid}/show-checkboxes")]
+    public async Task<IActionResult> ShowCheckboxes(Guid id, CancellationToken ct)
+    {
+        await _notebook.ConvertTypeAsync(CurrentUserId(), id, NotebookItemType.Checklist, ct);
+        return Ok(ToResponse((await _notebook.GetDetailAsync(CurrentUserId(), id, ct))!));
+    }
+
+    [HttpPost("{id:guid}/hide-checkboxes")]
+    public async Task<IActionResult> HideCheckboxes(Guid id, CancellationToken ct)
+    {
+        await _notebook.ConvertTypeAsync(CurrentUserId(), id, NotebookItemType.Note, ct);
+        return Ok(ToResponse((await _notebook.GetDetailAsync(CurrentUserId(), id, ct))!));
+    }
 
     [HttpPost("{id:guid}/duplicate")]
     public async Task<IActionResult> Duplicate(Guid id, CancellationToken ct)
@@ -126,10 +145,11 @@ public sealed class NotebookController : Controller
         var hasBody = !string.IsNullOrWhiteSpace(request.Body);
         var rows = request.ChecklistRows.Where(row => !string.IsNullOrWhiteSpace(row.Text)).ToArray();
         if (!Enum.IsDefined(request.Type) || !Enum.IsDefined(request.Priority)) return BadRequest(new { error = "Invalid notebook type or priority." });
-        if (!hasTitle && !hasBody && rows.Length == 0) return BadRequest(new { error = "Add a title, body, or checklist item before saving." });
-        if (request.ChecklistRows.Count > 200) return BadRequest(new { error = "Too many checklist rows." });
+        if (!hasTitle && !hasBody && rows.Length == 0) return BadRequest(new { message = "Add a title, body, or checklist item before saving." });
+        if ((request.Title?.Length ?? 0) > NotebookLimits.TitleMaxLength || (request.Body?.Length ?? 0) > NotebookLimits.BodyMaxLength) return BadRequest(new { message = "Notebook title or body is too long." });
+        if (request.ChecklistRows.Count > NotebookLimits.MaxChecklistRows) return BadRequest(new { error = "Too many checklist rows." });
         if (request.ChecklistRows.Where(row => row.Id.HasValue).GroupBy(row => row.Id).Any(group => group.Count() > 1)) return BadRequest(new { error = "Duplicate checklist row ids are not allowed." });
-        if (request.Labels.Count > 12 || request.Labels.Any(label => label.Length > 64)) return BadRequest(new { error = "Too many labels or label text is too long." });
+        if (request.Labels.Count > NotebookLimits.MaxLabelsPerItem || request.Labels.Any(label => label.Length > NotebookLimits.LabelNameMaxLength)) return BadRequest(new { error = "Too many labels or label text is too long." });
         var allowedColors = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "white", "blue", "amber", "green", "rose", "slate" };
         if (!string.IsNullOrWhiteSpace(request.ColorKey) && !allowedColors.Contains(request.ColorKey)) return BadRequest(new { error = "Unsupported colour." });
         return null;

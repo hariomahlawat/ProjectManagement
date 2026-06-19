@@ -1,0 +1,31 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.EntityFrameworkCore;
+
+namespace ProjectManagement.Controllers.Api;
+
+// SECTION: Notebook API exception translation
+public sealed class NotebookApiExceptionFilter : IAsyncExceptionFilter
+{
+    public Task OnExceptionAsync(ExceptionContext context)
+    {
+        context.Result = context.Exception switch
+        {
+            KeyNotFoundException => new NotFoundResult(),
+            ArgumentException => new BadRequestObjectResult(new { message = "The notebook request is invalid." }),
+            DbUpdateConcurrencyException => new ConflictObjectResult(new
+            {
+                code = "notebook_concurrency_conflict",
+                message = "This note was changed elsewhere. Reload the latest version before continuing."
+            }),
+            _ => null
+        };
+
+        if (context.Result is not null)
+        {
+            context.ExceptionHandled = true;
+        }
+
+        return Task.CompletedTask;
+    }
+}

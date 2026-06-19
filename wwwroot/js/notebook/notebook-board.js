@@ -1,9 +1,14 @@
 // SECTION: Notebook board DOM updates
 export function createNotebookBoard(root = document) {
   const findCard = (id) => root.querySelector(`[data-note-id="${CSS.escape(id)}"]`);
-  const boardFor = (pinned) => root.querySelector(pinned ? '[data-board-section="pinned"] [data-notebook-board]' : '[data-board-section="others"] [data-notebook-board]') || root.querySelector('[data-notebook-board]');
-  const replaceCard = (id, html) => { const card = findCard(id); if (card) card.outerHTML = html; };
-  const insertCard = (html, pinned = false) => { const board = boardFor(pinned); if (board) board.insertAdjacentHTML('afterbegin', html); };
-  const removeCard = (id) => findCard(id)?.remove();
-  return { findCard, replaceCard, insertCard, removeCard };
+  const getSection = (isPinned) => root.querySelector(`[data-notebook-section="${isPinned ? 'pinned' : 'others'}"]`);
+  const getBoard = (isPinned) => root.querySelector(`[data-notebook-board="${isPinned ? 'pinned' : 'others'}"]`) || root.querySelector('[data-notebook-board]');
+  const htmlToElement = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+  const refreshSectionVisibility = () => { ['pinned','others'].forEach((name) => { const section = root.querySelector(`[data-notebook-section="${name}"]`); const board = root.querySelector(`[data-notebook-board="${name}"]`); if (!section || !board) return; const count = board.querySelectorAll('[data-note-id]').length; if (name === 'pinned') section.hidden = count === 0; const countEl = root.querySelector(`[data-notebook-count="${name}"]`); if (countEl) countEl.textContent = String(count); }); };
+  const refreshEmptyState = () => { const empty = root.querySelector('[data-notebook-empty]'); if (!empty) return; empty.hidden = root.querySelectorAll('[data-note-id]').length > 0; };
+  const upsertCard = (id, html, isPinned, options = {}) => { const current = findCard(id); const targetBoard = getBoard(isPinned); if (!targetBoard) throw new Error('Notebook target board was not found.'); const fragment = htmlToElement(html); current?.remove(); options.prepend === false ? targetBoard.append(fragment) : targetBoard.prepend(fragment); refreshSectionVisibility(); refreshEmptyState(); return fragment; };
+  const replaceCard = (id, html) => { const current = findCard(id); if (!current) return null; const fragment = htmlToElement(html); current.replaceWith(fragment); refreshSectionVisibility(); refreshEmptyState(); return fragment; };
+  const insertCard = (html, pinned = false) => { const fragment = htmlToElement(html); const board = getBoard(pinned); if (!board) throw new Error('Notebook target board was not found.'); board.prepend(fragment); refreshSectionVisibility(); refreshEmptyState(); return fragment; };
+  const removeCard = (id) => { findCard(id)?.remove(); refreshSectionVisibility(); refreshEmptyState(); };
+  return { findCard, getSection, getBoard, replaceCard, insertCard, upsertCard, removeCard, refreshSectionVisibility, refreshEmptyState };
 }

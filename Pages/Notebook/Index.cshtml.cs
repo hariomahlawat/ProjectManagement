@@ -30,6 +30,8 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public Guid? SelectedId { get; set; }
     [BindProperty(SupportsGet = true)]
+    public Guid? Note { get; set; }
+    [BindProperty(SupportsGet = true)]
     public string? Mode { get; set; }
     [BindProperty(SupportsGet = true)]
     public NotebookItemType? Type { get; set; }
@@ -58,6 +60,11 @@ public class IndexModel : PageModel
             return Unauthorized();
         }
         await _import.ImportForUserIfRequiredAsync(uid, ct);
+        if (SelectedId.HasValue && !Note.HasValue)
+        {
+            return RedirectToPage(new { note = SelectedId, view = View, query = Query, filter = Filter, tag = Tag });
+        }
+        SelectedId = Note;
         NormalizeLegacyTypeView();
         var isCreateMode = IsCreateMode();
         Notebook = await _notebook.GetIndexAsync(uid, View, Query, Filter, Tag, SelectedId, ct);
@@ -129,7 +136,7 @@ public class IndexModel : PageModel
         }
 
         await _notebook.RestoreAsync(uid, id, ct);
-        return RedirectToPage(new { view = "archived", query = Query, selectedId = id });
+        return RedirectToPage(new { view = "archived", query = Query, note = id });
     }
 
 
@@ -331,7 +338,7 @@ public class IndexModel : PageModel
             query = Query,
             filter = Filter,
             tag = Tag,
-            selectedId
+            note = selectedId
         });
     }
 }

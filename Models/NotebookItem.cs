@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using ProjectManagement.Services.Notebook;
 
 // SECTION: My Notebook module types
 namespace ProjectManagement.Models;
@@ -37,7 +38,7 @@ public class NotebookItem
     public ApplicationUser? Owner { get; set; }
 
     [Required]
-    [MaxLength(220)]
+    [MaxLength(NotebookLimits.TitleMaxLength)]
     public string Title { get; set; } = string.Empty;
 
     public string? BodyMarkdown { get; set; }
