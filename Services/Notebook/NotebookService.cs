@@ -269,12 +269,12 @@ public sealed class NotebookService : INotebookService
     }
 
     public Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, CancellationToken ct = default) =>
-        UpdateAsync(ownerId, id, input, expectedVersion: null, ct);
+        UpdateCoreAsync(ownerId, id, input, expectedVersion: null, ct);
 
     public async Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, string expectedVersion, CancellationToken ct = default) =>
-        await UpdateAsync(ownerId, id, input, string.IsNullOrWhiteSpace(expectedVersion) ? null : expectedVersion, ct);
+        await UpdateCoreAsync(ownerId, id, input, string.IsNullOrWhiteSpace(expectedVersion) ? null : expectedVersion, ct);
 
-    private async Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, string? expectedVersion, CancellationToken ct)
+    private async Task UpdateCoreAsync(string ownerId, Guid id, NotebookEditInput input, string? expectedVersion, CancellationToken ct)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
         item.Title = CleanTitle(input.Title);
