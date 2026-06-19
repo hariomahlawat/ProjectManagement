@@ -1,19 +1,22 @@
-// SECTION: Notebook API fetch wrapper
+// SECTION: Notebook API error type and fetch wrapper
+export class NotebookApiError extends Error {
+  constructor(message, { status = 0, code = null, errors = null } = {}) {
+    super(message); this.name = 'NotebookApiError'; this.status = status; this.code = code; this.errors = errors;
+  }
+}
 const token = () => document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
 async function request(url, options = {}) {
-  const headers = { 'Accept': 'application/json', ...(options.headers || {}) };
-  if (!(options.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+  const headers = { Accept: 'application/json', ...(options.headers || {}) };
+  if (!(options.body instanceof FormData) && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
   if (token()) headers.RequestVerificationToken = token();
-  const response = await fetch(url, { credentials: 'same-origin', ...options, headers });
-  if (!response.ok) {
-    let details = null;
-    try { details = await response.json(); } catch { details = { error: response.statusText }; }
-    const error = new Error(details?.error || details?.message || 'Notebook request failed.');
-    error.status = response.status; error.details = details; throw error;
-  }
+  let response;
+  try { response = await fetch(url, { credentials: 'same-origin', ...options, headers }); }
+  catch (error) { throw new NotebookApiError('Unable to reach the notebook service.', { status: 0, errors: error }); }
   if (response.status === 204) return null;
   const contentType = response.headers.get('content-type') || '';
-  return contentType.includes('application/json') ? response.json() : response.text();
+  const payload = contentType.includes('application/json') ? await response.json() : await response.text();
+  if (!response.ok) throw new NotebookApiError(payload?.message || payload?.error || 'The notebook operation failed.', { status: response.status, code: payload?.code, errors: payload?.errors });
+  return payload;
 }
 export const NotebookApi = {
   createItem: (payload) => request('/api/notebook/items', { method: 'POST', body: JSON.stringify(payload) }),
@@ -23,5 +26,10 @@ export const NotebookApi = {
   archiveItem: (id) => request(`/api/notebook/items/${id}/archive`, { method: 'POST', body: '{}' }),
   completeItem: (id) => request(`/api/notebook/items/${id}/complete`, { method: 'POST', body: '{}' }),
   reopenItem: (id) => request(`/api/notebook/items/${id}/reopen`, { method: 'POST', body: '{}' }),
+  duplicateItem: (id) => request(`/api/notebook/items/${id}/duplicate`, { method: 'POST', body: '{}' }),
+  deleteItem: (id) => request(`/api/notebook/items/${id}`, { method: 'DELETE' }),
+  restoreItem: (id) => request(`/api/notebook/items/${id}/restore`, { method: 'POST', body: '{}' }),
+  showCheckboxes: (id) => request(`/api/notebook/items/${id}/show-checkboxes`, { method: 'POST', body: '{}' }),
+  hideCheckboxes: (id) => request(`/api/notebook/items/${id}/hide-checkboxes`, { method: 'POST', body: '{}' }),
   getCardHtml: (id, view = 'home') => request(`/api/notebook/items/${id}/card?view=${encodeURIComponent(view)}`, { headers: { Accept: 'text/html' } })
 };

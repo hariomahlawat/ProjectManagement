@@ -8,6 +8,7 @@ const path = require('node:path');
 // Test Discovery
 // -----------------------------------------------------------------------------
 const projectTestsRoot = path.join('wwwroot', 'js', 'projects');
+const notebookTestsRoot = path.join('wwwroot', 'js', 'notebook');
 const explicitTests = [
   path.join('wwwroot', 'js', 'pages', 'action-tasks', 'index.test.js'),
   path.join('wwwroot', 'js', 'pages', 'workspace-index.test.js'),
@@ -41,7 +42,7 @@ function findTestFiles(directory) {
 // -----------------------------------------------------------------------------
 // Test Execution
 // -----------------------------------------------------------------------------
-const testFiles = [...findTestFiles(projectTestsRoot), ...explicitTests];
+const testFiles = [...findTestFiles(projectTestsRoot), ...findTestFiles(notebookTestsRoot), ...explicitTests];
 const result = spawnSync(process.execPath, ['--test', ...testFiles], {
   stdio: 'inherit',
   shell: false,

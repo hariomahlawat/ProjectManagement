@@ -8,5 +8,5 @@ namespace ProjectManagement.Pages.Notebook;
 public class EditModel : PageModel
 {
     // SECTION: Compatibility route; editing is handled in the split panel on Index.
-    public IActionResult OnGet(Guid? id) => RedirectToPage("/Notebook/Index", new { selectedId = id });
+    public IActionResult OnGet(Guid? id) => RedirectToPage("/Notebook/Index", new { note = id });
 }

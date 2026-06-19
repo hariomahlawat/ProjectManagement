@@ -17,7 +17,13 @@ namespace ProjectManagement.Migrations
                 table: "NotebookItems",
                 type: "uuid",
                 nullable: false,
-                defaultValueSql: "gen_random_uuid()");
+                defaultValue: Guid.Empty);
+
+            migrationBuilder.Sql("""
+                UPDATE "NotebookItems"
+                SET "Version" = gen_random_uuid()
+                WHERE "Version" = '00000000-0000-0000-0000-000000000000';
+                """);
         }
 
         /// <inheritdoc />

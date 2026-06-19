@@ -7,8 +7,8 @@ namespace ProjectManagement.Contracts.Notebook;
 // SECTION: Notebook API request contracts
 public class CreateNotebookItemRequest
 {
-    [StringLength(200)] public string? Title { get; set; }
-    [StringLength(20000)] public string? Body { get; set; }
+    [StringLength(NotebookLimits.TitleMaxLength)] public string? Title { get; set; }
+    [StringLength(NotebookLimits.BodyMaxLength)] public string? Body { get; set; }
     public NotebookItemType Type { get; set; } = NotebookItemType.Note;
     public NotebookPriority Priority { get; set; } = NotebookPriority.Normal;
     public DateTimeOffset? ReminderAtUtc { get; set; }

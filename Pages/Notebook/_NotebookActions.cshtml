@@ -21,8 +21,8 @@
     <details class="notebook-card-more">
         <summary aria-label="More actions"><i class="bi bi-three-dots"></i></summary>
         <div class="notebook-card-more__menu" role="menu">
-            <button asp-page-handler="Duplicate" type="submit" role="menuitem">Make a copy</button>
-            <button asp-page-handler="Convert" name="newType" value="@(Model.Item.Type == NotebookItemType.Checklist ? NotebookItemType.Note : NotebookItemType.Checklist)" type="submit" role="menuitem">@(Model.Item.Type == NotebookItemType.Checklist ? "Hide checkboxes" : "Show checkboxes")</button>
+            <button asp-page-handler="Duplicate" type="submit" role="menuitem" data-action="duplicate-note">Make a copy</button>
+            <button asp-page-handler="Convert" name="newType" value="@(Model.Item.Type == NotebookItemType.Checklist ? NotebookItemType.Note : NotebookItemType.Checklist)" type="submit" role="menuitem" data-action="convert-note" data-convert-to="@(Model.Item.Type == NotebookItemType.Checklist ? NotebookItemType.Note : NotebookItemType.Checklist)">@(Model.Item.Type == NotebookItemType.Checklist ? "Hide checkboxes" : "Show checkboxes")</button>
             @if (Model.Item.Status == NotebookItemStatus.Archived)
             {
                 <button asp-page-handler="Restore" type="submit" role="menuitem" data-action="restore-note">Restore</button>
@@ -36,7 +36,7 @@
                 <button asp-page-handler="Archive" type="submit" role="menuitem" data-action="archive-note">Archive</button>
             }
             <span class="notebook-menu-separator" aria-hidden="true"></span>
-            <button asp-page-handler="Delete" class="text-danger" type="submit" role="menuitem">Delete</button>
+            <button asp-page-handler="Delete" class="text-danger" type="submit" role="menuitem" data-action="delete-note">Delete</button>
         </div>
     </details>
 </form>

@@ -25,13 +25,13 @@
     let manualScrollInProgress = false;
     let manualScrollTimer = null;
 
-    const setActive = (target) => {
+    const setActive = (target, preferredLink = null) => {
         for (const link of links) {
             link.classList.remove('active');
             link.removeAttribute('aria-current');
         }
 
-        const entry = sectionEntries.find(item => item.target === target);
+        const entry = preferredLink ? { link: preferredLink } : sectionEntries.find(item => item.target === target);
         if (entry) {
             entry.link.classList.add('active');
             entry.link.setAttribute('aria-current', 'true');
@@ -43,12 +43,14 @@
             event.preventDefault();
 
             manualScrollInProgress = true;
-            setActive(entry.target);
+            setActive(entry.target, entry.link);
 
-            entry.section.scrollIntoView({
-                behavior: 'smooth',
-                block: 'start'
-            });
+            if (typeof entry.section.scrollIntoView === 'function') {
+                entry.section.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            }
 
             window.history.replaceState(null, '', `#${entry.target}`);
 
