@@ -22,12 +22,12 @@ using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Pages.Dashboard;
-using ProjectManagement.Services;
-using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Dashboard;
+using ProjectManagement.Services.Notebook;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.ViewModels.Dashboard;
+using ProjectManagement.ViewModels.Notebook;
 using Xunit;
 
 namespace ProjectManagement.Tests
@@ -80,12 +80,12 @@ namespace ProjectManagement.Tests
                 serviceProvider,
                 NullLogger<UserManager<ApplicationUser>>.Instance);
 
-            var todo = new StubTodoService();
+            var notebook = new StubNotebookService();
             var projectPulse = new StubProjectPulseService();
             var opsSignals = new StubOpsSignalsService();
             var searchHealth = new StubSearchHealthService();
             var logger = NullLogger<IndexModel>.Instance;
-            var page = new IndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth, logger)
+            var page = new IndexModel(notebook, userManager, context, projectPulse, opsSignals, searchHealth, logger)
             {
                 PageContext = new PageContext(new ActionContext(
                     new DefaultHttpContext
@@ -143,12 +143,12 @@ namespace ProjectManagement.Tests
                 serviceProvider,
                 NullLogger<UserManager<ApplicationUser>>.Instance);
 
-            var todo = new StubTodoService();
+            var notebook = new StubNotebookService();
             var projectPulse = new StubProjectPulseService();
             var opsSignals = new StubOpsSignalsService();
             var searchHealth = new StubSearchHealthService();
             var logger = NullLogger<IndexModel>.Instance;
-            var page = new IndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth, logger)
+            var page = new IndexModel(notebook, userManager, context, projectPulse, opsSignals, searchHealth, logger)
             {
                 PageContext = new PageContext(new ActionContext(
                     new DefaultHttpContext
@@ -169,202 +169,61 @@ namespace ProjectManagement.Tests
             Assert.Equal(expected, ev.When);
         }
 
-        [Fact]
-        public async Task OnPostSnoozeAsync_TomorrowMorningAfterTen_UsesNextDay()
+        private sealed class StubNotebookService : INotebookService
         {
-            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
+            public Task<NotebookIndexVm> GetIndexAsync(string ownerId, string view, string? query, string? filter, string? tag, Guid? selectedId, CancellationToken ct = default) =>
+                Task.FromResult(new NotebookIndexVm());
 
-            await using var context = new ApplicationDbContext(options);
+            public Task<NotebookWidgetVm> GetWidgetAsync(string ownerId, int take = 5, CancellationToken ct = default) =>
+                Task.FromResult(new NotebookWidgetVm());
 
-            using var serviceProvider = new ServiceCollection().BuildServiceProvider();
-
-            var userManager = new UserManager<ApplicationUser>(
-                new UserStore<ApplicationUser>(context),
-                Options.Create(new IdentityOptions()),
-                new PasswordHasher<ApplicationUser>(),
-                Array.Empty<IUserValidator<ApplicationUser>>(),
-                Array.Empty<IPasswordValidator<ApplicationUser>>(),
-                new UpperInvariantLookupNormalizer(),
-                new IdentityErrorDescriber(),
-                serviceProvider,
-                NullLogger<UserManager<ApplicationUser>>.Instance);
-
-            var todo = new RecordingTodoService();
-            var nowIst = new DateTimeOffset(2024, 5, 10, 15, 30, 0, TimeSpan.FromHours(5.5));
-
-            var projectPulse = new StubProjectPulseService();
-            var opsSignals = new StubOpsSignalsService();
-            var searchHealth = new StubSearchHealthService();
-            var logger = NullLogger<IndexModel>.Instance;
-            var page = new TestableIndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth, logger, nowIst)
-            {
-                PageContext = new PageContext(new ActionContext(
-                    new DefaultHttpContext
-                    {
-                        User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-                        {
-                            new Claim(ClaimTypes.NameIdentifier, "user-1")
-                        }, "TestAuth"))
-                    },
-                    new RouteData(),
-                    new ActionDescriptor()))
-            };
-
-            var id = Guid.NewGuid();
-            var result = await page.OnPostSnoozeAsync(id, "tom_am");
-
-            Assert.IsType<RedirectToPageResult>(result);
-
-            var expected = new DateTimeOffset(nowIst.Date.AddDays(1).AddHours(10), nowIst.Offset);
-            Assert.Equal(expected, todo.LastDueAtLocal);
-            Assert.Equal(id, todo.LastEditId);
-            Assert.True(todo.LastUpdateDueDate);
-        }
-
-        [Fact]
-        public async Task OnPostSnoozeAsync_ClearPreset_ClearsDueDate()
-        {
-            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
-
-            await using var context = new ApplicationDbContext(options);
-
-            using var serviceProvider = new ServiceCollection().BuildServiceProvider();
-
-            var userManager = new UserManager<ApplicationUser>(
-                new UserStore<ApplicationUser>(context),
-                Options.Create(new IdentityOptions()),
-                new PasswordHasher<ApplicationUser>(),
-                Array.Empty<IUserValidator<ApplicationUser>>(),
-                Array.Empty<IPasswordValidator<ApplicationUser>>(),
-                new UpperInvariantLookupNormalizer(),
-                new IdentityErrorDescriber(),
-                serviceProvider,
-                NullLogger<UserManager<ApplicationUser>>.Instance);
-
-            var todo = new RecordingTodoService();
-            var nowIst = new DateTimeOffset(2024, 5, 10, 15, 30, 0, TimeSpan.FromHours(5.5));
-
-            var projectPulse = new StubProjectPulseService();
-            var opsSignals = new StubOpsSignalsService();
-            var searchHealth = new StubSearchHealthService();
-            var logger = NullLogger<IndexModel>.Instance;
-            var page = new TestableIndexModel(todo, userManager, context, projectPulse, opsSignals, searchHealth, logger, nowIst)
-            {
-                PageContext = new PageContext(new ActionContext(
-                    new DefaultHttpContext
-                    {
-                        User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-                        {
-                            new Claim(ClaimTypes.NameIdentifier, "user-1")
-                        }, "TestAuth"))
-                    },
-                    new RouteData(),
-                    new ActionDescriptor()))
-            };
-
-            var id = Guid.NewGuid();
-            var result = await page.OnPostSnoozeAsync(id, "clear");
-
-            Assert.IsType<RedirectToPageResult>(result);
-            Assert.Equal(id, todo.LastEditId);
-            Assert.Null(todo.LastDueAtLocal);
-            Assert.True(todo.LastUpdateDueDate);
-        }
-
-        private sealed class StubTodoService : ITodoService
-        {
-            public Task<TodoWidgetResult> GetWidgetAsync(string ownerId, int take = 20) =>
-                Task.FromResult(new TodoWidgetResult());
-
-            public Task<TodoItem> CreateAsync(string ownerId, string title, DateTimeOffset? dueAtLocal = null, TodoPriority priority = TodoPriority.Normal, bool pinned = false) =>
+            public Task<Guid> QuickCaptureAsync(string ownerId, string input, NotebookItemType? forcedType = null, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task<bool> ToggleDoneAsync(string ownerId, Guid id, bool done) =>
+            public Task<Guid> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task<bool> EditAsync(string ownerId, Guid id, string? title = null, DateTimeOffset? dueAtLocal = null, bool updateDueDate = false, TodoPriority? priority = null, bool? pinned = null) =>
+            public Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task<bool> DeleteAsync(string ownerId, Guid id) =>
+            public Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, string expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task<int> ClearCompletedAsync(string ownerId) =>
+            public Task ArchiveAsync(string ownerId, Guid id, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task<bool> ReorderAsync(string ownerId, IList<Guid> orderedIds) =>
+            public Task RestoreAsync(string ownerId, Guid id, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task MarkDoneAsync(string ownerId, IList<Guid> ids) =>
+            public Task ReopenAsync(string ownerId, Guid id, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task DeleteManyAsync(string ownerId, IList<Guid> ids) =>
-                throw new NotImplementedException();
-        }
-
-        private sealed class RecordingTodoService : ITodoService
-        {
-            public Guid? LastEditId { get; private set; }
-
-            public DateTimeOffset? LastDueAtLocal { get; private set; }
-
-            public Task<TodoWidgetResult> GetWidgetAsync(string ownerId, int take = 20) =>
-                Task.FromResult(new TodoWidgetResult());
-
-            public Task<TodoItem> CreateAsync(string ownerId, string title, DateTimeOffset? dueAtLocal = null, TodoPriority priority = TodoPriority.Normal, bool pinned = false) =>
+            public Task DeleteAsync(string ownerId, Guid id, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task<bool> ToggleDoneAsync(string ownerId, Guid id, bool done) =>
+            public Task TogglePinAsync(string ownerId, Guid id, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public bool LastUpdateDueDate { get; private set; }
-
-            public Task<bool> EditAsync(string ownerId, Guid id, string? title = null, DateTimeOffset? dueAtLocal = null, bool updateDueDate = false, TodoPriority? priority = null, bool? pinned = null)
-            {
-                LastEditId = id;
-                LastDueAtLocal = dueAtLocal;
-                LastUpdateDueDate = updateDueDate;
-                return Task.FromResult(true);
-            }
-
-            public Task<bool> DeleteAsync(string ownerId, Guid id) =>
+            public Task SetPinnedAsync(string ownerId, Guid id, bool isPinned, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task<int> ClearCompletedAsync(string ownerId) =>
+            public Task<NotebookItemDetailVm?> GetDetailAsync(string ownerId, Guid id, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task<bool> ReorderAsync(string ownerId, IList<Guid> orderedIds) =>
+            public Task ToggleFavoriteAsync(string ownerId, Guid id, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task MarkDoneAsync(string ownerId, IList<Guid> ids) =>
+            public Task CompleteAsync(string ownerId, Guid id, bool isComplete, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task DeleteManyAsync(string ownerId, IList<Guid> ids) =>
+            public Task ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, CancellationToken ct = default) =>
                 throw new NotImplementedException();
-        }
 
-        private sealed class TestableIndexModel : IndexModel
-        {
-            private readonly DateTimeOffset _nowIst;
+            public Task<Guid> DuplicateAsync(string ownerId, Guid id, CancellationToken ct = default) =>
+                throw new NotImplementedException();
 
-            public TestableIndexModel(
-                ITodoService todo,
-                UserManager<ApplicationUser> users,
-                ApplicationDbContext context,
-                IProjectPulseService projectPulse,
-                IOpsSignalsService opsSignals,
-                ISearchHealthService searchHealth,
-                ILogger<IndexModel> logger,
-                DateTimeOffset nowIst)
-                : base(todo, users, context, projectPulse, opsSignals, searchHealth, logger)
-            {
-                _nowIst = nowIst;
-            }
-
-            internal override DateTimeOffset GetNowIst() => _nowIst;
+            public Task ToggleChecklistItemAsync(string ownerId, int checklistItemId, bool isDone, CancellationToken ct = default) =>
+                throw new NotImplementedException();
         }
 
         private sealed class StubSearchHealthService : ISearchHealthService
