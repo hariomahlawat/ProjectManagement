@@ -15,6 +15,19 @@
     input.addEventListener('change', () => input.form?.submit());
   });
 
+  // SECTION: Lift open card menus above neighboring masonry cards
+  document.querySelectorAll('.notebook-card-more').forEach((menu) => {
+    menu.addEventListener('toggle', () => {
+      const card = menu.closest('.notebook-card');
+
+      if (!card) {
+        return;
+      }
+
+      card.classList.toggle('has-open-menu', menu.open);
+    });
+  });
+
   // SECTION: Keep editor type-specific fields in sync with the type dropdown
   const typeSelect = document.querySelector('[data-notebook-type-select]');
   const fieldGroups = Array.from(document.querySelectorAll('[data-notebook-type-fields]'));
