@@ -6,15 +6,14 @@
     var isSelected = Model.SelectedId == item.Id;
     var fallbackColor = string.IsNullOrWhiteSpace(item.ColorKey) && item.Type == NotebookItemType.Reminder ? "amber" : "white";
     var colorClass = $"notebook-card-color-{(string.IsNullOrWhiteSpace(item.ColorKey) ? fallbackColor : item.ColorKey)}";
-    var stickyClass = Model.UseStickySurface ? $"notebook-sticky-surface notebook-sticky-{item.ColorKey}" : string.Empty;
     var tags = item.Tags.Take(3).ToArray();
     var extraTags = Math.Max(0, item.Tags.Count - tags.Length);
 }
 
 @* SECTION: Notebook board card *@
-<article class="notebook-card @colorClass @stickyClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty)">
+<article class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty)">
     <div class="notebook-card-body">
-        <a class="notebook-card-link" asp-page="/Notebook/Index" asp-route-view="@Model.View" asp-route-query="@Model.Query" asp-route-selectedId="@item.Id">
+        <a class="notebook-card-link" asp-page="/Notebook/Index" asp-route-view="@Model.View" asp-route-query="@Model.Query" asp-route-filter="@Model.Filter" asp-route-tag="@Model.Tag" asp-route-selectedId="@item.Id">
             <div class="notebook-card-topline">
                 <span class="notebook-type-chip">@item.Type</span>
                 <span class="notebook-card-indicators">
@@ -83,6 +82,6 @@
         }
     </div>
     <div class="notebook-card-actions">
-        <partial name="_NotebookActions" model="@(new NotebookItemActionVm { Item = item, View = Model.View, Query = Model.Query, SelectedId = Model.SelectedId })" />
+        <partial name="_NotebookActions" model="@(new NotebookItemActionVm { Item = item, View = Model.View, Query = Model.Query, Filter = Model.Filter, Tag = Model.Tag, SelectedId = Model.SelectedId })" />
     </div>
 </article>

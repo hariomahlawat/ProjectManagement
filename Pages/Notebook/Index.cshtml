@@ -10,18 +10,14 @@
     var isCreateMode = string.Equals(Model.Mode, "new", StringComparison.OrdinalIgnoreCase);
     var emptyTitle = Model.Notebook.View switch
     {
-        "notes" => "No notes yet.",
-        "sticky" => "No sticky notes yet.",
-        "checklists" => "No checklists yet.",
+        "labels" => "No labels yet.",
         "today" or "reminders" => "No reminders due.",
         "archived" => "No archived items.",
         _ => "No notebook items yet."
     };
     var emptyText = Model.Notebook.View switch
     {
-        "notes" => "Create a note for longer writing, meeting points or draft text.",
-        "sticky" => "Use sticky notes for quick thoughts and temporary reminders.",
-        "checklists" => "Create a checklist for personal follow-ups or small task lists.",
+        "labels" => "Add tags to notebook items, then browse by label here.",
         "today" or "reminders" => "Add a reminder to any note, checklist or sticky item.",
         "archived" => "Archived notes will appear here.",
         _ => "Use quick capture or create a structured notebook item."
@@ -41,7 +37,7 @@
     <main class="notebook-main">
         <section class="notebook-commandbar">
             <div><p class="eyebrow">Personal workspace</p><h1>My Notebook</h1><p>Notes, reminders, checklists, ideas and drafts in one professional place.</p></div>
-            <form method="get" class="notebook-search"><input type="hidden" name="view" value="@Model.Notebook.View" /><i class="bi bi-search"></i><input name="Query" value="@Model.Query" placeholder="Search title, body or tags" /></form>
+            <form method="get" class="notebook-search"><input type="hidden" name="view" value="@Model.Notebook.View" /><input type="hidden" name="filter" value="@Model.Notebook.Filter" /><input type="hidden" name="tag" value="@Model.Notebook.Tag" /><i class="bi bi-search"></i><input name="Query" value="@Model.Query" placeholder="Search notes or labels" /></form>
         </section>
 
         @* SECTION: Integrated quick capture and creation chips *@
@@ -49,25 +45,44 @@
             <form method="post" asp-page-handler="QuickCapture" class="notebook-capture-form">
                 <input type="hidden" asp-for="View" />
                 <input type="hidden" asp-for="Query" />
+                <input type="hidden" asp-for="Filter" />
+                <input type="hidden" asp-for="Tag" />
                 <input asp-for="QuickCaptureText" placeholder="Take a note..." autocomplete="off" />
                 <button class="notebook-capture-primary" type="submit">Capture</button>
                 <button class="notebook-capture-chip" type="submit" name="ForcedType" value="Sticky"><i class="bi bi-sticky"></i> Sticky</button>
                 <button class="notebook-capture-chip" type="submit" name="ForcedType" value="Checklist"><i class="bi bi-check2-square"></i> Checklist</button>
             </form>
             <div class="notebook-create-row" aria-label="Create notebook item">
-                <a asp-page="/Notebook/Index" asp-route-view="home" asp-route-mode="new" asp-route-type="Note" class="notebook-create-chip"><i class="bi bi-journal-text"></i> New Note</a>
-                <a asp-page="/Notebook/Index" asp-route-view="sticky" asp-route-mode="new" asp-route-type="Sticky" class="notebook-create-chip"><i class="bi bi-sticky"></i> New Sticky</a>
-                <a asp-page="/Notebook/Index" asp-route-view="checklists" asp-route-mode="new" asp-route-type="Checklist" class="notebook-create-chip"><i class="bi bi-check2-square"></i> New Checklist</a>
-                <a asp-page="/Notebook/Index" asp-route-view="reminders" asp-route-mode="new" asp-route-type="Reminder" class="notebook-create-chip"><i class="bi bi-bell"></i> New Reminder</a>
+                <a asp-page="/Notebook/Index" asp-route-view="home" asp-route-mode="new" asp-route-type="Note" class="notebook-create-chip"><i class="bi bi-journal-text"></i> Note</a>
+                <a asp-page="/Notebook/Index" asp-route-view="home" asp-route-mode="new" asp-route-type="Sticky" class="notebook-create-chip"><i class="bi bi-sticky"></i> Sticky</a>
+                <a asp-page="/Notebook/Index" asp-route-view="home" asp-route-mode="new" asp-route-type="Checklist" class="notebook-create-chip"><i class="bi bi-check2-square"></i> Checklist</a>
+                <a asp-page="/Notebook/Index" asp-route-view="reminders" asp-route-mode="new" asp-route-type="Reminder" class="notebook-create-chip"><i class="bi bi-bell"></i> Reminder</a>
             </div>
         </section>
 
+        @* SECTION: Keep-style board filters *@
+        <nav class="notebook-filter-chips" aria-label="Notebook type filters">
+            <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-query="@Model.Notebook.Query" asp-route-tag="@Model.Notebook.Tag" class="@(string.IsNullOrWhiteSpace(Model.Notebook.Filter) ? "is-active" : "")">All</a>
+            <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-query="@Model.Notebook.Query" asp-route-filter="notes" asp-route-tag="@Model.Notebook.Tag" class="@(Model.Notebook.Filter == "notes" ? "is-active" : "")">Notes</a>
+            <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-query="@Model.Notebook.Query" asp-route-filter="sticky" asp-route-tag="@Model.Notebook.Tag" class="@(Model.Notebook.Filter == "sticky" ? "is-active" : "")">Sticky</a>
+            <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-query="@Model.Notebook.Query" asp-route-filter="checklists" asp-route-tag="@Model.Notebook.Tag" class="@(Model.Notebook.Filter == "checklists" ? "is-active" : "")">Checklists</a>
+        </nav>
+
         @* SECTION: Card-first notebook board *@
+        @if (Model.Notebook.View == "labels")
+        {
+            <section class="notebook-labels-panel" aria-label="Notebook labels">
+                <div class="notebook-section-header"><h2>Labels</h2><span>@Model.Notebook.Tags.Count label(s)</span></div>
+                <div class="notebook-label-chips">
+                    @foreach (var tag in Model.Notebook.Tags)
+                    {
+                        <a asp-page="/Notebook/Index" asp-route-view="labels" asp-route-tag="@tag.Name" class="@(Model.Notebook.Tag == tag.Name.ToUpperInvariant() ? "is-active" : "")">#@tag.Name <span>@tag.Count</span></a>
+                    }
+                </div>
+            </section>
+        }
         @if (Model.Notebook.View == "home")
         {
-            <section class="notebook-home-grid" aria-label="Notebook summary">
-                <article><span>Due today</span><strong>@Model.Notebook.Summary.DueToday</strong></article><article><span>Overdue</span><strong>@Model.Notebook.Summary.Overdue</strong></article><article><span>Pinned</span><strong>@Model.Notebook.Summary.PinnedCount</strong></article><article><span>Sticky notes</span><strong>@Model.Notebook.Summary.StickyCount</strong></article>
-            </section>
 
             var sections = new[]
             {
@@ -88,7 +103,7 @@
                         <div class="notebook-board">
                             @foreach (var item in notebookSection.Items)
                             {
-                                <partial name="_NotebookCard" model="@(new NotebookCardRenderVm { Item = item, View = Model.Notebook.View, Query = Model.Notebook.Query, SelectedId = selected?.Id })" />
+                                <partial name="_NotebookCard" model="@(new NotebookCardRenderVm { Item = item, View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id })" />
                             }
                         </div>
                     }
@@ -102,18 +117,16 @@
         else
         {
             <section class="notebook-board-section">
-                <div class="notebook-board @(Model.Notebook.View == "sticky" ? "notebook-board-wide" : string.Empty)">
+                <div class="notebook-board">
                     @foreach (var item in Model.Notebook.Items)
                     {
-                        <partial name="_NotebookCard" model="@(new NotebookCardRenderVm { Item = item, View = Model.Notebook.View, Query = Model.Notebook.Query, SelectedId = selected?.Id, UseStickySurface = Model.Notebook.View == "sticky" })" />
+                        <partial name="_NotebookCard" model="@(new NotebookCardRenderVm { Item = item, View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id })" />
                     }
                 </div>
                 @if (!Model.Notebook.Items.Any())
                 {
                     var emptyType = Model.Notebook.View switch
                     {
-                        "sticky" => "Sticky",
-                        "checklists" => "Checklist",
                         "reminders" or "today" => "Reminder",
                         _ => "Note"
                     };
@@ -127,10 +140,12 @@
     @if (Model.HasEditorOpen)
     {
     <aside class="notebook-editor-drawer">
-        <div class="notebook-editor-header"><h2>@(isCreateMode || selected is null ? $"New {Model.Input.Type.ToString().ToLowerInvariant()}" : "Edit item")</h2><a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-query="@Model.Notebook.Query" class="notebook-editor-close" aria-label="Close editor"><i class="bi bi-x-lg"></i></a></div>
+        <div class="notebook-editor-header"><h2>@(isCreateMode || selected is null ? $"New {Model.Input.Type.ToString().ToLowerInvariant()}" : "Edit item")</h2><a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-query="@Model.Notebook.Query" asp-route-filter="@Model.Notebook.Filter" asp-route-tag="@Model.Notebook.Tag" class="notebook-editor-close" aria-label="Close editor"><i class="bi bi-x-lg"></i></a></div>
         <form method="post" asp-page-handler="@(selected is null ? "Create" : "Update")" asp-route-id="@selected?.Id" class="notebook-editor-form">
             <input type="hidden" asp-for="View" />
             <input type="hidden" asp-for="Query" />
+            <input type="hidden" asp-for="Filter" />
+            <input type="hidden" asp-for="Tag" />
             <label class="notebook-title-field">Title<input asp-for="Input.Title" class="notebook-editor-title-input" required maxlength="220" /></label>
             <section class="notebook-editor-primary">
             <div class="notebook-editor-fields" data-notebook-type-fields="Note,Idea,Draft">

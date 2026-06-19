@@ -10,6 +10,8 @@ public interface INotebookService
         string ownerId,
         string view,
         string? query,
+        string? filter,
+        string? tag,
         Guid? selectedId,
         bool suppressAutoSelect = false,
         CancellationToken ct = default);

@@ -27,11 +27,15 @@ public sealed class NotebookService : INotebookService
         string ownerId,
         string view,
         string? query,
+        string? filter,
+        string? tag,
         Guid? selectedId,
         bool suppressAutoSelect = false,
         CancellationToken ct = default)
     {
         view = NormalizeView(view);
+        filter = NormalizeFilter(filter);
+        tag = NormalizeTagFilter(tag);
         var bounds = TodayBounds(_clock.UtcNow);
 
         var baseQuery = _db.NotebookItems
@@ -52,6 +56,14 @@ public sealed class NotebookService : INotebookService
                 item.Tags.Any(tag => EF.Functions.ILike(tag.NotebookTag!.Name, $"%{search}%")));
         }
 
+        if (!string.IsNullOrWhiteSpace(tag))
+        {
+            activeQuery = activeQuery.Where(item => item.Tags.Any(itemTag =>
+                itemTag.NotebookTag != null && itemTag.NotebookTag.NormalizedName == tag));
+        }
+
+        activeQuery = ApplyTypeFilter(activeQuery, filter);
+
         var activeStatusQuery = ActiveItems(activeQuery);
         var remindersQuery = ReminderItems(activeStatusQuery);
 
@@ -61,11 +73,7 @@ public sealed class NotebookService : INotebookService
                 item.Status == NotebookItemStatus.Active &&
                 item.ReminderAtUtc != null &&
                 item.ReminderAtUtc < bounds.EndUtc),
-            "sticky" => activeQuery.Where(item =>
-                item.Type == NotebookItemType.Sticky &&
-                item.Status == NotebookItemStatus.Active),
-            "notes" => activeQuery.Where(item => item.Type == NotebookItemType.Note),
-            "checklists" => activeQuery.Where(item => item.Type == NotebookItemType.Checklist),
+            "labels" => activeQuery,
             "reminders" => remindersQuery,
             "archived" => baseQuery.Where(item => item.Status == NotebookItemStatus.Archived),
             _ => activeQuery
@@ -135,6 +143,8 @@ public sealed class NotebookService : INotebookService
         {
             View = view,
             Query = query,
+            Filter = filter,
+            Tag = tag,
             Items = items,
             PinnedItems = pinned,
             StickyItems = sticky,
@@ -388,8 +398,52 @@ public sealed class NotebookService : INotebookService
 
     private static string NormalizeView(string? view)
     {
-        var allowedViews = new[] { "home", "today", "sticky", "notes", "checklists", "reminders", "archived" };
+        var legacyTypeViews = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["sticky"] = "home",
+            ["notes"] = "home",
+            ["checklists"] = "home"
+        };
+
+        if (!string.IsNullOrWhiteSpace(view) && legacyTypeViews.TryGetValue(view, out var normalizedLegacy))
+        {
+            return normalizedLegacy;
+        }
+
+        var allowedViews = new[] { "home", "today", "reminders", "labels", "archived" };
         return allowedViews.Contains(view) ? view! : "home";
+    }
+
+    private static string? NormalizeFilter(string? filter)
+    {
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            return null;
+        }
+
+        return filter.Trim().ToLowerInvariant() switch
+        {
+            "note" or "notes" => "notes",
+            "sticky" => "sticky",
+            "checklist" or "checklists" => "checklists",
+            _ => null
+        };
+    }
+
+    private static string? NormalizeTagFilter(string? tag)
+    {
+        return string.IsNullOrWhiteSpace(tag) ? null : NormalizeTag(tag.Trim());
+    }
+
+    private static IQueryable<NotebookItem> ApplyTypeFilter(IQueryable<NotebookItem> query, string? filter)
+    {
+        return filter switch
+        {
+            "notes" => query.Where(item => item.Type == NotebookItemType.Note),
+            "sticky" => query.Where(item => item.Type == NotebookItemType.Sticky),
+            "checklists" => query.Where(item => item.Type == NotebookItemType.Checklist),
+            _ => query
+        };
     }
 
     private static IQueryable<NotebookItem> VisibleItems(IQueryable<NotebookItem> query)
@@ -563,32 +617,19 @@ public sealed class NotebookService : INotebookService
                 item.ReminderAtUtc != null &&
                 item.ReminderAtUtc < bounds.EndUtc,
                 ct),
-            "sticky" => await query.CountAsync(item =>
-                item.Status == NotebookItemStatus.Active &&
-                item.Type == NotebookItemType.Sticky,
-                ct),
-            "notes" => await query.CountAsync(item =>
-                item.Status == NotebookItemStatus.Active &&
-                item.Type == NotebookItemType.Note,
-                ct),
-            "checklists" => await query.CountAsync(item =>
-                item.Status == NotebookItemStatus.Active &&
-                item.Type == NotebookItemType.Checklist,
-                ct),
             "reminders" => await ReminderItems(ActiveItems(query)).CountAsync(ct),
+            "labels" => await _db.NotebookTags.AsNoTracking().CountAsync(tag => tag.OwnerId == ownerId, ct),
             "archived" => await query.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
             _ => 0
         };
 
         var rows = new[]
         {
-            ("home", "Home", "bi-house"),
+            ("home", "All Notes", "bi-journal-text"),
             ("today", "Today", "bi-calendar-check"),
-            ("sticky", "Sticky Board", "bi-sticky"),
-            ("notes", "Notes", "bi-journal-text"),
-            ("checklists", "Checklists", "bi-check2-square"),
             ("reminders", "Reminders", "bi-bell"),
-            ("archived", "Archived", "bi-archive")
+            ("labels", "Labels", "bi-tags"),
+            ("archived", "Archive", "bi-archive")
         };
 
         var list = new List<NotebookRailItemVm>();

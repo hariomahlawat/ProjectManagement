@@ -33,6 +33,10 @@ public class IndexModel : PageModel
     public string? Mode { get; set; }
     [BindProperty(SupportsGet = true)]
     public NotebookItemType? Type { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public string? Filter { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public string? Tag { get; set; }
     [BindProperty]
     public string? QuickCaptureText { get; set; }
     [BindProperty]
@@ -54,8 +58,9 @@ public class IndexModel : PageModel
             return Unauthorized();
         }
         await _import.ImportForUserIfRequiredAsync(uid, ct);
+        NormalizeLegacyTypeView();
         var isCreateMode = IsCreateMode();
-        Notebook = await _notebook.GetIndexAsync(uid, View, Query, SelectedId, isCreateMode, ct);
+        Notebook = await _notebook.GetIndexAsync(uid, View, Query, Filter, Tag, SelectedId, isCreateMode, ct);
         PopulateEditorInput();
         return Page();
     }
@@ -247,6 +252,25 @@ public class IndexModel : PageModel
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
+    private void NormalizeLegacyTypeView()
+    {
+        if (string.Equals(View, "sticky", StringComparison.OrdinalIgnoreCase))
+        {
+            View = "home";
+            Filter ??= "sticky";
+        }
+        else if (string.Equals(View, "notes", StringComparison.OrdinalIgnoreCase))
+        {
+            View = "home";
+            Filter ??= "notes";
+        }
+        else if (string.Equals(View, "checklists", StringComparison.OrdinalIgnoreCase))
+        {
+            View = "home";
+            Filter ??= "checklists";
+        }
+    }
+
     private bool IsCreateMode() => string.Equals(Mode, "new", StringComparison.OrdinalIgnoreCase);
 
     private IActionResult RedirectToCurrent(Guid? selectedId = null)
@@ -255,6 +279,8 @@ public class IndexModel : PageModel
         {
             view = View,
             query = Query,
+            filter = Filter,
+            tag = Tag,
             selectedId
         });
     }

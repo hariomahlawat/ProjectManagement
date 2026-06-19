@@ -9,6 +9,10 @@ public sealed class NotebookIndexVm
 
     public string? Query { get; set; }
 
+    public string? Filter { get; set; }
+
+    public string? Tag { get; set; }
+
     public IReadOnlyList<NotebookRailItemVm> RailItems { get; set; } = Array.Empty<NotebookRailItemVm>();
 
     public IReadOnlyList<NotebookItemListVm> Items { get; set; } = Array.Empty<NotebookItemListVm>();
@@ -173,6 +177,10 @@ public sealed class NotebookCardRenderVm
 
     public string? Query { get; set; }
 
+    public string? Filter { get; set; }
+
+    public string? Tag { get; set; }
+
     public Guid? SelectedId { get; set; }
 
     public bool UseStickySurface { get; set; }
@@ -185,6 +193,10 @@ public sealed class NotebookItemActionVm
     public string View { get; set; } = "home";
 
     public string? Query { get; set; }
+
+    public string? Filter { get; set; }
+
+    public string? Tag { get; set; }
 
     public Guid? SelectedId { get; set; }
 }
