@@ -22,6 +22,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Pages.Dashboard;
+using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Services.Notebook;
 using ProjectManagement.Services.Projects;
