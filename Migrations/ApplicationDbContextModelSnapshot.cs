@@ -8184,6 +8184,7 @@ namespace ProjectManagement.Migrations
                     b.Property<byte>("Status").HasColumnType("smallint");
                     b.Property<string>("Title").IsRequired().HasMaxLength(220).HasColumnType("character varying(220)");
                     b.Property<byte>("Type").HasColumnType("smallint");
+                    b.Property<Guid>("Version").IsConcurrencyToken().HasColumnType("uuid");
                     b.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
                     b.HasKey("Id");
                     b.HasIndex("DeletedAtUtc");
