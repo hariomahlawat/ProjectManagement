@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Services.Notebook;
 
 namespace ProjectManagement.Controllers.Api;
 
@@ -13,6 +14,12 @@ public sealed class NotebookApiExceptionFilter : IAsyncExceptionFilter
         {
             KeyNotFoundException => new NotFoundResult(),
             ArgumentException => new BadRequestObjectResult(new { message = "The notebook request is invalid." }),
+            NotebookConcurrencyException ex => new ConflictObjectResult(new
+            {
+                code = "notebook_concurrency_conflict",
+                message = "This note was changed elsewhere. Reload the latest version before continuing.",
+                currentVersion = ex.CurrentVersion.ToString("N")
+            }),
             DbUpdateConcurrencyException => new ConflictObjectResult(new
             {
                 code = "notebook_concurrency_conflict",

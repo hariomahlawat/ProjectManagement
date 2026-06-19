@@ -1,11 +1,14 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using ProjectManagement.Data;
 
 #nullable disable
 
 namespace ProjectManagement.Migrations
 {
-    /// <inheritdoc />
+    [DbContext(typeof(ApplicationDbContext))]
+    [Migration("20261125231000_AddNotebookItemVersion")]
     public partial class AddNotebookItemVersion : Migration
     {
         /// <inheritdoc />
@@ -16,14 +19,28 @@ namespace ProjectManagement.Migrations
                 name: "Version",
                 table: "NotebookItems",
                 type: "uuid",
-                nullable: false,
-                defaultValue: Guid.Empty);
+                nullable: true);
+
+            // SECTION: Existing row version backfill
+            migrationBuilder.Sql("""
+                CREATE EXTENSION IF NOT EXISTS pgcrypto;
+                """);
 
             migrationBuilder.Sql("""
                 UPDATE "NotebookItems"
                 SET "Version" = gen_random_uuid()
-                WHERE "Version" = '00000000-0000-0000-0000-000000000000';
+                WHERE "Version" IS NULL
+                   OR "Version" = '00000000-0000-0000-0000-000000000000';
                 """);
+
+            migrationBuilder.AlterColumn<Guid>(
+                name: "Version",
+                table: "NotebookItems",
+                type: "uuid",
+                nullable: false,
+                oldClrType: typeof(Guid),
+                oldType: "uuid",
+                oldNullable: true);
         }
 
         /// <inheritdoc />
