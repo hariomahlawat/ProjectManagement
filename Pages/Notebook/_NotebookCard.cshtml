@@ -11,9 +11,9 @@
 }
 
 @* SECTION: Notebook board card *@
-<article data-notebook-card-id="@item.Id" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty)">
+<article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty)">
     <div class="notebook-card-body">
-        <a class="notebook-card-link" asp-page="/Notebook/Index" asp-route-view="@Model.View" asp-route-query="@Model.Query" asp-route-filter="@Model.Filter" asp-route-tag="@Model.Tag" asp-route-selectedId="@item.Id">
+        <a class="notebook-card-link notebook-card__open-area" data-action="open-note" asp-page="/Notebook/Index" asp-route-view="@Model.View" asp-route-query="@Model.Query" asp-route-filter="@Model.Filter" asp-route-tag="@Model.Tag" asp-route-selectedId="@item.Id">
             <div class="notebook-card-topline">
                 <span class="notebook-card-indicators">
                     @if (item.IsPinned) { <i class="bi bi-pin-angle-fill" title="Pinned"></i> }

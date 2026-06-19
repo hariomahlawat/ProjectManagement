@@ -13,7 +13,6 @@ public interface INotebookService
         string? filter,
         string? tag,
         Guid? selectedId,
-        bool suppressAutoSelect = false,
         CancellationToken ct = default);
 
     Task<NotebookWidgetVm> GetWidgetAsync(
@@ -35,9 +34,15 @@ public interface INotebookService
 
     Task RestoreAsync(string ownerId, Guid id, CancellationToken ct = default);
 
+    Task ReopenAsync(string ownerId, Guid id, CancellationToken ct = default);
+
     Task DeleteAsync(string ownerId, Guid id, CancellationToken ct = default);
 
     Task TogglePinAsync(string ownerId, Guid id, CancellationToken ct = default);
+
+    Task SetPinnedAsync(string ownerId, Guid id, bool isPinned, CancellationToken ct = default);
+
+    Task<NotebookItemDetailVm?> GetDetailAsync(string ownerId, Guid id, CancellationToken ct = default);
 
     Task ToggleFavoriteAsync(string ownerId, Guid id, CancellationToken ct = default);
 

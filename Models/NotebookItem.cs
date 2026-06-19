@@ -65,6 +65,9 @@ public class NotebookItem
 
     public DateTimeOffset CreatedAtUtc { get; set; }
 
+    [ConcurrencyCheck]
+    public Guid Version { get; set; } = Guid.NewGuid();
+
     public DateTimeOffset UpdatedAtUtc { get; set; }
 
     public DateTimeOffset? ArchivedAtUtc { get; set; }

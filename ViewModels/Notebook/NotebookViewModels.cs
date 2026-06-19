@@ -23,7 +23,7 @@ public sealed class NotebookIndexVm
 
     public IReadOnlyList<NotebookItemListVm> DueItems { get; set; } = Array.Empty<NotebookItemListVm>();
 
-    public IReadOnlyList<NotebookItemListVm> RecentItems { get; set; } = Array.Empty<NotebookItemListVm>();
+    public IReadOnlyList<NotebookItemListVm> OtherItems { get; set; } = Array.Empty<NotebookItemListVm>();
 
     public IReadOnlyList<NotebookTagVm> Tags { get; set; } = Array.Empty<NotebookTagVm>();
 
@@ -82,6 +82,8 @@ public class NotebookItemListVm
     public bool IsOverdue { get; set; }
 
     public bool IsDueToday { get; set; }
+
+    public string Version { get; set; } = string.Empty;
 }
 
 public sealed class NotebookItemDetailVm : NotebookItemListVm
@@ -139,6 +141,8 @@ public sealed class NotebookSummaryVm
     public int PinnedCount { get; set; }
 
     public int ChecklistCount { get; set; }
+
+    public int CompletedCount { get; set; }
 }
 
 public sealed class NotebookWidgetVm

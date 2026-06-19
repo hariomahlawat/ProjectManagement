@@ -218,6 +218,7 @@ namespace ProjectManagement.Data
                 entity.Property(x => x.Type).HasConversion<byte>();
                 entity.Property(x => x.Status).HasConversion<byte>();
                 entity.Property(x => x.Priority).HasConversion<byte>();
+                entity.Property(x => x.Version).IsConcurrencyToken();
                 entity.HasOne(x => x.Owner).WithMany().HasForeignKey(x => x.OwnerId).OnDelete(DeleteBehavior.Cascade);
             });
 

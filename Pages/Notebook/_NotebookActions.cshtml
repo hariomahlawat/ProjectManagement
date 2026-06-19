@@ -10,30 +10,26 @@
     <input type="hidden" name="Filter" value="@Model.Filter" />
     <input type="hidden" name="Tag" value="@Model.Tag" />
 
-    <button asp-page-handler="TogglePin" title="@(Model.Item.IsPinned ? "Unpin" : "Pin")" aria-label="@(Model.Item.IsPinned ? "Unpin note" : "Pin note")" type="submit" class="notebook-action-icon notebook-action-pin">
+    <button asp-page-handler="TogglePin" title="@(Model.Item.IsPinned ? "Unpin" : "Pin")" aria-label="@(Model.Item.IsPinned ? "Unpin note" : "Pin note")" type="submit" class="notebook-action-icon notebook-action-pin" data-action="pin-note" data-is-pinned="@Model.Item.IsPinned.ToString().ToLowerInvariant()">
         <i class="bi @(Model.Item.IsPinned ? "bi-pin-angle-fill" : "bi-pin-angle")"></i>
     </button>
-    <button type="button" title="Reminder" aria-label="Edit reminder" class="notebook-action-icon"><i class="bi bi-bell"></i></button>
-    <button type="button" title="Colour" aria-label="Change colour" class="notebook-action-icon"><i class="bi bi-palette"></i></button>
-
-    @if (Model.Item.Type == NotebookItemType.Reminder || Model.Item.ReminderAtUtc is not null)
+        @if (Model.Item.Type == NotebookItemType.Reminder || Model.Item.ReminderAtUtc is not null)
     {
-        <button asp-page-handler="Complete" name="isComplete" value="true" type="submit" class="notebook-action-done">Done</button>
+        <button asp-page-handler="Complete" name="isComplete" value="true" type="submit" data-action="complete-note" class="notebook-action-done">Done</button>
     }
 
     <details class="notebook-card-more">
         <summary aria-label="More actions"><i class="bi bi-three-dots"></i></summary>
         <div class="notebook-card-more__menu" role="menu">
-            <button asp-page-handler="AddLabel" type="submit" role="menuitem">Add label</button>
             <button asp-page-handler="Duplicate" type="submit" role="menuitem">Make a copy</button>
             <button asp-page-handler="Convert" name="newType" value="@(Model.Item.Type == NotebookItemType.Checklist ? NotebookItemType.Note : NotebookItemType.Checklist)" type="submit" role="menuitem">@(Model.Item.Type == NotebookItemType.Checklist ? "Hide checkboxes" : "Show checkboxes")</button>
             @if (Model.Item.Status == NotebookItemStatus.Archived)
             {
-                <button asp-page-handler="Restore" type="submit" role="menuitem">Restore</button>
+                <button asp-page-handler="Complete" name="isComplete" value="false" type="submit" role="menuitem" data-action="reopen-note">Reopen</button>
             }
             else
             {
-                <button asp-page-handler="Archive" type="submit" role="menuitem">Archive</button>
+                <button asp-page-handler="Archive" type="submit" role="menuitem" data-action="archive-note">Archive</button>
             }
             <span class="notebook-menu-separator" aria-hidden="true"></span>
             <button asp-page-handler="Delete" class="text-danger" type="submit" role="menuitem">Delete</button>

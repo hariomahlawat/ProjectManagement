@@ -60,7 +60,7 @@ public class IndexModel : PageModel
         await _import.ImportForUserIfRequiredAsync(uid, ct);
         NormalizeLegacyTypeView();
         var isCreateMode = IsCreateMode();
-        Notebook = await _notebook.GetIndexAsync(uid, View, Query, Filter, Tag, SelectedId, isCreateMode, ct);
+        Notebook = await _notebook.GetIndexAsync(uid, View, Query, Filter, Tag, SelectedId, ct);
         PopulateEditorInput();
         return Page();
     }
@@ -189,7 +189,14 @@ public class IndexModel : PageModel
             return Unauthorized();
         }
 
-        await _notebook.CompleteAsync(uid, id, isComplete, ct);
+        if (isComplete)
+        {
+            await _notebook.CompleteAsync(uid, id, true, ct);
+        }
+        else
+        {
+            await _notebook.ReopenAsync(uid, id, ct);
+        }
         return RedirectToCurrent();
     }
 

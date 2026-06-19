@@ -13,6 +13,7 @@
         "labels" => "No labels yet.",
         "today" or "reminders" => "No reminders due.",
         "archived" => "No archived items.",
+        "completed" => "No completed items.",
         _ => "No notebook items yet."
     };
     var emptyText = Model.Notebook.View switch
@@ -20,6 +21,7 @@
         "labels" => "Add tags to notebook items, then browse by label here.",
         "today" or "reminders" => "Add a reminder to any note, checklist or sticky item.",
         "archived" => "Archived notes will appear here.",
+        "completed" => "Completed notes will appear here.",
         _ => "Use quick capture or create a structured notebook item."
     };
 }
@@ -41,7 +43,7 @@
         </section>
 
         @* SECTION: Board-first inline composer fallback *@
-        <section class="notebook-composer" aria-label="Create a notebook item">
+        <section class="notebook-composer" aria-label="Create a notebook item" data-notebook-composer>
             <form method="post" asp-page-handler="QuickCapture" class="notebook-composer__form">
                 <input type="hidden" asp-for="View" />
                 <input type="hidden" asp-for="Query" />
@@ -81,7 +83,7 @@
             var sections = new[]
             {
                 (Title: "Pinned", Items: Model.Notebook.PinnedItems, AlwaysShow: false),
-                (Title: "Others", Items: Model.Notebook.RecentItems, AlwaysShow: true)
+                (Title: "Others", Items: Model.Notebook.OtherItems, AlwaysShow: true)
             };
 
             var hasAnyHomeItems = sections.Any(notebookSection => notebookSection.Items.Any());
@@ -89,7 +91,7 @@
             @* SECTION: Manual-order friendly home board sections *@
             foreach (var notebookSection in sections.Where(notebookSection => notebookSection.Items.Any() || notebookSection.AlwaysShow))
             {
-                <section class="notebook-board-section">
+                <section class="notebook-board-section" data-board-section="@notebookSection.Title.ToLowerInvariant()">
                     <div class="notebook-section-header"><h2>@notebookSection.Title</h2><span>@notebookSection.Items.Count item(s)</span></div>
                     @if (notebookSection.Items.Any())
                     {
@@ -123,7 +125,7 @@
                         "reminders" or "today" => "Reminder",
                         _ => "Note"
                     };
-                    var cta = Model.Notebook.View == "archived" ? null : $"New {emptyType}";
+                    var cta = Model.Notebook.View is "archived" or "completed" ? null : $"New {emptyType}";
                     <div class="notebook-empty"><h3>@emptyTitle</h3><p>@emptyText</p>@if (cta is not null) { <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-mode="new" asp-route-type="@emptyType" class="btn btn-sm btn-primary">@cta</a> }</div>
                 }
             </section>
@@ -214,4 +216,4 @@
     }
 </div>
 
-@section Scripts { <script src="~/js/pages/notebook-index.js" asp-append-version="true"></script> }
+@section Scripts { <script type="module" src="~/js/pages/notebook-index.js" asp-append-version="true"></script> }

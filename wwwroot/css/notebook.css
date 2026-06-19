@@ -189,3 +189,16 @@
 @media (hover: none) { .notebook-card-actions { opacity: 1; } }
 @media (max-width: 900px) { .notebook-board { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); } }
 @media (max-width: 820px) { .notebook-shell { display: block; } .notebook-rail { position: static; margin-bottom: 1rem; } .notebook-commandbar, .notebook-composer__form { flex-direction: column; align-items: stretch; } .notebook-search { min-width: 0; } .notebook-editor-drawer { inset: .75rem; width: auto; border-radius: 16px; } }
+
+/* SECTION: Notebook modal editor */
+.notebook-modal[hidden] { display: none; }
+.notebook-modal { position: fixed; inset: 0; z-index: 1050; display: grid; place-items: center; padding: 2rem; }
+.notebook-modal__backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .42); }
+.notebook-modal__dialog { position: relative; width: min(680px, 100%); max-height: calc(100vh - 4rem); overflow: auto; background: #fff; border-radius: 1rem; box-shadow: 0 24px 80px rgba(15, 23, 42, .28); padding: 1rem; }
+.notebook-modal__dialog header { display: flex; gap: .75rem; align-items: center; }
+.notebook-modal__title, .notebook-modal__body { width: 100%; border: 0; outline: 0; background: transparent; }
+.notebook-modal__title { font-size: 1.25rem; font-weight: 700; }
+.notebook-modal__body { min-height: 220px; resize: vertical; margin-top: .75rem; }
+.notebook-modal__status { min-height: 1.5rem; color: #64748b; font-size: .875rem; }
+@media (max-width: 640px) { .notebook-modal { padding: 0; } .notebook-modal__dialog { width: 100%; min-height: 100%; max-height: 100%; border-radius: 0; } }
+@media (prefers-reduced-motion: reduce) { .notebook-modal, .notebook-modal__dialog { transition: none !important; } }
