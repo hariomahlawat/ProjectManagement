@@ -5,7 +5,7 @@ using ProjectManagement.Services.Notebook;
 namespace ProjectManagement.Contracts.Notebook;
 
 // SECTION: Notebook API request contracts
-public sealed class CreateNotebookItemRequest
+public class CreateNotebookItemRequest
 {
     [StringLength(200)] public string? Title { get; set; }
     [StringLength(20000)] public string? Body { get; set; }
