@@ -83,6 +83,13 @@ namespace ProjectManagement.Pages.Dashboard
             public bool IsHoliday { get; set; }
         }
 
+        // SECTION: Testable dashboard clock
+        internal virtual DateTimeOffset GetNowIst()
+        {
+            return TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IST);
+        }
+        // END SECTION
+
 
         public async Task OnGetAsync(CancellationToken cancellationToken)
         {
