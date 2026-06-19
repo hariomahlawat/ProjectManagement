@@ -90,9 +90,10 @@ public sealed class NotebookService : INotebookService
             .ToArray();
 
         var pinned = (await activeQuery
-                .Where(item => item.IsPinned)
-                .OrderByDescending(item => item.UpdatedAtUtc)
-                .Take(6)
+                .Where(item => item.Status == NotebookItemStatus.Active && item.IsPinned)
+                .OrderBy(item => item.SortOrder == 0 ? int.MaxValue : item.SortOrder)
+                .ThenByDescending(item => item.UpdatedAtUtc)
+                .Take(80)
                 .ToListAsync(ct))
             .Select(item => ToListVm(item, bounds))
             .ToArray();
@@ -117,17 +118,12 @@ public sealed class NotebookService : INotebookService
             .ToArray();
 
 
-        var homeShownIds = pinned.Select(item => item.Id)
-            .Concat(due.Select(item => item.Id))
-            .ToHashSet();
-
-        // SECTION: Home recent items exclude cards already shown in priority sections before limiting
+        // SECTION: Home board uses a manual-order friendly Others section.
         var recent = (await activeQuery
-                .Where(item =>
-                    item.Status == NotebookItemStatus.Active &&
-                    !homeShownIds.Contains(item.Id))
-                .OrderByDescending(item => item.UpdatedAtUtc)
-                .Take(12)
+                .Where(item => item.Status == NotebookItemStatus.Active && !item.IsPinned)
+                .OrderBy(item => item.SortOrder == 0 ? int.MaxValue : item.SortOrder)
+                .ThenByDescending(item => item.UpdatedAtUtc)
+                .Take(80)
                 .ToListAsync(ct))
             .Select(item => ToListVm(item, bounds))
             .ToArray();
@@ -268,7 +264,7 @@ public sealed class NotebookService : INotebookService
             UpdatedAtUtc = now
         };
 
-        ApplyChecklist(item, input.ChecklistItems, now);
+        ApplyChecklist(item, input.ChecklistRows.Any() ? input.ChecklistRows : input.ChecklistItems.Select((text, index) => new NotebookChecklistEditRow { Text = text, SortOrder = index }).ToArray(), now);
         _db.NotebookItems.Add(item);
         await SyncTags(item, ownerId, input.Tags, ct);
         await _db.SaveChangesAsync(ct);
@@ -289,7 +285,7 @@ public sealed class NotebookService : INotebookService
         item.ColorKey = CleanColor(input.ColorKey, input.Type);
         item.UpdatedAtUtc = _clock.UtcNow;
 
-        SyncChecklistItems(item, input.ChecklistItems, item.UpdatedAtUtc);
+        SyncChecklistItems(item, input.ChecklistRows.Any() ? input.ChecklistRows : input.ChecklistItems.Select((text, index) => new NotebookChecklistEditRow { Text = text, SortOrder = index }).ToArray(), item.UpdatedAtUtc);
         await SyncTags(item, ownerId, input.Tags, ct);
         await _db.SaveChangesAsync(ct);
         await _audit.LogAsync("Notebook.Update", userId: ownerId, data: new Dictionary<string, string?> { ["Id"] = id.ToString() });
@@ -357,6 +353,49 @@ public sealed class NotebookService : INotebookService
         await _db.SaveChangesAsync(ct);
     }
 
+
+    public async Task<Guid> DuplicateAsync(string ownerId, Guid id, CancellationToken ct = default)
+    {
+        var source = await LoadOwned(ownerId, id, ct);
+        var now = _clock.UtcNow;
+        var copy = new NotebookItem
+        {
+            OwnerId = ownerId,
+            Title = CleanTitle($"{source.Title} copy"),
+            BodyMarkdown = source.BodyMarkdown,
+            Type = source.Type,
+            Priority = source.Priority,
+            ReminderAtUtc = source.ReminderAtUtc,
+            IsPinned = source.IsPinned,
+            IsFavorite = false,
+            ColorKey = CleanColor(source.ColorKey, source.Type),
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        };
+
+        foreach (var row in source.ChecklistItems.OrderBy(row => row.SortOrder))
+        {
+            copy.ChecklistItems.Add(new NotebookChecklistItem
+            {
+                Text = row.Text,
+                IsDone = row.IsDone,
+                SortOrder = row.SortOrder,
+                CreatedAtUtc = now,
+                CompletedAtUtc = row.IsDone ? now : null
+            });
+        }
+
+        foreach (var tag in source.Tags.Where(tag => tag.NotebookTag is not null))
+        {
+            copy.Tags.Add(new NotebookItemTag { NotebookItem = copy, NotebookTag = tag.NotebookTag });
+        }
+
+        _db.NotebookItems.Add(copy);
+        await _db.SaveChangesAsync(ct);
+        await _audit.LogAsync("Notebook.Duplicate", userId: ownerId, data: new Dictionary<string, string?> { ["SourceId"] = id.ToString(), ["Id"] = copy.Id.ToString() });
+        return copy.Id;
+    }
+
     public async Task ToggleChecklistItemAsync(string ownerId, int checklistItemId, bool isDone, CancellationToken ct = default)
     {
         var checklistItem = await _db.NotebookChecklistItems
@@ -369,6 +408,7 @@ public sealed class NotebookService : INotebookService
 
         checklistItem.IsDone = isDone;
         checklistItem.CompletedAtUtc = isDone ? _clock.UtcNow : null;
+        checklistItem.NotebookItem!.UpdatedAtUtc = _clock.UtcNow;
         await _db.SaveChangesAsync(ct);
     }
 
@@ -667,60 +707,60 @@ public sealed class NotebookService : INotebookService
             .ToArrayAsync(ct);
     }
 
-    private static void ApplyChecklist(NotebookItem item, IReadOnlyList<string> lines, DateTimeOffset now)
+    private static void ApplyChecklist(NotebookItem item, IReadOnlyList<NotebookChecklistEditRow> rows, DateTimeOffset now)
     {
         var sortOrder = 0;
-        foreach (var line in lines.Select(line => line.Trim()).Where(line => line.Length > 0))
+        foreach (var row in rows.Where(row => !string.IsNullOrWhiteSpace(row.Text)).OrderBy(row => row.SortOrder))
         {
+            var text = row.Text.Trim();
             item.ChecklistItems.Add(new NotebookChecklistItem
             {
-                Text = line[..Math.Min(line.Length, 300)],
+                Text = text[..Math.Min(text.Length, 300)],
+                IsDone = row.IsDone,
                 SortOrder = sortOrder++,
-                CreatedAtUtc = now
+                CreatedAtUtc = now,
+                CompletedAtUtc = row.IsDone ? now : null
             });
         }
     }
 
-    private void SyncChecklistItems(NotebookItem item, IReadOnlyList<string> lines, DateTimeOffset now)
+    private void SyncChecklistItems(NotebookItem item, IReadOnlyList<NotebookChecklistEditRow> rows, DateTimeOffset now)
     {
-        var desiredLines = lines
-            .Select(line => line?.Trim())
-            .Where(line => !string.IsNullOrWhiteSpace(line))
-            .Select(line => line![..Math.Min(line.Length, 300)])
-            .ToList();
-
-        var existingItems = item.ChecklistItems
+        var requestedRows = rows
+            .Where(row => !string.IsNullOrWhiteSpace(row.Text))
             .OrderBy(row => row.SortOrder)
             .ToList();
 
-        var usedExistingIds = new HashSet<int>();
+        var existingById = item.ChecklistItems.ToDictionary(row => row.Id);
+        var requestedIds = requestedRows.Where(row => row.Id.HasValue).Select(row => row.Id!.Value).ToHashSet();
         var nextSortOrder = 0;
 
-        foreach (var desiredText in desiredLines)
+        foreach (var requested in requestedRows)
         {
-            var existing = existingItems.FirstOrDefault(row =>
-                !usedExistingIds.Contains(row.Id) &&
-                string.Equals(row.Text.Trim(), desiredText, StringComparison.OrdinalIgnoreCase));
+            var text = requested.Text.Trim();
+            text = text[..Math.Min(text.Length, 300)];
 
-            if (existing is not null)
+            if (requested.Id.HasValue && existingById.TryGetValue(requested.Id.Value, out var existing))
             {
-                existing.Text = desiredText;
+                existing.Text = text;
+                existing.IsDone = requested.IsDone;
+                existing.CompletedAtUtc = requested.IsDone ? existing.CompletedAtUtc ?? now : null;
                 existing.SortOrder = nextSortOrder++;
-                usedExistingIds.Add(existing.Id);
                 continue;
             }
 
             item.ChecklistItems.Add(new NotebookChecklistItem
             {
                 NotebookItemId = item.Id,
-                Text = desiredText,
-                IsDone = false,
+                Text = text,
+                IsDone = requested.IsDone,
                 SortOrder = nextSortOrder++,
-                CreatedAtUtc = now
+                CreatedAtUtc = now,
+                CompletedAtUtc = requested.IsDone ? now : null
             });
         }
 
-        foreach (var row in existingItems.Where(row => !usedExistingIds.Contains(row.Id)))
+        foreach (var row in item.ChecklistItems.Where(row => row.Id != 0 && !requestedIds.Contains(row.Id)).ToList())
         {
             item.ChecklistItems.Remove(row);
         }

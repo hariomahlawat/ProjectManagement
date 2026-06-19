@@ -40,33 +40,27 @@
             <form method="get" class="notebook-search"><input type="hidden" name="view" value="@Model.Notebook.View" /><input type="hidden" name="filter" value="@Model.Notebook.Filter" /><input type="hidden" name="tag" value="@Model.Notebook.Tag" /><i class="bi bi-search"></i><input name="Query" value="@Model.Query" placeholder="Search notes or labels" /></form>
         </section>
 
-        @* SECTION: Integrated quick capture and creation chips *@
-        <section class="notebook-capture-panel">
-            <form method="post" asp-page-handler="QuickCapture" class="notebook-capture-form">
+        @* SECTION: Board-first inline composer fallback *@
+        <section class="notebook-composer" aria-label="Create a notebook item">
+            <form method="post" asp-page-handler="QuickCapture" class="notebook-composer__form">
                 <input type="hidden" asp-for="View" />
                 <input type="hidden" asp-for="Query" />
                 <input type="hidden" asp-for="Filter" />
                 <input type="hidden" asp-for="Tag" />
-                <input asp-for="QuickCaptureText" placeholder="Take a note..." autocomplete="off" />
-                <button class="notebook-capture-primary" type="submit">Capture</button>
-                <button class="notebook-capture-chip" type="submit" name="ForcedType" value="Sticky"><i class="bi bi-sticky"></i> Sticky</button>
-                <button class="notebook-capture-chip" type="submit" name="ForcedType" value="Checklist"><i class="bi bi-check2-square"></i> Checklist</button>
+                <input asp-for="QuickCaptureText" placeholder="Take a note…" autocomplete="off" aria-label="Take a note" />
+                <button class="notebook-composer__checklist" type="submit" name="ForcedType" value="Checklist" aria-label="Create checklist"><i class="bi bi-check2-square"></i><span>Checklist</span></button>
+                <button class="notebook-composer__save" type="submit">Close</button>
             </form>
-            <div class="notebook-create-row" aria-label="Create notebook item">
-                <a asp-page="/Notebook/Index" asp-route-view="home" asp-route-mode="new" asp-route-type="Note" class="notebook-create-chip"><i class="bi bi-journal-text"></i> Note</a>
-                <a asp-page="/Notebook/Index" asp-route-view="home" asp-route-mode="new" asp-route-type="Sticky" class="notebook-create-chip"><i class="bi bi-sticky"></i> Sticky</a>
-                <a asp-page="/Notebook/Index" asp-route-view="home" asp-route-mode="new" asp-route-type="Checklist" class="notebook-create-chip"><i class="bi bi-check2-square"></i> Checklist</a>
-                <a asp-page="/Notebook/Index" asp-route-view="reminders" asp-route-mode="new" asp-route-type="Reminder" class="notebook-create-chip"><i class="bi bi-bell"></i> Reminder</a>
-            </div>
         </section>
 
-        @* SECTION: Keep-style board filters *@
-        <nav class="notebook-filter-chips" aria-label="Notebook type filters">
-            <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-query="@Model.Notebook.Query" asp-route-tag="@Model.Notebook.Tag" class="@(string.IsNullOrWhiteSpace(Model.Notebook.Filter) ? "is-active" : "")">All</a>
-            <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-query="@Model.Notebook.Query" asp-route-filter="notes" asp-route-tag="@Model.Notebook.Tag" class="@(Model.Notebook.Filter == "notes" ? "is-active" : "")">Notes</a>
-            <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-query="@Model.Notebook.Query" asp-route-filter="sticky" asp-route-tag="@Model.Notebook.Tag" class="@(Model.Notebook.Filter == "sticky" ? "is-active" : "")">Sticky</a>
-            <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-query="@Model.Notebook.Query" asp-route-filter="checklists" asp-route-tag="@Model.Notebook.Tag" class="@(Model.Notebook.Filter == "checklists" ? "is-active" : "")">Checklists</a>
-        </nav>
+        @* SECTION: Toolbar view controls *@
+        <section class="notebook-viewbar" aria-label="Notebook view controls">
+            <span>@(Model.Notebook.View == "home" ? "Notes" : Model.Notebook.View)</span>
+            <div class="notebook-view-toggle" role="group" aria-label="Board layout">
+                <button type="button" data-notebook-view="grid" aria-label="Grid view"><i class="bi bi-grid-3x3-gap"></i></button>
+                <button type="button" data-notebook-view="list" aria-label="List view"><i class="bi bi-list-ul"></i></button>
+            </div>
+        </section>
 
         @* SECTION: Card-first notebook board *@
         @if (Model.Notebook.View == "labels")
@@ -86,28 +80,27 @@
 
             var sections = new[]
             {
-                (Title: "Pinned", Items: Model.Notebook.PinnedItems),
-                (Title: "Today & Overdue", Items: Model.Notebook.DueItems),
-                (Title: "Recent", Items: Model.Notebook.RecentItems)
+                (Title: "Pinned", Items: Model.Notebook.PinnedItems, AlwaysShow: false),
+                (Title: "Others", Items: Model.Notebook.RecentItems, AlwaysShow: true)
             };
 
             var hasAnyHomeItems = sections.Any(notebookSection => notebookSection.Items.Any());
 
-            @* SECTION: Home sections only show an empty state when the whole home board is empty *@
-            foreach (var notebookSection in sections.Where(notebookSection => notebookSection.Items.Any() || notebookSection.Title == "Recent"))
+            @* SECTION: Manual-order friendly home board sections *@
+            foreach (var notebookSection in sections.Where(notebookSection => notebookSection.Items.Any() || notebookSection.AlwaysShow))
             {
                 <section class="notebook-board-section">
                     <div class="notebook-section-header"><h2>@notebookSection.Title</h2><span>@notebookSection.Items.Count item(s)</span></div>
                     @if (notebookSection.Items.Any())
                     {
-                        <div class="notebook-board">
+                        <div class="notebook-board" data-notebook-board>
                             @foreach (var item in notebookSection.Items)
                             {
                                 <partial name="_NotebookCard" model="@(new NotebookCardRenderVm { Item = item, View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id })" />
                             }
                         </div>
                     }
-                    else if (notebookSection.Title == "Recent" && !hasAnyHomeItems)
+                    else if (!hasAnyHomeItems)
                     {
                         <div class="notebook-empty notebook-empty-compact"><h3>@emptyTitle</h3><p>@emptyText</p></div>
                     }
@@ -117,7 +110,7 @@
         else
         {
             <section class="notebook-board-section">
-                <div class="notebook-board">
+                <div class="notebook-board" data-notebook-board>
                     @foreach (var item in Model.Notebook.Items)
                     {
                         <partial name="_NotebookCard" model="@(new NotebookCardRenderVm { Item = item, View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id })" />
@@ -156,7 +149,27 @@
 
             </div>
             <div class="notebook-editor-fields" data-notebook-type-fields="Checklist">
-                <label class="notebook-field-prominent">Checklist items<textarea asp-for="ChecklistText" placeholder="One checklist item per line"></textarea></label>
+                <div class="notebook-field-prominent notebook-checklist-edit-list">
+                    <span>Checklist items</span>
+                    @if (selected?.ChecklistItems.Any() == true)
+                    {
+                        var rowIndex = 0;
+                        foreach (var row in selected.ChecklistItems)
+                        {
+                            <label class="notebook-checklist-edit-row">
+                                <input type="hidden" name="ChecklistRows[@rowIndex].Id" value="@row.Id" />
+                                <input type="hidden" name="ChecklistRows[@rowIndex].SortOrder" value="@row.SortOrder" />
+                                <input type="hidden" name="ChecklistRows[@rowIndex].IsDone" value="@(row.IsDone ? "true" : "false")" />
+                                <input name="ChecklistRows[@rowIndex].Text" value="@row.Text" maxlength="300" />
+                            </label>
+                            rowIndex++;
+                        }
+                    }
+                    else
+                    {
+                        <textarea asp-for="ChecklistText" placeholder="One checklist item per line"></textarea>
+                    }
+                </div>
                 <label data-notebook-checklist-reminder>Reminder (IST)<input asp-for="Input.ReminderLocal" type="datetime-local" /></label>
                 <label>Priority<select asp-for="Input.Priority" asp-items="Html.GetEnumSelectList<NotebookPriority>()"></select></label>
                 <label>Optional notes<textarea asp-for="Input.BodyMarkdown" data-autoresize></textarea></label>
