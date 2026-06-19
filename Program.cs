@@ -673,19 +673,41 @@ using (var scope = app.Services.CreateScope())
     if (db.Database.IsRelational())
     {
         databaseIsRelational = true;
-        await db.Database.MigrateAsync();
 
-        var applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
-        latestAppliedMigration = applied.Count > 0 ? applied[^1] : "(none)";
+        // SECTION: Startup database identity and migration gate
+        var connection = db.Database.GetDbConnection();
+        app.Logger.LogInformation(
+            "Database provider: {Provider}; Server: {Server}; Database: {Database}",
+            db.Database.ProviderName,
+            connection.DataSource,
+            connection.Database);
 
         pendingMigrations = (await db.Database.GetPendingMigrationsAsync()).ToList();
         if (pendingMigrations.Count > 0)
         {
             var message = $"Database has {pendingMigrations.Count} pending migration(s): {string.Join(", ", pendingMigrations)}";
             app.Logger.LogCritical(message);
+
+            if (!app.Environment.IsDevelopment())
+            {
+                throw new InvalidOperationException(message);
+            }
+
+            await db.Database.MigrateAsync();
+            pendingMigrations = (await db.Database.GetPendingMigrationsAsync()).ToList();
+        }
+
+        var applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+        latestAppliedMigration = applied.Count > 0 ? applied[^1] : "(none)";
+
+        if (pendingMigrations.Count > 0)
+        {
+            var message = $"Database still has {pendingMigrations.Count} pending migration(s): {string.Join(", ", pendingMigrations)}";
+            app.Logger.LogCritical(message);
             throw new InvalidOperationException(message);
         }
 
+        await EnsureNotebookVersionSchemaAsync(db, app.Logger);
         await EnsureDocRepoFavouritesSchemaAsync(db, app.Logger);
         await ProjectDocumentSearchVectorMaintenance.EnsureUpToDateAsync(db);
     }
@@ -2429,6 +2451,84 @@ using (var scope = app.Services.CreateScope())
 
     await ProjectManagement.Data.StageFlowSeeder.SeedAsync(services);
     await ProjectManagement.Data.IdentitySeeder.SeedAsync(services);
+}
+
+
+static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILogger logger)
+{
+    if (!db.Database.IsRelational())
+    {
+        return;
+    }
+
+    // SECTION: Validate Notebook migration ordering and schema compatibility
+    var migrations = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+    var moduleIndex = migrations.FindIndex(x => x.EndsWith("_AddNotebookModule", StringComparison.Ordinal));
+    var versionIndex = migrations.FindIndex(x => x.EndsWith("_AddNotebookItemVersion", StringComparison.Ordinal));
+
+    if (moduleIndex < 0 || versionIndex < 0 || moduleIndex >= versionIndex)
+    {
+        var message = "Required Notebook migrations are missing or out of order. AddNotebookModule must precede AddNotebookItemVersion.";
+        logger.LogCritical(message);
+        throw new InvalidOperationException(message);
+    }
+
+    var connection = db.Database.GetDbConnection();
+    var shouldClose = false;
+    if (connection.State != ConnectionState.Open)
+    {
+        await connection.OpenAsync();
+        shouldClose = true;
+    }
+
+    try
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = db.Database.IsNpgsql()
+            ? """
+              SELECT EXISTS (
+                  SELECT 1
+                  FROM information_schema.columns
+                  WHERE table_schema = 'public'
+                    AND table_name = 'NotebookItems'
+                    AND column_name = 'Version'
+                    AND data_type = 'uuid'
+                    AND is_nullable = 'NO'
+              );
+              """
+            : """
+              SELECT CASE WHEN EXISTS (
+                  SELECT 1
+                  FROM information_schema.columns
+                  WHERE table_name = 'NotebookItems'
+                    AND column_name = 'Version'
+                    AND is_nullable = 'NO'
+              ) THEN 1 ELSE 0 END;
+              """;
+
+        var result = await command.ExecuteScalarAsync();
+        var valid = result switch
+        {
+            bool boolean => boolean,
+            int number => number == 1,
+            long number => number == 1,
+            _ => false
+        };
+
+        if (!valid)
+        {
+            var message = "Notebook schema is incompatible: NotebookItems.Version must exist as a non-null uuid column.";
+            logger.LogCritical(message);
+            throw new InvalidOperationException(message);
+        }
+    }
+    finally
+    {
+        if (shouldClose)
+        {
+            await connection.CloseAsync();
+        }
+    }
 }
 
 static async Task EnsureDocRepoFavouritesSchemaAsync(ApplicationDbContext db, ILogger logger)

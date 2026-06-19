@@ -58,15 +58,17 @@ public sealed class NotebookController : Controller
     {
         var validation = ValidateRequest(request);
         if (validation is not null) return validation;
+        if (!Guid.TryParse(request.Version, out var parsedVersion) || parsedVersion == Guid.Empty)
+        {
+            return BadRequest(new
+            {
+                code = "notebook_version_required",
+                message = "A valid notebook version is required before saving an existing note."
+            });
+        }
+
         var uid = CurrentUserId();
-        if (!string.IsNullOrWhiteSpace(request.Version))
-        {
-            await _notebook.UpdateAsync(uid, id, ToInput(request), request.Version, ct);
-        }
-        else
-        {
-            await _notebook.UpdateAsync(uid, id, ToInput(request), ct);
-        }
+        await _notebook.UpdateAsync(uid, id, ToInput(request), parsedVersion.ToString("N"), ct);
 
         return Ok(ToResponse((await _notebook.GetDetailAsync(uid, id, ct))!));
     }

@@ -508,26 +508,21 @@ public sealed class NotebookService : INotebookService
 
         if (!string.IsNullOrWhiteSpace(expectedVersion))
         {
-            query = Guid.TryParse(expectedVersion, out var parsedVersion)
-                ? query.Where(item => item.Version == parsedVersion)
-                : query.Where(item => false);
-        }
+            if (!Guid.TryParse(expectedVersion, out var parsedVersion) || parsedVersion == Guid.Empty)
+            {
+                throw new ArgumentException("A valid notebook version is required.", nameof(expectedVersion));
+            }
 
-        var item = await query.FirstOrDefaultAsync(ct);
-        if (item is not null)
-        {
+            var item = await query.FirstOrDefaultAsync(ct) ?? throw new KeyNotFoundException();
+            if (item.Version != parsedVersion)
+            {
+                throw new NotebookConcurrencyException(id, parsedVersion, item.Version);
+            }
+
             return item;
         }
 
-        var exists = await _db.NotebookItems.AnyAsync(item =>
-            item.Id == id &&
-            item.OwnerId == ownerId &&
-            item.DeletedAtUtc == null,
-            ct);
-
-        throw exists && !string.IsNullOrWhiteSpace(expectedVersion)
-            ? new DbUpdateConcurrencyException("The notebook item version no longer matches the submitted version.")
-            : new KeyNotFoundException();
+        return await query.FirstOrDefaultAsync(ct) ?? throw new KeyNotFoundException();
     }
 
     private static string CleanTitle(string title)
