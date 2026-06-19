@@ -14,42 +14,31 @@ namespace ProjectManagement.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // SECTION: Notebook optimistic concurrency column
-            migrationBuilder.AddColumn<Guid>(
-                name: "Version",
-                table: "NotebookItems",
-                type: "uuid",
-                nullable: true);
-
-            // SECTION: Existing row version backfill
+            // SECTION: Idempotent Notebook optimistic concurrency column
             migrationBuilder.Sql("""
                 CREATE EXTENSION IF NOT EXISTS pgcrypto;
-                """);
 
-            migrationBuilder.Sql("""
+                ALTER TABLE "NotebookItems"
+                ADD COLUMN IF NOT EXISTS "Version" uuid;
+
                 UPDATE "NotebookItems"
                 SET "Version" = gen_random_uuid()
                 WHERE "Version" IS NULL
                    OR "Version" = '00000000-0000-0000-0000-000000000000';
-                """);
 
-            migrationBuilder.AlterColumn<Guid>(
-                name: "Version",
-                table: "NotebookItems",
-                type: "uuid",
-                nullable: false,
-                oldClrType: typeof(Guid),
-                oldType: "uuid",
-                oldNullable: true);
+                ALTER TABLE "NotebookItems"
+                ALTER COLUMN "Version" SET NOT NULL;
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             // SECTION: Notebook optimistic concurrency rollback
-            migrationBuilder.DropColumn(
-                name: "Version",
-                table: "NotebookItems");
+            migrationBuilder.Sql("""
+                ALTER TABLE "NotebookItems"
+                DROP COLUMN IF EXISTS "Version";
+                """);
         }
     }
 }

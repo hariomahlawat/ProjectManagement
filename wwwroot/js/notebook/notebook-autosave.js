@@ -1,46 +1,53 @@
-// SECTION: Notebook debounced autosave utility
+// SECTION: Notebook serial autosave utility
 export function createAutosave({ save, delay = 800, onSaving, onSaved, onError }) {
   let timer = null;
   let activePromise = null;
-  let scheduledRevision = 0;
-  let appliedRevision = 0;
   let latestPayloadFactory = null;
+  let dirty = false;
+  let stopped = false;
 
-  async function execute(revision, payloadFactory) {
-    if (!payloadFactory) return null;
-    onSaving?.();
-    const promise = Promise.resolve().then(() => save(payloadFactory(), revision));
-    activePromise = promise;
-    try {
-      const result = await promise;
-      if (revision < scheduledRevision) return { ignored: true, result };
-      appliedRevision = revision;
-      onSaved?.(result);
-      return { ignored: false, result };
-    } catch (error) {
-      if (revision >= scheduledRevision) onError?.(error);
-      throw error;
-    } finally {
-      if (activePromise === promise) activePromise = null;
-    }
+  async function runLoop() {
+    if (activePromise) return activePromise;
+    activePromise = (async () => {
+      while (!stopped && dirty && latestPayloadFactory) {
+        dirty = false;
+        const payload = latestPayloadFactory();
+        onSaving?.();
+        try {
+          const result = await save(payload);
+          onSaved?.(result);
+        } catch (error) {
+          dirty = true;
+          onError?.(error);
+          throw error;
+        }
+      }
+    })();
+    try { return await activePromise; }
+    finally { activePromise = null; }
   }
 
   function schedule(payloadFactory) {
+    if (stopped) return;
     latestPayloadFactory = payloadFactory;
-    scheduledRevision += 1;
-    const revision = scheduledRevision;
-    if (timer) clearTimeout(timer);
-    timer = window.setTimeout(() => { timer = null; execute(revision, payloadFactory).catch(() => {}); }, delay);
+    dirty = true;
+    if (timer) window.clearTimeout(timer);
+    timer = window.setTimeout(() => { timer = null; runLoop().catch(() => {}); }, delay);
   }
 
   async function flush() {
-    if (timer) {
-      clearTimeout(timer); timer = null;
-      return execute(scheduledRevision, latestPayloadFactory);
-    }
-    if (activePromise) return activePromise;
-    return null;
+    if (timer) { window.clearTimeout(timer); timer = null; }
+    if (activePromise) await activePromise;
+    if (dirty) await runLoop();
   }
 
-  return { schedule, flush, cancel: () => { if (timer) clearTimeout(timer); timer = null; latestPayloadFactory = null; }, hasPending: () => Boolean(timer || activePromise), latestRevision: () => scheduledRevision, appliedRevision: () => appliedRevision };
+  function cancel() {
+    if (timer) { window.clearTimeout(timer); timer = null; }
+    dirty = false;
+    latestPayloadFactory = null;
+  }
+
+  function stop() { stopped = true; cancel(); }
+
+  return { schedule, flush, cancel, stop, hasPending: () => Boolean(timer || activePromise || dirty) };
 }

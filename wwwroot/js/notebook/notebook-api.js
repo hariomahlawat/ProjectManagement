@@ -31,5 +31,6 @@ export const NotebookApi = {
   restoreItem: (id) => request(`/api/notebook/items/${id}/restore`, { method: 'POST', body: '{}' }),
   showCheckboxes: (id) => request(`/api/notebook/items/${id}/show-checkboxes`, { method: 'POST', body: '{}' }),
   hideCheckboxes: (id) => request(`/api/notebook/items/${id}/hide-checkboxes`, { method: 'POST', body: '{}' }),
+  toggleChecklistItem: (itemId, rowId, isDone, version) => request(`/api/notebook/items/${itemId}/checklist-items/${rowId}`, { method: 'PATCH', body: JSON.stringify({ isDone, version }) }),
   getCardHtml: (id, view = 'home') => request(`/api/notebook/items/${id}/card?view=${encodeURIComponent(view)}`, { headers: { Accept: 'text/html' } })
 };

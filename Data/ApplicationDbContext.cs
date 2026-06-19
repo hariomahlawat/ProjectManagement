@@ -13,6 +13,7 @@ using NpgsqlTypes;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Notebook;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
@@ -225,6 +226,7 @@ namespace ProjectManagement.Data
             builder.Entity<NotebookChecklistItem>(entity =>
             {
                 entity.HasIndex(x => new { x.NotebookItemId, x.SortOrder });
+                entity.Property(x => x.Text).HasMaxLength(NotebookLimits.ChecklistTextMaxLength);
                 entity.HasOne(x => x.NotebookItem).WithMany(x => x.ChecklistItems).HasForeignKey(x => x.NotebookItemId).OnDelete(DeleteBehavior.Cascade);
             });
 

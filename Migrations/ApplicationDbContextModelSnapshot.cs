@@ -8203,7 +8203,7 @@ namespace ProjectManagement.Migrations
                     b.Property<bool>("IsDone").HasColumnType("boolean");
                     b.Property<Guid>("NotebookItemId").HasColumnType("uuid");
                     b.Property<int>("SortOrder").HasColumnType("integer");
-                    b.Property<string>("Text").IsRequired().HasMaxLength(300).HasColumnType("character varying(300)");
+                    b.Property<string>("Text").IsRequired().HasMaxLength(500).HasColumnType("character varying(500)");
                     b.HasKey("Id");
                     b.HasIndex("NotebookItemId", "SortOrder");
                     b.ToTable("NotebookChecklistItems");

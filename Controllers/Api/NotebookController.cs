@@ -118,6 +118,19 @@ public sealed class NotebookController : Controller
         return Ok(ToResponse((await _notebook.GetDetailAsync(CurrentUserId(), id, ct))!));
     }
 
+
+    [HttpPatch("{itemId:guid}/checklist-items/{rowId:int}")]
+    public async Task<IActionResult> ToggleChecklistItem(Guid itemId, int rowId, [FromBody] ToggleChecklistItemRequest request, CancellationToken ct)
+    {
+        if (request.Version == Guid.Empty)
+        {
+            return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
+        }
+
+        var item = await _notebook.ToggleChecklistItemAsync(CurrentUserId(), itemId, rowId, request.IsDone, request.Version, ct);
+        return Ok(ToResponse(item));
+    }
+
     [HttpPost("{id:guid}/duplicate")]
     public async Task<IActionResult> Duplicate(Guid id, CancellationToken ct)
     {
@@ -146,16 +159,21 @@ public sealed class NotebookController : Controller
         var hasTitle = !string.IsNullOrWhiteSpace(request.Title);
         var hasBody = !string.IsNullOrWhiteSpace(request.Body);
         var rows = request.ChecklistRows.Where(row => !string.IsNullOrWhiteSpace(row.Text)).ToArray();
-        if (!Enum.IsDefined(request.Type) || !Enum.IsDefined(request.Priority)) return BadRequest(new { error = "Invalid notebook type or priority." });
-        if (!hasTitle && !hasBody && rows.Length == 0) return BadRequest(new { message = "Add a title, body, or checklist item before saving." });
-        if ((request.Title?.Length ?? 0) > NotebookLimits.TitleMaxLength || (request.Body?.Length ?? 0) > NotebookLimits.BodyMaxLength) return BadRequest(new { message = "Notebook title or body is too long." });
-        if (request.ChecklistRows.Count > NotebookLimits.MaxChecklistRows) return BadRequest(new { error = "Too many checklist rows." });
-        if (request.ChecklistRows.Where(row => row.Id.HasValue).GroupBy(row => row.Id).Any(group => group.Count() > 1)) return BadRequest(new { error = "Duplicate checklist row ids are not allowed." });
-        if (request.Labels.Count > NotebookLimits.MaxLabelsPerItem || request.Labels.Any(label => label.Length > NotebookLimits.LabelNameMaxLength)) return BadRequest(new { error = "Too many labels or label text is too long." });
+        if (!Enum.IsDefined(request.Type) || !Enum.IsDefined(request.Priority)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "type", "Invalid notebook type or priority."));
+        if (!hasTitle && !hasBody && rows.Length == 0) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "content", "Add a title, body, or checklist item before saving."));
+        if ((request.Title?.Length ?? 0) > NotebookLimits.TitleMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "title", $"Title cannot exceed {NotebookLimits.TitleMaxLength} characters."));
+        if ((request.Body?.Length ?? 0) > NotebookLimits.BodyMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "body", $"Body cannot exceed {NotebookLimits.BodyMaxLength} characters."));
+        if (request.ChecklistRows.Count > NotebookLimits.MaxChecklistRows) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "checklistRows", $"Checklist cannot exceed {NotebookLimits.MaxChecklistRows} rows."));
+        var oversizedRow = request.ChecklistRows.Select((row, index) => new { row, index }).FirstOrDefault(x => (x.row.Text?.Length ?? 0) > NotebookLimits.ChecklistTextMaxLength);
+        if (oversizedRow is not null) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", $"checklistRows[{oversizedRow.index}].text", $"Checklist text cannot exceed {NotebookLimits.ChecklistTextMaxLength} characters."));
+        if (request.ChecklistRows.Where(row => row.Id.HasValue).GroupBy(row => row.Id).Any(group => group.Count() > 1)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "checklistRows", "Duplicate checklist row ids are not allowed."));
+        if (request.Labels.Count > NotebookLimits.MaxLabelsPerItem || request.Labels.Any(label => label.Length > NotebookLimits.LabelNameMaxLength)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "labels", "Too many labels or label text is too long."));
         var allowedColors = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "white", "blue", "amber", "green", "rose", "slate" };
-        if (!string.IsNullOrWhiteSpace(request.ColorKey) && !allowedColors.Contains(request.ColorKey)) return BadRequest(new { error = "Unsupported colour." });
+        if (!string.IsNullOrWhiteSpace(request.ColorKey) && !allowedColors.Contains(request.ColorKey)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "colorKey", "Unsupported colour."));
         return null;
     }
+
+    private static object ApiError(string code, string message, string field, string error) => new { code, message, errors = new Dictionary<string, string[]> { [field] = new[] { error } } };
 
     private static NotebookItemResponse ToResponse(NotebookItemDetailVm item) => new()
     {

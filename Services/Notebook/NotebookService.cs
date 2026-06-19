@@ -391,7 +391,7 @@ public sealed class NotebookService : INotebookService
                 item.ChecklistItems.Add(new NotebookChecklistItem
                 {
                     NotebookItemId = item.Id,
-                    Text = line[..Math.Min(line.Length, NotebookLimits.ChecklistTextMaxLength)],
+                    Text = ValidateChecklistText(line),
                     SortOrder = sortOrder++,
                     CreatedAtUtc = now
                 });
@@ -473,6 +473,19 @@ public sealed class NotebookService : INotebookService
         checklistItem.CompletedAtUtc = isDone ? now : null;
         Touch(checklistItem.NotebookItem!, now);
         await _db.SaveChangesAsync(ct);
+    }
+
+
+    public async Task<NotebookItemDetailVm> ToggleChecklistItemAsync(string ownerId, Guid itemId, int checklistItemId, bool isDone, Guid expectedVersion, CancellationToken ct = default)
+    {
+        var item = await LoadOwnedForUpdate(ownerId, itemId, expectedVersion.ToString("N"), ct);
+        var checklistItem = item.ChecklistItems.FirstOrDefault(row => row.Id == checklistItemId) ?? throw new KeyNotFoundException();
+        checklistItem.IsDone = isDone;
+        var now = _clock.UtcNow;
+        checklistItem.CompletedAtUtc = isDone ? now : null;
+        Touch(item, now);
+        await _db.SaveChangesAsync(ct);
+        return (await LoadSelectedAsync(ownerId, itemId, TodayBounds(_clock.UtcNow), ct))!;
     }
 
     // SECTION: Helpers
@@ -837,7 +850,7 @@ public sealed class NotebookService : INotebookService
             var text = row.Text.Trim();
             item.ChecklistItems.Add(new NotebookChecklistItem
             {
-                Text = text[..Math.Min(text.Length, NotebookLimits.ChecklistTextMaxLength)],
+                Text = ValidateChecklistText(text),
                 IsDone = row.IsDone,
                 SortOrder = sortOrder++,
                 CreatedAtUtc = now,
@@ -870,8 +883,7 @@ public sealed class NotebookService : INotebookService
 
         foreach (var requested in requestedRows)
         {
-            var text = requested.Text.Trim();
-            text = text[..Math.Min(text.Length, NotebookLimits.ChecklistTextMaxLength)];
+            var text = ValidateChecklistText(requested.Text.Trim());
 
             if (requested.Id.HasValue && existingById.TryGetValue(requested.Id.Value, out var existing))
             {
@@ -897,6 +909,16 @@ public sealed class NotebookService : INotebookService
         {
             item.ChecklistItems.Remove(row);
         }
+    }
+
+    private static string ValidateChecklistText(string text)
+    {
+        if (text.Length > NotebookLimits.ChecklistTextMaxLength)
+        {
+            throw new ArgumentException($"Checklist text cannot exceed {NotebookLimits.ChecklistTextMaxLength} characters.");
+        }
+
+        return text;
     }
 
     private async Task SyncTags(NotebookItem item, string ownerId, IReadOnlyList<string> tags, CancellationToken ct)

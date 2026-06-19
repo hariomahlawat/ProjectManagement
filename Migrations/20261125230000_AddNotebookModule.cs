@@ -61,7 +61,7 @@ namespace ProjectManagement.Migrations
             {
                 Id = table.Column<int>(type: "integer", nullable: false).Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                 NotebookItemId = table.Column<Guid>(type: "uuid", nullable: false),
-                Text = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
+                Text = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
                 IsDone = table.Column<bool>(type: "boolean", nullable: false),
                 SortOrder = table.Column<int>(type: "integer", nullable: false),
                 CreatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
