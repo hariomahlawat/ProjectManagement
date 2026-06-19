@@ -88,3 +88,31 @@
   typeSelect.addEventListener('change', updateFields);
   updateFields();
 })();
+
+// SECTION: Notebook board view preference
+(() => {
+    const storageKey = 'prism.notebook.boardView';
+    const boards = Array.from(document.querySelectorAll('[data-notebook-board]'));
+    const buttons = Array.from(document.querySelectorAll('[data-notebook-view]'));
+
+    if (!boards.length || !buttons.length) {
+        return;
+    }
+
+    const applyView = (view) => {
+        const isList = view === 'list';
+        boards.forEach((board) => board.classList.toggle('is-list-view', isList));
+        buttons.forEach((button) => button.classList.toggle('is-active', button.dataset.notebookView === view));
+    };
+
+    const savedView = window.localStorage.getItem(storageKey) || 'grid';
+    applyView(savedView);
+
+    buttons.forEach((button) => {
+        button.addEventListener('click', () => {
+            const view = button.dataset.notebookView || 'grid';
+            window.localStorage.setItem(storageKey, view);
+            applyView(view);
+        });
+    });
+})();

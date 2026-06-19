@@ -132,6 +132,19 @@ public class IndexModel : PageModel
         return RedirectToPage(new { view = "archived", query = Query, selectedId = id });
     }
 
+
+    public async Task<IActionResult> OnPostDuplicateAsync(Guid id, CancellationToken ct)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null)
+        {
+            return Unauthorized();
+        }
+
+        var copyId = await _notebook.DuplicateAsync(uid, id, ct);
+        return RedirectToCurrent(copyId);
+    }
+
     public async Task<IActionResult> OnPostDeleteAsync(Guid id, CancellationToken ct)
     {
         var uid = _users.GetUserId(User);
@@ -237,7 +250,8 @@ public class IndexModel : PageModel
             IsFavorite = selected.IsFavorite,
             ColorKey = selected.ColorKey,
             Tags = selected.Tags,
-            ChecklistItems = selected.ChecklistItems.Select(x => x.Text).ToArray()
+            ChecklistItems = selected.ChecklistItems.Select(x => x.Text).ToArray(),
+            ChecklistRows = selected.ChecklistItems.Select(x => new NotebookChecklistEditRow { Id = x.Id, Text = x.Text, IsDone = x.IsDone, SortOrder = x.SortOrder }).ToArray()
         };
         TagsText = string.Join(", ", selected.Tags);
         ChecklistText = string.Join("\n", selected.ChecklistItems.Select(x => x.Text));
@@ -250,6 +264,29 @@ public class IndexModel : PageModel
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         Input.ChecklistItems = (ChecklistText ?? string.Empty)
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        // SECTION: Preserve checklist row identity when editable rows are posted.
+        Input.ChecklistRows = ReadChecklistRowsFromForm();
+    }
+
+
+    private IReadOnlyList<NotebookChecklistEditRow> ReadChecklistRowsFromForm()
+    {
+        var rowIndexes = Request.Form.Keys
+            .Where(key => key.StartsWith("ChecklistRows[", StringComparison.OrdinalIgnoreCase) && key.EndsWith("].Text", StringComparison.OrdinalIgnoreCase))
+            .Select(key => key[14..key.IndexOf(']')])
+            .Distinct()
+            .ToArray();
+
+        return rowIndexes.Select((index, fallbackOrder) => new NotebookChecklistEditRow
+            {
+                Id = int.TryParse(Request.Form[$"ChecklistRows[{index}].Id"].ToString(), out var id) ? id : null,
+                Text = Request.Form[$"ChecklistRows[{index}].Text"].ToString(),
+                IsDone = string.Equals(Request.Form[$"ChecklistRows[{index}].IsDone"].ToString(), "true", StringComparison.OrdinalIgnoreCase),
+                SortOrder = int.TryParse(Request.Form[$"ChecklistRows[{index}].SortOrder"].ToString(), out var order) ? order : fallbackOrder
+            })
+            .Where(row => !string.IsNullOrWhiteSpace(row.Text))
+            .ToArray();
     }
 
     private void NormalizeLegacyTypeView()

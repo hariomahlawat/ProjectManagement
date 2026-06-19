@@ -11,11 +11,10 @@
 }
 
 @* SECTION: Notebook board card *@
-<article class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty)">
+<article data-notebook-card-id="@item.Id" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty)">
     <div class="notebook-card-body">
         <a class="notebook-card-link" asp-page="/Notebook/Index" asp-route-view="@Model.View" asp-route-query="@Model.Query" asp-route-filter="@Model.Filter" asp-route-tag="@Model.Tag" asp-route-selectedId="@item.Id">
             <div class="notebook-card-topline">
-                <span class="notebook-type-chip">@item.Type</span>
                 <span class="notebook-card-indicators">
                     @if (item.IsPinned) { <i class="bi bi-pin-angle-fill" title="Pinned"></i> }
                     @if (item.IsFavorite) { <i class="bi bi-star-fill" title="Favourite"></i> }

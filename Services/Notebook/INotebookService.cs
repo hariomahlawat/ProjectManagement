@@ -45,6 +45,8 @@ public interface INotebookService
 
     Task ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, CancellationToken ct = default);
 
+    Task<Guid> DuplicateAsync(string ownerId, Guid id, CancellationToken ct = default);
+
     Task ToggleChecklistItemAsync(string ownerId, int checklistItemId, bool isDone, CancellationToken ct = default);
 }
 
@@ -72,4 +74,17 @@ public sealed class NotebookEditInput
     public IReadOnlyList<string> Tags { get; set; } = Array.Empty<string>();
 
     public IReadOnlyList<string> ChecklistItems { get; set; } = Array.Empty<string>();
+
+    public IReadOnlyList<NotebookChecklistEditRow> ChecklistRows { get; set; } = Array.Empty<NotebookChecklistEditRow>();
+}
+
+public sealed class NotebookChecklistEditRow
+{
+    public int? Id { get; set; }
+
+    public string Text { get; set; } = string.Empty;
+
+    public bool IsDone { get; set; }
+
+    public int SortOrder { get; set; }
 }
