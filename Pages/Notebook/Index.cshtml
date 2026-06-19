@@ -164,6 +164,13 @@
                             </label>
                             rowIndex++;
                         }
+
+                        @* SECTION: Blank checklist append row for existing checklists *@
+                        <label class="notebook-checklist-edit-row notebook-checklist-add-row">
+                            <input type="hidden" name="ChecklistRows[@rowIndex].SortOrder" value="@rowIndex" />
+                            <input type="hidden" name="ChecklistRows[@rowIndex].IsDone" value="false" />
+                            <input name="ChecklistRows[@rowIndex].Text" value="" maxlength="300" placeholder="Add another checklist item" />
+                        </label>
                     }
                     else
                     {
