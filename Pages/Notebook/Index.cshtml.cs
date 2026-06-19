@@ -209,6 +209,12 @@ public class IndexModel : PageModel
         return RedirectToCurrent(id);
     }
 
+    public IActionResult OnPostAddLabel(Guid id)
+    {
+        // SECTION: Open the selected card editor so labels can be managed without JavaScript.
+        return RedirectToCurrent(id);
+    }
+
     public async Task<IActionResult> OnPostToggleChecklistItemAsync(
         int checklistItemId,
         bool isDone,

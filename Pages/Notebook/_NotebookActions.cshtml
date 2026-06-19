@@ -24,7 +24,7 @@
     <details class="notebook-card-more">
         <summary aria-label="More actions"><i class="bi bi-three-dots"></i></summary>
         <div class="notebook-card-more__menu" role="menu">
-            <button type="button" role="menuitem">Add label</button>
+            <button asp-page-handler="AddLabel" type="submit" role="menuitem">Add label</button>
             <button asp-page-handler="Duplicate" type="submit" role="menuitem">Make a copy</button>
             <button asp-page-handler="Convert" name="newType" value="@(Model.Item.Type == NotebookItemType.Checklist ? NotebookItemType.Note : NotebookItemType.Checklist)" type="submit" role="menuitem">@(Model.Item.Type == NotebookItemType.Checklist ? "Hide checkboxes" : "Show checkboxes")</button>
             @if (Model.Item.Status == NotebookItemStatus.Archived)
