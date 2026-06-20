@@ -18,12 +18,14 @@ public sealed class NotebookController : Controller
     private readonly INotebookService _notebook;
     private readonly INotebookCardRenderer _cardRenderer;
     private readonly UserManager<ApplicationUser> _users;
+    private readonly ILogger<NotebookController> _logger;
 
-    public NotebookController(INotebookService notebook, INotebookCardRenderer cardRenderer, UserManager<ApplicationUser> users)
+    public NotebookController(INotebookService notebook, INotebookCardRenderer cardRenderer, UserManager<ApplicationUser> users, ILogger<NotebookController> logger)
     {
         _notebook = notebook;
         _cardRenderer = cardRenderer;
         _users = users;
+        _logger = logger;
     }
 
     // SECTION: Item query endpoints
@@ -209,13 +211,28 @@ public sealed class NotebookController : Controller
 
     private async Task<NotebookMutationResponse> BuildMutationResponseAsync(NotebookItemDetailVm item, bool includeCard, string view, CancellationToken ct)
     {
-        var listItem = ToListItem(item);
+        var cardHtml = includeCard ? await TryRenderCardAsync(item, view, ct) : null;
+
         return new NotebookMutationResponse
         {
             Item = ToResponse(item),
-            CardHtml = includeCard ? await _cardRenderer.RenderAsync(listItem, view, ct) : null,
+            CardHtml = cardHtml,
             Counts = ToCountsResponse(await _notebook.GetCountsAsync(CurrentUserId(), ct))
         };
+    }
+
+    // SECTION: Best-effort card rendering for saved mutations
+    private async Task<string?> TryRenderCardAsync(NotebookItemDetailVm item, string view, CancellationToken ct)
+    {
+        try
+        {
+            return await _cardRenderer.RenderAsync(ToListItem(item), view, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Notebook mutation for item {ItemId} succeeded, but card rendering failed.", item.Id);
+            return null;
+        }
     }
 
     private async Task<NotebookMutationResponse> BuildRemovalResponseAsync(Guid removedItemId, CancellationToken ct) => new()
