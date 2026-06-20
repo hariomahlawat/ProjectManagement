@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
@@ -14,12 +15,14 @@ public sealed class NotebookService : INotebookService
     private readonly IAuditService _audit;
     private readonly IClock _clock;
     private readonly ApplicationDbContext _db;
+    private readonly ILogger<NotebookService> _logger;
 
-    public NotebookService(ApplicationDbContext db, IAuditService audit, IClock clock)
+    public NotebookService(ApplicationDbContext db, IAuditService audit, IClock clock, ILogger<NotebookService> logger)
     {
         _db = db;
         _audit = audit;
         _clock = clock;
+        _logger = logger;
     }
 
     // SECTION: Read model composition
@@ -264,6 +267,22 @@ public sealed class NotebookService : INotebookService
 
     public async Task<Guid> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default)
     {
+        if (input.ClientRequestId is Guid clientRequestId)
+        {
+            var existing = await _db.NotebookItems
+                .AsNoTracking()
+                .FirstOrDefaultAsync(item =>
+                    item.OwnerId == ownerId &&
+                    item.ClientRequestId == clientRequestId &&
+                    item.DeletedAtUtc == null,
+                    ct);
+
+            if (existing is not null)
+            {
+                return existing.Id;
+            }
+        }
+
         var now = _clock.UtcNow;
         var item = new NotebookItem
         {
@@ -278,14 +297,15 @@ public sealed class NotebookService : INotebookService
             ColorKey = CleanColor(input.ColorKey, input.Type),
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
-            Version = Guid.NewGuid()
+            Version = Guid.NewGuid(),
+            ClientRequestId = input.ClientRequestId
         };
 
         ApplyChecklist(item, input.ChecklistRows.Any() ? input.ChecklistRows : input.ChecklistItems.Select((text, index) => new NotebookChecklistEditRow { Text = text, SortOrder = index }).ToArray(), now);
         _db.NotebookItems.Add(item);
         await SyncTags(item, ownerId, input.Tags, ct);
         await _db.SaveChangesAsync(ct);
-        await _audit.LogAsync("Notebook.Create", userId: ownerId, data: new Dictionary<string, string?> { ["Id"] = item.Id.ToString() });
+        await TryWriteAuditAsync("Notebook.Create", ownerId, item.Id, ct);
         return item.Id;
     }
 
@@ -308,45 +328,60 @@ public sealed class NotebookService : INotebookService
         SyncChecklistItems(item, input.ChecklistRows.Any() ? input.ChecklistRows : input.ChecklistItems.Select((text, index) => new NotebookChecklistEditRow { Text = text, SortOrder = index }).ToArray(), item.UpdatedAtUtc);
         await SyncTags(item, ownerId, input.Tags, ct);
         await _db.SaveChangesAsync(ct);
-        await _audit.LogAsync("Notebook.Update", userId: ownerId, data: new Dictionary<string, string?> { ["Id"] = id.ToString() });
+        await TryWriteAuditAsync("Notebook.Update", ownerId, item.Id, ct);
         return MapDetail(item);
     }
 
     public async Task ArchiveAsync(string ownerId, Guid id, CancellationToken ct = default)
     {
         var item = await LoadOwned(ownerId, id, ct);
-        item.Status = NotebookItemStatus.Archived;
-        item.ArchivedAtUtc = _clock.UtcNow;
-        Touch(item, item.ArchivedAtUtc.Value);
-        await _db.SaveChangesAsync(ct);
-        await _audit.LogAsync("Notebook.Archive", userId: ownerId);
+        await ArchiveLoadedAsync(item, ownerId, ct);
+    }
+
+    public async Task<NotebookItemDetailVm> ArchiveAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
+    {
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
+        await ArchiveLoadedAsync(item, ownerId, ct);
+        return MapDetail(item);
     }
 
     public async Task RestoreAsync(string ownerId, Guid id, CancellationToken ct = default)
     {
         var item = await LoadOwned(ownerId, id, ct);
-        item.Status = NotebookItemStatus.Active;
-        item.ArchivedAtUtc = null;
-        Touch(item, _clock.UtcNow);
-        await _db.SaveChangesAsync(ct);
+        await RestoreLoadedAsync(item, ct);
+    }
+
+    public async Task<NotebookItemDetailVm> RestoreAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
+    {
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
+        await RestoreLoadedAsync(item, ct);
+        return MapDetail(item);
     }
 
     public async Task ReopenAsync(string ownerId, Guid id, CancellationToken ct = default)
     {
         var item = await LoadOwned(ownerId, id, ct);
-        item.Status = NotebookItemStatus.Active;
-        item.CompletedAtUtc = null;
-        Touch(item, _clock.UtcNow);
-        await _db.SaveChangesAsync(ct);
+        await ReopenLoadedAsync(item, ct);
+    }
+
+    public async Task<NotebookItemDetailVm> ReopenAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
+    {
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
+        await ReopenLoadedAsync(item, ct);
+        return MapDetail(item);
     }
 
     public async Task DeleteAsync(string ownerId, Guid id, CancellationToken ct = default)
     {
         var item = await LoadOwned(ownerId, id, ct);
-        item.DeletedAtUtc = _clock.UtcNow;
-        Touch(item, item.DeletedAtUtc.Value);
-        await _db.SaveChangesAsync(ct);
-        await _audit.LogAsync("Notebook.Delete", userId: ownerId);
+        await DeleteLoadedAsync(item, ownerId, ct);
+    }
+
+    public async Task<NotebookItemDetailVm> DeleteAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
+    {
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
+        await DeleteLoadedAsync(item, ownerId, ct);
+        return MapDetail(item);
     }
 
     public async Task TogglePinAsync(string ownerId, Guid id, CancellationToken ct = default)
@@ -377,11 +412,14 @@ public sealed class NotebookService : INotebookService
     public async Task CompleteAsync(string ownerId, Guid id, bool isComplete, CancellationToken ct = default)
     {
         var item = await LoadOwned(ownerId, id, ct);
-        item.Status = isComplete ? NotebookItemStatus.Completed : NotebookItemStatus.Active;
-        var now = _clock.UtcNow;
-        item.CompletedAtUtc = isComplete ? now : null;
-        Touch(item, now);
-        await _db.SaveChangesAsync(ct);
+        await CompleteLoadedAsync(item, isComplete, ct);
+    }
+
+    public async Task<NotebookItemDetailVm> CompleteAsync(string ownerId, Guid id, bool isComplete, Guid expectedVersion, CancellationToken ct = default)
+    {
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
+        await CompleteLoadedAsync(item, isComplete, ct);
+        return MapDetail(item);
     }
 
     public async Task<NotebookItemDetailVm> ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, Guid expectedVersion, CancellationToken ct = default)
@@ -509,6 +547,61 @@ public sealed class NotebookService : INotebookService
     }
 
     // SECTION: Helpers
+
+
+    private async Task ArchiveLoadedAsync(NotebookItem item, string ownerId, CancellationToken ct)
+    {
+        item.Status = NotebookItemStatus.Archived;
+        item.ArchivedAtUtc = _clock.UtcNow;
+        Touch(item, item.ArchivedAtUtc.Value);
+        await _db.SaveChangesAsync(ct);
+        await TryWriteAuditAsync("Notebook.Archive", ownerId, item.Id, ct);
+    }
+
+    private async Task RestoreLoadedAsync(NotebookItem item, CancellationToken ct)
+    {
+        item.Status = NotebookItemStatus.Active;
+        item.ArchivedAtUtc = null;
+        Touch(item, _clock.UtcNow);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task ReopenLoadedAsync(NotebookItem item, CancellationToken ct)
+    {
+        item.Status = NotebookItemStatus.Active;
+        item.CompletedAtUtc = null;
+        Touch(item, _clock.UtcNow);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task DeleteLoadedAsync(NotebookItem item, string ownerId, CancellationToken ct)
+    {
+        item.DeletedAtUtc = _clock.UtcNow;
+        Touch(item, item.DeletedAtUtc.Value);
+        await _db.SaveChangesAsync(ct);
+        await TryWriteAuditAsync("Notebook.Delete", ownerId, item.Id, ct);
+    }
+
+    private async Task CompleteLoadedAsync(NotebookItem item, bool isComplete, CancellationToken ct)
+    {
+        item.Status = isComplete ? NotebookItemStatus.Completed : NotebookItemStatus.Active;
+        var now = _clock.UtcNow;
+        item.CompletedAtUtc = isComplete ? now : null;
+        Touch(item, now);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    private async Task TryWriteAuditAsync(string action, string ownerId, Guid itemId, CancellationToken ct)
+    {
+        try
+        {
+            await _audit.LogAsync(action, userId: ownerId, data: new Dictionary<string, string?> { ["Id"] = itemId.ToString() });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Notebook action {Action} succeeded for item {ItemId}, but audit logging failed.", action, itemId);
+        }
+    }
 
     private static void Touch(NotebookItem item, DateTimeOffset now)
     {
@@ -716,7 +809,7 @@ public sealed class NotebookService : INotebookService
         IsFavorite = item.IsFavorite,
         ColorKey = item.ColorKey ?? "white",
         UpdatedAtUtc = item.UpdatedAtUtc,
-        Version = item.Version.ToString("N"),
+        Version = item.Version,
         Tags = item.Tags
             .Select(tag => tag.NotebookTag?.Name ?? string.Empty)
             .Where(tag => tag.Length > 0)

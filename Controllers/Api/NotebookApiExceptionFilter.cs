@@ -12,8 +12,8 @@ public sealed class NotebookApiExceptionFilter : IAsyncExceptionFilter
     {
         context.Result = context.Exception switch
         {
-            KeyNotFoundException => new NotFoundResult(),
-            ArgumentException => new BadRequestObjectResult(new { message = "The notebook request is invalid." }),
+            KeyNotFoundException => new NotFoundObjectResult(new { code = "notebook_not_found", message = "The note could not be found." }),
+            ArgumentException => new BadRequestObjectResult(new { code = "notebook_validation_failed", message = "The notebook request is invalid." }),
             NotebookConcurrencyException ex => new ConflictObjectResult(new
             {
                 code = "notebook_concurrency_conflict",

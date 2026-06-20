@@ -34,11 +34,19 @@ public interface INotebookService
 
     Task ArchiveAsync(string ownerId, Guid id, CancellationToken ct = default);
 
+    Task<NotebookItemDetailVm> ArchiveAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default);
+
     Task RestoreAsync(string ownerId, Guid id, CancellationToken ct = default);
+
+    Task<NotebookItemDetailVm> RestoreAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default);
 
     Task ReopenAsync(string ownerId, Guid id, CancellationToken ct = default);
 
+    Task<NotebookItemDetailVm> ReopenAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default);
+
     Task DeleteAsync(string ownerId, Guid id, CancellationToken ct = default);
+
+    Task<NotebookItemDetailVm> DeleteAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default);
 
     Task TogglePinAsync(string ownerId, Guid id, CancellationToken ct = default);
 
@@ -49,6 +57,8 @@ public interface INotebookService
     Task ToggleFavoriteAsync(string ownerId, Guid id, CancellationToken ct = default);
 
     Task CompleteAsync(string ownerId, Guid id, bool isComplete, CancellationToken ct = default);
+
+    Task<NotebookItemDetailVm> CompleteAsync(string ownerId, Guid id, bool isComplete, Guid expectedVersion, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm> ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, Guid expectedVersion, CancellationToken ct = default);
 
@@ -85,6 +95,8 @@ public sealed class NotebookEditInput
     public IReadOnlyList<string> ChecklistItems { get; set; } = Array.Empty<string>();
 
     public IReadOnlyList<NotebookChecklistEditRow> ChecklistRows { get; set; } = Array.Empty<NotebookChecklistEditRow>();
+
+    public Guid? ClientRequestId { get; set; }
 }
 
 public sealed class NotebookChecklistEditRow

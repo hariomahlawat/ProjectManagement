@@ -83,7 +83,7 @@ public class NotebookItemListVm
 
     public bool IsDueToday { get; set; }
 
-    public string Version { get; set; } = string.Empty;
+    public Guid Version { get; set; }
 }
 
 public sealed class NotebookItemDetailVm : NotebookItemListVm
