@@ -33,8 +33,9 @@ export function createAutosave({ save, delay = 800, onSaving, onPersisted, onSav
         try {
           result = await save(payload);
         } catch (error) {
-          dirty = true;
-          await (onSaveError || onError)?.(error);
+          const disposition = await (onSaveError || onError)?.(error);
+          dirty = disposition?.retryable === true;
+          if (!dirty) latestPayload = null;
           throw error;
         }
 

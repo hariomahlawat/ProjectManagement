@@ -392,6 +392,34 @@ public sealed class NotebookService : INotebookService
     }
 
 
+    public async Task<NotebookItemDetailVm> UpdateChecklistAsync(string ownerId, Guid itemId, string? title, string? body, IReadOnlyList<NotebookChecklistEditRow> checklistRows, Guid expectedVersion, CancellationToken ct = default)
+    {
+        // SECTION: Checklist autosave updates editable checklist content only and preserves metadata.
+        var item = await LoadOwnedForUpdate(ownerId, itemId, expectedVersion, ct);
+        if (item.Type != NotebookItemType.Checklist)
+        {
+            throw new NotebookValidationException("The selected notebook item is not a checklist.");
+        }
+
+        item.Title = CleanTitle(title ?? string.Empty);
+        item.BodyMarkdown = body;
+        Touch(item, _clock.UtcNow);
+        SyncChecklistItems(item, checklistRows, item.UpdatedAtUtc);
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new NotebookConcurrencyException(itemId, expectedVersion, item.Version, ex);
+        }
+
+        await TryWriteAuditAsync("Notebook.UpdateChecklist", ownerId, item.Id, ct);
+        return MapDetail(item);
+    }
+
+
     public Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookEditInput input, Guid expectedVersion, CancellationToken ct = default)
     {
         // SECTION: Legacy form adapter intentionally drops pin/favourite state for generic updates.
@@ -1076,13 +1104,13 @@ public sealed class NotebookService : INotebookService
         var submittedIds = requestedRows.Where(row => row.Id.HasValue).Select(row => row.Id!.Value).ToArray();
         if (submittedIds.Length != submittedIds.Distinct().Count())
         {
-            throw new ArgumentException("Duplicate checklist row ids are not allowed.");
+            throw new NotebookValidationException("The checklist contains duplicate row identifiers.");
         }
 
         var existingById = item.ChecklistItems.ToDictionary(row => row.Id);
         if (submittedIds.Any(id => !existingById.ContainsKey(id)))
         {
-            throw new ArgumentException("Checklist row ids must belong to the notebook item.");
+            throw new NotebookValidationException("Checklist row ids must belong to the notebook item.");
         }
 
         var requestedIds = submittedIds.ToHashSet();

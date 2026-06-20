@@ -36,6 +36,8 @@ public interface INotebookService
 
     Task<NotebookItemDetailVm> UpdateContentAsync(string ownerId, Guid id, string? title, string? body, Guid expectedVersion, CancellationToken ct = default);
 
+    Task<NotebookItemDetailVm> UpdateChecklistAsync(string ownerId, Guid itemId, string? title, string? body, IReadOnlyList<NotebookChecklistEditRow> checklistRows, Guid expectedVersion, CancellationToken ct = default);
+
     Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookEditInput input, Guid expectedVersion, CancellationToken ct = default);
 
 
@@ -128,9 +130,12 @@ public sealed class NotebookChecklistEditRow
 {
     public int? Id { get; set; }
 
+    [System.ComponentModel.DataAnnotations.Required]
+    [System.ComponentModel.DataAnnotations.StringLength(NotebookLimits.ChecklistTextMaxLength)]
     public string Text { get; set; } = string.Empty;
 
     public bool IsDone { get; set; }
 
+    [System.ComponentModel.DataAnnotations.Range(0, int.MaxValue)]
     public int SortOrder { get; set; }
 }

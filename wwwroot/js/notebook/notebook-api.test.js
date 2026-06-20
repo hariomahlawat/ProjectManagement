@@ -86,6 +86,7 @@ test('all Notebook JSON mutations declare application/json content type', async 
   await NotebookApi.createItem(updatePayload());
   await NotebookApi.updateItem('note-1', updatePayload());
   await NotebookApi.updateContent('note-1', { title: 'Updated', body: 'Body', version: 'version-1' });
+  await NotebookApi.updateChecklist('note-1', { title: 'Updated', body: 'Body', version: 'version-1', checklistRows: [{ id: 7, text: 'Task', isDone: false, sortOrder: 0 }] });
   await NotebookApi.setPinned('note-1', true, 'version-1');
   await NotebookApi.archiveItem('note-1', 'version-1');
   await NotebookApi.completeItem('note-1', 'version-1');
