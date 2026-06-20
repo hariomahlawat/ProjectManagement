@@ -54,9 +54,10 @@ public sealed class NotebookController : Controller
     {
         var validation = ValidateRequest(request);
         if (validation is not null) return validation;
-        var id = await _notebook.CreateAsync(CurrentUserId(), ToInput(request), ct);
-        var item = await _notebook.GetDetailAsync(CurrentUserId(), id, ct);
-        return CreatedAtAction(nameof(Get), new { id }, ToResponse(item!));
+        var uid = CurrentUserId();
+        var id = await _notebook.CreateAsync(uid, ToInput(request), ct);
+        var item = await _notebook.GetDetailAsync(uid, id, ct);
+        return CreatedAtAction(nameof(Get), new { id }, await BuildMutationResponseAsync(item!, includeCard: true, ct));
     }
 
     [HttpPatch("{id:guid}")]
@@ -86,31 +87,48 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.SetPinnedAsync(CurrentUserId(), id, request.IsPinned, request.Version, ct);
-        return Ok(ToResponse(updated));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
     }
 
     [HttpPost("{id:guid}/archive")]
-    public async Task<IActionResult> Archive(Guid id, CancellationToken ct) { await _notebook.ArchiveAsync(CurrentUserId(), id, ct); return NoContent(); }
+    public async Task<IActionResult> Archive(Guid id, [FromBody] ArchiveNotebookItemRequest request, CancellationToken ct)
+    {
+        if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
+        var updated = await _notebook.ArchiveAsync(CurrentUserId(), id, request.Version, ct);
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
+    }
 
     [HttpPost("{id:guid}/complete")]
-    public async Task<IActionResult> Complete(Guid id, CancellationToken ct) { await _notebook.CompleteAsync(CurrentUserId(), id, true, ct); return NoContent(); }
+    public async Task<IActionResult> Complete(Guid id, [FromBody] CompleteNotebookItemRequest request, CancellationToken ct)
+    {
+        if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
+        var updated = await _notebook.CompleteAsync(CurrentUserId(), id, true, request.Version, ct);
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
+    }
 
     [HttpPost("{id:guid}/reopen")]
-    public async Task<IActionResult> Reopen(Guid id, CancellationToken ct) { await _notebook.ReopenAsync(CurrentUserId(), id, ct); return NoContent(); }
+    public async Task<IActionResult> Reopen(Guid id, [FromBody] ReopenNotebookItemRequest request, CancellationToken ct)
+    {
+        if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
+        var updated = await _notebook.ReopenAsync(CurrentUserId(), id, request.Version, ct);
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
+    }
 
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, [FromBody] DeleteNotebookItemRequest? request, CancellationToken ct)
     {
-        await _notebook.DeleteAsync(CurrentUserId(), id, ct);
-        return NoContent();
+        if (request is null || request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
+        var updated = await _notebook.DeleteAsync(CurrentUserId(), id, request.Version, ct);
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
     }
 
     [HttpPost("{id:guid}/restore")]
-    public async Task<IActionResult> Restore(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Restore(Guid id, [FromBody] RestoreNotebookItemRequest request, CancellationToken ct)
     {
-        await _notebook.RestoreAsync(CurrentUserId(), id, ct);
-        return Ok(ToResponse((await _notebook.GetDetailAsync(CurrentUserId(), id, ct))!));
+        if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
+        var updated = await _notebook.RestoreAsync(CurrentUserId(), id, request.Version, ct);
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
     }
 
     [HttpPost("{id:guid}/show-checkboxes")]
@@ -161,6 +179,7 @@ public sealed class NotebookController : Controller
         ReminderAtUtc = request.ReminderAtUtc,
         ColorKey = request.ColorKey,
         IsPinned = request.IsPinned,
+        ClientRequestId = request.ClientRequestId == Guid.Empty ? null : request.ClientRequestId,
         Tags = request.Labels ?? [],
         ChecklistRows = request.ChecklistRows ?? []
     };
@@ -186,6 +205,17 @@ public sealed class NotebookController : Controller
         return null;
     }
 
+
+    private async Task<NotebookMutationResponse> BuildMutationResponseAsync(NotebookItemDetailVm item, bool includeCard, CancellationToken ct)
+    {
+        return new NotebookMutationResponse
+        {
+            Item = ToResponse(item),
+            CardHtml = null,
+            Counts = await _notebook.GetCountsAsync(CurrentUserId(), ct)
+        };
+    }
+
     private static object ApiError(string code, string message, string field, string error) => new { code, message, errors = new Dictionary<string, string[]> { [field] = new[] { error } } };
 
     private static NotebookItemResponse ToResponse(NotebookItemDetailVm item) => new()
@@ -201,7 +231,7 @@ public sealed class NotebookController : Controller
         ReminderAtUtc = item.ReminderAtUtc,
         ReminderDisplay = item.ReminderDisplay,
         UpdatedAtUtc = item.UpdatedAtUtc,
-        Version = Guid.TryParse(item.Version, out var version) ? version : Guid.Empty,
+        Version = item.Version,
         ChecklistRows = item.ChecklistItems.Select(row => new NotebookChecklistRowResponse { Id = row.Id, Text = row.Text, IsDone = row.IsDone, SortOrder = row.SortOrder }).ToList(),
         Labels = item.Tags.Select(tag => new NotebookLabelResponse { Name = tag }).ToList()
     };

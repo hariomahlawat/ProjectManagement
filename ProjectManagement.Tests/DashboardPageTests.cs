@@ -193,13 +193,25 @@ namespace ProjectManagement.Tests
             public Task ArchiveAsync(string ownerId, Guid id, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
+            public Task<NotebookItemDetailVm> ArchiveAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
             public Task RestoreAsync(string ownerId, Guid id, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
+            public Task<NotebookItemDetailVm> RestoreAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
             public Task ReopenAsync(string ownerId, Guid id, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
+            public Task<NotebookItemDetailVm> ReopenAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
             public Task DeleteAsync(string ownerId, Guid id, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
+            public Task<NotebookItemDetailVm> DeleteAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
             public Task TogglePinAsync(string ownerId, Guid id, CancellationToken ct = default) =>
@@ -215,6 +227,9 @@ namespace ProjectManagement.Tests
                 throw new NotImplementedException();
 
             public Task CompleteAsync(string ownerId, Guid id, bool isComplete, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
+            public Task<NotebookItemDetailVm> CompleteAsync(string ownerId, Guid id, bool isComplete, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
             public Task<NotebookItemDetailVm> ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, Guid expectedVersion, CancellationToken ct = default) =>

@@ -24,6 +24,9 @@ public class CreateNotebookItemRequest
     public List<NotebookChecklistEditRow> ChecklistRows { get; set; } = [];
     [Required]
     public List<string> Labels { get; set; } = [];
+
+    [Required]
+    public Guid ClientRequestId { get; set; }
 }
 
 public sealed class UpdateNotebookItemRequest : CreateNotebookItemRequest
@@ -38,6 +41,22 @@ public sealed class SetNotebookPinRequest : NotebookVersionedRequest
 }
 
 public sealed class ConvertNotebookItemRequest : NotebookVersionedRequest
+{
+}
+
+public sealed class ArchiveNotebookItemRequest : NotebookVersionedRequest
+{
+}
+
+public sealed class CompleteNotebookItemRequest : NotebookVersionedRequest
+{
+}
+
+public sealed class ReopenNotebookItemRequest : NotebookVersionedRequest
+{
+}
+
+public sealed class RestoreNotebookItemRequest : NotebookVersionedRequest
 {
 }
 
@@ -83,4 +102,15 @@ public sealed class NotebookItemResponse
     public List<NotebookChecklistRowResponse> ChecklistRows { get; set; } = [];
     public List<NotebookLabelResponse> Labels { get; set; } = [];
     public Guid Version { get; set; }
+}
+
+
+// SECTION: Notebook composite mutation responses
+public sealed class NotebookMutationResponse
+{
+    public NotebookItemResponse Item { get; init; } = default!;
+
+    public string? CardHtml { get; init; }
+
+    public IReadOnlyDictionary<string, int>? Counts { get; init; }
 }

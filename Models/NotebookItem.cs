@@ -64,6 +64,8 @@ public class NotebookItem
 
     public Guid? LegacyTodoItemId { get; set; }
 
+    public Guid? ClientRequestId { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     [ConcurrencyCheck]

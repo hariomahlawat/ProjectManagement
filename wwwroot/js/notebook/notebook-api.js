@@ -1,23 +1,73 @@
 // SECTION: Notebook API error type and fetch wrapper
 export class NotebookApiError extends Error {
-  constructor(message, { status = 0, code = null, errors = null } = {}) {
-    super(message); this.name = 'NotebookApiError'; this.status = status; this.code = code; this.errors = errors;
+  constructor(message, { status = 0, code = null, errors = null, responseText = null } = {}) {
+    super(message);
+    this.name = 'NotebookApiError';
+    this.status = status;
+    this.code = code;
+    this.errors = errors;
+    this.responseText = responseText;
   }
 }
-const token = () => document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-async function request(url, options = {}) {
-  const headers = { Accept: 'application/json', ...(options.headers || {}) };
-  if (!(options.body instanceof FormData) && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
-  if (token()) headers.RequestVerificationToken = token();
-  let response;
-  try { response = await fetch(url, { credentials: 'same-origin', ...options, headers }); }
-  catch (error) { throw new NotebookApiError('Unable to reach the notebook service.', { status: 0, errors: error }); }
-  if (response.status === 204) return null;
-  const contentType = response.headers.get('content-type') || '';
-  const payload = contentType.includes('application/json') ? await response.json() : await response.text();
-  if (!response.ok) throw new NotebookApiError(payload?.message || payload?.error || 'The notebook operation failed.', { status: response.status, code: payload?.code, errors: payload?.errors });
-  return payload;
+
+// SECTION: Anti-forgery token handling
+function getAntiForgeryToken() {
+  const tokenInput = document.querySelector('#notebook-antiforgery-token input[name="__RequestVerificationToken"]');
+  const value = tokenInput?.value?.trim();
+  if (!value) {
+    throw new NotebookApiError('Notebook security token is unavailable. Refresh the page and try again.', {
+      status: 0,
+      code: 'notebook_antiforgery_missing'
+    });
+  }
+  return value;
 }
+
+function isUnsafeMethod(method) {
+  const normalised = (method || 'GET').toUpperCase();
+  return !['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(normalised);
+}
+
+function getDefaultNotebookErrorMessage(status) {
+  switch (status) {
+    case 400: return 'The notebook request was invalid.';
+    case 401: return 'Your session has expired. Sign in again.';
+    case 403: return 'You do not have permission to perform this action.';
+    case 404: return 'The note could not be found.';
+    case 409: return 'This note was changed elsewhere. Reload the latest version.';
+    case 500: return 'The notebook operation could not be completed.';
+    default: return `Notebook request failed with HTTP ${status}.`;
+  }
+}
+
+// SECTION: Fetch wrapper and API surface
+async function request(url, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+  const headers = { Accept: 'application/json', ...(options.headers || {}) };
+  if (!(options.body instanceof FormData) && options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+  if (isUnsafeMethod(method)) headers.RequestVerificationToken = getAntiForgeryToken();
+
+  let response;
+  try { response = await fetch(url, { credentials: 'same-origin', ...options, method, headers }); }
+  catch (error) { throw new NotebookApiError('The notebook service could not be reached.', { status: 0, code: 'notebook_network_error', errors: error }); }
+  if (response.status === 204) return null;
+
+  const contentType = response.headers.get('content-type') || '';
+  let payload = null; let rawText = null;
+  if (contentType.includes('application/json')) payload = await response.json();
+  else rawText = await response.text();
+
+  if (!response.ok) {
+    throw new NotebookApiError(payload?.message || payload?.title || payload?.error || getDefaultNotebookErrorMessage(response.status), {
+      status: response.status,
+      code: payload?.code,
+      errors: payload?.errors,
+      responseText: rawText
+    });
+  }
+  return payload ?? rawText;
+}
+
 export const NotebookApi = {
   createItem: (payload) => request('/api/notebook/items', { method: 'POST', body: JSON.stringify(payload) }),
   getItem: (id) => request(`/api/notebook/items/${id}`),

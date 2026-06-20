@@ -28,6 +28,10 @@
 @section Styles { <link rel="stylesheet" href="~/css/notebook.css" asp-append-version="true" /> }
 
 <div class="notebook-shell @(Model.UseLegacyEditor ? "has-editor" : "editor-collapsed")" data-board-view="grid">
+    @* SECTION: Dedicated anti-forgery token for Notebook API mutations *@
+    <div id="notebook-antiforgery-token" hidden>
+        @Html.AntiForgeryToken()
+    </div>
     <aside class="notebook-rail" aria-label="Notebook views">
         <div class="notebook-rail__brand"><i class="bi bi-journal-bookmark"></i><span>My Notebook</span></div>
         @foreach (var item in Model.Notebook.RailItems)

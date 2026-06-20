@@ -221,9 +221,9 @@ public class IndexModel : PageModel
         if (newType is not null)
         {
             var current = await _notebook.GetDetailAsync(uid, id, ct);
-            if (current is not null && Guid.TryParse(current.Version, out var version))
+            if (current is not null)
             {
-                await _notebook.ConvertTypeAsync(uid, id, newType.Value, version, ct);
+                await _notebook.ConvertTypeAsync(uid, id, newType.Value, current.Version, ct);
             }
         }
 

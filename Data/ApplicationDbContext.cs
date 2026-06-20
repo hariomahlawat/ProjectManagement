@@ -215,6 +215,7 @@ namespace ProjectManagement.Data
                 entity.HasIndex(x => new { x.OwnerId, x.IsPinned, x.UpdatedAtUtc });
                 entity.HasIndex(x => new { x.OwnerId, x.ReminderAtUtc });
                 entity.HasIndex(x => new { x.OwnerId, x.LegacyTodoItemId });
+                entity.HasIndex(x => new { x.OwnerId, x.ClientRequestId }).IsUnique().HasFilter("\"ClientRequestId\" IS NOT NULL");
                 entity.HasIndex(x => x.DeletedAtUtc);
                 entity.Property(x => x.Type).HasConversion<byte>();
                 entity.Property(x => x.Status).HasConversion<byte>();

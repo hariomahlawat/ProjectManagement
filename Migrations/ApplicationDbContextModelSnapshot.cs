@@ -8177,6 +8177,7 @@ namespace ProjectManagement.Migrations
                     b.Property<bool>("IsFavorite").HasColumnType("boolean");
                     b.Property<bool>("IsPinned").HasColumnType("boolean");
                     b.Property<Guid?>("LegacyTodoItemId").HasColumnType("uuid");
+                    b.Property<Guid?>("ClientRequestId").HasColumnType("uuid");
                     b.Property<string>("OwnerId").IsRequired().HasColumnType("text");
                     b.Property<byte>("Priority").HasColumnType("smallint");
                     b.Property<DateTimeOffset?>("ReminderAtUtc").HasColumnType("timestamp with time zone");
@@ -8190,6 +8191,7 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("DeletedAtUtc");
                     b.HasIndex("OwnerId", "IsPinned", "UpdatedAtUtc");
                     b.HasIndex("OwnerId", "LegacyTodoItemId");
+                    b.HasIndex("OwnerId", "ClientRequestId").IsUnique().HasFilter("\"ClientRequestId\" IS NOT NULL");
                     b.HasIndex("OwnerId", "ReminderAtUtc");
                     b.HasIndex("OwnerId", "Status", "Type");
                     b.ToTable("NotebookItems");
