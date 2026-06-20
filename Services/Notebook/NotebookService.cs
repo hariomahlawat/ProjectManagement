@@ -399,7 +399,6 @@ public sealed class NotebookService : INotebookService
         {
             Title = input.Title,
             BodyMarkdown = input.BodyMarkdown,
-            Type = input.Type,
             Priority = input.Priority,
             ReminderAtUtc = input.ReminderAtUtc,
             ColorKey = input.ColorKey,
