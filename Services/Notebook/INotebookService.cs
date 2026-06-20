@@ -20,6 +20,8 @@ public interface INotebookService
         int take = 5,
         CancellationToken ct = default);
 
+    Task<IReadOnlyDictionary<string, int>> GetCountsAsync(string ownerId, CancellationToken ct = default);
+
     Task<Guid> QuickCaptureAsync(
         string ownerId,
         string input,
@@ -28,9 +30,7 @@ public interface INotebookService
 
     Task<Guid> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default);
 
-    Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, CancellationToken ct = default);
-
-    Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, string expectedVersion, CancellationToken ct = default);
+    Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookEditInput input, Guid expectedVersion, CancellationToken ct = default);
 
     Task ArchiveAsync(string ownerId, Guid id, CancellationToken ct = default);
 
@@ -42,7 +42,7 @@ public interface INotebookService
 
     Task TogglePinAsync(string ownerId, Guid id, CancellationToken ct = default);
 
-    Task SetPinnedAsync(string ownerId, Guid id, bool isPinned, CancellationToken ct = default);
+    Task<NotebookItemDetailVm> SetPinnedAsync(string ownerId, Guid id, bool isPinned, Guid expectedVersion, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm?> GetDetailAsync(string ownerId, Guid id, CancellationToken ct = default);
 
@@ -50,7 +50,7 @@ public interface INotebookService
 
     Task CompleteAsync(string ownerId, Guid id, bool isComplete, CancellationToken ct = default);
 
-    Task ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, CancellationToken ct = default);
+    Task<NotebookItemDetailVm> ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, Guid expectedVersion, CancellationToken ct = default);
 
     Task<Guid> DuplicateAsync(string ownerId, Guid id, CancellationToken ct = default);
 

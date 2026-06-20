@@ -218,6 +218,26 @@ public sealed class NotebookService : INotebookService
     }
 
 
+
+    public async Task<IReadOnlyDictionary<string, int>> GetCountsAsync(string ownerId, CancellationToken ct = default)
+    {
+        var bounds = TodayBounds(_clock.UtcNow);
+        var query = _db.NotebookItems.AsNoTracking().Where(item => item.OwnerId == ownerId && item.DeletedAtUtc == null);
+        var active = query.Where(item => item.Status == NotebookItemStatus.Active);
+        return new Dictionary<string, int>
+        {
+            ["home"] = await active.CountAsync(ct),
+            ["today"] = await active.CountAsync(item => item.ReminderAtUtc != null && item.ReminderAtUtc < bounds.EndUtc, ct),
+            ["reminders"] = await ReminderItems(active).CountAsync(ct),
+            ["labels"] = await _db.NotebookTags.AsNoTracking().CountAsync(tag => tag.OwnerId == ownerId, ct),
+            ["archive"] = await query.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
+            ["archived"] = await query.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
+            ["completed"] = await query.CountAsync(item => item.Status == NotebookItemStatus.Completed, ct),
+            ["pinned"] = await active.CountAsync(item => item.IsPinned, ct),
+            ["others"] = await active.CountAsync(item => !item.IsPinned, ct)
+        };
+    }
+
     public async Task<NotebookItemDetailVm?> GetDetailAsync(string ownerId, Guid id, CancellationToken ct = default)
     {
         return await LoadSelectedAsync(ownerId, id, TodayBounds(_clock.UtcNow), ct);
@@ -269,18 +289,15 @@ public sealed class NotebookService : INotebookService
         return item.Id;
     }
 
-    public Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, CancellationToken ct = default) =>
-        UpdateCoreAsync(ownerId, id, input, expectedVersion: null, ct);
-
-    public async Task UpdateAsync(string ownerId, Guid id, NotebookEditInput input, string expectedVersion, CancellationToken ct = default) =>
-        await UpdateCoreAsync(ownerId, id, input, string.IsNullOrWhiteSpace(expectedVersion) ? null : expectedVersion, ct);
-
-    private async Task UpdateCoreAsync(string ownerId, Guid id, NotebookEditInput input, string? expectedVersion, CancellationToken ct)
+    public async Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookEditInput input, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
+        if (input.Type != item.Type)
+        {
+            throw new ArgumentException("Notebook item type must be changed through a conversion command.");
+        }
         item.Title = CleanTitle(input.Title);
         item.BodyMarkdown = input.BodyMarkdown;
-        item.Type = input.Type;
         item.Priority = input.Priority;
         item.ReminderAtUtc = input.ReminderAtUtc;
         item.IsPinned = input.IsPinned;
@@ -292,6 +309,7 @@ public sealed class NotebookService : INotebookService
         await SyncTags(item, ownerId, input.Tags, ct);
         await _db.SaveChangesAsync(ct);
         await _audit.LogAsync("Notebook.Update", userId: ownerId, data: new Dictionary<string, string?> { ["Id"] = id.ToString() });
+        return MapDetail(item);
     }
 
     public async Task ArchiveAsync(string ownerId, Guid id, CancellationToken ct = default)
@@ -339,12 +357,13 @@ public sealed class NotebookService : INotebookService
         await _db.SaveChangesAsync(ct);
     }
 
-    public async Task SetPinnedAsync(string ownerId, Guid id, bool isPinned, CancellationToken ct = default)
+    public async Task<NotebookItemDetailVm> SetPinnedAsync(string ownerId, Guid id, bool isPinned, Guid expectedVersion, CancellationToken ct = default)
     {
-        var item = await LoadOwned(ownerId, id, ct);
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
         item.IsPinned = isPinned;
         Touch(item, _clock.UtcNow);
         await _db.SaveChangesAsync(ct);
+        return MapDetail(item);
     }
 
     public async Task ToggleFavoriteAsync(string ownerId, Guid id, CancellationToken ct = default)
@@ -365,12 +384,12 @@ public sealed class NotebookService : INotebookService
         await _db.SaveChangesAsync(ct);
     }
 
-    public async Task ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, CancellationToken ct = default)
+    public async Task<NotebookItemDetailVm> ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, Guid expectedVersion, CancellationToken ct = default)
     {
-        var item = await LoadOwned(ownerId, id, ct);
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
         if (item.Type == newType)
         {
-            return;
+            return MapDetail(item);
         }
 
         var now = _clock.UtcNow;
@@ -413,6 +432,7 @@ public sealed class NotebookService : INotebookService
         Touch(item, now);
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        return MapDetail(item);
     }
 
     public async Task<Guid> DuplicateAsync(string ownerId, Guid id, CancellationToken ct = default)
@@ -478,14 +498,14 @@ public sealed class NotebookService : INotebookService
 
     public async Task<NotebookItemDetailVm> ToggleChecklistItemAsync(string ownerId, Guid itemId, int checklistItemId, bool isDone, Guid expectedVersion, CancellationToken ct = default)
     {
-        var item = await LoadOwnedForUpdate(ownerId, itemId, expectedVersion.ToString("N"), ct);
+        var item = await LoadOwnedForUpdate(ownerId, itemId, expectedVersion, ct);
         var checklistItem = item.ChecklistItems.FirstOrDefault(row => row.Id == checklistItemId) ?? throw new KeyNotFoundException();
         checklistItem.IsDone = isDone;
         var now = _clock.UtcNow;
         checklistItem.CompletedAtUtc = isDone ? now : null;
         Touch(item, now);
         await _db.SaveChangesAsync(ct);
-        return (await LoadSelectedAsync(ownerId, itemId, TodayBounds(_clock.UtcNow), ct))!;
+        return MapDetail(item);
     }
 
     // SECTION: Helpers
@@ -508,7 +528,7 @@ public sealed class NotebookService : INotebookService
                 ct) ?? throw new KeyNotFoundException();
 
 
-    private async Task<NotebookItem> LoadOwnedForUpdate(string ownerId, Guid id, string? expectedVersion, CancellationToken ct)
+    private async Task<NotebookItem> LoadOwnedForUpdate(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct)
     {
         var query = _db.NotebookItems
             .Include(item => item.Tags)
@@ -519,23 +539,52 @@ public sealed class NotebookService : INotebookService
                 item.OwnerId == ownerId &&
                 item.DeletedAtUtc == null);
 
-        if (!string.IsNullOrWhiteSpace(expectedVersion))
+        if (expectedVersion == Guid.Empty)
         {
-            if (!Guid.TryParse(expectedVersion, out var parsedVersion) || parsedVersion == Guid.Empty)
-            {
-                throw new ArgumentException("A valid notebook version is required.", nameof(expectedVersion));
-            }
-
-            var item = await query.FirstOrDefaultAsync(ct) ?? throw new KeyNotFoundException();
-            if (item.Version != parsedVersion)
-            {
-                throw new NotebookConcurrencyException(id, parsedVersion, item.Version);
-            }
-
-            return item;
+            throw new ArgumentException("A valid notebook version is required.", nameof(expectedVersion));
         }
 
-        return await query.FirstOrDefaultAsync(ct) ?? throw new KeyNotFoundException();
+        var item = await query.FirstOrDefaultAsync(ct) ?? throw new KeyNotFoundException();
+        if (item.Version != expectedVersion)
+        {
+            throw new NotebookConcurrencyException(id, expectedVersion, item.Version);
+        }
+
+        return item;
+    }
+
+
+    private NotebookItemDetailVm MapDetail(NotebookItem item)
+    {
+        var detail = new NotebookItemDetailVm();
+        var list = ToListVm(item, TodayBounds(_clock.UtcNow));
+        foreach (var property in typeof(NotebookItemListVm).GetProperties())
+        {
+            property.SetValue(detail, property.GetValue(list));
+        }
+
+        detail.BodyMarkdown = item.BodyMarkdown;
+        detail.ChecklistItems = item.ChecklistItems
+            .OrderBy(checklistItem => checklistItem.SortOrder)
+            .Select(checklistItem => new NotebookChecklistItemVm
+            {
+                Id = checklistItem.Id,
+                Text = checklistItem.Text,
+                IsDone = checklistItem.IsDone,
+                SortOrder = checklistItem.SortOrder
+            })
+            .ToArray();
+        detail.Attachments = item.Attachments
+            .Select(attachment => new NotebookAttachmentVm
+            {
+                Id = attachment.Id,
+                FileName = attachment.OriginalFileName,
+                ContentType = attachment.ContentType ?? string.Empty,
+                SizeBytes = attachment.SizeBytes
+            })
+            .ToArray();
+
+        return detail;
     }
 
     private static string CleanTitle(string title)

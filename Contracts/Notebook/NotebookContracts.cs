@@ -5,6 +5,12 @@ using ProjectManagement.Services.Notebook;
 namespace ProjectManagement.Contracts.Notebook;
 
 // SECTION: Notebook API request contracts
+public abstract class NotebookVersionedRequest
+{
+    [Required]
+    public Guid Version { get; set; }
+}
+
 public class CreateNotebookItemRequest
 {
     [StringLength(NotebookLimits.TitleMaxLength)] public string? Title { get; set; }
@@ -14,18 +20,29 @@ public class CreateNotebookItemRequest
     public DateTimeOffset? ReminderAtUtc { get; set; }
     [StringLength(32)] public string? ColorKey { get; set; }
     public bool IsPinned { get; set; }
+    [Required]
     public List<NotebookChecklistEditRow> ChecklistRows { get; set; } = [];
+    [Required]
     public List<string> Labels { get; set; } = [];
 }
 
 public sealed class UpdateNotebookItemRequest : CreateNotebookItemRequest
 {
-    public string? Version { get; set; }
+    [Required]
+    public Guid Version { get; set; }
 }
 
-public sealed class SetNotebookPinRequest
+public sealed class SetNotebookPinRequest : NotebookVersionedRequest
 {
     public bool IsPinned { get; set; }
+}
+
+public sealed class ConvertNotebookItemRequest : NotebookVersionedRequest
+{
+}
+
+public sealed class DeleteNotebookItemRequest : NotebookVersionedRequest
+{
 }
 
 public sealed class ToggleChecklistItemRequest
@@ -65,5 +82,5 @@ public sealed class NotebookItemResponse
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public List<NotebookChecklistRowResponse> ChecklistRows { get; set; } = [];
     public List<NotebookLabelResponse> Labels { get; set; } = [];
-    public string? Version { get; set; }
+    public Guid Version { get; set; }
 }
