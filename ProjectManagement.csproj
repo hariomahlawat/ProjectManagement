@@ -44,4 +44,9 @@
     </None>
   </ItemGroup>
 
+  <Target Name="BuildNotebookAssets" BeforeTargets="Build" Condition="Exists('node_modules/.bin/esbuild')">
+    <!-- SECTION: Notebook bundle generation for coherent versioned browser delivery. -->
+    <Exec Command="npm run build:notebook" />
+  </Target>
+
 </Project>

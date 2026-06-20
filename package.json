@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "node tools/run-js-tests.js",
-    "lint:views": "./tools/check-views.sh"
+    "lint:views": "./tools/check-views.sh",
+    "build:notebook": "esbuild wwwroot/js/pages/notebook-index.js --bundle --format=esm --platform=browser --target=es2022 --sourcemap --outfile=wwwroot/dist/notebook-index.bundle.js",
+    "build:notebook:prod": "esbuild wwwroot/js/pages/notebook-index.js --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=wwwroot/dist/notebook-index.bundle.js",
+    "build": "npm run build:notebook"
   },
   "repository": {
     "type": "git",
@@ -20,6 +23,7 @@
   },
   "homepage": "https://github.com/hariomahlawat/ProjectManagement#readme",
   "devDependencies": {
+    "esbuild": "^0.25.12",
     "jsdom": "^27.0.0"
   }
 }
