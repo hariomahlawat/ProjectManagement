@@ -15,7 +15,7 @@ public sealed class NotebookCardModelFactory : INotebookCardModelFactory
 
     public NotebookCardRenderVm Create(NotebookItemListVm item, NotebookCardContext context)
     {
-        var view = string.IsNullOrWhiteSpace(context.View) ? "home" : context.View;
+        var view = NormalizeView(context.View);
         var routeValues = new RouteValueDictionary
         {
             ["view"] = view,
@@ -47,6 +47,17 @@ public sealed class NotebookCardModelFactory : INotebookCardModelFactory
             }
         };
     }
+
+    // SECTION: View context helpers
+    private static string NormalizeView(string? view) => view?.Trim().ToLowerInvariant() switch
+    {
+        "today" => "today",
+        "reminders" => "reminders",
+        "labels" => "labels",
+        "archive" => "archive",
+        "completed" => "completed",
+        _ => NotebookCardContexts.Home
+    };
 
     // SECTION: Route value helpers
     private static void AddOptionalRouteValue(RouteValueDictionary values, string key, string? value)

@@ -9,7 +9,9 @@ function loadBoard(dom) {
   global.document = dom.window.document;
   global.CSS = dom.window.CSS || { escape: (value) => String(value).replace(/"/g, '\\"') };
   const scriptPath = path.resolve(__dirname, 'notebook-board.js');
-  const script = fs.readFileSync(scriptPath, 'utf8').replace('export function createNotebookBoard', 'function createNotebookBoard');
+  const script = fs.readFileSync(scriptPath, 'utf8')
+    .replace(/import .*notebook-errors\.js';\n/, 'class NotebookCardHtmlError extends Error { constructor(message) { super(message); this.code = \'notebook_invalid_card_html\'; } } class NotebookBoardTargetError extends Error { constructor(message) { super(message); this.code = \'notebook_target_board_missing\'; } }\n')
+    .replace('export function createNotebookBoard', 'function createNotebookBoard');
   const context = vm.createContext({ document: dom.window.document, CSS: global.CSS });
   vm.runInContext(`${script}; globalThis.__createNotebookBoard = createNotebookBoard;`, context);
   return context.__createNotebookBoard(dom.window.document);
@@ -45,4 +47,23 @@ test('notebook board inserts a valid card into the requested board only', async 
   const card = board.upsertCard('note-1', '<article data-note-id="note-1" data-version="v1"></article>', false);
   assert.equal(card.dataset.noteId, 'note-1');
   assert.equal(dom.window.document.querySelector('[data-notebook-board="others"] > [data-note-id="note-1"]'), card);
+});
+
+
+test('notebook board throws typed error for missing target board', async () => {
+  const dom = new JSDOM('<div data-notebook-board="others"></div>');
+  const board = loadBoard(dom);
+  assert.throws(
+    () => board.upsertCard('note-1', '<article data-note-id="note-1"></article>', true),
+    (error) => error.code === 'notebook_target_board_missing'
+  );
+});
+
+test('notebook board throws typed error for invalid card HTML', async () => {
+  const dom = new JSDOM('<div data-notebook-board="others"></div>');
+  const board = loadBoard(dom);
+  assert.throws(
+    () => board.upsertCard('note-1', '<article data-note-id="note-2"></article>', false),
+    (error) => error.code === 'notebook_invalid_card_html'
+  );
 });

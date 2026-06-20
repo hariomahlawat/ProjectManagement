@@ -8,10 +8,16 @@ public interface INotebookCardModelFactory
     NotebookCardRenderVm Create(NotebookItemListVm item, NotebookCardContext context);
 }
 
+// SECTION: Supported notebook card render contexts
+public static class NotebookCardContexts
+{
+    public const string Home = "home";
+}
+
 // SECTION: Notebook card ambient render context
 public sealed class NotebookCardContext
 {
-    public string View { get; init; } = "home";
+    public string View { get; init; } = NotebookCardContexts.Home;
 
     public string? Query { get; init; }
 

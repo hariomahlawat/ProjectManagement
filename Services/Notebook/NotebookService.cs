@@ -383,14 +383,6 @@ public sealed class NotebookService : INotebookService
         return MapDetail(item);
     }
 
-    public async Task ToggleFavoriteAsync(string ownerId, Guid id, CancellationToken ct = default)
-    {
-        var item = await LoadOwned(ownerId, id, ct);
-        item.IsFavorite = !item.IsFavorite;
-        Touch(item, _clock.UtcNow);
-        await _db.SaveChangesAsync(ct);
-    }
-
     public async Task<NotebookItemDetailVm> CompleteAsync(string ownerId, Guid id, bool isComplete, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
