@@ -57,8 +57,6 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
 
         ConfigureBreadcrumb("Projects");
 
-        ConfigureBreadcrumb("Projects");
-
         if (id.HasValue)
         {
             var project = await _db.FfcProjects
@@ -100,8 +98,6 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         {
             return NotFound();
         }
-
-        ConfigureBreadcrumb("Projects");
 
         ConfigureBreadcrumb("Projects");
 
@@ -227,12 +223,13 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         }
     }
 
+    // SECTION: Breadcrumb helpers
     private void ConfigureBreadcrumb(string leaf)
     {
-        var dashboardUrl = Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" });
-        var manageUrl = Url.Page("/FFC/Records/Manage", new { area = "ProjectOfficeReports" });
+        var dashboardUrl = Url?.Page("/FFC/Index", new { area = "ProjectOfficeReports" });
+        var manageUrl = Url?.Page("/FFC/Records/Manage", new { area = "ProjectOfficeReports" });
         var recordSegmentText = $"{Record.Country?.Name ?? "Record"} – {Record.Year}";
-        var recordSegmentUrl = Url.Page(
+        var recordSegmentUrl = Url?.Page(
             "/FFC/Records/Manage",
             new { area = "ProjectOfficeReports", editId = Record.Id });
 

@@ -42,11 +42,12 @@ public class ManageModel : FfcRecordListPageModel
         _logger = logger;
     }
 
+    // SECTION: Breadcrumb helpers
     private void ConfigureBreadcrumb()
     {
         FfcBreadcrumbs.Set(
             ViewData,
-            ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
+            ("FFC Proposals", Url?.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
             ("Manage records", null));
     }
 
