@@ -326,6 +326,7 @@ public sealed class NotebookService : INotebookService
             ClientRequestId = input.ClientRequestId,
             Title = input.Title,
             BodyMarkdown = input.BodyMarkdown,
+            Type = input.Type,
             Priority = input.Priority,
             ReminderAtUtc = input.ReminderAtUtc,
             ColorKey = input.ColorKey,
@@ -369,6 +370,28 @@ public sealed class NotebookService : INotebookService
     }
 
 
+    public async Task<NotebookItemDetailVm> UpdateContentAsync(string ownerId, Guid id, string? title, string? body, Guid expectedVersion, CancellationToken ct = default)
+    {
+        // SECTION: Content autosave updates text only and preserves notebook metadata.
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
+        item.Title = CleanTitle(title ?? string.Empty);
+        item.BodyMarkdown = body;
+        Touch(item, _clock.UtcNow);
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new NotebookConcurrencyException(id, expectedVersion, item.Version, ex);
+        }
+
+        await TryWriteAuditAsync("Notebook.UpdateContent", ownerId, item.Id, ct);
+        return MapDetail(item);
+    }
+
+
     public Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookEditInput input, Guid expectedVersion, CancellationToken ct = default)
     {
         // SECTION: Legacy form adapter intentionally drops pin/favourite state for generic updates.
@@ -376,6 +399,7 @@ public sealed class NotebookService : INotebookService
         {
             Title = input.Title,
             BodyMarkdown = input.BodyMarkdown,
+            Type = input.Type,
             Priority = input.Priority,
             ReminderAtUtc = input.ReminderAtUtc,
             ColorKey = input.ColorKey,

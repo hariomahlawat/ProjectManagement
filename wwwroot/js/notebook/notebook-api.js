@@ -75,13 +75,38 @@ export function getDefaultNotebookErrorMessage(status) {
 
 // SECTION: Shared JSON request options helper
 export function jsonRequestOptions(method, payload, options = {}) {
+  if (payload === undefined || typeof payload === 'function' || typeof payload === 'symbol') {
+    throw new NotebookApiError('Notebook request payload is invalid.', {
+      status: 0,
+      code: 'notebook_invalid_client_payload'
+    });
+  }
+
+  let body;
+  try {
+    body = JSON.stringify(payload);
+  } catch (error) {
+    throw new NotebookApiError('Notebook request payload could not be serialised.', {
+      status: 0,
+      code: 'notebook_payload_serialisation_failed',
+      cause: error
+    });
+  }
+
+  if (typeof body !== 'string' || body.length === 0) {
+    throw new NotebookApiError('Notebook request payload is empty.', {
+      status: 0,
+      code: 'notebook_empty_client_payload'
+    });
+  }
+
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json; charset=utf-8');
   return {
     ...options,
     method: String(method).toUpperCase(),
     headers,
-    body: JSON.stringify(payload)
+    body
   };
 }
 
@@ -184,6 +209,7 @@ export const NotebookApi = {
   createItem: (payload) => request('/api/notebook/items', jsonRequestOptions('POST', payload)),
   getItem: (id) => request(`/api/notebook/items/${encodeURIComponent(id)}`),
   updateItem: (id, payload) => request(`/api/notebook/items/${encodeURIComponent(id)}`, jsonRequestOptions('PATCH', payload)),
+  updateContent: (id, payload) => request(`/api/notebook/items/${encodeURIComponent(id)}/content`, jsonRequestOptions('PATCH', payload)),
   setPinned: (id, isPinned, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/pin`, jsonRequestOptions('POST', { isPinned, version })),
   archiveItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/archive`, jsonRequestOptions('POST', { version })),
   completeItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/complete`, jsonRequestOptions('POST', { version })),

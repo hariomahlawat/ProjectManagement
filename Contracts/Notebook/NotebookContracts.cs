@@ -43,6 +43,19 @@ public sealed class UpdateNotebookItemRequest
     public List<string>? Labels { get; set; }
 }
 
+
+public sealed class UpdateNotebookContentRequest
+{
+    [Required]
+    public Guid Version { get; set; }
+
+    [StringLength(NotebookLimits.TitleMaxLength)]
+    public string? Title { get; set; }
+
+    [StringLength(NotebookLimits.BodyMaxLength)]
+    public string? Body { get; set; }
+}
+
 public sealed class SetNotebookPinRequest : NotebookVersionedRequest
 {
     public bool IsPinned { get; set; }

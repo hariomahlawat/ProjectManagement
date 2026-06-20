@@ -121,6 +121,19 @@ public sealed class NotebookController : Controller
         return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
     }
 
+
+    [Consumes("application/json")]
+    [HttpPatch("{id:guid}/content")]
+    public async Task<IActionResult> UpdateContent(Guid id, [FromBody] UpdateNotebookContentRequest request, CancellationToken ct)
+    {
+        // SECTION: Browser autosave endpoint for text-only updates.
+        var validation = ValidateContentRequest(request);
+        if (validation is not null) return validation;
+
+        var updated = await _notebook.UpdateContentAsync(CurrentUserId(), id, request.Title, request.Body, request.Version, ct);
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
+    }
+
     [Consumes("application/json")]
     [HttpPost("{id:guid}/pin")]
     public async Task<IActionResult> Pin(Guid id, [FromBody] SetNotebookPinRequest request, CancellationToken ct)
@@ -282,6 +295,16 @@ public sealed class NotebookController : Controller
         if (request.Labels.Count > NotebookLimits.MaxLabelsPerItem || request.Labels.Any(label => label.Length > NotebookLimits.LabelNameMaxLength)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "labels", "Too many labels or label text is too long."));
         var allowedColors = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "white", "blue", "amber", "green", "rose", "slate" };
         if (!string.IsNullOrWhiteSpace(request.ColorKey) && !allowedColors.Contains(request.ColorKey)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "colorKey", "Unsupported colour."));
+        return null;
+    }
+
+    private BadRequestObjectResult? ValidateContentRequest(UpdateNotebookContentRequest request)
+    {
+        // SECTION: Content autosave request validation.
+        if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The note could not be saved.", "version", "Version is required."));
+        if (string.IsNullOrWhiteSpace(request.Title) && string.IsNullOrWhiteSpace(request.Body)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "content", "Add a title or body before saving."));
+        if ((request.Title?.Length ?? 0) > NotebookLimits.TitleMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "title", $"Title cannot exceed {NotebookLimits.TitleMaxLength} characters."));
+        if ((request.Body?.Length ?? 0) > NotebookLimits.BodyMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "body", $"Body cannot exceed {NotebookLimits.BodyMaxLength} characters."));
         return null;
     }
 

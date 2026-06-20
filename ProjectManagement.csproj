@@ -44,9 +44,14 @@
     </None>
   </ItemGroup>
 
-  <Target Name="BuildNotebookAssets" BeforeTargets="Build" Condition="Exists('node_modules/.bin/esbuild')">
+  <Target Name="ValidateNotebookDependencies" BeforeTargets="BuildNotebookAssets">
+    <!-- SECTION: Fail .NET builds rather than serving stale Notebook bundles. -->
+    <Error Condition="!Exists('node_modules/esbuild')" Text="Notebook frontend dependencies are missing. Run 'npm ci' from the project root before building." />
+  </Target>
+
+  <Target Name="BuildNotebookAssets" BeforeTargets="Build;Publish" DependsOnTargets="ValidateNotebookDependencies">
     <!-- SECTION: Notebook bundle generation for coherent versioned browser delivery. -->
-    <Exec Command="npm run build:notebook" />
+    <Exec Command="npm run build:notebook" WorkingDirectory="$(MSBuildProjectDirectory)" />
   </Target>
 
 </Project>

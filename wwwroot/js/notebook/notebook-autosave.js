@@ -1,16 +1,31 @@
 // SECTION: Notebook serial autosave utility
+function isPlainObject(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function clonePayload(payload) {
+  if (typeof structuredClone === 'function') return structuredClone(payload);
+  return JSON.parse(JSON.stringify(payload));
+}
+
+export function assertPayloadObject(payload) {
+  if (!isPlainObject(payload)) throw new TypeError('Autosave payload must be a plain object.');
+}
+
 export function createAutosave({ save, delay = 800, onSaving, onPersisted, onSaveError, onReconcileError, onSaved, onError }) {
   let timer = null;
   let activePromise = null;
-  let latestPayloadFactory = null;
+  let latestPayload = null;
   let dirty = false;
   let stopped = false;
 
   async function runLoop() {
     if (activePromise) return activePromise;
     activePromise = (async () => {
-      while (!stopped && dirty && latestPayloadFactory) {
-        const payload = latestPayloadFactory();
+      while (!stopped && dirty && latestPayload) {
+        const payload = latestPayload;
         dirty = false;
         await onSaving?.();
 
@@ -34,9 +49,10 @@ export function createAutosave({ save, delay = 800, onSaving, onPersisted, onSav
     finally { activePromise = null; }
   }
 
-  function schedule(payloadFactory) {
+  function schedule(payload) {
     if (stopped) return;
-    latestPayloadFactory = payloadFactory;
+    assertPayloadObject(payload);
+    latestPayload = clonePayload(payload);
     dirty = true;
     if (timer) window.clearTimeout(timer);
     timer = window.setTimeout(() => { timer = null; runLoop().catch(() => {}); }, delay);
@@ -51,7 +67,7 @@ export function createAutosave({ save, delay = 800, onSaving, onPersisted, onSav
   function cancel() {
     if (timer) { window.clearTimeout(timer); timer = null; }
     dirty = false;
-    latestPayloadFactory = null;
+    latestPayload = null;
   }
 
   function stop() { stopped = true; cancel(); }

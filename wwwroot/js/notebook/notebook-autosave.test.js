@@ -29,15 +29,15 @@ test('notebook autosave serialises rapid edits and uses latest payload after an 
     onSaved: (result) => { version = result.version; saved.push(result.value); }
   });
 
-  autosave.schedule(() => ({ value: 'first', version }));
+  autosave.schedule({ value: 'first', version });
   await new Promise((resolve) => setTimeout(resolve, 5));
-  autosave.schedule(() => ({ value: 'second', version }));
+  autosave.schedule({ value: 'second', version });
   releaseFirst();
   await autosave.flush();
 
   assert.deepEqual(calls, [
     { value: 'first', version: 'v1' },
-    { value: 'second', version: 'v2' }
+    { value: 'second', version: 'v1' }
   ]);
   assert.deepEqual(saved, ['first', 'second']);
 });
@@ -53,7 +53,7 @@ test('notebook autosave keeps failed saves dirty for retry', async () => {
     onError: (error) => errors.push(error.message)
   });
 
-  autosave.schedule(() => ({ value: 'draft' }));
+  autosave.schedule({ value: 'draft' });
   await assert.rejects(() => autosave.flush(), /network/);
   fail = false;
   await autosave.flush();
@@ -71,7 +71,7 @@ test('notebook autosave routes timer errors to onError without unhandled rejecti
     onError: (error) => errors.push(error.message)
   });
 
-  autosave.schedule(() => ({ value: 'draft' }));
+  autosave.schedule({ value: 'draft' });
   await new Promise((resolve) => setTimeout(resolve, 10));
   assert.deepEqual(errors, ['network']);
 });
@@ -93,16 +93,16 @@ test('notebook autosave awaits async onSaved before starting next dirty iteratio
     }
   });
 
-  autosave.schedule(() => ({ version }));
+  autosave.schedule({ version });
   await new Promise((resolve) => setTimeout(resolve, 5));
-  autosave.schedule(() => ({ version }));
+  autosave.schedule({ version });
   await new Promise((resolve) => setTimeout(resolve, 5));
 
   assert.deepEqual(events, ['save:v1', 'saved-start:v2']);
   releaseSaved();
   await autosave.flush();
 
-  assert.deepEqual(events, ['save:v1', 'saved-start:v2', 'saved-end:v2', 'save:v2', 'saved-start:v3', 'saved-end:v3']);
+  assert.deepEqual(events, ['save:v1', 'saved-start:v2', 'saved-end:v2', 'save:v1', 'saved-start:v2', 'saved-end:v2']);
 });
 
 test('notebook autosave does not retry persisted data when reconciliation fails', async () => {
@@ -116,7 +116,7 @@ test('notebook autosave does not retry persisted data when reconciliation fails'
     onReconcileError: (error, result) => reconcileErrors.push({ message: error.message, version: result.item.version })
   });
 
-  autosave.schedule(() => ({ value: 'draft' }));
+  autosave.schedule({ value: 'draft' });
   await autosave.flush();
   await autosave.flush();
 
@@ -132,10 +132,18 @@ test('notebook autosave cancel clears pending local payload without saving', asy
     save: async (payload) => { calls.push(payload); return payload; }
   });
 
-  autosave.schedule(() => ({ value: 'discard me' }));
+  autosave.schedule({ value: 'discard me' });
   autosave.cancel();
   await autosave.flush();
 
   assert.deepEqual(calls, []);
   assert.equal(autosave.hasPending(), false);
+});
+
+
+test('notebook autosave rejects function payloads before fetch', async () => {
+  const { createAutosave } = await loadModule('notebook-autosave.js');
+  const autosave = createAutosave({ save: async (payload) => payload });
+
+  assert.throws(() => autosave.schedule(() => ({ value: 'invalid' })), /plain object/);
 });

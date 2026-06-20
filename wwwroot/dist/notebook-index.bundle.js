@@ -86,13 +86,35 @@ function getDefaultNotebookErrorMessage(status) {
   }
 }
 function jsonRequestOptions(method, payload, options = {}) {
+  if (payload === void 0 || typeof payload === "function" || typeof payload === "symbol") {
+    throw new NotebookApiError("Notebook request payload is invalid.", {
+      status: 0,
+      code: "notebook_invalid_client_payload"
+    });
+  }
+  let body;
+  try {
+    body = JSON.stringify(payload);
+  } catch (error) {
+    throw new NotebookApiError("Notebook request payload could not be serialised.", {
+      status: 0,
+      code: "notebook_payload_serialisation_failed",
+      cause: error
+    });
+  }
+  if (typeof body !== "string" || body.length === 0) {
+    throw new NotebookApiError("Notebook request payload is empty.", {
+      status: 0,
+      code: "notebook_empty_client_payload"
+    });
+  }
   const headers = new Headers(options.headers || {});
   headers.set("Content-Type", "application/json; charset=utf-8");
   return {
     ...options,
     method: String(method).toUpperCase(),
     headers,
-    body: JSON.stringify(payload)
+    body
   };
 }
 function isLoginResponse(response) {
@@ -196,6 +218,7 @@ var init_notebook_api = __esm({
       createItem: (payload) => request("/api/notebook/items", jsonRequestOptions("POST", payload)),
       getItem: (id) => request(`/api/notebook/items/${encodeURIComponent(id)}`),
       updateItem: (id, payload) => request(`/api/notebook/items/${encodeURIComponent(id)}`, jsonRequestOptions("PATCH", payload)),
+      updateContent: (id, payload) => request(`/api/notebook/items/${encodeURIComponent(id)}/content`, jsonRequestOptions("PATCH", payload)),
       setPinned: (id, isPinned, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/pin`, jsonRequestOptions("POST", { isPinned, version })),
       archiveItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/archive`, jsonRequestOptions("POST", { version })),
       completeItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/complete`, jsonRequestOptions("POST", { version })),
@@ -213,6 +236,19 @@ var init_notebook_api = __esm({
 });
 
 // wwwroot/js/notebook/notebook-errors.js
+function getValidationMessages(error) {
+  const errors = error?.errors;
+  if (!errors || typeof errors !== "object") return [];
+  return Object.entries(errors).flatMap(([field, value]) => {
+    const messages = Array.isArray(value) ? value : [value];
+    return messages.filter((message) => typeof message === "string" && message.trim().length > 0).map((message) => ({ field, message: message.trim() }));
+  });
+}
+function getFirstValidationMessage(error) {
+  const messages = getValidationMessages(error);
+  if (messages.length > 0) return messages[0].message;
+  return error?.message || "The note contains invalid information.";
+}
 var NotebookCardHtmlError, NotebookBoardTargetError;
 var init_notebook_errors = __esm({
   "wwwroot/js/notebook/notebook-errors.js"() {
@@ -598,17 +634,29 @@ var init_notebook_composer = __esm({
 });
 
 // wwwroot/js/notebook/notebook-autosave.js
+function isPlainObject(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+function clonePayload(payload) {
+  if (typeof structuredClone === "function") return structuredClone(payload);
+  return JSON.parse(JSON.stringify(payload));
+}
+function assertPayloadObject(payload) {
+  if (!isPlainObject(payload)) throw new TypeError("Autosave payload must be a plain object.");
+}
 function createAutosave({ save, delay = 800, onSaving, onPersisted, onSaveError, onReconcileError, onSaved, onError }) {
   let timer = null;
   let activePromise = null;
-  let latestPayloadFactory = null;
+  let latestPayload = null;
   let dirty = false;
   let stopped = false;
   async function runLoop() {
     if (activePromise) return activePromise;
     activePromise = (async () => {
-      while (!stopped && dirty && latestPayloadFactory) {
-        const payload = latestPayloadFactory();
+      while (!stopped && dirty && latestPayload) {
+        const payload = latestPayload;
         dirty = false;
         await onSaving?.();
         let result;
@@ -632,9 +680,10 @@ function createAutosave({ save, delay = 800, onSaving, onPersisted, onSaveError,
       activePromise = null;
     }
   }
-  function schedule(payloadFactory) {
+  function schedule(payload) {
     if (stopped) return;
-    latestPayloadFactory = payloadFactory;
+    assertPayloadObject(payload);
+    latestPayload = clonePayload(payload);
     dirty = true;
     if (timer) window.clearTimeout(timer);
     timer = window.setTimeout(() => {
@@ -657,7 +706,7 @@ function createAutosave({ save, delay = 800, onSaving, onPersisted, onSaveError,
       timer = null;
     }
     dirty = false;
-    latestPayloadFactory = null;
+    latestPayload = null;
   }
   function stop() {
     stopped = true;
@@ -673,6 +722,8 @@ var init_notebook_autosave = __esm({
 // wwwroot/js/notebook/notebook-editor.js
 function initNotebookEditor(board, view, options = {}) {
   let modal, item, autosave, checklist, trigger, openedByPushState = false, currentSaveError = null;
+  let blockedByValidation = false;
+  let lastValidationFingerprint = null;
   const shell = options.shell || document.querySelector(".notebook-shell");
   const dirtyState = { title: false, body: false, checklist: false };
   const buildNoteUrl = (id) => {
@@ -701,8 +752,20 @@ function initNotebookEditor(board, view, options = {}) {
     if (signIn) signIn.hidden = state !== "session-expired";
     if (copy) copy.hidden = !["session-expired", "forbidden", "network", "server", "error"].includes(state);
   }
-  function payload() {
-    return () => ({ title: modal.querySelector("[data-modal-title]").value.trim(), body: modal.querySelector("[data-modal-body]").value.trim(), type: item.type, priority: item.priority ?? "Normal", reminderAtUtc: item.reminderAtUtc ?? null, colorKey: item.colorKey ?? null, labels: (item.labels || []).map((l) => l.name || l), checklistRows: item.type === "Checklist" ? checklist.getRows() : [], version: item.version });
+  function buildCurrentPayload() {
+    return buildUpdatePayload({ title: modal.querySelector("[data-modal-title]").value, body: modal.querySelector("[data-modal-body]").value, version: item.version });
+  }
+  function scheduleAutosave() {
+    const nextPayload = buildCurrentPayload();
+    const nextFingerprint = validationFingerprint(nextPayload);
+    if (blockedByValidation && nextFingerprint === lastValidationFingerprint) return;
+    if (blockedByValidation) clearValidationBlock();
+    autosave?.schedule(nextPayload);
+  }
+  function clearValidationBlock() {
+    blockedByValidation = false;
+    lastValidationFingerprint = null;
+    renderValidationErrors([]);
   }
   function configureAutosave() {
     autosave?.stop();
@@ -719,6 +782,7 @@ function initNotebookEditor(board, view, options = {}) {
     checklist.setRows(item.checklistRows || []);
     modal.querySelector("[data-modal-checklist]").hidden = item.type !== "Checklist";
     dirtyState.title = dirtyState.body = dirtyState.checklist = false;
+    clearValidationBlock();
     renderPin();
   }
   function build() {
@@ -728,11 +792,11 @@ function initNotebookEditor(board, view, options = {}) {
     modal.setAttribute("role", "dialog");
     modal.setAttribute("aria-modal", "true");
     modal.setAttribute("aria-labelledby", "notebook-modal-title");
-    modal.innerHTML = '<div class="notebook-modal__backdrop" data-close></div><section class="notebook-modal__dialog"><header><input id="notebook-modal-title" data-modal-title class="notebook-modal__title" maxlength="220"><button type="button" class="notebook-action-icon" data-modal-pin aria-label="Pin note"><i class="bi bi-pin-angle"></i></button></header><textarea data-modal-body class="notebook-modal__body" maxlength="20000" placeholder="Take a note\u2026"></textarea><div data-modal-checklist class="notebook-checklist-editor" hidden></div><div class="notebook-save-feedback"><span class="notebook-modal__save-state" data-notebook-save-state aria-live="polite"></span><button type="button" data-notebook-retry hidden>Retry</button><button type="button" data-notebook-reload-latest hidden>Reload latest</button><button type="button" data-notebook-sign-in hidden>Sign in again</button><button type="button" data-notebook-copy-unsaved hidden>Copy note text</button><button type="button" data-modal-discard hidden>Discard changes</button></div><footer><button type="button" class="btn btn-sm btn-link" data-close aria-label="Close note editor">Close</button></footer></section>';
+    modal.innerHTML = '<div class="notebook-modal__backdrop" data-close></div><section class="notebook-modal__dialog"><header><input id="notebook-modal-title" data-modal-title class="notebook-modal__title" maxlength="220"><button type="button" class="notebook-action-icon" data-modal-pin aria-label="Pin note"><i class="bi bi-pin-angle"></i></button></header><textarea data-modal-body class="notebook-modal__body" maxlength="20000" placeholder="Take a note\u2026"></textarea><div class="notebook-editor__validation" data-notebook-validation-summary role="alert" hidden></div><div data-modal-checklist class="notebook-checklist-editor" hidden></div><div class="notebook-save-feedback"><span class="notebook-modal__save-state" data-notebook-save-state aria-live="polite"></span><button type="button" data-notebook-retry hidden>Retry</button><button type="button" data-notebook-reload-latest hidden>Reload latest</button><button type="button" data-notebook-sign-in hidden>Sign in again</button><button type="button" data-notebook-copy-unsaved hidden>Copy note text</button><button type="button" data-modal-discard hidden>Discard changes</button></div><footer><button type="button" class="btn btn-sm btn-link" data-close aria-label="Close note editor">Close</button></footer></section>';
     document.body.appendChild(modal);
     checklist = createChecklistEditor(modal.querySelector("[data-modal-checklist]"), { onChange: () => {
       dirtyState.checklist = true;
-      autosave?.schedule(payload);
+      scheduleAutosave();
     } });
     modal.addEventListener("click", (e) => {
       if (e.target.matches("[data-close]")) requestClose();
@@ -740,11 +804,11 @@ function initNotebookEditor(board, view, options = {}) {
     modal.addEventListener("keydown", trapFocus);
     modal.querySelector("[data-modal-title]").addEventListener("input", () => {
       dirtyState.title = true;
-      autosave?.schedule(payload);
+      scheduleAutosave();
     });
     modal.querySelector("[data-modal-body]").addEventListener("input", () => {
       dirtyState.body = true;
-      autosave?.schedule(payload);
+      scheduleAutosave();
     });
     modal.querySelector("[data-modal-pin]").addEventListener("click", pinItem);
     modal.querySelector("[data-notebook-retry]")?.addEventListener("click", retrySave);
@@ -754,11 +818,14 @@ function initNotebookEditor(board, view, options = {}) {
     modal.querySelector("[data-modal-discard]")?.addEventListener("click", discardChangesAndClose);
   }
   async function saveEditorPayload(data) {
-    return NotebookApi.updateItem(item.id, data);
+    assertValidVersion(data.version);
+    return NotebookApi.updateContent(item.id, data);
   }
   async function applyPersistedResponse(response) {
     item = requireMutationItem(response);
     dirtyState.title = dirtyState.body = dirtyState.checklist = false;
+    clearValidationBlock();
+    clearStoredDraft(item?.id);
     setStatus("Saved", "saved");
     await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts: options.applyCounts, preservePosition: true, showGlobalError: options.showGlobalError, renderFailureMessage: "The note was saved, but its card could not refresh. Reload the page.", reconcileFailureMessage: "The note was saved, but the board could not refresh. Reload the page." });
   }
@@ -772,8 +839,17 @@ function initNotebookEditor(board, view, options = {}) {
   function handleEditorError(error) {
     currentSaveError = classifySaveError(error);
     setStatus(currentSaveError.message, currentSaveError.kind);
-    if (currentSaveError.kind === "validation") setStatus(currentSaveError.message, "validation");
-    if (isDevelopment2()) console.error("Notebook update failed", { noteId: item?.id, status: error?.status, code: error?.code, errors: error?.errors, responseText: error?.responseText, error });
+    if (currentSaveError.kind === "validation") {
+      setStatus(currentSaveError.message, "validation");
+      renderValidationErrors(currentSaveError.validationErrors);
+      const submittedPayload = buildCurrentPayload();
+      blockedByValidation = true;
+      lastValidationFingerprint = validationFingerprint(submittedPayload);
+    }
+    if (isDevelopment2()) {
+      const submittedPayload = buildCurrentPayload();
+      console.error("Notebook update failed", { noteId: item?.id, status: error?.status, code: error?.code, errors: error?.errors, responseText: error?.responseText, payload: describeUpdatePayload(submittedPayload) });
+    }
   }
   function isDevelopment2() {
     return document.documentElement.dataset.environment === "Development" || location.hostname === "localhost";
@@ -809,6 +885,28 @@ function initNotebookEditor(board, view, options = {}) {
     if (!item?.id) return;
     sessionStorage.setItem(`notebook-draft:${item.id}`, JSON.stringify({ title: modal.querySelector("[data-modal-title]").value, body: modal.querySelector("[data-modal-body]").value, savedAtUtc: (/* @__PURE__ */ new Date()).toISOString() }));
   }
+  function clearStoredDraft(itemId) {
+    if (itemId) sessionStorage.removeItem(`notebook-draft:${itemId}`);
+  }
+  function readStoredDraft(itemId) {
+    const key = `notebook-draft:${itemId}`;
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+  }
+  function restoreStoredDraftIfNeeded() {
+    const storedDraft = readStoredDraft(item.id);
+    if (storedDraft && (storedDraft.title !== item.title || storedDraft.body !== item.body) && window.confirm("Restore your unsaved local draft for this note?")) {
+      modal.querySelector("[data-modal-title]").value = storedDraft.title || "";
+      modal.querySelector("[data-modal-body]").value = storedDraft.body || "";
+      scheduleAutosave();
+    }
+  }
   function signInAgain() {
     preserveUnsavedDraft();
     const returnUrl = window.location.pathname + window.location.search + window.location.hash;
@@ -825,7 +923,8 @@ function initNotebookEditor(board, view, options = {}) {
     const button = modal.querySelector("[data-notebook-retry]");
     button.disabled = true;
     try {
-      autosave.schedule(payload);
+      clearValidationBlock();
+      autosave.schedule(buildCurrentPayload());
       await autosave.flush();
     } finally {
       button.disabled = false;
@@ -838,6 +937,7 @@ function initNotebookEditor(board, view, options = {}) {
     autosave?.stop();
     autosave = null;
     currentSaveError = null;
+    clearValidationBlock();
     item = null;
     modal.hidden = true;
     setBackgroundInert(false);
@@ -855,6 +955,7 @@ function initNotebookEditor(board, view, options = {}) {
     try {
       item = await NotebookApi.getItem(item.id);
       renderMode();
+      clearValidationBlock();
       setStatus("", "idle");
     } catch (error) {
       setStatus(error.message || "Unable to reload the note.", "error");
@@ -886,6 +987,7 @@ function initNotebookEditor(board, view, options = {}) {
     item = await NotebookApi.getItem(id);
     configureAutosave();
     renderMode();
+    restoreStoredDraftIfNeeded();
     modal.hidden = false;
     setBackgroundInert(true);
     modal.querySelector("[data-modal-title]").focus();
@@ -931,23 +1033,93 @@ function initNotebookEditor(board, view, options = {}) {
   }
   return { open, requestClose, isOpen: () => !!item && !!modal && !modal.hidden, syncExternalUpdate };
 }
+function assertValidVersion(version) {
+  if (typeof version !== "string" || !guidPattern.test(version)) {
+    throw new NotebookApiError("The note version is invalid. Reload the note and try again.", {
+      status: 0,
+      code: "notebook_invalid_local_version"
+    });
+  }
+}
+function buildUpdatePayload({ title, body, version, type = "Note", checklistRows = [] }) {
+  const payload = {
+    title: String(title ?? "").trim(),
+    body: String(body ?? "").trim(),
+    version
+  };
+  if (type === "Checklist") payload.checklistRows = Array.isArray(checklistRows) ? checklistRows : [];
+  return payload;
+}
+function validationFingerprint(payload) {
+  return JSON.stringify({
+    titleLength: typeof payload?.title === "string" ? payload.title.length : null,
+    bodyLength: typeof payload?.body === "string" ? payload.body.length : null,
+    version: payload?.version,
+    type: payload?.type,
+    priority: payload?.priority,
+    reminderAtUtc: payload?.reminderAtUtc,
+    labelsIsArray: Array.isArray(payload?.labels),
+    checklistRowsIsArray: Array.isArray(payload?.checklistRows)
+  });
+}
+function describeUpdatePayload(payload) {
+  return {
+    titleType: typeof payload?.title,
+    titleLength: typeof payload?.title === "string" ? payload.title.length : null,
+    bodyType: typeof payload?.body,
+    bodyLength: typeof payload?.body === "string" ? payload.body.length : null,
+    typeValue: payload?.type,
+    typeValueType: typeof payload?.type,
+    priorityValue: payload?.priority,
+    priorityValueType: typeof payload?.priority,
+    versionValue: payload?.version,
+    versionValueType: typeof payload?.version,
+    reminderAtUtc: payload?.reminderAtUtc,
+    labelsIsArray: Array.isArray(payload?.labels),
+    labelsCount: Array.isArray(payload?.labels) ? payload.labels.length : null,
+    checklistRowsIsArray: Array.isArray(payload?.checklistRows),
+    checklistRowCount: Array.isArray(payload?.checklistRows) ? payload.checklistRows.length : null
+  };
+}
+function renderValidationErrors(hostOrErrors, maybeErrors) {
+  const host = Array.isArray(hostOrErrors) ? document.querySelector("[data-notebook-validation-summary]") : hostOrErrors;
+  const validationErrors = Array.isArray(hostOrErrors) ? hostOrErrors : maybeErrors;
+  if (!host || !Array.isArray(validationErrors) || validationErrors.length === 0) {
+    if (host) {
+      host.hidden = true;
+      host.replaceChildren();
+    }
+    return;
+  }
+  const list = document.createElement("ul");
+  validationErrors.forEach((error) => {
+    const item = document.createElement("li");
+    item.textContent = error.message;
+    list.appendChild(item);
+  });
+  host.replaceChildren(list);
+  host.hidden = false;
+}
 function classifyNotebookSaveError(error) {
   if (error instanceof NotebookApiError) {
     if (error.status === 401) return { kind: "session-expired", message: "Your session has expired. Sign in again to save this note.", actions: ["sign-in", "copy", "discard"] };
     if (error.status === 403) return { kind: "forbidden", message: "You are not authorised to edit this note.", actions: ["copy", "discard"] };
     if (error.status === 415) return { kind: "client-version", message: "The editor is using an outdated application file. Reload the page and try again.", actions: ["reload", "discard"] };
     if (error.status === 409) return { kind: "conflict", message: "This note was changed elsewhere." };
-    if (error.status === 400) return { kind: "validation", message: error.message || "The note contains invalid information." };
+    if (error.status === 400) return { kind: "validation", message: getFirstValidationMessage(error), validationErrors: getValidationMessages(error), retryable: false };
     if (error.status >= 500) return { kind: "server", message: error.message || "The note could not be saved because of a server error." };
   }
   return { kind: "network", message: error?.message || "The notebook service could not be reached." };
 }
+var guidPattern;
 var init_notebook_editor = __esm({
   "wwwroot/js/notebook/notebook-editor.js"() {
     init_notebook_api();
     init_notebook_autosave();
     init_notebook_checklist_editor();
     init_notebook_reconcile();
+    init_notebook_errors();
+    guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   }
 });
 
