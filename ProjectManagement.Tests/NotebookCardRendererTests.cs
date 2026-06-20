@@ -1,16 +1,20 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Notebook;
 using ProjectManagement.ViewModels.Notebook;
 
 namespace ProjectManagement.Tests;
 
-public sealed class NotebookCardRendererTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class NotebookCardRendererTests : IClassFixture<NotebookCardRendererTests.NotebookRendererFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly NotebookRendererFactory _factory;
 
-    public NotebookCardRendererTests(WebApplicationFactory<Program> factory)
+    public NotebookCardRendererTests(NotebookRendererFactory factory)
     {
         _factory = factory;
     }
@@ -80,6 +84,21 @@ public sealed class NotebookCardRendererTests : IClassFixture<WebApplicationFact
         Assert.DoesNotContain("<body", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("PRISM ERP", html, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, CountOccurrences(html, "data-note-id=\""));
+    }
+
+    // SECTION: Test host setup
+    public sealed class NotebookRendererFactory : WebApplicationFactory<Program>
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.ConfigureServices(services =>
+            {
+                // SECTION: Keep partial-render tests independent from configured PostgreSQL startup
+                services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));
+                services.AddDbContext<ApplicationDbContext>(options =>
+                    options.UseInMemoryDatabase($"notebook-renderer-{Guid.NewGuid()}"));
+            });
+        }
     }
 
     private static NotebookItemListVm CreateNote(bool isPinned = false) => new()

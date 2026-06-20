@@ -5,7 +5,11 @@ export function createNotebookBoard(root = document) {
   // SECTION: Board lookup helpers
   const findCard = (id) => root.querySelector(`[data-note-id="${CSS.escape(id)}"]`);
   const getSection = (isPinned) => root.querySelector(`[data-notebook-section="${isPinned ? 'pinned' : 'others'}"]`);
-  const getBoard = (isPinned) => root.querySelector(`[data-notebook-board="${isPinned ? 'pinned' : 'others'}"]`);
+  const getBoard = (isPinned) => {
+    // SECTION: Prefer split home boards, then fall back to single-board views
+    const namedBoard = root.querySelector(`[data-notebook-board="${isPinned ? 'pinned' : 'others'}"]`);
+    return namedBoard || root.querySelector('[data-notebook-board]:not([data-notebook-board="pinned"]):not([data-notebook-board="others"])');
+  };
 
   // SECTION: Safe server-rendered card parsing
   function htmlToCardElement(html, expectedId) {
