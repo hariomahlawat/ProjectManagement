@@ -345,7 +345,15 @@ namespace ProjectManagement.Data
                 e.Property(x => x.DeleteReason).HasMaxLength(512);
                 e.Property(x => x.OcrStatus).HasDefaultValue(DocOcrStatus.None);
                 e.Property(x => x.OcrFailureReason).HasMaxLength(1024);
-                e.Property(x => x.SearchVector).HasColumnType("tsvector");
+                // SECTION: PostgreSQL full-text search configuration
+                if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.SearchVector).HasColumnType("tsvector");
+                }
+                else
+                {
+                    e.Ignore(x => x.SearchVector);
+                }
                 e.Property(x => x.IsAots).HasDefaultValue(false);
                 e.HasIndex(x => new { x.OfficeCategoryId, x.DocumentCategoryId });
                 e.HasIndex(x => x.Sha256).IsUnique();
