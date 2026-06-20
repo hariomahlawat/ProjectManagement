@@ -341,6 +341,7 @@ public sealed class NotebookController : Controller
         if ((request.Body?.Length ?? 0) > NotebookLimits.BodyMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "body", $"Body cannot exceed {NotebookLimits.BodyMaxLength} characters."));
         if (request.ChecklistRows.Count > NotebookLimits.MaxChecklistRows) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "checklistRows", $"Checklist cannot exceed {NotebookLimits.MaxChecklistRows} rows."));
         if (request.ChecklistRows.Where(row => row.Id.HasValue).GroupBy(row => row.Id!.Value).Any(group => group.Count() > 1)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "checklistRows", "Duplicate checklist row ids are not allowed."));
+        if (request.ChecklistRows.Where(row => !string.IsNullOrWhiteSpace(row.ClientKey)).GroupBy(row => row.ClientKey!, StringComparer.Ordinal).Any(group => group.Count() > 1)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "checklistRows", "The checklist contains duplicate client row identifiers."));
 
         for (var index = 0; index < request.ChecklistRows.Count; index++)
         {
@@ -348,6 +349,8 @@ public sealed class NotebookController : Controller
             row.Text = row.Text?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(row.Text)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", $"checklistRows[{index}].text", "Checklist item text is required."));
             if (row.Text.Length > NotebookLimits.ChecklistTextMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", $"checklistRows[{index}].text", $"Checklist text cannot exceed {NotebookLimits.ChecklistTextMaxLength} characters."));
+            row.ClientKey = string.IsNullOrWhiteSpace(row.ClientKey) ? null : row.ClientKey.Trim();
+            if ((row.ClientKey?.Length ?? 0) > 100) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", $"checklistRows[{index}].clientKey", "Client row identifier cannot exceed 100 characters."));
             row.SortOrder = index;
         }
 
@@ -479,7 +482,7 @@ public sealed class NotebookController : Controller
         ReminderDisplay = item.ReminderDisplay,
         UpdatedAtUtc = item.UpdatedAtUtc,
         Version = item.Version,
-        ChecklistRows = item.ChecklistItems.Select(row => new NotebookChecklistRowResponse { Id = row.Id, Text = row.Text, IsDone = row.IsDone, SortOrder = row.SortOrder }).ToList(),
+        ChecklistRows = item.ChecklistItems.Select(row => new NotebookChecklistRowResponse { Id = row.Id, ClientKey = row.ClientKey, Text = row.Text, IsDone = row.IsDone, SortOrder = row.SortOrder }).ToList(),
         Labels = item.Tags.Select(tag => new NotebookLabelResponse { Name = tag }).ToList()
     };
 }

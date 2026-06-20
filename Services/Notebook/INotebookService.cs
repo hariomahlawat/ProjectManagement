@@ -130,6 +130,9 @@ public sealed class NotebookChecklistEditRow
 {
     public int? Id { get; set; }
 
+    [System.ComponentModel.DataAnnotations.StringLength(100)]
+    public string? ClientKey { get; set; }
+
     [System.ComponentModel.DataAnnotations.Required]
     [System.ComponentModel.DataAnnotations.StringLength(NotebookLimits.ChecklistTextMaxLength)]
     public string Text { get; set; } = string.Empty;

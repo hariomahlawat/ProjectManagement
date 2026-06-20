@@ -1,23 +1,165 @@
 // SECTION: Shared notebook checklist row editor
 const parseNullableInt = (value) => value ? Number.parseInt(value, 10) : null;
+
+// SECTION: Client-side checklist identity helpers
+export function createClientKey() {
+  if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return [Date.now().toString(36), Math.random().toString(36).slice(2), Math.random().toString(36).slice(2)].join('-');
+}
+
 export function createChecklistEditor(root, options = {}) {
   const maxLength = options.maxLength || 500;
-  const notify = () => options.onChange?.();
-  function rowTemplate(row = {}) {
+  let rows = [];
+  let isReconciling = false;
+  const notify = () => { if (!isReconciling) options.onChange?.(); };
+
+  // SECTION: Row state and DOM construction
+  function normalizeRow(row = {}, index = 0) {
+    return {
+      id: row.id ?? null,
+      clientKey: row.clientKey || createClientKey(),
+      text: row.text || '',
+      isDone: Boolean(row.isDone),
+      sortOrder: Number.isFinite(row.sortOrder) ? row.sortOrder : (index + 1) * 1000,
+      element: row.element || null
+    };
+  }
+
+  function rowTemplate(row) {
     const wrapper = document.createElement('div');
-    wrapper.className = 'notebook-checklist-row'; wrapper.dataset.checklistRow = ''; wrapper.dataset.rowId = row.id ?? '';
+    wrapper.className = 'notebook-checklist-row';
+    wrapper.dataset.checklistRow = '';
     wrapper.innerHTML = `<input type="checkbox" data-checklist-done><input type="text" data-checklist-text maxlength="${maxLength}" placeholder="List item"><button type="button" data-checklist-remove aria-label="Remove checklist item">×</button>`;
-    wrapper.querySelector('[data-checklist-done]').checked = Boolean(row.isDone);
-    wrapper.querySelector('[data-checklist-text]').value = row.text || '';
+    row.element = wrapper;
+    updateRowElement(row, { forceContent: true });
     return wrapper;
   }
-  function addRow(afterElement = null, row = {}) { const el = rowTemplate(row); afterElement ? afterElement.after(el) : root.append(el); return el; }
-  function removeRow(element) { const prev = element.previousElementSibling; element.remove(); (prev?.querySelector('[data-checklist-text]') || root.querySelector('[data-checklist-text]'))?.focus(); notify(); }
-  function setRows(rows) { root.replaceChildren(); (rows?.length ? rows : [{ text: '' }]).forEach((row) => addRow(null, row)); }
-  function getRows() { return [...root.querySelectorAll('[data-checklist-row]')].map((row, index) => ({ id: parseNullableInt(row.dataset.rowId), text: row.querySelector('[data-checklist-text]').value.trim(), isDone: row.querySelector('[data-checklist-done]').checked, sortOrder: (index + 1) * 1000 })).filter((row) => row.text.length > 0); }
+
+  function updateRowElement(row, { forceContent = false } = {}) {
+    if (!row.element) return;
+    row.element.dataset.rowId = row.id ?? '';
+    row.element.dataset.clientKey = row.clientKey || '';
+    const done = row.element.querySelector('[data-checklist-done]');
+    const text = row.element.querySelector('[data-checklist-text]');
+    if (done && (forceContent || done.checked !== Boolean(row.isDone))) done.checked = Boolean(row.isDone);
+    if (text && (forceContent || text.value !== (row.text || ''))) text.value = row.text || '';
+  }
+
+  function readRowElement(row, index) {
+    if (!row.element) return row;
+    row.id = parseNullableInt(row.element.dataset.rowId);
+    row.clientKey = row.element.dataset.clientKey || row.clientKey || createClientKey();
+    row.text = row.element.querySelector('[data-checklist-text]')?.value || '';
+    row.isDone = Boolean(row.element.querySelector('[data-checklist-done]')?.checked);
+    row.sortOrder = (index + 1) * 1000;
+    return row;
+  }
+
+  function findRowByElement(element) {
+    return rows.find((row) => row.element === element) || null;
+  }
+
+  // SECTION: Focus and scroll preservation
+  function captureFocusState() {
+    const active = document.activeElement;
+    const row = active?.closest?.('[data-checklist-row]');
+    if (!row || !root.contains(row)) return null;
+    return {
+      rowId: row.dataset.rowId || null,
+      clientKey: row.dataset.clientKey || null,
+      selectionStart: typeof active.selectionStart === 'number' ? active.selectionStart : null,
+      selectionEnd: typeof active.selectionEnd === 'number' ? active.selectionEnd : null
+    };
+  }
+
+  function restoreFocusState(state) {
+    if (!state) return;
+    const row = rows.find((candidate) => (state.rowId && String(candidate.id) === state.rowId) || (state.clientKey && candidate.clientKey === state.clientKey));
+    const input = row?.element?.querySelector('[data-checklist-text]');
+    if (!input) return;
+    input.focus();
+    if (state.selectionStart !== null && typeof input.setSelectionRange === 'function') {
+      const end = state.selectionEnd ?? state.selectionStart;
+      input.setSelectionRange(Math.min(state.selectionStart, input.value.length), Math.min(end, input.value.length));
+    }
+  }
+
+  // SECTION: Public row operations
+  function setRows(nextRows) {
+    root.replaceChildren();
+    rows = (nextRows?.length ? nextRows : [{ text: '' }]).map(normalizeRow);
+    rows.forEach((row) => root.append(rowTemplate(row)));
+  }
+
+  function addRow(afterElement = null, row = {}) {
+    const insertAt = afterElement ? rows.findIndex((candidate) => candidate.element === afterElement) + 1 : rows.length;
+    const model = normalizeRow(row, insertAt);
+    const el = rowTemplate(model);
+    if (afterElement) afterElement.after(el); else root.append(el);
+    rows.splice(insertAt < 0 ? rows.length : insertAt, 0, model);
+    return el;
+  }
+
+  function removeRow(element) {
+    const row = findRowByElement(element);
+    const prev = element.previousElementSibling;
+    rows = rows.filter((candidate) => candidate !== row);
+    element.remove();
+    (prev?.querySelector('[data-checklist-text]') || root.querySelector('[data-checklist-text]'))?.focus();
+    notify();
+  }
+
+  function getRows() {
+    rows.forEach(readRowElement);
+    return rows
+      .map((row, index) => ({ id: row.id, clientKey: row.clientKey, text: row.text.trim(), isDone: row.isDone, sortOrder: (index + 1) * 1000 }))
+      .filter((row) => row.text.length > 0);
+  }
+
+  function reconcileRows(serverRows, submittedRows = []) {
+    isReconciling = true;
+    const focusState = captureFocusState();
+    const scrollTop = root.scrollTop;
+    try {
+      rows.forEach(readRowElement);
+      const submittedById = new Map((submittedRows || []).filter((row) => row.id !== null && row.id !== undefined).map((row) => [String(row.id), row]));
+      const submittedByClientKey = new Map((submittedRows || []).filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
+      const byId = new Map(rows.filter((row) => row.id !== null && row.id !== undefined).map((row) => [String(row.id), row]));
+      const byClientKey = new Map(rows.filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
+      const reconciled = [];
+
+      (serverRows || []).forEach((serverRow, index) => {
+        let localRow = serverRow.id !== null && serverRow.id !== undefined ? byId.get(String(serverRow.id)) : null;
+        if (!localRow && serverRow.clientKey) localRow = byClientKey.get(serverRow.clientKey);
+        const submittedRow = (serverRow.id !== null && serverRow.id !== undefined ? submittedById.get(String(serverRow.id)) : null) || (serverRow.clientKey ? submittedByClientKey.get(serverRow.clientKey) : null);
+        if (!localRow) localRow = normalizeRow(serverRow, index);
+        localRow.id = serverRow.id ?? localRow.id;
+        localRow.clientKey = serverRow.clientKey || localRow.clientKey || createClientKey();
+        if (!submittedRow || localRow.text === (submittedRow.text ?? '')) localRow.text = serverRow.text || '';
+        if (!submittedRow || localRow.isDone === Boolean(submittedRow.isDone)) localRow.isDone = Boolean(serverRow.isDone);
+        localRow.sortOrder = serverRow.sortOrder ?? (index + 1) * 1000;
+        if (!localRow.element) rowTemplate(localRow);
+        updateRowElement(localRow);
+        reconciled.push(localRow);
+      });
+
+      rows = reconciled.length ? reconciled : rows;
+      rows.forEach((row) => root.append(row.element));
+      root.scrollTop = scrollTop;
+      restoreFocusState(focusState);
+    } finally {
+      isReconciling = false;
+    }
+  }
+
+  // SECTION: Checklist event wiring
   root.addEventListener('input', (event) => { if (event.target.matches('[data-checklist-text]')) notify(); });
   root.addEventListener('change', (event) => { if (event.target.matches('[data-checklist-done]')) notify(); });
   root.addEventListener('click', (event) => { const button = event.target.closest('[data-checklist-remove]'); if (button) removeRow(button.closest('[data-checklist-row]')); });
   root.addEventListener('keydown', (event) => { const input = event.target.closest('[data-checklist-text]'); if (!input) return; const row = input.closest('[data-checklist-row]'); if (event.key === 'Enter') { event.preventDefault(); addRow(row).querySelector('[data-checklist-text]').focus(); notify(); } if (event.key === 'Backspace' && input.value.length === 0 && root.querySelectorAll('[data-checklist-row]').length > 1) { event.preventDefault(); removeRow(row); } });
-  return { setRows, getRows, addRow, removeRow, focusFirst: () => root.querySelector('[data-checklist-text]')?.focus(), clear: () => setRows([]), destroy: () => root.replaceChildren() };
+
+  return { setRows, getRows, addRow, removeRow, reconcileRows, replaceRows: setRows, renderRows: setRows, getFocusedRowState: captureFocusState, restoreFocusedRowState: restoreFocusState, isDirty: () => false, focusFirst: () => root.querySelector('[data-checklist-text]')?.focus(), clear: () => setRows([]), destroy: () => root.replaceChildren() };
 }
