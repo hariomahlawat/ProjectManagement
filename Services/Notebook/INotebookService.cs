@@ -28,7 +28,11 @@ public interface INotebookService
         NotebookItemType? forcedType = null,
         CancellationToken ct = default);
 
+    Task<NotebookItemDetailVm> CreateAsync(string ownerId, NotebookCreateInput input, CancellationToken ct = default);
+
     Task<NotebookItemDetailVm> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default);
+
+    Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookUpdateInput input, Guid expectedVersion, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookEditInput input, Guid expectedVersion, CancellationToken ct = default);
 
@@ -59,7 +63,37 @@ public interface INotebookService
     Task<NotebookItemDetailVm> ToggleChecklistItemAsync(string ownerId, Guid itemId, int checklistItemId, bool isDone, Guid expectedVersion, CancellationToken ct = default);
 }
 
-// SECTION: My Notebook editor contract
+// SECTION: My Notebook command input contracts
+public sealed class NotebookCreateInput
+{
+    public Guid? ClientRequestId { get; init; }
+    public string Title { get; init; } = string.Empty;
+    public string? BodyMarkdown { get; init; }
+    public NotebookItemType Type { get; init; } = NotebookItemType.Note;
+    public NotebookPriority Priority { get; init; } = NotebookPriority.Normal;
+    public DateTimeOffset? ReminderAtUtc { get; init; }
+    public bool IsPinned { get; init; }
+    public bool IsFavorite { get; init; }
+    public string? ColorKey { get; init; }
+    public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> ChecklistItems { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<NotebookChecklistEditRow> ChecklistRows { get; init; } = Array.Empty<NotebookChecklistEditRow>();
+}
+
+public sealed class NotebookUpdateInput
+{
+    public string Title { get; init; } = string.Empty;
+    public string? BodyMarkdown { get; init; }
+    public NotebookItemType Type { get; init; } = NotebookItemType.Note;
+    public NotebookPriority Priority { get; init; } = NotebookPriority.Normal;
+    public DateTimeOffset? ReminderAtUtc { get; init; }
+    public string? ColorKey { get; init; }
+    public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> ChecklistItems { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<NotebookChecklistEditRow> ChecklistRows { get; init; } = Array.Empty<NotebookChecklistEditRow>();
+}
+
+// SECTION: Legacy My Notebook editor contract
 public sealed class NotebookEditInput
 {
     public string Title { get; set; } = string.Empty;
