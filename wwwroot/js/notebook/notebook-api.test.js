@@ -64,15 +64,15 @@ test('updateItem sends JSON content type, serialised body, and anti-forgery toke
     return jsonResponse(200, mutationResponse());
   };
 
-  await NotebookApi.updateItem('note-1', updatePayload());
+  await NotebookApi.updateContent('note-1', { title: 'Updated', body: 'Body', version: 'version-1' });
 
   const headers = new Headers(captured.options.headers);
-  assert.equal(captured.url, '/api/notebook/items/note-1');
+  assert.equal(captured.url, '/api/notebook/items/note-1/content');
   assert.equal(captured.options.method, 'PATCH');
   assert.equal(headers.get('Content-Type'), 'application/json; charset=utf-8');
   assert.equal(headers.get('RequestVerificationToken'), 'anti-forgery-token');
   assert.equal(captured.options.credentials, 'same-origin');
-  assert.deepEqual(JSON.parse(captured.options.body), updatePayload());
+  assert.deepEqual(JSON.parse(captured.options.body), { title: 'Updated', body: 'Body', version: 'version-1' });
 });
 
 test('all Notebook JSON mutations declare application/json content type', async () => {
@@ -85,6 +85,7 @@ test('all Notebook JSON mutations declare application/json content type', async 
 
   await NotebookApi.createItem(updatePayload());
   await NotebookApi.updateItem('note-1', updatePayload());
+  await NotebookApi.updateContent('note-1', { title: 'Updated', body: 'Body', version: 'version-1' });
   await NotebookApi.setPinned('note-1', true, 'version-1');
   await NotebookApi.archiveItem('note-1', 'version-1');
   await NotebookApi.completeItem('note-1', 'version-1');
@@ -164,5 +165,15 @@ test('unexpected login redirect is reported as a session-expired NotebookApiErro
       assert.equal(error.code, 'notebook_session_expired');
       return true;
     }
+  );
+});
+
+
+test('jsonRequestOptions rejects function payloads with a typed client error', async () => {
+  const { jsonRequestOptions } = await loadApiModule();
+
+  assert.throws(
+    () => jsonRequestOptions('PATCH', () => ({})),
+    (error) => error.code === 'notebook_invalid_client_payload'
   );
 });

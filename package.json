@@ -6,8 +6,8 @@
   "scripts": {
     "test": "node tools/run-js-tests.js",
     "lint:views": "./tools/check-views.sh",
-    "build:notebook": "esbuild wwwroot/js/pages/notebook-index.js --bundle --format=esm --platform=browser --target=es2022 --sourcemap --outfile=wwwroot/dist/notebook-index.bundle.js",
-    "build:notebook:prod": "esbuild wwwroot/js/pages/notebook-index.js --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=wwwroot/dist/notebook-index.bundle.js",
+    "build:notebook": "esbuild wwwroot/js/pages/notebook-index.js --bundle --format=esm --platform=browser --target=es2022 --sourcemap --outfile=wwwroot/dist/notebook-index.bundle.js && node tools/write-notebook-manifest.js",
+    "build:notebook:prod": "esbuild wwwroot/js/pages/notebook-index.js --bundle --format=esm --platform=browser --target=es2022 --minify --outfile=wwwroot/dist/notebook-index.bundle.js && node tools/write-notebook-manifest.js",
     "build": "npm run build:notebook"
   },
   "repository": {
