@@ -1,4 +1,5 @@
 import { NotebookApiError } from './notebook-api.js';
+import { NotebookCardHtmlError } from './notebook-errors.js';
 
 // SECTION: Notebook mutation response validation
 export function requireMutationItem(response, message = 'The notebook response did not contain an updated item.') {
@@ -54,7 +55,7 @@ export async function reconcileMutation({
   }
 
   if (typeof html !== 'string' || !html.trim()) {
-    const error = new Error('Notebook card response was empty.');
+    const error = new NotebookCardHtmlError('Notebook card response was empty.');
     logReconciliationFailure(item, 'empty-card-response', error);
     showGlobalError?.(renderFailureMessage);
     return { item, reconciled: false, code: 'notebook_empty_card_response' };
@@ -65,14 +66,25 @@ export async function reconcileMutation({
     board.upsertCard(item.id, html, item.isPinned, { preservePosition, prepend });
     return { item, reconciled: true };
   } catch (error) {
-    const stage = String(error?.message || '').includes('board')
-      ? 'target-board'
-      : String(error?.message || '').includes('card response') || String(error?.message || '').includes('card HTML')
-        ? 'invalid-card-html'
-        : 'card-replacement';
-    logReconciliationFailure(item, stage, error);
-    showGlobalError?.(stage === 'invalid-card-html' ? renderFailureMessage : reconcileFailureMessage);
+    const classification = classifyReconciliationError(error);
+    logReconciliationFailure(item, classification.stage, error);
+    showGlobalError?.(classification.isRenderFailure ? renderFailureMessage : reconcileFailureMessage);
     updateCardConcurrencyState(existingCard || board?.findCard?.(item.id), item);
-    return { item, reconciled: false, code: stage === 'invalid-card-html' ? 'notebook_invalid_card_html' : 'notebook_board_reconcile_failed' };
+    return { item, reconciled: false, code: classification.code };
+  }
+}
+
+
+// SECTION: Typed reconciliation error classification
+export function classifyReconciliationError(error) {
+  switch (error?.code) {
+    case 'notebook_invalid_card_html':
+      return { stage: 'invalid-card-html', code: 'notebook_invalid_card_html', isRenderFailure: true };
+    case 'notebook_target_board_missing':
+      return { stage: 'target-board', code: 'notebook_target_board_missing', isRenderFailure: false };
+    case 'notebook_board_update_failed':
+      return { stage: 'card-replacement', code: 'notebook_board_update_failed', isRenderFailure: false };
+    default:
+      return { stage: 'card-replacement', code: 'notebook_board_reconcile_failed', isRenderFailure: false };
   }
 }

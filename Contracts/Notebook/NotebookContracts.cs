@@ -126,5 +126,5 @@ public sealed class NotebookMutationResponse
 
     public string? CardHtml { get; init; }
 
-    public NotebookCountsResponse Counts { get; init; } = new();
+    public NotebookCountsResponse? Counts { get; init; }
 }

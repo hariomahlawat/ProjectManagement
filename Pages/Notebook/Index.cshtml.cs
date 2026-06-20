@@ -185,18 +185,6 @@ public class IndexModel : PageModel
         return RedirectToCurrent(SelectedId);
     }
 
-    public async Task<IActionResult> OnPostToggleFavoriteAsync(Guid id, CancellationToken ct)
-    {
-        var uid = _users.GetUserId(User);
-        if (uid is null)
-        {
-            return Unauthorized();
-        }
-
-        await _notebook.ToggleFavoriteAsync(uid, id, ct);
-        return RedirectToCurrent(SelectedId);
-    }
-
     public async Task<IActionResult> OnPostCompleteAsync(Guid id, bool isComplete, Guid expectedVersion, CancellationToken ct)
     {
         var uid = _users.GetUserId(User);

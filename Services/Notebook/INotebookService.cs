@@ -49,9 +49,6 @@ public interface INotebookService
 
     Task<NotebookItemDetailVm?> GetDetailAsync(string ownerId, Guid id, CancellationToken ct = default);
 
-    Task ToggleFavoriteAsync(string ownerId, Guid id, CancellationToken ct = default);
-
-
     Task<NotebookItemDetailVm> CompleteAsync(string ownerId, Guid id, bool isComplete, Guid expectedVersion, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm> ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, Guid expectedVersion, CancellationToken ct = default);
