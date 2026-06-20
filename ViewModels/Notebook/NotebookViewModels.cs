@@ -177,32 +177,36 @@ public sealed class NotebookWidgetItemVm
 
 public sealed class NotebookCardRenderVm
 {
-    public NotebookItemListVm Item { get; set; } = new();
+    public NotebookItemListVm Item { get; init; } = new();
 
-    public string View { get; set; } = "home";
+    public string View { get; init; } = "home";
 
-    public string? Query { get; set; }
+    public string? Query { get; init; }
 
-    public string? Filter { get; set; }
+    public string? Filter { get; init; }
 
-    public string? Tag { get; set; }
+    public string? Tag { get; init; }
 
-    public Guid? SelectedId { get; set; }
+    public string OpenUrl { get; init; } = string.Empty;
 
-    public bool UseStickySurface { get; set; }
+    public NotebookCardActionsVm Actions { get; init; } = new();
+
+    public Guid? SelectedId { get; init; }
+
+    public bool UseStickySurface { get; init; }
 }
 
-public sealed class NotebookItemActionVm
+public sealed class NotebookCardActionsVm
 {
-    public NotebookItemListVm Item { get; set; } = new();
+    public NotebookItemListVm Item { get; init; } = new();
 
-    public string View { get; set; } = "home";
+    public string View { get; init; } = "home";
 
-    public string? Query { get; set; }
+    public string? Query { get; init; }
 
-    public string? Filter { get; set; }
+    public string? Filter { get; init; }
 
-    public string? Tag { get; set; }
+    public string? Tag { get; init; }
 
-    public Guid? SelectedId { get; set; }
+    public Guid? SelectedId { get; init; }
 }

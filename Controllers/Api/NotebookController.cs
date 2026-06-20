@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Mvc;
 using ProjectManagement.Contracts.Notebook;
 using ProjectManagement.Models;
@@ -17,13 +20,23 @@ public sealed class NotebookController : Controller
 {
     private readonly INotebookService _notebook;
     private readonly INotebookCardRenderer _cardRenderer;
+    private readonly INotebookCardModelFactory _cardModelFactory;
+    private readonly IWebHostEnvironment _environment;
     private readonly UserManager<ApplicationUser> _users;
     private readonly ILogger<NotebookController> _logger;
 
-    public NotebookController(INotebookService notebook, INotebookCardRenderer cardRenderer, UserManager<ApplicationUser> users, ILogger<NotebookController> logger)
+    public NotebookController(
+        INotebookService notebook,
+        INotebookCardRenderer cardRenderer,
+        INotebookCardModelFactory cardModelFactory,
+        IWebHostEnvironment environment,
+        UserManager<ApplicationUser> users,
+        ILogger<NotebookController> logger)
     {
         _notebook = notebook;
         _cardRenderer = cardRenderer;
+        _cardModelFactory = cardModelFactory;
+        _environment = environment;
         _users = users;
         _logger = logger;
     }
@@ -46,10 +59,31 @@ public sealed class NotebookController : Controller
     [HttpGet("{id:guid}/card")]
     public async Task<IActionResult> Card(Guid id, [FromQuery] string view = "home", CancellationToken ct = default)
     {
-        var uid = CurrentUserId();
-        var item = await _notebook.GetDetailAsync(uid, id, ct);
-        if (item is null) return NotFound();
-        return PartialView("~/Pages/Notebook/_NotebookCard.cshtml", new NotebookCardRenderVm { Item = item, View = view });
+        try
+        {
+            var uid = CurrentUserId();
+            var item = await _notebook.GetDetailAsync(uid, id, ct);
+            if (item is null)
+            {
+                return NotFound(new
+                {
+                    code = "notebook_not_found",
+                    message = "The note could not be found."
+                });
+            }
+
+            var model = _cardModelFactory.Create(item, new NotebookCardContext { View = view });
+            var html = await _cardRenderer.RenderAsync(model, ct);
+            return Content(html, "text/html; charset=utf-8");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Notebook card endpoint failed for item {ItemId}.", id);
+
+            return _environment.IsDevelopment()
+                ? Problem(title: "Notebook card rendering failed", detail: ex.ToString(), statusCode: StatusCodes.Status500InternalServerError)
+                : Problem(title: "Notebook card rendering failed", statusCode: StatusCodes.Status500InternalServerError);
+        }
     }
 
     // SECTION: Item mutation endpoints
@@ -226,11 +260,28 @@ public sealed class NotebookController : Controller
     {
         try
         {
-            return await _cardRenderer.RenderAsync(ToListItem(item), view, ct);
+            var model = _cardModelFactory.Create(ToListItem(item), new NotebookCardContext { View = view });
+            return await _cardRenderer.RenderAsync(model, ct);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Notebook mutation for item {ItemId} succeeded, but card rendering failed.", item.Id);
+            _logger.LogError(
+                ex,
+                """
+                Notebook card rendering failed.
+                ItemId: {ItemId}
+                View: {NotebookView}
+                PartialPath: {PartialPath}
+                ExceptionType: {ExceptionType}
+                InnerException: {InnerException}
+                RouteValues: {@RouteValues}
+                """,
+                item.Id,
+                view,
+                RazorNotebookCardRenderer.CardPartialPath,
+                ex.GetType().FullName,
+                ex.InnerException?.ToString(),
+                HttpContext.GetRouteData()?.Values);
             return null;
         }
     }

@@ -13,7 +13,7 @@
 @* SECTION: Notebook board card *@
 <article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-version="@item.Version" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty)">
     <div class="notebook-card-body">
-        <a class="notebook-card-link notebook-card__open-area" data-action="open-note" asp-page="/Notebook/Index" asp-route-view="@Model.View" asp-route-query="@Model.Query" asp-route-filter="@Model.Filter" asp-route-tag="@Model.Tag" asp-route-note="@item.Id">
+        <a href="@Model.OpenUrl" class="notebook-card-link notebook-card__open-area" data-action="open-note" aria-label="Open @item.Title">
             <div class="notebook-card-topline">
                 <span class="notebook-card-indicators">
                     @if (item.IsPinned) { <i class="bi bi-pin-angle-fill" title="Pinned"></i> }
@@ -82,6 +82,6 @@
         }
     </div>
     <div class="notebook-card-actions">
-        <partial name="_NotebookActions" model="@(new NotebookItemActionVm { Item = item, View = Model.View, Query = Model.Query, Filter = Model.Filter, Tag = Model.Tag, SelectedId = Model.SelectedId })" />
+        <partial name="~/Pages/Notebook/_NotebookActions.cshtml" model="Model.Actions" />
     </div>
 </article>
