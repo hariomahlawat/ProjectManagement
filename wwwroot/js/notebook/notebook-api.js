@@ -1,3 +1,5 @@
+import { notifySessionExpired } from '../core/session-auth.js';
+
 // SECTION: Notebook API error type and fetch wrapper
 export class NotebookApiError extends Error {
   constructor(message, { status = 0, code = null, errors = null, responseText = null, url = null, method = null, cause = null } = {}) {
@@ -63,12 +65,11 @@ export function getDefaultNotebookErrorMessage(status) {
   switch (status) {
     case 400: return 'The notebook request was invalid.';
     case 401: return 'Your session has expired. Sign in again.';
-    case 403: return 'You do not have permission to perform this action.';
+    case 403: return 'You are not authorised to perform this action.';
     case 404: return 'The note could not be found.';
-    case 409: return 'This note was changed elsewhere. Reload the latest version.';
-    case 415: return 'The editor request format is invalid. Reload the page to load the latest application files.';
-    case 500: return 'The notebook operation could not be completed.';
-    default: return `Notebook request failed with HTTP ${status}.`;
+    case 409: return 'The note was changed elsewhere.';
+    case 415: return 'The request format is not supported.';
+    default: return 'The notebook operation failed.';
   }
 }
 
@@ -84,11 +85,33 @@ export function jsonRequestOptions(method, payload, options = {}) {
   };
 }
 
+// SECTION: Response authentication helpers
+export function isLoginResponse(response) {
+  if (!response) return false;
+  const responseUrl = response.url || '';
+  return Boolean(response.redirected && responseUrl.includes('/Identity/Account/Login'));
+}
+
+function createSessionExpiredError(context) {
+  notifySessionExpired();
+  return new NotebookApiError('Your session has expired. Sign in again.', {
+    status: 401,
+    code: 'notebook_session_expired',
+    url: context.url,
+    method: context.method
+  });
+}
+
 // SECTION: Response parsing helpers
 async function parseNotebookResponse(response, context) {
+  if (isLoginResponse(response)) throw createSessionExpiredError(context);
   if (response.status === 204) return null;
 
   const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('text/html') && (response.url || '').includes('/Identity/Account/Login')) {
+    throw createSessionExpiredError(context);
+  }
+
   let payload = null;
   let rawText = null;
 
@@ -100,6 +123,7 @@ async function parseNotebookResponse(response, context) {
   }
 
   if (!response.ok) {
+    if (response.status === 401) notifySessionExpired();
     throw new NotebookApiError(
       payload?.message || payload?.detail || payload?.title || payload?.error || rawText || getDefaultNotebookErrorMessage(response.status),
       {

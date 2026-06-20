@@ -1,13 +1,20 @@
 const { test, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 // SECTION: ESM loader helper for Notebook browser modules.
 async function loadApiModule() {
-  const filePath = path.resolve(__dirname, 'notebook-api.js');
-  const source = fs.readFileSync(filePath, 'utf8');
-  return import(`data:text/javascript;charset=utf-8,${encodeURIComponent(source)}`);
+  const apiPath = path.resolve(__dirname, 'notebook-api.js');
+  const sessionPath = path.resolve(__dirname, '../core/session-auth.js');
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'notebook-api-test-'));
+  fs.writeFileSync(path.join(tempDir, 'package.json'), '{"type":"module"}');
+  fs.writeFileSync(path.join(tempDir, 'session-auth.mjs'), fs.readFileSync(sessionPath, 'utf8'));
+  const source = fs.readFileSync(apiPath, 'utf8').replace("import { notifySessionExpired } from '../core/session-auth.js';", "import { notifySessionExpired } from './session-auth.mjs';");
+  const modulePath = path.join(tempDir, `notebook-api-${Date.now()}-${Math.random()}.mjs`);
+  fs.writeFileSync(modulePath, source);
+  return import(`file://${modulePath}`);
 }
 
 // SECTION: Fetch response helpers.
@@ -36,7 +43,8 @@ function updatePayload() {
 beforeEach(() => {
   global.document = {
     documentElement: { dataset: { environment: 'Production' } },
-    querySelector: () => ({ value: 'anti-forgery-token' })
+    querySelector: () => ({ value: 'anti-forgery-token' }),
+    dispatchEvent: () => {}
   };
   global.location = { hostname: 'example.test' };
 });
@@ -131,8 +139,29 @@ test('HTTP 415 produces a structured NotebookApiError with reload guidance', asy
     (error) => {
       assert.ok(error instanceof NotebookApiError);
       assert.equal(error.status, 415);
-      assert.match(error.message, /Reload the page/);
+      assert.match(error.message, /request format is not supported/);
       assert.equal(error.method, 'PATCH');
+      return true;
+    }
+  );
+});
+
+
+test('unexpected login redirect is reported as a session-expired NotebookApiError', async () => {
+  const { NotebookApi, NotebookApiError } = await loadApiModule();
+  global.fetch = async () => {
+    const response = jsonResponse(200, { html: true }, 'text/html; charset=utf-8');
+    Object.defineProperty(response, 'redirected', { value: true });
+    Object.defineProperty(response, 'url', { value: 'http://localhost/Identity/Account/Login?ReturnUrl=%2FNotebook' });
+    return response;
+  };
+
+  await assert.rejects(
+    () => NotebookApi.updateItem('note-1', updatePayload()),
+    (error) => {
+      assert.ok(error instanceof NotebookApiError);
+      assert.equal(error.status, 401);
+      assert.equal(error.code, 'notebook_session_expired');
       return true;
     }
   );
