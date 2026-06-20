@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
@@ -584,6 +585,12 @@ public sealed class NotebookService : INotebookService
 
     private static bool IsClientRequestIdConflict(DbUpdateException ex)
     {
+        if (ex.InnerException is PostgresException postgresException)
+        {
+            return postgresException.SqlState == PostgresErrorCodes.UniqueViolation &&
+                   postgresException.ConstraintName?.Contains("ClientRequestId", StringComparison.OrdinalIgnoreCase) == true;
+        }
+
         return ex.InnerException?.Message.Contains("ClientRequestId", StringComparison.OrdinalIgnoreCase) == true ||
                ex.Message.Contains("ClientRequestId", StringComparison.OrdinalIgnoreCase);
     }
