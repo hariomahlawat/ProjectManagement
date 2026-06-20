@@ -43,4 +43,12 @@ public sealed class NotebookUpdateContractTests
         Assert.DoesNotContain("IsFavorite", properties);
         Assert.DoesNotContain("Status", properties);
     }
+
+    [Fact]
+    public void Checklist_row_contract_includes_transient_client_correlation_key()
+    {
+        // SECTION: New checklist rows need a stable request-response correlation key until the database id is known.
+        Assert.NotNull(typeof(NotebookChecklistEditRow).GetProperty(nameof(NotebookChecklistEditRow.ClientKey)));
+        Assert.NotNull(typeof(NotebookChecklistRowResponse).GetProperty(nameof(NotebookChecklistRowResponse.ClientKey)));
+    }
 }

@@ -404,7 +404,7 @@ public sealed class NotebookService : INotebookService
         item.Title = CleanTitle(title ?? string.Empty);
         item.BodyMarkdown = body;
         Touch(item, _clock.UtcNow);
-        SyncChecklistItems(item, checklistRows, item.UpdatedAtUtc);
+        var createdRowClientKeys = SyncChecklistItems(item, checklistRows, item.UpdatedAtUtc);
 
         try
         {
@@ -416,7 +416,9 @@ public sealed class NotebookService : INotebookService
         }
 
         await TryWriteAuditAsync("Notebook.UpdateChecklist", ownerId, item.Id, ct);
-        return MapDetail(item);
+        var detail = MapDetail(item);
+        HydrateResponseClientKeys(detail, createdRowClientKeys);
+        return detail;
     }
 
 
@@ -1094,7 +1096,24 @@ public sealed class NotebookService : INotebookService
         }
     }
 
-    private void SyncChecklistItems(NotebookItem item, IReadOnlyList<NotebookChecklistEditRow> rows, DateTimeOffset now)
+    private static void HydrateResponseClientKeys(NotebookItemDetailVm detail, IReadOnlyList<(NotebookChecklistItem Entity, string? ClientKey)> createdRows)
+    {
+        if (createdRows.Count == 0) return;
+
+        var clientKeysByRowId = createdRows
+            .Where(row => row.Entity.Id != 0 && !string.IsNullOrWhiteSpace(row.ClientKey))
+            .ToDictionary(row => row.Entity.Id, row => row.ClientKey);
+
+        foreach (var row in detail.ChecklistItems)
+        {
+            if (clientKeysByRowId.TryGetValue(row.Id, out var clientKey))
+            {
+                row.ClientKey = clientKey;
+            }
+        }
+    }
+
+    private List<(NotebookChecklistItem Entity, string? ClientKey)> SyncChecklistItems(NotebookItem item, IReadOnlyList<NotebookChecklistEditRow> rows, DateTimeOffset now)
     {
         var requestedRows = rows
             .Where(row => !string.IsNullOrWhiteSpace(row.Text))
@@ -1107,6 +1126,17 @@ public sealed class NotebookService : INotebookService
             throw new NotebookValidationException("The checklist contains duplicate row identifiers.");
         }
 
+        var duplicateClientKeys = requestedRows
+            .Where(row => !string.IsNullOrWhiteSpace(row.ClientKey))
+            .GroupBy(row => row.ClientKey!, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToArray();
+        if (duplicateClientKeys.Length > 0)
+        {
+            throw new NotebookValidationException("The checklist contains duplicate client row identifiers.");
+        }
+
         var existingById = item.ChecklistItems.ToDictionary(row => row.Id);
         if (submittedIds.Any(id => !existingById.ContainsKey(id)))
         {
@@ -1114,6 +1144,7 @@ public sealed class NotebookService : INotebookService
         }
 
         var requestedIds = submittedIds.ToHashSet();
+        var createdRows = new List<(NotebookChecklistItem Entity, string? ClientKey)>();
         var nextSortOrder = 0;
 
         foreach (var requested in requestedRows)
@@ -1129,7 +1160,7 @@ public sealed class NotebookService : INotebookService
                 continue;
             }
 
-            item.ChecklistItems.Add(new NotebookChecklistItem
+            var created = new NotebookChecklistItem
             {
                 NotebookItemId = item.Id,
                 Text = text,
@@ -1137,13 +1168,17 @@ public sealed class NotebookService : INotebookService
                 SortOrder = nextSortOrder++,
                 CreatedAtUtc = now,
                 CompletedAtUtc = requested.IsDone ? now : null
-            });
+            };
+            item.ChecklistItems.Add(created);
+            createdRows.Add((created, requested.ClientKey));
         }
 
         foreach (var row in item.ChecklistItems.Where(row => row.Id != 0 && !requestedIds.Contains(row.Id)).ToList())
         {
             item.ChecklistItems.Remove(row);
         }
+
+        return createdRows;
     }
 
     private static string ValidateChecklistText(string text)
