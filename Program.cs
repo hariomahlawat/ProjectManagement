@@ -629,6 +629,36 @@ builder.Services.AddControllers().AddJsonOptions(o =>
     o.JsonSerializerOptions.Converters.Add(enumConverter);
 });
 
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    // SECTION: Notebook API uses a stable validation response contract for client field summaries.
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var path = context.HttpContext.Request.Path.Value ?? string.Empty;
+        if (!path.StartsWith("/api/notebook/", StringComparison.OrdinalIgnoreCase))
+        {
+            return new BadRequestObjectResult(context.ModelState);
+        }
+
+        var errors = context.ModelState
+            .Where(entry => entry.Value?.Errors.Count > 0)
+            .ToDictionary(
+                entry => entry.Key,
+                entry => entry.Value!.Errors
+                    .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
+                        ? error.Exception?.GetBaseException().Message ?? "Invalid value."
+                        : error.ErrorMessage)
+                    .ToArray());
+
+        return new BadRequestObjectResult(new
+        {
+            code = "notebook_validation_failed",
+            message = "The notebook request contains invalid information.",
+            errors
+        });
+    };
+});
+
 // Register email sender
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:Smtp:Host"]))
 {

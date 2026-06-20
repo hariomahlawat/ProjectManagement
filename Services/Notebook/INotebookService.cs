@@ -84,8 +84,7 @@ public sealed class NotebookUpdateInput
 {
     public string Title { get; init; } = string.Empty;
     public string? BodyMarkdown { get; init; }
-    public NotebookItemType Type { get; init; } = NotebookItemType.Note;
-    public NotebookPriority Priority { get; init; } = NotebookPriority.Normal;
+    public NotebookPriority? Priority { get; init; }
     public DateTimeOffset? ReminderAtUtc { get; init; }
     public string? ColorKey { get; init; }
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();

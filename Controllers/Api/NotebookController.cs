@@ -236,7 +236,6 @@ public sealed class NotebookController : Controller
     {
         Title = request.Title ?? string.Empty,
         BodyMarkdown = request.Body,
-        Type = request.Type,
         Priority = request.Priority,
         ReminderAtUtc = request.ReminderAtUtc,
         ColorKey = request.ColorKey,
@@ -272,7 +271,7 @@ public sealed class NotebookController : Controller
         var hasTitle = !string.IsNullOrWhiteSpace(request.Title);
         var hasBody = !string.IsNullOrWhiteSpace(request.Body);
         var rows = request.ChecklistRows.Where(row => !string.IsNullOrWhiteSpace(row.Text)).ToArray();
-        if (!Enum.IsDefined(request.Type) || !Enum.IsDefined(request.Priority)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "type", "Invalid notebook type or priority."));
+        if (request.Priority.HasValue && !Enum.IsDefined(request.Priority.Value)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "priority", "Invalid notebook priority."));
         if (!hasTitle && !hasBody && rows.Length == 0) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "content", "Add a title, body, or checklist item before saving."));
         if ((request.Title?.Length ?? 0) > NotebookLimits.TitleMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "title", $"Title cannot exceed {NotebookLimits.TitleMaxLength} characters."));
         if ((request.Body?.Length ?? 0) > NotebookLimits.BodyMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "body", $"Body cannot exceed {NotebookLimits.BodyMaxLength} characters."));

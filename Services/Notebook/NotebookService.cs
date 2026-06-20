@@ -326,7 +326,6 @@ public sealed class NotebookService : INotebookService
             ClientRequestId = input.ClientRequestId,
             Title = input.Title,
             BodyMarkdown = input.BodyMarkdown,
-            Type = input.Type,
             Priority = input.Priority,
             ReminderAtUtc = input.ReminderAtUtc,
             ColorKey = input.ColorKey,
@@ -347,15 +346,11 @@ public sealed class NotebookService : INotebookService
     public async Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookUpdateInput input, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
-        if (input.Type != item.Type)
-        {
-            throw new ArgumentException("Notebook item type must be changed through a conversion command.");
-        }
         item.Title = CleanTitle(input.Title);
         item.BodyMarkdown = input.BodyMarkdown;
-        item.Priority = input.Priority;
+        item.Priority = input.Priority ?? item.Priority;
         item.ReminderAtUtc = input.ReminderAtUtc;
-        item.ColorKey = CleanColor(input.ColorKey, input.Type);
+        item.ColorKey = CleanColor(input.ColorKey, item.Type);
         Touch(item, _clock.UtcNow);
 
         SyncChecklistItems(item, input.ChecklistRows.Any() ? input.ChecklistRows : input.ChecklistItems.Select((text, index) => new NotebookChecklistEditRow { Text = text, SortOrder = index }).ToArray(), item.UpdatedAtUtc);
@@ -381,7 +376,6 @@ public sealed class NotebookService : INotebookService
         {
             Title = input.Title,
             BodyMarkdown = input.BodyMarkdown,
-            Type = input.Type,
             Priority = input.Priority,
             ReminderAtUtc = input.ReminderAtUtc,
             ColorKey = input.ColorKey,

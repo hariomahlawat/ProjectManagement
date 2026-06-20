@@ -22,3 +22,26 @@ export class NotebookBoardUpdateError extends Error {
     this.code = 'notebook_board_update_failed';
   }
 }
+
+// SECTION: Notebook validation error extraction helpers
+export function getValidationMessages(error) {
+  const errors = error?.errors;
+
+  if (!errors || typeof errors !== 'object') return [];
+
+  return Object.entries(errors).flatMap(([field, value]) => {
+    const messages = Array.isArray(value) ? value : [value];
+
+    return messages
+      .filter((message) => typeof message === 'string' && message.trim().length > 0)
+      .map((message) => ({ field, message: message.trim() }));
+  });
+}
+
+export function getFirstValidationMessage(error) {
+  const messages = getValidationMessages(error);
+
+  if (messages.length > 0) return messages[0].message;
+
+  return error?.message || 'The note contains invalid information.';
+}
