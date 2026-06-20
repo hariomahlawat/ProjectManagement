@@ -193,6 +193,9 @@ namespace ProjectManagement.Tests
             public Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookUpdateInput input, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
+            public Task<NotebookItemDetailVm> UpdateChecklistAsync(string ownerId, Guid itemId, string? title, string? body, IReadOnlyList<NotebookChecklistEditRow> checklistRows, Guid expectedVersion, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
             public Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookEditInput input, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 

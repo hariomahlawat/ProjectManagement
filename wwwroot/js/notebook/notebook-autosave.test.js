@@ -22,22 +22,23 @@ test('notebook autosave serialises rapid edits and uses latest payload after an 
   const autosave = createAutosave({
     delay: 1,
     save: async (payload) => {
-      calls.push(payload);
+      const request = { ...payload, version };
+      calls.push(request);
       if (calls.length === 1) await first;
       return { version: calls.length === 1 ? 'v2' : 'v3', value: payload.value };
     },
     onSaved: (result) => { version = result.version; saved.push(result.value); }
   });
 
-  autosave.schedule({ value: 'first', version });
+  autosave.schedule({ value: 'first' });
   await new Promise((resolve) => setTimeout(resolve, 5));
-  autosave.schedule({ value: 'second', version });
+  autosave.schedule({ value: 'second' });
   releaseFirst();
   await autosave.flush();
 
   assert.deepEqual(calls, [
     { value: 'first', version: 'v1' },
-    { value: 'second', version: 'v1' }
+    { value: 'second', version: 'v2' }
   ]);
   assert.deepEqual(saved, ['first', 'second']);
 });
@@ -50,7 +51,7 @@ test('notebook autosave keeps failed saves dirty for retry', async () => {
   const autosave = createAutosave({
     delay: 1,
     save: async (payload) => { calls.push(payload.value); if (fail) throw new Error('network'); return payload; },
-    onError: (error) => errors.push(error.message)
+    onError: (error) => { errors.push(error.message); return { retryable: true }; }
   });
 
   autosave.schedule({ value: 'draft' });
@@ -68,7 +69,7 @@ test('notebook autosave routes timer errors to onError without unhandled rejecti
   const autosave = createAutosave({
     delay: 1,
     save: () => Promise.reject(new Error('network')),
-    onError: (error) => errors.push(error.message)
+    onError: (error) => { errors.push(error.message); return { retryable: true }; }
   });
 
   autosave.schedule({ value: 'draft' });

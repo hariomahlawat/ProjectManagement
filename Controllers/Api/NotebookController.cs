@@ -104,6 +104,9 @@ public sealed class NotebookController : Controller
 
     [Consumes("application/json")]
     [HttpPatch("{id:guid}")]
+    // Legacy aggregate update endpoint.
+    // Do not use for autosave.
+    // Omitted collections may be interpreted as clears.
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateNotebookItemRequest request, CancellationToken ct)
     {
         var validation = ValidateUpdateRequest(request);
@@ -131,6 +134,18 @@ public sealed class NotebookController : Controller
         if (validation is not null) return validation;
 
         var updated = await _notebook.UpdateContentAsync(CurrentUserId(), id, request.Title, request.Body, request.Version, ct);
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
+    }
+
+    [Consumes("application/json")]
+    [HttpPut("{id:guid}/checklist")]
+    public async Task<IActionResult> UpdateChecklist(Guid id, [FromBody] UpdateNotebookChecklistRequest request, CancellationToken ct)
+    {
+        // SECTION: Browser autosave endpoint for checklist content and rows.
+        var validation = ValidateChecklistUpdate(request);
+        if (validation is not null) return validation;
+
+        var updated = await _notebook.UpdateChecklistAsync(CurrentUserId(), id, request.Title, request.Body, request.ChecklistRows, request.Version, ct);
         return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
     }
 
@@ -305,6 +320,37 @@ public sealed class NotebookController : Controller
         if (string.IsNullOrWhiteSpace(request.Title) && string.IsNullOrWhiteSpace(request.Body)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "content", "Add a title or body before saving."));
         if ((request.Title?.Length ?? 0) > NotebookLimits.TitleMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "title", $"Title cannot exceed {NotebookLimits.TitleMaxLength} characters."));
         if ((request.Body?.Length ?? 0) > NotebookLimits.BodyMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "body", $"Body cannot exceed {NotebookLimits.BodyMaxLength} characters."));
+        return null;
+    }
+
+    private BadRequestObjectResult? ValidateChecklistUpdate(UpdateNotebookChecklistRequest request)
+    {
+        // SECTION: Checklist autosave request validation.
+        if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The note could not be saved.", "version", "Version is required."));
+
+        request.Title = request.Title?.Trim();
+        request.Body = request.Body?.Trim();
+        request.ChecklistRows ??= [];
+
+        if (string.IsNullOrWhiteSpace(request.Title) && string.IsNullOrWhiteSpace(request.Body) && request.ChecklistRows.Count == 0)
+        {
+            return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "content", "Enter a title, note or at least one checklist item."));
+        }
+
+        if ((request.Title?.Length ?? 0) > NotebookLimits.TitleMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "title", $"Title cannot exceed {NotebookLimits.TitleMaxLength} characters."));
+        if ((request.Body?.Length ?? 0) > NotebookLimits.BodyMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "body", $"Body cannot exceed {NotebookLimits.BodyMaxLength} characters."));
+        if (request.ChecklistRows.Count > NotebookLimits.MaxChecklistRows) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "checklistRows", $"Checklist cannot exceed {NotebookLimits.MaxChecklistRows} rows."));
+        if (request.ChecklistRows.Where(row => row.Id.HasValue).GroupBy(row => row.Id!.Value).Any(group => group.Count() > 1)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "checklistRows", "Duplicate checklist row ids are not allowed."));
+
+        for (var index = 0; index < request.ChecklistRows.Count; index++)
+        {
+            var row = request.ChecklistRows[index];
+            row.Text = row.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(row.Text)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", $"checklistRows[{index}].text", "Checklist item text is required."));
+            if (row.Text.Length > NotebookLimits.ChecklistTextMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", $"checklistRows[{index}].text", $"Checklist text cannot exceed {NotebookLimits.ChecklistTextMaxLength} characters."));
+            row.SortOrder = index;
+        }
+
         return null;
     }
 

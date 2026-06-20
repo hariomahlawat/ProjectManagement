@@ -44,6 +44,21 @@ public sealed class UpdateNotebookItemRequest
 }
 
 
+public sealed class UpdateNotebookChecklistRequest
+{
+    [Required]
+    public Guid Version { get; set; }
+
+    [StringLength(NotebookLimits.TitleMaxLength)]
+    public string? Title { get; set; }
+
+    [StringLength(NotebookLimits.BodyMaxLength)]
+    public string? Body { get; set; }
+
+    [Required]
+    public List<NotebookChecklistEditRow> ChecklistRows { get; set; } = [];
+}
+
 public sealed class UpdateNotebookContentRequest
 {
     [Required]

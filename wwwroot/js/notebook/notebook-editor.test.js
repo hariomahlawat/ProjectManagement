@@ -30,8 +30,7 @@ test('buildUpdatePayload returns normal-note content payload only', async () => 
 
   assert.deepEqual(buildUpdatePayload({ title: ' Hello ', body: ' Body ', version, type: 'Note', checklistRows: [] }), {
     title: 'Hello',
-    body: 'Body',
-    version
+    body: 'Body'
   });
 });
 
@@ -44,7 +43,6 @@ test('buildUpdatePayload keeps checklist rows for checklist content updates', as
   assert.deepEqual(buildUpdatePayload({ title: ' Tasks ', body: '', version, type: 'Checklist', checklistRows }), {
     title: 'Tasks',
     body: '',
-    version,
     checklistRows
   });
 });

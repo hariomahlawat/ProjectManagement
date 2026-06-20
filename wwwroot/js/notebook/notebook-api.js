@@ -210,6 +210,7 @@ export const NotebookApi = {
   getItem: (id) => request(`/api/notebook/items/${encodeURIComponent(id)}`),
   updateItem: (id, payload) => request(`/api/notebook/items/${encodeURIComponent(id)}`, jsonRequestOptions('PATCH', payload)),
   updateContent: (id, payload) => request(`/api/notebook/items/${encodeURIComponent(id)}/content`, jsonRequestOptions('PATCH', payload)),
+  updateChecklist: (id, payload) => request(`/api/notebook/items/${encodeURIComponent(id)}/checklist`, jsonRequestOptions('PUT', payload)),
   setPinned: (id, isPinned, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/pin`, jsonRequestOptions('POST', { isPinned, version })),
   archiveItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/archive`, jsonRequestOptions('POST', { version })),
   completeItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/complete`, jsonRequestOptions('POST', { version })),
