@@ -830,7 +830,24 @@ contentTypeProvider.Mappings[".topojson"] = "application/json";
 
 app.UseStaticFiles(new StaticFileOptions
 {
-    ContentTypeProvider = contentTypeProvider
+    ContentTypeProvider = contentTypeProvider,
+    OnPrepareResponse = context =>
+    {
+        // SECTION: Development-only JavaScript cache prevention for coherent ES module loading.
+        if (app.Environment.IsDevelopment() &&
+            context.Context.Request.Path.StartsWithSegments("/js", StringComparison.OrdinalIgnoreCase))
+        {
+            var headers = context.Context.Response.GetTypedHeaders();
+            headers.CacheControl = new Microsoft.Net.Http.Headers.CacheControlHeaderValue
+            {
+                NoStore = true,
+                NoCache = true,
+                MaxAge = TimeSpan.Zero
+            };
+            context.Context.Response.Headers.Pragma = "no-cache";
+            context.Context.Response.Headers.Expires = "0";
+        }
+    }
 });
 app.UseRouting();
 

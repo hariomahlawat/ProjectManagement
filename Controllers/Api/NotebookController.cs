@@ -91,6 +91,7 @@ public sealed class NotebookController : Controller
     }
 
     // SECTION: Item mutation endpoints
+    [Consumes("application/json")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateNotebookItemRequest request, CancellationToken ct)
     {
@@ -101,6 +102,7 @@ public sealed class NotebookController : Controller
         return CreatedAtAction(nameof(Get), new { id = item.Id }, await BuildMutationResponseAsync(item, includeCard: true, ct));
     }
 
+    [Consumes("application/json")]
     [HttpPatch("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateNotebookItemRequest request, CancellationToken ct)
     {
@@ -119,6 +121,7 @@ public sealed class NotebookController : Controller
         return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
     }
 
+    [Consumes("application/json")]
     [HttpPost("{id:guid}/pin")]
     public async Task<IActionResult> Pin(Guid id, [FromBody] SetNotebookPinRequest request, CancellationToken ct)
     {
@@ -127,6 +130,7 @@ public sealed class NotebookController : Controller
         return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
     }
 
+    [Consumes("application/json")]
     [HttpPost("{id:guid}/archive")]
     public async Task<IActionResult> Archive(Guid id, [FromBody] ArchiveNotebookItemRequest request, CancellationToken ct)
     {
@@ -135,6 +139,7 @@ public sealed class NotebookController : Controller
         return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
     }
 
+    [Consumes("application/json")]
     [HttpPost("{id:guid}/complete")]
     public async Task<IActionResult> Complete(Guid id, [FromBody] CompleteNotebookItemRequest request, CancellationToken ct)
     {
@@ -143,6 +148,7 @@ public sealed class NotebookController : Controller
         return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
     }
 
+    [Consumes("application/json")]
     [HttpPost("{id:guid}/reopen")]
     public async Task<IActionResult> Reopen(Guid id, [FromBody] ReopenNotebookItemRequest request, CancellationToken ct)
     {
@@ -152,6 +158,7 @@ public sealed class NotebookController : Controller
     }
 
 
+    [Consumes("application/json")]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, [FromBody] DeleteNotebookItemRequest? request, CancellationToken ct)
     {
@@ -160,6 +167,7 @@ public sealed class NotebookController : Controller
         return Ok(await BuildRemovalResponseAsync(id, ct));
     }
 
+    [Consumes("application/json")]
     [HttpPost("{id:guid}/restore")]
     public async Task<IActionResult> Restore(Guid id, [FromBody] RestoreNotebookItemRequest request, CancellationToken ct)
     {
@@ -168,6 +176,7 @@ public sealed class NotebookController : Controller
         return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
     }
 
+    [Consumes("application/json")]
     [HttpPost("{id:guid}/show-checkboxes")]
     public async Task<IActionResult> ShowCheckboxes(Guid id, [FromBody] ConvertNotebookItemRequest request, CancellationToken ct)
     {
@@ -176,6 +185,7 @@ public sealed class NotebookController : Controller
         return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
     }
 
+    [Consumes("application/json")]
     [HttpPost("{id:guid}/hide-checkboxes")]
     public async Task<IActionResult> HideCheckboxes(Guid id, [FromBody] ConvertNotebookItemRequest request, CancellationToken ct)
     {
@@ -185,6 +195,7 @@ public sealed class NotebookController : Controller
     }
 
 
+    [Consumes("application/json")]
     [HttpPatch("{itemId:guid}/checklist-items/{rowId:int}")]
     public async Task<IActionResult> ToggleChecklistItem(Guid itemId, int rowId, [FromBody] ToggleChecklistItemRequest request, CancellationToken ct)
     {
