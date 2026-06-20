@@ -184,7 +184,13 @@ namespace ProjectManagement.Tests
             public Task<Guid> QuickCaptureAsync(string ownerId, string input, NotebookItemType? forcedType = null, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
+            public Task<NotebookItemDetailVm> CreateAsync(string ownerId, NotebookCreateInput input, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
             public Task<NotebookItemDetailVm> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
+            public Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookUpdateInput input, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
             public Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookEditInput input, Guid expectedVersion, CancellationToken ct = default) =>

@@ -11,7 +11,7 @@ public abstract class NotebookVersionedRequest
     public Guid Version { get; set; }
 }
 
-public class CreateNotebookItemRequest
+public sealed class CreateNotebookItemRequest
 {
     [StringLength(NotebookLimits.TitleMaxLength)] public string? Title { get; set; }
     [StringLength(NotebookLimits.BodyMaxLength)] public string? Body { get; set; }
@@ -29,10 +29,21 @@ public class CreateNotebookItemRequest
     public Guid ClientRequestId { get; set; }
 }
 
-public sealed class UpdateNotebookItemRequest : CreateNotebookItemRequest
+public sealed class UpdateNotebookItemRequest
 {
     [Required]
     public Guid Version { get; set; }
+
+    [StringLength(NotebookLimits.TitleMaxLength)] public string? Title { get; set; }
+    [StringLength(NotebookLimits.BodyMaxLength)] public string? Body { get; set; }
+    public NotebookItemType Type { get; set; } = NotebookItemType.Note;
+    public NotebookPriority Priority { get; set; } = NotebookPriority.Normal;
+    public DateTimeOffset? ReminderAtUtc { get; set; }
+    [StringLength(32)] public string? ColorKey { get; set; }
+    [Required]
+    public List<NotebookChecklistEditRow> ChecklistRows { get; set; } = [];
+    [Required]
+    public List<string> Labels { get; set; } = [];
 }
 
 public sealed class SetNotebookPinRequest : NotebookVersionedRequest

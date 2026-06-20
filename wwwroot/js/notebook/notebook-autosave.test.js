@@ -123,3 +123,19 @@ test('notebook autosave does not retry persisted data when reconciliation fails'
   assert.deepEqual(calls, ['draft']);
   assert.deepEqual(reconcileErrors, [{ message: 'render failed', version: 'v2' }]);
 });
+
+test('notebook autosave cancel clears pending local payload without saving', async () => {
+  const { createAutosave } = await loadModule('notebook-autosave.js');
+  const calls = [];
+  const autosave = createAutosave({
+    delay: 50,
+    save: async (payload) => { calls.push(payload); return payload; }
+  });
+
+  autosave.schedule(() => ({ value: 'discard me' }));
+  autosave.cancel();
+  await autosave.flush();
+
+  assert.deepEqual(calls, []);
+  assert.equal(autosave.hasPending(), false);
+});

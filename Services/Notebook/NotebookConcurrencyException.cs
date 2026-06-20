@@ -4,7 +4,12 @@ namespace ProjectManagement.Services.Notebook;
 public sealed class NotebookConcurrencyException : Exception
 {
     public NotebookConcurrencyException(Guid itemId, Guid expectedVersion, Guid currentVersion)
-        : base("The notebook item version no longer matches the submitted version.")
+        : this(itemId, expectedVersion, currentVersion, null)
+    {
+    }
+
+    public NotebookConcurrencyException(Guid itemId, Guid expectedVersion, Guid currentVersion, Exception? innerException)
+        : base("The notebook item version no longer matches the submitted version.", innerException)
     {
         ItemId = itemId;
         ExpectedVersion = expectedVersion;

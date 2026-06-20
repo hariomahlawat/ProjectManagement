@@ -254,7 +254,7 @@ public sealed class NotebookService : INotebookService
         CancellationToken ct = default)
     {
         var parsed = NotebookQuickCaptureParser.Parse(input, _clock.UtcNow, forcedType);
-        return CreateIdAsync(ownerId, new NotebookEditInput
+        return CreateIdAsync(ownerId, new NotebookCreateInput
         {
             Title = parsed.Title,
             Type = parsed.Type,
@@ -265,7 +265,7 @@ public sealed class NotebookService : INotebookService
         }, ct);
     }
 
-    public async Task<NotebookItemDetailVm> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default)
+    public async Task<NotebookItemDetailVm> CreateAsync(string ownerId, NotebookCreateInput input, CancellationToken ct = default)
     {
         if (input.ClientRequestId is Guid clientRequestId)
         {
@@ -317,13 +317,34 @@ public sealed class NotebookService : INotebookService
         return MapDetail(item);
     }
 
-    private async Task<Guid> CreateIdAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default)
+
+    public Task<NotebookItemDetailVm> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default)
+    {
+        // SECTION: Legacy form adapter keeps old Razor handlers on the create-only contract.
+        return CreateAsync(ownerId, new NotebookCreateInput
+        {
+            ClientRequestId = input.ClientRequestId,
+            Title = input.Title,
+            BodyMarkdown = input.BodyMarkdown,
+            Type = input.Type,
+            Priority = input.Priority,
+            ReminderAtUtc = input.ReminderAtUtc,
+            ColorKey = input.ColorKey,
+            IsPinned = input.IsPinned,
+            IsFavorite = input.IsFavorite,
+            Tags = input.Tags,
+            ChecklistItems = input.ChecklistItems,
+            ChecklistRows = input.ChecklistRows
+        }, ct);
+    }
+
+    private async Task<Guid> CreateIdAsync(string ownerId, NotebookCreateInput input, CancellationToken ct = default)
     {
         var created = await CreateAsync(ownerId, input, ct);
         return created.Id;
     }
 
-    public async Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookEditInput input, Guid expectedVersion, CancellationToken ct = default)
+    public async Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookUpdateInput input, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
         if (input.Type != item.Type)
@@ -334,16 +355,40 @@ public sealed class NotebookService : INotebookService
         item.BodyMarkdown = input.BodyMarkdown;
         item.Priority = input.Priority;
         item.ReminderAtUtc = input.ReminderAtUtc;
-        item.IsPinned = input.IsPinned;
-        item.IsFavorite = input.IsFavorite;
         item.ColorKey = CleanColor(input.ColorKey, input.Type);
         Touch(item, _clock.UtcNow);
 
         SyncChecklistItems(item, input.ChecklistRows.Any() ? input.ChecklistRows : input.ChecklistItems.Select((text, index) => new NotebookChecklistEditRow { Text = text, SortOrder = index }).ToArray(), item.UpdatedAtUtc);
         await SyncTags(item, ownerId, input.Tags, ct);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new NotebookConcurrencyException(id, expectedVersion, item.Version, ex);
+        }
+
         await TryWriteAuditAsync("Notebook.Update", ownerId, item.Id, ct);
         return MapDetail(item);
+    }
+
+
+    public Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookEditInput input, Guid expectedVersion, CancellationToken ct = default)
+    {
+        // SECTION: Legacy form adapter intentionally drops pin/favourite state for generic updates.
+        return UpdateAsync(ownerId, id, new NotebookUpdateInput
+        {
+            Title = input.Title,
+            BodyMarkdown = input.BodyMarkdown,
+            Type = input.Type,
+            Priority = input.Priority,
+            ReminderAtUtc = input.ReminderAtUtc,
+            ColorKey = input.ColorKey,
+            Tags = input.Tags,
+            ChecklistItems = input.ChecklistItems,
+            ChecklistRows = input.ChecklistRows
+        }, expectedVersion, ct);
     }
 
     public async Task<NotebookItemDetailVm> ArchiveAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
@@ -480,7 +525,7 @@ public sealed class NotebookService : INotebookService
 
         _db.NotebookItems.Add(copy);
         await _db.SaveChangesAsync(ct);
-        await _audit.LogAsync("Notebook.Duplicate", userId: ownerId, data: new Dictionary<string, string?> { ["SourceId"] = id.ToString(), ["Id"] = copy.Id.ToString() });
+        await TryWriteAuditAsync("Notebook.Duplicate", ownerId, copy.Id, ct, new Dictionary<string, string?> { ["SourceNotebookItemId"] = source.Id.ToString() });
         return MapDetail(copy);
     }
 
@@ -541,11 +586,13 @@ public sealed class NotebookService : INotebookService
         await _db.SaveChangesAsync(ct);
     }
 
-    private async Task TryWriteAuditAsync(string action, string ownerId, Guid itemId, CancellationToken ct)
+    private async Task TryWriteAuditAsync(string action, string ownerId, Guid itemId, CancellationToken ct, Dictionary<string, string?>? data = null)
     {
         try
         {
-            await _audit.LogAsync(action, userId: ownerId, data: new Dictionary<string, string?> { ["Id"] = itemId.ToString() });
+            data ??= new Dictionary<string, string?>();
+            data["Id"] = itemId.ToString();
+            await _audit.LogAsync(action, userId: ownerId, data: data);
         }
         catch (Exception ex)
         {
