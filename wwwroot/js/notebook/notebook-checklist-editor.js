@@ -20,12 +20,17 @@ export function createChecklistEditor(root, options = {}) {
   function normalizeRow(row = {}, index = 0) {
     return {
       id: row.id ?? null,
-      clientKey: row.clientKey || createClientKey(),
+      clientKey: normaliseClientKey(row),
       text: row.text || '',
       isDone: Boolean(row.isDone),
       sortOrder: Number.isFinite(row.sortOrder) ? row.sortOrder : (index + 1) * 1000,
       element: row.element || null
     };
+  }
+
+  function normaliseClientKey(row = {}) {
+    if (row.clientKey) return row.clientKey;
+    return row.id === null || row.id === undefined ? createClientKey() : null;
   }
 
   function rowTemplate(row) {
@@ -51,7 +56,7 @@ export function createChecklistEditor(root, options = {}) {
   function readRowElement(row, index) {
     if (!row.element) return row;
     row.id = parseNullableInt(row.element.dataset.rowId);
-    row.clientKey = row.element.dataset.clientKey || row.clientKey || createClientKey();
+    row.clientKey = row.element.dataset.clientKey || row.clientKey || normaliseClientKey(row);
     row.text = row.element.querySelector('[data-checklist-text]')?.value || '';
     row.isDone = Boolean(row.element.querySelector('[data-checklist-done]')?.checked);
     row.sortOrder = (index + 1) * 1000;
@@ -87,18 +92,41 @@ export function createChecklistEditor(root, options = {}) {
     }
   }
 
+
+  function removeStaleRowElements(reconciledRows) {
+    const retainedElements = new Set(reconciledRows.map((row) => row.element).filter(Boolean));
+    root.querySelectorAll('[data-checklist-row]').forEach((element) => {
+      if (!retainedElements.has(element)) element.remove();
+    });
+  }
+
+  // SECTION: Add-item control
+  function ensureAddItemControl() {
+    let button = root.querySelector('[data-checklist-add]');
+    if (!button) {
+      button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'notebook-checklist-add';
+      button.dataset.checklistAdd = '';
+      button.textContent = '+ List item';
+      root.append(button);
+    }
+    return button;
+  }
+
   // SECTION: Public row operations
   function setRows(nextRows) {
     root.replaceChildren();
-    rows = (nextRows?.length ? nextRows : [{ text: '' }]).map(normalizeRow);
+    rows = (nextRows || []).map(normalizeRow);
     rows.forEach((row) => root.append(rowTemplate(row)));
+    ensureAddItemControl();
   }
 
   function addRow(afterElement = null, row = {}) {
     const insertAt = afterElement ? rows.findIndex((candidate) => candidate.element === afterElement) + 1 : rows.length;
     const model = normalizeRow(row, insertAt);
     const el = rowTemplate(model);
-    if (afterElement) afterElement.after(el); else root.append(el);
+    if (afterElement) afterElement.after(el); else root.insertBefore(el, ensureAddItemControl());
     rows.splice(insertAt < 0 ? rows.length : insertAt, 0, model);
     return el;
   }
@@ -115,7 +143,7 @@ export function createChecklistEditor(root, options = {}) {
   function getRows() {
     rows.forEach(readRowElement);
     return rows
-      .map((row, index) => ({ id: row.id, clientKey: row.clientKey, text: row.text.trim(), isDone: row.isDone, sortOrder: (index + 1) * 1000 }))
+      .map((row, index) => ({ id: row.id, clientKey: row.clientKey, text: row.text.trim(), isDone: row.isDone, sortOrder: index }))
       .filter((row) => row.text.length > 0);
   }
 
@@ -137,7 +165,7 @@ export function createChecklistEditor(root, options = {}) {
         const submittedRow = (serverRow.id !== null && serverRow.id !== undefined ? submittedById.get(String(serverRow.id)) : null) || (serverRow.clientKey ? submittedByClientKey.get(serverRow.clientKey) : null);
         if (!localRow) localRow = normalizeRow(serverRow, index);
         localRow.id = serverRow.id ?? localRow.id;
-        localRow.clientKey = serverRow.clientKey || localRow.clientKey || createClientKey();
+        localRow.clientKey = serverRow.clientKey ?? localRow.clientKey ?? normaliseClientKey(localRow);
         if (!submittedRow || localRow.text === (submittedRow.text ?? '')) localRow.text = serverRow.text || '';
         if (!submittedRow || localRow.isDone === Boolean(submittedRow.isDone)) localRow.isDone = Boolean(serverRow.isDone);
         localRow.sortOrder = serverRow.sortOrder ?? (index + 1) * 1000;
@@ -146,8 +174,10 @@ export function createChecklistEditor(root, options = {}) {
         reconciled.push(localRow);
       });
 
-      rows = reconciled.length ? reconciled : rows;
-      rows.forEach((row) => root.append(row.element));
+      removeStaleRowElements(reconciled);
+      rows = reconciled;
+      rows.forEach((row) => root.insertBefore(row.element, ensureAddItemControl()));
+      ensureAddItemControl();
       root.scrollTop = scrollTop;
       restoreFocusState(focusState);
     } finally {
@@ -156,10 +186,16 @@ export function createChecklistEditor(root, options = {}) {
   }
 
   // SECTION: Checklist event wiring
-  root.addEventListener('input', (event) => { if (event.target.matches('[data-checklist-text]')) notify(); });
-  root.addEventListener('change', (event) => { if (event.target.matches('[data-checklist-done]')) notify(); });
-  root.addEventListener('click', (event) => { const button = event.target.closest('[data-checklist-remove]'); if (button) removeRow(button.closest('[data-checklist-row]')); });
-  root.addEventListener('keydown', (event) => { const input = event.target.closest('[data-checklist-text]'); if (!input) return; const row = input.closest('[data-checklist-row]'); if (event.key === 'Enter') { event.preventDefault(); addRow(row).querySelector('[data-checklist-text]').focus(); notify(); } if (event.key === 'Backspace' && input.value.length === 0 && root.querySelectorAll('[data-checklist-row]').length > 1) { event.preventDefault(); removeRow(row); } });
+  function handleInput(event) { if (isReconciling) return; if (event.target.matches('[data-checklist-text]')) notify(); }
+  function handleChange(event) { if (isReconciling) return; if (event.target.matches('[data-checklist-done]')) notify(); }
+  function handleClick(event) { if (isReconciling) return; if (event.target.closest('[data-checklist-add]')) { addRow().querySelector('[data-checklist-text]')?.focus(); return; } const button = event.target.closest('[data-checklist-remove]'); if (button) removeRow(button.closest('[data-checklist-row]')); }
+  function handleKeydown(event) { if (isReconciling) return; const input = event.target.closest('[data-checklist-text]'); if (!input) return; const row = input.closest('[data-checklist-row]'); if (event.key === 'Enter') { event.preventDefault(); addRow(row).querySelector('[data-checklist-text]').focus(); notify(); } if (event.key === 'Backspace' && input.value.length === 0 && root.querySelectorAll('[data-checklist-row]').length > 1) { event.preventDefault(); removeRow(row); } }
+  function destroy() { root.removeEventListener('input', handleInput); root.removeEventListener('change', handleChange); root.removeEventListener('click', handleClick); root.removeEventListener('keydown', handleKeydown); root.replaceChildren(); rows = []; }
 
-  return { setRows, getRows, addRow, removeRow, reconcileRows, replaceRows: setRows, renderRows: setRows, getFocusedRowState: captureFocusState, restoreFocusedRowState: restoreFocusState, isDirty: () => false, focusFirst: () => root.querySelector('[data-checklist-text]')?.focus(), clear: () => setRows([]), destroy: () => root.replaceChildren() };
+  root.addEventListener('input', handleInput);
+  root.addEventListener('change', handleChange);
+  root.addEventListener('click', handleClick);
+  root.addEventListener('keydown', handleKeydown);
+
+  return { setRows, getRows, addRow, removeRow, reconcileRows, replaceRows: setRows, renderRows: setRows, getFocusedRowState: captureFocusState, restoreFocusedRowState: restoreFocusState, focusFirst: () => (root.querySelector('[data-checklist-text]') || ensureAddItemControl())?.focus(), clear: () => setRows([]), destroy };
 }
