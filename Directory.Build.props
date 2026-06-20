@@ -13,5 +13,7 @@
     <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\obj\</BaseIntermediateOutputPath>
     <RestoreOutputPath>$(BaseIntermediateOutputPath)</RestoreOutputPath>
     <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+    <!-- SECTION: Exclude generated artifacts from SDK default globs across all projects -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)\bin\**;$(MSBuildProjectDirectory)\obj\**;$(MSBuildProjectDirectory)\TestResults\**</DefaultItemExcludes>
   </PropertyGroup>
 </Project>

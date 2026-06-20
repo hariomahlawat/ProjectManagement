@@ -10,17 +10,6 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
 
-    <!--
-      SECTION: Stable build output paths
-      Pin output/intermediate paths to the project directory to avoid recursive
-      "bin/.../ProjectManagement.Tests/bin/..." copy chains on Windows builds.
-    -->
-    <BaseOutputPath>$(MSBuildProjectDirectory)\bin\</BaseOutputPath>
-    <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\obj\</BaseIntermediateOutputPath>
-    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
-
-    <!-- SECTION: Exclude generated artifacts from default item globs -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)\bin\**;$(MSBuildProjectDirectory)\obj\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -51,10 +40,18 @@
 
   <ItemGroup>
     <!-- SECTION: Defensive cleanup for generated artifacts -->
+    <Compile Remove="bin\**" />
+    <Compile Remove="obj\**" />
+    <Compile Remove="TestResults\**" />
     <Content Remove="bin\**" />
     <Content Remove="obj\**" />
+    <Content Remove="TestResults\**" />
+    <EmbeddedResource Remove="bin\**" />
+    <EmbeddedResource Remove="obj\**" />
+    <EmbeddedResource Remove="TestResults\**" />
     <None Remove="bin\**" />
     <None Remove="obj\**" />
+    <None Remove="TestResults\**" />
   </ItemGroup>
 
 </Project>
