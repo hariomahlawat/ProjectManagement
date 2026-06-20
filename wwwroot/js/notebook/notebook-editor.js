@@ -14,7 +14,15 @@ export function initNotebookEditor(board, view, options = {}) {
   const buildNoteUrl = (id) => { const url = new URL(location.href); id ? url.searchParams.set('note', id) : url.searchParams.delete('note'); return url; };
   const focusableSelector = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
   function setStatus(text, state = 'idle') { const el = modal?.querySelector('[data-notebook-save-state]'); if (el) { el.textContent = text || ''; el.dataset.state = state; } const retry = modal?.querySelector('[data-notebook-retry]'); const reload = modal?.querySelector('[data-notebook-reload-latest]'); const discard = modal?.querySelector('[data-modal-discard]'); const signIn = modal?.querySelector('[data-notebook-sign-in]'); const copy = modal?.querySelector('[data-notebook-copy-unsaved]'); if (retry) retry.hidden = !['network','server','error'].includes(state); if (reload) { reload.hidden = !['conflict','client-version'].includes(state); reload.textContent = state === 'client-version' ? 'Reload application' : 'Reload latest'; } if (discard) discard.hidden = !['network','server','error','conflict','client-version','session-expired','forbidden'].includes(state); if (signIn) signIn.hidden = state !== 'session-expired'; if (copy) copy.hidden = !['session-expired','forbidden','network','server','error'].includes(state); }
-  function buildCurrentPayload() { return buildUpdatePayload({ title: modal.querySelector('[data-modal-title]').value, body: modal.querySelector('[data-modal-body]').value, version: item.version }); }
+  function buildCurrentPayload() {
+    return buildUpdatePayload({
+      title: modal.querySelector('[data-modal-title]').value,
+      body: modal.querySelector('[data-modal-body]').value,
+      version: item.version,
+      type: item.type,
+      checklistRows: item.type === 'Checklist' ? checklist.getRows() : []
+    });
+  }
   function scheduleAutosave() { const nextPayload = buildCurrentPayload(); const nextFingerprint = validationFingerprint(nextPayload); if (blockedByValidation && nextFingerprint === lastValidationFingerprint) return; if (blockedByValidation) clearValidationBlock(); autosave?.schedule(nextPayload); }
   function clearValidationBlock() { blockedByValidation = false; lastValidationFingerprint = null; renderValidationErrors([]); }
   function configureAutosave() { autosave?.stop(); autosave = createAutosave({ save: saveEditorPayload, onSaving: () => setStatus('Saving…','saving'), onPersisted: applyPersistedResponse, onSaveError: handleEditorError, onReconcileError: handleReconcileError }); }

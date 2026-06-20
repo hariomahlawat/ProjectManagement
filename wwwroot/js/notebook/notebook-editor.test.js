@@ -35,6 +35,20 @@ test('buildUpdatePayload returns normal-note content payload only', async () => 
   });
 });
 
+
+test('buildUpdatePayload keeps checklist rows for checklist content updates', async () => {
+  const { buildUpdatePayload } = await loadEditorModule();
+  const version = '123e4567-e89b-12d3-a456-426614174000';
+  const checklistRows = [{ id: 7, text: 'Ship fix', isDone: true, sortOrder: 1000 }];
+
+  assert.deepEqual(buildUpdatePayload({ title: ' Tasks ', body: '', version, type: 'Checklist', checklistRows }), {
+    title: 'Tasks',
+    body: '',
+    version,
+    checklistRows
+  });
+});
+
 test('assertValidVersion rejects non-guid local versions before PATCH', async () => {
   const { assertValidVersion } = await loadEditorModule();
 
