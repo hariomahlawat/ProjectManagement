@@ -753,7 +753,13 @@ function initNotebookEditor(board, view, options = {}) {
     if (copy) copy.hidden = !["session-expired", "forbidden", "network", "server", "error"].includes(state);
   }
   function buildCurrentPayload() {
-    return buildUpdatePayload({ title: modal.querySelector("[data-modal-title]").value, body: modal.querySelector("[data-modal-body]").value, version: item.version });
+    return buildUpdatePayload({
+      title: modal.querySelector("[data-modal-title]").value,
+      body: modal.querySelector("[data-modal-body]").value,
+      version: item.version,
+      type: item.type,
+      checklistRows: item.type === "Checklist" ? checklist.getRows() : []
+    });
   }
   function scheduleAutosave() {
     const nextPayload = buildCurrentPayload();
