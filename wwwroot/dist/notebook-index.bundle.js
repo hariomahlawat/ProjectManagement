@@ -14,6 +14,19 @@ var init_notebook_utils = __esm({
   }
 });
 
+// wwwroot/js/core/session-auth.js
+function notifySessionExpired() {
+  if (sessionExpiredShown) return;
+  sessionExpiredShown = true;
+  document.dispatchEvent(new CustomEvent("app:session-expired"));
+}
+var sessionExpiredShown;
+var init_session_auth = __esm({
+  "wwwroot/js/core/session-auth.js"() {
+    sessionExpiredShown = false;
+  }
+});
+
 // wwwroot/js/notebook/notebook-api.js
 function isDevelopment() {
   return document.documentElement.dataset.environment === "Development" || location.hostname === "localhost";
@@ -61,17 +74,15 @@ function getDefaultNotebookErrorMessage(status) {
     case 401:
       return "Your session has expired. Sign in again.";
     case 403:
-      return "You do not have permission to perform this action.";
+      return "You are not authorised to perform this action.";
     case 404:
       return "The note could not be found.";
     case 409:
-      return "This note was changed elsewhere. Reload the latest version.";
+      return "The note was changed elsewhere.";
     case 415:
-      return "The editor request format is invalid. Reload the page to load the latest application files.";
-    case 500:
-      return "The notebook operation could not be completed.";
+      return "The request format is not supported.";
     default:
-      return `Notebook request failed with HTTP ${status}.`;
+      return "The notebook operation failed.";
   }
 }
 function jsonRequestOptions(method, payload, options = {}) {
@@ -84,9 +95,27 @@ function jsonRequestOptions(method, payload, options = {}) {
     body: JSON.stringify(payload)
   };
 }
+function isLoginResponse(response) {
+  if (!response) return false;
+  const responseUrl = response.url || "";
+  return Boolean(response.redirected && responseUrl.includes("/Identity/Account/Login"));
+}
+function createSessionExpiredError(context) {
+  notifySessionExpired();
+  return new NotebookApiError("Your session has expired. Sign in again.", {
+    status: 401,
+    code: "notebook_session_expired",
+    url: context.url,
+    method: context.method
+  });
+}
 async function parseNotebookResponse(response, context) {
+  if (isLoginResponse(response)) throw createSessionExpiredError(context);
   if (response.status === 204) return null;
   const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("text/html") && (response.url || "").includes("/Identity/Account/Login")) {
+    throw createSessionExpiredError(context);
+  }
   let payload = null;
   let rawText = null;
   if (contentType.includes("application/json") || contentType.includes("application/problem+json")) {
@@ -99,6 +128,7 @@ async function parseNotebookResponse(response, context) {
     rawText = await response.text();
   }
   if (!response.ok) {
+    if (response.status === 401) notifySessionExpired();
     throw new NotebookApiError(
       payload?.message || payload?.detail || payload?.title || payload?.error || rawText || getDefaultNotebookErrorMessage(response.status),
       {
@@ -148,6 +178,7 @@ async function request(url, options = {}) {
 var NotebookApiError, NotebookApi;
 var init_notebook_api = __esm({
   "wwwroot/js/notebook/notebook-api.js"() {
+    init_session_auth();
     NotebookApiError = class extends Error {
       constructor(message, { status = 0, code = null, errors = null, responseText = null, url = null, method = null, cause = null } = {}) {
         super(message);
@@ -659,12 +690,16 @@ function initNotebookEditor(board, view, options = {}) {
     const retry = modal?.querySelector("[data-notebook-retry]");
     const reload = modal?.querySelector("[data-notebook-reload-latest]");
     const discard = modal?.querySelector("[data-modal-discard]");
+    const signIn = modal?.querySelector("[data-notebook-sign-in]");
+    const copy = modal?.querySelector("[data-notebook-copy-unsaved]");
     if (retry) retry.hidden = !["network", "server", "error"].includes(state);
     if (reload) {
       reload.hidden = !["conflict", "client-version"].includes(state);
       reload.textContent = state === "client-version" ? "Reload application" : "Reload latest";
     }
-    if (discard) discard.hidden = !["network", "server", "error", "conflict", "client-version"].includes(state);
+    if (discard) discard.hidden = !["network", "server", "error", "conflict", "client-version", "session-expired", "forbidden"].includes(state);
+    if (signIn) signIn.hidden = state !== "session-expired";
+    if (copy) copy.hidden = !["session-expired", "forbidden", "network", "server", "error"].includes(state);
   }
   function payload() {
     return () => ({ title: modal.querySelector("[data-modal-title]").value.trim(), body: modal.querySelector("[data-modal-body]").value.trim(), type: item.type, priority: item.priority ?? "Normal", reminderAtUtc: item.reminderAtUtc ?? null, colorKey: item.colorKey ?? null, labels: (item.labels || []).map((l) => l.name || l), checklistRows: item.type === "Checklist" ? checklist.getRows() : [], version: item.version });
@@ -693,7 +728,7 @@ function initNotebookEditor(board, view, options = {}) {
     modal.setAttribute("role", "dialog");
     modal.setAttribute("aria-modal", "true");
     modal.setAttribute("aria-labelledby", "notebook-modal-title");
-    modal.innerHTML = '<div class="notebook-modal__backdrop" data-close></div><section class="notebook-modal__dialog"><header><input id="notebook-modal-title" data-modal-title class="notebook-modal__title" maxlength="220"><button type="button" class="notebook-action-icon" data-modal-pin aria-label="Pin note"><i class="bi bi-pin-angle"></i></button></header><textarea data-modal-body class="notebook-modal__body" maxlength="20000" placeholder="Take a note\u2026"></textarea><div data-modal-checklist class="notebook-checklist-editor" hidden></div><div class="notebook-save-feedback"><span class="notebook-modal__save-state" data-notebook-save-state aria-live="polite"></span><button type="button" data-notebook-retry hidden>Retry</button><button type="button" data-notebook-reload-latest hidden>Reload latest</button><button type="button" data-modal-discard hidden>Discard changes</button></div><footer><button type="button" class="btn btn-sm btn-link" data-close aria-label="Close note editor">Close</button></footer></section>';
+    modal.innerHTML = '<div class="notebook-modal__backdrop" data-close></div><section class="notebook-modal__dialog"><header><input id="notebook-modal-title" data-modal-title class="notebook-modal__title" maxlength="220"><button type="button" class="notebook-action-icon" data-modal-pin aria-label="Pin note"><i class="bi bi-pin-angle"></i></button></header><textarea data-modal-body class="notebook-modal__body" maxlength="20000" placeholder="Take a note\u2026"></textarea><div data-modal-checklist class="notebook-checklist-editor" hidden></div><div class="notebook-save-feedback"><span class="notebook-modal__save-state" data-notebook-save-state aria-live="polite"></span><button type="button" data-notebook-retry hidden>Retry</button><button type="button" data-notebook-reload-latest hidden>Reload latest</button><button type="button" data-notebook-sign-in hidden>Sign in again</button><button type="button" data-notebook-copy-unsaved hidden>Copy note text</button><button type="button" data-modal-discard hidden>Discard changes</button></div><footer><button type="button" class="btn btn-sm btn-link" data-close aria-label="Close note editor">Close</button></footer></section>';
     document.body.appendChild(modal);
     checklist = createChecklistEditor(modal.querySelector("[data-modal-checklist]"), { onChange: () => {
       dirtyState.checklist = true;
@@ -714,6 +749,8 @@ function initNotebookEditor(board, view, options = {}) {
     modal.querySelector("[data-modal-pin]").addEventListener("click", pinItem);
     modal.querySelector("[data-notebook-retry]")?.addEventListener("click", retrySave);
     modal.querySelector("[data-notebook-reload-latest]")?.addEventListener("click", reloadLatest);
+    modal.querySelector("[data-notebook-sign-in]")?.addEventListener("click", signInAgain);
+    modal.querySelector("[data-notebook-copy-unsaved]")?.addEventListener("click", copyUnsavedContent);
     modal.querySelector("[data-modal-discard]")?.addEventListener("click", discardChangesAndClose);
   }
   async function saveEditorPayload(data) {
@@ -730,14 +767,7 @@ function initNotebookEditor(board, view, options = {}) {
     setStatus("Saved", "saved");
   }
   function classifySaveError(error) {
-    if (error instanceof NotebookApiError) {
-      if (error.status === 415) return { kind: "client-version", message: "The editor is using an outdated application file. Reload the page and try again.", actions: ["reload", "discard"] };
-      if (error.status === 409) return { kind: "conflict", message: "This note was changed elsewhere." };
-      if (error.status === 400) return { kind: "validation", message: error.message || "The note contains invalid information." };
-      if (error.status === 401 || error.status === 403) return { kind: "session", message: "Your session has expired or access is no longer available." };
-      if (error.status >= 500) return { kind: "server", message: error.message || "The note could not be saved because of a server error." };
-    }
-    return { kind: "network", message: error?.message || "The notebook service could not be reached." };
+    return classifyNotebookSaveError(error);
   }
   function handleEditorError(error) {
     currentSaveError = classifySaveError(error);
@@ -774,6 +804,22 @@ function initNotebookEditor(board, view, options = {}) {
       event.preventDefault();
       first.focus();
     }
+  }
+  function preserveUnsavedDraft() {
+    if (!item?.id) return;
+    sessionStorage.setItem(`notebook-draft:${item.id}`, JSON.stringify({ title: modal.querySelector("[data-modal-title]").value, body: modal.querySelector("[data-modal-body]").value, savedAtUtc: (/* @__PURE__ */ new Date()).toISOString() }));
+  }
+  function signInAgain() {
+    preserveUnsavedDraft();
+    const returnUrl = window.location.pathname + window.location.search + window.location.hash;
+    window.location.assign("/Identity/Account/Login?ReturnUrl=" + encodeURIComponent(returnUrl));
+  }
+  async function copyUnsavedContent() {
+    const title = modal.querySelector("[data-modal-title]").value.trim();
+    const body = modal.querySelector("[data-modal-body]").value.trim();
+    const text = [title, body].filter(Boolean).join("\n\n");
+    await navigator.clipboard.writeText(text);
+    setStatus("Unsaved note text copied. Sign in again before saving.", currentSaveError?.kind || "session-expired");
   }
   async function retrySave() {
     const button = modal.querySelector("[data-notebook-retry]");
@@ -884,6 +930,17 @@ function initNotebookEditor(board, view, options = {}) {
     if (!dirtyState.body) modal.querySelector("[data-modal-body]").value = updated.body || "";
   }
   return { open, requestClose, isOpen: () => !!item && !!modal && !modal.hidden, syncExternalUpdate };
+}
+function classifyNotebookSaveError(error) {
+  if (error instanceof NotebookApiError) {
+    if (error.status === 401) return { kind: "session-expired", message: "Your session has expired. Sign in again to save this note.", actions: ["sign-in", "copy", "discard"] };
+    if (error.status === 403) return { kind: "forbidden", message: "You are not authorised to edit this note.", actions: ["copy", "discard"] };
+    if (error.status === 415) return { kind: "client-version", message: "The editor is using an outdated application file. Reload the page and try again.", actions: ["reload", "discard"] };
+    if (error.status === 409) return { kind: "conflict", message: "This note was changed elsewhere." };
+    if (error.status === 400) return { kind: "validation", message: error.message || "The note contains invalid information." };
+    if (error.status >= 500) return { kind: "server", message: error.message || "The note could not be saved because of a server error." };
+  }
+  return { kind: "network", message: error?.message || "The notebook service could not be reached." };
 }
 var init_notebook_editor = __esm({
   "wwwroot/js/notebook/notebook-editor.js"() {

@@ -105,10 +105,16 @@ builder.Logging.AddFilter("ProjectManagement.Services.TodoPurgeWorker", LogLevel
 var keysDir = Environment.GetEnvironmentVariable("DP_KEYS_DIR");
 if (string.IsNullOrWhiteSpace(keysDir))
 {
+    // SECTION: Stable data-protection key persistence for authentication cookies.
     keysDir = builder.Environment.IsDevelopment()
-        ? Path.Combine(AppContext.BaseDirectory, "keys")
+        ? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "PRISM-ERP",
+            "DataProtectionKeys")
         : "/var/pm/keys";
 }
+
+Directory.CreateDirectory(keysDir);
 
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(keysDir))
@@ -226,17 +232,46 @@ builder.Services.AddAuthorization(options =>
 
 });
 
-builder.Services.ConfigureApplicationCookie(opt =>
+builder.Services.ConfigureApplicationCookie(options =>
 {
-    opt.LoginPath = "/Identity/Account/Login";
-    opt.AccessDeniedPath = "/Identity/Account/AccessDenied";
-    opt.Cookie.Name = "__Host-PMAuth";
-    opt.Cookie.Path = "/";
-    opt.Cookie.HttpOnly = true;
-    opt.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    opt.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict;
-    opt.ExpireTimeSpan = TimeSpan.FromMinutes(60);
-    opt.SlidingExpiration = true;
+    // SECTION: Environment-aware authentication cookie and API redirect behaviour.
+    options.LoginPath = "/Identity/Account/Login";
+    options.AccessDeniedPath = "/Identity/Account/AccessDenied";
+    options.Cookie.Name = builder.Environment.IsDevelopment()
+        ? "PMAuth"
+        : "__Host-PMAuth";
+    options.Cookie.Path = "/";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+    options.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict;
+    options.ExpireTimeSpan = TimeSpan.FromMinutes(60);
+    options.SlidingExpiration = true;
+
+    options.Events.OnRedirectToLogin = context =>
+    {
+        if (IsApiOrRealtimeRequest(context.Request))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        }
+
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
+
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        if (IsApiOrRealtimeRequest(context.Request))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        }
+
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
 });
 
 builder.Services.AddRateLimiter(options =>
@@ -3006,3 +3041,13 @@ static IResult MapProjectModerationResult(ProjectModerationResult result) => res
 };
 
 app.Run();
+
+
+static bool IsApiOrRealtimeRequest(HttpRequest request)
+{
+    // SECTION: Prevent API and SignalR authentication challenges from becoming HTML redirects.
+    var path = request.Path.Value ?? string.Empty;
+
+    return path.StartsWith("/api", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("/hubs", StringComparison.OrdinalIgnoreCase);
+}
