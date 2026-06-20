@@ -105,7 +105,7 @@ public class IndexModel : PageModel
         return RedirectToCurrent(SelectedId);
     }
 
-    public async Task<IActionResult> OnPostUpdateAsync(Guid id, CancellationToken ct)
+    public async Task<IActionResult> OnPostUpdateAsync(Guid id, Guid expectedVersion, CancellationToken ct)
     {
         var uid = _users.GetUserId(User);
         if (uid is null)
@@ -114,7 +114,7 @@ public class IndexModel : PageModel
         }
 
         HydrateInput();
-        await _notebook.UpdateAsync(uid, id, Input, ct);
+        await _notebook.UpdateAsync(uid, id, Input, expectedVersion, ct);
         return RedirectToCurrent(id);
     }
 

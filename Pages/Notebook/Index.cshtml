@@ -154,6 +154,11 @@
             <input type="hidden" asp-for="Query" />
             <input type="hidden" asp-for="Filter" />
             <input type="hidden" asp-for="Tag" />
+            @* SECTION: Preserve optimistic concurrency version for legacy form edits *@
+            @if (selected is not null)
+            {
+                <input type="hidden" name="expectedVersion" value="@selected.Version" />
+            }
             <label class="notebook-title-field">Title<input asp-for="Input.Title" class="notebook-editor-title-input" required maxlength="220" /></label>
             <section class="notebook-editor-primary">
             <div class="notebook-editor-fields" data-notebook-type-fields="Note,Idea,Draft">
