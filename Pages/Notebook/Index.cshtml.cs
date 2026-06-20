@@ -101,7 +101,7 @@ public class IndexModel : PageModel
         }
 
         HydrateInput();
-        SelectedId = await _notebook.CreateAsync(uid, Input, ct);
+        SelectedId = (await _notebook.CreateAsync(uid, Input, ct)).Id;
         return RedirectToCurrent(SelectedId);
     }
 
@@ -118,7 +118,7 @@ public class IndexModel : PageModel
         return RedirectToCurrent(id);
     }
 
-    public async Task<IActionResult> OnPostArchiveAsync(Guid id, CancellationToken ct)
+    public async Task<IActionResult> OnPostArchiveAsync(Guid id, Guid expectedVersion, CancellationToken ct)
     {
         var uid = _users.GetUserId(User);
         if (uid is null)
@@ -126,11 +126,12 @@ public class IndexModel : PageModel
             return Unauthorized();
         }
 
-        await _notebook.ArchiveAsync(uid, id, ct);
+        if (expectedVersion == Guid.Empty) return BadRequest();
+        await _notebook.ArchiveAsync(uid, id, expectedVersion, ct);
         return RedirectToCurrent();
     }
 
-    public async Task<IActionResult> OnPostRestoreAsync(Guid id, CancellationToken ct)
+    public async Task<IActionResult> OnPostRestoreAsync(Guid id, Guid expectedVersion, CancellationToken ct)
     {
         var uid = _users.GetUserId(User);
         if (uid is null)
@@ -138,8 +139,9 @@ public class IndexModel : PageModel
             return Unauthorized();
         }
 
-        await _notebook.RestoreAsync(uid, id, ct);
-        return RedirectToPage(new { view = "archived", query = Query, note = id });
+        if (expectedVersion == Guid.Empty) return BadRequest();
+        await _notebook.RestoreAsync(uid, id, expectedVersion, ct);
+        return RedirectToPage(new { view = "archive", query = Query, note = id });
     }
 
 
@@ -151,11 +153,11 @@ public class IndexModel : PageModel
             return Unauthorized();
         }
 
-        var copyId = await _notebook.DuplicateAsync(uid, id, ct);
-        return RedirectToCurrent(copyId);
+        var copy = await _notebook.DuplicateAsync(uid, id, ct);
+        return RedirectToCurrent(copy.Id);
     }
 
-    public async Task<IActionResult> OnPostDeleteAsync(Guid id, CancellationToken ct)
+    public async Task<IActionResult> OnPostDeleteAsync(Guid id, Guid expectedVersion, CancellationToken ct)
     {
         var uid = _users.GetUserId(User);
         if (uid is null)
@@ -163,11 +165,12 @@ public class IndexModel : PageModel
             return Unauthorized();
         }
 
-        await _notebook.DeleteAsync(uid, id, ct);
+        if (expectedVersion == Guid.Empty) return BadRequest();
+        await _notebook.DeleteAsync(uid, id, expectedVersion, ct);
         return RedirectToCurrent();
     }
 
-    public async Task<IActionResult> OnPostTogglePinAsync(Guid id, CancellationToken ct)
+    public async Task<IActionResult> OnPostTogglePinAsync(Guid id, Guid expectedVersion, CancellationToken ct)
     {
         var uid = _users.GetUserId(User);
         if (uid is null)
@@ -175,7 +178,10 @@ public class IndexModel : PageModel
             return Unauthorized();
         }
 
-        await _notebook.TogglePinAsync(uid, id, ct);
+        if (expectedVersion == Guid.Empty) return BadRequest();
+        var current = await _notebook.GetDetailAsync(uid, id, ct);
+        if (current is null) return NotFound();
+        await _notebook.SetPinnedAsync(uid, id, !current.IsPinned, expectedVersion, ct);
         return RedirectToCurrent(SelectedId);
     }
 
@@ -191,7 +197,7 @@ public class IndexModel : PageModel
         return RedirectToCurrent(SelectedId);
     }
 
-    public async Task<IActionResult> OnPostCompleteAsync(Guid id, bool isComplete, CancellationToken ct)
+    public async Task<IActionResult> OnPostCompleteAsync(Guid id, bool isComplete, Guid expectedVersion, CancellationToken ct)
     {
         var uid = _users.GetUserId(User);
         if (uid is null)
@@ -201,11 +207,13 @@ public class IndexModel : PageModel
 
         if (isComplete)
         {
-            await _notebook.CompleteAsync(uid, id, true, ct);
+            if (expectedVersion == Guid.Empty) return BadRequest();
+            await _notebook.CompleteAsync(uid, id, true, expectedVersion, ct);
         }
         else
         {
-            await _notebook.ReopenAsync(uid, id, ct);
+            if (expectedVersion == Guid.Empty) return BadRequest();
+            await _notebook.ReopenAsync(uid, id, expectedVersion, ct);
         }
         return RedirectToCurrent();
     }
@@ -240,6 +248,7 @@ public class IndexModel : PageModel
         int checklistItemId,
         bool isDone,
         Guid selectedId,
+        Guid expectedVersion,
         CancellationToken ct)
     {
         var uid = _users.GetUserId(User);
@@ -248,7 +257,8 @@ public class IndexModel : PageModel
             return Unauthorized();
         }
 
-        await _notebook.ToggleChecklistItemAsync(uid, checklistItemId, isDone, ct);
+        if (expectedVersion == Guid.Empty) return BadRequest();
+        await _notebook.ToggleChecklistItemAsync(uid, selectedId, checklistItemId, isDone, expectedVersion, ct);
         return RedirectToCurrent(selectedId);
     }
 

@@ -3,19 +3,20 @@ import { NotebookApi } from './notebook-api.js';
 import { createNotebookBoard } from './notebook-board.js';
 import { initNotebookComposer } from './notebook-composer.js';
 import { initNotebookEditor } from './notebook-editor.js';
+import { reconcileMutation, requireMutationItem, updateCardConcurrencyState } from './notebook-reconcile.js';
 
 // SECTION: Notebook app bootstrap and delegated interactions
 export function initNotebookApp() {
   const shell = document.querySelector('.notebook-shell'); if (!shell) return;
   const view = new URL(location.href).searchParams.get('view') || 'home';
   const board = createNotebookBoard(shell);
-  const editor = initNotebookEditor(board, view, { shell });
   let composer;
   const globalError = document.querySelector('[data-notebook-global-error]');
   const globalErrorText = document.querySelector('[data-notebook-global-error-text]');
   const showGlobalError = (message) => { if (!globalError || !globalErrorText) { shell.dataset.error = message || 'Notebook action failed.'; return; } globalErrorText.textContent = message || 'Notebook action failed.'; globalError.hidden = false; };
   const applyCounts = (counts) => { if (!counts) return; Object.entries(counts).forEach(([key, value]) => shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => { el.textContent = String(value); })); };
   const refreshCounts = async () => applyCounts(await NotebookApi.getCounts());
+  const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts });
   composer = initNotebookComposer(shell.querySelector('[data-notebook-composer]'), board, view, { showGlobalError, applyCounts });
   document.querySelector('[data-notebook-global-error-close]')?.addEventListener('click', () => { globalError.hidden = true; globalErrorText.textContent = ''; });
   const storageKey = 'notebook.boardView';
@@ -31,12 +32,10 @@ export function initNotebookApp() {
     if (action.dataset.action === 'toggle-checklist' && card) {
       event.preventDefault(); action.disabled = true;
       try {
-        const updatedResponse = await NotebookApi.toggleChecklistItem(card.dataset.noteId, action.dataset.rowId, action.dataset.isDone !== 'true', card.dataset.version);
-        const updated = updatedResponse.item || updatedResponse;
+        const response = await NotebookApi.toggleChecklistItem(card.dataset.noteId, action.dataset.rowId, action.dataset.isDone !== 'true', card.dataset.version);
+        const updated = requireMutationItem(response);
         updateCardConcurrencyState(card, updated);
-        const html = updatedResponse.cardHtml || await NotebookApi.getCardHtml(card.dataset.noteId, view);
-        board.upsertCard(card.dataset.noteId, html, updated.isPinned, { preservePosition: true });
-        applyCounts(updatedResponse.counts);
+        await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: true, showGlobalError, existingCard: card });
         editor.syncExternalUpdate?.(updated);
       } catch (error) { showGlobalError(error.message || 'Checklist update failed.'); }
       finally { action.disabled = false; }
@@ -45,23 +44,18 @@ export function initNotebookApp() {
       event.preventDefault(); action.disabled = true;
       try {
         if (action.dataset.action === 'pin-note') {
-          const updatedResponse = await NotebookApi.setPinned(id, card.dataset.isPinned !== 'true', card.dataset.version);
-          const updated = updatedResponse.item || updatedResponse;
+          const response = await NotebookApi.setPinned(id, card.dataset.isPinned !== 'true', card.dataset.version);
+          const updated = requireMutationItem(response);
           updateCardConcurrencyState(card, updated);
-          try {
-            const html = updatedResponse.cardHtml || await NotebookApi.getCardHtml(id, view);
-            board.upsertCard(id, html, updated.isPinned, { preservePosition: false, prepend: true });
-            applyCounts(updatedResponse.counts);
-          } catch (refreshError) { showGlobalError(`The note was ${updated.isPinned ? 'pinned' : 'unpinned'}, but the board could not refresh. Reload the page.`); }
+          await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError, existingCard: card, reconcileFailureMessage: `The note was ${updated.isPinned ? 'pinned' : 'unpinned'}, but the board could not refresh. Reload the page.` });
         }
         if (action.dataset.action === 'archive-note') { const response = await NotebookApi.archiveItem(id, card.dataset.version); board.removeCard(id); applyCounts(response?.counts); }
         if (action.dataset.action === 'complete-note') { const response = await NotebookApi.completeItem(id, card.dataset.version); board.removeCard(id); applyCounts(response?.counts); }
         if (action.dataset.action === 'reopen-note') { const response = await NotebookApi.reopenItem(id, card.dataset.version); board.removeCard(id); applyCounts(response?.counts); }
-        if (action.dataset.action === 'restore-note') { const response = await NotebookApi.restoreItem(id, card.dataset.version); board.removeCard(id); applyCounts(response?.counts); }
-        if (action.dataset.action === 'duplicate-note') { const copy = await NotebookApi.duplicateItem(id); const html = await NotebookApi.getCardHtml(copy.id, view); board.upsertCard(copy.id, html, copy.isPinned, { prepend: true }); }
-        if (action.dataset.action === 'delete-note') { const response = await NotebookApi.deleteItem(id, card.dataset.version); board.removeCard(id); applyCounts(response?.counts); }
-        if (action.dataset.action === 'convert-note') { const converted = action.dataset.convertTo === 'Checklist' ? await NotebookApi.showCheckboxes(id, card.dataset.version) : await NotebookApi.hideCheckboxes(id, card.dataset.version); const html = await NotebookApi.getCardHtml(id, view); board.upsertCard(id, html, converted.isPinned, { preservePosition: true }); }
-        if (['archive-note','complete-note','reopen-note','restore-note','duplicate-note','delete-note'].includes(action.dataset.action)) await refreshCounts();
+        if (action.dataset.action === 'restore-note') { const response = await NotebookApi.restoreItem(id, card.dataset.version); const updated = requireMutationItem(response); updateCardConcurrencyState(card, updated); await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError, existingCard: card }); }
+        if (action.dataset.action === 'duplicate-note') { const response = await NotebookApi.duplicateItem(id); await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError }); }
+        if (action.dataset.action === 'delete-note') { const response = await NotebookApi.deleteItem(id, card.dataset.version); board.removeCard(response?.removedItemId || id); applyCounts(response?.counts); }
+        if (action.dataset.action === 'convert-note') { const response = action.dataset.convertTo === 'Checklist' ? await NotebookApi.showCheckboxes(id, card.dataset.version) : await NotebookApi.hideCheckboxes(id, card.dataset.version); const converted = requireMutationItem(response); updateCardConcurrencyState(card, converted); await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: true, showGlobalError, existingCard: card }); }
       } catch (error) { showGlobalError(error.message || 'Notebook action failed.'); }
       finally { action.disabled = false; }
     }
@@ -69,12 +63,4 @@ export function initNotebookApp() {
   document.addEventListener('keydown', async (event) => { if (event.key !== 'Escape') return; if (editor.isOpen()) { event.preventDefault(); await editor.requestClose(); return; } if (composer?.isOpen()) { event.preventDefault(); await composer.close(); } });
   window.addEventListener('popstate', async () => { try { const id = new URL(location.href).searchParams.get('note'); id ? await editor.open(id, { pushHistory: false }) : await editor.requestClose({ fromHistory: true }); } catch (error) { showGlobalError(error.message || 'Unable to open the note.'); } });
   const directId = new URL(location.href).searchParams.get('note'); if (directId) editor.open(directId, { pushHistory: false }).catch((error) => { showGlobalError(error.message || 'Unable to open the note.'); const url = new URL(location.href); url.searchParams.delete('note'); history.replaceState(history.state, '', url); });
-}
-
-// SECTION: Card concurrency-state updates after successful mutations
-function updateCardConcurrencyState(card, item) {
-  if (!card || !item) return;
-  card.dataset.version = item.version;
-  card.dataset.isPinned = String(item.isPinned).toLowerCase();
-  card.dataset.status = item.status;
 }

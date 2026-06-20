@@ -34,6 +34,8 @@ public sealed class NotebookIndexVm
 
 public sealed class NotebookRailItemVm
 {
+    public string Key { get; set; } = string.Empty;
+
     public string Label { get; set; } = string.Empty;
 
     public string Icon { get; set; } = "bi-dot";

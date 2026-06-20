@@ -184,37 +184,22 @@ namespace ProjectManagement.Tests
             public Task<Guid> QuickCaptureAsync(string ownerId, string input, NotebookItemType? forcedType = null, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task<Guid> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default) =>
+            public Task<NotebookItemDetailVm> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
             public Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookEditInput input, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task ArchiveAsync(string ownerId, Guid id, CancellationToken ct = default) =>
-                throw new NotImplementedException();
-
             public Task<NotebookItemDetailVm> ArchiveAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default) =>
-                throw new NotImplementedException();
-
-            public Task RestoreAsync(string ownerId, Guid id, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
             public Task<NotebookItemDetailVm> RestoreAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task ReopenAsync(string ownerId, Guid id, CancellationToken ct = default) =>
-                throw new NotImplementedException();
-
             public Task<NotebookItemDetailVm> ReopenAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task DeleteAsync(string ownerId, Guid id, CancellationToken ct = default) =>
-                throw new NotImplementedException();
-
             public Task<NotebookItemDetailVm> DeleteAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default) =>
-                throw new NotImplementedException();
-
-            public Task TogglePinAsync(string ownerId, Guid id, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
             public Task<NotebookItemDetailVm> SetPinnedAsync(string ownerId, Guid id, bool isPinned, Guid expectedVersion, CancellationToken ct = default) =>
@@ -226,19 +211,13 @@ namespace ProjectManagement.Tests
             public Task ToggleFavoriteAsync(string ownerId, Guid id, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task CompleteAsync(string ownerId, Guid id, bool isComplete, CancellationToken ct = default) =>
-                throw new NotImplementedException();
-
             public Task<NotebookItemDetailVm> CompleteAsync(string ownerId, Guid id, bool isComplete, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
             public Task<NotebookItemDetailVm> ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
-            public Task<Guid> DuplicateAsync(string ownerId, Guid id, CancellationToken ct = default) =>
-                throw new NotImplementedException();
-
-            public Task ToggleChecklistItemAsync(string ownerId, int checklistItemId, bool isDone, CancellationToken ct = default) =>
+            public Task<NotebookItemDetailVm> DuplicateAsync(string ownerId, Guid id, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
             public Task<NotebookItemDetailVm> ToggleChecklistItemAsync(string ownerId, Guid itemId, int checklistItemId, bool isDone, Guid expectedVersion, CancellationToken ct = default) =>

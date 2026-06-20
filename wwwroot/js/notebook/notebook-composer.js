@@ -1,5 +1,6 @@
-import { NotebookApi } from './notebook-api.js';
+import { NotebookApi, NotebookApiError } from './notebook-api.js';
 import { createChecklistEditor } from './notebook-checklist-editor.js';
+import { reconcileMutation } from './notebook-reconcile.js';
 
 // SECTION: Expandable notebook composer component
 export function initNotebookComposer(root, board, view, options = {}) {
@@ -45,18 +46,26 @@ export function initNotebookComposer(root, board, view, options = {}) {
     isSaving = true; setDisabled(true); setStatus('Saving…');
     try {
       if (!created) created = await NotebookApi.createItem(data);
-    } catch (error) { setStatus(error.message || 'Unable to save. Retry.'); return false; }
+      if (!created?.item) {
+        throw new NotebookApiError('The create response did not contain the new note.', { code: 'notebook_invalid_mutation_response' });
+      }
 
-    try {
-      const item = created.item || created;
-      const html = created.cardHtml || await NotebookApi.getCardHtml(item.id, view || 'home');
-      board.upsertCard(item.id, html, item.isPinned, { prepend: true, preservePosition: false });
-      applyCounts(created.counts);
+      await reconcileMutation({
+        response: created,
+        board,
+        view: view || 'home',
+        getCardHtml: NotebookApi.getCardHtml,
+        applyCounts,
+        preservePosition: false,
+        prepend: true,
+        showGlobalError,
+        renderFailureMessage: 'The note was saved, but its card could not be rendered. Reload the page.',
+        reconcileFailureMessage: 'The note was saved, but the board could not refresh. Reload the page.'
+      });
       reset(); setMode('collapsed'); return true;
     } catch (error) {
-      reset(); setMode('collapsed');
-      showGlobalError('The note was saved, but the board could not refresh. Reload the page to view the latest state.');
-      return true;
+      setStatus(error.message || 'Unable to save the note.');
+      return false;
     } finally { isSaving = false; setDisabled(false); }
   }
   root.querySelector('[data-composer-open-note]')?.addEventListener('click', () => { if (isSaving) return; setMode('note'); body.focus(); });

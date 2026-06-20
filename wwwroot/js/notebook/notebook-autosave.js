@@ -1,5 +1,5 @@
 // SECTION: Notebook serial autosave utility
-export function createAutosave({ save, delay = 800, onSaving, onSaved, onError }) {
+export function createAutosave({ save, delay = 800, onSaving, onPersisted, onSaveError, onReconcileError, onSaved, onError }) {
   let timer = null;
   let activePromise = null;
   let latestPayloadFactory = null;
@@ -10,16 +10,23 @@ export function createAutosave({ save, delay = 800, onSaving, onSaved, onError }
     if (activePromise) return activePromise;
     activePromise = (async () => {
       while (!stopped && dirty && latestPayloadFactory) {
-        dirty = false;
         const payload = latestPayloadFactory();
+        dirty = false;
         await onSaving?.();
+
+        let result;
         try {
-          const result = await save(payload);
-          await onSaved?.(result);
+          result = await save(payload);
         } catch (error) {
           dirty = true;
-          await onError?.(error);
+          await (onSaveError || onError)?.(error);
           throw error;
+        }
+
+        try {
+          await (onPersisted || onSaved)?.(result);
+        } catch (error) {
+          await onReconcileError?.(error, result);
         }
       }
     })();

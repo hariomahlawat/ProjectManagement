@@ -12,7 +12,7 @@
     {
         "labels" => "No labels yet.",
         "today" or "reminders" => "No reminders due.",
-        "archived" => "No archived items.",
+        "archive" or "archived" => "No archived items.",
         "completed" => "No completed items.",
         _ => "No notebook items yet."
     };
@@ -20,7 +20,7 @@
     {
         "labels" => "Add tags to notebook items, then browse by label here.",
         "today" or "reminders" => "Add a reminder to any note, checklist or sticky item.",
-        "archived" => "Archived notes will appear here.",
+        "archive" or "archived" => "Archived notes will appear here.",
         "completed" => "Completed notes will appear here.",
         _ => "Use quick capture or create a structured notebook item."
     };
@@ -36,7 +36,7 @@
         <div class="notebook-rail__brand"><i class="bi bi-journal-bookmark"></i><span>My Notebook</span></div>
         @foreach (var item in Model.Notebook.RailItems)
         {
-            <a class="notebook-rail__item @(item.IsActive ? "is-active" : "")" href="@item.Url"><i class="bi @item.Icon"></i><span>@item.Label</span><b>@item.Count</b></a>
+            <a class="notebook-rail__item @(item.IsActive ? "is-active" : "")" href="@item.Url"><i class="bi @item.Icon"></i><span>@item.Label</span><b data-notebook-count="@item.Key">@item.Count</b></a>
         }
     </aside>
 
@@ -142,7 +142,7 @@
                         "reminders" or "today" => "Reminder",
                         _ => "Note"
                     };
-                    var cta = Model.Notebook.View is "archived" or "completed" ? null : $"New {emptyType}";
+                    var cta = Model.Notebook.View is "archive" or "archived" or "completed" ? null : $"New {emptyType}";
                     <div class="notebook-empty" data-notebook-empty-state><h3>@emptyTitle</h3><p>@emptyText</p>@if (cta is not null) { <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-mode="new" asp-route-type="@emptyType" class="btn btn-sm btn-primary">@cta</a> }</div>
                 }
             </section>
@@ -227,12 +227,13 @@
                 <input type="hidden" asp-for="View" />
                 <input type="hidden" asp-for="Query" />
                 <input type="hidden" name="isComplete" value="true" />
+                <input type="hidden" name="expectedVersion" value="@selected.Version" />
                 <button class="btn btn-success w-100" type="submit"><i class="bi bi-check2-circle"></i> Mark done</button>
             </form>
         }
         @if (selected?.ChecklistItems.Any() == true)
         {
-            <div class="notebook-checklist-toggle">@foreach (var c in selected.ChecklistItems) { <form method="post" asp-page-handler="ToggleChecklistItem"><input type="hidden" name="checklistItemId" value="@c.Id" /><input type="hidden" name="selectedId" value="@selected.Id" /><input type="hidden" asp-for="View" /><input type="hidden" asp-for="Query" /><label><input type="checkbox" name="isDone" value="true" checked="@c.IsDone" data-submit-on-change /> @c.Text</label></form> }</div>
+            <div class="notebook-checklist-toggle">@foreach (var c in selected.ChecklistItems) { <form method="post" asp-page-handler="ToggleChecklistItem"><input type="hidden" name="checklistItemId" value="@c.Id" /><input type="hidden" name="selectedId" value="@selected.Id" /><input type="hidden" name="expectedVersion" value="@selected.Version" /><input type="hidden" asp-for="View" /><input type="hidden" asp-for="Query" /><label><input type="checkbox" name="isDone" value="true" checked="@c.IsDone" data-submit-on-change /> @c.Text</label></form> }</div>
         }
     </aside>
     }
