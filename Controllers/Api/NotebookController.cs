@@ -98,7 +98,7 @@ public sealed class NotebookController : Controller
         if (validation is not null) return validation;
         var uid = CurrentUserId();
         var item = await _notebook.CreateAsync(uid, ToInput(request), ct);
-        return CreatedAtAction(nameof(Get), new { id = item.Id }, await BuildMutationResponseAsync(item, includeCard: true, view: NotebookCardContexts.Home, ct));
+        return CreatedAtAction(nameof(Get), new { id = item.Id }, await BuildMutationResponseAsync(item, includeCard: true, ct));
     }
 
     [HttpPatch("{id:guid}")]
@@ -120,7 +120,7 @@ public sealed class NotebookController : Controller
         var uid = CurrentUserId();
         var updated = await _notebook.UpdateAsync(uid, id, ToInput(request), request.Version, ct);
 
-        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, view: NotebookCardContexts.Home, ct));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
     }
 
     [HttpPost("{id:guid}/pin")]
@@ -128,7 +128,7 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.SetPinnedAsync(CurrentUserId(), id, request.IsPinned, request.Version, ct);
-        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, view: NotebookCardContexts.Home, ct));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
     }
 
     [HttpPost("{id:guid}/archive")]
@@ -136,7 +136,7 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.ArchiveAsync(CurrentUserId(), id, request.Version, ct);
-        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, view: NotebookCardContexts.Home, ct));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
     }
 
     [HttpPost("{id:guid}/complete")]
@@ -144,7 +144,7 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.CompleteAsync(CurrentUserId(), id, true, request.Version, ct);
-        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, view: NotebookCardContexts.Home, ct));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
     }
 
     [HttpPost("{id:guid}/reopen")]
@@ -152,7 +152,7 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.ReopenAsync(CurrentUserId(), id, request.Version, ct);
-        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, view: NotebookCardContexts.Home, ct));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
     }
 
 
@@ -169,7 +169,7 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.RestoreAsync(CurrentUserId(), id, request.Version, ct);
-        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, view: NotebookCardContexts.Home, ct));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
     }
 
     [HttpPost("{id:guid}/show-checkboxes")]
@@ -177,7 +177,7 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.ConvertTypeAsync(CurrentUserId(), id, NotebookItemType.Checklist, request.Version, ct);
-        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, view: NotebookCardContexts.Home, ct));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
     }
 
     [HttpPost("{id:guid}/hide-checkboxes")]
@@ -185,7 +185,7 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.ConvertTypeAsync(CurrentUserId(), id, NotebookItemType.Note, request.Version, ct);
-        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, view: NotebookCardContexts.Home, ct));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
     }
 
 
@@ -198,14 +198,14 @@ public sealed class NotebookController : Controller
         }
 
         var item = await _notebook.ToggleChecklistItemAsync(CurrentUserId(), itemId, rowId, request.IsDone, request.Version, ct);
-        return Ok(await BuildMutationResponseAsync(item, includeCard: true, view: NotebookCardContexts.Home, ct));
+        return Ok(await BuildMutationResponseAsync(item, includeCard: true, ct));
     }
 
     [HttpPost("{id:guid}/duplicate")]
     public async Task<IActionResult> Duplicate(Guid id, CancellationToken ct)
     {
         var copy = await _notebook.DuplicateAsync(CurrentUserId(), id, ct);
-        return Ok(await BuildMutationResponseAsync(copy, includeCard: true, view: NotebookCardContexts.Home, ct));
+        return Ok(await BuildMutationResponseAsync(copy, includeCard: true, ct));
     }
 
     // SECTION: Mapping and validation helpers
@@ -247,8 +247,9 @@ public sealed class NotebookController : Controller
     }
 
 
-    private async Task<NotebookMutationResponse> BuildMutationResponseAsync(NotebookItemDetailVm item, bool includeCard, string view, CancellationToken ct)
+    private async Task<NotebookMutationResponse> BuildMutationResponseAsync(NotebookItemDetailVm item, bool includeCard, CancellationToken ct)
     {
+        // SECTION: Mutation responses always render canonical Home-board card markup.
         var ownerId = CurrentUserId();
         var cardHtml = includeCard ? await TryRenderCardAsync(item, NotebookCardContexts.Home, ct) : null;
 

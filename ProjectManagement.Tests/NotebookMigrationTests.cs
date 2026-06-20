@@ -27,11 +27,13 @@ public sealed class NotebookMigrationTests
         // SECTION: Existing database upgrade regression guard
         var migration = File.ReadAllText(Path.Combine(GetRepoRoot(), "20261125231000_AddNotebookItemVersion.cs"));
 
-        Assert.Contains("nullable: true", migration, StringComparison.Ordinal);
-        Assert.Contains("CREATE EXTENSION IF NOT EXISTS pgcrypto", migration, StringComparison.Ordinal);
-        Assert.Contains("SET \"Version\" = gen_random_uuid()", migration, StringComparison.Ordinal);
-        Assert.Contains("OR \"Version\" = '00000000-0000-0000-0000-000000000000'", migration, StringComparison.Ordinal);
-        Assert.Contains("nullable: false", migration, StringComparison.Ordinal);
+        var addColumnIndex = migration.IndexOf("ADD COLUMN IF NOT EXISTS \"Version\" uuid", StringComparison.Ordinal);
+        var updateIndex = migration.IndexOf("SET \"Version\" = gen_random_uuid()", StringComparison.Ordinal);
+        var setNotNullIndex = migration.IndexOf("ALTER COLUMN \"Version\" SET NOT NULL", StringComparison.Ordinal);
+
+        Assert.True(addColumnIndex >= 0, "The Version column must be added conditionally.");
+        Assert.True(updateIndex > addColumnIndex, "Existing rows must be backfilled after the column is added.");
+        Assert.True(setNotNullIndex > updateIndex, "NOT NULL must be enforced only after backfilling.");
         Assert.DoesNotContain("defaultValue: Guid.Empty", migration, StringComparison.Ordinal);
     }
 
