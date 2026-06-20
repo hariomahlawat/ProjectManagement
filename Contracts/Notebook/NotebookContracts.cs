@@ -36,14 +36,11 @@ public sealed class UpdateNotebookItemRequest
 
     [StringLength(NotebookLimits.TitleMaxLength)] public string? Title { get; set; }
     [StringLength(NotebookLimits.BodyMaxLength)] public string? Body { get; set; }
-    public NotebookItemType Type { get; set; } = NotebookItemType.Note;
-    public NotebookPriority Priority { get; set; } = NotebookPriority.Normal;
+    public NotebookPriority? Priority { get; set; }
     public DateTimeOffset? ReminderAtUtc { get; set; }
     [StringLength(32)] public string? ColorKey { get; set; }
-    [Required]
-    public List<NotebookChecklistEditRow> ChecklistRows { get; set; } = [];
-    [Required]
-    public List<string> Labels { get; set; } = [];
+    public List<NotebookChecklistEditRow>? ChecklistRows { get; set; }
+    public List<string>? Labels { get; set; }
 }
 
 public sealed class SetNotebookPinRequest : NotebookVersionedRequest

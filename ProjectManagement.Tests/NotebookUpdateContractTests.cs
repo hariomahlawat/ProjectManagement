@@ -18,6 +18,7 @@ public sealed class NotebookUpdateContractTests
             .ToHashSet(StringComparer.Ordinal);
 
         Assert.Contains(nameof(UpdateNotebookItemRequest.Version), properties);
+        Assert.DoesNotContain("Type", properties);
         Assert.DoesNotContain("ClientRequestId", properties);
         Assert.DoesNotContain("IsPinned", properties);
         Assert.DoesNotContain("IsFavorite", properties);
@@ -36,6 +37,7 @@ public sealed class NotebookUpdateContractTests
             .ToHashSet(StringComparer.Ordinal);
 
         Assert.DoesNotContain("Version", properties);
+        Assert.DoesNotContain("Type", properties);
         Assert.DoesNotContain("ClientRequestId", properties);
         Assert.DoesNotContain("IsPinned", properties);
         Assert.DoesNotContain("IsFavorite", properties);
