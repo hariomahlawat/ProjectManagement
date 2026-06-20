@@ -69,3 +69,66 @@ test('reconcileRows does not notify onChange and cause a save loop', async () =>
 
   assert.equal(changes, 0);
 });
+
+test('reconcileRows removes stale DOM rows that are absent from authoritative result', async () => {
+  const { editor, root } = await createEditor();
+  editor.setRows([
+    { id: 1, text: 'A', isDone: false, sortOrder: 0 },
+    { id: 2, text: 'B', isDone: false, sortOrder: 1 },
+    { id: 3, text: 'C', isDone: false, sortOrder: 2 }
+  ]);
+
+  editor.reconcileRows([
+    { id: 1, text: 'A', isDone: false, sortOrder: 0 },
+    { id: 3, text: 'C', isDone: false, sortOrder: 1 }
+  ], []);
+
+  assert.deepEqual(editor.getRows().map((row) => row.text), ['A', 'C']);
+  assert.deepEqual([...root.querySelectorAll('[data-checklist-row] [data-checklist-text]')].map((input) => input.value), ['A', 'C']);
+  assert.equal(root.querySelector('[data-row-id="2"]'), null);
+});
+
+test('reconcileRows accepts an empty authoritative result and leaves only add control', async () => {
+  const { editor, root } = await createEditor();
+  editor.setRows([{ id: 1, text: 'A', isDone: false, sortOrder: 0 }]);
+
+  editor.reconcileRows([], [{ id: 1, text: 'A', isDone: false, sortOrder: 0 }]);
+
+  assert.deepEqual(editor.getRows(), []);
+  assert.equal(root.querySelectorAll('[data-checklist-row]').length, 0);
+  assert.equal(root.querySelectorAll('[data-checklist-add]').length, 1);
+});
+
+test('reconcileRows hydrates duplicate text rows by client key rather than text', async () => {
+  const { editor } = await createEditor();
+  editor.setRows([
+    { id: null, clientKey: 'client-a', text: 'Task', isDone: false, sortOrder: 0 },
+    { id: null, clientKey: 'client-b', text: 'Task', isDone: false, sortOrder: 1 }
+  ]);
+
+  editor.reconcileRows([
+    { id: 21, clientKey: 'client-a', text: 'Task', isDone: false, sortOrder: 0 },
+    { id: 22, clientKey: 'client-b', text: 'Task', isDone: false, sortOrder: 1 }
+  ], [
+    { id: null, clientKey: 'client-a', text: 'Task', isDone: false, sortOrder: 0 },
+    { id: null, clientKey: 'client-b', text: 'Task', isDone: false, sortOrder: 1 }
+  ]);
+
+  assert.deepEqual(editor.getRows().map((row) => row.id), [21, 22]);
+});
+
+test('destroy removes root event listeners before a new editor is created', async () => {
+  let changes = 0;
+  const { editor, root } = await createEditor(() => { changes += 1; });
+  editor.setRows([{ id: 1, text: 'A', isDone: false, sortOrder: 0 }]);
+  editor.destroy();
+
+  const { createChecklistEditor } = await loadChecklistModule();
+  const second = createChecklistEditor(root, { onChange: () => { changes += 1; } });
+  second.setRows([{ id: 1, text: 'A', isDone: false, sortOrder: 0 }]);
+  const input = root.querySelector('[data-checklist-text]');
+  input.value = 'B';
+  input.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+  assert.equal(changes, 1);
+});
