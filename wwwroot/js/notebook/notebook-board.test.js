@@ -50,6 +50,14 @@ test('notebook board inserts a valid card into the requested board only', async 
 });
 
 
+
+test('notebook board falls back to generic board for single-board views', async () => {
+  const dom = new JSDOM('<div data-notebook-board></div>');
+  const board = loadBoard(dom);
+  const card = board.upsertCard('note-1', '<article data-note-id="note-1"></article>', true);
+  assert.equal(dom.window.document.querySelector('[data-notebook-board] > [data-note-id="note-1"]'), card);
+});
+
 test('notebook board throws typed error for missing target board', async () => {
   const dom = new JSDOM('<div data-notebook-board="others"></div>');
   const board = loadBoard(dom);
