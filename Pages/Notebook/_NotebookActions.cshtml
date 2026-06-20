@@ -1,8 +1,8 @@
-@model ProjectManagement.ViewModels.Notebook.NotebookItemActionVm
+@model ProjectManagement.ViewModels.Notebook.NotebookCardActionsVm
 @using ProjectManagement.Models
 
 @* SECTION: API-only notebook card actions *@
-<div class="notebook-actions">
+<div class="notebook-actions" data-note-actions aria-label="Note actions">
     <button title="@(Model.Item.IsPinned ? "Unpin" : "Pin")" aria-label="@(Model.Item.IsPinned ? "Unpin note" : "Pin note")" type="button" class="notebook-action-icon notebook-action-pin" data-action="pin-note" data-is-pinned="@Model.Item.IsPinned.ToString().ToLowerInvariant()">
         <i class="bi @(Model.Item.IsPinned ? "bi-pin-angle-fill" : "bi-pin-angle")"></i>
     </button>
@@ -12,7 +12,7 @@
     }
 
     <details class="notebook-card-more">
-        <summary aria-label="More actions"><i class="bi bi-three-dots"></i></summary>
+        <summary class="notebook-action-button" aria-label="More actions"><i class="bi bi-three-dots"></i></summary>
         <div class="notebook-card-more__menu" role="menu">
             <button type="button" role="menuitem" data-action="duplicate-note">Make a copy</button>
             <button type="button" role="menuitem" data-action="convert-note" data-convert-to="@(Model.Item.Type == NotebookItemType.Checklist ? NotebookItemType.Note : NotebookItemType.Checklist)">@(Model.Item.Type == NotebookItemType.Checklist ? "Hide checkboxes" : "Show checkboxes")</button>

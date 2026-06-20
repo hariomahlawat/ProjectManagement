@@ -2,6 +2,7 @@
 @model ProjectManagement.Pages.Notebook.IndexModel
 @using ProjectManagement.Models
 @using ProjectManagement.ViewModels.Notebook
+@inject ProjectManagement.Services.Notebook.INotebookCardModelFactory CardModelFactory
 @{
     ViewData["Title"] = "My Notebook";
     ViewData["UseFullWidth"] = true;
@@ -108,7 +109,7 @@
                 <div class="notebook-board" data-notebook-board="pinned">
                     @foreach (var item in Model.Notebook.PinnedItems)
                     {
-                        <partial name="_NotebookCard" model="@(new NotebookCardRenderVm { Item = item, View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id })" />
+                        <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id }))" />
                     }
                 </div>
             </section>
@@ -117,7 +118,7 @@
                 <div class="notebook-board" data-notebook-board="others">
                     @foreach (var item in Model.Notebook.OtherItems)
                     {
-                        <partial name="_NotebookCard" model="@(new NotebookCardRenderVm { Item = item, View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id })" />
+                        <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id }))" />
                     }
                 </div>
                 @if (!hasAnyHomeItems)
@@ -132,7 +133,7 @@
                 <div class="notebook-board" data-notebook-board>
                     @foreach (var item in Model.Notebook.Items)
                     {
-                        <partial name="_NotebookCard" model="@(new NotebookCardRenderVm { Item = item, View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id })" />
+                        <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id }))" />
                     }
                 </div>
                 @if (!Model.Notebook.Items.Any())

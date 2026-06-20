@@ -5,5 +5,5 @@ namespace ProjectManagement.Services.Notebook;
 // SECTION: Notebook card rendering abstraction
 public interface INotebookCardRenderer
 {
-    Task<string> RenderAsync(NotebookItemListVm item, string view, CancellationToken ct = default);
+    Task<string> RenderAsync(NotebookCardRenderVm model, CancellationToken ct = default);
 }
