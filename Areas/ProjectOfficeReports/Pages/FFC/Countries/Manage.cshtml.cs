@@ -84,11 +84,12 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         return RedirectToManage();
     }
 
+    // SECTION: Breadcrumb helpers
     private void ConfigureBreadcrumb()
     {
         FfcBreadcrumbs.Set(
             ViewData,
-            ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
+            ("FFC Proposals", Url?.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
             ("Manage countries", null));
     }
 
