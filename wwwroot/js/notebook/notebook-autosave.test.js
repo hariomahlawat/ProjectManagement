@@ -104,3 +104,22 @@ test('notebook autosave awaits async onSaved before starting next dirty iteratio
 
   assert.deepEqual(events, ['save:v1', 'saved-start:v2', 'saved-end:v2', 'save:v2', 'saved-start:v3', 'saved-end:v3']);
 });
+
+test('notebook autosave does not retry persisted data when reconciliation fails', async () => {
+  const { createAutosave } = await loadModule('notebook-autosave.js');
+  const calls = [];
+  const reconcileErrors = [];
+  const autosave = createAutosave({
+    delay: 1,
+    save: async (payload) => { calls.push(payload.value); return { item: { id: 'note-1', version: 'v2' } }; },
+    onPersisted: async () => { throw new Error('render failed'); },
+    onReconcileError: (error, result) => reconcileErrors.push({ message: error.message, version: result.item.version })
+  });
+
+  autosave.schedule(() => ({ value: 'draft' }));
+  await autosave.flush();
+  await autosave.flush();
+
+  assert.deepEqual(calls, ['draft']);
+  assert.deepEqual(reconcileErrors, [{ message: 'render failed', version: 'v2' }]);
+});

@@ -2,7 +2,7 @@
 export function createNotebookBoard(root = document) {
   const findCard = (id) => root.querySelector(`[data-note-id="${CSS.escape(id)}"]`);
   const getSection = (isPinned) => root.querySelector(`[data-notebook-section="${isPinned ? 'pinned' : 'others'}"]`);
-  const getBoard = (isPinned) => root.querySelector(`[data-notebook-board="${isPinned ? 'pinned' : 'others'}"]`);
+  const getBoard = (isPinned) => root.querySelector(`[data-notebook-board="${isPinned ? 'pinned' : 'others'}"]`) || root.querySelector('[data-notebook-board]');
   const htmlToElement = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
   const refreshSectionVisibility = () => { ['pinned','others'].forEach((name) => { const section = root.querySelector(`[data-notebook-section="${name}"]`); const board = root.querySelector(`[data-notebook-board="${name}"]`); if (!section || !board) return; const count = board.querySelectorAll('[data-note-id]').length; if (name === 'pinned') section.hidden = count === 0; const countEl = root.querySelector(`[data-notebook-count="${name}"]`); if (countEl) countEl.textContent = String(count); }); };
   const refreshEmptyState = () => { const empty = root.querySelector('[data-notebook-empty-state="current"]') || root.querySelector('[data-notebook-empty-state]') || root.querySelector('[data-notebook-empty]'); if (!empty) return; const count = [...root.querySelectorAll('[data-notebook-board]')].reduce((total, board) => total + board.querySelectorAll(':scope > [data-note-id]').length, 0); empty.hidden = count > 0; };

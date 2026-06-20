@@ -106,11 +106,25 @@ public sealed class NotebookItemResponse
 
 
 // SECTION: Notebook composite mutation responses
+public sealed class NotebookCountsResponse
+{
+    public int Home { get; init; }
+    public int Today { get; init; }
+    public int Reminders { get; init; }
+    public int Labels { get; init; }
+    public int Archive { get; init; }
+    public int Completed { get; init; }
+    public int Pinned { get; init; }
+    public int Others { get; init; }
+}
+
 public sealed class NotebookMutationResponse
 {
-    public NotebookItemResponse Item { get; init; } = default!;
+    public NotebookItemResponse? Item { get; init; }
+
+    public Guid? RemovedItemId { get; init; }
 
     public string? CardHtml { get; init; }
 
-    public IReadOnlyDictionary<string, int>? Counts { get; init; }
+    public NotebookCountsResponse Counts { get; init; } = new();
 }

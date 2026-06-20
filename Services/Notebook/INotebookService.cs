@@ -28,27 +28,22 @@ public interface INotebookService
         NotebookItemType? forcedType = null,
         CancellationToken ct = default);
 
-    Task<Guid> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default);
+    Task<NotebookItemDetailVm> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookEditInput input, Guid expectedVersion, CancellationToken ct = default);
 
-    Task ArchiveAsync(string ownerId, Guid id, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm> ArchiveAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default);
 
-    Task RestoreAsync(string ownerId, Guid id, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm> RestoreAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default);
 
-    Task ReopenAsync(string ownerId, Guid id, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm> ReopenAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default);
 
-    Task DeleteAsync(string ownerId, Guid id, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm> DeleteAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default);
 
-    Task TogglePinAsync(string ownerId, Guid id, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm> SetPinnedAsync(string ownerId, Guid id, bool isPinned, Guid expectedVersion, CancellationToken ct = default);
 
@@ -56,15 +51,13 @@ public interface INotebookService
 
     Task ToggleFavoriteAsync(string ownerId, Guid id, CancellationToken ct = default);
 
-    Task CompleteAsync(string ownerId, Guid id, bool isComplete, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm> CompleteAsync(string ownerId, Guid id, bool isComplete, Guid expectedVersion, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm> ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, Guid expectedVersion, CancellationToken ct = default);
 
-    Task<Guid> DuplicateAsync(string ownerId, Guid id, CancellationToken ct = default);
+    Task<NotebookItemDetailVm> DuplicateAsync(string ownerId, Guid id, CancellationToken ct = default);
 
-    Task ToggleChecklistItemAsync(string ownerId, int checklistItemId, bool isDone, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm> ToggleChecklistItemAsync(string ownerId, Guid itemId, int checklistItemId, bool isDone, Guid expectedVersion, CancellationToken ct = default);
 }

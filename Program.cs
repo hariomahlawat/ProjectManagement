@@ -387,6 +387,7 @@ builder.Services.AddSingleton<IActionTrackerClock, SystemActionTrackerClock>();
 builder.Services.AddScoped<ITodoService, TodoService>();
 // SECTION: My Notebook services
 builder.Services.AddScoped<INotebookService, NotebookService>();
+builder.Services.AddScoped<INotebookCardRenderer, RazorNotebookCardRenderer>();
 builder.Services.AddScoped<INotebookTodoImportService, NotebookTodoImportService>();
 // SECTION: Project Ideas services
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaReadService>();

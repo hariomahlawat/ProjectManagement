@@ -16,11 +16,13 @@ namespace ProjectManagement.Controllers.Api;
 public sealed class NotebookController : Controller
 {
     private readonly INotebookService _notebook;
+    private readonly INotebookCardRenderer _cardRenderer;
     private readonly UserManager<ApplicationUser> _users;
 
-    public NotebookController(INotebookService notebook, UserManager<ApplicationUser> users)
+    public NotebookController(INotebookService notebook, INotebookCardRenderer cardRenderer, UserManager<ApplicationUser> users)
     {
         _notebook = notebook;
+        _cardRenderer = cardRenderer;
         _users = users;
     }
 
@@ -55,9 +57,8 @@ public sealed class NotebookController : Controller
         var validation = ValidateRequest(request);
         if (validation is not null) return validation;
         var uid = CurrentUserId();
-        var id = await _notebook.CreateAsync(uid, ToInput(request), ct);
-        var item = await _notebook.GetDetailAsync(uid, id, ct);
-        return CreatedAtAction(nameof(Get), new { id }, await BuildMutationResponseAsync(item!, includeCard: true, ct));
+        var item = await _notebook.CreateAsync(uid, ToInput(request), ct);
+        return CreatedAtAction(nameof(Get), new { id = item.Id }, await BuildMutationResponseAsync(item, includeCard: true, view: "home", ct));
     }
 
     [HttpPatch("{id:guid}")]
@@ -79,7 +80,7 @@ public sealed class NotebookController : Controller
         var uid = CurrentUserId();
         var updated = await _notebook.UpdateAsync(uid, id, ToInput(request), request.Version, ct);
 
-        return Ok(ToResponse(updated));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, view: "home", ct));
     }
 
     [HttpPost("{id:guid}/pin")]
@@ -87,7 +88,7 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.SetPinnedAsync(CurrentUserId(), id, request.IsPinned, request.Version, ct);
-        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, view: "home", ct));
     }
 
     [HttpPost("{id:guid}/archive")]
@@ -95,7 +96,7 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.ArchiveAsync(CurrentUserId(), id, request.Version, ct);
-        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, view: "home", ct));
     }
 
     [HttpPost("{id:guid}/complete")]
@@ -103,7 +104,7 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.CompleteAsync(CurrentUserId(), id, true, request.Version, ct);
-        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, view: "home", ct));
     }
 
     [HttpPost("{id:guid}/reopen")]
@@ -111,7 +112,7 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.ReopenAsync(CurrentUserId(), id, request.Version, ct);
-        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, view: "home", ct));
     }
 
 
@@ -119,8 +120,8 @@ public sealed class NotebookController : Controller
     public async Task<IActionResult> Delete(Guid id, [FromBody] DeleteNotebookItemRequest? request, CancellationToken ct)
     {
         if (request is null || request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
-        var updated = await _notebook.DeleteAsync(CurrentUserId(), id, request.Version, ct);
-        return Ok(await BuildMutationResponseAsync(updated, includeCard: false, ct));
+        await _notebook.DeleteAsync(CurrentUserId(), id, request.Version, ct);
+        return Ok(await BuildRemovalResponseAsync(id, ct));
     }
 
     [HttpPost("{id:guid}/restore")]
@@ -128,7 +129,7 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.RestoreAsync(CurrentUserId(), id, request.Version, ct);
-        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, view: "home", ct));
     }
 
     [HttpPost("{id:guid}/show-checkboxes")]
@@ -136,7 +137,7 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.ConvertTypeAsync(CurrentUserId(), id, NotebookItemType.Checklist, request.Version, ct);
-        return Ok(ToResponse(updated));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, view: "home", ct));
     }
 
     [HttpPost("{id:guid}/hide-checkboxes")]
@@ -144,7 +145,7 @@ public sealed class NotebookController : Controller
     {
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.ConvertTypeAsync(CurrentUserId(), id, NotebookItemType.Note, request.Version, ct);
-        return Ok(ToResponse(updated));
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, view: "home", ct));
     }
 
 
@@ -157,14 +158,14 @@ public sealed class NotebookController : Controller
         }
 
         var item = await _notebook.ToggleChecklistItemAsync(CurrentUserId(), itemId, rowId, request.IsDone, request.Version, ct);
-        return Ok(ToResponse(item));
+        return Ok(await BuildMutationResponseAsync(item, includeCard: true, view: "home", ct));
     }
 
     [HttpPost("{id:guid}/duplicate")]
     public async Task<IActionResult> Duplicate(Guid id, CancellationToken ct)
     {
-        var copyId = await _notebook.DuplicateAsync(CurrentUserId(), id, ct);
-        return Ok(ToResponse((await _notebook.GetDetailAsync(CurrentUserId(), copyId, ct))!));
+        var copy = await _notebook.DuplicateAsync(CurrentUserId(), id, ct);
+        return Ok(await BuildMutationResponseAsync(copy, includeCard: true, view: "home", ct));
     }
 
     // SECTION: Mapping and validation helpers
@@ -206,15 +207,57 @@ public sealed class NotebookController : Controller
     }
 
 
-    private async Task<NotebookMutationResponse> BuildMutationResponseAsync(NotebookItemDetailVm item, bool includeCard, CancellationToken ct)
+    private async Task<NotebookMutationResponse> BuildMutationResponseAsync(NotebookItemDetailVm item, bool includeCard, string view, CancellationToken ct)
     {
+        var listItem = ToListItem(item);
         return new NotebookMutationResponse
         {
             Item = ToResponse(item),
-            CardHtml = null,
-            Counts = await _notebook.GetCountsAsync(CurrentUserId(), ct)
+            CardHtml = includeCard ? await _cardRenderer.RenderAsync(listItem, view, ct) : null,
+            Counts = ToCountsResponse(await _notebook.GetCountsAsync(CurrentUserId(), ct))
         };
     }
+
+    private async Task<NotebookMutationResponse> BuildRemovalResponseAsync(Guid removedItemId, CancellationToken ct) => new()
+    {
+        RemovedItemId = removedItemId,
+        Counts = ToCountsResponse(await _notebook.GetCountsAsync(CurrentUserId(), ct))
+    };
+
+    private static NotebookCountsResponse ToCountsResponse(IReadOnlyDictionary<string, int> counts) => new()
+    {
+        Home = counts.GetValueOrDefault("home"),
+        Today = counts.GetValueOrDefault("today"),
+        Reminders = counts.GetValueOrDefault("reminders"),
+        Labels = counts.GetValueOrDefault("labels"),
+        Archive = counts.GetValueOrDefault("archive", counts.GetValueOrDefault("archived")),
+        Completed = counts.GetValueOrDefault("completed"),
+        Pinned = counts.GetValueOrDefault("pinned"),
+        Others = counts.GetValueOrDefault("others")
+    };
+
+    private static NotebookItemListVm ToListItem(NotebookItemDetailVm item) => new()
+    {
+        Id = item.Id,
+        Title = item.Title,
+        Preview = item.Preview,
+        Type = item.Type,
+        Status = item.Status,
+        Priority = item.Priority,
+        ReminderAtUtc = item.ReminderAtUtc,
+        ReminderDisplay = item.ReminderDisplay,
+        IsPinned = item.IsPinned,
+        IsFavorite = item.IsFavorite,
+        ColorKey = item.ColorKey,
+        UpdatedAtUtc = item.UpdatedAtUtc,
+        Tags = item.Tags,
+        ChecklistTotal = item.ChecklistTotal,
+        ChecklistDone = item.ChecklistDone,
+        ChecklistPreviewItems = item.ChecklistPreviewItems,
+        IsOverdue = item.IsOverdue,
+        IsDueToday = item.IsDueToday,
+        Version = item.Version
+    };
 
     private static object ApiError(string code, string message, string field, string error) => new { code, message, errors = new Dictionary<string, string[]> { [field] = new[] { error } } };
 

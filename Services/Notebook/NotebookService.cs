@@ -67,7 +67,7 @@ public sealed class NotebookService : INotebookService
                 item.ReminderAtUtc < bounds.EndUtc),
             "labels" => activeQuery,
             "reminders" => remindersQuery,
-            "archived" => filteredBaseQuery.Where(item => item.Status == NotebookItemStatus.Archived),
+            "archive" or "archived" => filteredBaseQuery.Where(item => item.Status == NotebookItemStatus.Archived),
             "completed" => filteredBaseQuery.Where(item => item.Status == NotebookItemStatus.Completed),
             _ => activeQuery
         };
@@ -234,7 +234,6 @@ public sealed class NotebookService : INotebookService
             ["reminders"] = await ReminderItems(active).CountAsync(ct),
             ["labels"] = await _db.NotebookTags.AsNoTracking().CountAsync(tag => tag.OwnerId == ownerId, ct),
             ["archive"] = await query.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
-            ["archived"] = await query.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
             ["completed"] = await query.CountAsync(item => item.Status == NotebookItemStatus.Completed, ct),
             ["pinned"] = await active.CountAsync(item => item.IsPinned, ct),
             ["others"] = await active.CountAsync(item => !item.IsPinned, ct)
@@ -254,7 +253,7 @@ public sealed class NotebookService : INotebookService
         CancellationToken ct = default)
     {
         var parsed = NotebookQuickCaptureParser.Parse(input, _clock.UtcNow, forcedType);
-        return CreateAsync(ownerId, new NotebookEditInput
+        return CreateIdAsync(ownerId, new NotebookEditInput
         {
             Title = parsed.Title,
             Type = parsed.Type,
@@ -265,21 +264,15 @@ public sealed class NotebookService : INotebookService
         }, ct);
     }
 
-    public async Task<Guid> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default)
+    public async Task<NotebookItemDetailVm> CreateAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default)
     {
         if (input.ClientRequestId is Guid clientRequestId)
         {
-            var existing = await _db.NotebookItems
-                .AsNoTracking()
-                .FirstOrDefaultAsync(item =>
-                    item.OwnerId == ownerId &&
-                    item.ClientRequestId == clientRequestId &&
-                    item.DeletedAtUtc == null,
-                    ct);
+            var existing = await FindByClientRequestIdAsync(ownerId, clientRequestId, ct);
 
             if (existing is not null)
             {
-                return existing.Id;
+                return MapDetail(existing);
             }
         }
 
@@ -304,9 +297,29 @@ public sealed class NotebookService : INotebookService
         ApplyChecklist(item, input.ChecklistRows.Any() ? input.ChecklistRows : input.ChecklistItems.Select((text, index) => new NotebookChecklistEditRow { Text = text, SortOrder = index }).ToArray(), now);
         _db.NotebookItems.Add(item);
         await SyncTags(item, ownerId, input.Tags, ct);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (IsClientRequestIdConflict(ex) && input.ClientRequestId is Guid duplicateRequestId)
+        {
+            var duplicate = await FindByClientRequestIdAsync(ownerId, duplicateRequestId, ct);
+            if (duplicate is not null)
+            {
+                return MapDetail(duplicate);
+            }
+
+            throw;
+        }
+
         await TryWriteAuditAsync("Notebook.Create", ownerId, item.Id, ct);
-        return item.Id;
+        return MapDetail(item);
+    }
+
+    private async Task<Guid> CreateIdAsync(string ownerId, NotebookEditInput input, CancellationToken ct = default)
+    {
+        var created = await CreateAsync(ownerId, input, ct);
+        return created.Id;
     }
 
     public async Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookEditInput input, Guid expectedVersion, CancellationToken ct = default)
@@ -332,23 +345,11 @@ public sealed class NotebookService : INotebookService
         return MapDetail(item);
     }
 
-    public async Task ArchiveAsync(string ownerId, Guid id, CancellationToken ct = default)
-    {
-        var item = await LoadOwned(ownerId, id, ct);
-        await ArchiveLoadedAsync(item, ownerId, ct);
-    }
-
     public async Task<NotebookItemDetailVm> ArchiveAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
         await ArchiveLoadedAsync(item, ownerId, ct);
         return MapDetail(item);
-    }
-
-    public async Task RestoreAsync(string ownerId, Guid id, CancellationToken ct = default)
-    {
-        var item = await LoadOwned(ownerId, id, ct);
-        await RestoreLoadedAsync(item, ct);
     }
 
     public async Task<NotebookItemDetailVm> RestoreAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
@@ -358,12 +359,6 @@ public sealed class NotebookService : INotebookService
         return MapDetail(item);
     }
 
-    public async Task ReopenAsync(string ownerId, Guid id, CancellationToken ct = default)
-    {
-        var item = await LoadOwned(ownerId, id, ct);
-        await ReopenLoadedAsync(item, ct);
-    }
-
     public async Task<NotebookItemDetailVm> ReopenAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
@@ -371,25 +366,11 @@ public sealed class NotebookService : INotebookService
         return MapDetail(item);
     }
 
-    public async Task DeleteAsync(string ownerId, Guid id, CancellationToken ct = default)
-    {
-        var item = await LoadOwned(ownerId, id, ct);
-        await DeleteLoadedAsync(item, ownerId, ct);
-    }
-
     public async Task<NotebookItemDetailVm> DeleteAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
         await DeleteLoadedAsync(item, ownerId, ct);
         return MapDetail(item);
-    }
-
-    public async Task TogglePinAsync(string ownerId, Guid id, CancellationToken ct = default)
-    {
-        var item = await LoadOwned(ownerId, id, ct);
-        item.IsPinned = !item.IsPinned;
-        Touch(item, _clock.UtcNow);
-        await _db.SaveChangesAsync(ct);
     }
 
     public async Task<NotebookItemDetailVm> SetPinnedAsync(string ownerId, Guid id, bool isPinned, Guid expectedVersion, CancellationToken ct = default)
@@ -407,12 +388,6 @@ public sealed class NotebookService : INotebookService
         item.IsFavorite = !item.IsFavorite;
         Touch(item, _clock.UtcNow);
         await _db.SaveChangesAsync(ct);
-    }
-
-    public async Task CompleteAsync(string ownerId, Guid id, bool isComplete, CancellationToken ct = default)
-    {
-        var item = await LoadOwned(ownerId, id, ct);
-        await CompleteLoadedAsync(item, isComplete, ct);
     }
 
     public async Task<NotebookItemDetailVm> CompleteAsync(string ownerId, Guid id, bool isComplete, Guid expectedVersion, CancellationToken ct = default)
@@ -473,7 +448,7 @@ public sealed class NotebookService : INotebookService
         return MapDetail(item);
     }
 
-    public async Task<Guid> DuplicateAsync(string ownerId, Guid id, CancellationToken ct = default)
+    public async Task<NotebookItemDetailVm> DuplicateAsync(string ownerId, Guid id, CancellationToken ct = default)
     {
         var source = await LoadOwned(ownerId, id, ct);
         var now = _clock.UtcNow;
@@ -513,26 +488,8 @@ public sealed class NotebookService : INotebookService
         _db.NotebookItems.Add(copy);
         await _db.SaveChangesAsync(ct);
         await _audit.LogAsync("Notebook.Duplicate", userId: ownerId, data: new Dictionary<string, string?> { ["SourceId"] = id.ToString(), ["Id"] = copy.Id.ToString() });
-        return copy.Id;
+        return MapDetail(copy);
     }
-
-    public async Task ToggleChecklistItemAsync(string ownerId, int checklistItemId, bool isDone, CancellationToken ct = default)
-    {
-        var checklistItem = await _db.NotebookChecklistItems
-            .Include(item => item.NotebookItem)
-            .FirstOrDefaultAsync(item =>
-                item.Id == checklistItemId &&
-                item.NotebookItem!.OwnerId == ownerId &&
-                item.NotebookItem.DeletedAtUtc == null,
-                ct) ?? throw new KeyNotFoundException();
-
-        checklistItem.IsDone = isDone;
-        var now = _clock.UtcNow;
-        checklistItem.CompletedAtUtc = isDone ? now : null;
-        Touch(checklistItem.NotebookItem!, now);
-        await _db.SaveChangesAsync(ct);
-    }
-
 
     public async Task<NotebookItemDetailVm> ToggleChecklistItemAsync(string ownerId, Guid itemId, int checklistItemId, bool isDone, Guid expectedVersion, CancellationToken ct = default)
     {
@@ -609,6 +566,28 @@ public sealed class NotebookService : INotebookService
         item.Version = Guid.NewGuid();
     }
 
+
+    private async Task<NotebookItem?> FindByClientRequestIdAsync(string ownerId, Guid clientRequestId, CancellationToken ct)
+    {
+        return await _db.NotebookItems
+            .AsNoTracking()
+            .Include(item => item.Tags)
+                .ThenInclude(itemTag => itemTag.NotebookTag)
+            .Include(item => item.ChecklistItems)
+            .Include(item => item.Attachments)
+            .FirstOrDefaultAsync(item =>
+                item.OwnerId == ownerId &&
+                item.ClientRequestId == clientRequestId &&
+                item.DeletedAtUtc == null,
+                ct);
+    }
+
+    private static bool IsClientRequestIdConflict(DbUpdateException ex)
+    {
+        return ex.InnerException?.Message.Contains("ClientRequestId", StringComparison.OrdinalIgnoreCase) == true ||
+               ex.Message.Contains("ClientRequestId", StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task<NotebookItem> LoadOwned(string ownerId, Guid id, CancellationToken ct) =>
         await _db.NotebookItems
             .Include(item => item.Tags)
@@ -649,13 +628,7 @@ public sealed class NotebookService : INotebookService
 
     private NotebookItemDetailVm MapDetail(NotebookItem item)
     {
-        var detail = new NotebookItemDetailVm();
-        var list = ToListVm(item, TodayBounds(_clock.UtcNow));
-        foreach (var property in typeof(NotebookItemListVm).GetProperties())
-        {
-            property.SetValue(detail, property.GetValue(list));
-        }
-
+        var detail = ToDetailShell(item, TodayBounds(_clock.UtcNow));
         detail.BodyMarkdown = item.BodyMarkdown;
         detail.ChecklistItems = item.ChecklistItems
             .OrderBy(checklistItem => checklistItem.SortOrder)
@@ -680,10 +653,43 @@ public sealed class NotebookService : INotebookService
         return detail;
     }
 
+
+    private static NotebookItemDetailVm ToDetailShell(NotebookItem item, (DateTimeOffset StartUtc, DateTimeOffset EndUtc) bounds)
+    {
+        var list = ToListVm(item, bounds);
+        return new NotebookItemDetailVm
+        {
+            Id = list.Id,
+            Title = list.Title,
+            Preview = list.Preview,
+            Type = list.Type,
+            Status = list.Status,
+            Priority = list.Priority,
+            ReminderAtUtc = list.ReminderAtUtc,
+            ReminderDisplay = list.ReminderDisplay,
+            IsPinned = list.IsPinned,
+            IsFavorite = list.IsFavorite,
+            ColorKey = list.ColorKey,
+            UpdatedAtUtc = list.UpdatedAtUtc,
+            Tags = list.Tags,
+            ChecklistTotal = list.ChecklistTotal,
+            ChecklistDone = list.ChecklistDone,
+            ChecklistPreviewItems = list.ChecklistPreviewItems,
+            IsOverdue = list.IsOverdue,
+            IsDueToday = list.IsDueToday,
+            Version = list.Version
+        };
+    }
+
     private static string CleanTitle(string title)
     {
         var trimmed = title.Trim();
-        return string.IsNullOrWhiteSpace(trimmed) ? "Untitled" : trimmed[..Math.Min(trimmed.Length, NotebookLimits.TitleMaxLength)];
+        if (trimmed.Length > NotebookLimits.TitleMaxLength)
+        {
+            throw new NotebookValidationException($"Title cannot exceed {NotebookLimits.TitleMaxLength} characters.");
+        }
+
+        return string.IsNullOrWhiteSpace(trimmed) ? "Untitled" : trimmed;
     }
 
     private static string CleanColor(string? color, NotebookItemType type)
@@ -706,7 +712,8 @@ public sealed class NotebookService : INotebookService
             return normalizedLegacy;
         }
 
-        var allowedViews = new[] { "home", "today", "reminders", "labels", "archived", "completed" };
+        var allowedViews = new[] { "home", "today", "reminders", "labels", "archive", "archived", "completed" };
+        if (string.Equals(view, "archived", StringComparison.OrdinalIgnoreCase)) return "archive";
         return allowedViews.Contains(view) ? view! : "home";
     }
 
@@ -859,13 +866,7 @@ public sealed class NotebookService : INotebookService
             return null;
         }
 
-        var detail = new NotebookItemDetailVm();
-        var list = ToListVm(item, bounds);
-        foreach (var property in typeof(NotebookItemListVm).GetProperties())
-        {
-            property.SetValue(detail, property.GetValue(list));
-        }
-
+        var detail = ToDetailShell(item, bounds);
         detail.BodyMarkdown = item.BodyMarkdown;
         detail.ChecklistItems = item.ChecklistItems
             .OrderBy(checklistItem => checklistItem.SortOrder)
@@ -934,7 +935,7 @@ public sealed class NotebookService : INotebookService
                 ct),
             "reminders" => await ReminderItems(ActiveItems(query)).CountAsync(ct),
             "labels" => await _db.NotebookTags.AsNoTracking().CountAsync(tag => tag.OwnerId == ownerId, ct),
-            "archived" => await query.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
+            "archive" or "archived" => await query.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
             "completed" => await query.CountAsync(item => item.Status == NotebookItemStatus.Completed, ct),
             _ => 0
         };
@@ -945,7 +946,7 @@ public sealed class NotebookService : INotebookService
             ("today", "Today", "bi-calendar-check"),
             ("reminders", "Reminders", "bi-bell"),
             ("labels", "Labels", "bi-tags"),
-            ("archived", "Archive", "bi-archive"),
+            ("archive", "Archive", "bi-archive"),
             ("completed", "Completed", "bi-check2-circle")
         };
 
@@ -954,6 +955,7 @@ public sealed class NotebookService : INotebookService
         {
             list.Add(new NotebookRailItemVm
             {
+                Key = row.Item1 == "archived" ? "archive" : row.Item1,
                 Label = row.Item2,
                 Icon = row.Item3,
                 Url = $"/Notebook?view={row.Item1}",

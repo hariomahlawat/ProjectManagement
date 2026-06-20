@@ -1,42 +1,35 @@
 @model ProjectManagement.ViewModels.Notebook.NotebookItemActionVm
 @using ProjectManagement.Models
 
-@* SECTION: Hover-first notebook card actions *@
-<form method="post" class="notebook-actions">
-    <input type="hidden" name="id" value="@Model.Item.Id" />
-    <input type="hidden" name="View" value="@Model.View" />
-    <input type="hidden" name="Query" value="@Model.Query" />
-    <input type="hidden" name="SelectedId" value="@Model.SelectedId" />
-    <input type="hidden" name="Filter" value="@Model.Filter" />
-    <input type="hidden" name="Tag" value="@Model.Tag" />
-
-    <button asp-page-handler="TogglePin" title="@(Model.Item.IsPinned ? "Unpin" : "Pin")" aria-label="@(Model.Item.IsPinned ? "Unpin note" : "Pin note")" type="submit" class="notebook-action-icon notebook-action-pin" data-action="pin-note" data-is-pinned="@Model.Item.IsPinned.ToString().ToLowerInvariant()">
+@* SECTION: API-only notebook card actions *@
+<div class="notebook-actions">
+    <button title="@(Model.Item.IsPinned ? "Unpin" : "Pin")" aria-label="@(Model.Item.IsPinned ? "Unpin note" : "Pin note")" type="button" class="notebook-action-icon notebook-action-pin" data-action="pin-note" data-is-pinned="@Model.Item.IsPinned.ToString().ToLowerInvariant()">
         <i class="bi @(Model.Item.IsPinned ? "bi-pin-angle-fill" : "bi-pin-angle")"></i>
     </button>
-        @if (Model.Item.Type == NotebookItemType.Reminder || Model.Item.ReminderAtUtc is not null)
+    @if (Model.Item.Type == NotebookItemType.Reminder || Model.Item.ReminderAtUtc is not null)
     {
-        <button asp-page-handler="Complete" name="isComplete" value="true" type="submit" data-action="complete-note" class="notebook-action-done">Done</button>
+        <button type="button" data-action="complete-note" class="notebook-action-done">Done</button>
     }
 
     <details class="notebook-card-more">
         <summary aria-label="More actions"><i class="bi bi-three-dots"></i></summary>
         <div class="notebook-card-more__menu" role="menu">
-            <button asp-page-handler="Duplicate" type="submit" role="menuitem" data-action="duplicate-note">Make a copy</button>
-            <button asp-page-handler="Convert" name="newType" value="@(Model.Item.Type == NotebookItemType.Checklist ? NotebookItemType.Note : NotebookItemType.Checklist)" type="submit" role="menuitem" data-action="convert-note" data-convert-to="@(Model.Item.Type == NotebookItemType.Checklist ? NotebookItemType.Note : NotebookItemType.Checklist)">@(Model.Item.Type == NotebookItemType.Checklist ? "Hide checkboxes" : "Show checkboxes")</button>
+            <button type="button" role="menuitem" data-action="duplicate-note">Make a copy</button>
+            <button type="button" role="menuitem" data-action="convert-note" data-convert-to="@(Model.Item.Type == NotebookItemType.Checklist ? NotebookItemType.Note : NotebookItemType.Checklist)">@(Model.Item.Type == NotebookItemType.Checklist ? "Hide checkboxes" : "Show checkboxes")</button>
             @if (Model.Item.Status == NotebookItemStatus.Archived)
             {
-                <button asp-page-handler="Restore" type="submit" role="menuitem" data-action="restore-note">Restore</button>
+                <button type="button" role="menuitem" data-action="restore-note">Restore</button>
             }
             else if (Model.Item.Status == NotebookItemStatus.Completed)
             {
-                <button asp-page-handler="Complete" name="isComplete" value="false" type="submit" role="menuitem" data-action="reopen-note">Reopen</button>
+                <button type="button" role="menuitem" data-action="reopen-note">Reopen</button>
             }
             else
             {
-                <button asp-page-handler="Archive" type="submit" role="menuitem" data-action="archive-note">Archive</button>
+                <button type="button" role="menuitem" data-action="archive-note">Archive</button>
             }
             <span class="notebook-menu-separator" aria-hidden="true"></span>
-            <button asp-page-handler="Delete" class="text-danger" type="submit" role="menuitem" data-action="delete-note">Delete</button>
+            <button class="text-danger" type="button" role="menuitem" data-action="delete-note">Delete</button>
         </div>
     </details>
-</form>
+</div>
