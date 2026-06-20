@@ -33,6 +33,12 @@ public sealed class NotebookController : Controller
         return item is null ? NotFound() : Ok(ToResponse(item));
     }
 
+    [HttpGet("~/api/notebook/counts")]
+    public async Task<IActionResult> Counts(CancellationToken ct)
+    {
+        return Ok(await _notebook.GetCountsAsync(CurrentUserId(), ct));
+    }
+
     [HttpGet("{id:guid}/card")]
     public async Task<IActionResult> Card(Guid id, [FromQuery] string view = "home", CancellationToken ct = default)
     {
@@ -58,7 +64,7 @@ public sealed class NotebookController : Controller
     {
         var validation = ValidateRequest(request);
         if (validation is not null) return validation;
-        if (!Guid.TryParse(request.Version, out var parsedVersion) || parsedVersion == Guid.Empty)
+        if (request.Version == Guid.Empty)
         {
             return BadRequest(new
             {
@@ -67,17 +73,20 @@ public sealed class NotebookController : Controller
             });
         }
 
+        request.ChecklistRows ??= [];
+        request.Labels ??= [];
         var uid = CurrentUserId();
-        await _notebook.UpdateAsync(uid, id, ToInput(request), parsedVersion.ToString("N"), ct);
+        var updated = await _notebook.UpdateAsync(uid, id, ToInput(request), request.Version, ct);
 
-        return Ok(ToResponse((await _notebook.GetDetailAsync(uid, id, ct))!));
+        return Ok(ToResponse(updated));
     }
 
     [HttpPost("{id:guid}/pin")]
     public async Task<IActionResult> Pin(Guid id, [FromBody] SetNotebookPinRequest request, CancellationToken ct)
     {
-        await _notebook.SetPinnedAsync(CurrentUserId(), id, request.IsPinned, ct);
-        return Ok(ToResponse((await _notebook.GetDetailAsync(CurrentUserId(), id, ct))!));
+        if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
+        var updated = await _notebook.SetPinnedAsync(CurrentUserId(), id, request.IsPinned, request.Version, ct);
+        return Ok(ToResponse(updated));
     }
 
     [HttpPost("{id:guid}/archive")]
@@ -91,7 +100,7 @@ public sealed class NotebookController : Controller
 
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Delete(Guid id, [FromBody] DeleteNotebookItemRequest? request, CancellationToken ct)
     {
         await _notebook.DeleteAsync(CurrentUserId(), id, ct);
         return NoContent();
@@ -105,17 +114,19 @@ public sealed class NotebookController : Controller
     }
 
     [HttpPost("{id:guid}/show-checkboxes")]
-    public async Task<IActionResult> ShowCheckboxes(Guid id, CancellationToken ct)
+    public async Task<IActionResult> ShowCheckboxes(Guid id, [FromBody] ConvertNotebookItemRequest request, CancellationToken ct)
     {
-        await _notebook.ConvertTypeAsync(CurrentUserId(), id, NotebookItemType.Checklist, ct);
-        return Ok(ToResponse((await _notebook.GetDetailAsync(CurrentUserId(), id, ct))!));
+        if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
+        var updated = await _notebook.ConvertTypeAsync(CurrentUserId(), id, NotebookItemType.Checklist, request.Version, ct);
+        return Ok(ToResponse(updated));
     }
 
     [HttpPost("{id:guid}/hide-checkboxes")]
-    public async Task<IActionResult> HideCheckboxes(Guid id, CancellationToken ct)
+    public async Task<IActionResult> HideCheckboxes(Guid id, [FromBody] ConvertNotebookItemRequest request, CancellationToken ct)
     {
-        await _notebook.ConvertTypeAsync(CurrentUserId(), id, NotebookItemType.Note, ct);
-        return Ok(ToResponse((await _notebook.GetDetailAsync(CurrentUserId(), id, ct))!));
+        if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
+        var updated = await _notebook.ConvertTypeAsync(CurrentUserId(), id, NotebookItemType.Note, request.Version, ct);
+        return Ok(ToResponse(updated));
     }
 
 
@@ -150,12 +161,14 @@ public sealed class NotebookController : Controller
         ReminderAtUtc = request.ReminderAtUtc,
         ColorKey = request.ColorKey,
         IsPinned = request.IsPinned,
-        Tags = request.Labels,
-        ChecklistRows = request.ChecklistRows
+        Tags = request.Labels ?? [],
+        ChecklistRows = request.ChecklistRows ?? []
     };
 
     private BadRequestObjectResult? ValidateRequest(CreateNotebookItemRequest request)
     {
+        request.ChecklistRows ??= [];
+        request.Labels ??= [];
         var hasTitle = !string.IsNullOrWhiteSpace(request.Title);
         var hasBody = !string.IsNullOrWhiteSpace(request.Body);
         var rows = request.ChecklistRows.Where(row => !string.IsNullOrWhiteSpace(row.Text)).ToArray();
@@ -188,7 +201,7 @@ public sealed class NotebookController : Controller
         ReminderAtUtc = item.ReminderAtUtc,
         ReminderDisplay = item.ReminderDisplay,
         UpdatedAtUtc = item.UpdatedAtUtc,
-        Version = item.Version,
+        Version = Guid.TryParse(item.Version, out var version) ? version : Guid.Empty,
         ChecklistRows = item.ChecklistItems.Select(row => new NotebookChecklistRowResponse { Id = row.Id, Text = row.Text, IsDone = row.IsDone, SortOrder = row.SortOrder }).ToList(),
         Labels = item.Tags.Select(tag => new NotebookLabelResponse { Name = tag }).ToList()
     };

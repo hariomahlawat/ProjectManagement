@@ -75,3 +75,32 @@ test('notebook autosave routes timer errors to onError without unhandled rejecti
   await new Promise((resolve) => setTimeout(resolve, 10));
   assert.deepEqual(errors, ['network']);
 });
+
+test('notebook autosave awaits async onSaved before starting next dirty iteration', async () => {
+  const { createAutosave } = await loadModule('notebook-autosave.js');
+  const events = [];
+  let version = 'v1';
+  let releaseSaved;
+  const savedGate = new Promise((resolve) => { releaseSaved = resolve; });
+  const autosave = createAutosave({
+    delay: 1,
+    save: async (payload) => { events.push(`save:${payload.version}`); return { version: payload.version === 'v1' ? 'v2' : 'v3' }; },
+    onSaved: async (result) => {
+      events.push(`saved-start:${result.version}`);
+      if (result.version === 'v2') await savedGate;
+      version = result.version;
+      events.push(`saved-end:${result.version}`);
+    }
+  });
+
+  autosave.schedule(() => ({ version }));
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  autosave.schedule(() => ({ version }));
+  await new Promise((resolve) => setTimeout(resolve, 5));
+
+  assert.deepEqual(events, ['save:v1', 'saved-start:v2']);
+  releaseSaved();
+  await autosave.flush();
+
+  assert.deepEqual(events, ['save:v1', 'saved-start:v2', 'saved-end:v2', 'save:v2', 'saved-start:v3', 'saved-end:v3']);
+});

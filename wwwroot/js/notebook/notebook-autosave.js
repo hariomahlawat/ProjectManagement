@@ -12,13 +12,13 @@ export function createAutosave({ save, delay = 800, onSaving, onSaved, onError }
       while (!stopped && dirty && latestPayloadFactory) {
         dirty = false;
         const payload = latestPayloadFactory();
-        onSaving?.();
+        await onSaving?.();
         try {
           const result = await save(payload);
-          onSaved?.(result);
+          await onSaved?.(result);
         } catch (error) {
           dirty = true;
-          onError?.(error);
+          await onError?.(error);
           throw error;
         }
       }
