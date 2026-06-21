@@ -442,6 +442,24 @@ function createChecklistEditor(root, options = {}) {
       input.setSelectionRange(Math.min(state.selectionStart, input.value.length), Math.min(end, input.value.length));
     }
   }
+  function findMatchingRow(target, byId, byClientKey) {
+    if (target?.id !== null && target?.id !== void 0) {
+      const byPermanentId = byId.get(String(target.id));
+      if (byPermanentId) return byPermanentId;
+    }
+    if (target?.clientKey) return byClientKey.get(target.clientKey) ?? null;
+    return null;
+  }
+  function appendReconciledRow(reconciled, row, seenRows, seenIdentities) {
+    const identity = row.id !== null && row.id !== void 0 ? `id:${row.id}` : row.clientKey ? `client:${row.clientKey}` : null;
+    if (seenRows.has(row) || identity && seenIdentities.has(identity)) return;
+    seenRows.add(row);
+    if (identity) seenIdentities.add(identity);
+    reconciled.push(row);
+  }
+  function wasAddedAfterDispatch(localRow, submittedById, submittedByClientKey) {
+    return !findMatchingRow(localRow, submittedById, submittedByClientKey);
+  }
   function removeStaleRowElements(reconciledRows) {
     const retainedElements = new Set(reconciledRows.map((row) => row.element).filter(Boolean));
     root.querySelectorAll("[data-checklist-row]").forEach((element) => {
@@ -493,15 +511,18 @@ function createChecklistEditor(root, options = {}) {
     const scrollTop = root.scrollTop;
     try {
       rows.forEach(readRowElement);
+      const originalLocalRows = [...rows];
       const submittedById = new Map((submittedRows || []).filter((row) => row.id !== null && row.id !== void 0).map((row) => [String(row.id), row]));
       const submittedByClientKey = new Map((submittedRows || []).filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
-      const byId = new Map(rows.filter((row) => row.id !== null && row.id !== void 0).map((row) => [String(row.id), row]));
-      const byClientKey = new Map(rows.filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
+      const localById = new Map(originalLocalRows.filter((row) => row.id !== null && row.id !== void 0).map((row) => [String(row.id), row]));
+      const localByClientKey = new Map(originalLocalRows.filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
       const reconciled = [];
+      const seenRows = /* @__PURE__ */ new Set();
+      const seenIdentities = /* @__PURE__ */ new Set();
       (serverRows || []).forEach((serverRow, index) => {
-        let localRow = serverRow.id !== null && serverRow.id !== void 0 ? byId.get(String(serverRow.id)) : null;
-        if (!localRow && serverRow.clientKey) localRow = byClientKey.get(serverRow.clientKey);
-        const submittedRow = (serverRow.id !== null && serverRow.id !== void 0 ? submittedById.get(String(serverRow.id)) : null) || (serverRow.clientKey ? submittedByClientKey.get(serverRow.clientKey) : null);
+        const submittedRow = findMatchingRow(serverRow, submittedById, submittedByClientKey);
+        let localRow = findMatchingRow(serverRow, localById, localByClientKey);
+        if (submittedRow && !localRow) return;
         if (!localRow) localRow = normalizeRow(serverRow, index);
         localRow.id = serverRow.id ?? localRow.id;
         localRow.clientKey = serverRow.clientKey ?? localRow.clientKey ?? normaliseClientKey(localRow);
@@ -510,7 +531,12 @@ function createChecklistEditor(root, options = {}) {
         localRow.sortOrder = serverRow.sortOrder ?? (index + 1) * 1e3;
         if (!localRow.element) rowTemplate(localRow);
         updateRowElement(localRow);
-        reconciled.push(localRow);
+        appendReconciledRow(reconciled, localRow, seenRows, seenIdentities);
+      });
+      if ((submittedRows || []).length > 0) originalLocalRows.forEach((localRow) => {
+        if (wasAddedAfterDispatch(localRow, submittedById, submittedByClientKey)) {
+          appendReconciledRow(reconciled, localRow, seenRows, seenIdentities);
+        }
       });
       removeStaleRowElements(reconciled);
       rows = reconciled;
@@ -876,6 +902,7 @@ function initNotebookEditor(board, view, options = {}) {
   let lastValidationFingerprint = null;
   const shell = options.shell || document.querySelector(".notebook-shell");
   const dirtyState = { title: false, body: false, checklist: false };
+  const editRevision = { title: 0, body: 0, checklist: 0 };
   const buildNoteUrl = (id) => {
     const url = new URL(location.href);
     id ? url.searchParams.set("note", id) : url.searchParams.delete("note");
@@ -910,6 +937,21 @@ function initNotebookEditor(board, view, options = {}) {
       checklistRows: item.type === "Checklist" ? checklist.getRows() : []
     });
   }
+  function markChanged(field) {
+    editRevision[field] += 1;
+    dirtyState[field] = true;
+  }
+  function resetDirtyState() {
+    dirtyState.title = dirtyState.body = dirtyState.checklist = false;
+  }
+  function applySubmittedRevision(submittedRevision = {}) {
+    dirtyState.title = editRevision.title !== submittedRevision.title;
+    dirtyState.body = editRevision.body !== submittedRevision.body;
+    dirtyState.checklist = editRevision.checklist !== submittedRevision.checklist;
+  }
+  function hasDirtyChanges() {
+    return dirtyState.title || dirtyState.body || dirtyState.checklist;
+  }
   function scheduleAutosave() {
     const nextPayload = buildCurrentPayload();
     const nextFingerprint = validationFingerprint(nextPayload);
@@ -936,7 +978,7 @@ function initNotebookEditor(board, view, options = {}) {
     modal.querySelector("[data-modal-body]").value = item.body || "";
     checklist.setRows(item.checklistRows || []);
     modal.querySelector("[data-modal-checklist]").hidden = item.type !== "Checklist";
-    dirtyState.title = dirtyState.body = dirtyState.checklist = false;
+    resetDirtyState();
     pendingExternalUpdate = null;
     clearValidationBlock();
     renderPin();
@@ -951,7 +993,7 @@ function initNotebookEditor(board, view, options = {}) {
     modal.innerHTML = '<div class="notebook-modal__backdrop" data-close></div><section class="notebook-modal__dialog"><header><input id="notebook-modal-title" data-modal-title class="notebook-modal__title" maxlength="220"><button type="button" class="notebook-action-icon" data-modal-pin aria-label="Pin note"><i class="bi bi-pin-angle"></i></button></header><textarea data-modal-body class="notebook-modal__body" maxlength="20000" placeholder="Take a note…"></textarea><div class="notebook-editor__validation" data-notebook-validation-summary role="alert" hidden></div><div data-modal-checklist class="notebook-checklist-editor" hidden></div><div class="notebook-save-feedback"><span class="notebook-modal__save-state" data-notebook-save-state aria-live="polite"></span><button type="button" data-notebook-retry hidden>Retry</button><button type="button" data-notebook-reload-latest hidden>Reload latest</button><button type="button" data-notebook-sign-in hidden>Sign in again</button><button type="button" data-notebook-copy-unsaved hidden>Copy note text</button><button type="button" data-modal-discard hidden>Discard changes</button></div><footer><button type="button" class="btn btn-sm btn-link" data-close aria-label="Close note editor">Close</button></footer></section>';
     document.body.appendChild(modal);
     checklist = createChecklistEditor(modal.querySelector("[data-modal-checklist]"), { onChange: () => {
-      dirtyState.checklist = true;
+      markChanged("checklist");
       scheduleAutosave();
     } });
     modal.addEventListener("click", (e) => {
@@ -959,11 +1001,11 @@ function initNotebookEditor(board, view, options = {}) {
     });
     modal.addEventListener("keydown", trapFocus);
     modal.querySelector("[data-modal-title]").addEventListener("input", () => {
-      dirtyState.title = true;
+      markChanged("title");
       scheduleAutosave();
     });
     modal.querySelector("[data-modal-body]").addEventListener("input", () => {
-      dirtyState.body = true;
+      markChanged("body");
       scheduleAutosave();
     });
     modal.querySelector("[data-modal-pin]").addEventListener("click", pinItem);
@@ -975,19 +1017,22 @@ function initNotebookEditor(board, view, options = {}) {
   }
   async function saveEditorPayload(data) {
     const submittedRows = item.type === "Checklist" ? structuredCloneSafe(data.checklistRows || []) : [];
+    const submittedRevision = { ...editRevision };
     const requestPayload = { ...data, version: item.version };
     assertValidVersion(requestPayload.version);
     const response = item.type === "Checklist" ? await NotebookApi.updateChecklist(item.id, requestPayload) : await NotebookApi.updateContent(item.id, requestPayload);
-    return { response, submittedRows };
+    return { response, submittedRows, submittedRevision };
   }
   async function applyPersistedResponse(saveResult) {
     const response = saveResult?.response ?? saveResult;
     const submittedRows = saveResult?.submittedRows ?? [];
+    const submittedRevision = saveResult?.submittedRevision ?? { ...editRevision };
     item = requireMutationItem(response);
     if (item.type === "Checklist" && Array.isArray(item.checklistRows)) checklist.reconcileRows(item.checklistRows, submittedRows);
-    dirtyState.title = dirtyState.body = dirtyState.checklist = false;
+    applySubmittedRevision(submittedRevision);
     clearValidationBlock();
-    clearStoredDraft(item?.id);
+    if (hasDirtyChanges()) preserveUnsavedDraft();
+    else clearStoredDraft(item?.id);
     setStatus("Saved", "saved");
     await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts: options.applyCounts, preservePosition: true, showGlobalError: options.showGlobalError, renderFailureMessage: "The note was saved, but its card could not refresh. Reload the page.", reconcileFailureMessage: "The note was saved, but the board could not refresh. Reload the page." });
   }
@@ -1065,11 +1110,15 @@ function initNotebookEditor(board, view, options = {}) {
   }
   function restoreStoredDraftIfNeeded() {
     const storedDraft = readStoredDraft(item.id);
-    if (storedDraft && (storedDraft.title !== item.title || storedDraft.body !== item.body || JSON.stringify(storedDraft.checklistRows || []) !== JSON.stringify(item.checklistRows || [])) && window.confirm("Restore your unsaved local draft for this note?")) {
+    if (storedDraft && (storedDraft.title !== item.title || storedDraft.body !== item.body || JSON.stringify(storedDraft.checklistRows || []) !== JSON.stringify(item.checklistRows || [])) && window.confirm(storedDraft.sourceVersion && storedDraft.sourceVersion !== item.version ? "A newer saved version exists. Restore local changes?" : "Restore your unsaved local draft for this note?")) {
       modal.querySelector("[data-modal-title]").value = storedDraft.title || "";
       modal.querySelector("[data-modal-body]").value = storedDraft.body || "";
       if (item.type === "Checklist") checklist.setRows(storedDraft.checklistRows || []);
-      scheduleAutosave();
+      markChanged("title");
+      markChanged("body");
+      if (item.type === "Checklist") markChanged("checklist");
+      if (!storedDraft.sourceVersion || storedDraft.sourceVersion === item.version) scheduleAutosave();
+      else setStatus("A newer saved version exists. Review local changes before saving.", "conflict");
     }
   }
   function signInAgain() {
@@ -1118,7 +1167,7 @@ function initNotebookEditor(board, view, options = {}) {
     const button = modal.querySelector("[data-notebook-reload-latest]");
     button.disabled = true;
     try {
-      item = await NotebookApi.getItem(item.id);
+      item = pendingExternalUpdate || await NotebookApi.getItem(item.id);
       renderMode();
       clearValidationBlock();
       setStatus("", "idle");
@@ -1188,7 +1237,7 @@ function initNotebookEditor(board, view, options = {}) {
   }
   function syncExternalUpdate(updated) {
     if (!item || item.id !== updated.id) return;
-    if (dirtyState.title || dirtyState.body || dirtyState.checklist) {
+    if (hasDirtyChanges()) {
       pendingExternalUpdate = updated;
       setStatus("This note was changed elsewhere.", "conflict");
       return;

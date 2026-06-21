@@ -46,9 +46,7 @@
 
   <ItemGroup>
     <!-- SECTION: Inputs that can alter the committed Notebook frontend assets. -->
-    <NotebookAssetInputs Include="wwwroot/js/pages/notebook-index.js" />
-    <NotebookAssetInputs Include="wwwroot/js/notebook/**/*.js" />
-    <NotebookAssetInputs Include="wwwroot/js/core/session-auth.js" />
+    <NotebookAssetInputs Include="wwwroot/js/**/*.js" />
     <NotebookAssetInputs Include="tools/build-notebook.mjs" />
     <NotebookAssetInputs Include="tools/write-notebook-manifest.js" />
     <NotebookAssetInputs Include="package.json" />

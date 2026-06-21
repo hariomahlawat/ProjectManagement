@@ -1,5 +1,5 @@
 const fs = require('node:fs');
-const { execFileSync } = require('node:child_process');
+const { createHash } = require('node:crypto');
 
 const manifestPath = 'wwwroot/dist/notebook-manifest.json';
 
@@ -25,60 +25,66 @@ function sourceCommit() {
     return suppliedCommit;
   }
 
-  const previousCommit = existingSourceCommit();
+  return existingSourceCommit();
+}
 
-  if (previousCommit) {
-    return previousCommit;
-  }
+function calculateSha256(filePath) {
+  const bytes = fs.readFileSync(filePath);
 
-  try {
-    return execFileSync(
-      'git',
-      [
-        'rev-parse',
-        '--short=12',
-        'HEAD'
-      ],
-      {
-        encoding: 'utf8',
-        stdio: [
-          'ignore',
-          'pipe',
-          'ignore'
-        ]
-      }
-    ).trim();
-  } catch {
-    return 'unknown';
-  }
+  return createHash('sha256')
+    .update(bytes)
+    .digest('hex');
 }
 
 // SECTION: Content-stable manifest file writes
-function writeIfChanged(filePath, content) {
+function writeOrTouch(filePath, content) {
   let existing = null;
 
   try {
     existing = fs.readFileSync(filePath, 'utf8');
-  } catch {
-    // Output does not exist.
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw error;
+    }
   }
 
   if (existing === content) {
-    return false;
+    const now = new Date();
+    fs.utimesSync(filePath, now, now);
+
+    return {
+      contentChanged: false,
+      timestampUpdated: true
+    };
   }
 
   fs.writeFileSync(filePath, content, 'utf8');
-  return true;
+
+  return {
+    contentChanged: true,
+    timestampUpdated: true
+  };
 }
 
 // SECTION: Notebook bundle build manifest for runtime diagnostics
 const manifest = {
   entry: 'notebook-index.bundle.js',
-  sourceCommit: sourceCommit()
+  bundleSha256: calculateSha256('wwwroot/dist/notebook-index.bundle.js')
 };
+const commit = sourceCommit();
+
+if (commit) {
+  manifest.sourceCommit = commit;
+}
 
 fs.mkdirSync('wwwroot/dist', { recursive: true });
-writeIfChanged(
+const result = writeOrTouch(
   manifestPath,
   `${JSON.stringify(manifest, null, 2)}\n`
 );
+
+if (result.contentChanged) {
+  console.log('Notebook manifest updated.');
+} else {
+  console.log('Notebook manifest unchanged; output timestamp refreshed.');
+}
