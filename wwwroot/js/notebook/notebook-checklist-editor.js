@@ -173,15 +173,17 @@ export function createChecklistEditor(root, options = {}) {
       .filter((row) => row.text.length > 0);
   }
 
-  function reconcileRows(serverRows, submittedRows = []) {
+  function reconcileRows(serverRows, submittedRows = null) {
     isReconciling = true;
     const focusState = captureFocusState();
     const scrollTop = root.scrollTop;
     try {
       rows.forEach(readRowElement);
       const originalLocalRows = [...rows];
-      const submittedById = new Map((submittedRows || []).filter((row) => row.id !== null && row.id !== undefined).map((row) => [String(row.id), row]));
-      const submittedByClientKey = new Map((submittedRows || []).filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
+      const hasSubmittedSnapshot = Array.isArray(submittedRows);
+      const baseRows = hasSubmittedSnapshot ? submittedRows : [];
+      const submittedById = new Map(baseRows.filter((row) => row.id !== null && row.id !== undefined).map((row) => [String(row.id), row]));
+      const submittedByClientKey = new Map(baseRows.filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
       const localById = new Map(originalLocalRows.filter((row) => row.id !== null && row.id !== undefined).map((row) => [String(row.id), row]));
       const localByClientKey = new Map(originalLocalRows.filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
       const reconciled = [];
@@ -192,7 +194,7 @@ export function createChecklistEditor(root, options = {}) {
         const submittedRow = findMatchingRow(serverRow, submittedById, submittedByClientKey);
         let localRow = findMatchingRow(serverRow, localById, localByClientKey);
 
-        if (submittedRow && !localRow) return;
+        if (hasSubmittedSnapshot && submittedRow && !localRow) return;
 
         if (!localRow) localRow = normalizeRow(serverRow, index);
         localRow.id = serverRow.id ?? localRow.id;
@@ -205,7 +207,7 @@ export function createChecklistEditor(root, options = {}) {
         appendReconciledRow(reconciled, localRow, seenRows, seenIdentities);
       });
 
-      if ((submittedRows || []).length > 0) originalLocalRows.forEach((localRow) => {
+      if (hasSubmittedSnapshot) originalLocalRows.forEach((localRow) => {
         if (wasAddedAfterDispatch(localRow, submittedById, submittedByClientKey)) {
           appendReconciledRow(reconciled, localRow, seenRows, seenIdentities);
         }

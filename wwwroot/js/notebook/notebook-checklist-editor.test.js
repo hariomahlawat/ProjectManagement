@@ -81,7 +81,7 @@ test('reconcileRows removes stale DOM rows that are absent from authoritative re
   editor.reconcileRows([
     { id: 1, text: 'A', isDone: false, sortOrder: 0 },
     { id: 3, text: 'C', isDone: false, sortOrder: 1 }
-  ], []);
+  ]);
 
   assert.deepEqual(editor.getRows().map((row) => row.text), ['A', 'C']);
   assert.deepEqual([...root.querySelectorAll('[data-checklist-row] [data-checklist-text]')].map((input) => input.value), ['A', 'C']);
@@ -131,6 +131,27 @@ test('destroy removes root event listeners before a new editor is created', asyn
   input.dispatchEvent(new window.Event('input', { bubbles: true }));
 
   assert.equal(changes, 1);
+});
+
+
+test('reconcileRows preserves a row added after an empty checklist was submitted', async () => {
+  let changes = 0;
+  const { editor, root } = await createEditor(() => { changes += 1; });
+  const submittedRows = [];
+
+  const added = editor.addRow(null, { clientKey: 'later-empty-row', text: 'Added while saving' });
+  const addedClientKey = added.dataset.clientKey;
+
+  editor.reconcileRows([], submittedRows);
+
+  const rows = editor.getRows();
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].text, 'Added while saving');
+  assert.equal(rows[0].clientKey, addedClientKey);
+  assert.equal(rows[0].clientKey, 'later-empty-row');
+  assert.equal(root.querySelectorAll('[data-checklist-row]').length, 1);
+  assert.equal(root.querySelector('[data-client-key="later-empty-row"]'), added);
+  assert.equal(changes, 0);
 });
 
 test('reconcileRows preserves row added after dispatch', async () => {
