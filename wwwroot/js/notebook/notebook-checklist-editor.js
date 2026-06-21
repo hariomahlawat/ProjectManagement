@@ -93,6 +93,32 @@ export function createChecklistEditor(root, options = {}) {
   }
 
 
+
+  function findMatchingRow(target, byId, byClientKey) {
+    if (target?.id !== null && target?.id !== undefined) {
+      const byPermanentId = byId.get(String(target.id));
+      if (byPermanentId) return byPermanentId;
+    }
+
+    if (target?.clientKey) return byClientKey.get(target.clientKey) ?? null;
+
+    return null;
+  }
+
+  function appendReconciledRow(reconciled, row, seenRows, seenIdentities) {
+    const identity = row.id !== null && row.id !== undefined ? `id:${row.id}` : (row.clientKey ? `client:${row.clientKey}` : null);
+
+    if (seenRows.has(row) || (identity && seenIdentities.has(identity))) return;
+
+    seenRows.add(row);
+    if (identity) seenIdentities.add(identity);
+    reconciled.push(row);
+  }
+
+  function wasAddedAfterDispatch(localRow, submittedById, submittedByClientKey) {
+    return !findMatchingRow(localRow, submittedById, submittedByClientKey);
+  }
+
   function removeStaleRowElements(reconciledRows) {
     const retainedElements = new Set(reconciledRows.map((row) => row.element).filter(Boolean));
     root.querySelectorAll('[data-checklist-row]').forEach((element) => {
@@ -153,16 +179,21 @@ export function createChecklistEditor(root, options = {}) {
     const scrollTop = root.scrollTop;
     try {
       rows.forEach(readRowElement);
+      const originalLocalRows = [...rows];
       const submittedById = new Map((submittedRows || []).filter((row) => row.id !== null && row.id !== undefined).map((row) => [String(row.id), row]));
       const submittedByClientKey = new Map((submittedRows || []).filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
-      const byId = new Map(rows.filter((row) => row.id !== null && row.id !== undefined).map((row) => [String(row.id), row]));
-      const byClientKey = new Map(rows.filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
+      const localById = new Map(originalLocalRows.filter((row) => row.id !== null && row.id !== undefined).map((row) => [String(row.id), row]));
+      const localByClientKey = new Map(originalLocalRows.filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
       const reconciled = [];
+      const seenRows = new Set();
+      const seenIdentities = new Set();
 
       (serverRows || []).forEach((serverRow, index) => {
-        let localRow = serverRow.id !== null && serverRow.id !== undefined ? byId.get(String(serverRow.id)) : null;
-        if (!localRow && serverRow.clientKey) localRow = byClientKey.get(serverRow.clientKey);
-        const submittedRow = (serverRow.id !== null && serverRow.id !== undefined ? submittedById.get(String(serverRow.id)) : null) || (serverRow.clientKey ? submittedByClientKey.get(serverRow.clientKey) : null);
+        const submittedRow = findMatchingRow(serverRow, submittedById, submittedByClientKey);
+        let localRow = findMatchingRow(serverRow, localById, localByClientKey);
+
+        if (submittedRow && !localRow) return;
+
         if (!localRow) localRow = normalizeRow(serverRow, index);
         localRow.id = serverRow.id ?? localRow.id;
         localRow.clientKey = serverRow.clientKey ?? localRow.clientKey ?? normaliseClientKey(localRow);
@@ -171,7 +202,13 @@ export function createChecklistEditor(root, options = {}) {
         localRow.sortOrder = serverRow.sortOrder ?? (index + 1) * 1000;
         if (!localRow.element) rowTemplate(localRow);
         updateRowElement(localRow);
-        reconciled.push(localRow);
+        appendReconciledRow(reconciled, localRow, seenRows, seenIdentities);
+      });
+
+      if ((submittedRows || []).length > 0) originalLocalRows.forEach((localRow) => {
+        if (wasAddedAfterDispatch(localRow, submittedById, submittedByClientKey)) {
+          appendReconciledRow(reconciled, localRow, seenRows, seenIdentities);
+        }
       });
 
       removeStaleRowElements(reconciled);

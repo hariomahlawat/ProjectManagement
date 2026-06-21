@@ -132,3 +132,49 @@ test('destroy removes root event listeners before a new editor is created', asyn
 
   assert.equal(changes, 1);
 });
+
+test('reconcileRows preserves row added after dispatch', async () => {
+  const { editor } = await createEditor();
+  editor.setRows([
+    { id: 1, text: 'Submitted', isDone: false, sortOrder: 0 },
+    { id: null, clientKey: 'later-row', text: 'Later', isDone: false, sortOrder: 1 }
+  ]);
+
+  editor.reconcileRows([
+    { id: 1, text: 'Submitted', isDone: false, sortOrder: 0 }
+  ], [
+    { id: 1, text: 'Submitted', isDone: false, sortOrder: 0 }
+  ]);
+
+  assert.deepEqual(editor.getRows().map((row) => row.text), ['Submitted', 'Later']);
+});
+
+test('reconcileRows preserves row deleted after dispatch', async () => {
+  const { editor, root } = await createEditor();
+  editor.setRows([
+    { id: 1, text: 'Kept', isDone: false, sortOrder: 0 }
+  ]);
+  editor.removeRow(root.querySelector('[data-checklist-row]'));
+
+  editor.reconcileRows([
+    { id: 1, text: 'Kept', isDone: false, sortOrder: 0 }
+  ], [
+    { id: 1, text: 'Kept', isDone: false, sortOrder: 0 }
+  ]);
+
+  assert.deepEqual(editor.getRows(), []);
+});
+
+test('reconcileRows preserves checkbox changed after dispatch', async () => {
+  const { editor, root } = await createEditor();
+  editor.setRows([{ id: 1, text: 'Task', isDone: false, sortOrder: 0 }]);
+  root.querySelector('[data-checklist-done]').checked = true;
+
+  editor.reconcileRows([
+    { id: 1, text: 'Task', isDone: false, sortOrder: 0 }
+  ], [
+    { id: 1, text: 'Task', isDone: false, sortOrder: 0 }
+  ]);
+
+  assert.equal(editor.getRows()[0].isDone, true);
+});

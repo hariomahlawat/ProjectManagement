@@ -11,7 +11,7 @@ await build({
   format: 'esm',
   platform: 'browser',
   target: ['es2022'],
-  sourcemap: minify ? false : true,
+  sourcemap: true,
   sourcesContent: true,
   charset: 'utf8',
   legalComments: 'none',

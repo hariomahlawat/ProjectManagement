@@ -1,0 +1,42 @@
+name: Notebook Build and Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  notebook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Restore frontend dependencies
+        run: npm ci
+
+      - name: Run Notebook JavaScript tests
+        run: npm test
+
+      - name: Verify committed Notebook assets
+        run: npm run check:notebook-assets
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore .NET dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore
+
+      - name: Test
+        run: dotnet test --no-build
