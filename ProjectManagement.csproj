@@ -44,13 +44,30 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- SECTION: Inputs that can alter the committed Notebook frontend assets. -->
+    <NotebookAssetInputs Include="wwwroot/js/pages/notebook-index.js" />
+    <NotebookAssetInputs Include="wwwroot/js/notebook/**/*.js" />
+    <NotebookAssetInputs Include="wwwroot/js/core/session-auth.js" />
+    <NotebookAssetInputs Include="tools/build-notebook.mjs" />
+    <NotebookAssetInputs Include="tools/write-notebook-manifest.js" />
+    <NotebookAssetInputs Include="package.json" />
+    <NotebookAssetInputs Include="package-lock.json" />
+
+    <!-- SECTION: Committed Notebook frontend outputs served by the application. -->
+    <NotebookAssetOutputs Include="wwwroot/dist/notebook-index.bundle.js" />
+    <NotebookAssetOutputs Include="wwwroot/dist/notebook-index.bundle.js.map" />
+    <NotebookAssetOutputs Include="wwwroot/dist/notebook-manifest.json" />
+  </ItemGroup>
+
   <Target Name="ValidateNotebookDependencies" BeforeTargets="BuildNotebookAssets">
     <!-- SECTION: Fail .NET builds rather than serving stale Notebook bundles. -->
-    <Error Condition="!Exists('node_modules/esbuild')" Text="Notebook frontend dependencies are missing. Run 'npm ci' from the project root before building." />
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)/node_modules/esbuild')" Text="Notebook frontend dependencies are missing. Run 'npm ci' from the project root before building." />
   </Target>
 
-  <Target Name="BuildNotebookAssets" BeforeTargets="Build;Publish" DependsOnTargets="ValidateNotebookDependencies">
-    <!-- SECTION: Notebook bundle generation for coherent versioned browser delivery. -->
+  <Target Name="BuildNotebookAssets" BeforeTargets="Build;Publish" DependsOnTargets="ValidateNotebookDependencies" Inputs="@(NotebookAssetInputs)" Outputs="@(NotebookAssetOutputs)">
+    <!-- SECTION: Incremental Notebook bundle generation for coherent versioned browser delivery. -->
+    <Message Importance="high" Text="Building Notebook frontend assets because one or more inputs changed." />
     <Exec Command="npm run build:notebook" WorkingDirectory="$(MSBuildProjectDirectory)" />
   </Target>
 

@@ -394,7 +394,7 @@ function createChecklistEditor(root, options = {}) {
     const wrapper = document.createElement("div");
     wrapper.className = "notebook-checklist-row";
     wrapper.dataset.checklistRow = "";
-    wrapper.innerHTML = `<input type="checkbox" data-checklist-done><input type="text" data-checklist-text maxlength="${maxLength}" placeholder="List item"><button type="button" data-checklist-remove aria-label="Remove checklist item">\xD7</button>`;
+    wrapper.innerHTML = `<input type="checkbox" data-checklist-done><input type="text" data-checklist-text maxlength="${maxLength}" placeholder="List item"><button type="button" data-checklist-remove aria-label="Remove checklist item">×</button>`;
     row.element = wrapper;
     updateRowElement(row, { forceContent: true });
     return wrapper;
@@ -726,7 +726,7 @@ function initNotebookComposer(root, board, view, options = {}) {
     if (isSaving) return false;
     isSaving = true;
     setDisabled(true);
-    setStatus("Saving\u2026");
+    setStatus("Saving…");
     try {
       if (!created) created = await NotebookApi.createItem(data);
       if (!created?.item) {
@@ -924,7 +924,7 @@ function initNotebookEditor(board, view, options = {}) {
   }
   function configureAutosave() {
     autosave?.stop();
-    autosave = createAutosave({ save: saveEditorPayload, onSaving: () => setStatus("Saving\u2026", "saving"), onPersisted: applyPersistedResponse, onSaveError: handleEditorError, onReconcileError: handleReconcileError });
+    autosave = createAutosave({ save: saveEditorPayload, onSaving: () => setStatus("Saving…", "saving"), onPersisted: applyPersistedResponse, onSaveError: handleEditorError, onReconcileError: handleReconcileError });
   }
   function renderPin() {
     const pin = modal.querySelector("[data-modal-pin]");
@@ -948,7 +948,7 @@ function initNotebookEditor(board, view, options = {}) {
     modal.setAttribute("role", "dialog");
     modal.setAttribute("aria-modal", "true");
     modal.setAttribute("aria-labelledby", "notebook-modal-title");
-    modal.innerHTML = '<div class="notebook-modal__backdrop" data-close></div><section class="notebook-modal__dialog"><header><input id="notebook-modal-title" data-modal-title class="notebook-modal__title" maxlength="220"><button type="button" class="notebook-action-icon" data-modal-pin aria-label="Pin note"><i class="bi bi-pin-angle"></i></button></header><textarea data-modal-body class="notebook-modal__body" maxlength="20000" placeholder="Take a note\u2026"></textarea><div class="notebook-editor__validation" data-notebook-validation-summary role="alert" hidden></div><div data-modal-checklist class="notebook-checklist-editor" hidden></div><div class="notebook-save-feedback"><span class="notebook-modal__save-state" data-notebook-save-state aria-live="polite"></span><button type="button" data-notebook-retry hidden>Retry</button><button type="button" data-notebook-reload-latest hidden>Reload latest</button><button type="button" data-notebook-sign-in hidden>Sign in again</button><button type="button" data-notebook-copy-unsaved hidden>Copy note text</button><button type="button" data-modal-discard hidden>Discard changes</button></div><footer><button type="button" class="btn btn-sm btn-link" data-close aria-label="Close note editor">Close</button></footer></section>';
+    modal.innerHTML = '<div class="notebook-modal__backdrop" data-close></div><section class="notebook-modal__dialog"><header><input id="notebook-modal-title" data-modal-title class="notebook-modal__title" maxlength="220"><button type="button" class="notebook-action-icon" data-modal-pin aria-label="Pin note"><i class="bi bi-pin-angle"></i></button></header><textarea data-modal-body class="notebook-modal__body" maxlength="20000" placeholder="Take a note…"></textarea><div class="notebook-editor__validation" data-notebook-validation-summary role="alert" hidden></div><div data-modal-checklist class="notebook-checklist-editor" hidden></div><div class="notebook-save-feedback"><span class="notebook-modal__save-state" data-notebook-save-state aria-live="polite"></span><button type="button" data-notebook-retry hidden>Retry</button><button type="button" data-notebook-reload-latest hidden>Reload latest</button><button type="button" data-notebook-sign-in hidden>Sign in again</button><button type="button" data-notebook-copy-unsaved hidden>Copy note text</button><button type="button" data-modal-discard hidden>Discard changes</button></div><footer><button type="button" class="btn btn-sm btn-link" data-close aria-label="Close note editor">Close</button></footer></section>';
     document.body.appendChild(modal);
     checklist = createChecklistEditor(modal.querySelector("[data-modal-checklist]"), { onChange: () => {
       dirtyState.checklist = true;

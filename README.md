@@ -61,16 +61,21 @@ See [docs/configuration-reference.md](docs/configuration-reference.md) for exhau
 2. **Restore dependencies**
    ```bash
    dotnet restore
-   npm install
+   npm ci
    ```
-3. **Prepare the database** – Update `appsettings.Development.json` or export `DefaultConnection`. The application runs migrations automatically on startup, but you can run `dotnet ef database update` (or `Update-Database`) to ensure tables such as `ProjectTotRequests` exist and the `__EFMigrationsHistory` table is current. Use PascalCase names for new migrations to avoid Roslyn warnings.
-4. **Run the site**
+   Use `npm ci` so local frontend tooling matches `package-lock.json`, including the esbuild version used for committed Notebook assets. Run `npm ci` again after changing `package.json` or `package-lock.json`.
+3. **Notebook frontend assets** – Build or run the ASP.NET application normally after restoring dependencies. The `BuildNotebookAssets` MSBuild target verifies `node_modules/esbuild` exists and rebuilds `wwwroot/dist/notebook-index.bundle.js`, its source map, and `wwwroot/dist/notebook-manifest.json` only when Notebook frontend inputs change. To manually refresh and verify committed generated files, run:
+   ```bash
+   npm run check:notebook-assets
+   ```
+4. **Prepare the database** – Update `appsettings.Development.json` or export `DefaultConnection`. The application runs migrations automatically on startup, but you can run `dotnet ef database update` (or `Update-Database`) to ensure tables such as `ProjectTotRequests` exist and the `__EFMigrationsHistory` table is current. Use PascalCase names for new migrations to avoid Roslyn warnings.
+5. **Run the site**
    ```bash
    dotnet run --project ProjectManagement.csproj
    ```
    The development seeder provisions sample HoD and Project Officer accounts for quick testing.
-5. **Lint Razor views** – `npm run lint:views` blocks inline scripts and styles.
-6. **Execute tests**
+6. **Lint Razor views** – `npm run lint:views` blocks inline scripts and styles.
+7. **Execute tests**
    ```bash
    dotnet test
    npm test
