@@ -505,15 +505,17 @@ function createChecklistEditor(root, options = {}) {
     rows.forEach(readRowElement);
     return rows.map((row, index) => ({ id: row.id, clientKey: row.clientKey, text: row.text.trim(), isDone: row.isDone, sortOrder: index })).filter((row) => row.text.length > 0);
   }
-  function reconcileRows(serverRows, submittedRows = []) {
+  function reconcileRows(serverRows, submittedRows = null) {
     isReconciling = true;
     const focusState = captureFocusState();
     const scrollTop = root.scrollTop;
     try {
       rows.forEach(readRowElement);
       const originalLocalRows = [...rows];
-      const submittedById = new Map((submittedRows || []).filter((row) => row.id !== null && row.id !== void 0).map((row) => [String(row.id), row]));
-      const submittedByClientKey = new Map((submittedRows || []).filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
+      const hasSubmittedSnapshot = Array.isArray(submittedRows);
+      const baseRows = hasSubmittedSnapshot ? submittedRows : [];
+      const submittedById = new Map(baseRows.filter((row) => row.id !== null && row.id !== void 0).map((row) => [String(row.id), row]));
+      const submittedByClientKey = new Map(baseRows.filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
       const localById = new Map(originalLocalRows.filter((row) => row.id !== null && row.id !== void 0).map((row) => [String(row.id), row]));
       const localByClientKey = new Map(originalLocalRows.filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
       const reconciled = [];
@@ -522,7 +524,7 @@ function createChecklistEditor(root, options = {}) {
       (serverRows || []).forEach((serverRow, index) => {
         const submittedRow = findMatchingRow(serverRow, submittedById, submittedByClientKey);
         let localRow = findMatchingRow(serverRow, localById, localByClientKey);
-        if (submittedRow && !localRow) return;
+        if (hasSubmittedSnapshot && submittedRow && !localRow) return;
         if (!localRow) localRow = normalizeRow(serverRow, index);
         localRow.id = serverRow.id ?? localRow.id;
         localRow.clientKey = serverRow.clientKey ?? localRow.clientKey ?? normaliseClientKey(localRow);
@@ -533,7 +535,7 @@ function createChecklistEditor(root, options = {}) {
         updateRowElement(localRow);
         appendReconciledRow(reconciled, localRow, seenRows, seenIdentities);
       });
-      if ((submittedRows || []).length > 0) originalLocalRows.forEach((localRow) => {
+      if (hasSubmittedSnapshot) originalLocalRows.forEach((localRow) => {
         if (wasAddedAfterDispatch(localRow, submittedById, submittedByClientKey)) {
           appendReconciledRow(reconciled, localRow, seenRows, seenIdentities);
         }
@@ -1025,7 +1027,7 @@ function initNotebookEditor(board, view, options = {}) {
   }
   async function applyPersistedResponse(saveResult) {
     const response = saveResult?.response ?? saveResult;
-    const submittedRows = saveResult?.submittedRows ?? [];
+    const submittedRows = Array.isArray(saveResult?.submittedRows) ? saveResult.submittedRows : [];
     const submittedRevision = saveResult?.submittedRevision ?? { ...editRevision };
     item = requireMutationItem(response);
     if (item.type === "Checklist" && Array.isArray(item.checklistRows)) checklist.reconcileRows(item.checklistRows, submittedRows);

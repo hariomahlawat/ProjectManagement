@@ -3,31 +3,6 @@ const { createHash } = require('node:crypto');
 
 const manifestPath = 'wwwroot/dist/notebook-manifest.json';
 
-// SECTION: Stable source identity for committed Notebook assets
-function existingSourceCommit() {
-  try {
-    const existing = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-
-    if (typeof existing.sourceCommit === 'string' && existing.sourceCommit.trim()) {
-      return existing.sourceCommit;
-    }
-  } catch {
-    // Existing manifest is absent or unreadable.
-  }
-
-  return null;
-}
-
-function sourceCommit() {
-  const suppliedCommit = process.env.SOURCE_COMMIT?.trim();
-
-  if (suppliedCommit) {
-    return suppliedCommit;
-  }
-
-  return existingSourceCommit();
-}
-
 function calculateSha256(filePath) {
   const bytes = fs.readFileSync(filePath);
 
@@ -67,16 +42,11 @@ function writeOrTouch(filePath, content) {
 }
 
 // SECTION: Notebook bundle build manifest for runtime diagnostics
+// Committed assets intentionally use the bundle hash only; commit metadata is logged by CI.
 const manifest = {
   entry: 'notebook-index.bundle.js',
   bundleSha256: calculateSha256('wwwroot/dist/notebook-index.bundle.js')
 };
-const commit = sourceCommit();
-
-if (commit) {
-  manifest.sourceCommit = commit;
-}
-
 fs.mkdirSync('wwwroot/dist', { recursive: true });
 const result = writeOrTouch(
   manifestPath,
