@@ -401,6 +401,10 @@ public sealed class NotebookService : INotebookService
             throw new NotebookValidationException("The selected notebook item is not a checklist.");
         }
 
+        // Validate the complete checklist request before mutating the tracked item.
+        // This prevents failed validation from changing title, body, Version or row state.
+        ValidateChecklistRows(item, checklistRows);
+
         item.Title = CleanTitle(title ?? string.Empty);
         item.BodyMarkdown = body;
         Touch(item, _clock.UtcNow);
@@ -1146,6 +1150,51 @@ public sealed class NotebookService : INotebookService
             {
                 row.ClientKey = clientKey;
             }
+        }
+    }
+
+    private static void ValidateChecklistRows(NotebookItem item, IReadOnlyList<NotebookChecklistEditRow> rows)
+    {
+        var requestedRows = rows
+            .Where(row => !string.IsNullOrWhiteSpace(row.Text))
+            .OrderBy(row => row.SortOrder)
+            .ToList();
+
+        var submittedIds = requestedRows
+            .Where(row => row.Id.HasValue)
+            .Select(row => row.Id!.Value)
+            .ToArray();
+
+        if (submittedIds.Length != submittedIds.Distinct().Count())
+        {
+            throw new NotebookValidationException("The checklist contains duplicate row identifiers.");
+        }
+
+        var duplicateClientKeys = requestedRows
+            .Where(row => !string.IsNullOrWhiteSpace(row.ClientKey))
+            .GroupBy(row => row.ClientKey!, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToArray();
+
+        if (duplicateClientKeys.Length > 0)
+        {
+            throw new NotebookValidationException("The checklist contains duplicate client row identifiers.");
+        }
+
+        var existingIds = item.ChecklistItems
+            .Where(row => row.Id != 0)
+            .Select(row => row.Id)
+            .ToHashSet();
+
+        if (submittedIds.Any(id => !existingIds.Contains(id)))
+        {
+            throw new NotebookValidationException("Checklist row ids must belong to the notebook item.");
+        }
+
+        foreach (var requested in requestedRows)
+        {
+            ValidateChecklistText(requested.Text.Trim());
         }
     }
 

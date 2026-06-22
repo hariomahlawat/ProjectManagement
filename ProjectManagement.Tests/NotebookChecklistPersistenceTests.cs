@@ -113,7 +113,7 @@ public sealed class NotebookChecklistPersistenceTests
     }
 
     [Fact]
-    public async Task Checklist_update_rejects_foreign_row_id_and_duplicate_client_keys()
+    public async Task Checklist_update_rejects_foreign_row_id()
     {
         var fixture = await CreateFixtureAsync(withRows: true);
         await using var db = fixture.Db;
@@ -141,22 +141,80 @@ public sealed class NotebookChecklistPersistenceTests
             service.UpdateChecklistAsync(
                 fixture.OwnerId,
                 fixture.ItemId,
-                "Checklist",
-                null,
+                "Changed title",
+                "Changed body",
                 [new NotebookChecklistEditRow { Id = foreignRowId, Text = "Foreign", SortOrder = 0 }],
                 fixture.Version));
+    }
+
+    [Fact]
+    public async Task Checklist_update_rejects_duplicate_client_keys()
+    {
+        var fixture = await CreateFixtureAsync(withRows: true);
+        await using var db = fixture.Db;
+        var service = CreateService(db, fixture.Clock);
 
         await Assert.ThrowsAsync<NotebookValidationException>(() =>
             service.UpdateChecklistAsync(
                 fixture.OwnerId,
                 fixture.ItemId,
-                "Checklist",
-                null,
+                "Changed title",
+                "Changed body",
                 [
                     new NotebookChecklistEditRow { ClientKey = "duplicate", Text = "One", SortOrder = 0 },
                     new NotebookChecklistEditRow { ClientKey = "duplicate", Text = "Two", SortOrder = 1 }
                 ],
                 fixture.Version));
+    }
+
+    [Fact]
+    public async Task Invalid_checklist_request_does_not_mutate_tracked_item()
+    {
+        var fixture = await CreateFixtureAsync(withRows: true);
+        await using var db = fixture.Db;
+        var service = CreateService(db, fixture.Clock);
+
+        var before = await db.NotebookItems
+            .Include(x => x.ChecklistItems)
+            .SingleAsync(x => x.Id == fixture.ItemId);
+        var originalTitle = before.Title;
+        var originalBody = before.BodyMarkdown;
+        var originalVersion = before.Version;
+        var originalUpdatedAt = before.UpdatedAtUtc;
+        var originalRows = before.ChecklistItems
+            .OrderBy(x => x.Id)
+            .Select(x => new { x.Id, x.Text, x.IsDone, x.SortOrder, x.CompletedAtUtc })
+            .ToArray();
+
+        await Assert.ThrowsAsync<NotebookValidationException>(() =>
+            service.UpdateChecklistAsync(
+                fixture.OwnerId,
+                fixture.ItemId,
+                "Changed title",
+                "Changed body",
+                [
+                    new NotebookChecklistEditRow { ClientKey = "duplicate", Text = "One", SortOrder = 0 },
+                    new NotebookChecklistEditRow { ClientKey = "duplicate", Text = "Two", SortOrder = 1 }
+                ],
+                fixture.Version));
+
+        var tracked = await db.NotebookItems
+            .Include(x => x.ChecklistItems)
+            .SingleAsync(x => x.Id == fixture.ItemId);
+
+        Assert.Equal(originalTitle, tracked.Title);
+        Assert.Equal(originalBody, tracked.BodyMarkdown);
+        Assert.Equal(originalVersion, tracked.Version);
+        Assert.Equal(originalUpdatedAt, tracked.UpdatedAtUtc);
+        Assert.Equal(EntityState.Unchanged, db.Entry(tracked).State);
+
+        var currentRows = tracked.ChecklistItems
+            .OrderBy(x => x.Id)
+            .Select(x => new { x.Id, x.Text, x.IsDone, x.SortOrder, x.CompletedAtUtc })
+            .ToArray();
+        Assert.Equal(originalRows, currentRows);
+        Assert.All(tracked.ChecklistItems, row =>
+            Assert.Equal(EntityState.Unchanged, db.Entry(row).State));
     }
 
     [Fact]

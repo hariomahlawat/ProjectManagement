@@ -48,7 +48,7 @@ public sealed class NotebookConcurrencyTests
         var root = document.RootElement;
 
         Assert.Equal("notebook_concurrency_conflict", root.GetProperty("code").GetString());
-        Assert.Equal(currentVersion.ToString("N"), root.GetProperty("currentVersion").GetString());
+        Assert.Equal(currentVersion.ToString("D"), root.GetProperty("currentVersion").GetString());
 
         var responseItem = root.GetProperty("currentItem");
         Assert.Equal(itemId, responseItem.GetProperty("id").GetGuid());
