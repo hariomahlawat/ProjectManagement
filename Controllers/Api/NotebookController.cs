@@ -159,6 +159,25 @@ public sealed class NotebookController : Controller
     }
 
     [Consumes("application/json")]
+    [HttpPost("{id:guid}/colour")]
+    public async Task<IActionResult> SetColour(Guid id, [FromBody] SetNotebookColourRequest request, CancellationToken ct)
+    {
+        if (request.Version == Guid.Empty)
+        {
+            return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
+        }
+
+        var normalisedColour = NormaliseColourKey(request.ColorKey);
+        if (request.ColorKey is not null && normalisedColour is null)
+        {
+            return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "colorKey", "Unsupported colour."));
+        }
+
+        var updated = await _notebook.SetColourAsync(CurrentUserId(), id, normalisedColour, request.Version, ct);
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
+    }
+
+    [Consumes("application/json")]
     [HttpPost("{id:guid}/archive")]
     public async Task<IActionResult> Archive(Guid id, [FromBody] ArchiveNotebookItemRequest request, CancellationToken ct)
     {
@@ -465,6 +484,15 @@ public sealed class NotebookController : Controller
         IsDueToday = item.IsDueToday,
         Version = item.Version
     };
+
+    private static string? NormaliseColourKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var normalised = value.Trim().ToLowerInvariant();
+        return normalised is "white" or "blue" or "amber" or "green" or "rose" or "slate"
+            ? normalised
+            : null;
+    }
 
     private static object ApiError(string code, string message, string field, string error) => new { code, message, errors = new Dictionary<string, string[]> { [field] = new[] { error } } };
 

@@ -83,27 +83,7 @@
                             <option value="Critical">Critical</option>
                         </select>
                     </label>
-                    <fieldset class="notebook-create-colour-field">
-                        <legend>Colour</legend>
-                        <select data-create-color class="visually-hidden" aria-label="Colour">
-                            <option value="">Default</option>
-                            <option value="white">White</option>
-                            <option value="blue">Blue</option>
-                            <option value="amber">Amber</option>
-                            <option value="green">Green</option>
-                            <option value="rose">Rose</option>
-                            <option value="slate">Slate</option>
-                        </select>
-                        <div class="notebook-colour-swatches" data-create-colour-swatches>
-                            <button type="button" class="notebook-colour-swatch is-selected" data-colour-value="" aria-label="Default colour" title="Default"></button>
-                            <button type="button" class="notebook-colour-swatch notebook-colour-swatch--white" data-colour-value="white" aria-label="White" title="White"></button>
-                            <button type="button" class="notebook-colour-swatch notebook-colour-swatch--blue" data-colour-value="blue" aria-label="Blue" title="Blue"></button>
-                            <button type="button" class="notebook-colour-swatch notebook-colour-swatch--amber" data-colour-value="amber" aria-label="Amber" title="Amber"></button>
-                            <button type="button" class="notebook-colour-swatch notebook-colour-swatch--green" data-colour-value="green" aria-label="Green" title="Green"></button>
-                            <button type="button" class="notebook-colour-swatch notebook-colour-swatch--rose" data-colour-value="rose" aria-label="Rose" title="Rose"></button>
-                            <button type="button" class="notebook-colour-swatch notebook-colour-swatch--slate" data-colour-value="slate" aria-label="Slate" title="Slate"></button>
-                        </div>
-                    </fieldset>
+
                 </div>
                 <label class="notebook-create-details__labels">
                     <span>Labels</span>
@@ -119,6 +99,10 @@
                  role="alert"
                  aria-live="polite"
                  hidden></div>
+
+            <div class="notebook-editor-toolbar" data-notebook-editor-toolbar>
+                <partial name="_NotebookColourPicker" model="string.Empty" />
+            </div>
 
             <div class="notebook-save-feedback">
                 <span class="notebook-modal__save-state"

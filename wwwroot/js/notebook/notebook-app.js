@@ -5,6 +5,7 @@ import { initNotebookComposer } from './notebook-composer.js';
 import { initNotebookEditor } from './notebook-editor.js';
 import { initNotebookCreateEditor } from './notebook-create-editor.js';
 import { reconcileMutation, requireMutationItem, updateCardConcurrencyState } from './notebook-reconcile.js';
+import { closeNotebookColourPickers, normaliseNotebookColour } from './notebook-colour-picker.js';
 
 // SECTION: Notebook app bootstrap and delegated interactions
 export function initNotebookApp() {
@@ -28,6 +29,66 @@ export function initNotebookApp() {
   applyBoardView(localStorage.getItem(storageKey) || shell.dataset.boardView || 'grid');
 
   document.addEventListener('click', async (event) => {
+    const cardColourToggle = event.target.closest('.notebook-card [data-colour-picker-toggle]');
+    if (cardColourToggle) {
+      event.preventDefault();
+      event.stopPropagation();
+      const picker = cardColourToggle.closest('[data-notebook-colour-picker]');
+      const popover = picker?.querySelector('[data-colour-picker-popover]');
+      if (!picker || !popover) return;
+      const shouldOpen = popover.hidden;
+      closeNotebookColourPickers(document, shouldOpen ? picker : null);
+      popover.hidden = !shouldOpen;
+      cardColourToggle.setAttribute('aria-expanded', String(shouldOpen));
+      if (shouldOpen) popover.querySelector('.is-selected,[data-colour-choice]')?.focus?.();
+      return;
+    }
+
+    const cardColourChoice = event.target.closest('.notebook-card [data-colour-choice]');
+    if (cardColourChoice) {
+      event.preventDefault();
+      event.stopPropagation();
+      const card = cardColourChoice.closest('[data-note-id]');
+      if (!card) return;
+      const picker = cardColourChoice.closest('[data-notebook-colour-picker]');
+      const colorKey = normaliseNotebookColour(cardColourChoice.dataset.colourChoice);
+      cardColourChoice.disabled = true;
+      try {
+        const response = await NotebookApi.setColour(card.dataset.noteId, colorKey, card.dataset.version);
+        const updated = requireMutationItem(response);
+        updateCardConcurrencyState(card, updated);
+        await reconcileMutation({
+          response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts,
+          preservePosition: true, showGlobalError, existingCard: card,
+          reconcileFailureMessage: 'The note colour was changed, but the board could not refresh. Reload the page.'
+        });
+        editor.syncExternalUpdate?.(updated);
+      } catch (error) {
+        if (error?.status === 409 && window.confirm('This note changed elsewhere. Apply the selected colour to the latest saved version?')) {
+          try {
+            const latest = error.currentItem ?? await NotebookApi.getItem(card.dataset.noteId);
+            const retryResponse = await NotebookApi.setColour(card.dataset.noteId, colorKey, latest.version);
+            const updated = requireMutationItem(retryResponse);
+            await reconcileMutation({
+              response: retryResponse, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts,
+              preservePosition: true, showGlobalError, existingCard: card
+            });
+            editor.syncExternalUpdate?.(updated);
+          } catch (retryError) {
+            showGlobalError(retryError.message || 'Unable to change the note colour.');
+          }
+        } else {
+          showGlobalError(error.message || 'Unable to change the note colour.');
+        }
+      } finally {
+        cardColourChoice.disabled = false;
+        closeNotebookColourPickers(document);
+      }
+      return;
+    }
+
+    if (!event.target.closest('[data-notebook-colour-picker]')) closeNotebookColourPickers(document);
+
     const createTrigger = event.target.closest('[data-notebook-create-type]');
     if (createTrigger) {
       event.preventDefault();

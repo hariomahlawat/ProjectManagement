@@ -3,6 +3,7 @@ import { createAutosave } from './notebook-autosave.js';
 import { createChecklistEditor } from './notebook-checklist-editor.js';
 import { reconcileMutation, requireMutationItem } from './notebook-reconcile.js';
 import { getFirstValidationMessage, getValidationMessages } from './notebook-errors.js';
+import { initNotebookColourPicker, applyNotebookSurfaceColour } from './notebook-colour-picker.js';
 
 export const ConflictType = Object.freeze({
   StaleDraft: 'stale-draft',
@@ -100,6 +101,7 @@ export function initNotebookEditor(board, view, options = {}) {
   let item;
   let autosave;
   let checklist;
+  let colourPicker;
   let trigger;
   let openedByPushState = false;
   let currentSaveError = null;
@@ -116,7 +118,8 @@ export function initNotebookEditor(board, view, options = {}) {
     localDraft: null,
     message: null,
     resolving: false,
-    error: null
+    error: null,
+    pendingColour: null
   };
 
   const shell = options.shell || document.querySelector('.notebook-shell');
@@ -180,6 +183,7 @@ export function initNotebookEditor(board, view, options = {}) {
     conflictState.message = null;
     conflictState.resolving = false;
     conflictState.error = null;
+    conflictState.pendingColour = null;
     renderConflictState();
   }
 
@@ -187,12 +191,13 @@ export function initNotebookEditor(board, view, options = {}) {
     return conflictState.active;
   }
 
-  function activateConflict({ type, pendingServerItem = null, localDraft = null, message }) {
+  function activateConflict({ type, pendingServerItem = null, localDraft = null, pendingColour = undefined, message }) {
     conflictGeneration += 1;
     conflictState.active = true;
     conflictState.type = type;
     if (pendingServerItem) conflictState.pendingServerItem = pendingServerItem;
     conflictState.localDraft = localDraft ?? conflictState.localDraft;
+    if (pendingColour !== undefined) conflictState.pendingColour = pendingColour;
     conflictState.message = message || 'This note changed elsewhere.';
     conflictState.resolving = false;
     conflictState.error = null;
@@ -281,6 +286,8 @@ export function initNotebookEditor(board, view, options = {}) {
 
   function applyAuthoritativeItem(updated) {
     item = updated;
+    colourPicker?.setValue(updated.colorKey || '');
+    applyNotebookSurfaceColour(modal.querySelector('.notebook-modal__dialog'), updated.colorKey || '');
     modal.querySelector('[data-modal-title]').value = updated.title || '';
     modal.querySelector('[data-modal-body]').value = updated.body || '';
     modal.querySelector('[data-modal-checklist]').hidden = updated.type !== 'Checklist';
@@ -315,6 +322,14 @@ export function initNotebookEditor(board, view, options = {}) {
         scheduleAutosave();
       }
     });
+
+    colourPicker = initNotebookColourPicker(
+      requireEditorElement(modal, '[data-notebook-colour-picker]'),
+      {
+        value: '',
+        onSelect: changeColour
+      }
+    );
 
     modal.addEventListener('click', (event) => {
       if (event.target.closest('[data-close]')) requestClose();
@@ -677,12 +692,28 @@ export function initNotebookEditor(board, view, options = {}) {
       currentSaveError = null;
       clearValidationBlock();
 
+      const pendingColour = conflictState.pendingColour;
       const result = await saveEditorPayload(buildCurrentPayload(), {
         sequence: ++directSaveSequence,
         conflictGenerationAtDispatch: resolutionGeneration,
-        deliberateConflictResolution: true
+        deliberateConflictResolution: pendingColour === null
       });
       await applyPersistedResponse(result);
+
+      if (pendingColour !== null && pendingColour !== undefined) {
+        const colourResponse = await NotebookApi.setColour(item.id, pendingColour, item.version);
+        item = requireMutationItem(colourResponse, 'The colour response did not contain the updated note.');
+        draftSourceVersion = item.version;
+        colourPicker?.setValue(item.colorKey || '');
+        applyNotebookSurfaceColour(modal.querySelector('.notebook-modal__dialog'), item.colorKey || '');
+        await reconcileMutation({
+          response: colourResponse, board, view, getCardHtml: NotebookApi.getCardHtml,
+          applyCounts: options.applyCounts, preservePosition: true,
+          showGlobalError: options.showGlobalError
+        });
+        clearConflictState();
+        setSaveStatus('Saved', SaveState.Saved);
+      }
     } catch (error) {
       handleEditorError(error);
     } finally {
@@ -715,6 +746,52 @@ export function initNotebookEditor(board, view, options = {}) {
       }
     } finally {
       button.disabled = false;
+    }
+  }
+
+  async function changeColour(colorKey, previousColorKey) {
+    if (!item || isConflictBlocked()) {
+      colourPicker?.setValue(previousColorKey || '');
+      return;
+    }
+
+    colourPicker?.setBusy(true);
+    applyNotebookSurfaceColour(modal.querySelector('.notebook-modal__dialog'), colorKey);
+    try {
+      await autosave?.flush();
+      const response = await NotebookApi.setColour(item.id, colorKey, item.version);
+      item = requireMutationItem(response, 'The colour response did not contain the updated note.');
+      draftSourceVersion = item.version;
+      colourPicker?.setValue(item.colorKey || '');
+      applyNotebookSurfaceColour(modal.querySelector('.notebook-modal__dialog'), item.colorKey || '');
+      await reconcileMutation({
+        response,
+        board,
+        view,
+        getCardHtml: NotebookApi.getCardHtml,
+        applyCounts: options.applyCounts,
+        preservePosition: true,
+        showGlobalError: options.showGlobalError,
+        reconcileFailureMessage: 'The note colour was changed, but the board could not refresh. Reload the page.'
+      });
+      setSaveStatus('Saved', SaveState.Saved);
+    } catch (error) {
+      if (error?.status === 409) {
+        const pendingServerItem = error?.currentItem
+          ?? (error?.currentVersion ? { ...(item || {}), version: error.currentVersion } : null);
+        activateConflict({
+          type: ConflictType.VersionConflict,
+          pendingServerItem,
+          pendingColour: colorKey,
+          message: 'This note changed elsewhere. Resolve the conflict before applying the colour.'
+        });
+      } else {
+        colourPicker?.setValue(previousColorKey || '');
+        applyNotebookSurfaceColour(modal.querySelector('.notebook-modal__dialog'), previousColorKey || '');
+        handleEditorError(error);
+      }
+    } finally {
+      colourPicker?.setBusy(false);
     }
   }
 

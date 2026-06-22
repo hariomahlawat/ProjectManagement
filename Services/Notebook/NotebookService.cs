@@ -479,6 +479,26 @@ public sealed class NotebookService : INotebookService
         return MapDetail(item);
     }
 
+    public async Task<NotebookItemDetailVm> SetColourAsync(string ownerId, Guid id, string? colorKey, Guid expectedVersion, CancellationToken ct = default)
+    {
+        // SECTION: Dedicated colour mutation preserves all non-colour notebook metadata.
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
+        item.ColorKey = CleanColor(colorKey, item.Type);
+        Touch(item, _clock.UtcNow);
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw await CreateConcurrencyExceptionAsync(ownerId, id, expectedVersion, ex, ct);
+        }
+
+        await TryWriteAuditAsync("Notebook.SetColour", ownerId, item.Id, ct);
+        return MapDetail(item);
+    }
+
     public async Task<NotebookItemDetailVm> CompleteAsync(string ownerId, Guid id, bool isComplete, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
@@ -828,7 +848,9 @@ public sealed class NotebookService : INotebookService
     private static string CleanColor(string? color, NotebookItemType type)
     {
         var allowedColors = new[] { "white", "blue", "amber", "green", "rose", "slate" };
-        return allowedColors.Contains(color) ? color! : type == NotebookItemType.Sticky ? "blue" : "white";
+        return allowedColors.Contains(color, StringComparer.OrdinalIgnoreCase)
+            ? color!.Trim().ToLowerInvariant()
+            : "white";
     }
 
     private static string NormalizeView(string? view)

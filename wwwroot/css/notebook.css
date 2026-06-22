@@ -1913,3 +1913,148 @@
     margin-inline: 14px;
   }
 }
+
+/* SECTION: Shared Keep-style colour picker */
+.notebook-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 2px;
+}
+
+.notebook-colour-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.notebook-colour-picker.is-busy {
+  opacity: .68;
+  pointer-events: none;
+}
+
+.notebook-colour-picker__toggle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+}
+
+.notebook-colour-picker__popover {
+  position: absolute;
+  z-index: 1200;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: min(360px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: repeat(7, minmax(38px, auto));
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(100, 116, 139, .22);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 36px rgba(15, 23, 42, .2);
+}
+
+.notebook-colour-picker__popover[hidden] {
+  display: none !important;
+}
+
+.notebook-card .notebook-colour-picker__popover {
+  left: auto;
+  right: 0;
+  bottom: calc(100% + 8px);
+}
+
+.notebook-colour-choice {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-width: 38px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #475569;
+  font-size: 10px;
+  line-height: 1.1;
+  cursor: pointer;
+}
+
+.notebook-colour-choice__swatch {
+  position: relative;
+  display: block;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(71, 85, 105, .3);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .6);
+}
+
+.notebook-colour-choice--default .notebook-colour-choice__swatch {
+  background:
+    linear-gradient(135deg, #fff 0 46%, #cbd5e1 47% 53%, #fff 54% 100%);
+}
+.notebook-colour-choice--white .notebook-colour-choice__swatch { background: #fff; }
+.notebook-colour-choice--blue .notebook-colour-choice__swatch { background: #dbeafe; }
+.notebook-colour-choice--amber .notebook-colour-choice__swatch { background: #fef3c7; }
+.notebook-colour-choice--green .notebook-colour-choice__swatch { background: #dcfce7; }
+.notebook-colour-choice--rose .notebook-colour-choice__swatch { background: #ffe4e6; }
+.notebook-colour-choice--slate .notebook-colour-choice__swatch { background: #e2e8f0; }
+
+.notebook-colour-choice:hover .notebook-colour-choice__swatch,
+.notebook-colour-choice:focus-visible .notebook-colour-choice__swatch {
+  transform: scale(1.08);
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.notebook-colour-choice.is-selected .notebook-colour-choice__swatch::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 800;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .85);
+}
+
+.notebook-colour-choice__name {
+  max-width: 48px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notebook-modal__dialog {
+  transition: background-color .16s ease;
+}
+
+.notebook-surface-colour-white { background: #fff !important; }
+.notebook-surface-colour-blue { background: #eff6ff !important; }
+.notebook-surface-colour-amber { background: #fffbeb !important; }
+.notebook-surface-colour-green { background: #f0fdf4 !important; }
+.notebook-surface-colour-rose { background: #fff1f2 !important; }
+.notebook-surface-colour-slate { background: #f1f5f9 !important; }
+
+.notebook-actions > .notebook-colour-picker {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 700px) {
+  .notebook-colour-picker__popover,
+  .notebook-card .notebook-colour-picker__popover {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: 76px;
+    width: auto;
+    grid-template-columns: repeat(4, minmax(52px, 1fr));
+  }
+}

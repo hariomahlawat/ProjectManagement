@@ -1,0 +1,48 @@
+@model string
+@{
+    var selected = string.IsNullOrWhiteSpace(Model) ? string.Empty : Model.Trim().ToLowerInvariant();
+    var colours = new[]
+    {
+        (Key: "", Name: "Default"),
+        (Key: "white", Name: "White"),
+        (Key: "blue", Name: "Blue"),
+        (Key: "amber", Name: "Amber"),
+        (Key: "green", Name: "Green"),
+        (Key: "rose", Name: "Rose"),
+        (Key: "slate", Name: "Slate")
+    };
+}
+<div class="notebook-colour-picker"
+     data-notebook-colour-picker
+     data-colour-value="@selected">
+    <button type="button"
+            class="notebook-action-icon notebook-colour-picker__toggle"
+            data-colour-picker-toggle
+            aria-label="Change colour"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            title="Change colour">
+        <i class="bi bi-palette" aria-hidden="true"></i>
+    </button>
+    <div class="notebook-colour-picker__popover"
+         data-colour-picker-popover
+         role="menu"
+         aria-label="Note colour"
+         hidden>
+        @foreach (var colour in colours)
+        {
+            var isSelected = string.Equals(selected, colour.Key, StringComparison.OrdinalIgnoreCase);
+            var cssKey = string.IsNullOrWhiteSpace(colour.Key) ? "default" : colour.Key;
+            <button type="button"
+                    class="notebook-colour-choice notebook-colour-choice--@cssKey @(isSelected ? "is-selected" : string.Empty)"
+                    data-colour-choice="@colour.Key"
+                    role="menuitemradio"
+                    aria-label="@colour.Name"
+                    aria-checked="@isSelected.ToString().ToLowerInvariant()"
+                    title="@colour.Name">
+                <span class="notebook-colour-choice__swatch" aria-hidden="true"></span>
+                <span class="notebook-colour-choice__name">@colour.Name</span>
+            </button>
+        }
+    </div>
+</div>

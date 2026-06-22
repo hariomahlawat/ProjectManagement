@@ -11,6 +11,8 @@
         <button type="button" data-action="complete-note" class="notebook-action-done">Done</button>
     }
 
+    <partial name="~/Pages/Notebook/_NotebookColourPicker.cshtml" model="Model.Item.ColorKey ?? string.Empty" />
+
     <details class="notebook-card-more">
         <summary class="notebook-action-button" aria-label="More actions"><i class="bi bi-three-dots"></i></summary>
         <div class="notebook-card-more__menu" role="menu">

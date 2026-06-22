@@ -4,7 +4,7 @@
 @{
     var item = Model.Item;
     var isSelected = Model.SelectedId == item.Id;
-    var fallbackColor = item.Status == NotebookItemStatus.Completed ? "white" : string.IsNullOrWhiteSpace(item.ColorKey) && item.Type == NotebookItemType.Reminder ? "amber" : "white";
+    var fallbackColor = "white";
     var colorClass = $"notebook-card-color-{(string.IsNullOrWhiteSpace(item.ColorKey) ? fallbackColor : item.ColorKey)}";
     var tags = item.Tags.Take(3).ToArray();
     var extraTags = Math.Max(0, item.Tags.Count - tags.Length);

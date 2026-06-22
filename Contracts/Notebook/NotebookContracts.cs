@@ -76,6 +76,12 @@ public sealed class SetNotebookPinRequest : NotebookVersionedRequest
     public bool IsPinned { get; set; }
 }
 
+public sealed class SetNotebookColourRequest : NotebookVersionedRequest
+{
+    [StringLength(32)]
+    public string? ColorKey { get; set; }
+}
+
 public sealed class ConvertNotebookItemRequest : NotebookVersionedRequest
 {
 }

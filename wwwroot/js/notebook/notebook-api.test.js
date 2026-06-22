@@ -88,6 +88,7 @@ test('all Notebook JSON mutations declare application/json content type', async 
   await NotebookApi.updateContent('note-1', { title: 'Updated', body: 'Body', version: 'version-1' });
   await NotebookApi.updateChecklist('note-1', { title: 'Updated', body: 'Body', version: 'version-1', checklistRows: [{ id: 7, text: 'Task', isDone: false, sortOrder: 0 }] });
   await NotebookApi.setPinned('note-1', true, 'version-1');
+  await NotebookApi.setColour('note-1', 'amber', 'version-1');
   await NotebookApi.archiveItem('note-1', 'version-1');
   await NotebookApi.completeItem('note-1', 'version-1');
   await NotebookApi.reopenItem('note-1', 'version-1');
@@ -102,6 +103,22 @@ test('all Notebook JSON mutations declare application/json content type', async 
   for (const call of calls) {
     assert.equal(new Headers(call.options.headers).get('Content-Type'), 'application/json; charset=utf-8', call.url);
   }
+});
+
+
+test('setColour sends a dedicated colour mutation payload', async () => {
+  const { NotebookApi } = await loadApiModule();
+  let captured;
+  global.fetch = async (url, options) => {
+    captured = { url, options };
+    return jsonResponse(200, mutationResponse());
+  };
+
+  await NotebookApi.setColour('note-1', 'green', 'version-1');
+
+  assert.equal(captured.url, '/api/notebook/items/note-1/colour');
+  assert.equal(captured.options.method, 'POST');
+  assert.deepEqual(JSON.parse(captured.options.body), { colorKey: 'green', version: 'version-1' });
 });
 
 test('request honors case-insensitive caller content-type and does not duplicate it', async () => {

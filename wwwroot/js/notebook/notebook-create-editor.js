@@ -2,6 +2,7 @@ import { NotebookApi, NotebookApiError } from './notebook-api.js';
 import { createChecklistEditor } from './notebook-checklist-editor.js';
 import { reconcileMutation } from './notebook-reconcile.js';
 import { cloneNotebookEditorTemplate, requireEditorElement, EditorSelectors } from './notebook-editor.js';
+import { initNotebookColourPicker, applyNotebookSurfaceColour } from './notebook-colour-picker.js';
 
 const ALLOWED_TYPES = new Set(['Note', 'Checklist', 'Reminder', 'Idea', 'Draft', 'Sticky']);
 
@@ -81,6 +82,7 @@ export function initNotebookCreateEditor(board, view, options = {}) {
   let isSubmitting = false;
   let isPinned = false;
   let clientRequestId = crypto.randomUUID();
+  let colourPicker = null;
 
   function clearCreateQuery() {
     const url = new URL(location.href);
@@ -101,8 +103,7 @@ export function initNotebookCreateEditor(board, view, options = {}) {
       reminderField: requireEditorElement(modal, '[data-create-reminder-field]'),
       reminder: requireEditorElement(modal, '[data-create-reminder]'),
       priority: requireEditorElement(modal, '[data-create-priority]'),
-      color: requireEditorElement(modal, '[data-create-color]'),
-      swatches: requireEditorElement(modal, '[data-create-colour-swatches]'),
+      colourPickerRoot: requireEditorElement(modal, '[data-notebook-colour-picker]'),
       labels: requireEditorElement(modal, '[data-create-labels]'),
       feedback: requireEditorElement(modal, '[data-notebook-create-feedback]'),
       submit: requireEditorElement(modal, '[data-notebook-create-submit]')
@@ -124,15 +125,6 @@ export function initNotebookCreateEditor(board, view, options = {}) {
     elements.detailsToggle.classList.toggle('is-expanded', open);
   }
 
-  function selectColour(value = '') {
-    const elements = getElements();
-    elements.color.value = value;
-    elements.swatches.querySelectorAll('[data-colour-value]').forEach((swatch) => {
-      const selected = swatch.dataset.colourValue === value;
-      swatch.classList.toggle('is-selected', selected);
-      swatch.setAttribute('aria-pressed', String(selected));
-    });
-  }
 
   function applyType(type, { preserveDetails = false } = {}) {
     const elements = getElements();
@@ -161,7 +153,8 @@ export function initNotebookCreateEditor(board, view, options = {}) {
     clientRequestId = crypto.randomUUID();
     elements.pin.classList.remove('is-active');
     elements.pin.setAttribute('aria-label', 'Pin item');
-    selectColour('');
+    colourPicker?.setValue('');
+    applyNotebookSurfaceColour(modal.querySelector('.notebook-modal__dialog'), '');
     setFeedback('');
     applyType(type);
   }
@@ -184,7 +177,7 @@ export function initNotebookCreateEditor(board, view, options = {}) {
       body: elements.body.value,
       reminderLocal: elements.reminder.value,
       priority: elements.priority.value,
-      colorKey: elements.color.value,
+      colorKey: colourPicker?.getValue() || null,
       labels: elements.labels.value,
       isPinned,
       checklistRows: checklist.getRows(),
@@ -239,6 +232,12 @@ export function initNotebookCreateEditor(board, view, options = {}) {
     document.body.appendChild(modal);
     const elements = getElements();
     checklist = createChecklistEditor(elements.checklistRoot);
+    colourPicker = initNotebookColourPicker(elements.colourPickerRoot, {
+      value: '',
+      onSelect: (value) => {
+        applyNotebookSurfaceColour(modal.querySelector('.notebook-modal__dialog'), value);
+      }
+    });
 
     elements.detailsToggle.hidden = false;
     elements.submit.hidden = false;
@@ -247,10 +246,6 @@ export function initNotebookCreateEditor(board, view, options = {}) {
 
     elements.type.addEventListener('change', () => applyType(elements.type.value));
     elements.detailsToggle.addEventListener('click', () => setDetailsExpanded(elements.detailsToggle.getAttribute('aria-expanded') !== 'true'));
-    elements.swatches.addEventListener('click', (event) => {
-      const swatch = event.target.closest('[data-colour-value]');
-      if (swatch) selectColour(swatch.dataset.colourValue || '');
-    });
     elements.pin.addEventListener('click', () => {
       if (isSubmitting) return;
       isPinned = !isPinned;
