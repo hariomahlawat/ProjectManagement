@@ -1,4 +1,4 @@
-@model ProjectManagement.ViewModels.Notebook.NotebookCardRenderVm
+﻿@model ProjectManagement.ViewModels.Notebook.NotebookCardRenderVm
 @using ProjectManagement.Models
 @using ProjectManagement.ViewModels.Notebook
 @{
@@ -16,10 +16,13 @@
         <a href="@Model.OpenUrl" class="notebook-card-link notebook-card__open-area" data-action="open-note" aria-label="Open @item.Title">
             <div class="notebook-card-topline">
                 <span class="notebook-card-indicators">
-                    @if (item.IsPinned) { <i class="bi bi-pin-angle-fill" title="Pinned"></i> }
                     @if (item.IsFavorite) { <i class="bi bi-star-fill" title="Favourite"></i> }
                     @if (item.ReminderAtUtc is not null) { <i class="bi bi-bell" title="Reminder"></i> }
                 </span>
+                @if (item.IsPinned)
+                {
+                    <span class="notebook-card-pin-indicator" title="Pinned" aria-label="Pinned"><i class="bi bi-pin-angle-fill"></i></span>
+                }
             </div>
             <h3 class="notebook-card-title">@item.Title</h3>
             @if (!string.IsNullOrWhiteSpace(item.Preview))
