@@ -221,7 +221,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("DocRepo.DeleteApprove", policy =>
         policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
     options.AddPolicy("DocRepo.EditMetadata", policy =>
-        policy.RequireRole("Admin", "TA", "ITO", "MCO","HoD"));
+        policy.RequireRole("Admin", "TA", "ITO", "MCO", "HoD"));
     options.AddPolicy("DocRepo.Purge", policy =>
         policy.RequireRole(RoleNames.Admin));
 
@@ -729,6 +729,21 @@ var developmentLoopbackOrigins = builder.Environment.IsDevelopment()
 
 var app = builder.Build();
 
+// SECTION: Database startup policy
+// Migrations and initial data seeding are intentionally controlled independently.
+// - Development always applies pending migrations.
+// - Other environments apply migrations only when Database:ApplyMigrationsOnStartup is true.
+// - Seeders run only when Database:RunSeedersOnStartup is true.
+var applyMigrationsOnStartup = app.Environment.IsDevelopment()
+    || app.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup");
+var runSeedersOnStartup = app.Configuration.GetValue<bool>("Database:RunSeedersOnStartup");
+
+app.Logger.LogInformation(
+    "Database startup policy: Environment={Environment}; ApplyMigrationsOnStartup={ApplyMigrations}; RunSeedersOnStartup={RunSeeders}",
+    app.Environment.EnvironmentName,
+    applyMigrationsOnStartup,
+    runSeedersOnStartup);
+
 // Ensure the database schema is up to date before handling requests
 string? latestAppliedMigration = null;
 List<string> pendingMigrations = new();
@@ -755,12 +770,32 @@ using (var scope = app.Services.CreateScope())
             var message = $"Database has {pendingMigrations.Count} pending migration(s): {string.Join(", ", pendingMigrations)}";
             app.Logger.LogCritical(message);
 
-            if (!app.Environment.IsDevelopment())
+            if (!applyMigrationsOnStartup)
             {
-                throw new InvalidOperationException(message);
+                throw new InvalidOperationException(
+                    message +
+                    ". Automatic migration is disabled. Set Database:ApplyMigrationsOnStartup=true " +
+                    "or apply the migrations manually before starting the application.");
             }
 
-            await db.Database.MigrateAsync();
+            app.Logger.LogWarning(
+                "Applying {Count} pending database migration(s) automatically: {Migrations}",
+                pendingMigrations.Count,
+                string.Join(", ", pendingMigrations));
+
+            try
+            {
+                await db.Database.MigrateAsync();
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogCritical(
+                    ex,
+                    "Automatic database migration failed. Application startup is being aborted.");
+                throw;
+            }
+
+            app.Logger.LogInformation("Automatic database migration completed successfully.");
             pendingMigrations = (await db.Database.GetPendingMigrationsAsync()).ToList();
         }
 
@@ -779,8 +814,16 @@ using (var scope = app.Services.CreateScope())
         await ProjectDocumentSearchVectorMaintenance.EnsureUpToDateAsync(db);
     }
 
-    var isoSeeder = scope.ServiceProvider.GetRequiredService<IsoCountrySeeder>();
-    await isoSeeder.RunAsync();
+    if (runSeedersOnStartup)
+    {
+        app.Logger.LogWarning("Initial data seeding is enabled for this startup.");
+        var isoSeeder = scope.ServiceProvider.GetRequiredService<IsoCountrySeeder>();
+        await isoSeeder.RunAsync();
+    }
+    else
+    {
+        app.Logger.LogInformation("Initial data seeding is disabled; IsoCountrySeeder was skipped.");
+    }
 }
 
 if (runForecastBackfill)
@@ -989,7 +1032,7 @@ eventsApi.MapGet("", async (ApplicationDbContext db,
                              UserManager<ApplicationUser> users,
                              ClaimsPrincipal user,
                              [FromQuery(Name = "start")] DateTimeOffset start,
-                             [FromQuery(Name = "end")]   DateTimeOffset end,
+                             [FromQuery(Name = "end")] DateTimeOffset end,
                              [FromQuery(Name = "includeCelebrations")] bool? includeCelebrations) =>
 {
     // Guard against huge windows
@@ -1147,7 +1190,7 @@ eventsApi.MapPost("", async (ApplicationDbContext db,
         Category = cat,
         Location = dto.Location,
         StartUtc = dto.StartUtc.ToUniversalTime(),
-        EndUtc   = dto.EndUtc.ToUniversalTime(),
+        EndUtc = dto.EndUtc.ToUniversalTime(),
         IsAllDay = dto.IsAllDay,
         RecurrenceRule = string.IsNullOrWhiteSpace(dto.RecurrenceRule) ? null : dto.RecurrenceRule,
         RecurrenceUntilUtc = dto.RecurrenceUntilUtc?.ToUniversalTime(),
@@ -1181,7 +1224,7 @@ eventsApi.MapPut("/{id:guid}", async (ApplicationDbContext db,
     ev.Category = cat;
     ev.Location = dto.Location;
     ev.StartUtc = dto.StartUtc.ToUniversalTime();
-    ev.EndUtc   = dto.EndUtc.ToUniversalTime();
+    ev.EndUtc = dto.EndUtc.ToUniversalTime();
     ev.IsAllDay = dto.IsAllDay;
     ev.RecurrenceRule = string.IsNullOrWhiteSpace(dto.RecurrenceRule) ? null : dto.RecurrenceRule;
     ev.RecurrenceUntilUtc = dto.RecurrenceUntilUtc?.ToUniversalTime();
@@ -2532,8 +2575,16 @@ using (var scope = app.Services.CreateScope())
         db.AuditLogs.Where(a => a.TimeUtc < cutoff).ExecuteDelete();
     }
 
-    await ProjectManagement.Data.StageFlowSeeder.SeedAsync(services);
-    await ProjectManagement.Data.IdentitySeeder.SeedAsync(services);
+    if (runSeedersOnStartup)
+    {
+        await ProjectManagement.Data.StageFlowSeeder.SeedAsync(services);
+        await ProjectManagement.Data.IdentitySeeder.SeedAsync(services);
+        app.Logger.LogInformation("Initial StageFlow and Identity seeders completed successfully.");
+    }
+    else
+    {
+        app.Logger.LogInformation("Initial StageFlow and Identity seeders were skipped.");
+    }
 }
 
 
