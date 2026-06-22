@@ -1,4 +1,4 @@
-<template id="notebook-editor-template">
+﻿<template id="notebook-editor-template">
     <div class="notebook-modal"
          data-notebook-editor
          hidden
@@ -34,6 +34,64 @@
 
             <div data-modal-checklist
                  class="notebook-checklist-editor"
+                 hidden></div>
+
+
+
+            <section class="notebook-create-details"
+                     data-notebook-create-details
+                     hidden>
+                <div class="notebook-create-details__grid">
+                    <label>
+                        <span>Type</span>
+                        <select data-create-type>
+                            <option value="Note">Note</option>
+                            <option value="Checklist">Checklist</option>
+                            <option value="Reminder">Reminder</option>
+                            <option value="Idea">Idea</option>
+                            <option value="Draft">Draft</option>
+                            <option value="Sticky">Sticky note</option>
+                        </select>
+                    </label>
+                    <label data-create-reminder-field>
+                        <span>Reminder (IST)</span>
+                        <input type="datetime-local" data-create-reminder />
+                    </label>
+                    <label>
+                        <span>Priority</span>
+                        <select data-create-priority>
+                            <option value="Low">Low</option>
+                            <option value="Normal" selected>Normal</option>
+                            <option value="High">High</option>
+                            <option value="Critical">Critical</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>Colour</span>
+                        <select data-create-color>
+                            <option value="">Default</option>
+                            <option value="white">White</option>
+                            <option value="blue">Blue</option>
+                            <option value="amber">Amber</option>
+                            <option value="green">Green</option>
+                            <option value="rose">Rose</option>
+                            <option value="slate">Slate</option>
+                        </select>
+                    </label>
+                </div>
+                <label class="notebook-create-details__labels">
+                    <span>Labels</span>
+                    <input type="text"
+                           data-create-labels
+                           maxlength="500"
+                           placeholder="procurement, docs" />
+                </label>
+            </section>
+
+            <div class="notebook-create-feedback"
+                 data-notebook-create-feedback
+                 role="alert"
+                 aria-live="polite"
                  hidden></div>
 
             <div class="notebook-save-feedback">
@@ -74,6 +132,12 @@
             </section>
 
             <footer>
+                <button type="button"
+                        class="btn btn-sm btn-primary notebook-create-submit"
+                        data-notebook-create-submit
+                        hidden>
+                    Create
+                </button>
                 <button type="button"
                         class="btn btn-sm btn-link"
                         data-close

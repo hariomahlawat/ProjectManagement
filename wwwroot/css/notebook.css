@@ -1561,3 +1561,121 @@
         max-width: none;
     }
 }
+
+/* SECTION: Unified notebook create editor */
+.notebook-composer__quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.notebook-composer__reminder-trigger {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  background: transparent;
+  color: var(--notebook-muted, #687386);
+  border-radius: 50%;
+}
+
+.notebook-composer__reminder-trigger:hover,
+.notebook-composer__reminder-trigger:focus-visible {
+  background: rgba(60, 64, 67, .08);
+  color: var(--notebook-text, #172033);
+}
+
+.notebook-modal.is-create-mode .notebook-modal__dialog {
+  width: min(620px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 32px));
+  overflow: auto;
+}
+
+.notebook-modal.is-create-mode .notebook-modal__body {
+  min-height: 120px;
+}
+
+.notebook-create-details {
+  margin: 4px 20px 12px;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, .3);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, .72);
+}
+
+.notebook-create-details__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.notebook-create-details label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  font-size: .78rem;
+  font-weight: 700;
+  color: #4f5d73;
+}
+
+.notebook-create-details input,
+.notebook-create-details select {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #d7deea;
+  border-radius: 10px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  font-weight: 500;
+}
+
+.notebook-create-details__labels {
+  margin-top: 12px !important;
+}
+
+.notebook-create-feedback {
+  margin: 0 20px 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #eef5ff;
+  color: #234a88;
+  font-size: .84rem;
+}
+
+.notebook-create-feedback.is-error {
+  background: #fff1f2;
+  color: #a61b33;
+}
+
+.notebook-create-submit {
+  min-width: 132px;
+}
+
+.notebook-modal.is-create-mode footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px;
+  background: rgba(255, 255, 255, .96);
+  border-top: 1px solid rgba(148, 163, 184, .22);
+  backdrop-filter: blur(8px);
+}
+
+@media (max-width: 640px) {
+  .notebook-create-details__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .notebook-modal.is-create-mode .notebook-modal__dialog {
+    width: 100%;
+    max-width: none;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+}

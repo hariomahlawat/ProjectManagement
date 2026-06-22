@@ -3,6 +3,7 @@ import { NotebookApi } from './notebook-api.js';
 import { createNotebookBoard } from './notebook-board.js';
 import { initNotebookComposer } from './notebook-composer.js';
 import { initNotebookEditor } from './notebook-editor.js';
+import { initNotebookCreateEditor } from './notebook-create-editor.js';
 import { reconcileMutation, requireMutationItem, updateCardConcurrencyState } from './notebook-reconcile.js';
 
 // SECTION: Notebook app bootstrap and delegated interactions
@@ -17,6 +18,7 @@ export function initNotebookApp() {
   const applyCounts = (counts) => { if (!counts) return; Object.entries(counts).forEach(([key, value]) => shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => { el.textContent = String(value); })); };
   const refreshCounts = async () => applyCounts(await NotebookApi.getCounts());
   const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts });
+  const createEditor = initNotebookCreateEditor(board, view, { shell, showGlobalError, applyCounts });
   composer = initNotebookComposer(shell.querySelector('[data-notebook-composer]'), board, view, { showGlobalError, applyCounts });
   document.querySelector('[data-notebook-global-error-close]')?.addEventListener('click', () => { globalError.hidden = true; globalErrorText.textContent = ''; });
   const storageKey = 'notebook.boardView';
@@ -26,6 +28,12 @@ export function initNotebookApp() {
   applyBoardView(localStorage.getItem(storageKey) || shell.dataset.boardView || 'grid');
 
   document.addEventListener('click', async (event) => {
+    const createTrigger = event.target.closest('[data-notebook-create-type]');
+    if (createTrigger) {
+      event.preventDefault();
+      createEditor.open(createTrigger.dataset.notebookCreateType || 'Note');
+      return;
+    }
     const action = closestAction(event); if (!action) return;
     const card = action.closest('[data-note-id]'); const id = card?.dataset.noteId;
     if (action.dataset.action === 'open-note' && id) { event.preventDefault(); try { await editor.open(id); } catch (error) { showGlobalError(error.message || 'Unable to open the note.'); } }
@@ -60,7 +68,11 @@ export function initNotebookApp() {
       finally { action.disabled = false; }
     }
   });
-  document.addEventListener('keydown', async (event) => { if (event.key !== 'Escape') return; if (editor.isOpen()) { event.preventDefault(); await editor.requestClose(); return; } if (composer?.isOpen()) { event.preventDefault(); await composer.close(); } });
+  document.addEventListener('keydown', async (event) => { if (event.key !== 'Escape') return; if (createEditor.isOpen()) { event.preventDefault(); createEditor.close(); return; } if (editor.isOpen()) { event.preventDefault(); await editor.requestClose(); return; } if (composer?.isOpen()) { event.preventDefault(); await composer.close(); } });
   window.addEventListener('popstate', async () => { try { const id = new URL(location.href).searchParams.get('note'); id ? await editor.open(id, { pushHistory: false }) : await editor.requestClose({ fromHistory: true }); } catch (error) { showGlobalError(error.message || 'Unable to open the note.'); } });
-  const directId = new URL(location.href).searchParams.get('note'); if (directId) editor.open(directId, { pushHistory: false }).catch((error) => { showGlobalError(error.message || 'Unable to open the note.'); const url = new URL(location.href); url.searchParams.delete('note'); history.replaceState(history.state, '', url); });
+  const initialUrl = new URL(location.href);
+  if (initialUrl.searchParams.get('mode') === 'new') {
+    createEditor.open(initialUrl.searchParams.get('type') || 'Note');
+  }
+  const directId = initialUrl.searchParams.get('note'); if (directId) editor.open(directId, { pushHistory: false }).catch((error) => { showGlobalError(error.message || 'Unable to open the note.'); const url = new URL(location.href); url.searchParams.delete('note'); history.replaceState(history.state, '', url); });
 }

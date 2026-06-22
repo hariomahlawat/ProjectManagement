@@ -79,7 +79,10 @@
                     <section class="notebook-composer" aria-label="Create a notebook item" data-notebook-composer data-state="collapsed">
                         <div class="notebook-composer__collapsed" data-composer-collapsed>
                             <button type="button" class="notebook-composer__trigger" data-composer-open-note>Take a note…</button>
-                            <button type="button" class="notebook-composer__checklist-trigger" data-composer-open-checklist aria-label="Create checklist"><i class="bi bi-check2-square"></i></button>
+                            <div class="notebook-composer__quick-actions">
+                                <button type="button" class="notebook-composer__checklist-trigger" data-composer-open-checklist aria-label="Create checklist"><i class="bi bi-check2-square"></i></button>
+                                <button type="button" class="notebook-composer__reminder-trigger" data-notebook-create-type="Reminder" aria-label="Create reminder"><i class="bi bi-bell"></i></button>
+                            </div>
                         </div>
                         <div class="notebook-composer__expanded" data-composer-expanded hidden>
                             <div class="notebook-composer__top">
@@ -161,7 +164,7 @@
                         _ => "Note"
                     };
                     var cta = Model.Notebook.View is "archive" or "archived" or "completed" ? null : $"New {emptyType}";
-                    <div class="notebook-empty" data-notebook-empty-state><h3>@emptyTitle</h3><p>@emptyText</p>@if (cta is not null) { <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-mode="new" asp-route-type="@emptyType" class="btn btn-sm btn-primary">@cta</a> }</div>
+                    <div class="notebook-empty" data-notebook-empty-state><h3>@emptyTitle</h3><p>@emptyText</p>@if (cta is not null) { <a asp-page="/Notebook/Index" asp-route-view="@Model.Notebook.View" asp-route-mode="new" asp-route-type="@emptyType" data-notebook-create-type="@emptyType" class="btn btn-sm btn-primary">@cta</a> }</div>
                 }
             </section>
         }

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -50,7 +50,7 @@ public class IndexModel : PageModel
     [BindProperty]
     public string? ChecklistText { get; set; }
     public NotebookIndexVm Notebook { get; set; } = new();
-    public bool UseLegacyEditor => SelectedId.HasValue || IsCreateMode();
+    public bool UseLegacyEditor => SelectedId.HasValue;
     public bool HasEditorOpen => UseLegacyEditor;
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
