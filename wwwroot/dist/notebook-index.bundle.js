@@ -1,5 +1,2185 @@
-var G=(e,o)=>()=>(e&&(o=e(e=0)),o);var ut=(e,o)=>()=>(o||e((o={exports:{}}).exports,o),o.exports);var Te,Le=G(()=>{Te=e=>e.target.closest("[data-action]")});function Se(){Ne||(Ne=!0,document.dispatchEvent(new CustomEvent("app:session-expired")))}var Ne,_e=G(()=>{Ne=!1});function Ue(){return document.documentElement.dataset.environment==="Development"||location.hostname==="localhost"}function ft(e,o,a,t){!Ue()||!Be(o)||console.debug("Notebook API request",{url:e,method:o,contentType:a.get("Content-Type"),hasAntiForgeryToken:a.has("RequestVerificationToken"),hasBody:t!=null})}function Pe(e){Ue()&&console.error("Notebook API request failed",{url:e.url,method:e.method,status:e.status,code:e.code,errors:e.errors,responseText:e.responseText})}function pt(){let o=document.querySelector('#notebook-antiforgery-token input[name="__RequestVerificationToken"]')?.value?.trim();if(!o)throw new U("Notebook security token is unavailable. Refresh the page and try again.",{status:0,code:"notebook_antiforgery_missing"});return o}function Be(e){let o=(e||"GET").toUpperCase();return!["GET","HEAD","OPTIONS","TRACE"].includes(o)}function mt(e){switch(e){case 400:return"The notebook request was invalid.";case 401:return"Your session has expired. Sign in again.";case 403:return"You are not authorised to perform this action.";case 404:return"The note could not be found.";case 409:return"The note was changed elsewhere.";case 415:return"The request format is not supported.";default:return"The notebook operation failed."}}function K(e,o,a={}){if(o===void 0||typeof o=="function"||typeof o=="symbol")throw new U("Notebook request payload is invalid.",{status:0,code:"notebook_invalid_client_payload"});let t;try{t=JSON.stringify(o)}catch(s){throw new U("Notebook request payload could not be serialised.",{status:0,code:"notebook_payload_serialisation_failed",cause:s})}if(typeof t!="string"||t.length===0)throw new U("Notebook request payload is empty.",{status:0,code:"notebook_empty_client_payload"});let i=new Headers(a.headers||{});return i.set("Content-Type","application/json; charset=utf-8"),{...a,method:String(e).toUpperCase(),headers:i,body:t}}function ht(e){if(!e)return!1;let o=e.url||"";return!!(e.redirected&&o.includes("/Identity/Account/Login"))}function De(e){return Se(),new U("Your session has expired. Sign in again.",{status:401,code:"notebook_session_expired",url:e.url,method:e.method})}async function yt(e,o){if(ht(e))throw De(o);if(e.status===204)return null;let a=e.headers.get("content-type")||"";if(a.includes("text/html")&&(e.url||"").includes("/Identity/Account/Login"))throw De(o);let t=null,i=null;if(a.includes("application/json")||a.includes("application/problem+json"))try{t=await e.json()}catch{t=null}else i=await e.text();if(!e.ok)throw e.status===401&&Se(),new U(t?.message||t?.detail||t?.title||t?.error||i||mt(e.status),{status:e.status,code:t?.code,errors:t?.errors,responseText:i,url:o.url,method:o.method,currentVersion:t?.currentVersion??null,currentItem:t?.currentItem??null});return t??i}async function $(e,o={}){let a=String(o.method||"GET").toUpperCase(),t=new Headers(o.headers||{});t.has("Accept")||t.set("Accept","application/json");let i=o.body!==void 0&&o.body!==null,s=typeof FormData<"u"&&o.body instanceof FormData;i&&!s&&!t.has("Content-Type")&&t.set("Content-Type","application/json; charset=utf-8"),Be(a)&&t.set("RequestVerificationToken",pt()),ft(e,a,t,o.body);let p;try{p=await fetch(e,{...o,method:a,headers:t,credentials:"same-origin"})}catch(g){if(g?.name==="AbortError")throw new U("The notebook request was cancelled.",{status:0,code:"notebook_request_aborted",url:e,method:a,cause:g});let m=new U("The notebook service could not be reached.",{status:0,code:"notebook_network_error",url:e,method:a,cause:g});throw Pe(m),m}try{return await yt(p,{url:e,method:a})}catch(g){throw g instanceof U&&Pe(g),g}}var U,T,ae=G(()=>{_e();U=class extends Error{constructor(o,{status:a=0,code:t=null,errors:i=null,responseText:s=null,url:p=null,method:g=null,cause:m=null,currentVersion:h=null,currentItem:S=null}={}){super(o),this.name="NotebookApiError",this.status=a,this.code=t,this.errors=i,this.responseText=s,this.url=p,this.method=g,this.cause=m,this.currentVersion=h,this.currentItem=S}};T={createItem:e=>$("/api/notebook/items",K("POST",e)),getItem:(e,o={})=>$(`/api/notebook/items/${encodeURIComponent(e)}`,o),updateItem:(e,o)=>$(`/api/notebook/items/${encodeURIComponent(e)}`,K("PATCH",o)),updateContent:(e,o,a={})=>$(`/api/notebook/items/${encodeURIComponent(e)}/content`,K("PATCH",o,a)),updateChecklist:(e,o,a={})=>$(`/api/notebook/items/${encodeURIComponent(e)}/checklist`,K("PUT",o,a)),setPinned:(e,o,a)=>$(`/api/notebook/items/${encodeURIComponent(e)}/pin`,K("POST",{isPinned:o,version:a})),archiveItem:(e,o)=>$(`/api/notebook/items/${encodeURIComponent(e)}/archive`,K("POST",{version:o})),completeItem:(e,o)=>$(`/api/notebook/items/${encodeURIComponent(e)}/complete`,K("POST",{version:o})),reopenItem:(e,o)=>$(`/api/notebook/items/${encodeURIComponent(e)}/reopen`,K("POST",{version:o})),duplicateItem:e=>$(`/api/notebook/items/${encodeURIComponent(e)}/duplicate`,K("POST",{})),deleteItem:(e,o)=>$(`/api/notebook/items/${encodeURIComponent(e)}`,K("DELETE",{version:o})),restoreItem:(e,o)=>$(`/api/notebook/items/${encodeURIComponent(e)}/restore`,K("POST",{version:o})),showCheckboxes:(e,o)=>$(`/api/notebook/items/${encodeURIComponent(e)}/show-checkboxes`,K("POST",{version:o})),hideCheckboxes:(e,o)=>$(`/api/notebook/items/${encodeURIComponent(e)}/hide-checkboxes`,K("POST",{version:o})),toggleChecklistItem:(e,o,a,t)=>$(`/api/notebook/items/${encodeURIComponent(e)}/checklist-items/${encodeURIComponent(o)}`,K("PATCH",{isDone:a,version:t})),getCounts:()=>$("/api/notebook/counts"),getCardHtml:(e,o="home")=>$(`/api/notebook/items/${encodeURIComponent(e)}/card?view=${encodeURIComponent(o)}`,{headers:{Accept:"text/html"}})}});function Ce(e){let o=e?.errors;return!o||typeof o!="object"?[]:Object.entries(o).flatMap(([a,t])=>(Array.isArray(t)?t:[t]).filter(s=>typeof s=="string"&&s.trim().length>0).map(s=>({field:a,message:s.trim()})))}function Oe(e){let o=Ce(e);return o.length>0?o[0].message:e?.message||"The note contains invalid information."}var W,ue,be=G(()=>{W=class extends Error{constructor(o){super(o),this.name="NotebookCardHtmlError",this.code="notebook_invalid_card_html"}},ue=class extends Error{constructor(o){super(o),this.name="NotebookBoardTargetError",this.code="notebook_target_board_missing"}}});function $e(e=document){let o=u=>e.querySelector(`[data-note-id="${CSS.escape(u)}"]`),a=u=>e.querySelector(`[data-notebook-section="${u?"pinned":"others"}"]`),t=u=>e.querySelector(`[data-notebook-board="${u?"pinned":"others"}"]`)||e.querySelector('[data-notebook-board]:not([data-notebook-board="pinned"]):not([data-notebook-board="others"])');function i(u,v){if(typeof u!="string"||!u.trim())throw new W("Notebook card HTML was empty.");let E=document.createElement("template");E.innerHTML=u.trim();let c=E.content.children;if(c.length!==1)throw new W("Notebook card response must contain exactly one root element.");let b=c[0];if(!b.matches("[data-note-id]"))throw new W("Notebook card response did not contain a note card.");if(v!=null&&b.dataset.noteId!==String(v))throw new W("Notebook card response did not match the requested note.");return b}function s(u){if(!u)return;let v=u.querySelectorAll(":scope > [data-note-id]").length;u.dataset.itemCount=String(v);let E=u.dataset.layoutPolicy||"fixed-grid";u.dataset.layout=E==="masonry-threshold"&&v>4?"masonry":"grid"}let p=()=>{e.querySelectorAll("[data-notebook-board]").forEach(s),["pinned","others"].forEach(u=>{let v=e.querySelector(`[data-notebook-section="${u}"]`),E=e.querySelector(`[data-notebook-board="${u}"]`);if(!v||!E)return;let c=Number(E.dataset.itemCount||0);u==="pinned"&&(v.hidden=c===0);let b=e.querySelector(`[data-notebook-count="${u}"]`);b&&(b.textContent=String(c))})},g=()=>{let u=e.querySelector('[data-notebook-empty-state="current"]')||e.querySelector("[data-notebook-empty-state]")||e.querySelector("[data-notebook-empty]");if(!u)return;let v=[...e.querySelectorAll("[data-notebook-board]")].reduce((E,c)=>E+c.querySelectorAll(":scope > [data-note-id]").length,0);u.hidden=v>0};return{findCard:o,getSection:a,getBoard:t,replaceCard:(u,v)=>{let E=o(u);if(!E)return null;let c=i(v,u);return E.replaceWith(c),p(),g(),c},insertCard:(u,v=!1)=>{let E=i(u),c=t(v);if(!c)throw new ue(`Notebook board "${v?"pinned":"others"}" was not found.`);return c.prepend(E),p(),g(),E},upsertCard:(u,v,E,c={})=>{let b=o(u),x=t(E);if(!x)throw new ue(`Notebook board "${E?"pinned":"others"}" was not found.`);let y=i(v,u),C=b&&b.parentElement===x,f=c.preservePosition!==!1;return C&&f?b.replaceWith(y):(b?.remove(),c.prepend===!1?x.append(y):x.prepend(y)),p(),g(),y},removeCard:u=>{o(u)?.remove(),p(),g()},refreshSectionVisibility:p,refreshBoardLayout:s,refreshEmptyState:g,htmlToCardElement:i}}var Me=G(()=>{be()});function gt(){return globalThis.crypto&&typeof globalThis.crypto.randomUUID=="function"?globalThis.crypto.randomUUID():[Date.now().toString(36),Math.random().toString(36).slice(2),Math.random().toString(36).slice(2)].join("-")}function se(e,o={}){let a=o.maxLength||500,t=[],i=!1,s=()=>{i||o.onChange?.()};function p(n={},k=0){return{id:n.id??null,clientKey:g(n),text:n.text||"",isDone:!!n.isDone,sortOrder:Number.isFinite(n.sortOrder)?n.sortOrder:(k+1)*1e3,element:n.element||null}}function g(n={}){return n.clientKey?n.clientKey:n.id===null||n.id===void 0?gt():null}function m(n){let k=document.createElement("div");return k.className="notebook-checklist-row",k.dataset.checklistRow="",k.innerHTML=`<input type="checkbox" data-checklist-done><input type="text" data-checklist-text maxlength="${a}" placeholder="List item"><button type="button" data-checklist-remove aria-label="Remove checklist item">×</button>`,n.element=k,h(n,{forceContent:!0}),k}function h(n,{forceContent:k=!1}={}){if(!n.element)return;n.element.dataset.rowId=n.id??"",n.element.dataset.clientKey=n.clientKey||"";let q=n.element.querySelector("[data-checklist-done]"),N=n.element.querySelector("[data-checklist-text]");q&&(k||q.checked!==!!n.isDone)&&(q.checked=!!n.isDone),N&&(k||N.value!==(n.text||""))&&(N.value=n.text||"")}function S(n,k){return n.element&&(n.id=bt(n.element.dataset.rowId),n.clientKey=n.element.dataset.clientKey||n.clientKey||g(n),n.text=n.element.querySelector("[data-checklist-text]")?.value||"",n.isDone=!!n.element.querySelector("[data-checklist-done]")?.checked,n.sortOrder=(k+1)*1e3),n}function I(n){return t.find(k=>k.element===n)||null}function u(){let n=document.activeElement,k=n?.closest?.("[data-checklist-row]");return!k||!e.contains(k)?null:{rowId:k.dataset.rowId||null,clientKey:k.dataset.clientKey||null,selectionStart:typeof n.selectionStart=="number"?n.selectionStart:null,selectionEnd:typeof n.selectionEnd=="number"?n.selectionEnd:null}}function v(n){if(!n)return;let q=t.find(N=>n.rowId&&String(N.id)===n.rowId||n.clientKey&&N.clientKey===n.clientKey)?.element?.querySelector("[data-checklist-text]");if(q&&(q.focus(),n.selectionStart!==null&&typeof q.setSelectionRange=="function")){let N=n.selectionEnd??n.selectionStart;q.setSelectionRange(Math.min(n.selectionStart,q.value.length),Math.min(N,q.value.length))}}function E(n,k,q){if(n?.id!==null&&n?.id!==void 0){let N=k.get(String(n.id));if(N)return N}return n?.clientKey?q.get(n.clientKey)??null:null}function c(n,k,q,N){let B=k.id!==null&&k.id!==void 0?`id:${k.id}`:k.clientKey?`client:${k.clientKey}`:null;q.has(k)||B&&N.has(B)||(q.add(k),B&&N.add(B),n.push(k))}function b(n,k,q){return!E(n,k,q)}function x(n){let k=new Set(n.map(q=>q.element).filter(Boolean));e.querySelectorAll("[data-checklist-row]").forEach(q=>{k.has(q)||q.remove()})}function y(){let n=e.querySelector("[data-checklist-add]");return n||(n=document.createElement("button"),n.type="button",n.className="notebook-checklist-add",n.dataset.checklistAdd="",n.textContent="+ List item",e.append(n)),n}function C(n){e.replaceChildren(),t=(n||[]).map(p),t.forEach(k=>e.append(m(k))),y()}function f(n=null,k={}){let q=n?t.findIndex(ee=>ee.element===n)+1:t.length,N=p(k,q),B=m(N);return n?n.after(B):e.insertBefore(B,y()),t.splice(q<0?t.length:q,0,N),B}function l(n){let k=I(n),q=n.previousElementSibling;t=t.filter(N=>N!==k),n.remove(),(q?.querySelector("[data-checklist-text]")||e.querySelector("[data-checklist-text]"))?.focus(),s()}function w(){return t.forEach(S),t.map((n,k)=>({id:n.id,clientKey:n.clientKey,text:n.text.trim(),isDone:n.isDone,sortOrder:k})).filter(n=>n.text.length>0)}function H(n,k=null){i=!0;let q=u(),N=e.scrollTop;try{t.forEach(S);let B=[...t],ee=Array.isArray(k),ce=ee?k:[],ie=new Map(ce.filter(R=>R.id!==null&&R.id!==void 0).map(R=>[String(R.id),R])),pe=new Map(ce.filter(R=>R.clientKey).map(R=>[R.clientKey,R])),ke=new Map(B.filter(R=>R.id!==null&&R.id!==void 0).map(R=>[String(R.id),R])),me=new Map(B.filter(R=>R.clientKey).map(R=>[R.clientKey,R])),te=[],he=new Set,oe=new Set;(n||[]).forEach((R,ye)=>{let Z=E(R,ie,pe),O=E(R,ke,me);ee&&Z&&!O||(O||(O=p(R,ye)),O.id=R.id??O.id,O.clientKey=R.clientKey??O.clientKey??g(O),(!Z||O.text===(Z.text??""))&&(O.text=R.text||""),(!Z||O.isDone===!!Z.isDone)&&(O.isDone=!!R.isDone),O.sortOrder=R.sortOrder??(ye+1)*1e3,O.element||m(O),h(O),c(te,O,he,oe))}),ee&&B.forEach(R=>{b(R,ie,pe)&&c(te,R,he,oe)}),x(te),t=te,t.forEach(R=>e.insertBefore(R.element,y())),y(),e.scrollTop=N,v(q)}finally{i=!1}}function V(n){i||n.target.matches("[data-checklist-text]")&&s()}function X(n){i||n.target.matches("[data-checklist-done]")&&s()}function J(n){if(i)return;if(n.target.closest("[data-checklist-add]")){f().querySelector("[data-checklist-text]")?.focus();return}let k=n.target.closest("[data-checklist-remove]");k&&l(k.closest("[data-checklist-row]"))}function j(n){if(i)return;let k=n.target.closest("[data-checklist-text]");if(!k)return;let q=k.closest("[data-checklist-row]");n.key==="Enter"&&(n.preventDefault(),f(q).querySelector("[data-checklist-text]").focus(),s()),n.key==="Backspace"&&k.value.length===0&&e.querySelectorAll("[data-checklist-row]").length>1&&(n.preventDefault(),l(q))}function L(){e.removeEventListener("input",V),e.removeEventListener("change",X),e.removeEventListener("click",J),e.removeEventListener("keydown",j),e.replaceChildren(),t=[]}return e.addEventListener("input",V),e.addEventListener("change",X),e.addEventListener("click",J),e.addEventListener("keydown",j),{setRows:C,getRows:w,addRow:f,removeRow:l,reconcileRows:H,replaceRows:C,renderRows:C,getFocusedRowState:u,restoreFocusedRowState:v,focusFirst:()=>(e.querySelector("[data-checklist-text]")||y())?.focus(),clear:()=>C([]),destroy:L}}var bt,ge=G(()=>{bt=e=>e?Number.parseInt(e,10):null});function Q(e,o="The notebook response did not contain an updated item."){if(!e?.item)throw new U(o,{code:"notebook_invalid_mutation_response"});return e.item}function re(e,o){!e||!o||(e.dataset.version=o.version,e.dataset.isPinned=String(o.isPinned).toLowerCase(),e.dataset.status=o.status)}function Ee(e,o,a){console.error("Notebook card reconciliation failed",{itemId:e?.id,stage:o,error:a})}async function F({response:e,board:o,view:a="home",getCardHtml:t,applyCounts:i,preservePosition:s=!0,prepend:p=!1,showGlobalError:g,existingCard:m=null,command:h="unknown",renderFailureMessage:S="The note was updated, but its card could not be rendered. Reload the page.",reconcileFailureMessage:I="The note was updated, but the board could not refresh. Reload the page."}){let u=Q(e);i?.(e.counts),re(m||o?.findCard?.(u.id),u);let v=e.cardHtml;if(!v){console.warn("Notebook mutation response did not contain card HTML.",{itemId:u.id,command:h});try{v=await t(u.id,a)}catch(E){return Ee(u,"server-card-rendering",E),g?.(S),{item:u,reconciled:!1,code:"notebook_card_render_failed"}}}if(typeof v!="string"||!v.trim()){let E=new W("Notebook card response was empty.");return Ee(u,"empty-card-response",E),g?.(S),{item:u,reconciled:!1,code:"notebook_empty_card_response"}}try{return o.upsertCard(u.id,v,u.isPinned,{preservePosition:s,prepend:p}),{item:u,reconciled:!0}}catch(E){let c=kt(E);return Ee(u,c.stage,E),g?.(c.isRenderFailure?S:I),re(m||o?.findCard?.(u.id),u),{item:u,reconciled:!1,code:c.code}}}function kt(e){switch(e?.code){case"notebook_invalid_card_html":return{stage:"invalid-card-html",code:"notebook_invalid_card_html",isRenderFailure:!0};case"notebook_target_board_missing":return{stage:"target-board",code:"notebook_target_board_missing",isRenderFailure:!1};case"notebook_board_update_failed":return{stage:"card-replacement",code:"notebook_board_update_failed",isRenderFailure:!1};default:return{stage:"card-replacement",code:"notebook_board_reconcile_failed",isRenderFailure:!1}}}var fe=G(()=>{ae();be()});function Ke(e,o,a,t={}){if(!e)return null;let i=e.querySelector("[data-composer-collapsed]"),s=e.querySelector("[data-composer-expanded]"),p=e.querySelector("[data-composer-title]"),g=e.querySelector("[data-composer-body]"),m=e.querySelector("[data-composer-checklist]"),h=e.querySelector("[data-composer-status]"),S=e.querySelector("[data-composer-pin]"),I=e.querySelector("[data-composer-close]"),u=e.querySelector("[data-composer-open-checklist]"),v=se(m),E=t.showGlobalError||(()=>{}),c=t.applyCounts||(()=>{}),b="collapsed",x=!1,y=null,C=!1,f=crypto.randomUUID(),l=L=>{h&&(h.textContent=L||"")},w=L=>{I&&(I.disabled=L),u&&(u.disabled=L),S&&(S.disabled=L)},H=L=>{b=L,e.dataset.state=L,i.hidden=L!=="collapsed",s.hidden=L==="collapsed",g.hidden=L==="checklist",m.hidden=L!=="checklist"},V=()=>{p.value="",g.value="",v.clear(),x=!1,y=null,f=crypto.randomUUID(),S.classList.remove("is-active"),l("")},X=()=>({title:p.value.trim(),body:g.value.trim(),type:b==="checklist"?"Checklist":"Note",priority:"Normal",reminderAtUtc:null,colorKey:null,isPinned:x,labels:[],clientRequestId:f,checklistRows:b==="checklist"?v.getRows().map((L,n)=>({id:L.id,text:L.text.trim(),isDone:L.isDone,sortOrder:(n+1)*1e3})).filter(L=>L.text.length>0):[]}),J=L=>!!(L.title||L.body||L.checklistRows.length);async function j(){let L=X();if(!J(L))return V(),H("collapsed"),!0;if(C)return!1;C=!0,w(!0),l("Saving…");try{if(y||(y=await T.createItem(L)),!y?.item)throw new U("The create response did not contain the new note.",{code:"notebook_invalid_mutation_response"});return await F({response:y,board:o,view:a||"home",getCardHtml:T.getCardHtml,applyCounts:c,preservePosition:!1,prepend:!0,showGlobalError:E,renderFailureMessage:"The note was saved, but its card could not be rendered. Reload the page.",reconcileFailureMessage:"The note was saved, but the board could not refresh. Reload the page."}),V(),H("collapsed"),!0}catch(n){return l(n.message||"Unable to save the note."),!1}finally{C=!1,w(!1)}}return e.querySelector("[data-composer-open-note]")?.addEventListener("click",()=>{C||(H("note"),g.focus())}),u?.addEventListener("click",()=>{C||(H("checklist"),v.setRows([{text:""}]),v.focusFirst())}),I?.addEventListener("click",j),S?.addEventListener("click",()=>{C||(x=!x,S.classList.toggle("is-active",x))}),{close:j,isOpen:()=>b!=="collapsed"}}var Ve=G(()=>{ae();ge();fe()});function vt(e){if(e===null||typeof e!="object"||Array.isArray(e))return!1;let o=Object.getPrototypeOf(e);return o===Object.prototype||o===null}function wt(e){return typeof structuredClone=="function"?structuredClone(e):JSON.parse(JSON.stringify(e))}function St(e){if(!vt(e))throw new TypeError("Autosave payload must be a plain object.")}function Fe({save:e,delay:o=800,onSaving:a,onPersisted:t,onSaveError:i,onReconcileError:s,onSaved:p,onError:g}){let m=null,h=null,S=null,I=!1,u=!1,v=null,E=0;async function c(){if(h)return h;h=(async()=>{for(;!u&&I&&S;){let f=S;I=!1,await a?.();let l;try{v=typeof AbortController<"u"?new AbortController:null;let w={sequence:++E,signal:v?.signal??null};l=await e(f,w)}catch(w){throw I=(await(i||g)?.(w))?.retryable===!0,I||(S=null),w}finally{v=null}try{await(t||p)?.(l)}catch(w){await s?.(w,l)}}})();try{return await h}finally{h=null}}function b(f){u||(St(f),S=wt(f),I=!0,m&&window.clearTimeout(m),m=window.setTimeout(()=>{m=null,c().catch(()=>{})},o))}async function x(){m&&(window.clearTimeout(m),m=null),h&&await h,I&&await c()}function y({abortActive:f=!0}={}){m&&(window.clearTimeout(m),m=null),I=!1,S=null,f&&v?.abort()}function C(){u=!0,y()}return{schedule:b,flush:x,cancel:y,stop:C,hasPending:()=>!!(m||h||I),hasActiveRequest:()=>!!v}}var He=G(()=>{});function D(e,o){let a=e?.querySelector?.(o);if(!a){let t=new Error(`Notebook editor template is missing required element: ${o}`);throw t.code="notebook_editor_template_invalid",t}return a}function qe(e=document){let o=e?.querySelector?.(_.template);if(!o||o.tagName!=="TEMPLATE"){let t=new Error(`Notebook editor template was not found: ${_.template}`);throw t.code="notebook_editor_template_missing",t}let a=o.content?.firstElementChild?.cloneNode(!0);if(!a?.matches?.(_.editor)){let t=new Error(`Notebook editor template must contain a single ${_.editor} root element.`);throw t.code="notebook_editor_template_invalid",t}return[_.title,_.body,_.checklist,_.pin,_.saveState,_.conflict,_.conflictMessage,_.useLocal,_.reloadLatest,_.copyLocal].forEach(t=>D(a,t)),a}function Ct(e,o){return!!(e?.sourceVersion&&o?.version&&e.sourceVersion!==o.version)}function Et(e,o){return Number.isInteger(e?.conflictGenerationAtDispatch)&&e.conflictGenerationAtDispatch!==o}function xt({title:e="",body:o="",type:a="Note",checklistRows:t=[]}={}){let i=[String(e).trim(),String(o).trim()].filter(Boolean);if(a==="Checklist"){let s=(Array.isArray(t)?t:[]).filter(p=>String(p?.text??"").trim().length>0).map(p=>`${p?.isDone?"☑":"☐"} ${String(p.text).trim()}`);s.length&&i.push(s.join(`
-`))}return i.join(`
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
 
-`)}function Je(e,o,a={}){let t,i,s,p,g,m=!1,h=null,S=null,I=!1,u=null,v=0,E=0,c={active:!1,type:null,pendingServerItem:null,localDraft:null,message:null,resolving:!1,error:null},b=a.shell||document.querySelector(".notebook-shell"),x={title:!1,body:!1,checklist:!1},y={title:0,body:0,checklist:0},C=r=>{let d=new URL(location.href);return r?d.searchParams.set("note",r):d.searchParams.delete("note"),d},f='a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';function l(r,d=z.Idle){let A=t?.querySelector("[data-notebook-save-state]");A&&(A.textContent=r||"",A.dataset.state=d);let P=t?.querySelector("[data-notebook-retry]"),M=t?.querySelector("[data-notebook-reload-application]"),ne=t?.querySelector("[data-modal-discard]"),de=t?.querySelector("[data-notebook-sign-in]"),we=t?.querySelector("[data-notebook-copy-unsaved]");P&&(P.hidden=!["network","server","error"].includes(d)),M&&(M.hidden=d!=="client-version"),ne&&(ne.hidden=!["network","server","error","client-version","session-expired","forbidden"].includes(d)),de&&(de.hidden=d!=="session-expired"),we&&(we.hidden=!["session-expired","forbidden","network","server","error"].includes(d))}function w(){let r=t?.querySelector("[data-notebook-conflict]"),d=t?.querySelector("[data-notebook-conflict-message]"),A=t?.querySelector("[data-modal-pin]"),P=t?.querySelector("[data-notebook-use-local]"),M=t?.querySelector("[data-notebook-reload-latest]"),ne=t?.querySelector("[data-notebook-copy-local]");r&&(r.hidden=!c.active,d&&(d.textContent=c.resolving?"Saving your changes…":c.error||c.message||"This note changed elsewhere."),A&&(A.disabled=c.active),P&&(P.disabled=c.resolving),M&&(M.disabled=c.resolving),ne&&(ne.disabled=c.resolving),c.active&&l("",z.Idle))}function H(){c.active=!1,c.type=null,c.pendingServerItem=null,c.localDraft=null,c.message=null,c.resolving=!1,c.error=null,w()}function V(){return c.active}function X({type:r,pendingServerItem:d=null,localDraft:A=null,message:P}){v+=1,c.active=!0,c.type=r,d&&(c.pendingServerItem=d),c.localDraft=A??c.localDraft,c.message=P||"This note changed elsewhere.",c.resolving=!1,c.error=null,s?.cancel?.({abortActive:!0}),Y(),w()}function J(){return At({title:t.querySelector("[data-modal-title]").value,body:t.querySelector("[data-modal-body]").value,type:i.type,checklistRows:i.type==="Checklist"?p.getRows():[]})}function j(r){y[r]+=1,x[r]=!0,S||(S=i?.version??null)}function L(){x.title=!1,x.body=!1,x.checklist=!1}function n(){y.title=0,y.body=0,y.checklist=0}function k(r={}){x.title=y.title!==r.title,x.body=y.body!==r.body,x.checklist=y.checklist!==r.checklist}function q(){return x.title||x.body||x.checklist}function N(){if(V()){Y();return}let r=J(),d=je(r);I&&d===u||(I&&B(),s?.schedule(r))}function B(){I=!1,u=null,Ge([])}function ee(){s?.stop(),s=Fe({save:me,onSaving:()=>{V()||l("Saving…",z.Saving)},onPersisted:te,onSaveError:oe,onReconcileError:he})}function ce(){let r=t.querySelector("[data-modal-pin]");r?.classList.toggle("is-active",!!i?.isPinned),r&&(r.setAttribute("aria-label",i?.isPinned?"Unpin note":"Pin note"),r.disabled=c.active)}function ie(r){i=r,t.querySelector("[data-modal-title]").value=r.title||"",t.querySelector("[data-modal-body]").value=r.body||"",t.querySelector("[data-modal-checklist]").hidden=r.type!=="Checklist",r.type==="Checklist"?p.reconcileRows(r.checklistRows||[]):p.setRows([]),L(),n(),S=r.version??null,B(),ce()}function pe(){ie(i),H(),h=null,l("",z.Idle)}function ke(){t=qe(document),document.body.appendChild(t);let r=D(t,_.title),d=D(t,_.body),A=D(t,_.checklist),P=D(t,_.pin);p=se(A,{onChange:()=>{j("checklist"),N()}}),t.addEventListener("click",M=>{M.target.closest("[data-close]")&&Ie()}),t.addEventListener("keydown",O),r.addEventListener("input",()=>{j("title"),N()}),d.addEventListener("input",()=>{j("body"),N()}),P.addEventListener("click",ct),t.querySelector("[data-notebook-retry]")?.addEventListener("click",rt),t.querySelector("[data-notebook-reload-application]")?.addEventListener("click",()=>window.location.reload()),t.querySelector("[data-notebook-sign-in]")?.addEventListener("click",tt),t.querySelector("[data-notebook-copy-unsaved]")?.addEventListener("click",ot),t.querySelector("[data-modal-discard]")?.addEventListener("click",it),D(t,_.useLocal).addEventListener("click",at),D(t,_.reloadLatest).addEventListener("click",st),D(t,_.copyLocal).addEventListener("click",Ae)}async function me(r,d={}){let A=i.type==="Checklist"?It(r.checklistRows||[]):[],P={...y},M={...r,version:i.version},ne=Number.isInteger(d.conflictGenerationAtDispatch)?d.conflictGenerationAtDispatch:v;Rt(M.version);let de=d.signal?{signal:d.signal}:{};return{response:i.type==="Checklist"?await T.updateChecklist(i.id,M,de):await T.updateContent(i.id,M,de),submittedRows:A,submittedRevision:P,operationSequence:d.sequence??++E,conflictGenerationAtDispatch:ne,deliberateConflictResolution:d.deliberateConflictResolution===!0}}async function te(r){if(Et(r,v)){Y();return}let d=r?.response??r,A=Array.isArray(r?.submittedRows)?r.submittedRows:[],P=r?.submittedRevision??{...y};i=Q(d),i.type==="Checklist"&&Array.isArray(i.checklistRows)&&p.reconcileRows(i.checklistRows,A),k(P),B(),S=i.version??S;let M=c.active&&r?.deliberateConflictResolution===!0;M&&H(),q()||c.active?Y():le(i?.id),c.active?w():l("Saved",z.Saved),await F({response:d,board:e,view:o,getCardHtml:T.getCardHtml,applyCounts:a.applyCounts,preservePosition:!0,showGlobalError:a.showGlobalError,renderFailureMessage:"The note was saved, but its card could not refresh. Reload the page.",reconcileFailureMessage:"The note was saved, but the board could not refresh. Reload the page."}),M&&q()&&N()}function he(){a.showGlobalError?.("The note was saved, but the board could not refresh. Reload the page."),l("Saved",z.Saved)}function oe(r){if(h=Lt(r),r?.code==="notebook_request_aborted"&&c.active)return{retryable:!1};if(h.kind==="conflict"){let d=r?.currentItem??(r?.currentVersion?{...c.pendingServerItem||i,version:r.currentVersion}:null);X({type:xe.VersionConflict,pendingServerItem:d,message:c.resolving?"This note changed again before your changes could be saved.":"This note changed elsewhere."})}else c.active?(c.resolving=!1,c.error=h.message,Y(),w()):l(h.message,h.kind);if(h.kind==="validation"){Ge(h.validationErrors);let d=J();I=!0,u=je(d),s?.cancel?.()}if(R()){let d=J();console.error("Notebook update failed",{noteId:i?.id,status:r?.status,code:r?.code,errors:r?.errors,responseText:r?.responseText,payload:Tt(d)})}return{retryable:Nt(r)&&!V()}}function R(){return document.documentElement.dataset.environment==="Development"||location.hostname==="localhost"}async function ye(){!i||!s||(V()?(Y(),s.cancel()):await s.flush(),s.stop(),s=null)}function Z(r){b&&(b.inert=r),t&&(t.inert=!1),document.body.classList.toggle("notebook-modal-open",r)}function O(r){if(r.key!=="Tab"||t.hidden)return;let d=[...t.querySelectorAll(f)].filter(M=>M.offsetParent!==null);if(!d.length){r.preventDefault();return}let A=d[0],P=d[d.length-1];r.shiftKey&&document.activeElement===A?(r.preventDefault(),P.focus()):!r.shiftKey&&document.activeElement===P&&(r.preventDefault(),A.focus())}function Y(){!i?.id||!t||sessionStorage.setItem(`notebook-draft:${i.id}`,JSON.stringify({itemId:i.id,type:i.type,title:t.querySelector("[data-modal-title]").value,body:t.querySelector("[data-modal-body]").value,checklistRows:i.type==="Checklist"?p.getRows():[],sourceVersion:S||i.version,savedAtUtc:new Date().toISOString()}))}function le(r){r&&sessionStorage.removeItem(`notebook-draft:${r}`)}function Ze(r){let d=`notebook-draft:${r}`,A=sessionStorage.getItem(d);if(!A)return null;try{return JSON.parse(A)}catch{return sessionStorage.removeItem(d),null}}function et(){let r=Ze(i.id);if(!r)return;if(!(r.title!==i.title||r.body!==i.body||JSON.stringify(r.checklistRows||[])!==JSON.stringify(i.checklistRows||[]))){le(i.id);return}let A=Ct(r,i),P=A?"A newer saved version exists. Restore your local changes for review?":"Restore your unsaved local draft for this note?";window.confirm(P)&&(t.querySelector("[data-modal-title]").value=r.title||"",t.querySelector("[data-modal-body]").value=r.body||"",i.type==="Checklist"&&p.setRows(r.checklistRows||[]),S=r.sourceVersion||i.version,j("title"),j("body"),i.type==="Checklist"&&j("checklist"),A?X({type:xe.StaleDraft,pendingServerItem:i,localDraft:r,message:"A newer saved version exists."}):N())}function tt(){Y();let r=window.location.pathname+window.location.search+window.location.hash;window.location.assign("/Identity/Account/Login?ReturnUrl="+encodeURIComponent(r))}async function ot(){await Ae()&&l("Unsaved note text copied. Sign in again before saving.",h?.kind||"session-expired")}async function nt(r){if(navigator.clipboard?.writeText)try{return await navigator.clipboard.writeText(r),!0}catch{}let d=document.createElement("textarea");d.value=r,d.setAttribute("readonly",""),d.style.position="fixed",d.style.opacity="0",document.body.appendChild(d),d.select();let A=!1;try{A=document.execCommand?.("copy")===!0}finally{d.remove()}return A}async function Ae(){let r=xt({...J(),type:i?.type}),d=await nt(r),A=t?.querySelector("[data-notebook-copy-local]");if(A){let P=A.textContent;A.textContent=d?"Copied":"Copy failed",window.setTimeout(()=>{A.textContent=P},1500)}return!d&&c.active&&(c.error="The note could not be copied automatically. Select and copy the text manually.",w()),d}async function rt(){if(V())return;let r=t.querySelector("[data-notebook-retry]");r.disabled=!0;try{B(),s.schedule(J()),await s.flush()}finally{r.disabled=!1}}function ve({fromHistory:r=!1}={}){let d=i?.id;s?.stop(),s=null,t.hidden=!0,Z(!1),i=null,h=null,H(),B(),r||(m?history.back():history.replaceState(history.state,"",C(null))),(e.findCard(d)||g)?.focus?.()}async function it(){if(!window.confirm("Discard unsaved changes and close this note?"))return;let r=i?.id;s?.cancel?.(),le(r),L(),ve()}async function at(){if(!c.active||c.resolving||!i||!window.confirm("Save your current changes over the newer saved version?"))return;let r=v;c.resolving=!0,c.error=null,w(),Y();try{let d=c.pendingServerItem,A=d?.version?d:await T.getItem(i.id);if(r!==v)return;i.version=A.version,S=A.version,h=null,B();let P=await me(J(),{sequence:++E,conflictGenerationAtDispatch:r,deliberateConflictResolution:!0});await te(P)}catch(d){oe(d)}finally{c.active&&(c.resolving=!1,w())}}async function st(){if(!i||c.resolving||q()&&!window.confirm("Discard your unsaved changes and load the latest saved version?"))return;let r=t.querySelector("[data-notebook-reload-latest]");r.disabled=!0;try{let d=await T.getItem(i.id);ie(d),le(i.id),H(),h=null,l("Saved",z.Saved)}catch(d){c.active?(c.message=d?.message||"Unable to load the latest saved version.",w()):l(d?.message||"Unable to reload the note.",z.Error)}finally{r.disabled=!1}}async function ct(){if(!i||V())return;let r=t.querySelector("[data-modal-pin]");r.disabled=!0;try{await s?.flush();let d=await T.setPinned(i.id,!i.isPinned,i.version);i=Q(d,"The pin response did not contain the updated note."),S=i.version,ce(),await F({response:d,board:e,view:o,getCardHtml:T.getCardHtml,applyCounts:a.applyCounts,preservePosition:!1,prepend:!0,showGlobalError:a.showGlobalError,reconcileFailureMessage:`The note was ${i.isPinned?"pinned":"unpinned"}, but the board could not refresh. Reload the page.`}),l("Saved",z.Saved)}catch(d){oe(d)}finally{r.disabled=c.active}}async function lt(r,d={}){t||ke(),i&&i.id!==r&&await ye(),g=document.activeElement,i=await T.getItem(r),ee(),pe(),et(),t.hidden=!1,Z(!0),t.querySelector("[data-modal-title]").focus(),d.pushHistory!==!1?(m=!0,history.pushState({...history.state||{},notebookModal:!0,notebookNoteId:r},"",C(r))):m=!1}async function Ie({fromHistory:r=!1}={}){if(!i||!t||t.hidden)return;let d=t.querySelector("[data-close]:not(.notebook-modal__backdrop)");d.disabled=!0;try{if(V()){Y(),s?.cancel?.(),ve({fromHistory:r});return}await s?.flush(),ve({fromHistory:r})}catch(A){oe(A)}finally{d.disabled=!1}}function dt(r){if(!(!i||i.id!==r.id)){if(q()||s?.hasPending?.()){X({type:xe.ExternalUpdate,pendingServerItem:r,message:"This note changed elsewhere."});return}ie(r),le(r.id),l("",z.Idle)}}return{open:lt,requestClose:Ie,isOpen:()=>!!(i&&t&&!t.hidden),syncExternalUpdate:dt}}function Rt(e){if(typeof e!="string"||!qt.test(e))throw new U("The note version is invalid. Reload the note and try again.",{status:0,code:"notebook_invalid_local_version"})}function At({title:e,body:o,type:a="Note",checklistRows:t=[]}){let i={title:String(e??"").trim(),body:String(o??"").trim()};return a==="Checklist"&&(i.checklistRows=Array.isArray(t)?t:[]),i}function It(e){return typeof structuredClone=="function"?structuredClone(e):JSON.parse(JSON.stringify(e))}function je(e){return JSON.stringify({titleLength:typeof e?.title=="string"?e.title.length:null,bodyLength:typeof e?.body=="string"?e.body.length:null,type:e?.type,priority:e?.priority,reminderAtUtc:e?.reminderAtUtc,labelsIsArray:Array.isArray(e?.labels),checklistRowsIsArray:Array.isArray(e?.checklistRows)})}function Tt(e){return{titleType:typeof e?.title,titleLength:typeof e?.title=="string"?e.title.length:null,bodyType:typeof e?.body,bodyLength:typeof e?.body=="string"?e.body.length:null,typeValue:e?.type,typeValueType:typeof e?.type,priorityValue:e?.priority,priorityValueType:typeof e?.priority,reminderAtUtc:e?.reminderAtUtc,labelsIsArray:Array.isArray(e?.labels),labelsCount:Array.isArray(e?.labels)?e.labels.length:null,checklistRowsIsArray:Array.isArray(e?.checklistRows),checklistRowCount:Array.isArray(e?.checklistRows)?e.checklistRows.length:null}}function Ge(e,o){let a=Array.isArray(e)?document.querySelector("[data-notebook-validation-summary]"):e,t=Array.isArray(e)?e:o;if(!a||!Array.isArray(t)||t.length===0){a&&(a.hidden=!0,a.replaceChildren());return}let i=document.createElement("ul");t.forEach(s=>{let p=document.createElement("li");p.textContent=s.message,i.appendChild(p)}),a.replaceChildren(i),a.hidden=!1}function Lt(e){if(e instanceof U){if(e.status===401)return{kind:"session-expired",message:"Your session has expired. Sign in again to save this note.",actions:["sign-in","copy","discard"]};if(e.status===403)return{kind:"forbidden",message:"You are not authorised to edit this note.",actions:["copy","discard"]};if(e.status===415)return{kind:"client-version",message:"The editor is using an outdated application file. Reload the page and try again.",actions:["reload","discard"]};if(e.status===409)return{kind:"conflict",message:"This note was changed elsewhere."};if(e.status===400)return{kind:"validation",message:Oe(e),validationErrors:Ce(e),retryable:!1};if(e.status>=500)return{kind:"server",message:e.message||"The note could not be saved because of a server error."}}return{kind:"network",message:e?.message||"The notebook service could not be reached."}}function Nt(e){return e?.code==="notebook_network_error"?!0:[500,502,503,504].includes(e?.status)}var xe,z,_,qt,Re=G(()=>{ae();He();ge();fe();be();xe=Object.freeze({StaleDraft:"stale-draft",ExternalUpdate:"external-update",VersionConflict:"version-conflict"}),z=Object.freeze({Idle:"idle",Saving:"saving",Saved:"saved",Error:"error"}),_=Object.freeze({template:"#notebook-editor-template",editor:"[data-notebook-editor]",title:"[data-modal-title]",body:"[data-modal-body]",checklist:"[data-modal-checklist]",pin:"[data-modal-pin]",saveState:"[data-notebook-save-state]",conflict:"[data-notebook-conflict]",conflictMessage:"[data-notebook-conflict-message]",useLocal:"[data-notebook-use-local]",reloadLatest:"[data-notebook-reload-latest]",copyLocal:"[data-notebook-copy-local]"});qt=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i});function _t(e){let o=String(e||"").trim();if(!o)return null;let a=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(o);return a?`${a[1]}-${a[2]}-${a[3]}T${a[4]}:${a[5]}:00+05:30`:null}function Pt(e){return[...new Set(String(e||"").split(",").map(o=>o.trim()).filter(Boolean))]}function Dt({type:e,title:o,body:a,reminderLocal:t,priority:i,colorKey:s,labels:p,isPinned:g,checklistRows:m,clientRequestId:h}){let S=ze.has(e)?e:"Note";return{title:String(o||"").trim(),body:String(a||"").trim()||null,type:S,priority:i||"Normal",reminderAtUtc:S==="Reminder"||t?_t(t):null,colorKey:s||null,isPinned:!!g,labels:Pt(p),clientRequestId:h,checklistRows:S==="Checklist"?(m||[]).map((I,u)=>({id:I.id??null,clientKey:I.clientKey||null,text:String(I.text||"").trim(),isDone:!!I.isDone,sortOrder:u})).filter(I=>I.text.length>0):[]}}function Ye(e,o,a={}){let t=a.showGlobalError||(()=>{}),i=a.applyCounts||(()=>{}),s=null,p=null,g=!1,m=!1,h=!1,S=crypto.randomUUID();function I(){let f=new URL(location.href);f.searchParams.delete("mode"),f.searchParams.delete("type"),history.replaceState(history.state,"",f)}function u(){return{title:D(s,_.title),body:D(s,_.body),checklistRoot:D(s,_.checklist),pin:D(s,_.pin),details:D(s,"[data-notebook-create-details]"),type:D(s,"[data-create-type]"),reminderField:D(s,"[data-create-reminder-field]"),reminder:D(s,"[data-create-reminder]"),priority:D(s,"[data-create-priority]"),color:D(s,"[data-create-color]"),labels:D(s,"[data-create-labels]"),feedback:D(s,"[data-notebook-create-feedback]"),submit:D(s,"[data-notebook-create-submit]")}}function v(f="",l=!1){let{feedback:w}=u();w.textContent=f,w.hidden=!f,w.classList.toggle("is-error",l)}function E(f){let l=u(),w=ze.has(f)?f:"Note";l.type.value=w,l.checklistRoot.hidden=w!=="Checklist",l.body.hidden=w==="Checklist",l.reminderField.hidden=w!=="Reminder",l.title.placeholder=w==="Reminder"?"Reminder title":"Title",l.body.placeholder=w==="Reminder"?"Add notes…":"Take a note…",l.submit.textContent=w==="Reminder"?"Create reminder":`Create ${w.toLowerCase()}`,w==="Checklist"&&p.getRows().length===0&&p.setRows([{text:""}])}function c(f="Note"){let l=u();l.title.value="",l.body.value="",l.reminder.value="",l.priority.value="Normal",l.color.value="",l.labels.value="",p.clear(),h=!1,S=crypto.randomUUID(),l.pin.classList.remove("is-active"),v(""),E(f)}function b(){s&&(s.hidden=!0,s.classList.remove("is-create-mode"),document.body.classList.remove("notebook-modal-open"),g=!1,I())}async function x(){if(m)return;let f=u(),l=Dt({type:f.type.value,title:f.title.value,body:f.body.value,reminderLocal:f.reminder.value,priority:f.priority.value,colorKey:f.color.value,labels:f.labels.value,isPinned:h,checklistRows:p.getRows(),clientRequestId:S});if(!l.title&&!l.body&&l.checklistRows.length===0){v("Add a title, note or checklist item before creating.",!0),f.title.focus();return}if(l.type==="Reminder"&&!l.reminderAtUtc){v("Choose a reminder date and time.",!0),f.reminder.focus();return}m=!0,f.submit.disabled=!0,v("Creating…");try{let w=await T.createItem(l);if(!w?.item)throw new U("The create response did not contain the new notebook item.",{code:"notebook_invalid_mutation_response"});await F({response:w,board:e,view:o||"home",getCardHtml:T.getCardHtml,applyCounts:i,preservePosition:!1,prepend:!0,showGlobalError:t,renderFailureMessage:"The item was created, but its card could not be rendered. Reload the page.",reconcileFailureMessage:"The item was created, but the board could not refresh. Reload the page."}),b(),c("Note")}catch(w){v(w.message||"Unable to create the notebook item.",!0)}finally{m=!1,f.submit.disabled=!1}}function y(){s=qe(document),s.classList.add("is-create-mode"),document.body.appendChild(s);let f=u();p=se(f.checklistRoot),f.details.hidden=!1,f.submit.hidden=!1,s.querySelector("[data-notebook-save-state]")?.closest(".notebook-save-feedback")?.setAttribute("hidden",""),s.querySelector("[data-notebook-conflict]")?.setAttribute("hidden",""),f.type.addEventListener("change",()=>E(f.type.value)),f.pin.addEventListener("click",()=>{m||(h=!h,f.pin.classList.toggle("is-active",h),f.pin.setAttribute("aria-label",h?"Unpin item":"Pin item"))}),f.submit.addEventListener("click",x),s.addEventListener("click",l=>{l.target.closest("[data-close]")&&b()})}function C(f="Note"){s||y(),c(f),s.hidden=!1,s.classList.add("is-create-mode"),document.body.classList.add("notebook-modal-open"),g=!0;let l=u();queueMicrotask(()=>{f==="Reminder"?l.reminder.focus():f==="Checklist"?p.focusFirst():l.title.focus()})}return{open:C,close:b,isOpen:()=>g}}var ze,We=G(()=>{ae();ge();fe();Re();ze=new Set(["Note","Checklist","Reminder","Idea","Draft","Sticky"])});function Qe(){let e=document.querySelector(".notebook-shell");if(!e)return;let o=new URL(location.href).searchParams.get("view")||"home",a=$e(e),t,i=document.querySelector("[data-notebook-global-error]"),s=document.querySelector("[data-notebook-global-error-text]"),p=b=>{if(!i||!s){e.dataset.error=b||"Notebook action failed.";return}s.textContent=b||"Notebook action failed.",i.hidden=!1},g=b=>{b&&Object.entries(b).forEach(([x,y])=>e.querySelectorAll(`[data-notebook-count="${x}"]`).forEach(C=>{C.textContent=String(y)}))},m=async()=>g(await T.getCounts()),h=Je(a,o,{shell:e,showGlobalError:p,applyCounts:g}),S=Ye(a,o,{shell:e,showGlobalError:p,applyCounts:g});t=Ke(e.querySelector("[data-notebook-composer]"),a,o,{showGlobalError:p,applyCounts:g}),document.querySelector("[data-notebook-global-error-close]")?.addEventListener("click",()=>{i.hidden=!0,s.textContent=""});let I="notebook.boardView",u=[...e.querySelectorAll("[data-notebook-view]")];function v(b){let x=b==="list"?"list":"grid";e.dataset.boardView=x,localStorage.setItem(I,x),u.forEach(y=>{let C=y.dataset.notebookView===x;y.classList.toggle("is-active",C),y.setAttribute("aria-pressed",String(C))})}u.forEach(b=>b.addEventListener("click",()=>v(b.dataset.notebookView))),v(localStorage.getItem(I)||e.dataset.boardView||"grid"),document.addEventListener("click",async b=>{let x=b.target.closest("[data-notebook-create-type]");if(x){b.preventDefault(),S.open(x.dataset.notebookCreateType||"Note");return}let y=Te(b);if(!y)return;let C=y.closest("[data-note-id]"),f=C?.dataset.noteId;if(y.dataset.action==="open-note"&&f){b.preventDefault();try{await h.open(f)}catch(l){p(l.message||"Unable to open the note.")}}if(y.dataset.action==="toggle-checklist"&&C){b.preventDefault(),y.disabled=!0;try{let l=await T.toggleChecklistItem(C.dataset.noteId,y.dataset.rowId,y.dataset.isDone!=="true",C.dataset.version),w=Q(l);re(C,w),await F({response:l,board:a,view:o,getCardHtml:T.getCardHtml,applyCounts:g,preservePosition:!0,showGlobalError:p,existingCard:C}),h.syncExternalUpdate?.(w)}catch(l){p(l.message||"Checklist update failed.")}finally{y.disabled=!1}}if(["pin-note","archive-note","complete-note","reopen-note","restore-note","duplicate-note","delete-note","convert-note"].includes(y.dataset.action)&&f){b.preventDefault(),y.disabled=!0;try{if(y.dataset.action==="pin-note"){let l=await T.setPinned(f,C.dataset.isPinned!=="true",C.dataset.version),w=Q(l);re(C,w),await F({response:l,board:a,view:o,getCardHtml:T.getCardHtml,applyCounts:g,preservePosition:!1,prepend:!0,showGlobalError:p,existingCard:C,reconcileFailureMessage:`The note was ${w.isPinned?"pinned":"unpinned"}, but the board could not refresh. Reload the page.`})}if(y.dataset.action==="archive-note"){let l=await T.archiveItem(f,C.dataset.version);a.removeCard(f),g(l?.counts)}if(y.dataset.action==="complete-note"){let l=await T.completeItem(f,C.dataset.version);a.removeCard(f),g(l?.counts)}if(y.dataset.action==="reopen-note"){let l=await T.reopenItem(f,C.dataset.version);a.removeCard(f),g(l?.counts)}if(y.dataset.action==="restore-note"){let l=await T.restoreItem(f,C.dataset.version),w=Q(l);re(C,w),o==="archive"||o==="archived"?(a.removeCard(f),g(l?.counts)):await F({response:l,board:a,view:o,getCardHtml:T.getCardHtml,applyCounts:g,preservePosition:!1,prepend:!0,showGlobalError:p,existingCard:C})}if(y.dataset.action==="duplicate-note"){let l=await T.duplicateItem(f);await F({response:l,board:a,view:o,getCardHtml:T.getCardHtml,applyCounts:g,preservePosition:!1,prepend:!0,showGlobalError:p})}if(y.dataset.action==="delete-note"){let l=await T.deleteItem(f,C.dataset.version);a.removeCard(l?.removedItemId||f),g(l?.counts)}if(y.dataset.action==="convert-note"){let l=y.dataset.convertTo==="Checklist"?await T.showCheckboxes(f,C.dataset.version):await T.hideCheckboxes(f,C.dataset.version),w=Q(l);re(C,w),await F({response:l,board:a,view:o,getCardHtml:T.getCardHtml,applyCounts:g,preservePosition:!0,showGlobalError:p,existingCard:C})}}catch(l){p(l.message||"Notebook action failed.")}finally{y.disabled=!1}}}),document.addEventListener("keydown",async b=>{if(b.key==="Escape"){if(S.isOpen()){b.preventDefault(),S.close();return}if(h.isOpen()){b.preventDefault(),await h.requestClose();return}t?.isOpen()&&(b.preventDefault(),await t.close())}}),window.addEventListener("popstate",async()=>{try{let b=new URL(location.href).searchParams.get("note");b?await h.open(b,{pushHistory:!1}):await h.requestClose({fromHistory:!0})}catch(b){p(b.message||"Unable to open the note.")}});let E=new URL(location.href);E.searchParams.get("mode")==="new"&&S.open(E.searchParams.get("type")||"Note");let c=E.searchParams.get("note");c&&h.open(c,{pushHistory:!1}).catch(b=>{p(b.message||"Unable to open the note.");let x=new URL(location.href);x.searchParams.delete("note"),history.replaceState(history.state,"",x)})}var Xe=G(()=>{Le();ae();Me();Ve();Re();We();fe()});var Bt=ut(()=>{Xe();function Ut(){document.querySelectorAll("[data-autoresize]").forEach(m=>{let h=()=>{m.style.height="auto",m.style.height=`${m.scrollHeight}px`};m.addEventListener("input",h),h()});let e=document.querySelector("[data-notebook-type-select]"),o=Array.from(document.querySelectorAll("[data-notebook-type-fields]")),a=m=>(m||"").toString().trim().toLowerCase(),t=()=>a(e?.options[e.selectedIndex]?.text||e?.value),i=(m,h)=>{m.hidden=!h,m.querySelectorAll("input, select, textarea, button").forEach(S=>{S.disabled=!h})},s=()=>{let m=t();o.forEach(h=>{let S=(h.dataset.notebookTypeFields||"").split(",").map(a);i(h,S.includes(m))})};e&&o.length&&(e.addEventListener("change",s),s()),document.querySelectorAll("[data-submit-on-change]").forEach(m=>m.addEventListener("change",()=>m.form?.submit()));let p=document.querySelector(".notebook-shell"),g=localStorage.getItem("notebook-board-view")||"grid";p?.setAttribute("data-board-view",g),document.querySelectorAll("[data-notebook-view]").forEach(m=>m.addEventListener("click",()=>{localStorage.setItem("notebook-board-view",m.dataset.notebookView),p?.setAttribute("data-board-view",m.dataset.notebookView)}))}document.addEventListener("DOMContentLoaded",()=>{Ut(),Qe()})});export default Bt();
+// wwwroot/js/notebook/notebook-utils.js
+var closestAction;
+var init_notebook_utils = __esm({
+  "wwwroot/js/notebook/notebook-utils.js"() {
+    closestAction = (event) => event.target.closest("[data-action]");
+  }
+});
+
+// wwwroot/js/core/session-auth.js
+function notifySessionExpired() {
+  if (sessionExpiredShown) return;
+  sessionExpiredShown = true;
+  document.dispatchEvent(new CustomEvent("app:session-expired"));
+}
+var sessionExpiredShown;
+var init_session_auth = __esm({
+  "wwwroot/js/core/session-auth.js"() {
+    sessionExpiredShown = false;
+  }
+});
+
+// wwwroot/js/notebook/notebook-api.js
+function isDevelopment() {
+  return document.documentElement.dataset.environment === "Development" || location.hostname === "localhost";
+}
+function logNotebookRequest(url, method, headers, body) {
+  if (!isDevelopment() || !isUnsafeMethod(method)) return;
+  console.debug("Notebook API request", {
+    url,
+    method,
+    contentType: headers.get("Content-Type"),
+    hasAntiForgeryToken: headers.has("RequestVerificationToken"),
+    hasBody: body !== void 0 && body !== null
+  });
+}
+function logNotebookFailure(error) {
+  if (!isDevelopment()) return;
+  console.error("Notebook API request failed", {
+    url: error.url,
+    method: error.method,
+    status: error.status,
+    code: error.code,
+    errors: error.errors,
+    responseText: error.responseText
+  });
+}
+function getAntiForgeryToken() {
+  const tokenInput = document.querySelector('#notebook-antiforgery-token input[name="__RequestVerificationToken"]');
+  const value = tokenInput?.value?.trim();
+  if (!value) {
+    throw new NotebookApiError("Notebook security token is unavailable. Refresh the page and try again.", {
+      status: 0,
+      code: "notebook_antiforgery_missing"
+    });
+  }
+  return value;
+}
+function isUnsafeMethod(method) {
+  const normalised = (method || "GET").toUpperCase();
+  return !["GET", "HEAD", "OPTIONS", "TRACE"].includes(normalised);
+}
+function getDefaultNotebookErrorMessage(status) {
+  switch (status) {
+    case 400:
+      return "The notebook request was invalid.";
+    case 401:
+      return "Your session has expired. Sign in again.";
+    case 403:
+      return "You are not authorised to perform this action.";
+    case 404:
+      return "The note could not be found.";
+    case 409:
+      return "The note was changed elsewhere.";
+    case 415:
+      return "The request format is not supported.";
+    default:
+      return "The notebook operation failed.";
+  }
+}
+function jsonRequestOptions(method, payload, options = {}) {
+  if (payload === void 0 || typeof payload === "function" || typeof payload === "symbol") {
+    throw new NotebookApiError("Notebook request payload is invalid.", {
+      status: 0,
+      code: "notebook_invalid_client_payload"
+    });
+  }
+  let body;
+  try {
+    body = JSON.stringify(payload);
+  } catch (error) {
+    throw new NotebookApiError("Notebook request payload could not be serialised.", {
+      status: 0,
+      code: "notebook_payload_serialisation_failed",
+      cause: error
+    });
+  }
+  if (typeof body !== "string" || body.length === 0) {
+    throw new NotebookApiError("Notebook request payload is empty.", {
+      status: 0,
+      code: "notebook_empty_client_payload"
+    });
+  }
+  const headers = new Headers(options.headers || {});
+  headers.set("Content-Type", "application/json; charset=utf-8");
+  return {
+    ...options,
+    method: String(method).toUpperCase(),
+    headers,
+    body
+  };
+}
+function isLoginResponse(response) {
+  if (!response) return false;
+  const responseUrl = response.url || "";
+  return Boolean(response.redirected && responseUrl.includes("/Identity/Account/Login"));
+}
+function createSessionExpiredError(context) {
+  notifySessionExpired();
+  return new NotebookApiError("Your session has expired. Sign in again.", {
+    status: 401,
+    code: "notebook_session_expired",
+    url: context.url,
+    method: context.method
+  });
+}
+async function parseNotebookResponse(response, context) {
+  if (isLoginResponse(response)) throw createSessionExpiredError(context);
+  if (response.status === 204) return null;
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("text/html") && (response.url || "").includes("/Identity/Account/Login")) {
+    throw createSessionExpiredError(context);
+  }
+  let payload = null;
+  let rawText = null;
+  if (contentType.includes("application/json") || contentType.includes("application/problem+json")) {
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
+    }
+  } else {
+    rawText = await response.text();
+  }
+  if (!response.ok) {
+    if (response.status === 401) notifySessionExpired();
+    throw new NotebookApiError(
+      payload?.message || payload?.detail || payload?.title || payload?.error || rawText || getDefaultNotebookErrorMessage(response.status),
+      {
+        status: response.status,
+        code: payload?.code,
+        errors: payload?.errors,
+        responseText: rawText,
+        url: context.url,
+        method: context.method,
+        currentVersion: payload?.currentVersion ?? null,
+        currentItem: payload?.currentItem ?? null
+      }
+    );
+  }
+  return payload ?? rawText;
+}
+async function request(url, options = {}) {
+  const method = String(options.method || "GET").toUpperCase();
+  const headers = new Headers(options.headers || {});
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
+  const hasBody = options.body !== void 0 && options.body !== null;
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  if (hasBody && !isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json; charset=utf-8");
+  }
+  if (isUnsafeMethod(method)) headers.set("RequestVerificationToken", getAntiForgeryToken());
+  logNotebookRequest(url, method, headers, options.body);
+  let response;
+  try {
+    response = await fetch(url, { ...options, method, headers, credentials: "same-origin" });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new NotebookApiError("The notebook request was cancelled.", {
+        status: 0,
+        code: "notebook_request_aborted",
+        url,
+        method,
+        cause: error
+      });
+    }
+    const apiError = new NotebookApiError("The notebook service could not be reached.", {
+      status: 0,
+      code: "notebook_network_error",
+      url,
+      method,
+      cause: error
+    });
+    logNotebookFailure(apiError);
+    throw apiError;
+  }
+  try {
+    return await parseNotebookResponse(response, { url, method });
+  } catch (error) {
+    if (error instanceof NotebookApiError) logNotebookFailure(error);
+    throw error;
+  }
+}
+var NotebookApiError, NotebookApi;
+var init_notebook_api = __esm({
+  "wwwroot/js/notebook/notebook-api.js"() {
+    init_session_auth();
+    NotebookApiError = class extends Error {
+      constructor(message, { status = 0, code = null, errors = null, responseText = null, url = null, method = null, cause = null, currentVersion = null, currentItem = null } = {}) {
+        super(message);
+        this.name = "NotebookApiError";
+        this.status = status;
+        this.code = code;
+        this.errors = errors;
+        this.responseText = responseText;
+        this.url = url;
+        this.method = method;
+        this.cause = cause;
+        this.currentVersion = currentVersion;
+        this.currentItem = currentItem;
+      }
+    };
+    NotebookApi = {
+      createItem: (payload) => request("/api/notebook/items", jsonRequestOptions("POST", payload)),
+      getItem: (id, options = {}) => request(`/api/notebook/items/${encodeURIComponent(id)}`, options),
+      updateItem: (id, payload) => request(`/api/notebook/items/${encodeURIComponent(id)}`, jsonRequestOptions("PATCH", payload)),
+      updateContent: (id, payload, options = {}) => request(`/api/notebook/items/${encodeURIComponent(id)}/content`, jsonRequestOptions("PATCH", payload, options)),
+      updateChecklist: (id, payload, options = {}) => request(`/api/notebook/items/${encodeURIComponent(id)}/checklist`, jsonRequestOptions("PUT", payload, options)),
+      setPinned: (id, isPinned, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/pin`, jsonRequestOptions("POST", { isPinned, version })),
+      archiveItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/archive`, jsonRequestOptions("POST", { version })),
+      completeItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/complete`, jsonRequestOptions("POST", { version })),
+      reopenItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/reopen`, jsonRequestOptions("POST", { version })),
+      duplicateItem: (id) => request(`/api/notebook/items/${encodeURIComponent(id)}/duplicate`, jsonRequestOptions("POST", {})),
+      deleteItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}`, jsonRequestOptions("DELETE", { version })),
+      restoreItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/restore`, jsonRequestOptions("POST", { version })),
+      showCheckboxes: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/show-checkboxes`, jsonRequestOptions("POST", { version })),
+      hideCheckboxes: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/hide-checkboxes`, jsonRequestOptions("POST", { version })),
+      toggleChecklistItem: (itemId, rowId, isDone, version) => request(`/api/notebook/items/${encodeURIComponent(itemId)}/checklist-items/${encodeURIComponent(rowId)}`, jsonRequestOptions("PATCH", { isDone, version })),
+      getCounts: () => request("/api/notebook/counts"),
+      getCardHtml: (id, view = "home") => request(`/api/notebook/items/${encodeURIComponent(id)}/card?view=${encodeURIComponent(view)}`, { headers: { Accept: "text/html" } })
+    };
+  }
+});
+
+// wwwroot/js/notebook/notebook-errors.js
+function getValidationMessages(error) {
+  const errors = error?.errors;
+  if (!errors || typeof errors !== "object") return [];
+  return Object.entries(errors).flatMap(([field, value]) => {
+    const messages = Array.isArray(value) ? value : [value];
+    return messages.filter((message) => typeof message === "string" && message.trim().length > 0).map((message) => ({ field, message: message.trim() }));
+  });
+}
+function getFirstValidationMessage(error) {
+  const messages = getValidationMessages(error);
+  if (messages.length > 0) return messages[0].message;
+  return error?.message || "The note contains invalid information.";
+}
+var NotebookCardHtmlError, NotebookBoardTargetError;
+var init_notebook_errors = __esm({
+  "wwwroot/js/notebook/notebook-errors.js"() {
+    NotebookCardHtmlError = class extends Error {
+      constructor(message) {
+        super(message);
+        this.name = "NotebookCardHtmlError";
+        this.code = "notebook_invalid_card_html";
+      }
+    };
+    NotebookBoardTargetError = class extends Error {
+      constructor(message) {
+        super(message);
+        this.name = "NotebookBoardTargetError";
+        this.code = "notebook_target_board_missing";
+      }
+    };
+  }
+});
+
+// wwwroot/js/notebook/notebook-board.js
+function createNotebookBoard(root = document) {
+  const findCard = (id) => root.querySelector(`[data-note-id="${CSS.escape(id)}"]`);
+  const getSection = (isPinned) => root.querySelector(`[data-notebook-section="${isPinned ? "pinned" : "others"}"]`);
+  const getBoard = (isPinned) => {
+    const namedBoard = root.querySelector(`[data-notebook-board="${isPinned ? "pinned" : "others"}"]`);
+    return namedBoard || root.querySelector('[data-notebook-board]:not([data-notebook-board="pinned"]):not([data-notebook-board="others"])');
+  };
+  function htmlToCardElement(html, expectedId) {
+    if (typeof html !== "string" || !html.trim()) {
+      throw new NotebookCardHtmlError("Notebook card HTML was empty.");
+    }
+    const template = document.createElement("template");
+    template.innerHTML = html.trim();
+    const elements = template.content.children;
+    if (elements.length !== 1) {
+      throw new NotebookCardHtmlError("Notebook card response must contain exactly one root element.");
+    }
+    const card = elements[0];
+    if (!card.matches("[data-note-id]")) {
+      throw new NotebookCardHtmlError("Notebook card response did not contain a note card.");
+    }
+    if (expectedId !== void 0 && expectedId !== null && card.dataset.noteId !== String(expectedId)) {
+      throw new NotebookCardHtmlError("Notebook card response did not match the requested note.");
+    }
+    return card;
+  }
+  function refreshBoardLayout(board) {
+    if (!board) return;
+    const count = board.querySelectorAll(":scope > [data-note-id]").length;
+    board.dataset.itemCount = String(count);
+    const policy = board.dataset.layoutPolicy || "fixed-grid";
+    board.dataset.layout = policy === "masonry-threshold" && count > 4 ? "masonry" : "grid";
+  }
+  const refreshSectionVisibility = () => {
+    root.querySelectorAll("[data-notebook-board]").forEach(refreshBoardLayout);
+    ["pinned", "others"].forEach((name) => {
+      const section = root.querySelector(`[data-notebook-section="${name}"]`);
+      const board = root.querySelector(`[data-notebook-board="${name}"]`);
+      if (!section || !board) return;
+      const count = Number(board.dataset.itemCount || 0);
+      if (name === "pinned") section.hidden = count === 0;
+      const countEl = root.querySelector(`[data-notebook-count="${name}"]`);
+      if (countEl) countEl.textContent = String(count);
+    });
+  };
+  const refreshEmptyState = () => {
+    const empty = root.querySelector('[data-notebook-empty-state="current"]') || root.querySelector("[data-notebook-empty-state]") || root.querySelector("[data-notebook-empty]");
+    if (!empty) return;
+    const count = [...root.querySelectorAll("[data-notebook-board]")].reduce((total, board) => total + board.querySelectorAll(":scope > [data-note-id]").length, 0);
+    empty.hidden = count > 0;
+  };
+  const upsertCard = (id, html, isPinned, options = {}) => {
+    const current = findCard(id);
+    const targetBoard = getBoard(isPinned);
+    if (!targetBoard) throw new NotebookBoardTargetError(`Notebook board "${isPinned ? "pinned" : "others"}" was not found.`);
+    const fragment = htmlToCardElement(html, id);
+    const sameBoard = current && current.parentElement === targetBoard;
+    const preservePosition = options.preservePosition !== false;
+    if (sameBoard && preservePosition) {
+      current.replaceWith(fragment);
+    } else {
+      current?.remove();
+      options.prepend === false ? targetBoard.append(fragment) : targetBoard.prepend(fragment);
+    }
+    refreshSectionVisibility();
+    refreshEmptyState();
+    return fragment;
+  };
+  const replaceCard = (id, html) => {
+    const current = findCard(id);
+    if (!current) return null;
+    const fragment = htmlToCardElement(html, id);
+    current.replaceWith(fragment);
+    refreshSectionVisibility();
+    refreshEmptyState();
+    return fragment;
+  };
+  const insertCard = (html, pinned = false) => {
+    const fragment = htmlToCardElement(html);
+    const board = getBoard(pinned);
+    if (!board) throw new NotebookBoardTargetError(`Notebook board "${pinned ? "pinned" : "others"}" was not found.`);
+    board.prepend(fragment);
+    refreshSectionVisibility();
+    refreshEmptyState();
+    return fragment;
+  };
+  const removeCard = (id) => {
+    findCard(id)?.remove();
+    refreshSectionVisibility();
+    refreshEmptyState();
+  };
+  return { findCard, getSection, getBoard, replaceCard, insertCard, upsertCard, removeCard, refreshSectionVisibility, refreshBoardLayout, refreshEmptyState, htmlToCardElement };
+}
+var init_notebook_board = __esm({
+  "wwwroot/js/notebook/notebook-board.js"() {
+    init_notebook_errors();
+  }
+});
+
+// wwwroot/js/notebook/notebook-checklist-editor.js
+function createClientKey() {
+  if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  return [Date.now().toString(36), Math.random().toString(36).slice(2), Math.random().toString(36).slice(2)].join("-");
+}
+function createChecklistEditor(root, options = {}) {
+  const maxLength = options.maxLength || 500;
+  let rows = [];
+  let isReconciling = false;
+  const notify = () => {
+    if (!isReconciling) options.onChange?.();
+  };
+  function normalizeRow(row = {}, index = 0) {
+    return {
+      id: row.id ?? null,
+      clientKey: normaliseClientKey(row),
+      text: row.text || "",
+      isDone: Boolean(row.isDone),
+      sortOrder: Number.isFinite(row.sortOrder) ? row.sortOrder : (index + 1) * 1e3,
+      element: row.element || null
+    };
+  }
+  function normaliseClientKey(row = {}) {
+    if (row.clientKey) return row.clientKey;
+    return row.id === null || row.id === void 0 ? createClientKey() : null;
+  }
+  function rowTemplate(row) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "notebook-checklist-row";
+    wrapper.dataset.checklistRow = "";
+    wrapper.innerHTML = `<input type="checkbox" data-checklist-done><input type="text" data-checklist-text maxlength="${maxLength}" placeholder="List item"><button type="button" data-checklist-remove aria-label="Remove checklist item">×</button>`;
+    row.element = wrapper;
+    updateRowElement(row, { forceContent: true });
+    return wrapper;
+  }
+  function updateRowElement(row, { forceContent = false } = {}) {
+    if (!row.element) return;
+    row.element.dataset.rowId = row.id ?? "";
+    row.element.dataset.clientKey = row.clientKey || "";
+    const done = row.element.querySelector("[data-checklist-done]");
+    const text = row.element.querySelector("[data-checklist-text]");
+    if (done && (forceContent || done.checked !== Boolean(row.isDone))) done.checked = Boolean(row.isDone);
+    if (text && (forceContent || text.value !== (row.text || ""))) text.value = row.text || "";
+  }
+  function readRowElement(row, index) {
+    if (!row.element) return row;
+    row.id = parseNullableInt(row.element.dataset.rowId);
+    row.clientKey = row.element.dataset.clientKey || row.clientKey || normaliseClientKey(row);
+    row.text = row.element.querySelector("[data-checklist-text]")?.value || "";
+    row.isDone = Boolean(row.element.querySelector("[data-checklist-done]")?.checked);
+    row.sortOrder = (index + 1) * 1e3;
+    return row;
+  }
+  function findRowByElement(element) {
+    return rows.find((row) => row.element === element) || null;
+  }
+  function captureFocusState() {
+    const active = document.activeElement;
+    const row = active?.closest?.("[data-checklist-row]");
+    if (!row || !root.contains(row)) return null;
+    return {
+      rowId: row.dataset.rowId || null,
+      clientKey: row.dataset.clientKey || null,
+      selectionStart: typeof active.selectionStart === "number" ? active.selectionStart : null,
+      selectionEnd: typeof active.selectionEnd === "number" ? active.selectionEnd : null
+    };
+  }
+  function restoreFocusState(state) {
+    if (!state) return;
+    const row = rows.find((candidate) => state.rowId && String(candidate.id) === state.rowId || state.clientKey && candidate.clientKey === state.clientKey);
+    const input = row?.element?.querySelector("[data-checklist-text]");
+    if (!input) return;
+    input.focus();
+    if (state.selectionStart !== null && typeof input.setSelectionRange === "function") {
+      const end = state.selectionEnd ?? state.selectionStart;
+      input.setSelectionRange(Math.min(state.selectionStart, input.value.length), Math.min(end, input.value.length));
+    }
+  }
+  function findMatchingRow(target, byId, byClientKey) {
+    if (target?.id !== null && target?.id !== void 0) {
+      const byPermanentId = byId.get(String(target.id));
+      if (byPermanentId) return byPermanentId;
+    }
+    if (target?.clientKey) return byClientKey.get(target.clientKey) ?? null;
+    return null;
+  }
+  function appendReconciledRow(reconciled, row, seenRows, seenIdentities) {
+    const identity = row.id !== null && row.id !== void 0 ? `id:${row.id}` : row.clientKey ? `client:${row.clientKey}` : null;
+    if (seenRows.has(row) || identity && seenIdentities.has(identity)) return;
+    seenRows.add(row);
+    if (identity) seenIdentities.add(identity);
+    reconciled.push(row);
+  }
+  function wasAddedAfterDispatch(localRow, submittedById, submittedByClientKey) {
+    return !findMatchingRow(localRow, submittedById, submittedByClientKey);
+  }
+  function removeStaleRowElements(reconciledRows) {
+    const retainedElements = new Set(reconciledRows.map((row) => row.element).filter(Boolean));
+    root.querySelectorAll("[data-checklist-row]").forEach((element) => {
+      if (!retainedElements.has(element)) element.remove();
+    });
+  }
+  function ensureAddItemControl() {
+    let button = root.querySelector("[data-checklist-add]");
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "notebook-checklist-add";
+      button.dataset.checklistAdd = "";
+      button.textContent = "+ List item";
+      root.append(button);
+    }
+    return button;
+  }
+  function setRows(nextRows) {
+    root.replaceChildren();
+    rows = (nextRows || []).map(normalizeRow);
+    rows.forEach((row) => root.append(rowTemplate(row)));
+    ensureAddItemControl();
+  }
+  function addRow(afterElement = null, row = {}) {
+    const insertAt = afterElement ? rows.findIndex((candidate) => candidate.element === afterElement) + 1 : rows.length;
+    const model = normalizeRow(row, insertAt);
+    const el = rowTemplate(model);
+    if (afterElement) afterElement.after(el);
+    else root.insertBefore(el, ensureAddItemControl());
+    rows.splice(insertAt < 0 ? rows.length : insertAt, 0, model);
+    return el;
+  }
+  function removeRow(element) {
+    const row = findRowByElement(element);
+    const prev = element.previousElementSibling;
+    rows = rows.filter((candidate) => candidate !== row);
+    element.remove();
+    (prev?.querySelector("[data-checklist-text]") || root.querySelector("[data-checklist-text]"))?.focus();
+    notify();
+  }
+  function getRows() {
+    rows.forEach(readRowElement);
+    return rows.map((row, index) => ({ id: row.id, clientKey: row.clientKey, text: row.text.trim(), isDone: row.isDone, sortOrder: index })).filter((row) => row.text.length > 0);
+  }
+  function reconcileRows(serverRows, submittedRows = null) {
+    isReconciling = true;
+    const focusState = captureFocusState();
+    const scrollTop = root.scrollTop;
+    try {
+      rows.forEach(readRowElement);
+      const originalLocalRows = [...rows];
+      const hasSubmittedSnapshot = Array.isArray(submittedRows);
+      const baseRows = hasSubmittedSnapshot ? submittedRows : [];
+      const submittedById = new Map(baseRows.filter((row) => row.id !== null && row.id !== void 0).map((row) => [String(row.id), row]));
+      const submittedByClientKey = new Map(baseRows.filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
+      const localById = new Map(originalLocalRows.filter((row) => row.id !== null && row.id !== void 0).map((row) => [String(row.id), row]));
+      const localByClientKey = new Map(originalLocalRows.filter((row) => row.clientKey).map((row) => [row.clientKey, row]));
+      const reconciled = [];
+      const seenRows = /* @__PURE__ */ new Set();
+      const seenIdentities = /* @__PURE__ */ new Set();
+      (serverRows || []).forEach((serverRow, index) => {
+        const submittedRow = findMatchingRow(serverRow, submittedById, submittedByClientKey);
+        let localRow = findMatchingRow(serverRow, localById, localByClientKey);
+        if (hasSubmittedSnapshot && submittedRow && !localRow) return;
+        if (!localRow) localRow = normalizeRow(serverRow, index);
+        localRow.id = serverRow.id ?? localRow.id;
+        localRow.clientKey = serverRow.clientKey ?? localRow.clientKey ?? normaliseClientKey(localRow);
+        if (!submittedRow || localRow.text === (submittedRow.text ?? "")) localRow.text = serverRow.text || "";
+        if (!submittedRow || localRow.isDone === Boolean(submittedRow.isDone)) localRow.isDone = Boolean(serverRow.isDone);
+        localRow.sortOrder = serverRow.sortOrder ?? (index + 1) * 1e3;
+        if (!localRow.element) rowTemplate(localRow);
+        updateRowElement(localRow);
+        appendReconciledRow(reconciled, localRow, seenRows, seenIdentities);
+      });
+      if (hasSubmittedSnapshot) originalLocalRows.forEach((localRow) => {
+        if (wasAddedAfterDispatch(localRow, submittedById, submittedByClientKey)) {
+          appendReconciledRow(reconciled, localRow, seenRows, seenIdentities);
+        }
+      });
+      removeStaleRowElements(reconciled);
+      rows = reconciled;
+      rows.forEach((row) => root.insertBefore(row.element, ensureAddItemControl()));
+      ensureAddItemControl();
+      root.scrollTop = scrollTop;
+      restoreFocusState(focusState);
+    } finally {
+      isReconciling = false;
+    }
+  }
+  function handleInput(event) {
+    if (isReconciling) return;
+    if (event.target.matches("[data-checklist-text]")) notify();
+  }
+  function handleChange(event) {
+    if (isReconciling) return;
+    if (event.target.matches("[data-checklist-done]")) notify();
+  }
+  function handleClick(event) {
+    if (isReconciling) return;
+    if (event.target.closest("[data-checklist-add]")) {
+      addRow().querySelector("[data-checklist-text]")?.focus();
+      return;
+    }
+    const button = event.target.closest("[data-checklist-remove]");
+    if (button) removeRow(button.closest("[data-checklist-row]"));
+  }
+  function handleKeydown(event) {
+    if (isReconciling) return;
+    const input = event.target.closest("[data-checklist-text]");
+    if (!input) return;
+    const row = input.closest("[data-checklist-row]");
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addRow(row).querySelector("[data-checklist-text]").focus();
+      notify();
+    }
+    if (event.key === "Backspace" && input.value.length === 0 && root.querySelectorAll("[data-checklist-row]").length > 1) {
+      event.preventDefault();
+      removeRow(row);
+    }
+  }
+  function destroy() {
+    root.removeEventListener("input", handleInput);
+    root.removeEventListener("change", handleChange);
+    root.removeEventListener("click", handleClick);
+    root.removeEventListener("keydown", handleKeydown);
+    root.replaceChildren();
+    rows = [];
+  }
+  root.addEventListener("input", handleInput);
+  root.addEventListener("change", handleChange);
+  root.addEventListener("click", handleClick);
+  root.addEventListener("keydown", handleKeydown);
+  return { setRows, getRows, addRow, removeRow, reconcileRows, replaceRows: setRows, renderRows: setRows, getFocusedRowState: captureFocusState, restoreFocusedRowState: restoreFocusState, focusFirst: () => (root.querySelector("[data-checklist-text]") || ensureAddItemControl())?.focus(), clear: () => setRows([]), destroy };
+}
+var parseNullableInt;
+var init_notebook_checklist_editor = __esm({
+  "wwwroot/js/notebook/notebook-checklist-editor.js"() {
+    parseNullableInt = (value) => value ? Number.parseInt(value, 10) : null;
+  }
+});
+
+// wwwroot/js/notebook/notebook-reconcile.js
+function requireMutationItem(response, message = "The notebook response did not contain an updated item.") {
+  if (!response?.item) {
+    throw new NotebookApiError(message, { code: "notebook_invalid_mutation_response" });
+  }
+  return response.item;
+}
+function updateCardConcurrencyState(card, item) {
+  if (!card || !item) return;
+  card.dataset.version = item.version;
+  card.dataset.isPinned = String(item.isPinned).toLowerCase();
+  card.dataset.status = item.status;
+}
+function logReconciliationFailure(item, stage, error) {
+  console.error("Notebook card reconciliation failed", { itemId: item?.id, stage, error });
+}
+async function reconcileMutation({
+  response,
+  board,
+  view = "home",
+  getCardHtml,
+  applyCounts,
+  preservePosition = true,
+  prepend = false,
+  showGlobalError,
+  existingCard = null,
+  command = "unknown",
+  renderFailureMessage = "The note was updated, but its card could not be rendered. Reload the page.",
+  reconcileFailureMessage = "The note was updated, but the board could not refresh. Reload the page."
+}) {
+  const item = requireMutationItem(response);
+  applyCounts?.(response.counts);
+  updateCardConcurrencyState(existingCard || board?.findCard?.(item.id), item);
+  let html = response.cardHtml;
+  if (!html) {
+    console.warn("Notebook mutation response did not contain card HTML.", { itemId: item.id, command });
+    try {
+      html = await getCardHtml(item.id, view);
+    } catch (error) {
+      logReconciliationFailure(item, "server-card-rendering", error);
+      showGlobalError?.(renderFailureMessage);
+      return { item, reconciled: false, code: "notebook_card_render_failed" };
+    }
+  }
+  if (typeof html !== "string" || !html.trim()) {
+    const error = new NotebookCardHtmlError("Notebook card response was empty.");
+    logReconciliationFailure(item, "empty-card-response", error);
+    showGlobalError?.(renderFailureMessage);
+    return { item, reconciled: false, code: "notebook_empty_card_response" };
+  }
+  try {
+    board.upsertCard(item.id, html, item.isPinned, { preservePosition, prepend });
+    return { item, reconciled: true };
+  } catch (error) {
+    const classification = classifyReconciliationError(error);
+    logReconciliationFailure(item, classification.stage, error);
+    showGlobalError?.(classification.isRenderFailure ? renderFailureMessage : reconcileFailureMessage);
+    updateCardConcurrencyState(existingCard || board?.findCard?.(item.id), item);
+    return { item, reconciled: false, code: classification.code };
+  }
+}
+function classifyReconciliationError(error) {
+  switch (error?.code) {
+    case "notebook_invalid_card_html":
+      return { stage: "invalid-card-html", code: "notebook_invalid_card_html", isRenderFailure: true };
+    case "notebook_target_board_missing":
+      return { stage: "target-board", code: "notebook_target_board_missing", isRenderFailure: false };
+    case "notebook_board_update_failed":
+      return { stage: "card-replacement", code: "notebook_board_update_failed", isRenderFailure: false };
+    default:
+      return { stage: "card-replacement", code: "notebook_board_reconcile_failed", isRenderFailure: false };
+  }
+}
+var init_notebook_reconcile = __esm({
+  "wwwroot/js/notebook/notebook-reconcile.js"() {
+    init_notebook_api();
+    init_notebook_errors();
+  }
+});
+
+// wwwroot/js/notebook/notebook-composer.js
+function initNotebookComposer(root, board, view, options = {}) {
+  if (!root) return null;
+  const collapsed = root.querySelector("[data-composer-collapsed]");
+  const expanded = root.querySelector("[data-composer-expanded]");
+  const title = root.querySelector("[data-composer-title]");
+  const body = root.querySelector("[data-composer-body]");
+  const checklistRoot = root.querySelector("[data-composer-checklist]");
+  const status = root.querySelector("[data-composer-status]");
+  const pin = root.querySelector("[data-composer-pin]");
+  const closeButton = root.querySelector("[data-composer-close]");
+  const checklistButton = root.querySelector("[data-composer-open-checklist]");
+  const checklist = createChecklistEditor(checklistRoot);
+  const showGlobalError = options.showGlobalError || (() => {
+  });
+  const applyCounts = options.applyCounts || (() => {
+  });
+  let mode = "collapsed";
+  let isPinned = false;
+  let created = null;
+  let isSaving = false;
+  let clientRequestId = crypto.randomUUID();
+  const setStatus = (text) => {
+    if (status) status.textContent = text || "";
+  };
+  const setDisabled = (disabled) => {
+    if (closeButton) closeButton.disabled = disabled;
+    if (checklistButton) checklistButton.disabled = disabled;
+    if (pin) pin.disabled = disabled;
+  };
+  const setMode = (next) => {
+    mode = next;
+    root.dataset.state = next;
+    collapsed.hidden = next !== "collapsed";
+    expanded.hidden = next === "collapsed";
+    body.hidden = next === "checklist";
+    checklistRoot.hidden = next !== "checklist";
+  };
+  const reset = () => {
+    title.value = "";
+    body.value = "";
+    checklist.clear();
+    isPinned = false;
+    created = null;
+    clientRequestId = crypto.randomUUID();
+    pin.classList.remove("is-active");
+    setStatus("");
+  };
+  const payload = () => ({
+    title: title.value.trim(),
+    body: body.value.trim(),
+    type: mode === "checklist" ? "Checklist" : "Note",
+    priority: "Normal",
+    reminderAtUtc: null,
+    colorKey: null,
+    isPinned,
+    labels: [],
+    clientRequestId,
+    checklistRows: mode === "checklist" ? checklist.getRows().map((row, index) => ({ id: row.id, text: row.text.trim(), isDone: row.isDone, sortOrder: (index + 1) * 1e3 })).filter((row) => row.text.length > 0) : []
+  });
+  const meaningful = (p) => Boolean(p.title || p.body || p.checklistRows.length);
+  async function closeComposer() {
+    const data = payload();
+    if (!meaningful(data)) {
+      reset();
+      setMode("collapsed");
+      return true;
+    }
+    if (isSaving) return false;
+    isSaving = true;
+    setDisabled(true);
+    setStatus("Saving…");
+    try {
+      if (!created) created = await NotebookApi.createItem(data);
+      if (!created?.item) {
+        throw new NotebookApiError("The create response did not contain the new note.", { code: "notebook_invalid_mutation_response" });
+      }
+      await reconcileMutation({
+        response: created,
+        board,
+        view: view || "home",
+        getCardHtml: NotebookApi.getCardHtml,
+        applyCounts,
+        preservePosition: false,
+        prepend: true,
+        showGlobalError,
+        renderFailureMessage: "The note was saved, but its card could not be rendered. Reload the page.",
+        reconcileFailureMessage: "The note was saved, but the board could not refresh. Reload the page."
+      });
+      reset();
+      setMode("collapsed");
+      return true;
+    } catch (error) {
+      setStatus(error.message || "Unable to save the note.");
+      return false;
+    } finally {
+      isSaving = false;
+      setDisabled(false);
+    }
+  }
+  root.querySelector("[data-composer-open-note]")?.addEventListener("click", () => {
+    if (isSaving) return;
+    setMode("note");
+    body.focus();
+  });
+  checklistButton?.addEventListener("click", () => {
+    if (isSaving) return;
+    setMode("checklist");
+    checklist.setRows([{ text: "" }]);
+    checklist.focusFirst();
+  });
+  closeButton?.addEventListener("click", closeComposer);
+  pin?.addEventListener("click", () => {
+    if (isSaving) return;
+    isPinned = !isPinned;
+    pin.classList.toggle("is-active", isPinned);
+  });
+  return { close: closeComposer, isOpen: () => mode !== "collapsed" };
+}
+var init_notebook_composer = __esm({
+  "wwwroot/js/notebook/notebook-composer.js"() {
+    init_notebook_api();
+    init_notebook_checklist_editor();
+    init_notebook_reconcile();
+  }
+});
+
+// wwwroot/js/notebook/notebook-autosave.js
+function isPlainObject(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+function clonePayload(payload) {
+  if (typeof structuredClone === "function") return structuredClone(payload);
+  return JSON.parse(JSON.stringify(payload));
+}
+function assertPayloadObject(payload) {
+  if (!isPlainObject(payload)) throw new TypeError("Autosave payload must be a plain object.");
+}
+function createAutosave({ save, delay = 800, onSaving, onPersisted, onSaveError, onReconcileError, onSaved, onError }) {
+  let timer = null;
+  let activePromise = null;
+  let latestPayload = null;
+  let dirty = false;
+  let stopped = false;
+  let activeController = null;
+  let operationSequence = 0;
+  async function runLoop() {
+    if (activePromise) return activePromise;
+    activePromise = (async () => {
+      while (!stopped && dirty && latestPayload) {
+        const payload = latestPayload;
+        dirty = false;
+        await onSaving?.();
+        let result;
+        try {
+          activeController = typeof AbortController !== "undefined" ? new AbortController() : null;
+          const operation = {
+            sequence: ++operationSequence,
+            signal: activeController?.signal ?? null
+          };
+          result = await save(payload, operation);
+        } catch (error) {
+          const disposition = await (onSaveError || onError)?.(error);
+          dirty = disposition?.retryable === true;
+          if (!dirty) latestPayload = null;
+          throw error;
+        } finally {
+          activeController = null;
+        }
+        try {
+          await (onPersisted || onSaved)?.(result);
+        } catch (error) {
+          await onReconcileError?.(error, result);
+        }
+      }
+    })();
+    try {
+      return await activePromise;
+    } finally {
+      activePromise = null;
+    }
+  }
+  function schedule(payload) {
+    if (stopped) return;
+    assertPayloadObject(payload);
+    latestPayload = clonePayload(payload);
+    dirty = true;
+    if (timer) window.clearTimeout(timer);
+    timer = window.setTimeout(() => {
+      timer = null;
+      runLoop().catch(() => {
+      });
+    }, delay);
+  }
+  async function flush() {
+    if (timer) {
+      window.clearTimeout(timer);
+      timer = null;
+    }
+    if (activePromise) await activePromise;
+    if (dirty) await runLoop();
+  }
+  function cancel({ abortActive = true } = {}) {
+    if (timer) {
+      window.clearTimeout(timer);
+      timer = null;
+    }
+    dirty = false;
+    latestPayload = null;
+    if (abortActive) activeController?.abort();
+  }
+  function stop() {
+    stopped = true;
+    cancel();
+  }
+  return {
+    schedule,
+    flush,
+    cancel,
+    stop,
+    hasPending: () => Boolean(timer || activePromise || dirty),
+    hasActiveRequest: () => Boolean(activeController)
+  };
+}
+var init_notebook_autosave = __esm({
+  "wwwroot/js/notebook/notebook-autosave.js"() {
+  }
+});
+
+// wwwroot/js/notebook/notebook-editor.js
+function requireEditorElement(root, selector) {
+  const element = root?.querySelector?.(selector);
+  if (!element) {
+    const error = new Error(`Notebook editor template is missing required element: ${selector}`);
+    error.code = "notebook_editor_template_invalid";
+    throw error;
+  }
+  return element;
+}
+function cloneNotebookEditorTemplate(documentRef = document) {
+  const template = documentRef?.querySelector?.(EditorSelectors.template);
+  if (!template || template.tagName !== "TEMPLATE") {
+    const error = new Error(`Notebook editor template was not found: ${EditorSelectors.template}`);
+    error.code = "notebook_editor_template_missing";
+    throw error;
+  }
+  const editor = template.content?.firstElementChild?.cloneNode(true);
+  if (!editor?.matches?.(EditorSelectors.editor)) {
+    const error = new Error(`Notebook editor template must contain a single ${EditorSelectors.editor} root element.`);
+    error.code = "notebook_editor_template_invalid";
+    throw error;
+  }
+  [
+    EditorSelectors.title,
+    EditorSelectors.body,
+    EditorSelectors.checklist,
+    EditorSelectors.pin,
+    EditorSelectors.saveState,
+    EditorSelectors.conflict,
+    EditorSelectors.conflictMessage,
+    EditorSelectors.useLocal,
+    EditorSelectors.reloadLatest,
+    EditorSelectors.copyLocal
+  ].forEach((selector) => requireEditorElement(editor, selector));
+  return editor;
+}
+function shouldTreatDraftAsConflict(draft, currentItem) {
+  return Boolean(draft?.sourceVersion && currentItem?.version && draft.sourceVersion !== currentItem.version);
+}
+function shouldIgnoreSaveResult(saveResult, currentConflictGeneration) {
+  return Number.isInteger(saveResult?.conflictGenerationAtDispatch) && saveResult.conflictGenerationAtDispatch !== currentConflictGeneration;
+}
+function serialiseNotebookContent({ title = "", body = "", type = "Note", checklistRows = [] } = {}) {
+  const sections = [String(title).trim(), String(body).trim()].filter(Boolean);
+  if (type === "Checklist") {
+    const rows = (Array.isArray(checklistRows) ? checklistRows : []).filter((row) => String(row?.text ?? "").trim().length > 0).map((row) => `${row?.isDone ? "☑" : "☐"} ${String(row.text).trim()}`);
+    if (rows.length) sections.push(rows.join("\n"));
+  }
+  return sections.join("\n\n");
+}
+function initNotebookEditor(board, view, options = {}) {
+  let modal;
+  let item;
+  let autosave;
+  let checklist;
+  let trigger;
+  let openedByPushState = false;
+  let currentSaveError = null;
+  let draftSourceVersion = null;
+  let blockedByValidation = false;
+  let lastValidationFingerprint = null;
+  let conflictGeneration = 0;
+  let directSaveSequence = 0;
+  const conflictState = {
+    active: false,
+    type: null,
+    pendingServerItem: null,
+    localDraft: null,
+    message: null,
+    resolving: false,
+    error: null
+  };
+  const shell = options.shell || document.querySelector(".notebook-shell");
+  const dirtyState = { title: false, body: false, checklist: false };
+  const editRevision = { title: 0, body: 0, checklist: 0 };
+  const buildNoteUrl = (id) => {
+    const url = new URL(location.href);
+    id ? url.searchParams.set("note", id) : url.searchParams.delete("note");
+    return url;
+  };
+  const focusableSelector = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  function setSaveStatus(text, state = SaveState.Idle) {
+    const el = modal?.querySelector("[data-notebook-save-state]");
+    if (el) {
+      el.textContent = text || "";
+      el.dataset.state = state;
+    }
+    const retry = modal?.querySelector("[data-notebook-retry]");
+    const reloadApplication = modal?.querySelector("[data-notebook-reload-application]");
+    const discard = modal?.querySelector("[data-modal-discard]");
+    const signIn = modal?.querySelector("[data-notebook-sign-in]");
+    const copy = modal?.querySelector("[data-notebook-copy-unsaved]");
+    if (retry) retry.hidden = !["network", "server", "error"].includes(state);
+    if (reloadApplication) reloadApplication.hidden = state !== "client-version";
+    if (discard) discard.hidden = !["network", "server", "error", "client-version", "session-expired", "forbidden"].includes(state);
+    if (signIn) signIn.hidden = state !== "session-expired";
+    if (copy) copy.hidden = !["session-expired", "forbidden", "network", "server", "error"].includes(state);
+  }
+  function renderConflictState() {
+    const panel = modal?.querySelector("[data-notebook-conflict]");
+    const message = modal?.querySelector("[data-notebook-conflict-message]");
+    const pin = modal?.querySelector("[data-modal-pin]");
+    const useLocal = modal?.querySelector("[data-notebook-use-local]");
+    const reloadLatestButton = modal?.querySelector("[data-notebook-reload-latest]");
+    const copyLocal = modal?.querySelector("[data-notebook-copy-local]");
+    if (!panel) return;
+    panel.hidden = !conflictState.active;
+    if (message) {
+      message.textContent = conflictState.resolving ? "Saving your changes…" : conflictState.error || conflictState.message || "This note changed elsewhere.";
+    }
+    if (pin) pin.disabled = conflictState.active;
+    if (useLocal) useLocal.disabled = conflictState.resolving;
+    if (reloadLatestButton) reloadLatestButton.disabled = conflictState.resolving;
+    if (copyLocal) copyLocal.disabled = conflictState.resolving;
+    if (conflictState.active) setSaveStatus("", SaveState.Idle);
+  }
+  function clearConflictState() {
+    conflictState.active = false;
+    conflictState.type = null;
+    conflictState.pendingServerItem = null;
+    conflictState.localDraft = null;
+    conflictState.message = null;
+    conflictState.resolving = false;
+    conflictState.error = null;
+    renderConflictState();
+  }
+  function isConflictBlocked() {
+    return conflictState.active;
+  }
+  function activateConflict({ type, pendingServerItem = null, localDraft = null, message }) {
+    conflictGeneration += 1;
+    conflictState.active = true;
+    conflictState.type = type;
+    if (pendingServerItem) conflictState.pendingServerItem = pendingServerItem;
+    conflictState.localDraft = localDraft ?? conflictState.localDraft;
+    conflictState.message = message || "This note changed elsewhere.";
+    conflictState.resolving = false;
+    conflictState.error = null;
+    autosave?.cancel?.({ abortActive: true });
+    preserveUnsavedDraft();
+    renderConflictState();
+  }
+  function buildCurrentPayload() {
+    return buildUpdatePayload({
+      title: modal.querySelector("[data-modal-title]").value,
+      body: modal.querySelector("[data-modal-body]").value,
+      type: item.type,
+      checklistRows: item.type === "Checklist" ? checklist.getRows() : []
+    });
+  }
+  function markChanged(field) {
+    editRevision[field] += 1;
+    dirtyState[field] = true;
+    if (!draftSourceVersion) draftSourceVersion = item?.version ?? null;
+  }
+  function resetDirtyState() {
+    dirtyState.title = false;
+    dirtyState.body = false;
+    dirtyState.checklist = false;
+  }
+  function resetEditRevision() {
+    editRevision.title = 0;
+    editRevision.body = 0;
+    editRevision.checklist = 0;
+  }
+  function applySubmittedRevision(submittedRevision = {}) {
+    dirtyState.title = editRevision.title !== submittedRevision.title;
+    dirtyState.body = editRevision.body !== submittedRevision.body;
+    dirtyState.checklist = editRevision.checklist !== submittedRevision.checklist;
+  }
+  function hasDirtyChanges() {
+    return dirtyState.title || dirtyState.body || dirtyState.checklist;
+  }
+  function scheduleAutosave() {
+    if (isConflictBlocked()) {
+      preserveUnsavedDraft();
+      return;
+    }
+    const nextPayload = buildCurrentPayload();
+    const nextFingerprint = validationFingerprint(nextPayload);
+    if (blockedByValidation && nextFingerprint === lastValidationFingerprint) return;
+    if (blockedByValidation) clearValidationBlock();
+    autosave?.schedule(nextPayload);
+  }
+  function clearValidationBlock() {
+    blockedByValidation = false;
+    lastValidationFingerprint = null;
+    renderValidationErrors([]);
+  }
+  function configureAutosave() {
+    autosave?.stop();
+    autosave = createAutosave({
+      save: saveEditorPayload,
+      onSaving: () => {
+        if (!isConflictBlocked()) setSaveStatus("Saving…", SaveState.Saving);
+      },
+      onPersisted: applyPersistedResponse,
+      onSaveError: handleEditorError,
+      onReconcileError: handleReconcileError
+    });
+  }
+  function renderPin() {
+    const pin = modal.querySelector("[data-modal-pin]");
+    pin?.classList.toggle("is-active", Boolean(item?.isPinned));
+    if (pin) {
+      pin.setAttribute("aria-label", item?.isPinned ? "Unpin note" : "Pin note");
+      pin.disabled = conflictState.active;
+    }
+  }
+  function applyAuthoritativeItem(updated) {
+    item = updated;
+    modal.querySelector("[data-modal-title]").value = updated.title || "";
+    modal.querySelector("[data-modal-body]").value = updated.body || "";
+    modal.querySelector("[data-modal-checklist]").hidden = updated.type !== "Checklist";
+    if (updated.type === "Checklist") checklist.reconcileRows(updated.checklistRows || []);
+    else checklist.setRows([]);
+    resetDirtyState();
+    resetEditRevision();
+    draftSourceVersion = updated.version ?? null;
+    clearValidationBlock();
+    renderPin();
+  }
+  function renderMode() {
+    applyAuthoritativeItem(item);
+    clearConflictState();
+    currentSaveError = null;
+    setSaveStatus("", SaveState.Idle);
+  }
+  function build() {
+    modal = cloneNotebookEditorTemplate(document);
+    document.body.appendChild(modal);
+    const titleInput = requireEditorElement(modal, EditorSelectors.title);
+    const bodyInput = requireEditorElement(modal, EditorSelectors.body);
+    const checklistRoot = requireEditorElement(modal, EditorSelectors.checklist);
+    const pinButton = requireEditorElement(modal, EditorSelectors.pin);
+    checklist = createChecklistEditor(checklistRoot, {
+      onChange: () => {
+        markChanged("checklist");
+        scheduleAutosave();
+      }
+    });
+    modal.addEventListener("click", (event) => {
+      if (event.target.closest("[data-close]")) requestClose();
+    });
+    modal.addEventListener("keydown", trapFocus);
+    titleInput.addEventListener("input", () => {
+      markChanged("title");
+      scheduleAutosave();
+    });
+    bodyInput.addEventListener("input", () => {
+      markChanged("body");
+      scheduleAutosave();
+    });
+    pinButton.addEventListener("click", pinItem);
+    modal.querySelector("[data-notebook-retry]")?.addEventListener("click", retrySave);
+    modal.querySelector("[data-notebook-reload-application]")?.addEventListener("click", () => window.location.reload());
+    modal.querySelector("[data-notebook-sign-in]")?.addEventListener("click", signInAgain);
+    modal.querySelector("[data-notebook-copy-unsaved]")?.addEventListener("click", copyUnsavedContent);
+    modal.querySelector("[data-modal-discard]")?.addEventListener("click", discardChangesAndClose);
+    requireEditorElement(modal, EditorSelectors.useLocal).addEventListener("click", useMyChanges);
+    requireEditorElement(modal, EditorSelectors.reloadLatest).addEventListener("click", reloadLatest);
+    requireEditorElement(modal, EditorSelectors.copyLocal).addEventListener("click", copyLocalChanges);
+  }
+  async function saveEditorPayload(data, operation = {}) {
+    const submittedRows = item.type === "Checklist" ? structuredCloneSafe(data.checklistRows || []) : [];
+    const submittedRevision = { ...editRevision };
+    const requestPayload = { ...data, version: item.version };
+    const conflictGenerationAtDispatch = Number.isInteger(operation.conflictGenerationAtDispatch) ? operation.conflictGenerationAtDispatch : conflictGeneration;
+    assertValidVersion(requestPayload.version);
+    const requestOptions = operation.signal ? { signal: operation.signal } : {};
+    const response = item.type === "Checklist" ? await NotebookApi.updateChecklist(item.id, requestPayload, requestOptions) : await NotebookApi.updateContent(item.id, requestPayload, requestOptions);
+    return {
+      response,
+      submittedRows,
+      submittedRevision,
+      operationSequence: operation.sequence ?? ++directSaveSequence,
+      conflictGenerationAtDispatch,
+      deliberateConflictResolution: operation.deliberateConflictResolution === true
+    };
+  }
+  async function applyPersistedResponse(saveResult) {
+    if (shouldIgnoreSaveResult(saveResult, conflictGeneration)) {
+      preserveUnsavedDraft();
+      return;
+    }
+    const response = saveResult?.response ?? saveResult;
+    const submittedRows = Array.isArray(saveResult?.submittedRows) ? saveResult.submittedRows : [];
+    const submittedRevision = saveResult?.submittedRevision ?? { ...editRevision };
+    item = requireMutationItem(response);
+    if (item.type === "Checklist" && Array.isArray(item.checklistRows)) {
+      checklist.reconcileRows(item.checklistRows, submittedRows);
+    }
+    applySubmittedRevision(submittedRevision);
+    clearValidationBlock();
+    draftSourceVersion = item.version ?? draftSourceVersion;
+    const resolvedConflict = conflictState.active && saveResult?.deliberateConflictResolution === true;
+    if (resolvedConflict) clearConflictState();
+    if (hasDirtyChanges() || conflictState.active) preserveUnsavedDraft();
+    else clearStoredDraft(item?.id);
+    if (conflictState.active) renderConflictState();
+    else setSaveStatus("Saved", SaveState.Saved);
+    await reconcileMutation({
+      response,
+      board,
+      view,
+      getCardHtml: NotebookApi.getCardHtml,
+      applyCounts: options.applyCounts,
+      preservePosition: true,
+      showGlobalError: options.showGlobalError,
+      renderFailureMessage: "The note was saved, but its card could not refresh. Reload the page.",
+      reconcileFailureMessage: "The note was saved, but the board could not refresh. Reload the page."
+    });
+    if (resolvedConflict && hasDirtyChanges()) scheduleAutosave();
+  }
+  function handleReconcileError() {
+    options.showGlobalError?.("The note was saved, but the board could not refresh. Reload the page.");
+    setSaveStatus("Saved", SaveState.Saved);
+  }
+  function handleEditorError(error) {
+    currentSaveError = classifyNotebookSaveError(error);
+    if (error?.code === "notebook_request_aborted" && conflictState.active) {
+      return { retryable: false };
+    }
+    if (currentSaveError.kind === "conflict") {
+      const pendingServerItem = error?.currentItem ?? (error?.currentVersion ? { ...conflictState.pendingServerItem || item, version: error.currentVersion } : null);
+      activateConflict({
+        type: ConflictType.VersionConflict,
+        pendingServerItem,
+        message: conflictState.resolving ? "This note changed again before your changes could be saved." : "This note changed elsewhere."
+      });
+    } else if (conflictState.active) {
+      conflictState.resolving = false;
+      conflictState.error = currentSaveError.message;
+      preserveUnsavedDraft();
+      renderConflictState();
+    } else {
+      setSaveStatus(currentSaveError.message, currentSaveError.kind);
+    }
+    if (currentSaveError.kind === "validation") {
+      renderValidationErrors(currentSaveError.validationErrors);
+      const submittedPayload = buildCurrentPayload();
+      blockedByValidation = true;
+      lastValidationFingerprint = validationFingerprint(submittedPayload);
+      autosave?.cancel?.();
+    }
+    if (isDevelopment2()) {
+      const submittedPayload = buildCurrentPayload();
+      console.error("Notebook update failed", {
+        noteId: item?.id,
+        status: error?.status,
+        code: error?.code,
+        errors: error?.errors,
+        responseText: error?.responseText,
+        payload: describeUpdatePayload(submittedPayload)
+      });
+    }
+    return { retryable: isRetryableSaveError(error) && !isConflictBlocked() };
+  }
+  function isDevelopment2() {
+    return document.documentElement.dataset.environment === "Development" || location.hostname === "localhost";
+  }
+  async function disposeCurrentItem() {
+    if (!item || !autosave) return;
+    if (isConflictBlocked()) {
+      preserveUnsavedDraft();
+      autosave.cancel();
+    } else {
+      await autosave.flush();
+    }
+    autosave.stop();
+    autosave = null;
+  }
+  function setBackgroundInert(inert) {
+    if (shell) shell.inert = inert;
+    if (modal) modal.inert = false;
+    document.body.classList.toggle("notebook-modal-open", inert);
+  }
+  function trapFocus(event) {
+    if (event.key !== "Tab" || modal.hidden) return;
+    const focusable = [...modal.querySelectorAll(focusableSelector)].filter((element) => element.offsetParent !== null);
+    if (!focusable.length) {
+      event.preventDefault();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+  function preserveUnsavedDraft() {
+    if (!item?.id || !modal) return;
+    sessionStorage.setItem(`notebook-draft:${item.id}`, JSON.stringify({
+      itemId: item.id,
+      type: item.type,
+      title: modal.querySelector("[data-modal-title]").value,
+      body: modal.querySelector("[data-modal-body]").value,
+      checklistRows: item.type === "Checklist" ? checklist.getRows() : [],
+      sourceVersion: draftSourceVersion || item.version,
+      savedAtUtc: (/* @__PURE__ */ new Date()).toISOString()
+    }));
+  }
+  function clearStoredDraft(itemId) {
+    if (itemId) sessionStorage.removeItem(`notebook-draft:${itemId}`);
+  }
+  function readStoredDraft(itemId) {
+    const key = `notebook-draft:${itemId}`;
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+  }
+  function restoreStoredDraftIfNeeded() {
+    const storedDraft = readStoredDraft(item.id);
+    if (!storedDraft) return;
+    const differs = storedDraft.title !== item.title || storedDraft.body !== item.body || JSON.stringify(storedDraft.checklistRows || []) !== JSON.stringify(item.checklistRows || []);
+    if (!differs) {
+      clearStoredDraft(item.id);
+      return;
+    }
+    const stale = shouldTreatDraftAsConflict(storedDraft, item);
+    const prompt = stale ? "A newer saved version exists. Restore your local changes for review?" : "Restore your unsaved local draft for this note?";
+    if (!window.confirm(prompt)) return;
+    modal.querySelector("[data-modal-title]").value = storedDraft.title || "";
+    modal.querySelector("[data-modal-body]").value = storedDraft.body || "";
+    if (item.type === "Checklist") checklist.setRows(storedDraft.checklistRows || []);
+    draftSourceVersion = storedDraft.sourceVersion || item.version;
+    markChanged("title");
+    markChanged("body");
+    if (item.type === "Checklist") markChanged("checklist");
+    if (stale) {
+      activateConflict({
+        type: ConflictType.StaleDraft,
+        pendingServerItem: item,
+        localDraft: storedDraft,
+        message: "A newer saved version exists."
+      });
+    } else {
+      scheduleAutosave();
+    }
+  }
+  function signInAgain() {
+    preserveUnsavedDraft();
+    const returnUrl = window.location.pathname + window.location.search + window.location.hash;
+    window.location.assign("/Identity/Account/Login?ReturnUrl=" + encodeURIComponent(returnUrl));
+  }
+  async function copyUnsavedContent() {
+    const copied = await copyLocalChanges();
+    if (copied) {
+      setSaveStatus("Unsaved note text copied. Sign in again before saving.", currentSaveError?.kind || "session-expired");
+    }
+  }
+  async function writeTextToClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+      }
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    let copied = false;
+    try {
+      copied = document.execCommand?.("copy") === true;
+    } finally {
+      textarea.remove();
+    }
+    return copied;
+  }
+  async function copyLocalChanges() {
+    const text = serialiseNotebookContent({
+      ...buildCurrentPayload(),
+      type: item?.type
+    });
+    const copied = await writeTextToClipboard(text);
+    const copyButton = modal?.querySelector("[data-notebook-copy-local]");
+    if (copyButton) {
+      const original = copyButton.textContent;
+      copyButton.textContent = copied ? "Copied" : "Copy failed";
+      window.setTimeout(() => {
+        copyButton.textContent = original;
+      }, 1500);
+    }
+    if (!copied && conflictState.active) {
+      conflictState.error = "The note could not be copied automatically. Select and copy the text manually.";
+      renderConflictState();
+    }
+    return copied;
+  }
+  async function retrySave() {
+    if (isConflictBlocked()) return;
+    const button = modal.querySelector("[data-notebook-retry]");
+    button.disabled = true;
+    try {
+      clearValidationBlock();
+      autosave.schedule(buildCurrentPayload());
+      await autosave.flush();
+    } finally {
+      button.disabled = false;
+    }
+  }
+  function closeEditor({ fromHistory = false } = {}) {
+    const closedId = item?.id;
+    autosave?.stop();
+    autosave = null;
+    modal.hidden = true;
+    setBackgroundInert(false);
+    item = null;
+    currentSaveError = null;
+    clearConflictState();
+    clearValidationBlock();
+    if (!fromHistory) {
+      if (openedByPushState) history.back();
+      else history.replaceState(history.state, "", buildNoteUrl(null));
+    }
+    (board.findCard(closedId) || trigger)?.focus?.();
+  }
+  async function discardChangesAndClose() {
+    if (!window.confirm("Discard unsaved changes and close this note?")) return;
+    const itemId = item?.id;
+    autosave?.cancel?.();
+    clearStoredDraft(itemId);
+    resetDirtyState();
+    closeEditor();
+  }
+  async function useMyChanges() {
+    if (!conflictState.active || conflictState.resolving || !item) return;
+    if (!window.confirm("Save your current changes over the newer saved version?")) return;
+    const resolutionGeneration = conflictGeneration;
+    conflictState.resolving = true;
+    conflictState.error = null;
+    renderConflictState();
+    preserveUnsavedDraft();
+    try {
+      const knownLatest = conflictState.pendingServerItem;
+      const latest = knownLatest?.version ? knownLatest : await NotebookApi.getItem(item.id);
+      if (resolutionGeneration !== conflictGeneration) return;
+      item.version = latest.version;
+      draftSourceVersion = latest.version;
+      currentSaveError = null;
+      clearValidationBlock();
+      const result = await saveEditorPayload(buildCurrentPayload(), {
+        sequence: ++directSaveSequence,
+        conflictGenerationAtDispatch: resolutionGeneration,
+        deliberateConflictResolution: true
+      });
+      await applyPersistedResponse(result);
+    } catch (error) {
+      handleEditorError(error);
+    } finally {
+      if (conflictState.active) {
+        conflictState.resolving = false;
+        renderConflictState();
+      }
+    }
+  }
+  async function reloadLatest() {
+    if (!item || conflictState.resolving) return;
+    if (hasDirtyChanges() && !window.confirm("Discard your unsaved changes and load the latest saved version?")) return;
+    const button = modal.querySelector("[data-notebook-reload-latest]");
+    button.disabled = true;
+    try {
+      const latest = await NotebookApi.getItem(item.id);
+      applyAuthoritativeItem(latest);
+      clearStoredDraft(item.id);
+      clearConflictState();
+      currentSaveError = null;
+      setSaveStatus("Saved", SaveState.Saved);
+    } catch (error) {
+      if (conflictState.active) {
+        conflictState.message = error?.message || "Unable to load the latest saved version.";
+        renderConflictState();
+      } else {
+        setSaveStatus(error?.message || "Unable to reload the note.", SaveState.Error);
+      }
+    } finally {
+      button.disabled = false;
+    }
+  }
+  async function pinItem() {
+    if (!item || isConflictBlocked()) return;
+    const button = modal.querySelector("[data-modal-pin]");
+    button.disabled = true;
+    try {
+      await autosave?.flush();
+      const response = await NotebookApi.setPinned(item.id, !item.isPinned, item.version);
+      item = requireMutationItem(response, "The pin response did not contain the updated note.");
+      draftSourceVersion = item.version;
+      renderPin();
+      await reconcileMutation({
+        response,
+        board,
+        view,
+        getCardHtml: NotebookApi.getCardHtml,
+        applyCounts: options.applyCounts,
+        preservePosition: false,
+        prepend: true,
+        showGlobalError: options.showGlobalError,
+        reconcileFailureMessage: `The note was ${item.isPinned ? "pinned" : "unpinned"}, but the board could not refresh. Reload the page.`
+      });
+      setSaveStatus("Saved", SaveState.Saved);
+    } catch (error) {
+      handleEditorError(error);
+    } finally {
+      button.disabled = conflictState.active;
+    }
+  }
+  async function open(id, openOptions = {}) {
+    if (!modal) build();
+    if (item && item.id !== id) await disposeCurrentItem();
+    trigger = document.activeElement;
+    item = await NotebookApi.getItem(id);
+    configureAutosave();
+    renderMode();
+    restoreStoredDraftIfNeeded();
+    modal.hidden = false;
+    setBackgroundInert(true);
+    modal.querySelector("[data-modal-title]").focus();
+    if (openOptions.pushHistory !== false) {
+      openedByPushState = true;
+      history.pushState({ ...history.state || {}, notebookModal: true, notebookNoteId: id }, "", buildNoteUrl(id));
+    } else {
+      openedByPushState = false;
+    }
+  }
+  async function requestClose({ fromHistory = false } = {}) {
+    if (!item || !modal || modal.hidden) return;
+    const closeButton = modal.querySelector("[data-close]:not(.notebook-modal__backdrop)");
+    closeButton.disabled = true;
+    try {
+      if (isConflictBlocked()) {
+        preserveUnsavedDraft();
+        autosave?.cancel?.();
+        closeEditor({ fromHistory });
+        return;
+      }
+      await autosave?.flush();
+      closeEditor({ fromHistory });
+    } catch (error) {
+      handleEditorError(error);
+    } finally {
+      closeButton.disabled = false;
+    }
+  }
+  function syncExternalUpdate(updated) {
+    if (!item || item.id !== updated.id) return;
+    if (hasDirtyChanges() || autosave?.hasPending?.()) {
+      activateConflict({
+        type: ConflictType.ExternalUpdate,
+        pendingServerItem: updated,
+        message: "This note changed elsewhere."
+      });
+      return;
+    }
+    applyAuthoritativeItem(updated);
+    clearStoredDraft(updated.id);
+    setSaveStatus("", SaveState.Idle);
+  }
+  return {
+    open,
+    requestClose,
+    isOpen: () => Boolean(item && modal && !modal.hidden),
+    syncExternalUpdate
+  };
+}
+function assertValidVersion(version) {
+  if (typeof version !== "string" || !guidPattern.test(version)) {
+    throw new NotebookApiError("The note version is invalid. Reload the note and try again.", {
+      status: 0,
+      code: "notebook_invalid_local_version"
+    });
+  }
+}
+function buildUpdatePayload({ title, body, type = "Note", checklistRows = [] }) {
+  const payload = {
+    title: String(title ?? "").trim(),
+    body: String(body ?? "").trim()
+  };
+  if (type === "Checklist") payload.checklistRows = Array.isArray(checklistRows) ? checklistRows : [];
+  return payload;
+}
+function structuredCloneSafe(value) {
+  if (typeof structuredClone === "function") return structuredClone(value);
+  return JSON.parse(JSON.stringify(value));
+}
+function validationFingerprint(payload) {
+  return JSON.stringify({
+    titleLength: typeof payload?.title === "string" ? payload.title.length : null,
+    bodyLength: typeof payload?.body === "string" ? payload.body.length : null,
+    type: payload?.type,
+    priority: payload?.priority,
+    reminderAtUtc: payload?.reminderAtUtc,
+    labelsIsArray: Array.isArray(payload?.labels),
+    checklistRowsIsArray: Array.isArray(payload?.checklistRows)
+  });
+}
+function describeUpdatePayload(payload) {
+  return {
+    titleType: typeof payload?.title,
+    titleLength: typeof payload?.title === "string" ? payload.title.length : null,
+    bodyType: typeof payload?.body,
+    bodyLength: typeof payload?.body === "string" ? payload.body.length : null,
+    typeValue: payload?.type,
+    typeValueType: typeof payload?.type,
+    priorityValue: payload?.priority,
+    priorityValueType: typeof payload?.priority,
+    reminderAtUtc: payload?.reminderAtUtc,
+    labelsIsArray: Array.isArray(payload?.labels),
+    labelsCount: Array.isArray(payload?.labels) ? payload.labels.length : null,
+    checklistRowsIsArray: Array.isArray(payload?.checklistRows),
+    checklistRowCount: Array.isArray(payload?.checklistRows) ? payload.checklistRows.length : null
+  };
+}
+function renderValidationErrors(hostOrErrors, maybeErrors) {
+  const host = Array.isArray(hostOrErrors) ? document.querySelector("[data-notebook-validation-summary]") : hostOrErrors;
+  const validationErrors = Array.isArray(hostOrErrors) ? hostOrErrors : maybeErrors;
+  if (!host || !Array.isArray(validationErrors) || validationErrors.length === 0) {
+    if (host) {
+      host.hidden = true;
+      host.replaceChildren();
+    }
+    return;
+  }
+  const list = document.createElement("ul");
+  validationErrors.forEach((error) => {
+    const errorItem = document.createElement("li");
+    errorItem.textContent = error.message;
+    list.appendChild(errorItem);
+  });
+  host.replaceChildren(list);
+  host.hidden = false;
+}
+function classifyNotebookSaveError(error) {
+  if (error instanceof NotebookApiError) {
+    if (error.status === 401) return { kind: "session-expired", message: "Your session has expired. Sign in again to save this note.", actions: ["sign-in", "copy", "discard"] };
+    if (error.status === 403) return { kind: "forbidden", message: "You are not authorised to edit this note.", actions: ["copy", "discard"] };
+    if (error.status === 415) return { kind: "client-version", message: "The editor is using an outdated application file. Reload the page and try again.", actions: ["reload", "discard"] };
+    if (error.status === 409) return { kind: "conflict", message: "This note was changed elsewhere." };
+    if (error.status === 400) return { kind: "validation", message: getFirstValidationMessage(error), validationErrors: getValidationMessages(error), retryable: false };
+    if (error.status >= 500) return { kind: "server", message: error.message || "The note could not be saved because of a server error." };
+  }
+  return { kind: "network", message: error?.message || "The notebook service could not be reached." };
+}
+function isRetryableSaveError(error) {
+  if (error?.code === "notebook_network_error") return true;
+  return [500, 502, 503, 504].includes(error?.status);
+}
+var ConflictType, SaveState, EditorSelectors, guidPattern;
+var init_notebook_editor = __esm({
+  "wwwroot/js/notebook/notebook-editor.js"() {
+    init_notebook_api();
+    init_notebook_autosave();
+    init_notebook_checklist_editor();
+    init_notebook_reconcile();
+    init_notebook_errors();
+    ConflictType = Object.freeze({
+      StaleDraft: "stale-draft",
+      ExternalUpdate: "external-update",
+      VersionConflict: "version-conflict"
+    });
+    SaveState = Object.freeze({
+      Idle: "idle",
+      Saving: "saving",
+      Saved: "saved",
+      Error: "error"
+    });
+    EditorSelectors = Object.freeze({
+      template: "#notebook-editor-template",
+      editor: "[data-notebook-editor]",
+      title: "[data-modal-title]",
+      body: "[data-modal-body]",
+      checklist: "[data-modal-checklist]",
+      pin: "[data-modal-pin]",
+      saveState: "[data-notebook-save-state]",
+      conflict: "[data-notebook-conflict]",
+      conflictMessage: "[data-notebook-conflict-message]",
+      useLocal: "[data-notebook-use-local]",
+      reloadLatest: "[data-notebook-reload-latest]",
+      copyLocal: "[data-notebook-copy-local]"
+    });
+    guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  }
+});
+
+// wwwroot/js/notebook/notebook-create-editor.js
+function toIstIso(localValue) {
+  const value = String(localValue || "").trim();
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  return `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:00+05:30`;
+}
+function parseLabels(value) {
+  return [...new Set(String(value || "").split(",").map((label) => label.trim()).filter(Boolean))];
+}
+function buildCreatePayload({ type, title, body, reminderLocal, priority, colorKey, labels, isPinned, checklistRows, clientRequestId }) {
+  const safeType = ALLOWED_TYPES.has(type) ? type : "Note";
+  return {
+    title: String(title || "").trim(),
+    body: String(body || "").trim() || null,
+    type: safeType,
+    priority: priority || "Normal",
+    reminderAtUtc: safeType === "Reminder" || reminderLocal ? toIstIso(reminderLocal) : null,
+    colorKey: colorKey || null,
+    isPinned: Boolean(isPinned),
+    labels: parseLabels(labels),
+    clientRequestId,
+    checklistRows: safeType === "Checklist" ? (checklistRows || []).map((row, index) => ({
+      id: row.id ?? null,
+      clientKey: row.clientKey || null,
+      text: String(row.text || "").trim(),
+      isDone: Boolean(row.isDone),
+      sortOrder: index
+    })).filter((row) => row.text.length > 0) : []
+  };
+}
+function initNotebookCreateEditor(board, view, options = {}) {
+  const showGlobalError = options.showGlobalError || (() => {
+  });
+  const applyCounts = options.applyCounts || (() => {
+  });
+  let modal = null;
+  let checklist = null;
+  let isOpen = false;
+  let isSubmitting = false;
+  let isPinned = false;
+  let clientRequestId = crypto.randomUUID();
+  function clearCreateQuery() {
+    const url = new URL(location.href);
+    url.searchParams.delete("mode");
+    url.searchParams.delete("type");
+    history.replaceState(history.state, "", url);
+  }
+  function getElements() {
+    return {
+      title: requireEditorElement(modal, EditorSelectors.title),
+      body: requireEditorElement(modal, EditorSelectors.body),
+      checklistRoot: requireEditorElement(modal, EditorSelectors.checklist),
+      pin: requireEditorElement(modal, EditorSelectors.pin),
+      details: requireEditorElement(modal, "[data-notebook-create-details]"),
+      type: requireEditorElement(modal, "[data-create-type]"),
+      reminderField: requireEditorElement(modal, "[data-create-reminder-field]"),
+      reminder: requireEditorElement(modal, "[data-create-reminder]"),
+      priority: requireEditorElement(modal, "[data-create-priority]"),
+      color: requireEditorElement(modal, "[data-create-color]"),
+      labels: requireEditorElement(modal, "[data-create-labels]"),
+      feedback: requireEditorElement(modal, "[data-notebook-create-feedback]"),
+      submit: requireEditorElement(modal, "[data-notebook-create-submit]")
+    };
+  }
+  function setFeedback(message = "", isError = false) {
+    const { feedback } = getElements();
+    feedback.textContent = message;
+    feedback.hidden = !message;
+    feedback.classList.toggle("is-error", isError);
+  }
+  function applyType(type) {
+    const elements = getElements();
+    const safeType = ALLOWED_TYPES.has(type) ? type : "Note";
+    elements.type.value = safeType;
+    elements.checklistRoot.hidden = safeType !== "Checklist";
+    elements.body.hidden = safeType === "Checklist";
+    elements.reminderField.hidden = safeType !== "Reminder";
+    elements.title.placeholder = safeType === "Reminder" ? "Reminder title" : "Title";
+    elements.body.placeholder = safeType === "Reminder" ? "Add notes…" : "Take a note…";
+    elements.submit.textContent = safeType === "Reminder" ? "Create reminder" : `Create ${safeType.toLowerCase()}`;
+    if (safeType === "Checklist" && checklist.getRows().length === 0) {
+      checklist.setRows([{ text: "" }]);
+    }
+  }
+  function reset(type = "Note") {
+    const elements = getElements();
+    elements.title.value = "";
+    elements.body.value = "";
+    elements.reminder.value = "";
+    elements.priority.value = "Normal";
+    elements.color.value = "";
+    elements.labels.value = "";
+    checklist.clear();
+    isPinned = false;
+    clientRequestId = crypto.randomUUID();
+    elements.pin.classList.remove("is-active");
+    setFeedback("");
+    applyType(type);
+  }
+  function close() {
+    if (!modal) return;
+    modal.hidden = true;
+    modal.classList.remove("is-create-mode");
+    document.body.classList.remove("notebook-modal-open");
+    isOpen = false;
+    clearCreateQuery();
+  }
+  async function submit() {
+    if (isSubmitting) return;
+    const elements = getElements();
+    const payload = buildCreatePayload({
+      type: elements.type.value,
+      title: elements.title.value,
+      body: elements.body.value,
+      reminderLocal: elements.reminder.value,
+      priority: elements.priority.value,
+      colorKey: elements.color.value,
+      labels: elements.labels.value,
+      isPinned,
+      checklistRows: checklist.getRows(),
+      clientRequestId
+    });
+    if (!payload.title && !payload.body && payload.checklistRows.length === 0) {
+      setFeedback("Add a title, note or checklist item before creating.", true);
+      elements.title.focus();
+      return;
+    }
+    if (payload.type === "Reminder" && !payload.reminderAtUtc) {
+      setFeedback("Choose a reminder date and time.", true);
+      elements.reminder.focus();
+      return;
+    }
+    isSubmitting = true;
+    elements.submit.disabled = true;
+    setFeedback("Creating…");
+    try {
+      const response = await NotebookApi.createItem(payload);
+      if (!response?.item) {
+        throw new NotebookApiError("The create response did not contain the new notebook item.", { code: "notebook_invalid_mutation_response" });
+      }
+      await reconcileMutation({
+        response,
+        board,
+        view: view || "home",
+        getCardHtml: NotebookApi.getCardHtml,
+        applyCounts,
+        preservePosition: false,
+        prepend: true,
+        showGlobalError,
+        renderFailureMessage: "The item was created, but its card could not be rendered. Reload the page.",
+        reconcileFailureMessage: "The item was created, but the board could not refresh. Reload the page."
+      });
+      close();
+      reset("Note");
+    } catch (error) {
+      setFeedback(error.message || "Unable to create the notebook item.", true);
+    } finally {
+      isSubmitting = false;
+      elements.submit.disabled = false;
+    }
+  }
+  function build() {
+    modal = cloneNotebookEditorTemplate(document);
+    modal.classList.add("is-create-mode");
+    document.body.appendChild(modal);
+    const elements = getElements();
+    checklist = createChecklistEditor(elements.checklistRoot);
+    elements.details.hidden = false;
+    elements.submit.hidden = false;
+    modal.querySelector("[data-notebook-save-state]")?.closest(".notebook-save-feedback")?.setAttribute("hidden", "");
+    modal.querySelector("[data-notebook-conflict]")?.setAttribute("hidden", "");
+    elements.type.addEventListener("change", () => applyType(elements.type.value));
+    elements.pin.addEventListener("click", () => {
+      if (isSubmitting) return;
+      isPinned = !isPinned;
+      elements.pin.classList.toggle("is-active", isPinned);
+      elements.pin.setAttribute("aria-label", isPinned ? "Unpin item" : "Pin item");
+    });
+    elements.submit.addEventListener("click", submit);
+    modal.addEventListener("click", (event) => {
+      if (event.target.closest("[data-close]")) close();
+    });
+  }
+  function open(type = "Note") {
+    if (!modal) build();
+    reset(type);
+    modal.hidden = false;
+    modal.classList.add("is-create-mode");
+    document.body.classList.add("notebook-modal-open");
+    isOpen = true;
+    const elements = getElements();
+    queueMicrotask(() => {
+      if (type === "Reminder") elements.reminder.focus();
+      else if (type === "Checklist") checklist.focusFirst();
+      else elements.title.focus();
+    });
+  }
+  return { open, close, isOpen: () => isOpen };
+}
+var ALLOWED_TYPES;
+var init_notebook_create_editor = __esm({
+  "wwwroot/js/notebook/notebook-create-editor.js"() {
+    init_notebook_api();
+    init_notebook_checklist_editor();
+    init_notebook_reconcile();
+    init_notebook_editor();
+    ALLOWED_TYPES = /* @__PURE__ */ new Set(["Note", "Checklist", "Reminder", "Idea", "Draft", "Sticky"]);
+  }
+});
+
+// wwwroot/js/notebook/notebook-app.js
+function initNotebookApp() {
+  const shell = document.querySelector(".notebook-shell");
+  if (!shell) return;
+  const view = new URL(location.href).searchParams.get("view") || "home";
+  const board = createNotebookBoard(shell);
+  let composer;
+  const globalError = document.querySelector("[data-notebook-global-error]");
+  const globalErrorText = document.querySelector("[data-notebook-global-error-text]");
+  const showGlobalError = (message) => {
+    if (!globalError || !globalErrorText) {
+      shell.dataset.error = message || "Notebook action failed.";
+      return;
+    }
+    globalErrorText.textContent = message || "Notebook action failed.";
+    globalError.hidden = false;
+  };
+  const applyCounts = (counts) => {
+    if (!counts) return;
+    Object.entries(counts).forEach(([key, value]) => shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => {
+      el.textContent = String(value);
+    }));
+  };
+  const refreshCounts = async () => applyCounts(await NotebookApi.getCounts());
+  const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts });
+  const createEditor = initNotebookCreateEditor(board, view, { shell, showGlobalError, applyCounts });
+  composer = initNotebookComposer(shell.querySelector("[data-notebook-composer]"), board, view, { showGlobalError, applyCounts });
+  document.querySelector("[data-notebook-global-error-close]")?.addEventListener("click", () => {
+    globalError.hidden = true;
+    globalErrorText.textContent = "";
+  });
+  const storageKey = "notebook.boardView";
+  const viewButtons = [...shell.querySelectorAll("[data-notebook-view]")];
+  function applyBoardView(next) {
+    const selected = next === "list" ? "list" : "grid";
+    shell.dataset.boardView = selected;
+    localStorage.setItem(storageKey, selected);
+    viewButtons.forEach((button) => {
+      const active = button.dataset.notebookView === selected;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+  }
+  viewButtons.forEach((button) => button.addEventListener("click", () => applyBoardView(button.dataset.notebookView)));
+  applyBoardView(localStorage.getItem(storageKey) || shell.dataset.boardView || "grid");
+  document.addEventListener("click", async (event) => {
+    const createTrigger = event.target.closest("[data-notebook-create-type]");
+    if (createTrigger) {
+      event.preventDefault();
+      createEditor.open(createTrigger.dataset.notebookCreateType || "Note");
+      return;
+    }
+    const action = closestAction(event);
+    if (!action) return;
+    const card = action.closest("[data-note-id]");
+    const id = card?.dataset.noteId;
+    if (action.dataset.action === "open-note" && id) {
+      event.preventDefault();
+      try {
+        await editor.open(id);
+      } catch (error) {
+        showGlobalError(error.message || "Unable to open the note.");
+      }
+    }
+    if (action.dataset.action === "toggle-checklist" && card) {
+      event.preventDefault();
+      action.disabled = true;
+      try {
+        const response = await NotebookApi.toggleChecklistItem(card.dataset.noteId, action.dataset.rowId, action.dataset.isDone !== "true", card.dataset.version);
+        const updated = requireMutationItem(response);
+        updateCardConcurrencyState(card, updated);
+        await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: true, showGlobalError, existingCard: card });
+        editor.syncExternalUpdate?.(updated);
+      } catch (error) {
+        showGlobalError(error.message || "Checklist update failed.");
+      } finally {
+        action.disabled = false;
+      }
+    }
+    if (["pin-note", "archive-note", "complete-note", "reopen-note", "restore-note", "duplicate-note", "delete-note", "convert-note"].includes(action.dataset.action) && id) {
+      event.preventDefault();
+      action.disabled = true;
+      try {
+        if (action.dataset.action === "pin-note") {
+          const response = await NotebookApi.setPinned(id, card.dataset.isPinned !== "true", card.dataset.version);
+          const updated = requireMutationItem(response);
+          updateCardConcurrencyState(card, updated);
+          await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError, existingCard: card, reconcileFailureMessage: `The note was ${updated.isPinned ? "pinned" : "unpinned"}, but the board could not refresh. Reload the page.` });
+        }
+        if (action.dataset.action === "archive-note") {
+          const response = await NotebookApi.archiveItem(id, card.dataset.version);
+          board.removeCard(id);
+          applyCounts(response?.counts);
+        }
+        if (action.dataset.action === "complete-note") {
+          const response = await NotebookApi.completeItem(id, card.dataset.version);
+          board.removeCard(id);
+          applyCounts(response?.counts);
+        }
+        if (action.dataset.action === "reopen-note") {
+          const response = await NotebookApi.reopenItem(id, card.dataset.version);
+          board.removeCard(id);
+          applyCounts(response?.counts);
+        }
+        if (action.dataset.action === "restore-note") {
+          const response = await NotebookApi.restoreItem(id, card.dataset.version);
+          const updated = requireMutationItem(response);
+          updateCardConcurrencyState(card, updated);
+          if (view === "archive" || view === "archived") {
+            board.removeCard(id);
+            applyCounts(response?.counts);
+          } else {
+            await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError, existingCard: card });
+          }
+        }
+        if (action.dataset.action === "duplicate-note") {
+          const response = await NotebookApi.duplicateItem(id);
+          await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError });
+        }
+        if (action.dataset.action === "delete-note") {
+          const response = await NotebookApi.deleteItem(id, card.dataset.version);
+          board.removeCard(response?.removedItemId || id);
+          applyCounts(response?.counts);
+        }
+        if (action.dataset.action === "convert-note") {
+          const response = action.dataset.convertTo === "Checklist" ? await NotebookApi.showCheckboxes(id, card.dataset.version) : await NotebookApi.hideCheckboxes(id, card.dataset.version);
+          const converted = requireMutationItem(response);
+          updateCardConcurrencyState(card, converted);
+          await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: true, showGlobalError, existingCard: card });
+        }
+      } catch (error) {
+        showGlobalError(error.message || "Notebook action failed.");
+      } finally {
+        action.disabled = false;
+      }
+    }
+  });
+  document.addEventListener("keydown", async (event) => {
+    if (event.key !== "Escape") return;
+    if (createEditor.isOpen()) {
+      event.preventDefault();
+      createEditor.close();
+      return;
+    }
+    if (editor.isOpen()) {
+      event.preventDefault();
+      await editor.requestClose();
+      return;
+    }
+    if (composer?.isOpen()) {
+      event.preventDefault();
+      await composer.close();
+    }
+  });
+  window.addEventListener("popstate", async () => {
+    try {
+      const id = new URL(location.href).searchParams.get("note");
+      id ? await editor.open(id, { pushHistory: false }) : await editor.requestClose({ fromHistory: true });
+    } catch (error) {
+      showGlobalError(error.message || "Unable to open the note.");
+    }
+  });
+  const initialUrl = new URL(location.href);
+  if (initialUrl.searchParams.get("mode") === "new") {
+    createEditor.open(initialUrl.searchParams.get("type") || "Note");
+  }
+  const directId = initialUrl.searchParams.get("note");
+  if (directId) editor.open(directId, { pushHistory: false }).catch((error) => {
+    showGlobalError(error.message || "Unable to open the note.");
+    const url = new URL(location.href);
+    url.searchParams.delete("note");
+    history.replaceState(history.state, "", url);
+  });
+}
+var init_notebook_app = __esm({
+  "wwwroot/js/notebook/notebook-app.js"() {
+    init_notebook_utils();
+    init_notebook_api();
+    init_notebook_board();
+    init_notebook_composer();
+    init_notebook_editor();
+    init_notebook_create_editor();
+    init_notebook_reconcile();
+  }
+});
+
+// wwwroot/js/pages/notebook-index.js
+var require_notebook_index = __commonJS({
+  "wwwroot/js/pages/notebook-index.js"() {
+    init_notebook_app();
+    function initLegacyNotebookEnhancements() {
+      document.querySelectorAll("[data-autoresize]").forEach((textarea) => {
+        const resize = () => {
+          textarea.style.height = "auto";
+          textarea.style.height = `${textarea.scrollHeight}px`;
+        };
+        textarea.addEventListener("input", resize);
+        resize();
+      });
+      const typeSelect = document.querySelector("[data-notebook-type-select]");
+      const fieldGroups = Array.from(document.querySelectorAll("[data-notebook-type-fields]"));
+      const normalize = (value) => (value || "").toString().trim().toLowerCase();
+      const selectedTypeName = () => normalize(typeSelect?.options[typeSelect.selectedIndex]?.text || typeSelect?.value);
+      const setGroupEnabled = (group, isEnabled) => {
+        group.hidden = !isEnabled;
+        group.querySelectorAll("input, select, textarea, button").forEach((control) => {
+          control.disabled = !isEnabled;
+        });
+      };
+      const updateFields = () => {
+        const selected = selectedTypeName();
+        fieldGroups.forEach((group) => {
+          const allowedTypes = (group.dataset.notebookTypeFields || "").split(",").map(normalize);
+          setGroupEnabled(group, allowedTypes.includes(selected));
+        });
+      };
+      if (typeSelect && fieldGroups.length) {
+        typeSelect.addEventListener("change", updateFields);
+        updateFields();
+      }
+      document.querySelectorAll("[data-submit-on-change]").forEach((input) => input.addEventListener("change", () => input.form?.submit()));
+      const root = document.querySelector(".notebook-shell");
+      const saved = localStorage.getItem("notebook-board-view") || "grid";
+      root?.setAttribute("data-board-view", saved);
+      document.querySelectorAll("[data-notebook-view]").forEach((button) => button.addEventListener("click", () => {
+        localStorage.setItem("notebook-board-view", button.dataset.notebookView);
+        root?.setAttribute("data-board-view", button.dataset.notebookView);
+      }));
+    }
+    document.addEventListener("DOMContentLoaded", () => {
+      initLegacyNotebookEnhancements();
+      initNotebookApp();
+    });
+  }
+});
+export default require_notebook_index();
 //# sourceMappingURL=notebook-index.bundle.js.map
