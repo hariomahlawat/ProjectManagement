@@ -362,7 +362,7 @@ public sealed class NotebookService : INotebookService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            throw new NotebookConcurrencyException(id, expectedVersion, item.Version, ex);
+            throw await CreateConcurrencyExceptionAsync(ownerId, id, expectedVersion, ex, ct);
         }
 
         await TryWriteAuditAsync("Notebook.Update", ownerId, item.Id, ct);
@@ -384,7 +384,7 @@ public sealed class NotebookService : INotebookService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            throw new NotebookConcurrencyException(id, expectedVersion, item.Version, ex);
+            throw await CreateConcurrencyExceptionAsync(ownerId, id, expectedVersion, ex, ct);
         }
 
         await TryWriteAuditAsync("Notebook.UpdateContent", ownerId, item.Id, ct);
@@ -412,7 +412,7 @@ public sealed class NotebookService : INotebookService
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            throw new NotebookConcurrencyException(itemId, expectedVersion, item.Version, ex);
+            throw await CreateConcurrencyExceptionAsync(ownerId, itemId, expectedVersion, ex, ct);
         }
 
         await TryWriteAuditAsync("Notebook.UpdateChecklist", ownerId, item.Id, ct);
@@ -712,10 +712,46 @@ public sealed class NotebookService : INotebookService
         var item = await query.FirstOrDefaultAsync(ct) ?? throw new KeyNotFoundException();
         if (item.Version != expectedVersion)
         {
-            throw new NotebookConcurrencyException(id, expectedVersion, item.Version);
+            throw new NotebookConcurrencyException(
+                id,
+                expectedVersion,
+                item.Version,
+                MapDetail(item));
         }
 
         return item;
+    }
+
+
+    private async Task<NotebookConcurrencyException> CreateConcurrencyExceptionAsync(
+        string ownerId,
+        Guid itemId,
+        Guid expectedVersion,
+        DbUpdateConcurrencyException innerException,
+        CancellationToken ct)
+    {
+        // SECTION: Reload the authoritative database state for a useful 409 response.
+        // Clear tracked state first so the failed local mutation cannot leak into the response.
+        _db.ChangeTracker.Clear();
+
+        var currentItem = await _db.NotebookItems
+            .AsNoTracking()
+            .Include(item => item.Tags)
+                .ThenInclude(itemTag => itemTag.NotebookTag)
+            .Include(item => item.ChecklistItems)
+            .Include(item => item.Attachments)
+            .FirstOrDefaultAsync(item =>
+                item.Id == itemId &&
+                item.OwnerId == ownerId &&
+                item.DeletedAtUtc == null,
+                ct);
+
+        return new NotebookConcurrencyException(
+            itemId,
+            expectedVersion,
+            currentItem?.Version ?? Guid.Empty,
+            currentItem is null ? null : MapDetail(currentItem),
+            innerException);
     }
 
 

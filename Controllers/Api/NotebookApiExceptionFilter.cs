@@ -19,7 +19,8 @@ public sealed class NotebookApiExceptionFilter : IAsyncExceptionFilter
             {
                 code = "notebook_concurrency_conflict",
                 message = "This note was changed elsewhere. Reload the latest version before continuing.",
-                currentVersion = ex.CurrentVersion.ToString("N")
+                currentVersion = ex.CurrentVersion.ToString("N"),
+                currentItem = ex.CurrentItem
             }),
             DbUpdateConcurrencyException => new ConflictObjectResult(new
             {
