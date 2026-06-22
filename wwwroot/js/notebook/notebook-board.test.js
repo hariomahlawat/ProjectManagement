@@ -10,7 +10,10 @@ function loadBoard(dom) {
   global.CSS = dom.window.CSS || { escape: (value) => String(value).replace(/"/g, '\\"') };
   const scriptPath = path.resolve(__dirname, 'notebook-board.js');
   const script = fs.readFileSync(scriptPath, 'utf8')
-    .replace(/import .*notebook-errors\.js';\n/, 'class NotebookCardHtmlError extends Error { constructor(message) { super(message); this.code = \'notebook_invalid_card_html\'; } } class NotebookBoardTargetError extends Error { constructor(message) { super(message); this.code = \'notebook_target_board_missing\'; } }\n')
+    .replace(
+      /^import\s*\{[\s\S]*?\}\s*from\s*['\"]\.\/notebook-errors\.js['\"];\r?\n/m,
+      "class NotebookCardHtmlError extends Error { constructor(message) { super(message); this.code = 'notebook_invalid_card_html'; } } class NotebookBoardTargetError extends Error { constructor(message) { super(message); this.code = 'notebook_target_board_missing'; } }\n"
+    )
     .replace('export function createNotebookBoard', 'function createNotebookBoard');
   const context = vm.createContext({ document: dom.window.document, CSS: global.CSS });
   vm.runInContext(`${script}; globalThis.__createNotebookBoard = createNotebookBoard;`, context);
