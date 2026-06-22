@@ -16,6 +16,7 @@
         <a href="@Model.OpenUrl" class="notebook-card-link notebook-card__open-area" data-action="open-note" aria-label="Open @item.Title">
             <div class="notebook-card-topline">
                 <span class="notebook-card-indicators">
+                    @if (item.Status == NotebookItemStatus.Completed) { <i class="bi bi-check2-circle notebook-card-completed-indicator" title="Completed" aria-label="Completed"></i> }
                     @if (item.IsFavorite) { <i class="bi bi-star-fill" title="Favourite"></i> }
                     @if (item.ReminderAtUtc is not null) { <i class="bi bi-bell" title="Reminder"></i> }
                 </span>
