@@ -52,3 +52,37 @@ test('assertValidVersion rejects non-guid local versions before PATCH', async ()
 
   assert.throws(() => assertValidVersion('not-a-guid'), (error) => error.code === 'notebook_invalid_local_version');
 });
+
+test('shouldTreatDraftAsConflict detects stale source versions only', async () => {
+  const { shouldTreatDraftAsConflict } = await loadEditorModule();
+  const current = { version: '123e4567-e89b-12d3-a456-426614174000' };
+
+  assert.equal(shouldTreatDraftAsConflict({ sourceVersion: current.version }, current), false);
+  assert.equal(shouldTreatDraftAsConflict({ sourceVersion: '223e4567-e89b-12d3-a456-426614174000' }, current), true);
+  assert.equal(shouldTreatDraftAsConflict({ sourceVersion: null }, current), false);
+});
+
+test('serialiseNotebookContent includes checklist state for safe copy', async () => {
+  const { serialiseNotebookContent } = await loadEditorModule();
+
+  assert.equal(serialiseNotebookContent({
+    title: 'Release tasks',
+    body: 'Before production',
+    type: 'Checklist',
+    checklistRows: [
+      { text: 'Run tests', isDone: true },
+      { text: 'Deploy', isDone: false }
+    ]
+  }), 'Release tasks\n\nBefore production\n\n☑ Run tests\n☐ Deploy');
+});
+
+test('serialiseNotebookContent omits empty checklist rows', async () => {
+  const { serialiseNotebookContent } = await loadEditorModule();
+
+  assert.equal(serialiseNotebookContent({
+    title: '',
+    body: '',
+    type: 'Checklist',
+    checklistRows: [{ text: '   ', isDone: false }, { text: 'Keep this', isDone: false }]
+  }), '☐ Keep this');
+});

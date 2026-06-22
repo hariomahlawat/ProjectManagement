@@ -898,10 +898,35 @@ var init_notebook_autosave = __esm({
 });
 
 // wwwroot/js/notebook/notebook-editor.js
+function shouldTreatDraftAsConflict(draft, currentItem) {
+  return Boolean(draft?.sourceVersion && currentItem?.version && draft.sourceVersion !== currentItem.version);
+}
+function serialiseNotebookContent({ title = "", body = "", type = "Note", checklistRows = [] } = {}) {
+  const sections = [String(title).trim(), String(body).trim()].filter(Boolean);
+  if (type === "Checklist") {
+    const rows = (Array.isArray(checklistRows) ? checklistRows : []).filter((row) => String(row?.text ?? "").trim().length > 0).map((row) => `${row?.isDone ? "☑" : "☐"} ${String(row.text).trim()}`);
+    if (rows.length) sections.push(rows.join("\n"));
+  }
+  return sections.join("\n\n");
+}
 function initNotebookEditor(board, view, options = {}) {
-  let modal, item, autosave, checklist, trigger, openedByPushState = false, currentSaveError = null, pendingExternalUpdate = null;
+  let modal;
+  let item;
+  let autosave;
+  let checklist;
+  let trigger;
+  let openedByPushState = false;
+  let currentSaveError = null;
+  let draftSourceVersion = null;
   let blockedByValidation = false;
   let lastValidationFingerprint = null;
+  const conflictState = {
+    active: false,
+    type: null,
+    pendingServerItem: null,
+    localDraft: null,
+    message: null
+  };
   const shell = options.shell || document.querySelector(".notebook-shell");
   const dirtyState = { title: false, body: false, checklist: false };
   const editRevision = { title: 0, body: 0, checklist: 0 };
@@ -911,25 +936,53 @@ function initNotebookEditor(board, view, options = {}) {
     return url;
   };
   const focusableSelector = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
-  function setStatus(text, state = "idle") {
+  function setSaveStatus(text, state = SaveState.Idle) {
     const el = modal?.querySelector("[data-notebook-save-state]");
     if (el) {
       el.textContent = text || "";
       el.dataset.state = state;
     }
     const retry = modal?.querySelector("[data-notebook-retry]");
-    const reload = modal?.querySelector("[data-notebook-reload-latest]");
+    const reloadApplication = modal?.querySelector("[data-notebook-reload-application]");
     const discard = modal?.querySelector("[data-modal-discard]");
     const signIn = modal?.querySelector("[data-notebook-sign-in]");
     const copy = modal?.querySelector("[data-notebook-copy-unsaved]");
     if (retry) retry.hidden = !["network", "server", "error"].includes(state);
-    if (reload) {
-      reload.hidden = !["conflict", "client-version"].includes(state);
-      reload.textContent = state === "client-version" ? "Reload application" : "Reload latest";
-    }
-    if (discard) discard.hidden = !["network", "server", "error", "conflict", "client-version", "session-expired", "forbidden"].includes(state);
+    if (reloadApplication) reloadApplication.hidden = state !== "client-version";
+    if (discard) discard.hidden = !["network", "server", "error", "client-version", "session-expired", "forbidden"].includes(state);
     if (signIn) signIn.hidden = state !== "session-expired";
     if (copy) copy.hidden = !["session-expired", "forbidden", "network", "server", "error"].includes(state);
+  }
+  function renderConflictState() {
+    const panel = modal?.querySelector("[data-notebook-conflict]");
+    const message = modal?.querySelector("[data-notebook-conflict-message]");
+    const pin = modal?.querySelector("[data-modal-pin]");
+    if (!panel) return;
+    panel.hidden = !conflictState.active;
+    if (message) message.textContent = conflictState.message || "This note changed elsewhere.";
+    if (pin) pin.disabled = conflictState.active;
+    if (conflictState.active) setSaveStatus("", SaveState.Idle);
+  }
+  function clearConflictState() {
+    conflictState.active = false;
+    conflictState.type = null;
+    conflictState.pendingServerItem = null;
+    conflictState.localDraft = null;
+    conflictState.message = null;
+    renderConflictState();
+  }
+  function isConflictBlocked() {
+    return conflictState.active;
+  }
+  function activateConflict({ type, pendingServerItem = null, localDraft = null, message }) {
+    conflictState.active = true;
+    conflictState.type = type;
+    conflictState.pendingServerItem = pendingServerItem;
+    conflictState.localDraft = localDraft;
+    conflictState.message = message || "This note changed elsewhere.";
+    autosave?.cancel?.();
+    preserveUnsavedDraft();
+    renderConflictState();
   }
   function buildCurrentPayload() {
     return buildUpdatePayload({
@@ -942,9 +995,17 @@ function initNotebookEditor(board, view, options = {}) {
   function markChanged(field) {
     editRevision[field] += 1;
     dirtyState[field] = true;
+    if (!draftSourceVersion) draftSourceVersion = item?.version ?? null;
   }
   function resetDirtyState() {
-    dirtyState.title = dirtyState.body = dirtyState.checklist = false;
+    dirtyState.title = false;
+    dirtyState.body = false;
+    dirtyState.checklist = false;
+  }
+  function resetEditRevision() {
+    editRevision.title = 0;
+    editRevision.body = 0;
+    editRevision.checklist = 0;
   }
   function applySubmittedRevision(submittedRevision = {}) {
     dirtyState.title = editRevision.title !== submittedRevision.title;
@@ -955,6 +1016,10 @@ function initNotebookEditor(board, view, options = {}) {
     return dirtyState.title || dirtyState.body || dirtyState.checklist;
   }
   function scheduleAutosave() {
+    if (isConflictBlocked()) {
+      preserveUnsavedDraft();
+      return;
+    }
     const nextPayload = buildCurrentPayload();
     const nextFingerprint = validationFingerprint(nextPayload);
     if (blockedByValidation && nextFingerprint === lastValidationFingerprint) return;
@@ -968,22 +1033,42 @@ function initNotebookEditor(board, view, options = {}) {
   }
   function configureAutosave() {
     autosave?.stop();
-    autosave = createAutosave({ save: saveEditorPayload, onSaving: () => setStatus("Saving…", "saving"), onPersisted: applyPersistedResponse, onSaveError: handleEditorError, onReconcileError: handleReconcileError });
+    autosave = createAutosave({
+      save: saveEditorPayload,
+      onSaving: () => {
+        if (!isConflictBlocked()) setSaveStatus("Saving…", SaveState.Saving);
+      },
+      onPersisted: applyPersistedResponse,
+      onSaveError: handleEditorError,
+      onReconcileError: handleReconcileError
+    });
   }
   function renderPin() {
     const pin = modal.querySelector("[data-modal-pin]");
-    pin?.classList.toggle("is-active", !!item?.isPinned);
-    if (pin) pin.setAttribute("aria-label", item?.isPinned ? "Unpin note" : "Pin note");
+    pin?.classList.toggle("is-active", Boolean(item?.isPinned));
+    if (pin) {
+      pin.setAttribute("aria-label", item?.isPinned ? "Unpin note" : "Pin note");
+      pin.disabled = conflictState.active;
+    }
   }
-  function renderMode() {
-    modal.querySelector("[data-modal-title]").value = item.title || "";
-    modal.querySelector("[data-modal-body]").value = item.body || "";
-    checklist.setRows(item.checklistRows || []);
-    modal.querySelector("[data-modal-checklist]").hidden = item.type !== "Checklist";
+  function applyAuthoritativeItem(updated) {
+    item = updated;
+    modal.querySelector("[data-modal-title]").value = updated.title || "";
+    modal.querySelector("[data-modal-body]").value = updated.body || "";
+    modal.querySelector("[data-modal-checklist]").hidden = updated.type !== "Checklist";
+    if (updated.type === "Checklist") checklist.reconcileRows(updated.checklistRows || []);
+    else checklist.setRows([]);
     resetDirtyState();
-    pendingExternalUpdate = null;
+    resetEditRevision();
+    draftSourceVersion = updated.version ?? null;
     clearValidationBlock();
     renderPin();
+  }
+  function renderMode() {
+    applyAuthoritativeItem(item);
+    clearConflictState();
+    currentSaveError = null;
+    setSaveStatus("", SaveState.Idle);
   }
   function build() {
     modal = document.createElement("div");
@@ -992,14 +1077,43 @@ function initNotebookEditor(board, view, options = {}) {
     modal.setAttribute("role", "dialog");
     modal.setAttribute("aria-modal", "true");
     modal.setAttribute("aria-labelledby", "notebook-modal-title");
-    modal.innerHTML = '<div class="notebook-modal__backdrop" data-close></div><section class="notebook-modal__dialog"><header><input id="notebook-modal-title" data-modal-title class="notebook-modal__title" maxlength="220"><button type="button" class="notebook-action-icon" data-modal-pin aria-label="Pin note"><i class="bi bi-pin-angle"></i></button></header><textarea data-modal-body class="notebook-modal__body" maxlength="20000" placeholder="Take a note…"></textarea><div class="notebook-editor__validation" data-notebook-validation-summary role="alert" hidden></div><div data-modal-checklist class="notebook-checklist-editor" hidden></div><div class="notebook-save-feedback"><span class="notebook-modal__save-state" data-notebook-save-state aria-live="polite"></span><button type="button" data-notebook-retry hidden>Retry</button><button type="button" data-notebook-reload-latest hidden>Reload latest</button><button type="button" data-notebook-sign-in hidden>Sign in again</button><button type="button" data-notebook-copy-unsaved hidden>Copy note text</button><button type="button" data-modal-discard hidden>Discard changes</button></div><footer><button type="button" class="btn btn-sm btn-link" data-close aria-label="Close note editor">Close</button></footer></section>';
+    modal.innerHTML = `
+      <div class="notebook-modal__backdrop" data-close></div>
+      <section class="notebook-modal__dialog">
+        <header>
+          <input id="notebook-modal-title" data-modal-title class="notebook-modal__title" maxlength="220">
+          <button type="button" class="notebook-action-icon" data-modal-pin aria-label="Pin note"><i class="bi bi-pin-angle"></i></button>
+        </header>
+        <textarea data-modal-body class="notebook-modal__body" maxlength="20000" placeholder="Take a note…"></textarea>
+        <div class="notebook-editor__validation" data-notebook-validation-summary role="alert" hidden></div>
+        <div data-modal-checklist class="notebook-checklist-editor" hidden></div>
+        <div class="notebook-save-feedback">
+          <span class="notebook-modal__save-state" data-notebook-save-state aria-live="polite"></span>
+          <button type="button" data-notebook-retry hidden>Retry</button>
+          <button type="button" data-notebook-reload-application hidden>Reload application</button>
+          <button type="button" data-notebook-sign-in hidden>Sign in again</button>
+          <button type="button" data-notebook-copy-unsaved hidden>Copy note text</button>
+          <button type="button" data-modal-discard hidden>Discard changes</button>
+        </div>
+        <section class="notebook-conflict" data-notebook-conflict hidden role="status" aria-live="polite">
+          <div class="notebook-conflict__message" data-notebook-conflict-message></div>
+          <div class="notebook-conflict__actions">
+            <button type="button" class="notebook-conflict__action" data-notebook-use-local>Use my changes</button>
+            <button type="button" class="notebook-conflict__action" data-notebook-reload-latest>Reload latest</button>
+            <button type="button" class="notebook-conflict__action notebook-conflict__action--secondary" data-notebook-copy-local>Copy my changes</button>
+          </div>
+        </section>
+        <footer><button type="button" class="btn btn-sm btn-link" data-close aria-label="Close note editor">Close</button></footer>
+      </section>`;
     document.body.appendChild(modal);
-    checklist = createChecklistEditor(modal.querySelector("[data-modal-checklist]"), { onChange: () => {
-      markChanged("checklist");
-      scheduleAutosave();
-    } });
-    modal.addEventListener("click", (e) => {
-      if (e.target.matches("[data-close]")) requestClose();
+    checklist = createChecklistEditor(modal.querySelector("[data-modal-checklist]"), {
+      onChange: () => {
+        markChanged("checklist");
+        scheduleAutosave();
+      }
+    });
+    modal.addEventListener("click", (event) => {
+      if (event.target.matches("[data-close]")) requestClose();
     });
     modal.addEventListener("keydown", trapFocus);
     modal.querySelector("[data-modal-title]").addEventListener("input", () => {
@@ -1012,10 +1126,13 @@ function initNotebookEditor(board, view, options = {}) {
     });
     modal.querySelector("[data-modal-pin]").addEventListener("click", pinItem);
     modal.querySelector("[data-notebook-retry]")?.addEventListener("click", retrySave);
-    modal.querySelector("[data-notebook-reload-latest]")?.addEventListener("click", reloadLatest);
+    modal.querySelector("[data-notebook-reload-application]")?.addEventListener("click", () => window.location.reload());
     modal.querySelector("[data-notebook-sign-in]")?.addEventListener("click", signInAgain);
     modal.querySelector("[data-notebook-copy-unsaved]")?.addEventListener("click", copyUnsavedContent);
     modal.querySelector("[data-modal-discard]")?.addEventListener("click", discardChangesAndClose);
+    modal.querySelector("[data-notebook-use-local]")?.addEventListener("click", useMyChanges);
+    modal.querySelector("[data-notebook-reload-latest]")?.addEventListener("click", reloadLatest);
+    modal.querySelector("[data-notebook-copy-local]")?.addEventListener("click", copyLocalChanges);
   }
   async function saveEditorPayload(data) {
     const submittedRows = item.type === "Checklist" ? structuredCloneSafe(data.checklistRows || []) : [];
@@ -1030,26 +1147,47 @@ function initNotebookEditor(board, view, options = {}) {
     const submittedRows = Array.isArray(saveResult?.submittedRows) ? saveResult.submittedRows : [];
     const submittedRevision = saveResult?.submittedRevision ?? { ...editRevision };
     item = requireMutationItem(response);
-    if (item.type === "Checklist" && Array.isArray(item.checklistRows)) checklist.reconcileRows(item.checklistRows, submittedRows);
+    if (item.type === "Checklist" && Array.isArray(item.checklistRows)) {
+      checklist.reconcileRows(item.checklistRows, submittedRows);
+    }
     applySubmittedRevision(submittedRevision);
     clearValidationBlock();
-    if (hasDirtyChanges()) preserveUnsavedDraft();
+    draftSourceVersion = item.version ?? draftSourceVersion;
+    if (hasDirtyChanges() || conflictState.active) preserveUnsavedDraft();
     else clearStoredDraft(item?.id);
-    setStatus("Saved", "saved");
-    await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts: options.applyCounts, preservePosition: true, showGlobalError: options.showGlobalError, renderFailureMessage: "The note was saved, but its card could not refresh. Reload the page.", reconcileFailureMessage: "The note was saved, but the board could not refresh. Reload the page." });
+    if (conflictState.active) {
+      conflictState.pendingServerItem = item;
+      renderConflictState();
+    } else {
+      setSaveStatus("Saved", SaveState.Saved);
+    }
+    await reconcileMutation({
+      response,
+      board,
+      view,
+      getCardHtml: NotebookApi.getCardHtml,
+      applyCounts: options.applyCounts,
+      preservePosition: true,
+      showGlobalError: options.showGlobalError,
+      renderFailureMessage: "The note was saved, but its card could not refresh. Reload the page.",
+      reconcileFailureMessage: "The note was saved, but the board could not refresh. Reload the page."
+    });
   }
   function handleReconcileError() {
     options.showGlobalError?.("The note was saved, but the board could not refresh. Reload the page.");
-    setStatus("Saved", "saved");
-  }
-  function classifySaveError(error) {
-    return classifyNotebookSaveError(error);
+    setSaveStatus("Saved", SaveState.Saved);
   }
   function handleEditorError(error) {
-    currentSaveError = classifySaveError(error);
-    setStatus(currentSaveError.message, currentSaveError.kind);
+    currentSaveError = classifyNotebookSaveError(error);
+    if (currentSaveError.kind === "conflict") {
+      activateConflict({
+        type: ConflictType.VersionConflict,
+        message: "This note changed elsewhere."
+      });
+    } else {
+      setSaveStatus(currentSaveError.message, currentSaveError.kind);
+    }
     if (currentSaveError.kind === "validation") {
-      setStatus(currentSaveError.message, "validation");
       renderValidationErrors(currentSaveError.validationErrors);
       const submittedPayload = buildCurrentPayload();
       blockedByValidation = true;
@@ -1058,16 +1196,28 @@ function initNotebookEditor(board, view, options = {}) {
     }
     if (isDevelopment2()) {
       const submittedPayload = buildCurrentPayload();
-      console.error("Notebook update failed", { noteId: item?.id, status: error?.status, code: error?.code, errors: error?.errors, responseText: error?.responseText, payload: describeUpdatePayload(submittedPayload) });
+      console.error("Notebook update failed", {
+        noteId: item?.id,
+        status: error?.status,
+        code: error?.code,
+        errors: error?.errors,
+        responseText: error?.responseText,
+        payload: describeUpdatePayload(submittedPayload)
+      });
     }
-    return { retryable: isRetryableSaveError(error) };
+    return { retryable: isRetryableSaveError(error) && !isConflictBlocked() };
   }
   function isDevelopment2() {
     return document.documentElement.dataset.environment === "Development" || location.hostname === "localhost";
   }
   async function disposeCurrentItem() {
     if (!item || !autosave) return;
-    await autosave.flush();
+    if (isConflictBlocked()) {
+      preserveUnsavedDraft();
+      autosave.cancel();
+    } else {
+      await autosave.flush();
+    }
     autosave.stop();
     autosave = null;
   }
@@ -1078,12 +1228,13 @@ function initNotebookEditor(board, view, options = {}) {
   }
   function trapFocus(event) {
     if (event.key !== "Tab" || modal.hidden) return;
-    const focusable = [...modal.querySelectorAll(focusableSelector)].filter((el) => el.offsetParent !== null);
+    const focusable = [...modal.querySelectorAll(focusableSelector)].filter((element) => element.offsetParent !== null);
     if (!focusable.length) {
       event.preventDefault();
       return;
     }
-    const first = focusable[0], last = focusable[focusable.length - 1];
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
     if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
       last.focus();
@@ -1093,8 +1244,16 @@ function initNotebookEditor(board, view, options = {}) {
     }
   }
   function preserveUnsavedDraft() {
-    if (!item?.id) return;
-    sessionStorage.setItem(`notebook-draft:${item.id}`, JSON.stringify({ itemId: item.id, type: item.type, title: modal.querySelector("[data-modal-title]").value, body: modal.querySelector("[data-modal-body]").value, checklistRows: item.type === "Checklist" ? checklist.getRows() : [], sourceVersion: item.version, savedAtUtc: (/* @__PURE__ */ new Date()).toISOString() }));
+    if (!item?.id || !modal) return;
+    sessionStorage.setItem(`notebook-draft:${item.id}`, JSON.stringify({
+      itemId: item.id,
+      type: item.type,
+      title: modal.querySelector("[data-modal-title]").value,
+      body: modal.querySelector("[data-modal-body]").value,
+      checklistRows: item.type === "Checklist" ? checklist.getRows() : [],
+      sourceVersion: draftSourceVersion || item.version,
+      savedAtUtc: (/* @__PURE__ */ new Date()).toISOString()
+    }));
   }
   function clearStoredDraft(itemId) {
     if (itemId) sessionStorage.removeItem(`notebook-draft:${itemId}`);
@@ -1112,15 +1271,31 @@ function initNotebookEditor(board, view, options = {}) {
   }
   function restoreStoredDraftIfNeeded() {
     const storedDraft = readStoredDraft(item.id);
-    if (storedDraft && (storedDraft.title !== item.title || storedDraft.body !== item.body || JSON.stringify(storedDraft.checklistRows || []) !== JSON.stringify(item.checklistRows || [])) && window.confirm(storedDraft.sourceVersion && storedDraft.sourceVersion !== item.version ? "A newer saved version exists. Restore local changes?" : "Restore your unsaved local draft for this note?")) {
-      modal.querySelector("[data-modal-title]").value = storedDraft.title || "";
-      modal.querySelector("[data-modal-body]").value = storedDraft.body || "";
-      if (item.type === "Checklist") checklist.setRows(storedDraft.checklistRows || []);
-      markChanged("title");
-      markChanged("body");
-      if (item.type === "Checklist") markChanged("checklist");
-      if (!storedDraft.sourceVersion || storedDraft.sourceVersion === item.version) scheduleAutosave();
-      else setStatus("A newer saved version exists. Review local changes before saving.", "conflict");
+    if (!storedDraft) return;
+    const differs = storedDraft.title !== item.title || storedDraft.body !== item.body || JSON.stringify(storedDraft.checklistRows || []) !== JSON.stringify(item.checklistRows || []);
+    if (!differs) {
+      clearStoredDraft(item.id);
+      return;
+    }
+    const stale = shouldTreatDraftAsConflict(storedDraft, item);
+    const prompt = stale ? "A newer saved version exists. Restore your local changes for review?" : "Restore your unsaved local draft for this note?";
+    if (!window.confirm(prompt)) return;
+    modal.querySelector("[data-modal-title]").value = storedDraft.title || "";
+    modal.querySelector("[data-modal-body]").value = storedDraft.body || "";
+    if (item.type === "Checklist") checklist.setRows(storedDraft.checklistRows || []);
+    draftSourceVersion = storedDraft.sourceVersion || item.version;
+    markChanged("title");
+    markChanged("body");
+    if (item.type === "Checklist") markChanged("checklist");
+    if (stale) {
+      activateConflict({
+        type: ConflictType.StaleDraft,
+        pendingServerItem: item,
+        localDraft: storedDraft,
+        message: "A newer saved version exists."
+      });
+    } else {
+      scheduleAutosave();
     }
   }
   function signInAgain() {
@@ -1129,13 +1304,26 @@ function initNotebookEditor(board, view, options = {}) {
     window.location.assign("/Identity/Account/Login?ReturnUrl=" + encodeURIComponent(returnUrl));
   }
   async function copyUnsavedContent() {
-    const title = modal.querySelector("[data-modal-title]").value.trim();
-    const body = modal.querySelector("[data-modal-body]").value.trim();
-    const text = [title, body].filter(Boolean).join("\n\n");
+    await copyLocalChanges();
+    setSaveStatus("Unsaved note text copied. Sign in again before saving.", currentSaveError?.kind || "session-expired");
+  }
+  async function copyLocalChanges() {
+    const text = serialiseNotebookContent({
+      ...buildCurrentPayload(),
+      type: item?.type
+    });
     await navigator.clipboard.writeText(text);
-    setStatus("Unsaved note text copied. Sign in again before saving.", currentSaveError?.kind || "session-expired");
+    const copyButton = modal?.querySelector("[data-notebook-copy-local]");
+    if (copyButton) {
+      const original = copyButton.textContent;
+      copyButton.textContent = "Copied";
+      window.setTimeout(() => {
+        copyButton.textContent = original;
+      }, 1500);
+    }
   }
   async function retrySave() {
+    if (isConflictBlocked()) return;
     const button = modal.querySelector("[data-notebook-retry]");
     button.disabled = true;
     try {
@@ -1146,57 +1334,108 @@ function initNotebookEditor(board, view, options = {}) {
       button.disabled = false;
     }
   }
-  async function discardChangesAndClose() {
-    if (!window.confirm("Discard unsaved changes and close this note?")) return;
+  function closeEditor({ fromHistory = false } = {}) {
     const closedId = item?.id;
-    autosave?.cancel?.();
     autosave?.stop();
     autosave = null;
-    currentSaveError = null;
-    clearValidationBlock();
-    item = null;
     modal.hidden = true;
     setBackgroundInert(false);
-    history.replaceState(history.state, "", buildNoteUrl(null));
+    item = null;
+    currentSaveError = null;
+    clearConflictState();
+    clearValidationBlock();
+    if (!fromHistory) {
+      if (openedByPushState) history.back();
+      else history.replaceState(history.state, "", buildNoteUrl(null));
+    }
     (board.findCard(closedId) || trigger)?.focus?.();
   }
-  async function reloadLatest() {
-    if (currentSaveError?.kind === "client-version") {
-      window.location.reload();
-      return;
+  async function discardChangesAndClose() {
+    if (!window.confirm("Discard unsaved changes and close this note?")) return;
+    const itemId = item?.id;
+    autosave?.cancel?.();
+    clearStoredDraft(itemId);
+    resetDirtyState();
+    closeEditor();
+  }
+  async function useMyChanges() {
+    if (!conflictState.active || !item) return;
+    if (!window.confirm("Save your current changes over the newer saved version?")) return;
+    const button = modal.querySelector("[data-notebook-use-local]");
+    button.disabled = true;
+    try {
+      const latest = await NotebookApi.getItem(item.id);
+      item.version = latest.version;
+      draftSourceVersion = latest.version;
+      currentSaveError = null;
+      clearConflictState();
+      clearValidationBlock();
+      preserveUnsavedDraft();
+      autosave.schedule(buildCurrentPayload());
+      await autosave.flush();
+    } catch (error) {
+      if (conflictState.active) {
+        conflictState.message = error?.message || "The latest saved version could not be loaded.";
+        renderConflictState();
+      } else {
+        handleEditorError(error);
+      }
+    } finally {
+      button.disabled = false;
     }
-    if (!window.confirm("Reload the latest saved version? Unsaved changes in this editor will be discarded.")) return;
+  }
+  async function reloadLatest() {
+    if (!item) return;
+    if (hasDirtyChanges() && !window.confirm("Discard your unsaved changes and load the latest saved version?")) return;
     const button = modal.querySelector("[data-notebook-reload-latest]");
     button.disabled = true;
     try {
-      item = pendingExternalUpdate || await NotebookApi.getItem(item.id);
-      renderMode();
-      clearValidationBlock();
-      setStatus("", "idle");
+      const latest = await NotebookApi.getItem(item.id);
+      applyAuthoritativeItem(latest);
+      clearStoredDraft(item.id);
+      clearConflictState();
+      currentSaveError = null;
+      setSaveStatus("Saved", SaveState.Saved);
     } catch (error) {
-      setStatus(error.message || "Unable to reload the note.", "error");
+      if (conflictState.active) {
+        conflictState.message = error?.message || "Unable to load the latest saved version.";
+        renderConflictState();
+      } else {
+        setSaveStatus(error?.message || "Unable to reload the note.", SaveState.Error);
+      }
     } finally {
       button.disabled = false;
     }
   }
   async function pinItem() {
-    if (!item) return;
+    if (!item || isConflictBlocked()) return;
     const button = modal.querySelector("[data-modal-pin]");
     button.disabled = true;
     try {
       await autosave?.flush();
       const response = await NotebookApi.setPinned(item.id, !item.isPinned, item.version);
       item = requireMutationItem(response, "The pin response did not contain the updated note.");
+      draftSourceVersion = item.version;
       renderPin();
-      await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts: options.applyCounts, preservePosition: false, prepend: true, showGlobalError: options.showGlobalError, reconcileFailureMessage: `The note was ${item.isPinned ? "pinned" : "unpinned"}, but the board could not refresh. Reload the page.` });
-      setStatus("Saved", "saved");
+      await reconcileMutation({
+        response,
+        board,
+        view,
+        getCardHtml: NotebookApi.getCardHtml,
+        applyCounts: options.applyCounts,
+        preservePosition: false,
+        prepend: true,
+        showGlobalError: options.showGlobalError,
+        reconcileFailureMessage: `The note was ${item.isPinned ? "pinned" : "unpinned"}, but the board could not refresh. Reload the page.`
+      });
+      setSaveStatus("Saved", SaveState.Saved);
     } catch (error) {
       handleEditorError(error);
     } finally {
-      button.disabled = false;
+      button.disabled = conflictState.active;
     }
   }
-  async function open(id, options2 = {}) {
+  async function open(id, openOptions = {}) {
     if (!modal) build();
     if (item && item.id !== id) await disposeCurrentItem();
     trigger = document.activeElement;
@@ -1207,7 +1446,7 @@ function initNotebookEditor(board, view, options = {}) {
     modal.hidden = false;
     setBackgroundInert(true);
     modal.querySelector("[data-modal-title]").focus();
-    if (options2.pushHistory !== false) {
+    if (openOptions.pushHistory !== false) {
       openedByPushState = true;
       history.pushState({ ...history.state || {}, notebookModal: true, notebookNoteId: id }, "", buildNoteUrl(id));
     } else {
@@ -1219,18 +1458,14 @@ function initNotebookEditor(board, view, options = {}) {
     const closeButton = modal.querySelector("[data-close]:not(.notebook-modal__backdrop)");
     closeButton.disabled = true;
     try {
-      await autosave?.flush();
-      autosave?.stop();
-      autosave = null;
-      modal.hidden = true;
-      setBackgroundInert(false);
-      const closedId = item.id;
-      item = null;
-      if (!fromHistory) {
-        if (openedByPushState) history.back();
-        else history.replaceState(history.state, "", buildNoteUrl(null));
+      if (isConflictBlocked()) {
+        preserveUnsavedDraft();
+        autosave?.cancel?.();
+        closeEditor({ fromHistory });
+        return;
       }
-      (board.findCard(closedId) || trigger)?.focus?.();
+      await autosave?.flush();
+      closeEditor({ fromHistory });
     } catch (error) {
       handleEditorError(error);
     } finally {
@@ -1239,18 +1474,24 @@ function initNotebookEditor(board, view, options = {}) {
   }
   function syncExternalUpdate(updated) {
     if (!item || item.id !== updated.id) return;
-    if (hasDirtyChanges()) {
-      pendingExternalUpdate = updated;
-      setStatus("This note was changed elsewhere.", "conflict");
+    if (hasDirtyChanges() || autosave?.hasPending?.()) {
+      activateConflict({
+        type: ConflictType.ExternalUpdate,
+        pendingServerItem: updated,
+        message: "This note changed elsewhere."
+      });
       return;
     }
-    item = updated;
-    if (updated.type === "Checklist") checklist.reconcileRows(updated.checklistRows || []);
-    modal.querySelector("[data-modal-title]").value = updated.title || "";
-    modal.querySelector("[data-modal-body]").value = updated.body || "";
-    renderPin();
+    applyAuthoritativeItem(updated);
+    clearStoredDraft(updated.id);
+    setSaveStatus("", SaveState.Idle);
   }
-  return { open, requestClose, isOpen: () => !!item && !!modal && !modal.hidden, syncExternalUpdate };
+  return {
+    open,
+    requestClose,
+    isOpen: () => Boolean(item && modal && !modal.hidden),
+    syncExternalUpdate
+  };
 }
 function assertValidVersion(version) {
   if (typeof version !== "string" || !guidPattern.test(version)) {
@@ -1312,9 +1553,9 @@ function renderValidationErrors(hostOrErrors, maybeErrors) {
   }
   const list = document.createElement("ul");
   validationErrors.forEach((error) => {
-    const item = document.createElement("li");
-    item.textContent = error.message;
-    list.appendChild(item);
+    const errorItem = document.createElement("li");
+    errorItem.textContent = error.message;
+    list.appendChild(errorItem);
   });
   host.replaceChildren(list);
   host.hidden = false;
@@ -1334,7 +1575,7 @@ function isRetryableSaveError(error) {
   if (error?.code === "notebook_network_error") return true;
   return [500, 502, 503, 504].includes(error?.status);
 }
-var guidPattern;
+var ConflictType, SaveState, guidPattern;
 var init_notebook_editor = __esm({
   "wwwroot/js/notebook/notebook-editor.js"() {
     init_notebook_api();
@@ -1342,6 +1583,17 @@ var init_notebook_editor = __esm({
     init_notebook_checklist_editor();
     init_notebook_reconcile();
     init_notebook_errors();
+    ConflictType = Object.freeze({
+      StaleDraft: "stale-draft",
+      ExternalUpdate: "external-update",
+      VersionConflict: "version-conflict"
+    });
+    SaveState = Object.freeze({
+      Idle: "idle",
+      Saving: "saving",
+      Saved: "saved",
+      Error: "error"
+    });
     guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   }
 });
