@@ -928,6 +928,42 @@ var init_notebook_autosave = __esm({
 });
 
 // wwwroot/js/notebook/notebook-editor.js
+function requireEditorElement(root, selector) {
+  const element = root?.querySelector?.(selector);
+  if (!element) {
+    const error = new Error(`Notebook editor template is missing required element: ${selector}`);
+    error.code = "notebook_editor_template_invalid";
+    throw error;
+  }
+  return element;
+}
+function cloneNotebookEditorTemplate(documentRef = document) {
+  const template = documentRef?.querySelector?.(EditorSelectors.template);
+  if (!template || template.tagName !== "TEMPLATE") {
+    const error = new Error(`Notebook editor template was not found: ${EditorSelectors.template}`);
+    error.code = "notebook_editor_template_missing";
+    throw error;
+  }
+  const editor = template.content?.firstElementChild?.cloneNode(true);
+  if (!editor?.matches?.(EditorSelectors.editor)) {
+    const error = new Error(`Notebook editor template must contain a single ${EditorSelectors.editor} root element.`);
+    error.code = "notebook_editor_template_invalid";
+    throw error;
+  }
+  [
+    EditorSelectors.title,
+    EditorSelectors.body,
+    EditorSelectors.checklist,
+    EditorSelectors.pin,
+    EditorSelectors.saveState,
+    EditorSelectors.conflict,
+    EditorSelectors.conflictMessage,
+    EditorSelectors.useLocal,
+    EditorSelectors.reloadLatest,
+    EditorSelectors.copyLocal
+  ].forEach((selector) => requireEditorElement(editor, selector));
+  return editor;
+}
 function shouldTreatDraftAsConflict(draft, currentItem) {
   return Boolean(draft?.sourceVersion && currentItem?.version && draft.sourceVersion !== currentItem.version);
 }
@@ -1121,68 +1157,39 @@ function initNotebookEditor(board, view, options = {}) {
     setSaveStatus("", SaveState.Idle);
   }
   function build() {
-    modal = document.createElement("div");
-    modal.className = "notebook-modal";
-    modal.hidden = true;
-    modal.setAttribute("role", "dialog");
-    modal.setAttribute("aria-modal", "true");
-    modal.setAttribute("aria-labelledby", "notebook-modal-title");
-    modal.innerHTML = `
-      <div class="notebook-modal__backdrop" data-close></div>
-      <section class="notebook-modal__dialog">
-        <header>
-          <input id="notebook-modal-title" data-modal-title class="notebook-modal__title" maxlength="220">
-          <button type="button" class="notebook-action-icon" data-modal-pin aria-label="Pin note"><i class="bi bi-pin-angle"></i></button>
-        </header>
-        <textarea data-modal-body class="notebook-modal__body" maxlength="20000" placeholder="Take a note…"></textarea>
-        <div class="notebook-editor__validation" data-notebook-validation-summary role="alert" hidden></div>
-        <div data-modal-checklist class="notebook-checklist-editor" hidden></div>
-        <div class="notebook-save-feedback">
-          <span class="notebook-modal__save-state" data-notebook-save-state aria-live="polite"></span>
-          <button type="button" data-notebook-retry hidden>Retry</button>
-          <button type="button" data-notebook-reload-application hidden>Reload application</button>
-          <button type="button" data-notebook-sign-in hidden>Sign in again</button>
-          <button type="button" data-notebook-copy-unsaved hidden>Copy note text</button>
-          <button type="button" data-modal-discard hidden>Discard changes</button>
-        </div>
-        <section class="notebook-conflict" data-notebook-conflict hidden role="status" aria-live="polite">
-          <div class="notebook-conflict__message" data-notebook-conflict-message></div>
-          <div class="notebook-conflict__actions">
-            <button type="button" class="notebook-conflict__action" data-notebook-use-local>Use my changes</button>
-            <button type="button" class="notebook-conflict__action" data-notebook-reload-latest>Reload latest</button>
-            <button type="button" class="notebook-conflict__action notebook-conflict__action--secondary" data-notebook-copy-local>Copy my changes</button>
-          </div>
-        </section>
-        <footer><button type="button" class="btn btn-sm btn-link" data-close aria-label="Close note editor">Close</button></footer>
-      </section>`;
+    modal = cloneNotebookEditorTemplate(document);
     document.body.appendChild(modal);
-    checklist = createChecklistEditor(modal.querySelector("[data-modal-checklist]"), {
+    const titleInput = requireEditorElement(modal, EditorSelectors.title);
+    const bodyInput = requireEditorElement(modal, EditorSelectors.body);
+    const checklistRoot = requireEditorElement(modal, EditorSelectors.checklist);
+    const pinButton = requireEditorElement(modal, EditorSelectors.pin);
+    checklist = createChecklistEditor(checklistRoot, {
       onChange: () => {
         markChanged("checklist");
         scheduleAutosave();
       }
     });
     modal.addEventListener("click", (event) => {
-      if (event.target.matches("[data-close]")) requestClose();
+      if (event.target.closest("[data-close]")) requestClose();
     });
     modal.addEventListener("keydown", trapFocus);
-    modal.querySelector("[data-modal-title]").addEventListener("input", () => {
+    titleInput.addEventListener("input", () => {
       markChanged("title");
       scheduleAutosave();
     });
-    modal.querySelector("[data-modal-body]").addEventListener("input", () => {
+    bodyInput.addEventListener("input", () => {
       markChanged("body");
       scheduleAutosave();
     });
-    modal.querySelector("[data-modal-pin]").addEventListener("click", pinItem);
+    pinButton.addEventListener("click", pinItem);
     modal.querySelector("[data-notebook-retry]")?.addEventListener("click", retrySave);
     modal.querySelector("[data-notebook-reload-application]")?.addEventListener("click", () => window.location.reload());
     modal.querySelector("[data-notebook-sign-in]")?.addEventListener("click", signInAgain);
     modal.querySelector("[data-notebook-copy-unsaved]")?.addEventListener("click", copyUnsavedContent);
     modal.querySelector("[data-modal-discard]")?.addEventListener("click", discardChangesAndClose);
-    modal.querySelector("[data-notebook-use-local]")?.addEventListener("click", useMyChanges);
-    modal.querySelector("[data-notebook-reload-latest]")?.addEventListener("click", reloadLatest);
-    modal.querySelector("[data-notebook-copy-local]")?.addEventListener("click", copyLocalChanges);
+    requireEditorElement(modal, EditorSelectors.useLocal).addEventListener("click", useMyChanges);
+    requireEditorElement(modal, EditorSelectors.reloadLatest).addEventListener("click", reloadLatest);
+    requireEditorElement(modal, EditorSelectors.copyLocal).addEventListener("click", copyLocalChanges);
   }
   async function saveEditorPayload(data, operation = {}) {
     const submittedRows = item.type === "Checklist" ? structuredCloneSafe(data.checklistRows || []) : [];
@@ -1682,7 +1689,7 @@ function isRetryableSaveError(error) {
   if (error?.code === "notebook_network_error") return true;
   return [500, 502, 503, 504].includes(error?.status);
 }
-var ConflictType, SaveState, guidPattern;
+var ConflictType, SaveState, EditorSelectors, guidPattern;
 var init_notebook_editor = __esm({
   "wwwroot/js/notebook/notebook-editor.js"() {
     init_notebook_api();
@@ -1700,6 +1707,20 @@ var init_notebook_editor = __esm({
       Saving: "saving",
       Saved: "saved",
       Error: "error"
+    });
+    EditorSelectors = Object.freeze({
+      template: "#notebook-editor-template",
+      editor: "[data-notebook-editor]",
+      title: "[data-modal-title]",
+      body: "[data-modal-body]",
+      checklist: "[data-modal-checklist]",
+      pin: "[data-modal-pin]",
+      saveState: "[data-notebook-save-state]",
+      conflict: "[data-notebook-conflict]",
+      conflictMessage: "[data-notebook-conflict-message]",
+      useLocal: "[data-notebook-use-local]",
+      reloadLatest: "[data-notebook-reload-latest]",
+      copyLocal: "[data-notebook-copy-local]"
     });
     guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   }

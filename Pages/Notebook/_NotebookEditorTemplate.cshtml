@@ -1,0 +1,86 @@
+<template id="notebook-editor-template">
+    <div class="notebook-modal"
+         data-notebook-editor
+         hidden
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="notebook-modal-title">
+        <div class="notebook-modal__backdrop" data-close></div>
+        <section class="notebook-modal__dialog">
+            <header>
+                <input id="notebook-modal-title"
+                       data-modal-title
+                       class="notebook-modal__title"
+                       maxlength="220"
+                       aria-label="Note title" />
+                <button type="button"
+                        class="notebook-action-icon"
+                        data-modal-pin
+                        aria-label="Pin note">
+                    <i class="bi bi-pin-angle"></i>
+                </button>
+            </header>
+
+            <textarea data-modal-body
+                      class="notebook-modal__body"
+                      maxlength="20000"
+                      placeholder="Take a note…"
+                      aria-label="Note body"></textarea>
+
+            <div class="notebook-editor__validation"
+                 data-notebook-validation-summary
+                 role="alert"
+                 hidden></div>
+
+            <div data-modal-checklist
+                 class="notebook-checklist-editor"
+                 hidden></div>
+
+            <div class="notebook-save-feedback">
+                <span class="notebook-modal__save-state"
+                      data-notebook-save-state
+                      aria-live="polite"></span>
+                <button type="button" data-notebook-retry hidden>Retry</button>
+                <button type="button" data-notebook-reload-application hidden>Reload application</button>
+                <button type="button" data-notebook-sign-in hidden>Sign in again</button>
+                <button type="button" data-notebook-copy-unsaved hidden>Copy note text</button>
+                <button type="button" data-modal-discard hidden>Discard changes</button>
+            </div>
+
+            <section class="notebook-conflict"
+                     data-notebook-conflict
+                     hidden
+                     role="status"
+                     aria-live="polite">
+                <div class="notebook-conflict__message"
+                     data-notebook-conflict-message></div>
+                <div class="notebook-conflict__actions">
+                    <button type="button"
+                            class="notebook-conflict__action"
+                            data-notebook-use-local>
+                        Use my changes
+                    </button>
+                    <button type="button"
+                            class="notebook-conflict__action"
+                            data-notebook-reload-latest>
+                        Reload latest
+                    </button>
+                    <button type="button"
+                            class="notebook-conflict__action notebook-conflict__action--secondary"
+                            data-notebook-copy-local>
+                        Copy my changes
+                    </button>
+                </div>
+            </section>
+
+            <footer>
+                <button type="button"
+                        class="btn btn-sm btn-link"
+                        data-close
+                        aria-label="Close note editor">
+                    Close
+                </button>
+            </footer>
+        </section>
+    </div>
+</template>
