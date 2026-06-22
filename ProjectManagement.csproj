@@ -31,7 +31,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Exclude the nested test project and all of its generated artifacts from the web application's SDK globs. -->
     <Compile Remove="ProjectManagement.Tests/**" />
+    <Content Remove="ProjectManagement.Tests/**" />
+    <EmbeddedResource Remove="ProjectManagement.Tests/**" />
+    <None Remove="ProjectManagement.Tests/**" />
   </ItemGroup>
 
   <ItemGroup>
