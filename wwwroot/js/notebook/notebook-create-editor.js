@@ -14,10 +14,38 @@ export function toIstIso(localValue) {
 }
 
 export function parseLabels(value) {
-  return [...new Set(String(value || '')
+  const seen = new Set();
+  return String(value || '')
     .split(',')
     .map((label) => label.trim())
-    .filter(Boolean))];
+    .filter((label) => {
+      if (!label) return false;
+      const key = label.toLocaleLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+export function getCreateTypeUi(type) {
+  const safeType = ALLOWED_TYPES.has(type) ? type : 'Note';
+  const names = {
+    Note: 'note',
+    Checklist: 'checklist',
+    Reminder: 'reminder',
+    Idea: 'idea',
+    Draft: 'draft',
+    Sticky: 'sticky note'
+  };
+  return {
+    type: safeType,
+    actionLabel: `Create ${names[safeType]}`,
+    titlePlaceholder: safeType === 'Reminder' ? 'Reminder title' : 'Title',
+    bodyPlaceholder: safeType === 'Reminder' ? 'Add notes…' : 'Take a note…',
+    showChecklist: safeType === 'Checklist',
+    showBody: safeType !== 'Checklist',
+    openDetails: safeType === 'Reminder'
+  };
 }
 
 export function buildCreatePayload({ type, title, body, reminderLocal, priority, colorKey, labels, isPinned, checklistRows, clientRequestId }) {
@@ -67,12 +95,14 @@ export function initNotebookCreateEditor(board, view, options = {}) {
       body: requireEditorElement(modal, EditorSelectors.body),
       checklistRoot: requireEditorElement(modal, EditorSelectors.checklist),
       pin: requireEditorElement(modal, EditorSelectors.pin),
+      detailsToggle: requireEditorElement(modal, '[data-notebook-create-details-toggle]'),
       details: requireEditorElement(modal, '[data-notebook-create-details]'),
       type: requireEditorElement(modal, '[data-create-type]'),
       reminderField: requireEditorElement(modal, '[data-create-reminder-field]'),
       reminder: requireEditorElement(modal, '[data-create-reminder]'),
       priority: requireEditorElement(modal, '[data-create-priority]'),
       color: requireEditorElement(modal, '[data-create-color]'),
+      swatches: requireEditorElement(modal, '[data-create-colour-swatches]'),
       labels: requireEditorElement(modal, '[data-create-labels]'),
       feedback: requireEditorElement(modal, '[data-notebook-create-feedback]'),
       submit: requireEditorElement(modal, '[data-notebook-create-submit]')
@@ -86,19 +116,37 @@ export function initNotebookCreateEditor(board, view, options = {}) {
     feedback.classList.toggle('is-error', isError);
   }
 
-  function applyType(type) {
+  function setDetailsExpanded(expanded) {
     const elements = getElements();
-    const safeType = ALLOWED_TYPES.has(type) ? type : 'Note';
-    elements.type.value = safeType;
-    elements.checklistRoot.hidden = safeType !== 'Checklist';
-    elements.body.hidden = safeType === 'Checklist';
-    elements.reminderField.hidden = safeType !== 'Reminder';
-    elements.title.placeholder = safeType === 'Reminder' ? 'Reminder title' : 'Title';
-    elements.body.placeholder = safeType === 'Reminder' ? 'Add notes…' : 'Take a note…';
-    elements.submit.textContent = safeType === 'Reminder' ? 'Create reminder' : `Create ${safeType.toLowerCase()}`;
-    if (safeType === 'Checklist' && checklist.getRows().length === 0) {
-      checklist.setRows([{ text: '' }]);
-    }
+    const open = Boolean(expanded);
+    elements.details.hidden = !open;
+    elements.detailsToggle.setAttribute('aria-expanded', String(open));
+    elements.detailsToggle.classList.toggle('is-expanded', open);
+  }
+
+  function selectColour(value = '') {
+    const elements = getElements();
+    elements.color.value = value;
+    elements.swatches.querySelectorAll('[data-colour-value]').forEach((swatch) => {
+      const selected = swatch.dataset.colourValue === value;
+      swatch.classList.toggle('is-selected', selected);
+      swatch.setAttribute('aria-pressed', String(selected));
+    });
+  }
+
+  function applyType(type, { preserveDetails = false } = {}) {
+    const elements = getElements();
+    const ui = getCreateTypeUi(type);
+    elements.type.value = ui.type;
+    elements.checklistRoot.hidden = !ui.showChecklist;
+    elements.body.hidden = !ui.showBody;
+    elements.reminderField.hidden = ui.type !== 'Reminder';
+    elements.title.placeholder = ui.titlePlaceholder;
+    elements.body.placeholder = ui.bodyPlaceholder;
+    elements.submit.textContent = ui.actionLabel;
+    modal.dataset.createType = ui.type.toLowerCase();
+    if (ui.showChecklist && checklist.getRows().length === 0) checklist.setRows([{ text: '' }]);
+    if (!preserveDetails || ui.openDetails) setDetailsExpanded(ui.openDetails);
   }
 
   function reset(type = 'Note') {
@@ -107,12 +155,13 @@ export function initNotebookCreateEditor(board, view, options = {}) {
     elements.body.value = '';
     elements.reminder.value = '';
     elements.priority.value = 'Normal';
-    elements.color.value = '';
     elements.labels.value = '';
     checklist.clear();
     isPinned = false;
     clientRequestId = crypto.randomUUID();
     elements.pin.classList.remove('is-active');
+    elements.pin.setAttribute('aria-label', 'Pin item');
+    selectColour('');
     setFeedback('');
     applyType(type);
   }
@@ -149,6 +198,7 @@ export function initNotebookCreateEditor(board, view, options = {}) {
     }
     if (payload.type === 'Reminder' && !payload.reminderAtUtc) {
       setFeedback('Choose a reminder date and time.', true);
+      setDetailsExpanded(true);
       elements.reminder.focus();
       return;
     }
@@ -190,12 +240,17 @@ export function initNotebookCreateEditor(board, view, options = {}) {
     const elements = getElements();
     checklist = createChecklistEditor(elements.checklistRoot);
 
-    elements.details.hidden = false;
+    elements.detailsToggle.hidden = false;
     elements.submit.hidden = false;
     modal.querySelector('[data-notebook-save-state]')?.closest('.notebook-save-feedback')?.setAttribute('hidden', '');
     modal.querySelector('[data-notebook-conflict]')?.setAttribute('hidden', '');
 
     elements.type.addEventListener('change', () => applyType(elements.type.value));
+    elements.detailsToggle.addEventListener('click', () => setDetailsExpanded(elements.detailsToggle.getAttribute('aria-expanded') !== 'true'));
+    elements.swatches.addEventListener('click', (event) => {
+      const swatch = event.target.closest('[data-colour-value]');
+      if (swatch) selectColour(swatch.dataset.colourValue || '');
+    });
     elements.pin.addEventListener('click', () => {
       if (isSubmitting) return;
       isPinned = !isPinned;
@@ -216,11 +271,7 @@ export function initNotebookCreateEditor(board, view, options = {}) {
     document.body.classList.add('notebook-modal-open');
     isOpen = true;
     const elements = getElements();
-    queueMicrotask(() => {
-      if (type === 'Reminder') elements.reminder.focus();
-      else if (type === 'Checklist') checklist.focusFirst();
-      else elements.title.focus();
-    });
+    queueMicrotask(() => elements.title.focus());
   }
 
   return { open, close, isOpen: () => isOpen };

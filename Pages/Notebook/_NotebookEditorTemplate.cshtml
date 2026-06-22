@@ -7,18 +7,26 @@
          aria-labelledby="notebook-modal-title">
         <div class="notebook-modal__backdrop" data-close></div>
         <section class="notebook-modal__dialog">
-            <header>
+            <header class="notebook-modal__header">
                 <input id="notebook-modal-title"
                        data-modal-title
                        class="notebook-modal__title"
                        maxlength="220"
                        aria-label="Note title" />
-                <button type="button"
-                        class="notebook-action-icon"
-                        data-modal-pin
-                        aria-label="Pin note">
-                    <i class="bi bi-pin-angle"></i>
-                </button>
+                <div class="notebook-modal__header-actions">
+                    <button type="button"
+                            class="notebook-action-icon"
+                            data-modal-pin
+                            aria-label="Pin note">
+                        <i class="bi bi-pin-angle"></i>
+                    </button>
+                    <button type="button"
+                            class="notebook-action-icon notebook-modal__close"
+                            data-close
+                            aria-label="Close note editor">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
             </header>
 
             <textarea data-modal-body
@@ -37,6 +45,15 @@
                  hidden></div>
 
 
+
+            <button type="button"
+                    class="notebook-create-details-toggle"
+                    data-notebook-create-details-toggle
+                    aria-expanded="false"
+                    hidden>
+                <span><i class="bi bi-sliders"></i> Details</span>
+                <i class="bi bi-chevron-down" aria-hidden="true"></i>
+            </button>
 
             <section class="notebook-create-details"
                      data-notebook-create-details
@@ -66,9 +83,9 @@
                             <option value="Critical">Critical</option>
                         </select>
                     </label>
-                    <label>
-                        <span>Colour</span>
-                        <select data-create-color>
+                    <fieldset class="notebook-create-colour-field">
+                        <legend>Colour</legend>
+                        <select data-create-color class="visually-hidden" aria-label="Colour">
                             <option value="">Default</option>
                             <option value="white">White</option>
                             <option value="blue">Blue</option>
@@ -77,7 +94,16 @@
                             <option value="rose">Rose</option>
                             <option value="slate">Slate</option>
                         </select>
-                    </label>
+                        <div class="notebook-colour-swatches" data-create-colour-swatches>
+                            <button type="button" class="notebook-colour-swatch is-selected" data-colour-value="" aria-label="Default colour" title="Default"></button>
+                            <button type="button" class="notebook-colour-swatch notebook-colour-swatch--white" data-colour-value="white" aria-label="White" title="White"></button>
+                            <button type="button" class="notebook-colour-swatch notebook-colour-swatch--blue" data-colour-value="blue" aria-label="Blue" title="Blue"></button>
+                            <button type="button" class="notebook-colour-swatch notebook-colour-swatch--amber" data-colour-value="amber" aria-label="Amber" title="Amber"></button>
+                            <button type="button" class="notebook-colour-swatch notebook-colour-swatch--green" data-colour-value="green" aria-label="Green" title="Green"></button>
+                            <button type="button" class="notebook-colour-swatch notebook-colour-swatch--rose" data-colour-value="rose" aria-label="Rose" title="Rose"></button>
+                            <button type="button" class="notebook-colour-swatch notebook-colour-swatch--slate" data-colour-value="slate" aria-label="Slate" title="Slate"></button>
+                        </div>
+                    </fieldset>
                 </div>
                 <label class="notebook-create-details__labels">
                     <span>Labels</span>

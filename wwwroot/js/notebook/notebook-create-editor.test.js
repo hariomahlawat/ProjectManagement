@@ -10,7 +10,7 @@ function loadHelpers() {
   source = source
     .replace(/^import .*;\r?\n/gm, '')
     .replace(/export function /g, 'function ')
-    .concat('\nmodule.exports = { toIstIso, parseLabels, buildCreatePayload };');
+    .concat('\nmodule.exports = { toIstIso, parseLabels, getCreateTypeUi, buildCreatePayload };');
   const context = { module: { exports: {} }, exports: {}, Set, String, Boolean };
   vm.createContext(context);
   vm.runInContext(source, context);
@@ -23,9 +23,25 @@ test('toIstIso creates an explicit IST offset', () => {
   assert.equal(toIstIso(''), null);
 });
 
-test('parseLabels trims, removes blanks and deduplicates', () => {
+test('parseLabels trims, removes blanks and deduplicates case-insensitively', () => {
   const { parseLabels } = loadHelpers();
-  assert.deepEqual(Array.from(parseLabels(' docs, procurement, docs, ')), ['docs', 'procurement']);
+  assert.deepEqual(Array.from(parseLabels(' Docs, procurement, docs, ')), ['Docs', 'procurement']);
+});
+
+test('getCreateTypeUi uses human-readable sticky-note wording and adaptive layout', () => {
+  const { getCreateTypeUi } = loadHelpers();
+  const sticky = getCreateTypeUi('Sticky');
+  assert.equal(sticky.actionLabel, 'Create sticky note');
+  assert.equal(sticky.showBody, true);
+  assert.equal(sticky.openDetails, false);
+
+  const reminder = getCreateTypeUi('Reminder');
+  assert.equal(reminder.titlePlaceholder, 'Reminder title');
+  assert.equal(reminder.openDetails, true);
+
+  const checklist = getCreateTypeUi('Checklist');
+  assert.equal(checklist.showChecklist, true);
+  assert.equal(checklist.showBody, false);
 });
 
 test('buildCreatePayload includes reminder and checklist data only for relevant types', () => {
