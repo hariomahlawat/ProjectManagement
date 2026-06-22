@@ -4,14 +4,14 @@
 @{
     var item = Model.Item;
     var isSelected = Model.SelectedId == item.Id;
-    var fallbackColor = string.IsNullOrWhiteSpace(item.ColorKey) && item.Type == NotebookItemType.Reminder ? "amber" : "white";
+    var fallbackColor = item.Status == NotebookItemStatus.Completed ? "white" : string.IsNullOrWhiteSpace(item.ColorKey) && item.Type == NotebookItemType.Reminder ? "amber" : "white";
     var colorClass = $"notebook-card-color-{(string.IsNullOrWhiteSpace(item.ColorKey) ? fallbackColor : item.ColorKey)}";
     var tags = item.Tags.Take(3).ToArray();
     var extraTags = Math.Max(0, item.Tags.Count - tags.Length);
 }
 
 @* SECTION: Notebook board card *@
-<article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-version="@item.Version" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty)">
+<article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-version="@item.Version" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty) @(item.Status == NotebookItemStatus.Completed ? "is-completed" : string.Empty)">
     <div class="notebook-card-body">
         <a href="@Model.OpenUrl" class="notebook-card-link notebook-card__open-area" data-action="open-note" aria-label="Open @item.Title">
             <div class="notebook-card-topline">

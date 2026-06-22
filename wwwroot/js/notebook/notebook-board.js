@@ -38,7 +38,26 @@ export function createNotebookBoard(root = document) {
   }
 
   // SECTION: Board state refresh helpers
-  const refreshSectionVisibility = () => { ['pinned','others'].forEach((name) => { const section = root.querySelector(`[data-notebook-section="${name}"]`); const board = root.querySelector(`[data-notebook-board="${name}"]`); if (!section || !board) return; const count = board.querySelectorAll('[data-note-id]').length; if (name === 'pinned') section.hidden = count === 0; const countEl = root.querySelector(`[data-notebook-count="${name}"]`); if (countEl) countEl.textContent = String(count); }); };
+  function refreshBoardLayout(board) {
+    if (!board) return;
+    const count = board.querySelectorAll(':scope > [data-note-id]').length;
+    board.dataset.itemCount = String(count);
+    const policy = board.dataset.layoutPolicy || 'fixed-grid';
+    board.dataset.layout = policy === 'masonry-threshold' && count > 4 ? 'masonry' : 'grid';
+  }
+
+  const refreshSectionVisibility = () => {
+    root.querySelectorAll('[data-notebook-board]').forEach(refreshBoardLayout);
+    ['pinned', 'others'].forEach((name) => {
+      const section = root.querySelector(`[data-notebook-section="${name}"]`);
+      const board = root.querySelector(`[data-notebook-board="${name}"]`);
+      if (!section || !board) return;
+      const count = Number(board.dataset.itemCount || 0);
+      if (name === 'pinned') section.hidden = count === 0;
+      const countEl = root.querySelector(`[data-notebook-count="${name}"]`);
+      if (countEl) countEl.textContent = String(count);
+    });
+  };
   const refreshEmptyState = () => { const empty = root.querySelector('[data-notebook-empty-state="current"]') || root.querySelector('[data-notebook-empty-state]') || root.querySelector('[data-notebook-empty]'); if (!empty) return; const count = [...root.querySelectorAll('[data-notebook-board]')].reduce((total, board) => total + board.querySelectorAll(':scope > [data-note-id]').length, 0); empty.hidden = count > 0; };
 
   // SECTION: Card mutation helpers
@@ -46,5 +65,5 @@ export function createNotebookBoard(root = document) {
   const replaceCard = (id, html) => { const current = findCard(id); if (!current) return null; const fragment = htmlToCardElement(html, id); current.replaceWith(fragment); refreshSectionVisibility(); refreshEmptyState(); return fragment; };
   const insertCard = (html, pinned = false) => { const fragment = htmlToCardElement(html); const board = getBoard(pinned); if (!board) throw new NotebookBoardTargetError(`Notebook board "${pinned ? 'pinned' : 'others'}" was not found.`); board.prepend(fragment); refreshSectionVisibility(); refreshEmptyState(); return fragment; };
   const removeCard = (id) => { findCard(id)?.remove(); refreshSectionVisibility(); refreshEmptyState(); };
-  return { findCard, getSection, getBoard, replaceCard, insertCard, upsertCard, removeCard, refreshSectionVisibility, refreshEmptyState, htmlToCardElement };
+  return { findCard, getSection, getBoard, replaceCard, insertCard, upsertCard, removeCard, refreshSectionVisibility, refreshBoardLayout, refreshEmptyState, htmlToCardElement };
 }

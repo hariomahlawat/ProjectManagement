@@ -78,3 +78,22 @@ test('notebook board throws typed error for invalid card HTML', async () => {
     (error) => error.code === 'notebook_invalid_card_html'
   );
 });
+
+
+test('notebook board uses grid for four or fewer adaptive cards', async () => {
+  const dom = new JSDOM('<div data-notebook-board="others" data-layout-policy="masonry-threshold"><article data-note-id="1"></article><article data-note-id="2"></article><article data-note-id="3"></article><article data-note-id="4"></article></div>');
+  const board = loadBoard(dom);
+  const element = dom.window.document.querySelector('[data-notebook-board="others"]');
+  board.refreshSectionVisibility();
+  assert.equal(element.dataset.itemCount, '4');
+  assert.equal(element.dataset.layout, 'grid');
+});
+
+test('notebook board switches adaptive layout to masonry above four cards', async () => {
+  const dom = new JSDOM('<div data-notebook-board="others" data-layout-policy="masonry-threshold"><article data-note-id="1"></article><article data-note-id="2"></article><article data-note-id="3"></article><article data-note-id="4"></article></div>');
+  const board = loadBoard(dom);
+  const element = dom.window.document.querySelector('[data-notebook-board="others"]');
+  board.insertCard('<article data-note-id="5"></article>', false);
+  assert.equal(element.dataset.itemCount, '5');
+  assert.equal(element.dataset.layout, 'masonry');
+});
