@@ -1,10 +1,10 @@
 /* SECTION: Notebook shell and rail */
 .notebook-shell {
     display: grid;
-    grid-template-columns: 220px minmax(0, 1fr);
-    gap: 1.1rem;
+
+
     align-items: start;
-    padding: 1rem;
+
     background: #f7f9fc;
 }
 
@@ -16,26 +16,26 @@
 
 .notebook-main {
     display: grid;
-    gap: 1rem;
+
 }
 
 .notebook-rail {
     position: sticky;
     top: 1rem;
     display: grid;
-    gap: .25rem;
-    padding: .65rem;
-    background: #fff;
+
+
+
     border: 1px solid #dfe7f2;
-    border-radius: 18px;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, .055);
+
+
 }
 
 .notebook-rail__brand {
     display: flex;
     align-items: center;
     gap: .5rem;
-    padding: .55rem .6rem .8rem;
+
     color: #0f172a;
     font-weight: 800;
 }
@@ -43,10 +43,10 @@
 .notebook-rail__item {
     display: flex;
     align-items: center;
-    gap: .55rem;
-    padding: .58rem .65rem;
+
+
     color: #475569;
-    border-radius: 12px;
+
     text-decoration: none;
     font-weight: 650;
 }
@@ -66,16 +66,16 @@
 /* SECTION: Notebook command bar and capture */
 .notebook-commandbar {
     display: flex;
-    align-items: center;
+
     justify-content: space-between;
-    gap: 1rem;
-    padding: .15rem .1rem;
+
+
 }
 
     .notebook-commandbar h1 {
         margin: 0;
         color: #0f172a;
-        font-size: 1.45rem;
+
         font-weight: 800;
     }
 
@@ -86,9 +86,9 @@
 
     .notebook-commandbar .eyebrow {
         color: #315fba;
-        font-size: .72rem;
+
         font-weight: 800;
-        letter-spacing: .08em;
+
         text-transform: uppercase;
     }
 
@@ -96,8 +96,8 @@
     display: flex;
     align-items: center;
     gap: .45rem;
-    min-width: min(340px, 100%);
-    padding: .5rem .72rem;
+
+
     background: #fff;
     border: 1px solid #dfe7f2;
     border-radius: 999px;
@@ -112,14 +112,14 @@
     }
 
 .notebook-composer {
-    max-width: 760px;
+
     width: 100%;
-    margin: 0 auto .2rem;
+
     background: #fff;
     border: 1px solid #e1e7f0;
     border-radius: 12px;
     box-shadow: 0 3px 10px rgba(15, 23, 42, .09);
-    padding: .45rem;
+
 }
 
 .notebook-composer__collapsed, .notebook-composer__top, .notebook-composer__footer {
@@ -132,7 +132,7 @@
     flex: 1;
     border: 0;
     background: transparent;
-    padding: .78rem .85rem;
+
     text-align: left;
     color: #64748b;
 }
@@ -232,15 +232,15 @@
 
 .notebook-view-toggle {
     display: inline-flex;
-    padding: .18rem;
+
     border: 1px solid #dce6f2;
     border-radius: 999px;
     background: #fff;
 }
 
     .notebook-view-toggle button {
-        width: 2rem;
-        height: 2rem;
+
+
         border: 0;
         border-radius: 999px;
         background: transparent;
@@ -279,20 +279,18 @@
     padding: .75rem 0 .1rem;
 }
 
-.notebook-board-section {
-    margin-top: .25rem;
-}
+
 
 .notebook-section-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin: .95rem 0 .5rem;
+
+
 }
 
     .notebook-section-header h2 {
         margin: 0;
-        font-size: .88rem;
+
         font-weight: 700;
         color: #0f172a;
     }
@@ -313,10 +311,7 @@
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 }
 
-.notebook-shell[data-board-view="list"] .notebook-board {
-    grid-template-columns: minmax(0, 760px);
-    justify-content: center;
-}
+
 
 /* SECTION: Compact Keep-inspired cards */
 .notebook-card {
@@ -327,16 +322,16 @@
     margin: 0;
     overflow: visible;
     border: 1px solid #dfe5ee;
-    border-radius: 12px;
+
     background: #fff;
     color: #0f172a;
-    box-shadow: 0 4px 14px rgba(15, 23, 42, .06);
+
     transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
 }
 
     .notebook-card:hover {
-        border-color: #b9c9e3;
-        box-shadow: 0 8px 20px rgba(15, 23, 42, .075);
+
+
         transform: translateY(-1px);
     }
 
@@ -350,9 +345,7 @@
         z-index: 80;
     }
 
-.notebook-card-body {
-    padding: .85rem .9rem .55rem;
-}
+
 
 .notebook-card-link,
 .notebook-card-link:hover {
@@ -392,34 +385,34 @@
 }
 
 .notebook-card-title {
-    margin: .35rem 0 .25rem;
-    font-size: .95rem;
+
+
     font-weight: 700;
-    line-height: 1.28;
+
 }
 
 .notebook-card-preview {
-    margin: .25rem 0 .4rem;
+
     color: #334155;
-    font-size: .82rem;
-    line-height: 1.38;
+
+
     white-space: pre-line;
     display: -webkit-box;
-    -webkit-line-clamp: 7;
+
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
 
 .notebook-card-meta {
     flex-wrap: wrap;
-    margin-top: .35rem;
+
 }
 
 .notebook-card-tags {
     display: flex;
     flex-wrap: wrap;
-    gap: .3rem;
-    margin-top: .42rem;
+
+
 }
 
 .notebook-tag-chip {
@@ -435,7 +428,7 @@
 .notebook-card-actions {
     justify-content: flex-end;
     min-height: 0;
-    padding: .15rem .55rem .45rem;
+
     opacity: 0;
     transition: opacity .14s ease;
 }
@@ -449,9 +442,9 @@
 
 .notebook-actions {
     display: flex;
-    flex-wrap: wrap;
+
     gap: .28rem;
-    width: 100%;
+
     justify-content: flex-end;
 }
 
@@ -460,8 +453,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 1.85rem;
-    min-height: 1.85rem;
+
+
     border: 1px solid transparent;
     border-radius: 999px;
     background: transparent;
@@ -567,8 +560,8 @@
 
 .notebook-checklist-preview {
     display: grid;
-    gap: .28rem;
-    margin-top: .42rem;
+
+
 }
 
 .notebook-check-row {
@@ -578,11 +571,11 @@
 .notebook-check-toggle {
     display: flex;
     align-items: center;
-    gap: .4rem;
+
     width: 100%;
     border: 0;
     background: transparent;
-    padding: .14rem 0;
+
     color: #334155;
     text-align: left;
 }
@@ -595,7 +588,7 @@
 .notebook-checklist-preview strong,
 .notebook-checklist-empty {
     color: #64748b;
-    font-size: .76rem;
+
 }
 
 .notebook-checklist-toggle {
@@ -740,12 +733,12 @@
 
 /* SECTION: Empty and responsive states */
 .notebook-empty {
-    margin-top: 1rem;
-    padding: 2rem;
+
+
     text-align: center;
     background: #fff;
     border: 1px dashed #cbd5e1;
-    border-radius: 18px;
+
     color: #64748b;
 }
 
@@ -754,9 +747,7 @@
         font-size: 1rem;
     }
 
-.notebook-empty-compact {
-    padding: 1.25rem;
-}
+
 
 @media (hover: none) {
     .notebook-card-actions {
@@ -1010,8 +1001,8 @@
 
 /* SECTION: Keep-style density, masonry and content-driven cards */
 .notebook-shell {
-    grid-template-columns: 210px minmax(0, 1fr);
-    gap: .9rem;
+
+
     padding: .8rem 1rem 1.2rem;
 }
 
@@ -1021,33 +1012,26 @@
 
 .notebook-rail {
     gap: .12rem;
-    padding: .55rem;
-    border-radius: 16px;
+
+
 }
 
-.notebook-rail__brand {
-    padding: .45rem .55rem .62rem;
-}
+
 
 .notebook-rail__item {
     gap: .5rem;
-    padding: .5rem .58rem;
-    border-radius: 10px;
+
+
 }
 
-.notebook-rail__item.is-active {
-    background: #e9f1ff;
-}
+
 
 .notebook-commandbar {
-    align-items: flex-start;
+
     padding: 0 .1rem;
 }
 
-.notebook-commandbar h1 {
-    font-size: 1.38rem;
-    line-height: 1.15;
-}
+
 
 .notebook-commandbar p {
     font-size: .88rem;
@@ -1107,10 +1091,7 @@
     color: #94a3b8;
 }
 
-.notebook-section-header > span::before {
-    content: "·";
-    margin-right: .35rem;
-}
+
 
 /* Grid view uses CSS columns to achieve a Keep-like masonry flow. */
 .notebook-shell[data-board-view="grid"] .notebook-board {
@@ -1141,12 +1122,10 @@
 
 .notebook-card {
     border-radius: 11px;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, .055);
+
 }
 
-.notebook-card:hover {
-    box-shadow: 0 6px 16px rgba(15, 23, 42, .08);
-}
+
 
 .notebook-card-body {
     padding: .72rem .78rem .68rem;
@@ -1303,7 +1282,7 @@
     align-items: center;
     justify-content: flex-end;
     gap: .55rem;
-    min-width: min(420px, 100%);
+
 }
 
 .notebook-command-actions .notebook-search {
@@ -1317,8 +1296,8 @@
 
 .notebook-board[data-layout="grid"] {
     display: grid !important;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 300px)) !important;
-    gap: .85rem !important;
+
+
     justify-content: start;
     align-items: start;
     column-width: auto !important;
@@ -1332,8 +1311,8 @@
 
 .notebook-shell[data-board-view="grid"] .notebook-board[data-layout="masonry"] {
     display: block;
-    column-width: 250px;
-    column-gap: .85rem;
+
+
 }
 
 .notebook-shell[data-board-view="grid"] .notebook-board[data-layout="masonry"] .notebook-card {
@@ -1389,9 +1368,7 @@
     border-color: #dfe5ee;
 }
 
-.notebook-card.is-completed .notebook-card-title {
-    color: #334155;
-}
+
 
 .notebook-card.is-completed .notebook-card-indicators,
 .notebook-card.is-completed .notebook-card-meta {
