@@ -1,4 +1,4 @@
-/* SECTION: Notebook shell and rail */
+﻿/* SECTION: Notebook shell and rail */
 .notebook-shell {
     display: grid;
 
@@ -1763,12 +1763,42 @@
 
 .notebook-create-details {
   flex: 0 1 auto;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   margin: 0 20px 12px;
-  padding: 12px;
+  padding: 10px 12px;
+}
+
+.notebook-create-details__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px 12px;
+}
+
+.notebook-create-details__grid > * {
+  min-width: 0;
+}
+
+.notebook-create-details label {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-self: start;
+  gap: 6px;
+}
+
+.notebook-create-details input,
+.notebook-create-details select {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: 42px;
+  min-height: 42px;
 }
 
 .notebook-create-colour-field {
+  grid-column: 1 / -1;
+  width: 100%;
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -1784,9 +1814,12 @@
 }
 
 .notebook-colour-swatches {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(7, 30px);
+  align-items: center;
+  justify-content: start;
   gap: 8px;
+  max-width: 100%;
 }
 
 .notebook-colour-swatch {
@@ -1812,8 +1845,21 @@
 }
 
 .notebook-colour-swatch.is-selected {
+  position: relative;
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, .2);
+}
+
+.notebook-colour-swatch.is-selected::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #1e3a8a;
+  font-size: .78rem;
+  font-weight: 800;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .85);
 }
 
 .notebook-modal.is-create-mode footer {
@@ -1849,6 +1895,18 @@
 
   .notebook-create-details {
     margin-inline: 14px;
+  }
+
+  .notebook-create-details__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .notebook-create-colour-field {
+    grid-column: 1;
+  }
+
+  .notebook-colour-swatches {
+    grid-template-columns: repeat(4, 30px);
   }
 
   .notebook-create-details-toggle {
