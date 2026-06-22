@@ -148,3 +148,30 @@ test('notebook autosave rejects function payloads before fetch', async () => {
 
   assert.throws(() => autosave.schedule(() => ({ value: 'invalid' })), /plain object/);
 });
+
+test('notebook autosave cancel aborts an active request', async () => {
+  const { createAutosave } = await loadModule('notebook-autosave.js');
+  let started = false;
+  let aborted = false;
+  const autosave = createAutosave({
+    delay: 1,
+    save: async (_payload, operation) => {
+      started = true;
+      return new Promise((_resolve, reject) => {
+        operation.signal.addEventListener('abort', () => {
+          aborted = true;
+          reject(Object.assign(new Error('aborted'), { code: 'notebook_request_aborted' }));
+        }, { once: true });
+      });
+    },
+    onError: () => ({ retryable: false })
+  });
+
+  autosave.schedule({ value: 'draft' });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(started, true);
+  autosave.cancel();
+  await assert.rejects(() => autosave.flush(), /aborted/);
+  assert.equal(aborted, true);
+  assert.equal(autosave.hasPending(), false);
+});

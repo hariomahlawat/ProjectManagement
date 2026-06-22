@@ -178,3 +178,43 @@ test('jsonRequestOptions rejects function payloads with a typed client error', a
     (error) => error.code === 'notebook_invalid_client_payload'
   );
 });
+
+test('HTTP 409 exposes currentVersion for deterministic conflict recovery', async () => {
+  const { NotebookApi, NotebookApiError } = await loadApiModule();
+  global.fetch = async () => jsonResponse(409, {
+    code: 'notebook_concurrency_conflict',
+    message: 'This note was changed elsewhere.',
+    currentVersion: '123e4567-e89b-12d3-a456-426614174000'
+  });
+
+  await assert.rejects(
+    () => NotebookApi.updateContent('note-1', { title: 'Updated', body: 'Body', version: '223e4567-e89b-12d3-a456-426614174000' }),
+    (error) => {
+      assert.ok(error instanceof NotebookApiError);
+      assert.equal(error.status, 409);
+      assert.equal(error.currentVersion, '123e4567-e89b-12d3-a456-426614174000');
+      return true;
+    }
+  );
+});
+
+test('aborted Notebook request is reported with a typed cancellation code', async () => {
+  const { NotebookApi, NotebookApiError } = await loadApiModule();
+  global.fetch = async (_url, options) => new Promise((_resolve, reject) => {
+    options.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+  });
+
+  const controller = new AbortController();
+  const requestPromise = NotebookApi.updateContent(
+    'note-1',
+    { title: 'Updated', body: 'Body', version: 'version-1' },
+    { signal: controller.signal }
+  );
+  controller.abort();
+
+  await assert.rejects(requestPromise, (error) => {
+    assert.ok(error instanceof NotebookApiError);
+    assert.equal(error.code, 'notebook_request_aborted');
+    return true;
+  });
+});

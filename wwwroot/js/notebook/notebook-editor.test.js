@@ -86,3 +86,11 @@ test('serialiseNotebookContent omits empty checklist rows', async () => {
     checklistRows: [{ text: '   ', isDone: false }, { text: 'Keep this', isDone: false }]
   }), '☐ Keep this');
 });
+
+test('shouldIgnoreSaveResult rejects pre-conflict responses only', async () => {
+  const { shouldIgnoreSaveResult } = await loadEditorModule();
+
+  assert.equal(shouldIgnoreSaveResult({ conflictGenerationAtDispatch: 2 }, 3), true);
+  assert.equal(shouldIgnoreSaveResult({ conflictGenerationAtDispatch: 3 }, 3), false);
+  assert.equal(shouldIgnoreSaveResult({}, 3), false);
+});

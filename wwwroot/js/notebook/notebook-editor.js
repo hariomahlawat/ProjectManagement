@@ -21,6 +21,11 @@ export function shouldTreatDraftAsConflict(draft, currentItem) {
   return Boolean(draft?.sourceVersion && currentItem?.version && draft.sourceVersion !== currentItem.version);
 }
 
+export function shouldIgnoreSaveResult(saveResult, currentConflictGeneration) {
+  return Number.isInteger(saveResult?.conflictGenerationAtDispatch)
+    && saveResult.conflictGenerationAtDispatch !== currentConflictGeneration;
+}
+
 export function serialiseNotebookContent({ title = '', body = '', type = 'Note', checklistRows = [] } = {}) {
   const sections = [String(title).trim(), String(body).trim()].filter(Boolean);
   if (type === 'Checklist') {
@@ -44,13 +49,17 @@ export function initNotebookEditor(board, view, options = {}) {
   let draftSourceVersion = null;
   let blockedByValidation = false;
   let lastValidationFingerprint = null;
+  let conflictGeneration = 0;
+  let directSaveSequence = 0;
 
   const conflictState = {
     active: false,
     type: null,
     pendingServerItem: null,
     localDraft: null,
-    message: null
+    message: null,
+    resolving: false,
+    error: null
   };
 
   const shell = options.shell || document.querySelector('.notebook-shell');
@@ -87,11 +96,21 @@ export function initNotebookEditor(board, view, options = {}) {
     const panel = modal?.querySelector('[data-notebook-conflict]');
     const message = modal?.querySelector('[data-notebook-conflict-message]');
     const pin = modal?.querySelector('[data-modal-pin]');
+    const useLocal = modal?.querySelector('[data-notebook-use-local]');
+    const reloadLatestButton = modal?.querySelector('[data-notebook-reload-latest]');
+    const copyLocal = modal?.querySelector('[data-notebook-copy-local]');
     if (!panel) return;
 
     panel.hidden = !conflictState.active;
-    if (message) message.textContent = conflictState.message || 'This note changed elsewhere.';
+    if (message) {
+      message.textContent = conflictState.resolving
+        ? 'Saving your changes…'
+        : (conflictState.error || conflictState.message || 'This note changed elsewhere.');
+    }
     if (pin) pin.disabled = conflictState.active;
+    if (useLocal) useLocal.disabled = conflictState.resolving;
+    if (reloadLatestButton) reloadLatestButton.disabled = conflictState.resolving;
+    if (copyLocal) copyLocal.disabled = conflictState.resolving;
 
     if (conflictState.active) setSaveStatus('', SaveState.Idle);
   }
@@ -102,6 +121,8 @@ export function initNotebookEditor(board, view, options = {}) {
     conflictState.pendingServerItem = null;
     conflictState.localDraft = null;
     conflictState.message = null;
+    conflictState.resolving = false;
+    conflictState.error = null;
     renderConflictState();
   }
 
@@ -110,12 +131,15 @@ export function initNotebookEditor(board, view, options = {}) {
   }
 
   function activateConflict({ type, pendingServerItem = null, localDraft = null, message }) {
+    conflictGeneration += 1;
     conflictState.active = true;
     conflictState.type = type;
-    conflictState.pendingServerItem = pendingServerItem;
-    conflictState.localDraft = localDraft;
+    if (pendingServerItem) conflictState.pendingServerItem = pendingServerItem;
+    conflictState.localDraft = localDraft ?? conflictState.localDraft;
     conflictState.message = message || 'This note changed elsewhere.';
-    autosave?.cancel?.();
+    conflictState.resolving = false;
+    conflictState.error = null;
+    autosave?.cancel?.({ abortActive: true });
     preserveUnsavedDraft();
     renderConflictState();
   }
@@ -286,18 +310,34 @@ export function initNotebookEditor(board, view, options = {}) {
     modal.querySelector('[data-notebook-copy-local]')?.addEventListener('click', copyLocalChanges);
   }
 
-  async function saveEditorPayload(data) {
+  async function saveEditorPayload(data, operation = {}) {
     const submittedRows = item.type === 'Checklist' ? structuredCloneSafe(data.checklistRows || []) : [];
     const submittedRevision = { ...editRevision };
     const requestPayload = { ...data, version: item.version };
+    const conflictGenerationAtDispatch = Number.isInteger(operation.conflictGenerationAtDispatch)
+      ? operation.conflictGenerationAtDispatch
+      : conflictGeneration;
     assertValidVersion(requestPayload.version);
+    const requestOptions = operation.signal ? { signal: operation.signal } : {};
     const response = item.type === 'Checklist'
-      ? await NotebookApi.updateChecklist(item.id, requestPayload)
-      : await NotebookApi.updateContent(item.id, requestPayload);
-    return { response, submittedRows, submittedRevision };
+      ? await NotebookApi.updateChecklist(item.id, requestPayload, requestOptions)
+      : await NotebookApi.updateContent(item.id, requestPayload, requestOptions);
+    return {
+      response,
+      submittedRows,
+      submittedRevision,
+      operationSequence: operation.sequence ?? ++directSaveSequence,
+      conflictGenerationAtDispatch,
+      deliberateConflictResolution: operation.deliberateConflictResolution === true
+    };
   }
 
   async function applyPersistedResponse(saveResult) {
+    if (shouldIgnoreSaveResult(saveResult, conflictGeneration)) {
+      preserveUnsavedDraft();
+      return;
+    }
+
     const response = saveResult?.response ?? saveResult;
     const submittedRows = Array.isArray(saveResult?.submittedRows) ? saveResult.submittedRows : [];
     const submittedRevision = saveResult?.submittedRevision ?? { ...editRevision };
@@ -308,14 +348,16 @@ export function initNotebookEditor(board, view, options = {}) {
     applySubmittedRevision(submittedRevision);
     clearValidationBlock();
     draftSourceVersion = item.version ?? draftSourceVersion;
+
+    const resolvedConflict = conflictState.active && saveResult?.deliberateConflictResolution === true;
+    if (resolvedConflict) clearConflictState();
+
     if (hasDirtyChanges() || conflictState.active) preserveUnsavedDraft();
     else clearStoredDraft(item?.id);
-    if (conflictState.active) {
-      conflictState.pendingServerItem = item;
-      renderConflictState();
-    } else {
-      setSaveStatus('Saved', SaveState.Saved);
-    }
+
+    if (conflictState.active) renderConflictState();
+    else setSaveStatus('Saved', SaveState.Saved);
+
     await reconcileMutation({
       response,
       board,
@@ -327,6 +369,8 @@ export function initNotebookEditor(board, view, options = {}) {
       renderFailureMessage: 'The note was saved, but its card could not refresh. Reload the page.',
       reconcileFailureMessage: 'The note was saved, but the board could not refresh. Reload the page.'
     });
+
+    if (resolvedConflict && hasDirtyChanges()) scheduleAutosave();
   }
 
   function handleReconcileError() {
@@ -337,11 +381,25 @@ export function initNotebookEditor(board, view, options = {}) {
   function handleEditorError(error) {
     currentSaveError = classifyNotebookSaveError(error);
 
+    if (error?.code === 'notebook_request_aborted' && conflictState.active) {
+      return { retryable: false };
+    }
+
     if (currentSaveError.kind === 'conflict') {
+      const pendingServerItem = error?.currentItem
+        ?? (error?.currentVersion ? { ...(conflictState.pendingServerItem || item), version: error.currentVersion } : null);
       activateConflict({
         type: ConflictType.VersionConflict,
-        message: 'This note changed elsewhere.'
+        pendingServerItem,
+        message: conflictState.resolving
+          ? 'This note changed again before your changes could be saved.'
+          : 'This note changed elsewhere.'
       });
+    } else if (conflictState.active) {
+      conflictState.resolving = false;
+      conflictState.error = currentSaveError.message;
+      preserveUnsavedDraft();
+      renderConflictState();
     } else {
       setSaveStatus(currentSaveError.message, currentSaveError.kind);
     }
@@ -483,8 +541,33 @@ export function initNotebookEditor(board, view, options = {}) {
   }
 
   async function copyUnsavedContent() {
-    await copyLocalChanges();
-    setSaveStatus('Unsaved note text copied. Sign in again before saving.', currentSaveError?.kind || 'session-expired');
+    const copied = await copyLocalChanges();
+    if (copied) {
+      setSaveStatus('Unsaved note text copied. Sign in again before saving.', currentSaveError?.kind || 'session-expired');
+    }
+  }
+
+  async function writeTextToClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        // Fall through to the compatibility path.
+      }
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    let copied = false;
+    try { copied = document.execCommand?.('copy') === true; }
+    finally { textarea.remove(); }
+    return copied;
   }
 
   async function copyLocalChanges() {
@@ -492,13 +575,18 @@ export function initNotebookEditor(board, view, options = {}) {
       ...buildCurrentPayload(),
       type: item?.type
     });
-    await navigator.clipboard.writeText(text);
+    const copied = await writeTextToClipboard(text);
     const copyButton = modal?.querySelector('[data-notebook-copy-local]');
     if (copyButton) {
       const original = copyButton.textContent;
-      copyButton.textContent = 'Copied';
+      copyButton.textContent = copied ? 'Copied' : 'Copy failed';
       window.setTimeout(() => { copyButton.textContent = original; }, 1500);
     }
+    if (!copied && conflictState.active) {
+      conflictState.error = 'The note could not be copied automatically. Select and copy the text manually.';
+      renderConflictState();
+    }
+    return copied;
   }
 
   async function retrySave() {
@@ -541,36 +629,43 @@ export function initNotebookEditor(board, view, options = {}) {
   }
 
   async function useMyChanges() {
-    if (!conflictState.active || !item) return;
+    if (!conflictState.active || conflictState.resolving || !item) return;
     if (!window.confirm('Save your current changes over the newer saved version?')) return;
 
-    const button = modal.querySelector('[data-notebook-use-local]');
-    button.disabled = true;
+    const resolutionGeneration = conflictGeneration;
+    conflictState.resolving = true;
+    conflictState.error = null;
+    renderConflictState();
+    preserveUnsavedDraft();
+
     try {
-      // Always refresh the concurrency token immediately before the deliberate overwrite.
-      const latest = await NotebookApi.getItem(item.id);
+      const knownLatest = conflictState.pendingServerItem;
+      const latest = knownLatest?.version ? knownLatest : await NotebookApi.getItem(item.id);
+      if (resolutionGeneration !== conflictGeneration) return;
+
       item.version = latest.version;
       draftSourceVersion = latest.version;
       currentSaveError = null;
-      clearConflictState();
       clearValidationBlock();
-      preserveUnsavedDraft();
-      autosave.schedule(buildCurrentPayload());
-      await autosave.flush();
+
+      const result = await saveEditorPayload(buildCurrentPayload(), {
+        sequence: ++directSaveSequence,
+        conflictGenerationAtDispatch: resolutionGeneration,
+        deliberateConflictResolution: true
+      });
+      await applyPersistedResponse(result);
     } catch (error) {
-      if (conflictState.active) {
-        conflictState.message = error?.message || 'The latest saved version could not be loaded.';
-        renderConflictState();
-      } else {
-        handleEditorError(error);
-      }
+      handleEditorError(error);
     } finally {
-      button.disabled = false;
+      if (conflictState.active) {
+        conflictState.resolving = false;
+        renderConflictState();
+      }
     }
   }
 
   async function reloadLatest() {
-    if (!item) return;
+    if (!item || conflictState.resolving) return;
     if (hasDirtyChanges() && !window.confirm('Discard your unsaved changes and load the latest saved version?')) return;
 
     const button = modal.querySelector('[data-notebook-reload-latest]');

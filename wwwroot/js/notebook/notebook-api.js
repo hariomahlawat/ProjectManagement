@@ -2,7 +2,7 @@ import { notifySessionExpired } from '../core/session-auth.js';
 
 // SECTION: Notebook API error type and fetch wrapper
 export class NotebookApiError extends Error {
-  constructor(message, { status = 0, code = null, errors = null, responseText = null, url = null, method = null, cause = null } = {}) {
+  constructor(message, { status = 0, code = null, errors = null, responseText = null, url = null, method = null, cause = null, currentVersion = null, currentItem = null } = {}) {
     super(message);
     this.name = 'NotebookApiError';
     this.status = status;
@@ -12,6 +12,8 @@ export class NotebookApiError extends Error {
     this.url = url;
     this.method = method;
     this.cause = cause;
+    this.currentVersion = currentVersion;
+    this.currentItem = currentItem;
   }
 }
 
@@ -157,7 +159,9 @@ async function parseNotebookResponse(response, context) {
         errors: payload?.errors,
         responseText: rawText,
         url: context.url,
-        method: context.method
+        method: context.method,
+        currentVersion: payload?.currentVersion ?? null,
+        currentItem: payload?.currentItem ?? null
       }
     );
   }
@@ -185,6 +189,15 @@ export async function request(url, options = {}) {
   try {
     response = await fetch(url, { ...options, method, headers, credentials: 'same-origin' });
   } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new NotebookApiError('The notebook request was cancelled.', {
+        status: 0,
+        code: 'notebook_request_aborted',
+        url,
+        method,
+        cause: error
+      });
+    }
     const apiError = new NotebookApiError('The notebook service could not be reached.', {
       status: 0,
       code: 'notebook_network_error',
@@ -207,10 +220,10 @@ export async function request(url, options = {}) {
 // SECTION: Notebook API commands
 export const NotebookApi = {
   createItem: (payload) => request('/api/notebook/items', jsonRequestOptions('POST', payload)),
-  getItem: (id) => request(`/api/notebook/items/${encodeURIComponent(id)}`),
+  getItem: (id, options = {}) => request(`/api/notebook/items/${encodeURIComponent(id)}`, options),
   updateItem: (id, payload) => request(`/api/notebook/items/${encodeURIComponent(id)}`, jsonRequestOptions('PATCH', payload)),
-  updateContent: (id, payload) => request(`/api/notebook/items/${encodeURIComponent(id)}/content`, jsonRequestOptions('PATCH', payload)),
-  updateChecklist: (id, payload) => request(`/api/notebook/items/${encodeURIComponent(id)}/checklist`, jsonRequestOptions('PUT', payload)),
+  updateContent: (id, payload, options = {}) => request(`/api/notebook/items/${encodeURIComponent(id)}/content`, jsonRequestOptions('PATCH', payload, options)),
+  updateChecklist: (id, payload, options = {}) => request(`/api/notebook/items/${encodeURIComponent(id)}/checklist`, jsonRequestOptions('PUT', payload, options)),
   setPinned: (id, isPinned, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/pin`, jsonRequestOptions('POST', { isPinned, version })),
   archiveItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/archive`, jsonRequestOptions('POST', { version })),
   completeItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/complete`, jsonRequestOptions('POST', { version })),

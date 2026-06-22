@@ -20,6 +20,8 @@ export function createAutosave({ save, delay = 800, onSaving, onPersisted, onSav
   let latestPayload = null;
   let dirty = false;
   let stopped = false;
+  let activeController = null;
+  let operationSequence = 0;
 
   async function runLoop() {
     if (activePromise) return activePromise;
@@ -31,12 +33,19 @@ export function createAutosave({ save, delay = 800, onSaving, onPersisted, onSav
 
         let result;
         try {
-          result = await save(payload);
+          activeController = typeof AbortController !== 'undefined' ? new AbortController() : null;
+          const operation = {
+            sequence: ++operationSequence,
+            signal: activeController?.signal ?? null
+          };
+          result = await save(payload, operation);
         } catch (error) {
           const disposition = await (onSaveError || onError)?.(error);
           dirty = disposition?.retryable === true;
           if (!dirty) latestPayload = null;
           throw error;
+        } finally {
+          activeController = null;
         }
 
         try {
@@ -65,13 +74,21 @@ export function createAutosave({ save, delay = 800, onSaving, onPersisted, onSav
     if (dirty) await runLoop();
   }
 
-  function cancel() {
+  function cancel({ abortActive = true } = {}) {
     if (timer) { window.clearTimeout(timer); timer = null; }
     dirty = false;
     latestPayload = null;
+    if (abortActive) activeController?.abort();
   }
 
   function stop() { stopped = true; cancel(); }
 
-  return { schedule, flush, cancel, stop, hasPending: () => Boolean(timer || activePromise || dirty) };
+  return {
+    schedule,
+    flush,
+    cancel,
+    stop,
+    hasPending: () => Boolean(timer || activePromise || dirty),
+    hasActiveRequest: () => Boolean(activeController)
+  };
 }
