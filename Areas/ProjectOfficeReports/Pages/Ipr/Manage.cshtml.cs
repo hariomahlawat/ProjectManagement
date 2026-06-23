@@ -421,7 +421,7 @@ public sealed class ManageModel : PageModel
             })
             .ToList();
 
-        StatusFormOptions = Enum.GetValues<IprStatus>()
+        StatusFormOptions = new[] { IprStatus.Filed, IprStatus.Granted }
             .Select(status => new SelectListItem(GetStatusLabel(status), status.ToString())
             {
                 Selected = Input.Status.HasValue && Input.Status.Value == status
@@ -453,7 +453,7 @@ public sealed class ManageModel : PageModel
         return new IndexModel.RecordInput
         {
             Type = IprType.Patent,
-            Status = IprStatus.FilingUnderProcess
+            Status = IprStatus.Filed
         };
     }
 
@@ -466,7 +466,7 @@ public sealed class ManageModel : PageModel
             Title = record.Title,
             Notes = record.Notes,
             Type = record.Type,
-            Status = record.Status,
+            Status = record.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : record.Status,
             FiledBy = record.FiledBy,
             FiledOn = record.FiledAtUtc.HasValue
                 ? DateOnly.FromDateTime(record.FiledAtUtc.Value.UtcDateTime)
@@ -532,7 +532,7 @@ public sealed class ManageModel : PageModel
             Title = string.IsNullOrWhiteSpace(input.Title) ? null : input.Title.Trim(),
             Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),
             Type = input.Type ?? IprType.Patent,
-            Status = input.Status ?? IprStatus.FilingUnderProcess,
+            Status = input.Status == IprStatus.Granted ? IprStatus.Granted : IprStatus.Filed,
             FiledBy = string.IsNullOrWhiteSpace(input.FiledBy) ? null : input.FiledBy.Trim(),
             FiledAtUtc = input.FiledOn.HasValue
                 ? new DateTimeOffset(input.FiledOn.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
@@ -582,7 +582,7 @@ public sealed class ManageModel : PageModel
     private static string GetStatusLabel(IprStatus status)
         => status switch
         {
-            IprStatus.FilingUnderProcess => "Filing under process",
+            IprStatus.FilingUnderProcess => "Filed",
             IprStatus.Filed => "Filed",
             IprStatus.Granted => "Granted",
             IprStatus.Rejected => "Rejected",

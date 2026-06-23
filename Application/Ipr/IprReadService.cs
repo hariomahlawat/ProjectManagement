@@ -39,7 +39,7 @@ public sealed class IprReadService : IIprReadService
                 x.IprFilingNumber,
                 x.Title,
                 x.Type,
-                x.Status,
+                Status = x.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : x.Status,
                 x.FiledAtUtc,
                 x.FiledBy,
                 x.GrantedAtUtc,
@@ -69,7 +69,7 @@ public sealed class IprReadService : IIprReadService
                 x.IprFilingNumber,
                 x.Title,
                 x.Type,
-                x.Status,
+                x.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : x.Status,
                 x.FiledAtUtc,
                 x.FiledBy,
                 x.GrantedAtUtc,
@@ -112,14 +112,12 @@ public sealed class IprReadService : IIprReadService
             .Select(g => new { Status = g.Key, Count = g.Count() })
             .ToListAsync(cancellationToken);
 
-        var total = groups.Sum(g => g.Count);
-        var filingUnderProcess = groups.FirstOrDefault(g => g.Status == IprStatus.FilingUnderProcess)?.Count ?? 0;
-        var filed = groups.FirstOrDefault(g => g.Status == IprStatus.Filed)?.Count ?? 0;
+        var legacyFiled = groups.FirstOrDefault(g => g.Status == IprStatus.FilingUnderProcess)?.Count ?? 0;
+        var awaitingGrant = legacyFiled + (groups.FirstOrDefault(g => g.Status == IprStatus.Filed)?.Count ?? 0);
         var granted = groups.FirstOrDefault(g => g.Status == IprStatus.Granted)?.Count ?? 0;
-        var rejected = groups.FirstOrDefault(g => g.Status == IprStatus.Rejected)?.Count ?? 0;
-        var withdrawn = groups.FirstOrDefault(g => g.Status == IprStatus.Withdrawn)?.Count ?? 0;
+        var totalFiled = awaitingGrant + granted;
 
-        return new IprKpis(total, filingUnderProcess, filed, granted, rejected, withdrawn);
+        return new IprKpis(totalFiled, 0, awaitingGrant, granted, 0, 0);
     }
 
     public async Task<IReadOnlyList<IprExportRowDto>> GetExportAsync(IprFilter filter, CancellationToken cancellationToken = default)
@@ -134,12 +132,13 @@ public sealed class IprReadService : IIprReadService
             .Select(x => new IprExportRowDto(
                 x.IprFilingNumber,
                 x.Title,
-                x.Status,
+                x.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : x.Status,
                 x.FiledBy,
                 x.FiledAtUtc,
                 x.GrantedAtUtc,
                 x.Project != null ? x.Project.Name : null,
-                x.Notes))
+                x.Notes,
+                x.Type))
             .ToListAsync(cancellationToken);
 
         return items;
@@ -162,14 +161,21 @@ public sealed class IprReadService : IIprReadService
 
     private static IQueryable<IprRecord> BuildFilteredQuery(IQueryable<IprRecord> query, IprFilter filter, bool includeStatusFilter = true)
     {
-        // --- Search filtering: use provider-agnostic contains to avoid reliance on ILIKE support ---
+        // The public register contains only filed and granted IPRs. Legacy
+        // FilingUnderProcess values are treated as Filed until data migration.
+        query = query.Where(x => x.Status == IprStatus.FilingUnderProcess ||
+                                 x.Status == IprStatus.Filed ||
+                                 x.Status == IprStatus.Granted);
+
+        // --- Search filtering: provider-agnostic contains ---
         if (!string.IsNullOrWhiteSpace(filter.Query))
         {
             var trimmed = filter.Query.Trim().ToLowerInvariant();
 
             query = query.Where(x =>
                 (!string.IsNullOrEmpty(x.IprFilingNumber) && x.IprFilingNumber.ToLower().Contains(trimmed)) ||
-                (!string.IsNullOrEmpty(x.Title) && x.Title!.ToLower().Contains(trimmed)));
+                (!string.IsNullOrEmpty(x.Title) && x.Title!.ToLower().Contains(trimmed)) ||
+                (x.Project != null && x.Project.Name.ToLower().Contains(trimmed)));
         }
 
         if (filter.Types is { Count: > 0 })
@@ -179,7 +185,11 @@ public sealed class IprReadService : IIprReadService
 
         if (includeStatusFilter && filter.Statuses is { Count: > 0 })
         {
-            query = query.Where(x => filter.Statuses!.Contains(x.Status));
+            var wantsFiled = filter.Statuses.Contains(IprStatus.Filed);
+            var wantsGranted = filter.Statuses.Contains(IprStatus.Granted);
+            query = query.Where(x =>
+                (wantsFiled && (x.Status == IprStatus.FilingUnderProcess || x.Status == IprStatus.Filed)) ||
+                (wantsGranted && x.Status == IprStatus.Granted));
         }
 
         if (filter.ProjectId.HasValue)

@@ -1,143 +1,116 @@
-.pm-chip {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 999px;
-    border: 1px solid var(--bs-border-color);
-    background: var(--pm-card);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.pm-chip--muted {
-    color: var(--bs-secondary-color);
-    border-color: transparent;
-    background: var(--bs-gray-100);
-}
-
-.pm-record-row {
-    transition: box-shadow 0.2s ease, border-color 0.2s ease;
-    background-color: var(--bs-body-bg);
-}
-
-.pm-record-row:hover {
-    border-color: rgba(13, 110, 253, 0.3);
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-}
-
-.pm-record-row__attachments .pm-record-row__attachment-item + .pm-record-row__attachment-item {
-    margin-top: 0.5rem;
-}
-
-.pm-record-row__attachment-item a {
-    color: var(--bs-link-color);
-}
-
-.pm-record-row__attachment-item a:hover {
-    text-decoration: underline;
-}
-
-/* --- KPI palette (subtle, accessible) --- */
-.pm-kpi { border:1px solid var(--bs-border-color); border-radius:16px; min-height:108px; padding:12px 14px; background:linear-gradient(180deg,var(--pm-card),var(--pm-surface-contrast)); }
-.pm-kpi__label { font-size:.75rem; letter-spacing:.04em; color:var(--bs-secondary-color); opacity:.85; text-transform:uppercase; }
-.pm-kpi__value { font-weight:700; font-size:1.35rem; line-height:1; }
-.pm-kpi__spark { height:6px; background:var(--pm-border-faint); border-radius:999px; overflow:hidden; }
-.pm-kpi__spark-bar {
-    display: block;
-    height: 100%;
-    background: var(--bs-primary);
-    width: var(--pm-kpi-spark-width, 0%);
-    transition: width 0.25s ease;
-}
-
-/* contextual variants (very subtle pastels) */
-.pm-kpi--total      { border-color: var(--bs-border-color); }
-.pm-kpi--filing     { background:linear-gradient(180deg,var(--pm-surface-foam) 0,var(--pm-card)fff 85%); border-color:var(--pm-accent-blue-soft-2); }
-.pm-kpi--filed      { background:linear-gradient(180deg,var(--pm-accent-blue-tint) 0,var(--pm-card)fff 85%); border-color:var(--pm-accent-blue-soft-2); }
-.pm-kpi--granted    { background:linear-gradient(180deg,var(--pm-surface-mint) 0,var(--pm-card)fff 85%); border-color:var(--pm-success-soft-border); }
-.pm-kpi--rejected   { background:linear-gradient(180deg,var(--pm-card)5f5 0,var(--pm-card)fff 85%); border-color:var(--pm-danger-soft-bg); }
-.pm-kpi--withdrawn  { background:linear-gradient(180deg,var(--pm-surface-contrast) 0,var(--pm-card)fff 85%); border-color:var(--pm-border-faint); }
-
-/* Chart container sizing */
-/* Patent tracker – compact twin charts */
-.ipr-chart-card-sm {
+.ipr-register-page {
+    --ipr-navy: #10213f;
+    --ipr-blue: #3f6ee8;
+    --ipr-blue-soft: #eef3ff;
+    --ipr-green: #27865c;
+    --ipr-green-soft: #eef9f2;
+    --ipr-amber: #c47a00;
+    --ipr-amber-soft: #fff8ea;
+    --ipr-violet: #6d52d9;
+    --ipr-violet-soft: #f4f1ff;
+    --ipr-border: #dfe6f1;
+    --ipr-muted: #687892;
     width: 100%;
+    padding: 22px clamp(18px, 2vw, 32px) 34px;
+    color: var(--ipr-navy);
 }
 
-.ipr-chart-wrap-sm {
-    max-width: 560px;
-    height: 300px;
-    margin: 0 auto;
-    position: relative;
-}
-
-@media (min-width: 1400px) {
-    .ipr-chart-wrap-sm {
-        max-width: 520px;
-        height: 280px;
-    }
-}
-
-.btn.btn-icon {
-    width: 34px;
-    height: 34px;
-    padding: 0;
-    display: inline-flex;
+.ipr-register-header,
+.ipr-register-title-block,
+.ipr-register-actions,
+.ipr-panel-header,
+.ipr-pagination-bar,
+.ipr-type-summary__head,
+.ipr-type-summary__row {
+    display: flex;
     align-items: center;
-    justify-content: center;
 }
 
-.ipr-mini-table-wrap {
-    max-height: 220px;
-    overflow: auto;
-    border: 1px solid var(--bs-border-color);
-    border-radius: .5rem;
-    padding: .25rem;
+.ipr-register-header { justify-content: space-between; gap: 24px; margin-bottom: 20px; }
+.ipr-register-title-block { gap: 15px; }
+.ipr-register-icon { width: 48px; height: 48px; display: grid; place-items: center; border: 1px solid var(--ipr-border); border-radius: 12px; background: white; color: var(--ipr-blue); font-size: 1.35rem; }
+.ipr-register-title-block h1 { margin: 0 0 4px; font-size: clamp(1.65rem, 2vw, 2.15rem); font-weight: 750; letter-spacing: -.025em; }
+.ipr-register-title-block p { margin: 0; color: var(--ipr-muted); }
+.ipr-register-actions { gap: 10px; flex-wrap: wrap; }
+
+.ipr-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(310px, 1.35fr); gap: 14px; margin-bottom: 18px; }
+.ipr-summary-card,
+.ipr-type-summary,
+.ipr-panel { background: #fff; border: 1px solid var(--ipr-border); border-radius: 14px; }
+.ipr-summary-card { min-height: 132px; padding: 18px; display: flex; justify-content: space-between; align-items: center; text-decoration: none; color: inherit; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.ipr-summary-card:hover { transform: translateY(-2px); border-color: rgba(63,110,232,.35); box-shadow: 0 12px 28px rgba(16,33,63,.08); }
+.ipr-summary-card span { display: block; font-size: .82rem; font-weight: 650; }
+.ipr-summary-card strong { display: block; margin: 6px 0; font-size: 2rem; line-height: 1; }
+.ipr-summary-card small { color: var(--ipr-muted); }
+.ipr-summary-card > i { width: 50px; height: 50px; display: grid; place-items: center; border-radius: 50%; font-size: 1.45rem; }
+.ipr-summary-card--filed { background: linear-gradient(135deg, #fff, var(--ipr-blue-soft)); }
+.ipr-summary-card--filed > i { color: var(--ipr-blue); background: #e4ecff; }
+.ipr-summary-card--granted { background: linear-gradient(135deg, #fff, var(--ipr-green-soft)); }
+.ipr-summary-card--granted > i { color: var(--ipr-green); background: #dcf3e5; }
+.ipr-summary-card--awaiting { background: linear-gradient(135deg, #fff, var(--ipr-amber-soft)); }
+.ipr-summary-card--awaiting > i { color: var(--ipr-amber); background: #fff0cf; }
+.ipr-summary-card--projects { background: linear-gradient(135deg, #fff, var(--ipr-violet-soft)); }
+.ipr-summary-card--projects > i { color: var(--ipr-violet); background: #ebe6ff; }
+
+.ipr-type-summary { padding: 15px 16px; }
+.ipr-type-summary__head { justify-content: space-between; padding-bottom: 10px; border-bottom: 1px solid var(--ipr-border); }
+.ipr-type-summary__head span { color: var(--ipr-muted); font-size: .75rem; }
+.ipr-type-summary__row { display: grid; grid-template-columns: 1fr 56px 66px 62px; gap: 8px; min-height: 42px; border-bottom: 1px solid #edf1f6; }
+.ipr-type-summary__row:last-child { border-bottom: 0; }
+.ipr-type-summary__row strong { text-align: center; }
+.ipr-rate-pill { justify-self: end; padding: 3px 9px; border-radius: 999px; background: #e7f6ed; color: var(--ipr-green); font-size: .75rem; font-weight: 700; }
+
+.ipr-tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--ipr-border); margin-bottom: 16px; }
+.ipr-tabs a { padding: 12px 2px; color: #4f5f79; text-decoration: none; font-weight: 650; border-bottom: 3px solid transparent; }
+.ipr-tabs a.active { color: var(--ipr-blue); border-bottom-color: var(--ipr-blue); }
+.ipr-tabs i { margin-right: 6px; }
+
+.ipr-panel { overflow: hidden; }
+.ipr-filter-bar { display: grid; grid-template-columns: minmax(260px, 1.5fr) repeat(4, minmax(130px, .75fr)) auto auto; gap: 10px; padding: 16px; border-bottom: 1px solid var(--ipr-border); background: #fbfcff; }
+.ipr-search-field { position: relative; }
+.ipr-search-field i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #8290a6; }
+.ipr-search-field input { width: 100%; height: 38px; padding: 0 12px 0 38px; border: 1px solid #d8e0ec; border-radius: 9px; background: white; }
+.ipr-panel-header { justify-content: space-between; gap: 16px; padding: 16px 18px; border-bottom: 1px solid var(--ipr-border); }
+.ipr-panel-header h2 { margin: 0; font-size: 1rem; font-weight: 750; }
+.ipr-panel-header p { margin: 3px 0 0; color: var(--ipr-muted); font-size: .82rem; }
+.ipr-page-size { width: 92px; }
+
+.ipr-register-table thead th,
+.ipr-project-table thead th { padding: 12px 14px; background: #f7f9fc; color: #50617d; font-size: .72rem; text-transform: uppercase; letter-spacing: .045em; border-bottom: 1px solid var(--ipr-border); white-space: nowrap; }
+.ipr-register-table td,
+.ipr-project-table td { padding: 13px 14px; border-color: #edf1f6; font-size: .86rem; }
+.ipr-register-table tbody tr:hover,
+.ipr-project-table tbody tr:hover { background: #f9fbff; }
+.ipr-title-link { color: #1553c7; font-weight: 650; text-decoration: none; }
+.ipr-title-link:hover { text-decoration: underline; }
+.ipr-project-name { color: #315da8; font-weight: 600; }
+.ipr-type-badge,
+.ipr-status-badge { display: inline-flex; align-items: center; border-radius: 7px; padding: 4px 8px; font-size: .72rem; font-weight: 700; border: 1px solid; }
+.ipr-type-badge--patent { color: #2456c4; background: #eef3ff; border-color: #d7e2ff; }
+.ipr-type-badge--copyright { color: #6845c2; background: #f3efff; border-color: #e2d9ff; }
+.ipr-status-badge--filed { color: #2456c4; background: #eef3ff; border-color: #d7e2ff; }
+.ipr-status-badge--granted { color: #21784f; background: #ebf8f0; border-color: #ccebd9; }
+.ipr-pagination-bar { justify-content: space-between; gap: 16px; padding: 13px 16px; border-top: 1px solid var(--ipr-border); color: var(--ipr-muted); font-size: .82rem; }
+.ipr-empty-state { text-align: center; padding: 60px 20px; color: var(--ipr-muted); }
+.ipr-empty-state i { font-size: 2.2rem; }
+
+.ipr-analytics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ipr-chart-canvas { height: 390px; padding: 18px; }
+.ipr-record-drawer { width: min(560px, 100vw); }
+
+@media (max-width: 1280px) {
+    .ipr-summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .ipr-type-summary { grid-column: 1 / -1; }
+    .ipr-filter-bar { grid-template-columns: 1fr 1fr 1fr; }
+    .ipr-search-field { grid-column: span 3; }
 }
-
-.ipr-mini-table-wrap.collapsed {
-    max-height: 170px;
+@media (max-width: 768px) {
+    .ipr-register-header { align-items: flex-start; flex-direction: column; }
+    .ipr-summary-grid, .ipr-analytics-grid { grid-template-columns: 1fr; }
+    .ipr-filter-bar { grid-template-columns: 1fr; }
+    .ipr-search-field { grid-column: auto; }
+    .ipr-tabs { overflow-x: auto; }
 }
-
-.ipr-mini-table th,
-.ipr-mini-table td {
-    white-space: nowrap;
-    vertical-align: middle;
-    font-size: 0.9rem;
-    padding-top: 0.35rem;
-    padding-bottom: 0.35rem;
-}
-
-.ipr-chart-wrap{ max-width: 720px; margin: 0 auto; }
-@media (min-width: 1400px){ .ipr-chart-wrap{ max-width: 820px; } }
-
-/* two-column layout on wide screens */
-@media (min-width: 1200px){
-  .ipr-grid-xl { display:grid; grid-template-columns: 1fr 0.9fr; gap: 1.25rem; align-items: start; }
-}
-
-/* ------------------------------------------------------------------
-   Patent tracker – make all cards use the standard white card surface
-   ------------------------------------------------------------------ */
-
-/* 1. KPI cards: remove tinted gradients / pastels and use plain card bg */
-.pm-kpi,
-.pm-kpi--total,
-.pm-kpi--filing,
-.pm-kpi--filed,
-.pm-kpi--granted,
-.pm-kpi--rejected,
-.pm-kpi--withdrawn {
-    background: var(--pm-card);
-    border-color: var(--pm-border-faint);
-}
-
-/* 2. All Bootstrap cards on the patent tracker page */
-.container-fluid .card {
-    background-color: var(--pm-card);
-}
-
-/* 3. Chart cards – keep for clarity (inherits from .card above, but explicit) */
-.ipr-chart-card-sm {
-    background-color: var(--pm-card);
+@media (prefers-reduced-motion: reduce) {
+    .ipr-summary-card { transition: none; }
 }

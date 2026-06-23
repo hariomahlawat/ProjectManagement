@@ -32,7 +32,7 @@ public sealed class IndexModel : PageModel
         {
             ["Filed date cannot be in the future."] = new[] { nameof(RecordInput.FiledOn) },
             ["Grant date cannot be in the future."] = new[] { nameof(RecordInput.GrantedOn) },
-            ["Filed date is required once the record is not under filing."] = new[] { nameof(RecordInput.FiledOn) },
+            ["Filed date is required."] = new[] { nameof(RecordInput.FiledOn) },
             ["Grant date is required once the record is granted."] = new[] { nameof(RecordInput.GrantedOn) },
             ["Grant date cannot be provided without a filing date."] = new[] { nameof(RecordInput.FiledOn), nameof(RecordInput.GrantedOn) },
             ["Grant date cannot be earlier than the filing date."] = new[] { nameof(RecordInput.FiledOn), nameof(RecordInput.GrantedOn) },
@@ -84,6 +84,9 @@ public sealed class IndexModel : PageModel
 
     [BindProperty(SupportsGet = true)]
     public int? Year { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string Tab { get; set; } = "records";
 
     [BindProperty(Name = "page", SupportsGet = true)]
     public int PageNumber { get; set; } = 1;
@@ -171,6 +174,26 @@ public sealed class IndexModel : PageModel
 
     public PatentTotals OverallTotals { get; set; } = new();
 
+    public sealed record TypeBreakdownRow(string Type, int Filed, int Granted, int AwaitingGrant, int GrantRate);
+
+    public sealed record ProjectIprSummaryRow(
+        int? ProjectId,
+        string ProjectName,
+        int PatentFiled,
+        int PatentGranted,
+        int CopyrightFiled,
+        int CopyrightGranted,
+        int TotalFiled);
+
+    public IReadOnlyList<TypeBreakdownRow> TypeBreakdown { get; private set; } = Array.Empty<TypeBreakdownRow>();
+
+    public IReadOnlyList<ProjectIprSummaryRow> ProjectIprSummary { get; private set; } = Array.Empty<ProjectIprSummaryRow>();
+
+    public int ProjectsWithIpr { get; private set; }
+
+    public int GrantRate => Kpis.Total > 0 ? (int)Math.Round(Kpis.Granted * 100d / Kpis.Total, MidpointRounding.AwayFromZero) : 0;
+
+
     public IReadOnlyList<AttachmentViewModel> Attachments { get; private set; } = Array.Empty<AttachmentViewModel>();
 
     public string? EditingProjectName { get; private set; }
@@ -203,16 +226,10 @@ public sealed class IndexModel : PageModel
 
     public async Task<IActionResult> OnGetSummaryAsync(CancellationToken cancellationToken)
     {
-        var query = _db.IprRecords.AsNoTracking();
-
-        var dto = new IprSummaryDto(
-            Filing: await query.CountAsync(r => r.Status == IprStatus.FilingUnderProcess, cancellationToken),
-            Filed: await query.CountAsync(r => r.Status == IprStatus.Filed, cancellationToken),
-            Granted: await query.CountAsync(r => r.Status == IprStatus.Granted, cancellationToken),
-            Rejected: await query.CountAsync(r => r.Status == IprStatus.Rejected, cancellationToken),
-            Withdrawn: await query.CountAsync(r => r.Status == IprStatus.Withdrawn, cancellationToken));
-
-        return new JsonResult(dto);
+        NormalizeFilters();
+        var filter = BuildFilter();
+        var kpis = await _readService.GetKpisAsync(filter, cancellationToken);
+        return new JsonResult(new { filed = kpis.Total, granted = kpis.Granted, awaitingGrant = kpis.Filed });
     }
 
     public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
@@ -679,7 +696,7 @@ public sealed class IndexModel : PageModel
         {
             IprStatus.Granted => "text-success border-success",
             IprStatus.Rejected => "text-danger border-danger",
-            IprStatus.FilingUnderProcess => "border-warning text-warning",
+            IprStatus.FilingUnderProcess => "text-primary border-primary",
             IprStatus.Withdrawn => "border-secondary text-secondary",
             _ => string.Empty
         };
@@ -759,85 +776,115 @@ public sealed class IndexModel : PageModel
                 Input = new RecordInput
                 {
                     Type = IprType.Patent,
-                    Status = IprStatus.FilingUnderProcess
+                    Status = IprStatus.Filed
                 };
             }
         }
 
         await PopulateSelectListsAsync(cancellationToken);
 
-        await LoadYearlyStatsAsync(cancellationToken);
+        await LoadRegisterAnalyticsAsync(cancellationToken);
 
         ActiveFilterChips = BuildActiveFilterChips();
     }
 
-    // SECTION: Yearly stats aggregation
-    private async Task LoadYearlyStatsAsync(CancellationToken cancellationToken)
+    // SECTION: Register analytics. A granted record contributes both a filing
+    // event in its filing year and a grant event in its grant year.
+    private async Task LoadRegisterAnalyticsAsync(CancellationToken cancellationToken)
     {
-        var snapshot = await _db.IprRecords
-            .AsNoTracking()
-            .Select(r => new
+        var query = _db.IprRecords.AsNoTracking()
+            .Where(r => r.Status == IprStatus.FilingUnderProcess || r.Status == IprStatus.Filed || r.Status == IprStatus.Granted);
+
+        if (!string.IsNullOrWhiteSpace(Query))
+        {
+            var term = Query.Trim().ToLowerInvariant();
+            query = query.Where(r => r.IprFilingNumber.ToLower().Contains(term) ||
+                                     (r.Title != null && r.Title.ToLower().Contains(term)) ||
+                                     (r.Project != null && r.Project.Name.ToLower().Contains(term)));
+        }
+
+        if (Types.Count > 0)
+        {
+            query = query.Where(r => Types.Contains(r.Type));
+        }
+
+        if (Statuses.Count > 0)
+        {
+            var wantsFiled = Statuses.Contains(IprStatus.Filed);
+            var wantsGranted = Statuses.Contains(IprStatus.Granted);
+            query = query.Where(r =>
+                (wantsFiled && (r.Status == IprStatus.FilingUnderProcess || r.Status == IprStatus.Filed)) ||
+                (wantsGranted && r.Status == IprStatus.Granted));
+        }
+
+        if (ProjectId.HasValue)
+        {
+            query = query.Where(r => r.ProjectId == ProjectId.Value);
+        }
+
+        if (Year.HasValue)
+        {
+            var start = new DateTimeOffset(new DateTime(Year.Value, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+            var end = new DateTimeOffset(new DateTime(Year.Value, 12, 31, 23, 59, 59, DateTimeKind.Utc));
+            query = query.Where(r => r.FiledAtUtc >= start && r.FiledAtUtc <= end);
+        }
+
+        var snapshot = await query.Select(r => new
+        {
+            r.Type,
+            Status = r.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : r.Status,
+            FiledYear = r.FiledAtUtc.HasValue ? (int?)r.FiledAtUtc.Value.Year : null,
+            GrantedYear = r.GrantedAtUtc.HasValue ? (int?)r.GrantedAtUtc.Value.Year : null,
+            r.ProjectId,
+            ProjectName = r.Project != null ? r.Project.Name : "Unassigned"
+        }).ToListAsync(cancellationToken);
+
+        ProjectsWithIpr = snapshot.Where(x => x.ProjectId.HasValue).Select(x => x.ProjectId).Distinct().Count();
+
+        TypeBreakdown = new[] { IprType.Patent, IprType.Copyright }
+            .Select(type =>
             {
-                FiledYear = r.FiledAtUtc.HasValue ? (int?)r.FiledAtUtc.Value.Year : null,
-                GrantedYear = r.GrantedAtUtc.HasValue ? (int?)r.GrantedAtUtc.Value.Year : null,
-                r.Status
-            })
-            .ToListAsync(cancellationToken);
+                var rows = snapshot.Where(x => x.Type == type).ToList();
+                var filed = rows.Count;
+                var granted = rows.Count(x => x.Status == IprStatus.Granted);
+                var awaiting = filed - granted;
+                var rate = filed > 0 ? (int)Math.Round(granted * 100d / filed, MidpointRounding.AwayFromZero) : 0;
+                return new TypeBreakdownRow(GetTypeLabel(type), filed, granted, awaiting, rate);
+            }).ToList();
 
-        var currentYear = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IstTimeZone).Year;
-
-        var yearlyRows = snapshot
-            .Select(item =>
-            {
-                int year;
-                switch (item.Status)
-                {
-                    case IprStatus.Granted:
-                    case IprStatus.Rejected:
-                    case IprStatus.Withdrawn:
-                        year = item.GrantedYear
-                            ?? item.FiledYear
-                            ?? currentYear;
-                        break;
-
-                    case IprStatus.FilingUnderProcess:
-                    case IprStatus.Filed:
-                    default:
-                        year = item.FiledYear
-                            ?? item.GrantedYear
-                            ?? currentYear;
-                        break;
-                }
-
-                return new
-                {
-                    Year = year,
-                    item.Status
-                };
-            })
-            .GroupBy(x => x.Year)
-            .OrderBy(group => group.Key)
-            .Select(group => new YearlyRow
-            {
-                Year = group.Key,
-                Filing = group.Count(x => x.Status == IprStatus.FilingUnderProcess),
-                Filed = group.Count(x => x.Status == IprStatus.Filed),
-                Granted = group.Count(x => x.Status == IprStatus.Granted),
-                Rejected = group.Count(x => x.Status == IprStatus.Rejected),
-                Withdrawn = group.Count(x => x.Status == IprStatus.Withdrawn)
-            })
-            .Where(row => row.Total > 0)
+        ProjectIprSummary = snapshot
+            .GroupBy(x => new { x.ProjectId, x.ProjectName })
+            .Select(g => new ProjectIprSummaryRow(
+                g.Key.ProjectId,
+                g.Key.ProjectName,
+                g.Count(x => x.Type == IprType.Patent),
+                g.Count(x => x.Type == IprType.Patent && x.Status == IprStatus.Granted),
+                g.Count(x => x.Type == IprType.Copyright),
+                g.Count(x => x.Type == IprType.Copyright && x.Status == IprStatus.Granted),
+                g.Count()))
+            .OrderByDescending(x => x.TotalFiled)
+            .ThenBy(x => x.ProjectName)
             .ToList();
 
-        YearlyStats = yearlyRows;
+        var years = snapshot
+            .SelectMany(x => new[] { x.FiledYear, x.GrantedYear })
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+
+        YearlyStats = years.Select(year => new YearlyRow
+        {
+            Year = year,
+            Filed = snapshot.Count(x => x.FiledYear == year),
+            Granted = snapshot.Count(x => x.Status == IprStatus.Granted && x.GrantedYear == year)
+        }).ToList();
 
         OverallTotals = new PatentTotals
         {
-            Filing = snapshot.Count(static item => item.Status == IprStatus.FilingUnderProcess),
-            Filed = snapshot.Count(static item => item.Status == IprStatus.Filed),
-            Granted = snapshot.Count(static item => item.Status == IprStatus.Granted),
-            Rejected = snapshot.Count(static item => item.Status == IprStatus.Rejected),
-            Withdrawn = snapshot.Count(static item => item.Status == IprStatus.Withdrawn)
+            Filed = snapshot.Count,
+            Granted = snapshot.Count(x => x.Status == IprStatus.Granted)
         };
     }
 
@@ -859,14 +906,16 @@ public sealed class IndexModel : PageModel
             })
             .ToList();
 
-        StatusOptions = Enum.GetValues<IprStatus>()
+        var supportedStatuses = new[] { IprStatus.Filed, IprStatus.Granted };
+
+        StatusOptions = supportedStatuses
             .Select(status => new SelectListItem(GetStatusLabel(status), status.ToString())
             {
                 Selected = Statuses.Contains(status)
             })
             .ToList();
 
-        StatusFormOptions = Enum.GetValues<IprStatus>()
+        StatusFormOptions = supportedStatuses
             .Select(status => new SelectListItem(GetStatusLabel(status), status.ToString())
             {
                 Selected = Input.Status.HasValue && Input.Status.Value == status
@@ -939,9 +988,9 @@ public sealed class IndexModel : PageModel
 
         PageSizeOptions = new List<SelectListItem>
         {
+            new("10", "10") { Selected = PageSize == 10 },
             new("25", "25") { Selected = PageSize == 25 },
-            new("50", "50") { Selected = PageSize == 50 },
-            new("100", "100") { Selected = PageSize == 100 }
+            new("50", "50") { Selected = PageSize == 50 }
         };
     }
 
@@ -954,7 +1003,18 @@ public sealed class IndexModel : PageModel
     private void NormalizeFilters()
     {
         Types = Types.Distinct().ToList();
-        Statuses = Statuses.Distinct().ToList();
+        Statuses = Statuses
+            .Select(status => status == IprStatus.FilingUnderProcess ? IprStatus.Filed : status)
+            .Where(status => status is IprStatus.Filed or IprStatus.Granted)
+            .Distinct()
+            .ToList();
+
+        Tab = Tab?.Trim().ToLowerInvariant() switch
+        {
+            "project" => "project",
+            "analytics" => "analytics",
+            _ => "records"
+        };
 
         if (ProjectId.HasValue && ProjectId.Value <= 0)
         {
@@ -995,7 +1055,7 @@ public sealed class IndexModel : PageModel
             PageNumber = 1;
         }
 
-        if (PageSize is not (25 or 50 or 100))
+        if (PageSize is not (10 or 25 or 50))
         {
             PageSize = 25;
         }
@@ -1042,7 +1102,7 @@ public sealed class IndexModel : PageModel
                 Title = record.Title,
                 Notes = record.Notes,
                 Type = record.Type,
-                Status = record.Status,
+                Status = record.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : record.Status,
                 FiledBy = record.FiledBy,
                 FiledOn = record.FiledAtUtc.HasValue
                     ? DateOnly.FromDateTime(record.FiledAtUtc.Value.UtcDateTime)
@@ -1126,7 +1186,7 @@ public sealed class IndexModel : PageModel
             Title = string.IsNullOrWhiteSpace(input.Title) ? null : input.Title.Trim(),
             Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),
             Type = input.Type ?? IprType.Patent,
-            Status = input.Status ?? IprStatus.FilingUnderProcess,
+            Status = input.Status == IprStatus.Granted ? IprStatus.Granted : IprStatus.Filed,
             FiledBy = string.IsNullOrWhiteSpace(input.FiledBy) ? null : input.FiledBy.Trim(),
             FiledAtUtc = input.FiledOn.HasValue
                 ? new DateTimeOffset(input.FiledOn.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
@@ -1149,7 +1209,7 @@ public sealed class IndexModel : PageModel
     private static string GetStatusLabel(IprStatus status)
         => status switch
         {
-            IprStatus.FilingUnderProcess => "Filing under process",
+            IprStatus.FilingUnderProcess => "Filed",
             IprStatus.Filed => "Filed",
             IprStatus.Granted => "Granted",
             IprStatus.Rejected => "Rejected",

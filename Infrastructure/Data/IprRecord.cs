@@ -38,7 +38,7 @@ public class IprRecord
     public IprType Type { get; set; } = IprType.Patent;
 
     [Required]
-    public IprStatus Status { get; set; } = IprStatus.FilingUnderProcess;
+    public IprStatus Status { get; set; } = IprStatus.Filed;
 
     [MaxLength(128)]
     public string? FiledBy { get; set; }

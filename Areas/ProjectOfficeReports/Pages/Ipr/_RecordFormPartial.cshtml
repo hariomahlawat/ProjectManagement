@@ -198,7 +198,7 @@ else if (isEditMode)
             </div>
         </form>
 
-        <form method="post" asp-page-handler="Delete" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)" class="mt-4" id="iprDeleteForm" data-ipr-confirm="This will permanently delete the patent record and its attachments. Continue?">
+        <form method="post" asp-page-handler="Delete" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)" class="mt-4" id="iprDeleteForm" data-ipr-confirm="This will permanently delete the IPR record and its attachments. Continue?">
             <input type="hidden" asp-for="DeleteRequest.Id" />
             <input type="hidden" asp-for="DeleteRequest.RowVersion" />
             <button type="submit" class="btn btn-outline-danger">
@@ -210,7 +210,7 @@ else if (isEditMode)
 else
 {
     <div class="text-muted small">
-        Select "Add patent record" or "Manage" to begin.
+        Select "Add IPR record" or "Manage" to begin.
     </div>
 }
 

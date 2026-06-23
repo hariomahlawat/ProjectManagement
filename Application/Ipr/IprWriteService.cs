@@ -325,9 +325,9 @@ public sealed class IprWriteService : IIprWriteService
             throw new InvalidOperationException("Grant date cannot be in the future.");
         }
 
-        if (status != IprStatus.FilingUnderProcess && filedAtUtc is null)
+        if (filedAtUtc is null)
         {
-            throw new InvalidOperationException("Filed date is required once the record is not under filing.");
+            throw new InvalidOperationException("Filed date is required.");
         }
 
         if (status == IprStatus.Granted && grantedAtUtc is null)
@@ -371,7 +371,7 @@ public sealed class IprWriteService : IIprWriteService
             Title = string.IsNullOrWhiteSpace(source.Title) ? null : source.Title.Trim(),
             Notes = string.IsNullOrWhiteSpace(source.Notes) ? null : source.Notes.Trim(),
             Type = source.Type,
-            Status = source.Status,
+            Status = source.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : source.Status,
             FiledBy = string.IsNullOrWhiteSpace(source.FiledBy) ? null : source.FiledBy.Trim(),
             FiledAtUtc = source.FiledAtUtc?.ToUniversalTime(),
             GrantedAtUtc = source.GrantedAtUtc?.ToUniversalTime(),

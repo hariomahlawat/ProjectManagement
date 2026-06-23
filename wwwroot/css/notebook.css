@@ -486,8 +486,8 @@
         list-style: none;
     }
 
-        .notebook-card-more summary::-webkit-details-marker {
-            display: none;
+        .notebook-card-more summary::marker {
+            content: "";
         }
 
 .notebook-card-more__menu {

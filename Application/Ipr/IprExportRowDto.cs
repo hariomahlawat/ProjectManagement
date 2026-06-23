@@ -11,4 +11,5 @@ public sealed record IprExportRowDto(
     DateTimeOffset? FiledAtUtc,
     DateTimeOffset? GrantedAtUtc,
     string? ProjectName,
-    string? Remarks);
+    string? Remarks,
+    IprType Type = IprType.Patent);

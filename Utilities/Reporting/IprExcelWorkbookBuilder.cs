@@ -44,6 +44,7 @@ public sealed class IprExcelWorkbookBuilder : IIprExcelWorkbookBuilder
             "Ser",
             "Name of the product",
             "IPR filing no",
+            "Type",
             "Status",
             "Filed by",
             "Filing date",
@@ -75,13 +76,14 @@ public sealed class IprExcelWorkbookBuilder : IIprExcelWorkbookBuilder
             worksheet.Cell(rowNumber, 1).Value = index + 1;
             worksheet.Cell(rowNumber, 2).Value = record.Title ?? string.Empty;
             worksheet.Cell(rowNumber, 3).Value = record.FilingNumber ?? string.Empty;
-            worksheet.Cell(rowNumber, 4).Value = GetStatusLabel(record.Status);
-            worksheet.Cell(rowNumber, 5).Value = record.FiledBy ?? string.Empty;
+            worksheet.Cell(rowNumber, 4).Value = record.Type == IprType.Copyright ? "Copyright" : "Patent";
+            worksheet.Cell(rowNumber, 5).Value = GetStatusLabel(record.Status);
+            worksheet.Cell(rowNumber, 6).Value = record.FiledBy ?? string.Empty;
 
             if (record.FiledAtUtc.HasValue)
             {
                 var filedAtIst = TimeZoneInfo.ConvertTime(record.FiledAtUtc.Value, istZone);
-                var filedCell = worksheet.Cell(rowNumber, 6);
+                var filedCell = worksheet.Cell(rowNumber, 7);
                 filedCell.Value = filedAtIst.Date;
                 filedCell.Style.DateFormat.Format = "dd-mmm-yyyy";
             }
@@ -89,20 +91,20 @@ public sealed class IprExcelWorkbookBuilder : IIprExcelWorkbookBuilder
             if (record.GrantedAtUtc.HasValue)
             {
                 var grantedAtIst = TimeZoneInfo.ConvertTime(record.GrantedAtUtc.Value, istZone);
-                var grantedCell = worksheet.Cell(rowNumber, 7);
+                var grantedCell = worksheet.Cell(rowNumber, 8);
                 grantedCell.Value = grantedAtIst.Date;
                 grantedCell.Style.DateFormat.Format = "dd-mmm-yyyy";
             }
 
-            worksheet.Cell(rowNumber, 8).Value = record.ProjectName ?? string.Empty;
-            worksheet.Cell(rowNumber, 9).Value = record.Remarks ?? string.Empty;
+            worksheet.Cell(rowNumber, 9).Value = record.ProjectName ?? string.Empty;
+            worksheet.Cell(rowNumber, 10).Value = record.Remarks ?? string.Empty;
         }
     }
 
     private static string GetStatusLabel(IprStatus status)
         => status switch
         {
-            IprStatus.FilingUnderProcess => "Filing under process",
+            IprStatus.FilingUnderProcess => "Filed",
             IprStatus.Filed => "Filed",
             IprStatus.Granted => "Granted",
             IprStatus.Rejected => "Rejected",
