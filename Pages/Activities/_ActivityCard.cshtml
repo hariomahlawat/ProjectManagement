@@ -4,94 +4,101 @@
 @{
     var eventDate = IstClock.ToIst(Model.ScheduledStartUtc);
     var day = eventDate?.ToString("dd", CultureInfo.CurrentCulture) ?? "—";
-    var monthYear = eventDate?.ToString("MMM yyyy", CultureInfo.CurrentCulture) ?? "Date pending";
+    var month = eventDate?.ToString("MMM", CultureInfo.CurrentCulture) ?? "Date";
+    var year = eventDate?.ToString("yyyy", CultureInfo.CurrentCulture) ?? "pending";
+    var remainingMedia = Math.Max(0, Model.AttachmentCount - Model.MediaPreviews.Count);
 }
 
 <article class="activity-card">
-    <!-- SECTION: Date and location -->
-    <aside class="activity-card__date" aria-label="Activity date">
-        <div class="activity-card__date-day">@day</div>
-        <div class="activity-card__date-month">@monthYear</div>
-        @if (!string.IsNullOrWhiteSpace(Model.Location))
-        {
-            <div class="activity-card__location">
-                <i class="bi bi-geo-alt" aria-hidden="true"></i>
-                <span>@Model.Location</span>
+    <div class="activity-card__date" aria-label="Activity date">
+        <span class="activity-card__date-day">@day</span>
+        <span class="activity-card__date-month">@month</span>
+        <span class="activity-card__date-year">@year</span>
+    </div>
+
+    <div class="activity-card__content">
+        <header class="activity-card__header">
+            <div class="activity-card__heading">
+                <div class="activity-card__eyebrow">
+                    <span class="activity-card__type">@Model.ActivityType</span>
+                    @if (!string.IsNullOrWhiteSpace(Model.Location))
+                    {
+                        <span class="activity-card__location">
+                            <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                            @Model.Location
+                        </span>
+                    }
+                </div>
+                <h3 class="activity-card__title">
+                    <a asp-page="./Details" asp-route-id="@Model.Id">@Model.Title</a>
+                </h3>
             </div>
-        }
-    </aside>
 
-    <!-- SECTION: Review content -->
-    <div class="activity-card__body">
-        <div class="activity-card__meta">
-            <span class="activity-card__type">@Model.ActivityType</span>
-        </div>
-        <h2 class="activity-card__title">
-            <a asp-page="./Details" asp-route-id="@Model.Id">@Model.Title</a>
-        </h2>
+            <div class="activity-card__actions">
+                <a class="btn btn-sm btn-outline-primary" asp-page="./Details" asp-route-id="@Model.Id">
+                    Open <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                </a>
+                @if (Model.CanEdit)
+                {
+                    <a class="btn btn-sm btn-light activity-card__edit" asp-page="./Edit" asp-route-id="@Model.Id" aria-label="Edit @Model.Title" title="Edit activity">
+                        <i class="bi bi-pencil" aria-hidden="true"></i>
+                    </a>
+                }
+            </div>
+        </header>
 
-        <section class="activity-card__remarks" aria-label="Remarks">
-            <div class="activity-card__section-title">Remarks / Brief</div>
-            @if (!string.IsNullOrWhiteSpace(Model.RemarksPreview))
-            {
-                <p>@Model.RemarksPreview</p>
-            }
-            else
-            {
-                <p class="text-muted">No remarks added.</p>
-            }
-        </section>
+        <p class="activity-card__brief @(string.IsNullOrWhiteSpace(Model.RemarksPreview) ? "is-empty" : null)">
+            @(string.IsNullOrWhiteSpace(Model.RemarksPreview) ? "No brief has been recorded for this activity." : Model.RemarksPreview)
+        </p>
 
-        <!-- SECTION: Media evidence -->
-        <section class="activity-card__media" aria-label="Media evidence">
-            @if (Model.HasMedia)
-            {
-                <div class="activity-card__media-title">Media (@Model.AttachmentCount)</div>
-                <div class="activity-card__media-strip">
+        @if (Model.HasMedia)
+        {
+            <div class="activity-card__evidence" aria-label="Supporting records">
+                <div class="activity-card__previews">
                     @foreach (var media in Model.MediaPreviews)
                     {
                         if (!string.IsNullOrWhiteSpace(media.ThumbnailUrl))
                         {
-                            <img src="@media.ThumbnailUrl" alt="@media.FileName" class="activity-card__thumb" loading="lazy" />
+                            <a class="activity-card__preview" href="@media.DownloadUrl" title="Open @media.FileName">
+                                <img src="@media.ThumbnailUrl" alt="@media.FileName" loading="lazy" />
+                            </a>
                         }
                         else
                         {
-                            <a class="activity-card__file-chip" href="@media.DownloadUrl">
-                                <span>@media.MediaKind</span>
-                                <strong>@media.FileName</strong>
+                            <a class="activity-card__preview activity-card__preview--file" href="@media.DownloadUrl" title="Open @media.FileName">
+                                <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
+                                <span>@media.FileName</span>
                             </a>
                         }
                     }
+                    @if (remainingMedia > 0)
+                    {
+                        <a class="activity-card__more" asp-page="./Details" asp-route-id="@Model.Id">+@remainingMedia more</a>
+                    }
+                </div>
+
+                <div class="activity-card__evidence-summary">
                     @if (Model.PhotoAttachmentCount > 0)
                     {
-                        <span class="activity-card__media-chip"><i class="bi bi-camera" aria-hidden="true"></i> Photos @Model.PhotoAttachmentCount</span>
+                        <span><i class="bi bi-image" aria-hidden="true"></i> @Model.PhotoAttachmentCount photo@(Model.PhotoAttachmentCount == 1 ? "" : "s")</span>
                     }
                     @if (Model.VideoAttachmentCount > 0)
                     {
-                        <span class="activity-card__media-chip"><i class="bi bi-camera-video" aria-hidden="true"></i> Videos @Model.VideoAttachmentCount</span>
+                        <span><i class="bi bi-camera-video" aria-hidden="true"></i> @Model.VideoAttachmentCount video@(Model.VideoAttachmentCount == 1 ? "" : "s")</span>
                     }
                     @if (Model.DocumentAttachmentCount > 0)
                     {
-                        <span class="activity-card__media-chip"><i class="bi bi-file-earmark-text" aria-hidden="true"></i> Documents @Model.DocumentAttachmentCount</span>
+                        <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i> @Model.DocumentAttachmentCount document@(Model.DocumentAttachmentCount == 1 ? "" : "s")</span>
                     }
                 </div>
-            }
-            else
-            {
-                <div class="activity-card__no-media">
-                    <i class="bi bi-folder" aria-hidden="true"></i>
-                    <span>No media attached</span>
-                </div>
-            }
-        </section>
-
-        <!-- SECTION: Minimal card actions -->
-        <footer class="activity-card__actions">
-            <a asp-page="./Details" asp-route-id="@Model.Id">View details</a>
-            @if (Model.CanEdit)
-            {
-                <a asp-page="./Edit" asp-route-id="@Model.Id"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</a>
-            }
-        </footer>
+            </div>
+        }
+        else
+        {
+            <div class="activity-card__no-evidence">
+                <i class="bi bi-paperclip" aria-hidden="true"></i>
+                No supporting records
+            </div>
+        }
     </div>
 </article>

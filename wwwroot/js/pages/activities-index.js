@@ -1,248 +1,104 @@
 (function () {
   const moduleRoot = document.querySelector('[data-module="activities-index"]');
-  if (!moduleRoot) {
-    return;
-  }
+  if (!moduleRoot) return;
 
-  const filterOffcanvas = document.getElementById('activitiesFilterOffcanvas');
-  const filterForm = filterOffcanvas
-    ? filterOffcanvas.querySelector('form')
-    : document.getElementById('activitiesFilterForm') || moduleRoot.querySelector('.activities-filter, .activities-filter-form, .activities-filterbar');
+  const filterForm = document.getElementById('activitiesFilterForm');
   if (filterForm) {
+    const submitFromFirstPage = () => {
+      const pageInput = filterForm.querySelector('input[name="Page"]');
+      if (pageInput) pageInput.value = '1';
+      if (typeof filterForm.requestSubmit === 'function') filterForm.requestSubmit();
+      else filterForm.submit();
+    };
+
     const searchInput = filterForm.querySelector('input[name="Search"]');
     if (searchInput) {
       searchInput.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
           event.preventDefault();
-          const pageInput = filterForm.querySelector('input[name="Page"]');
-          if (pageInput) {
-            pageInput.value = '1';
-          }
-          if (typeof filterForm.requestSubmit === 'function') {
-            filterForm.requestSubmit();
-          } else {
-            filterForm.submit();
-          }
+          submitFromFirstPage();
         }
       });
     }
 
-    // SECTION: Optional instant-submit filters
-    function submitFiltersFromFirstPage() {
-      const pageInput = filterForm.querySelector('input[name="Page"]');
-      if (pageInput) {
-        pageInput.value = '1';
-      }
+    filterForm.querySelectorAll('[data-activities-autosubmit]').forEach((input) => {
+      input.addEventListener('change', submitFromFirstPage);
+    });
 
-      if (typeof filterForm.requestSubmit === 'function') {
-        filterForm.requestSubmit();
-      } else {
-        filterForm.submit();
+    document.addEventListener('click', (event) => {
+      const openDetails = filterForm.querySelector('.activities-more-filters[open]');
+      if (openDetails && !openDetails.contains(event.target)) {
+        openDetails.removeAttribute('open');
       }
-    }
-
-    const autoSubmitInputs = filterForm.querySelectorAll('[data-activities-autosubmit]');
-    autoSubmitInputs.forEach((input) => {
-      input.addEventListener('change', submitFiltersFromFirstPage);
     });
   }
 
   const modalElement = document.getElementById('activitiesDeleteConfirmModal');
-  const modalMessage = modalElement ? modalElement.querySelector('[data-delete-confirm-message]') : null;
-  const modalConfirmButton = modalElement ? modalElement.querySelector('[data-delete-confirm-accept]') : null;
-  const defaultMessage = modalMessage ? modalMessage.dataset.defaultMessage : null;
+  const modalMessage = modalElement?.querySelector('[data-delete-confirm-message]');
+  const modalConfirmButton = modalElement?.querySelector('[data-delete-confirm-accept]');
+  const defaultMessage = modalMessage?.dataset.defaultMessage || '';
   const modalInstance = modalElement && window.bootstrap ? new window.bootstrap.Modal(modalElement) : null;
-
   let pendingForm = null;
   let pendingSubmitter = null;
-
-  function markDeleteButtonBusy(button) {
-    if (!(button instanceof HTMLElement) || button.dataset.deleteBusy === 'true') {
-      return;
-    }
-
-    const originalContent = button.innerHTML;
-    button.dataset.deleteBusy = 'true';
-    button.dataset.deleteBusyOriginal = originalContent;
-    button.disabled = true;
-    button.setAttribute('aria-busy', 'true');
-    button.innerHTML =
-      '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>' + originalContent;
-
-    let cleanedUp = false;
-    let timeoutId;
-
-    function cleanup() {
-      if (cleanedUp) {
-        return;
-      }
-
-      cleanedUp = true;
-      window.clearTimeout(timeoutId);
-      button.innerHTML = button.dataset.deleteBusyOriginal || originalContent;
-      delete button.dataset.deleteBusyOriginal;
-      delete button.dataset.deleteBusy;
-      button.removeAttribute('aria-busy');
-      button.disabled = false;
-      window.removeEventListener('focus', cleanup);
-      window.removeEventListener('pagehide', cleanup);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }
-
-    function handleVisibilityChange() {
-      if (document.visibilityState === 'visible') {
-        cleanup();
-      }
-    }
-
-    window.addEventListener('focus', cleanup);
-    window.addEventListener('pagehide', cleanup, { once: true });
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    timeoutId = window.setTimeout(cleanup, 4000);
-  }
 
   if (modalElement) {
     modalElement.addEventListener('hidden.bs.modal', () => {
       pendingForm = null;
       pendingSubmitter = null;
-      if (modalMessage && defaultMessage) {
-        modalMessage.textContent = defaultMessage;
-      }
+      if (modalMessage) modalMessage.textContent = defaultMessage;
     });
   }
 
   if (modalConfirmButton && modalInstance) {
     modalConfirmButton.addEventListener('click', () => {
-      if (!pendingForm) {
-        modalInstance.hide();
-        return;
-      }
-
-      const formToSubmit = pendingForm;
+      if (!pendingForm) return modalInstance.hide();
+      const form = pendingForm;
       const submitter = pendingSubmitter;
-
       pendingForm = null;
       pendingSubmitter = null;
-
-      formToSubmit.dataset.activitiesDeleteConfirmed = 'true';
+      form.dataset.activitiesDeleteConfirmed = 'true';
       modalInstance.hide();
-
-      const buttonToClick =
-        submitter ||
-        formToSubmit.querySelector('[data-confirm]') ||
-        formToSubmit.querySelector('button[type="submit"]');
-
-      if (buttonToClick && typeof buttonToClick.click === 'function') {
-        buttonToClick.click();
-        return;
-      }
-
-      if (typeof formToSubmit.requestSubmit === 'function') {
-        formToSubmit.requestSubmit();
-      } else {
-        formToSubmit.submit();
-      }
+      if (submitter?.click) submitter.click();
+      else if (typeof form.requestSubmit === 'function') form.requestSubmit();
+      else form.submit();
     });
   }
 
   moduleRoot.addEventListener('submit', (event) => {
     const form = event.target.closest('form');
-    if (!form) {
+    if (!form?.matches('[data-activities-delete-form]')) return;
+    if (form.dataset.activitiesDeleteConfirmed === 'true') {
+      delete form.dataset.activitiesDeleteConfirmed;
       return;
     }
 
-    if (form.matches('[data-activities-delete-form]')) {
-      const submitter =
-        (event.submitter instanceof HTMLElement && event.submitter) ||
-        form.querySelector('[data-confirm]') ||
-        form.querySelector('button[type="submit"]');
-
-      if (form.dataset.activitiesDeleteConfirmed === 'true') {
-        delete form.dataset.activitiesDeleteConfirmed;
-        markDeleteButtonBusy(submitter);
-        return;
-      }
-
-      const trigger = event.submitter || form.querySelector('[data-confirm]');
-      const confirmationMessage = trigger
-        ? trigger.getAttribute('data-confirm')
-        : form.getAttribute('data-confirm');
-
-      if (modalInstance && modalConfirmButton) {
-        event.preventDefault();
-        pendingForm = form;
-        pendingSubmitter = event.submitter || null;
-        if (modalMessage) {
-          modalMessage.textContent = confirmationMessage || defaultMessage || '';
-        }
-        modalInstance.show();
-        return;
-      }
-
-      if (confirmationMessage && !window.confirm(confirmationMessage)) {
-        event.preventDefault();
-        return;
-      }
-
-      markDeleteButtonBusy(submitter);
+    const trigger = event.submitter || form.querySelector('[data-confirm]');
+    const message = trigger?.getAttribute('data-confirm') || form.getAttribute('data-confirm') || defaultMessage;
+    if (modalInstance && modalConfirmButton) {
+      event.preventDefault();
+      pendingForm = form;
+      pendingSubmitter = event.submitter || null;
+      if (modalMessage) modalMessage.textContent = message;
+      modalInstance.show();
+    } else if (message && !window.confirm(message)) {
+      event.preventDefault();
     }
   });
 
   const exportForm = moduleRoot.querySelector('[data-activities-export-form]');
-  if (exportForm) {
-    const exportButton = exportForm.querySelector('button');
-    if (exportButton) {
-      const busyMarkup = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Exporting…';
-
-      function restoreExportButton() {
-        if (!exportButton.dataset.originalText) {
-          return;
-        }
-
-        exportButton.innerHTML = exportButton.dataset.originalText;
-        delete exportButton.dataset.originalText;
+  const exportButton = exportForm?.querySelector('button');
+  if (exportForm && exportButton) {
+    exportForm.addEventListener('submit', () => {
+      if (exportButton.getAttribute('aria-busy') === 'true') return;
+      const original = exportButton.innerHTML;
+      exportButton.setAttribute('aria-busy', 'true');
+      exportButton.disabled = true;
+      exportButton.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Exporting…';
+      window.setTimeout(() => {
+        exportButton.innerHTML = original;
         exportButton.removeAttribute('aria-busy');
         exportButton.disabled = false;
-      }
-
-      exportForm.addEventListener('submit', () => {
-        if (exportButton.hasAttribute('aria-busy')) {
-          return;
-        }
-
-        if (!exportButton.dataset.originalText) {
-          exportButton.dataset.originalText = exportButton.innerHTML;
-        }
-
-        exportButton.innerHTML = busyMarkup;
-        exportButton.setAttribute('aria-busy', 'true');
-        exportButton.disabled = true;
-
-        let cleanedUp = false;
-        let timeoutId;
-
-        function cleanup() {
-          if (cleanedUp) {
-            return;
-          }
-
-          cleanedUp = true;
-          window.clearTimeout(timeoutId);
-          restoreExportButton();
-          window.removeEventListener('focus', cleanup);
-          document.removeEventListener('visibilitychange', handleVisibilityChange);
-        }
-
-        function handleVisibilityChange() {
-          if (document.visibilityState === 'visible') {
-            cleanup();
-          }
-        }
-
-        window.addEventListener('focus', cleanup);
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        timeoutId = window.setTimeout(cleanup, 2500);
-      });
-    }
+      }, 3000);
+    });
   }
 })();
