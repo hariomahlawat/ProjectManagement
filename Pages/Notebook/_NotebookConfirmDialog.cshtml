@@ -1,0 +1,17 @@
+<div class="notebook-confirm" data-notebook-confirm hidden>
+    <div class="notebook-confirm__backdrop" data-confirm-cancel aria-hidden="true"></div>
+    <section class="notebook-confirm__dialog" role="dialog" aria-modal="true" aria-labelledby="notebook-confirm-title" aria-describedby="notebook-confirm-message" tabindex="-1">
+        <header class="notebook-confirm__header">
+            <h2 id="notebook-confirm-title" data-confirm-title>Confirm action</h2>
+            <button type="button" class="notebook-confirm__close" data-confirm-cancel aria-label="Close confirmation"><i class="bi bi-x-lg"></i></button>
+        </header>
+        <div class="notebook-confirm__body">
+            <p id="notebook-confirm-message" data-confirm-message></p>
+            <p class="notebook-confirm__detail" data-confirm-detail hidden></p>
+        </div>
+        <footer class="notebook-confirm__footer">
+            <button type="button" class="notebook-confirm__button notebook-confirm__button--cancel" data-confirm-cancel>Cancel</button>
+            <button type="button" class="notebook-confirm__button notebook-confirm__button--accept" data-confirm-accept>Confirm</button>
+        </footer>
+    </section>
+</div>

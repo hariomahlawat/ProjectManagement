@@ -1,5 +1,7 @@
 ﻿import { NotebookApi } from './notebook-api.js';
 import { getNotebookLabelCatalog, normaliseLabelName, refreshNotebookLabelCatalog, setNotebookLabelCatalog } from './notebook-label-picker.js';
+import { confirmNotebookAction } from './notebook-confirm-dialog.js';
+import { showNotebookToast } from './notebook-toast.js';
 
 export function initNotebookLabelManager(root, options = {}) {
   if (!root) return null;
@@ -124,14 +126,22 @@ export function initNotebookLabelManager(root, options = {}) {
     }
 
     if (event.target.closest('[data-label-delete]')) {
-      if (!confirm(`Delete label “${input.value}” from all notes? Notes will not be deleted.`)) return;
+      const confirmed = await confirmNotebookAction({
+        title: 'Delete label?',
+        message: `The label “${input.value}” will be removed from all notes.`,
+        detail: 'The notes themselves will not be deleted.',
+        confirmText: 'Delete label',
+        tone: 'danger'
+      });
+      if (!confirmed) return;
       try {
         busy = true;
         setFeedback('Deleting…');
         const result = await NotebookApi.deleteLabel(id);
         setNotebookLabelCatalog(result.labels || []);
         render(result.labels || []);
-        setFeedback('Label deleted.');
+        setFeedback('');
+        showNotebookToast({ message: 'Label deleted.', tone: 'neutral' });
         options.onCatalogChange?.(result.labels || []);
         const currentTag = new URL(location.href).searchParams.get('tag');
         if (currentTag && currentTag.toLocaleLowerCase() === row.dataset.originalName.toLocaleLowerCase()) {

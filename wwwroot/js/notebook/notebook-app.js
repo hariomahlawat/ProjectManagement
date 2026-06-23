@@ -8,6 +8,8 @@ import { reconcileMutation, requireMutationItem, updateCardConcurrencyState } fr
 import { closeNotebookColourPickers, normaliseNotebookColour } from './notebook-colour-picker.js';
 import { initNotebookLabelManager } from './notebook-label-manager.js';
 import { hydrateNotebookLabelCatalog, initNotebookLabelPicker, refreshNotebookLabelCatalog } from './notebook-label-picker.js';
+import { confirmNotebookAction, initNotebookConfirmDialog } from './notebook-confirm-dialog.js';
+import { initNotebookToastRegion, showNotebookToast } from './notebook-toast.js';
 
 
 export function renderNotebookLabelNavigation(shell, labels = []) {
@@ -55,6 +57,8 @@ function escapeLabelHtml(value) {
 // SECTION: Notebook app bootstrap and delegated interactions
 export function initNotebookApp() {
   const shell = document.querySelector('.notebook-shell'); if (!shell) return;
+  initNotebookConfirmDialog();
+  initNotebookToastRegion();
   const view = new URL(location.href).searchParams.get('view') || 'home';
   const board = createNotebookBoard(shell);
   let composer;
@@ -100,7 +104,7 @@ export function initNotebookApp() {
 
         try { await apply(card.dataset.version); }
         catch (error) {
-          if (error?.status === 409 && window.confirm('This note changed elsewhere. Apply these labels to the latest saved version?')) {
+          if (error?.status === 409 && await confirmNotebookAction({ title: 'Apply labels to the latest version?', message: 'This note changed elsewhere. Your selected labels can be applied to the latest saved version.', confirmText: 'Apply labels', tone: 'warning' })) {
             const latest = error.currentItem ?? await NotebookApi.getItem(card.dataset.noteId);
             await apply(latest.version);
             return;
@@ -160,7 +164,7 @@ export function initNotebookApp() {
         });
         editor.syncExternalUpdate?.(updated);
       } catch (error) {
-        if (error?.status === 409 && window.confirm('This note changed elsewhere. Apply the selected colour to the latest saved version?')) {
+        if (error?.status === 409 && await confirmNotebookAction({ title: 'Apply colour to the latest version?', message: 'This note changed elsewhere. The selected colour can be applied to the latest saved version.', confirmText: 'Apply colour', tone: 'warning' })) {
           try {
             const latest = error.currentItem ?? await NotebookApi.getItem(card.dataset.noteId);
             const retryResponse = await NotebookApi.setColour(card.dataset.noteId, colorKey, latest.version);
@@ -227,7 +231,20 @@ export function initNotebookApp() {
         if (action.dataset.action === 'reopen-note') { const response = await NotebookApi.reopenItem(id, card.dataset.version); board.removeCard(id); applyCounts(response?.counts); }
         if (action.dataset.action === 'restore-note') { const response = await NotebookApi.restoreItem(id, card.dataset.version); const updated = requireMutationItem(response); updateCardConcurrencyState(card, updated); if (view === 'archive' || view === 'archived') { board.removeCard(id); applyCounts(response?.counts); } else { await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError, existingCard: card }); } }
         if (action.dataset.action === 'duplicate-note') { const response = await NotebookApi.duplicateItem(id); await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError }); }
-        if (action.dataset.action === 'delete-note') { const response = await NotebookApi.deleteItem(id, card.dataset.version); board.removeCard(response?.removedItemId || id); applyCounts(response?.counts); }
+        if (action.dataset.action === 'delete-note') {
+          const confirmed = await confirmNotebookAction({
+            title: 'Delete note?',
+            message: 'This note will be removed from your active notebook.',
+            detail: 'A Trash view with restore support will be added in the next phase.',
+            confirmText: 'Delete note',
+            tone: 'danger'
+          });
+          if (!confirmed) return;
+          const response = await NotebookApi.deleteItem(id, card.dataset.version);
+          board.removeCard(response?.removedItemId || id);
+          applyCounts(response?.counts);
+          showNotebookToast({ message: 'Note deleted.', tone: 'neutral' });
+        }
         if (action.dataset.action === 'convert-note') { const response = action.dataset.convertTo === 'Checklist' ? await NotebookApi.showCheckboxes(id, card.dataset.version) : await NotebookApi.hideCheckboxes(id, card.dataset.version); const converted = requireMutationItem(response); updateCardConcurrencyState(card, converted); await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: true, showGlobalError, existingCard: card }); }
       } catch (error) { showGlobalError(error.message || 'Notebook action failed.'); }
       finally { action.disabled = false; }

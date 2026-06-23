@@ -1,10 +1,11 @@
-import { NotebookApi, NotebookApiError } from './notebook-api.js';
+﻿import { NotebookApi, NotebookApiError } from './notebook-api.js';
 import { createAutosave } from './notebook-autosave.js';
 import { createChecklistEditor } from './notebook-checklist-editor.js';
 import { reconcileMutation, requireMutationItem } from './notebook-reconcile.js';
 import { getFirstValidationMessage, getValidationMessages } from './notebook-errors.js';
 import { initNotebookColourPicker, applyNotebookSurfaceColour } from './notebook-colour-picker.js';
 import { initNotebookLabelPicker, normaliseLabels } from './notebook-label-picker.js';
+import { confirmNotebookAction } from './notebook-confirm-dialog.js';
 
 export const ConflictType = Object.freeze({
   StaleDraft: 'stale-draft',
@@ -553,7 +554,7 @@ export function initNotebookEditor(board, view, options = {}) {
     }
   }
 
-  function restoreStoredDraftIfNeeded() {
+  async function restoreStoredDraftIfNeeded() {
     const storedDraft = readStoredDraft(item.id);
     if (!storedDraft) return;
 
@@ -569,7 +570,13 @@ export function initNotebookEditor(board, view, options = {}) {
     const prompt = stale
       ? 'A newer saved version exists. Restore your local changes for review?'
       : 'Restore your unsaved local draft for this note?';
-    if (!window.confirm(prompt)) return;
+    const confirmed = await confirmNotebookAction({
+      title: stale ? 'Review local changes?' : 'Restore unsaved draft?',
+      message: prompt,
+      confirmText: stale ? 'Review changes' : 'Restore draft',
+      tone: stale ? 'warning' : 'primary'
+    });
+    if (!confirmed) return;
 
     modal.querySelector('[data-modal-title]').value = storedDraft.title || '';
     modal.querySelector('[data-modal-body]').value = storedDraft.body || '';
@@ -677,7 +684,8 @@ export function initNotebookEditor(board, view, options = {}) {
   }
 
   async function discardChangesAndClose() {
-    if (!window.confirm('Discard unsaved changes and close this note?')) return;
+    const confirmed = await confirmNotebookAction({ title: 'Discard unsaved changes?', message: 'Your unsaved changes will be lost and the note will close.', confirmText: 'Discard changes', tone: 'danger' });
+    if (!confirmed) return;
     const itemId = item?.id;
     autosave?.cancel?.();
     clearStoredDraft(itemId);
@@ -687,7 +695,8 @@ export function initNotebookEditor(board, view, options = {}) {
 
   async function useMyChanges() {
     if (!conflictState.active || conflictState.resolving || !item) return;
-    if (!window.confirm('Save your current changes over the newer saved version?')) return;
+    const confirmed = await confirmNotebookAction({ title: 'Replace the newer saved version?', message: 'Your current changes will be saved over the newer version of this note.', detail: 'Use Reload latest instead to keep the newer saved version.', confirmText: 'Use my changes', tone: 'warning' });
+    if (!confirmed) return;
 
     const resolutionGeneration = conflictGeneration;
     conflictState.resolving = true;
@@ -749,7 +758,10 @@ export function initNotebookEditor(board, view, options = {}) {
 
   async function reloadLatest() {
     if (!item || conflictState.resolving) return;
-    if (hasDirtyChanges() && !window.confirm('Discard your unsaved changes and load the latest saved version?')) return;
+    if (hasDirtyChanges()) {
+      const confirmed = await confirmNotebookAction({ title: 'Reload the latest version?', message: 'Your unsaved local changes will be discarded.', confirmText: 'Reload latest', tone: 'danger' });
+      if (!confirmed) return;
+    }
 
     const button = modal.querySelector('[data-notebook-reload-latest]');
     button.disabled = true;
@@ -891,7 +903,7 @@ export function initNotebookEditor(board, view, options = {}) {
     item = await NotebookApi.getItem(id);
     configureAutosave();
     renderMode();
-    restoreStoredDraftIfNeeded();
+    await restoreStoredDraftIfNeeded();
     modal.hidden = false;
     setBackgroundInert(true);
     modal.querySelector('[data-modal-title]').focus();

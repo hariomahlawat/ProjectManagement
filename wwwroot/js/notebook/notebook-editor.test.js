@@ -16,6 +16,7 @@ async function loadEditorModule() {
   fs.writeFileSync(path.join(tempDir, 'notebook-errors.mjs'), fs.readFileSync(path.resolve(__dirname, 'notebook-errors.js'), 'utf8'));
   fs.writeFileSync(path.join(tempDir, 'notebook-colour-picker.mjs'), fs.readFileSync(path.resolve(__dirname, 'notebook-colour-picker.js'), 'utf8'));
   fs.writeFileSync(path.join(tempDir, 'notebook-label-picker.mjs'), fs.readFileSync(path.resolve(__dirname, 'notebook-label-picker.js'), 'utf8').replace("./notebook-api.js", './notebook-api.mjs'));
+  fs.writeFileSync(path.join(tempDir, 'notebook-confirm-dialog.mjs'), fs.readFileSync(path.resolve(__dirname, 'notebook-confirm-dialog.js'), 'utf8'));
   const source = fs.readFileSync(path.resolve(__dirname, 'notebook-editor.js'), 'utf8')
     .replace("./notebook-api.js", './notebook-api.mjs')
     .replace("./notebook-autosave.js", './notebook-autosave.mjs')
@@ -23,7 +24,8 @@ async function loadEditorModule() {
     .replace("./notebook-reconcile.js", './notebook-reconcile.mjs')
     .replace("./notebook-errors.js", './notebook-errors.mjs')
     .replace("./notebook-colour-picker.js", './notebook-colour-picker.mjs')
-    .replace("./notebook-label-picker.js", './notebook-label-picker.mjs');
+    .replace("./notebook-label-picker.js", './notebook-label-picker.mjs')
+    .replace("./notebook-confirm-dialog.js", './notebook-confirm-dialog.mjs');
   const modulePath = path.join(tempDir, 'notebook-editor.mjs');
   fs.writeFileSync(modulePath, source);
   return import(`file://${modulePath}`);
