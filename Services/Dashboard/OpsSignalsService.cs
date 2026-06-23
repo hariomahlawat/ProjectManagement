@@ -219,10 +219,24 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     return (cur, prev, null, null);
                 }
 
-                if (cur == 0 || prev == 0)
+                if (cur == 0 && prev == 0)
                 {
-                    var noBaselineLabel = prev == 0 && cur > 0 ? "New activity" : null;
-                    return (cur, prev, null, noBaselineLabel);
+                    return (cur, prev, null, "No activity");
+                }
+
+                if (prev == 0 && cur > 0)
+                {
+                    return (cur, prev, null, "New activity");
+                }
+
+                if (cur == 0 && prev > 0)
+                {
+                    return (cur, prev, -1d, null);
+                }
+
+                if (cur == prev)
+                {
+                    return (cur, prev, null, "No change");
                 }
 
                 double? pct = (cur - prev) / (double)prev;
@@ -244,7 +258,7 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 new()
                 {
                     Key = "visits",
-                    Label = "Visits",
+                    Label = "Visitor reach",
                     Value = visitsTotal,
                     Unit = "people",
                     Sparkline = visitsSpark,
@@ -271,7 +285,7 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 new()
                 {
                     Key = "training",
-                    Label = "Training",
+                    Label = "Training reach",
                     Value = trainingTotal,
                     Unit = "people",
                     Sparkline = trainingSpark,

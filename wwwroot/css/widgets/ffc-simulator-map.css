@@ -125,6 +125,24 @@
     filter: drop-shadow(var(--pin-shadow));
 }
 
+
+.ffc-simulator-map__pin--completed {
+    --pin-fill: #eef4ff;
+    --pin-border: #4f6fe8;
+    --pin-shadow: 0 10px 18px rgba(79, 111, 232, 0.2);
+}
+
+.ffc-simulator-map__pin--planned {
+    --pin-fill: #fff8e8;
+    --pin-border: #d68700;
+    --pin-shadow: 0 10px 18px rgba(214, 135, 0, 0.22);
+}
+
+.ffc-simulator-map__pin--mixed {
+    --pin-fill: #eef4ff;
+    --pin-border: #d68700;
+    --pin-shadow: 0 10px 18px rgba(91, 33, 182, 0.2);
+}
 .ffc-simulator-map__pin--active {
     transform: scale(1.05);
     filter: drop-shadow(0 12px 22px rgba(91, 33, 182, 0.3));

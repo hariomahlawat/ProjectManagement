@@ -118,6 +118,7 @@ namespace ProjectManagement.Pages.Dashboard
             public string Status { get; init; } = string.Empty;
             public int CommentCount { get; init; }
             public int DocumentCount { get; init; }
+            public string OwnerName { get; init; } = string.Empty;
             public DateTime UpdatedAt { get; init; }
         }
 
@@ -435,7 +436,10 @@ namespace ProjectManagement.Pages.Dashboard
                         i.Status,
                         i.UpdatedAt,
                         CommentCount = i.Comments.Count(c => !c.IsDeleted),
-                        DocumentCount = i.Documents.Count(d => !d.IsDeleted)
+                        DocumentCount = i.Documents.Count(d => !d.IsDeleted),
+                        OwnerName = i.AssignedProjectOfficerUser != null
+                            ? i.AssignedProjectOfficerUser.FullName
+                            : string.Empty
                     })
                     .ToListAsync(cancellationToken);
 
@@ -461,6 +465,7 @@ namespace ProjectManagement.Pages.Dashboard
                             Status = ProjectIdeaStatuses.ToDisplay(i.Status),
                             CommentCount = i.CommentCount,
                             DocumentCount = i.DocumentCount,
+                            OwnerName = string.IsNullOrWhiteSpace(i.OwnerName) ? "Unassigned" : i.OwnerName,
                             UpdatedAt = i.UpdatedAt
                         })
                         .ToList()

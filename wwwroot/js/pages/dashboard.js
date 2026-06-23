@@ -72,8 +72,11 @@
                     borderColor: colours.line,
                     backgroundColor: colours.fill,
                     borderWidth: 2,
-                    pointRadius: 0,
+                    pointRadius: context => context.dataIndex === values.length - 1 ? 2.5 : 0,
                     pointHoverRadius: 3,
+                    pointBackgroundColor: colours.line,
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 1.5,
                     tension: .38,
                     fill: true
                 }]

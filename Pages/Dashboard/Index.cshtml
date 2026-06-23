@@ -195,6 +195,7 @@
                 {
                     var values = tile.Sparkline ?? Array.Empty<int>();
                     var labels = tile.SparklineLabels ?? Array.Empty<string>();
+                    var hasRecentActivity = values.Any(v => v > 0);
                     <a class="db-output-card" href="@tile.LinkUrl">
                         <div class="db-output-card__head"><span class="db-output-card__icon"><i class="bi @tile.Icon"></i></span><span class="db-output-card__label">@tile.Label</span></div>
                         <div class="db-output-card__metric">
@@ -204,8 +205,12 @@
                                 <span>@tile.Unit</span>
                             }
                         </div>
-                        <div class="db-output-card__chart" data-db-spark data-values='@Html.Raw(Json(values))' data-labels='@Html.Raw(Json(labels))'>
+                        <div class="db-output-card__chart @(hasRecentActivity ? "" : "is-empty")" data-db-spark data-values='@Html.Raw(Json(values))' data-labels='@Html.Raw(Json(labels))'>
                             <canvas role="img" aria-label="@tile.Label monthly activity over the last 12 months"></canvas>
+                            @if (!hasRecentActivity)
+                            {
+                                <span class="db-chart-empty">No activity in the last 12 months</span>
+                            }
                         </div>
                         <div class="db-output-card__foot">
                             <span>Monthly activity · 12 months</span>
@@ -217,6 +222,10 @@
                             else if (!string.IsNullOrWhiteSpace(tile.DeltaLabel))
                             {
                                 <em class="is-neutral">@tile.DeltaLabel</em>
+                            }
+                            else
+                            {
+                                <em class="is-neutral">No change</em>
                             }
                         </div>
                     </a>
@@ -238,6 +247,10 @@
                     <div class="db-activity-trend" data-db-activity-trend data-values='@Html.Raw(Json(Model.ActivitySummary.MonthlyTrend))' data-labels='@Html.Raw(Json(Model.ActivitySummary.MonthlyLabels))'>
                         <div class="db-activity-trend__head"><span>12-month activity trend</span><small>activities per month</small></div>
                         <canvas role="img" aria-label="Institutional activities recorded per month for the last 12 months"></canvas>
+                        @if (Model.ActivitySummary.MonthlyLabels.Count > 0)
+                        {
+                            <div class="db-activity-trend__range"><span>@Model.ActivitySummary.MonthlyLabels.First()</span><span>@Model.ActivitySummary.MonthlyLabels.Last()</span></div>
+                        }
                     </div>
                 </div>
                 <div class="db-activity-detail">
@@ -246,10 +259,12 @@
                         @if (Model.ActivitySummary.TopTypes.Count > 0)
                         {
                             var maxType = Math.Max(1, Model.ActivitySummary.TopTypes.Max(x => x.Count));
+                            var totalActivities = Math.Max(1, Model.ActivitySummary.TotalActivities);
                             @foreach (var type in Model.ActivitySummary.TopTypes)
                             {
                                 var width = type.Count * 100d / maxType;
-                                <a asp-page="/Activities/Index" asp-route-ActivityTypeId="@type.ActivityTypeId" class="db-type-row"><span>@type.Name</span><div><i style="--type-width:@width.ToString("0.##", CultureInfo.InvariantCulture)%"></i></div><strong>@type.Count</strong></a>
+                                var share = (int)Math.Round(type.Count * 100d / totalActivities);
+                                <a asp-page="/Activities/Index" asp-route-ActivityTypeId="@type.ActivityTypeId" class="db-type-row"><span>@type.Name</span><div><i style="--type-width:@width.ToString("0.##", CultureInfo.InvariantCulture)%"></i></div><strong>@type.Count <small>@share%</small></strong></a>
                             }
                         }
                         else { <div class="db-empty db-empty--compact">No activity types recorded.</div> }
@@ -293,7 +308,7 @@
                 <div class="db-idea-list">
                     @foreach (var idea in Model.IdeaSummary.LatestIdeas)
                     {
-                        <a asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id" class="db-idea-row"><div><strong>@idea.Title</strong><span>@idea.Status · Updated @idea.UpdatedAt.ToString("dd MMM yyyy")</span></div><div><span><i class="bi bi-chat"></i> @idea.CommentCount</span><span><i class="bi bi-paperclip"></i> @idea.DocumentCount</span></div></a>
+                        <a asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id" class="db-idea-row"><div><strong>@idea.Title</strong><span>@idea.Status · @idea.OwnerName · Updated @idea.UpdatedAt.ToString("dd MMM yyyy")</span></div><div><span><i class="bi bi-chat"></i> @idea.CommentCount</span><span><i class="bi bi-paperclip"></i> @idea.DocumentCount</span></div></a>
                     }
                     @if (Model.IdeaSummary.LatestIdeas.Count == 0) { <div class="db-empty db-empty--compact">No active or on-hold ideas recorded.</div> }
                 </div>
@@ -309,18 +324,22 @@
             {
                 <div class="db-ffc-layout">
                     <div class="db-ffc-map-wrap">
-                        <div class="ffc-simulator-map db-ffc-map" data-widget="ffc-simulator-map" data-countries='@Html.Raw(ffcPayload)' data-geo-url="@ffcGeoUrl" data-focus-bounds="37,-20|-35,55" data-highlight-color="var(--db-primary)">
+                        <div class="ffc-simulator-map db-ffc-map" data-widget="ffc-simulator-map" data-countries='@Html.Raw(ffcPayload)' data-geo-url="@ffcGeoUrl" data-focus-bounds="42,-18|-38,118" data-highlight-color="var(--db-primary)">
                             <div class="ffc-simulator-map__canvas" role="img" aria-label="Map showing simulator footprint across Friendly Foreign Countries"></div>
                             <div class="ffc-simulator-map__status" data-map-status>Loading footprint…</div>
+                        </div>
+                        <div class="db-ffc-legend" aria-label="Map legend">
+                            <span><i class="is-completed"></i>Bubble value: completed units</span>
+                            <span><i class="is-planned"></i>Amber marker: planned-only location</span>
                         </div>
                     </div>
                     <aside class="db-ffc-insights">
                         <div class="db-ffc-stats">
                             <div><span>Countries covered</span><strong>@Model.FfcSimulatorMap.Countries.Count(x => x.Completed > 0)</strong></div>
-                            <div><span>Completed units</span><strong>@Model.FfcSimulatorMap.TotalCompleted</strong></div>
-                            <div><span>Installed</span><strong>@Model.FfcSimulatorMap.TotalInstalled</strong></div>
-                            <div><span>Delivered</span><strong>@Model.FfcSimulatorMap.TotalDelivered</strong></div>
-                            <div class="is-planned"><span>Planned units</span><strong>@Model.FfcSimulatorMap.TotalPlanned</strong></div>
+                            <div><span>Completed units <i class="bi bi-info-circle" title="Installed plus delivered units recorded as completed"></i></span><strong>@Model.FfcSimulatorMap.TotalCompleted</strong></div>
+                            <div><span>Installed <i class="bi bi-info-circle" title="Units installed at the partner-country location"></i></span><strong>@Model.FfcSimulatorMap.TotalInstalled</strong></div>
+                            <div><span>Delivered <i class="bi bi-info-circle" title="Units delivered but not recorded as installed"></i></span><strong>@Model.FfcSimulatorMap.TotalDelivered</strong></div>
+                            <div class="is-planned"><span>Planned units <i class="bi bi-info-circle" title="Approved or recorded future units not yet completed"></i></span><strong>@Model.FfcSimulatorMap.TotalPlanned</strong></div>
                         </div>
                         <div class="db-ffc-countries">
                             <h3>Top countries</h3>
@@ -351,7 +370,7 @@
                 <div class="db-processing-alert__identity">
                     <span class="db-utility-card__icon"><i class="bi bi-exclamation-triangle"></i></span>
                     <div>
-                        <h2 id="document-processing-title">Document processing requires attention</h2>
+                        <div class="db-processing-title-row"><h2 id="document-processing-title">Document processing requires attention</h2><span class="db-status-badge">Service offline</span></div>
                         <p>OCR processing is not fully operational. Searchable documents remain available.</p>
                     </div>
                 </div>
@@ -373,7 +392,7 @@
         }
     </main>
 
-    <footer class="db-footer"><span>PRISM ERP · Simulator Development Division</span><span>All times shown in IST</span></footer>
+    <footer class="db-footer db-footer--timezone"><span>All times shown in IST</span></footer>
 </div>
 
 @section Scripts {
