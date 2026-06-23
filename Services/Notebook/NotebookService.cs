@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using ProjectManagement.Data;
@@ -285,6 +285,7 @@ public sealed class NotebookService : INotebookService
         }
 
         var now = _clock.UtcNow;
+        var initialSortOrder = await GetTopSortOrderAsync(ownerId, input.IsPinned, ct);
         var item = new NotebookItem
         {
             OwnerId = ownerId,
@@ -299,7 +300,8 @@ public sealed class NotebookService : INotebookService
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
             Version = Guid.NewGuid(),
-            ClientRequestId = input.ClientRequestId
+            ClientRequestId = input.ClientRequestId,
+            SortOrder = initialSortOrder
         };
 
         ApplyChecklist(item, input.ChecklistRows.Any() ? input.ChecklistRows : input.ChecklistItems.Select((text, index) => new NotebookChecklistEditRow { Text = text, SortOrder = index }).ToArray(), now);
@@ -521,10 +523,78 @@ public sealed class NotebookService : INotebookService
     public async Task<NotebookItemDetailVm> SetPinnedAsync(string ownerId, Guid id, bool isPinned, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
-        item.IsPinned = isPinned;
-        Touch(item, _clock.UtcNow);
-        await _db.SaveChangesAsync(ct);
+        if (item.IsPinned != isPinned)
+        {
+            item.IsPinned = isPinned;
+            item.SortOrder = await GetTopSortOrderAsync(ownerId, isPinned, ct, item.Id);
+            Touch(item, _clock.UtcNow);
+            await _db.SaveChangesAsync(ct);
+        }
         return MapDetail(item);
+    }
+
+    public async Task ReorderAsync(
+        string ownerId,
+        NotebookBoardSection section,
+        IReadOnlyList<NotebookOrderItem> items,
+        CancellationToken ct = default)
+    {
+        if (items.Count > 200)
+        {
+            throw new NotebookValidationException("Too many notebook items were submitted for reordering.");
+        }
+
+        var duplicateIds = items.GroupBy(item => item.Id).FirstOrDefault(group => group.Count() > 1);
+        if (duplicateIds is not null)
+        {
+            throw new NotebookValidationException("A notebook item was submitted more than once.");
+        }
+
+        var isPinned = section == NotebookBoardSection.Pinned;
+        var databaseItems = await _db.NotebookItems
+            .Where(item =>
+                item.OwnerId == ownerId &&
+                item.DeletedAtUtc == null &&
+                item.Status == NotebookItemStatus.Active &&
+                item.IsPinned == isPinned)
+            .ToListAsync(ct);
+
+        if (databaseItems.Count != items.Count || databaseItems.Select(item => item.Id).ToHashSet().SetEquals(items.Select(item => item.Id)) is false)
+        {
+            throw new NotebookValidationException("The notebook board changed before the new order could be saved. Reload the page and try again.");
+        }
+
+        var submittedById = items.ToDictionary(item => item.Id);
+        foreach (var databaseItem in databaseItems)
+        {
+            var submitted = submittedById[databaseItem.Id];
+            if (databaseItem.Version != submitted.Version)
+            {
+                throw new NotebookConcurrencyException(databaseItem.Id, submitted.Version, databaseItem.Version, MapDetail(databaseItem));
+            }
+        }
+
+        var order = 1000;
+        foreach (var submitted in items)
+        {
+            var databaseItem = databaseItems.Single(item => item.Id == submitted.Id);
+            databaseItem.SortOrder = order;
+            order += 1000;
+        }
+
+        try
+        {
+            // SaveChanges is transactional. Order is board metadata, so Version and UpdatedAtUtc remain unchanged.
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            var first = items.FirstOrDefault();
+            if (first is null) throw;
+            throw await CreateConcurrencyExceptionAsync(ownerId, first.Id, first.Version, ex, ct);
+        }
+
+        await TryWriteAuditAsync("Notebook.Reorder", ownerId, Guid.Empty, ct, new Dictionary<string, string?> { ["Section"] = section.ToString(), ["ItemCount"] = items.Count.ToString() });
     }
 
     public async Task<NotebookItemDetailVm> SetColourAsync(string ownerId, Guid id, string? colorKey, Guid expectedVersion, CancellationToken ct = default)
@@ -987,6 +1057,24 @@ public sealed class NotebookService : INotebookService
             IsDueToday = list.IsDueToday,
             Version = list.Version
         };
+    }
+
+    private async Task<int> GetTopSortOrderAsync(string ownerId, bool isPinned, CancellationToken ct, Guid? excludeId = null)
+    {
+        var query = _db.NotebookItems.Where(item =>
+            item.OwnerId == ownerId &&
+            item.DeletedAtUtc == null &&
+            item.Status == NotebookItemStatus.Active &&
+            item.IsPinned == isPinned);
+
+        if (excludeId.HasValue)
+        {
+            query = query.Where(item => item.Id != excludeId.Value);
+        }
+
+        var minimum = await query.Select(item => (int?)item.SortOrder).MinAsync(ct);
+        if (!minimum.HasValue || minimum.Value == 0) return 1000;
+        return minimum.Value <= int.MinValue + 1000 ? int.MinValue + 1000 : minimum.Value - 1000;
     }
 
     private static string CleanTitle(string title)

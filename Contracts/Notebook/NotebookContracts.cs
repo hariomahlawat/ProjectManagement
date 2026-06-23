@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Notebook;
 
@@ -132,6 +132,21 @@ public sealed class RestoreNotebookTrashItemRequest : NotebookVersionedRequest
 
 public sealed class PermanentlyDeleteNotebookItemRequest : NotebookVersionedRequest
 {
+}
+
+
+public sealed class ReorderNotebookItemsRequest
+{
+    [Required]
+    public string Section { get; set; } = string.Empty;
+
+    [Required]
+    public List<ReorderNotebookItemRequest> Items { get; set; } = [];
+}
+
+public sealed class ReorderNotebookItemRequest : NotebookVersionedRequest
+{
+    public Guid Id { get; set; }
 }
 
 public sealed class ToggleChecklistItemRequest

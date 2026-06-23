@@ -13,6 +13,10 @@
 
 @* SECTION: Notebook board card *@
 <article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-version="@item.Version" data-labels="@System.Text.Json.JsonSerializer.Serialize(item.Tags)" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty) @(item.Status == NotebookItemStatus.Completed ? "is-completed" : string.Empty)">
+    @if (!isTrash && item.Status == NotebookItemStatus.Active)
+    {
+        <button type="button" class="notebook-card-drag-handle" data-notebook-drag-handle hidden aria-label="Rearrange @item.Title" aria-grabbed="false" title="Drag to rearrange"><i class="bi bi-grip-vertical" aria-hidden="true"></i></button>
+    }
     <div class="notebook-card-body">
         <a href="@(isTrash ? "#" : Model.OpenUrl)" class="notebook-card-link notebook-card__open-area @(isTrash ? "is-disabled" : "")" data-action="@(isTrash ? null : "open-note")" aria-label="@(isTrash ? item.Title : $"Open {item.Title}")" aria-disabled="@isTrash.ToString().ToLowerInvariant()">
             <div class="notebook-card-topline">

@@ -1,4 +1,4 @@
-import { closestAction } from './notebook-utils.js';
+﻿import { closestAction } from './notebook-utils.js';
 import { NotebookApi } from './notebook-api.js';
 import { createNotebookBoard } from './notebook-board.js';
 import { initNotebookComposer } from './notebook-composer.js';
@@ -10,6 +10,7 @@ import { initNotebookLabelManager } from './notebook-label-manager.js';
 import { hydrateNotebookLabelCatalog, initNotebookLabelPicker, refreshNotebookLabelCatalog } from './notebook-label-picker.js';
 import { confirmNotebookAction, initNotebookConfirmDialog } from './notebook-confirm-dialog.js';
 import { initNotebookToastRegion, showNotebookToast } from './notebook-toast.js';
+import { initNotebookDragOrder } from './notebook-drag-order.js';
 
 
 export function renderNotebookLabelNavigation(shell, labels = []) {
@@ -124,9 +125,10 @@ export function initNotebookApp() {
   document.querySelector('[data-notebook-global-error-close]')?.addEventListener('click', () => { globalError.hidden = true; globalErrorText.textContent = ''; });
   const storageKey = 'notebook.boardView';
   const viewButtons = [...shell.querySelectorAll('[data-notebook-view]')];
-  function applyBoardView(next) { const selected = next === 'list' ? 'list' : 'grid'; shell.dataset.boardView = selected; localStorage.setItem(storageKey, selected); viewButtons.forEach((button) => { const active = button.dataset.notebookView === selected; button.classList.toggle('is-active', active); button.setAttribute('aria-pressed', String(active)); }); }
+  function applyBoardView(next) { const selected = next === 'list' ? 'list' : 'grid'; shell.dataset.boardView = selected; localStorage.setItem(storageKey, selected); viewButtons.forEach((button) => { const active = button.dataset.notebookView === selected; button.classList.toggle('is-active', active); button.setAttribute('aria-pressed', String(active)); }); document.dispatchEvent(new CustomEvent('notebook:board-view-changed', { detail: { view: selected } })); }
   viewButtons.forEach((button) => button.addEventListener('click', () => applyBoardView(button.dataset.notebookView)));
   applyBoardView(localStorage.getItem(storageKey) || shell.dataset.boardView || 'grid');
+  const dragOrder = initNotebookDragOrder(shell, board, { api: NotebookApi, showError: showGlobalError, showToast: showNotebookToast });
 
   document.addEventListener('click', async (event) => {
     const cardColourToggle = event.target.closest('.notebook-card [data-colour-picker-toggle]');

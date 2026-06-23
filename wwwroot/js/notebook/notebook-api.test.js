@@ -260,3 +260,23 @@ test('createLabel sends a dedicated server-backed label creation request', async
   assert.equal(captured.options.method, 'POST');
   assert.deepEqual(JSON.parse(captured.options.body), { name: 'Work' });
 });
+
+test('reorderItems sends one batch order mutation', async () => {
+  const { NotebookApi } = await loadApiModule();
+  let captured;
+  global.fetch = async (url, options) => {
+    captured = { url, options };
+    return jsonResponse(200, { section: 'others', itemIds: [] });
+  };
+
+  await NotebookApi.reorderItems('others', [
+    { id: '11111111-1111-4111-8111-111111111111', version: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }
+  ]);
+
+  assert.equal(captured.url, '/api/notebook/order');
+  assert.equal(captured.options.method, 'PUT');
+  assert.deepEqual(JSON.parse(captured.options.body), {
+    section: 'others',
+    items: [{ id: '11111111-1111-4111-8111-111111111111', version: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }]
+  });
+});

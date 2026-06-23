@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -156,6 +156,34 @@ public sealed class NotebookController : Controller
         if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
         var updated = await _notebook.SetPinnedAsync(CurrentUserId(), id, request.IsPinned, request.Version, ct);
         return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
+    }
+
+    [Consumes("application/json")]
+    [HttpPut("~/api/notebook/order")]
+    public async Task<IActionResult> Reorder([FromBody] ReorderNotebookItemsRequest request, CancellationToken ct)
+    {
+        if (!Enum.TryParse<NotebookBoardSection>(request.Section, ignoreCase: true, out var section))
+        {
+            return BadRequest(ApiError("notebook_validation_failed", "The notebook order is invalid.", "section", "Section must be Pinned or Others."));
+        }
+
+        request.Items ??= [];
+        if (request.Items.Any(item => item.Id == Guid.Empty || item.Version == Guid.Empty))
+        {
+            return BadRequest(ApiError("notebook_validation_failed", "The notebook order is invalid.", "items", "Every item must include a valid id and version."));
+        }
+
+        await _notebook.ReorderAsync(
+            CurrentUserId(),
+            section,
+            request.Items.Select(item => new NotebookOrderItem(item.Id, item.Version)).ToArray(),
+            ct);
+
+        return Ok(new
+        {
+            section = section.ToString().ToLowerInvariant(),
+            itemIds = request.Items.Select(item => item.Id).ToArray()
+        });
     }
 
     [Consumes("application/json")]

@@ -1,4 +1,4 @@
-@page
+﻿@page
 @model ProjectManagement.Pages.Notebook.IndexModel
 @using ProjectManagement.Models
 @using ProjectManagement.ViewModels.Notebook
@@ -109,6 +109,11 @@
                     <button type="button" data-notebook-view="grid" aria-label="Grid view"><i class="bi bi-grid-3x3-gap"></i></button>
                     <button type="button" data-notebook-view="list" aria-label="List view"><i class="bi bi-list-ul"></i></button>
                 </div>
+                @if (Model.Notebook.View == "home" && string.IsNullOrWhiteSpace(Model.Query) && string.IsNullOrWhiteSpace(Model.Notebook.Tag))
+                {
+                    <button type="button" class="notebook-rearrange-toggle" data-notebook-rearrange-toggle><i class="bi bi-arrows-move"></i><span>Rearrange</span></button>
+                    <button type="button" class="notebook-rearrange-toggle is-done" data-notebook-rearrange-done hidden><i class="bi bi-check2"></i><span>Done</span></button>
+                }
             </div>
         </section>
 
@@ -169,7 +174,7 @@
             @* SECTION: Manual-order friendly home board sections *@
             <section class="notebook-board-section" data-notebook-section="pinned" hidden="@(!Model.Notebook.PinnedItems.Any())">
                 <div class="notebook-section-header"><h2>Pinned</h2><span data-notebook-count="pinned">@Model.Notebook.PinnedItems.Count</span></div>
-                <div class="notebook-board" data-notebook-board="pinned" data-layout-policy="fixed-grid" data-layout="grid" data-item-count="@Model.Notebook.PinnedItems.Count">
+                <div class="notebook-board" data-notebook-board="pinned" data-sortable="true" data-layout-policy="fixed-grid" data-layout="grid" data-item-count="@Model.Notebook.PinnedItems.Count">
                     @foreach (var item in Model.Notebook.PinnedItems)
                     {
                         <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id }))" />
@@ -178,7 +183,7 @@
             </section>
             <section class="notebook-board-section" data-notebook-section="others">
                 <div class="notebook-section-header"><h2>Others</h2><span data-notebook-count="others">@Model.Notebook.OtherItems.Count</span></div>
-                <div class="notebook-board" data-notebook-board="others" data-layout-policy="masonry-threshold" data-layout="@(Model.Notebook.OtherItems.Count > 4 ? "masonry" : "grid")" data-item-count="@Model.Notebook.OtherItems.Count">
+                <div class="notebook-board" data-notebook-board="others" data-sortable="true" data-layout-policy="fixed-grid" data-layout="@(Model.Notebook.OtherItems.Count > 4 ? "masonry" : "grid")" data-item-count="@Model.Notebook.OtherItems.Count">
                     @foreach (var item in Model.Notebook.OtherItems)
                     {
                         <partial name="_NotebookCard" model="@(CardModelFactory.Create(item, new ProjectManagement.Services.Notebook.NotebookCardContext { View = Model.Notebook.View, Query = Model.Notebook.Query, Filter = Model.Notebook.Filter, Tag = Model.Notebook.Tag, SelectedId = selected?.Id }))" />
@@ -211,6 +216,7 @@
                 }
             </section>
         }
+        <div class="visually-hidden" data-notebook-reorder-live aria-live="polite" aria-atomic="true"></div>
     </main>
 
     @if (Model.UseLegacyEditor)

@@ -2335,3 +2335,122 @@ body.notebook-confirm-open { overflow: hidden; }
 .notebook-shell[data-view="trash"] .notebook-card:hover { opacity: 1; }
 .notebook-actions [data-action="restore-trash-note"] { display: inline-flex; align-items: center; gap: .35rem; }
 @media (max-width: 640px) { [data-empty-notebook-trash] { width: 100%; justify-content: center; } }
+
+/* SECTION: Manual note rearrangement */
+.notebook-rearrange-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    min-height: 38px;
+    padding: .45rem .75rem;
+    border: 1px solid var(--notebook-border, #d7dce5);
+    border-radius: 999px;
+    background: #fff;
+    color: #344054;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.notebook-rearrange-toggle:hover,
+.notebook-rearrange-toggle:focus-visible {
+    background: #f8fafc;
+    border-color: #98a2b3;
+}
+
+.notebook-rearrange-toggle.is-done {
+    background: #eef4ff;
+    color: #1849a9;
+    border-color: #b2ccff;
+}
+
+.notebook-board[data-sortable="true"] {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 280px));
+    align-items: start;
+    justify-content: start;
+    gap: 14px;
+    column-width: auto !important;
+    columns: auto !important;
+}
+
+.notebook-board[data-sortable="true"] > .notebook-card {
+    width: 100%;
+    margin: 0 !important;
+    break-inside: auto;
+}
+
+.notebook-card {
+    position: relative;
+}
+
+.notebook-card-drag-handle {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 7;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255,255,255,.92);
+    color: #667085;
+    box-shadow: 0 1px 3px rgba(16,24,40,.16);
+    cursor: grab;
+    opacity: 0;
+    transition: opacity .15s ease, background .15s ease, transform .15s ease;
+    touch-action: none;
+}
+
+.notebook-card:hover .notebook-card-drag-handle,
+.notebook-card-drag-handle:focus-visible,
+.notebook-shell.is-rearranging .notebook-card-drag-handle {
+    opacity: 1;
+}
+
+.notebook-card-drag-handle:active {
+    cursor: grabbing;
+}
+
+.notebook-card.is-dragging,
+.notebook-card.is-keyboard-dragging {
+    opacity: .58;
+    transform: scale(.985);
+    outline: 2px dashed #5b8def;
+    outline-offset: 3px;
+}
+
+.notebook-shell[data-board-view="list"] .notebook-card-drag-handle,
+.notebook-shell[data-board-view="list"] .notebook-rearrange-toggle {
+    display: none !important;
+}
+
+.notebook-shell.is-rearranging .notebook-card-link,
+.notebook-shell.is-rearranging .notebook-card-actions,
+.notebook-shell.is-rearranging .notebook-check-toggle {
+    pointer-events: none;
+}
+
+@media (pointer: coarse) {
+    .notebook-card-drag-handle {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .notebook-shell.is-rearranging .notebook-card-drag-handle {
+        opacity: 1;
+        pointer-events: auto;
+    }
+}
+
+@media (max-width: 640px) {
+    .notebook-rearrange-toggle span {
+        display: none;
+    }
+
+    .notebook-board[data-sortable="true"] {
+        grid-template-columns: 1fr;
+    }
+}

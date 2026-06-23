@@ -1,4 +1,4 @@
-using ProjectManagement.Models;
+﻿using ProjectManagement.Models;
 using ProjectManagement.ViewModels.Notebook;
 
 // SECTION: My Notebook module types
@@ -64,6 +64,8 @@ public interface INotebookService
 
 
     Task<NotebookItemDetailVm> SetPinnedAsync(string ownerId, Guid id, bool isPinned, Guid expectedVersion, CancellationToken ct = default);
+
+    Task ReorderAsync(string ownerId, NotebookBoardSection section, IReadOnlyList<NotebookOrderItem> items, CancellationToken ct = default);
 
     Task<NotebookItemDetailVm> SetColourAsync(string ownerId, Guid id, string? colorKey, Guid expectedVersion, CancellationToken ct = default);
 
@@ -164,3 +166,11 @@ public sealed class NotebookChecklistEditRow
     [System.ComponentModel.DataAnnotations.Range(0, int.MaxValue)]
     public int SortOrder { get; set; }
 }
+
+public enum NotebookBoardSection
+{
+    Pinned = 0,
+    Others = 1
+}
+
+public sealed record NotebookOrderItem(Guid Id, Guid Version);

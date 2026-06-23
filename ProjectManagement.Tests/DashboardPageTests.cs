@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Security.Claims;
@@ -221,6 +221,9 @@ namespace ProjectManagement.Tests
             public Task<int> PurgeExpiredTrashAsync(DateTimeOffset cutoffUtc, CancellationToken ct = default) => Task.FromResult(0);
 
             public Task<NotebookItemDetailVm> SetPinnedAsync(string ownerId, Guid id, bool isPinned, Guid expectedVersion, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
+            public Task ReorderAsync(string ownerId, NotebookBoardSection section, IReadOnlyList<NotebookOrderItem> items, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
             public Task<NotebookItemDetailVm> SetColourAsync(string ownerId, Guid id, string? colorKey, Guid expectedVersion, CancellationToken ct = default) =>
