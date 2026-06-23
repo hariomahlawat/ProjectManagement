@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Notebook;
 
@@ -126,6 +126,14 @@ public sealed class DeleteNotebookItemRequest : NotebookVersionedRequest
 {
 }
 
+public sealed class RestoreNotebookTrashItemRequest : NotebookVersionedRequest
+{
+}
+
+public sealed class PermanentlyDeleteNotebookItemRequest : NotebookVersionedRequest
+{
+}
+
 public sealed class ToggleChecklistItemRequest
 {
     public bool IsDone { get; set; }
@@ -176,6 +184,7 @@ public sealed class NotebookItemResponse
     public DateTimeOffset? ReminderAtUtc { get; set; }
     public string? ReminderDisplay { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
+    public DateTimeOffset? DeletedAtUtc { get; set; }
     public List<NotebookChecklistRowResponse> ChecklistRows { get; set; } = [];
     public List<NotebookLabelResponse> Labels { get; set; } = [];
     public Guid Version { get; set; }
@@ -191,6 +200,7 @@ public sealed class NotebookCountsResponse
     public int Labels { get; init; }
     public int Archive { get; init; }
     public int Completed { get; init; }
+    public int Trash { get; init; }
     public int Pinned { get; init; }
     public int Others { get; init; }
 }

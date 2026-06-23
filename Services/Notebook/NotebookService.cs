@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using ProjectManagement.Data;
@@ -41,12 +41,16 @@ public sealed class NotebookService : INotebookService
         tag = NormalizeTagFilter(tag);
         var bounds = TodayBounds(_clock.UtcNow);
 
-        var baseQuery = _db.NotebookItems
+        var ownedQuery = _db.NotebookItems
             .AsNoTracking()
             .Include(item => item.Tags)
             .ThenInclude(itemTag => itemTag.NotebookTag)
             .Include(item => item.ChecklistItems)
-            .Where(item => item.OwnerId == ownerId && item.DeletedAtUtc == null);
+            .Where(item => item.OwnerId == ownerId);
+
+        var baseQuery = view == "trash"
+            ? ownedQuery.Where(item => item.DeletedAtUtc != null)
+            : ownedQuery.Where(item => item.DeletedAtUtc == null);
 
         var filteredBaseQuery = ApplySearch(baseQuery, query);
 
@@ -71,6 +75,7 @@ public sealed class NotebookService : INotebookService
             "reminders" => remindersQuery,
             "archive" or "archived" => filteredBaseQuery.Where(item => item.Status == NotebookItemStatus.Archived),
             "completed" => filteredBaseQuery.Where(item => item.Status == NotebookItemStatus.Completed),
+            "trash" => filteredBaseQuery,
             _ => activeQuery
         };
 
@@ -237,6 +242,7 @@ public sealed class NotebookService : INotebookService
             ["labels"] = await _db.NotebookTags.AsNoTracking().CountAsync(tag => tag.OwnerId == ownerId, ct),
             ["archive"] = await query.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
             ["completed"] = await query.CountAsync(item => item.Status == NotebookItemStatus.Completed, ct),
+            ["trash"] = await _db.NotebookItems.AsNoTracking().CountAsync(item => item.OwnerId == ownerId && item.DeletedAtUtc != null, ct),
             ["pinned"] = await active.CountAsync(item => item.IsPinned, ct),
             ["others"] = await active.CountAsync(item => !item.IsPinned, ct)
         };
@@ -464,11 +470,52 @@ public sealed class NotebookService : INotebookService
         return MapDetail(item);
     }
 
-    public async Task<NotebookItemDetailVm> DeleteAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
+    public Task<NotebookItemDetailVm> DeleteAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
+        => MoveToTrashAsync(ownerId, id, expectedVersion, ct);
+
+    public async Task<NotebookItemDetailVm> MoveToTrashAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
-        await DeleteLoadedAsync(item, ownerId, ct);
+        await MoveToTrashLoadedAsync(item, ownerId, ct);
         return MapDetail(item);
+    }
+
+    public async Task<NotebookItemDetailVm> RestoreFromTrashAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
+    {
+        var item = await LoadOwnedTrashForUpdate(ownerId, id, expectedVersion, ct);
+        item.DeletedAtUtc = null;
+        Touch(item, _clock.UtcNow);
+        await _db.SaveChangesAsync(ct);
+        await TryWriteAuditAsync("Notebook.RestoreFromTrash", ownerId, item.Id, ct);
+        return MapDetail(item);
+    }
+
+    public async Task DeletePermanentlyAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default)
+    {
+        var item = await LoadOwnedTrashForUpdate(ownerId, id, expectedVersion, ct);
+        _db.NotebookItems.Remove(item);
+        await _db.SaveChangesAsync(ct);
+        await TryWriteAuditAsync("Notebook.DeletePermanently", ownerId, id, ct);
+    }
+
+    public async Task<int> EmptyTrashAsync(string ownerId, CancellationToken ct = default)
+    {
+        var items = await _db.NotebookItems.Where(item => item.OwnerId == ownerId && item.DeletedAtUtc != null).ToListAsync(ct);
+        if (items.Count == 0) return 0;
+        _db.NotebookItems.RemoveRange(items);
+        await _db.SaveChangesAsync(ct);
+        try { await _audit.LogAsync("Notebook.EmptyTrash", userId: ownerId, data: new Dictionary<string, string?> { ["Count"] = items.Count.ToString() }); }
+        catch (Exception ex) { _logger.LogError(ex, "Notebook trash was emptied for owner {OwnerId}, but audit logging failed.", ownerId); }
+        return items.Count;
+    }
+
+    public async Task<int> PurgeExpiredTrashAsync(DateTimeOffset cutoffUtc, CancellationToken ct = default)
+    {
+        var expired = await _db.NotebookItems.Where(item => item.DeletedAtUtc != null && item.DeletedAtUtc < cutoffUtc).ToListAsync(ct);
+        if (expired.Count == 0) return 0;
+        _db.NotebookItems.RemoveRange(expired);
+        await _db.SaveChangesAsync(ct);
+        return expired.Count;
     }
 
     public async Task<NotebookItemDetailVm> SetPinnedAsync(string ownerId, Guid id, bool isPinned, Guid expectedVersion, CancellationToken ct = default)
@@ -735,12 +782,12 @@ public sealed class NotebookService : INotebookService
         await _db.SaveChangesAsync(ct);
     }
 
-    private async Task DeleteLoadedAsync(NotebookItem item, string ownerId, CancellationToken ct)
+    private async Task MoveToTrashLoadedAsync(NotebookItem item, string ownerId, CancellationToken ct)
     {
         item.DeletedAtUtc = _clock.UtcNow;
         Touch(item, item.DeletedAtUtc.Value);
         await _db.SaveChangesAsync(ct);
-        await TryWriteAuditAsync("Notebook.Delete", ownerId, item.Id, ct);
+        await TryWriteAuditAsync("Notebook.MoveToTrash", ownerId, item.Id, ct);
     }
 
     private async Task CompleteLoadedAsync(NotebookItem item, bool isComplete, CancellationToken ct)
@@ -811,6 +858,19 @@ public sealed class NotebookService : INotebookService
                 item.DeletedAtUtc == null,
                 ct) ?? throw new KeyNotFoundException();
 
+
+    private async Task<NotebookItem> LoadOwnedTrashForUpdate(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct)
+    {
+        if (expectedVersion == Guid.Empty) throw new ArgumentException("A valid notebook version is required.", nameof(expectedVersion));
+        var item = await _db.NotebookItems
+            .Include(x => x.Tags).ThenInclude(x => x.NotebookTag)
+            .Include(x => x.ChecklistItems)
+            .Include(x => x.Attachments)
+            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == ownerId && x.DeletedAtUtc != null, ct)
+            ?? throw new KeyNotFoundException();
+        if (item.Version != expectedVersion) throw new NotebookConcurrencyException(id, expectedVersion, item.Version, MapDetail(item));
+        return item;
+    }
 
     private async Task<NotebookItem> LoadOwnedForUpdate(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct)
     {
@@ -962,7 +1022,7 @@ public sealed class NotebookService : INotebookService
             return normalizedLegacy;
         }
 
-        var allowedViews = new[] { "home", "today", "reminders", "labels", "archive", "archived", "completed" };
+        var allowedViews = new[] { "home", "today", "reminders", "labels", "archive", "archived", "completed", "trash" };
         if (string.Equals(view, "archived", StringComparison.OrdinalIgnoreCase)) return "archive";
         return allowedViews.Contains(view) ? view! : "home";
     }
@@ -1066,6 +1126,7 @@ public sealed class NotebookService : INotebookService
         IsFavorite = item.IsFavorite,
         ColorKey = item.ColorKey ?? "white",
         UpdatedAtUtc = item.UpdatedAtUtc,
+        DeletedAtUtc = item.DeletedAtUtc,
         Version = item.Version,
         Tags = item.Tags
             .Select(tag => tag.NotebookTag?.Name ?? string.Empty)
@@ -1186,6 +1247,7 @@ public sealed class NotebookService : INotebookService
             "reminders" => await ReminderItems(ActiveItems(query)).CountAsync(ct),
             "archive" or "archived" => await query.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
             "completed" => await query.CountAsync(item => item.Status == NotebookItemStatus.Completed, ct),
+            "trash" => await _db.NotebookItems.AsNoTracking().CountAsync(item => item.OwnerId == ownerId && item.DeletedAtUtc != null, ct),
             _ => 0
         };
 
@@ -1195,7 +1257,8 @@ public sealed class NotebookService : INotebookService
             ("today", "Today", "bi-calendar-check"),
             ("reminders", "Reminders", "bi-bell"),
             ("archive", "Archive", "bi-archive"),
-            ("completed", "Completed", "bi-check2-circle")
+            ("completed", "Completed", "bi-check2-circle"),
+            ("trash", "Trash", "bi-trash3")
         };
 
         var list = new List<NotebookRailItemVm>();

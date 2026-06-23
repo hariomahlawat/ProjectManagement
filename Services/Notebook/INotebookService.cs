@@ -1,4 +1,4 @@
-﻿using ProjectManagement.Models;
+using ProjectManagement.Models;
 using ProjectManagement.ViewModels.Notebook;
 
 // SECTION: My Notebook module types
@@ -51,6 +51,16 @@ public interface INotebookService
 
 
     Task<NotebookItemDetailVm> DeleteAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default);
+
+    Task<NotebookItemDetailVm> MoveToTrashAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default);
+
+    Task<NotebookItemDetailVm> RestoreFromTrashAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default);
+
+    Task DeletePermanentlyAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default);
+
+    Task<int> EmptyTrashAsync(string ownerId, CancellationToken ct = default);
+
+    Task<int> PurgeExpiredTrashAsync(DateTimeOffset cutoffUtc, CancellationToken ct = default);
 
 
     Task<NotebookItemDetailVm> SetPinnedAsync(string ownerId, Guid id, bool isPinned, Guid expectedVersion, CancellationToken ct = default);

@@ -1,4 +1,4 @@
-﻿import { closestAction } from './notebook-utils.js';
+import { closestAction } from './notebook-utils.js';
 import { NotebookApi } from './notebook-api.js';
 import { createNotebookBoard } from './notebook-board.js';
 import { initNotebookComposer } from './notebook-composer.js';
@@ -217,7 +217,7 @@ export function initNotebookApp() {
       } catch (error) { showGlobalError(error.message || 'Checklist update failed.'); }
       finally { action.disabled = false; }
     }
-    if (['pin-note','archive-note','complete-note','reopen-note','restore-note','duplicate-note','delete-note','convert-note'].includes(action.dataset.action) && id) {
+    if (['pin-note','archive-note','complete-note','reopen-note','restore-note','duplicate-note','delete-note','convert-note','restore-trash-note','delete-permanently'].includes(action.dataset.action) && id) {
       event.preventDefault(); action.disabled = true;
       try {
         if (action.dataset.action === 'pin-note') {
@@ -232,24 +232,56 @@ export function initNotebookApp() {
         if (action.dataset.action === 'restore-note') { const response = await NotebookApi.restoreItem(id, card.dataset.version); const updated = requireMutationItem(response); updateCardConcurrencyState(card, updated); if (view === 'archive' || view === 'archived') { board.removeCard(id); applyCounts(response?.counts); } else { await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError, existingCard: card }); } }
         if (action.dataset.action === 'duplicate-note') { const response = await NotebookApi.duplicateItem(id); await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError }); }
         if (action.dataset.action === 'delete-note') {
-          const confirmed = await confirmNotebookAction({
-            title: 'Delete note?',
-            message: 'This note will be removed from your active notebook.',
-            detail: 'A Trash view with restore support will be added in the next phase.',
-            confirmText: 'Delete note',
-            tone: 'danger'
-          });
-          if (!confirmed) return;
-          const response = await NotebookApi.deleteItem(id, card.dataset.version);
+          const response = await NotebookApi.moveToTrash(id, card.dataset.version);
           board.removeCard(response?.removedItemId || id);
           applyCounts(response?.counts);
-          showNotebookToast({ message: 'Note deleted.', tone: 'neutral' });
+          showNotebookToast({
+            message: 'Note moved to Trash.',
+            tone: 'neutral',
+            actionText: 'Undo',
+            onAction: async () => {
+              const restoreVersion = response?.item?.version || card.dataset.version;
+              const restored = await NotebookApi.restoreFromTrash(id, restoreVersion);
+              applyCounts(restored?.counts);
+              if (view !== 'trash') await reconcileMutation({ response: restored, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: false, prepend: true, showGlobalError });
+            }
+          });
+        }
+        if (action.dataset.action === 'restore-trash-note') {
+          const response = await NotebookApi.restoreFromTrash(id, card.dataset.version);
+          board.removeCard(id);
+          applyCounts(response?.counts);
+          showNotebookToast({ message: 'Note restored.', tone: 'success' });
+        }
+        if (action.dataset.action === 'delete-permanently') {
+          const confirmed = await confirmNotebookAction({ title: 'Delete permanently?', message: 'This note and its checklist data will be permanently removed.', detail: 'This action cannot be undone.', confirmText: 'Delete permanently', tone: 'danger', backdropCancels: false });
+          if (!confirmed) return;
+          const response = await NotebookApi.deletePermanently(id, card.dataset.version);
+          board.removeCard(response?.removedItemId || id);
+          applyCounts(response?.counts);
+          showNotebookToast({ message: 'Note permanently deleted.', tone: 'neutral' });
         }
         if (action.dataset.action === 'convert-note') { const response = action.dataset.convertTo === 'Checklist' ? await NotebookApi.showCheckboxes(id, card.dataset.version) : await NotebookApi.hideCheckboxes(id, card.dataset.version); const converted = requireMutationItem(response); updateCardConcurrencyState(card, converted); await reconcileMutation({ response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts, preservePosition: true, showGlobalError, existingCard: card }); }
       } catch (error) { showGlobalError(error.message || 'Notebook action failed.'); }
       finally { action.disabled = false; }
     }
   });
+  document.querySelector('[data-empty-notebook-trash]')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const confirmed = await confirmNotebookAction({ title: 'Empty Trash?', message: 'All notes in Trash will be permanently deleted.', detail: 'This action cannot be undone.', confirmText: 'Empty Trash', tone: 'danger', backdropCancels: false });
+    if (!confirmed) return;
+    button.disabled = true;
+    try {
+      const response = await NotebookApi.emptyTrash();
+      document.querySelectorAll('[data-notebook-board] [data-note-id]').forEach(card => card.remove());
+      document.querySelectorAll('[data-notebook-board]').forEach(boardElement => { boardElement.dataset.itemCount = '0'; });
+      applyCounts(response?.counts);
+      button.hidden = true;
+      showNotebookToast({ message: `${response?.removed || 0} item(s) permanently deleted.`, tone: 'neutral' });
+      location.reload();
+    } catch (error) { showGlobalError(error.message || 'Trash could not be emptied.'); button.disabled = false; }
+  });
+
   document.addEventListener('keydown', async (event) => { if (event.key !== 'Escape') return; if (createEditor.isOpen()) { event.preventDefault(); createEditor.close(); return; } if (editor.isOpen()) { event.preventDefault(); await editor.requestClose(); return; } if (composer?.isOpen()) { event.preventDefault(); await composer.close(); } });
   window.addEventListener('popstate', async () => { try { const id = new URL(location.href).searchParams.get('note'); id ? await editor.open(id, { pushHistory: false }) : await editor.requestClose({ fromHistory: true }); } catch (error) { showGlobalError(error.message || 'Unable to open the note.'); } });
   const initialUrl = new URL(location.href);

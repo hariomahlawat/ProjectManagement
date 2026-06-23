@@ -73,6 +73,8 @@ public class NotebookItemListVm
 
     public DateTimeOffset UpdatedAtUtc { get; set; }
 
+    public DateTimeOffset? DeletedAtUtc { get; set; }
+
     public IReadOnlyList<string> Tags { get; set; } = Array.Empty<string>();
 
     public int ChecklistTotal { get; set; }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Security.Claims;
@@ -213,6 +213,12 @@ namespace ProjectManagement.Tests
 
             public Task<NotebookItemDetailVm> DeleteAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
+
+            public Task<NotebookItemDetailVm> MoveToTrashAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default) => throw new NotImplementedException();
+            public Task<NotebookItemDetailVm> RestoreFromTrashAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default) => throw new NotImplementedException();
+            public Task DeletePermanentlyAsync(string ownerId, Guid id, Guid expectedVersion, CancellationToken ct = default) => throw new NotImplementedException();
+            public Task<int> EmptyTrashAsync(string ownerId, CancellationToken ct = default) => Task.FromResult(0);
+            public Task<int> PurgeExpiredTrashAsync(DateTimeOffset cutoffUtc, CancellationToken ct = default) => Task.FromResult(0);
 
             public Task<NotebookItemDetailVm> SetPinnedAsync(string ownerId, Guid id, bool isPinned, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();

@@ -8,12 +8,13 @@
     var colorClass = $"notebook-card-color-{(string.IsNullOrWhiteSpace(item.ColorKey) ? fallbackColor : item.ColorKey)}";
     var tags = item.Tags.Take(3).ToArray();
     var extraTags = Math.Max(0, item.Tags.Count - tags.Length);
+    var isTrash = string.Equals(Model.View, "trash", StringComparison.OrdinalIgnoreCase);
 }
 
 @* SECTION: Notebook board card *@
 <article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-version="@item.Version" data-labels="@System.Text.Json.JsonSerializer.Serialize(item.Tags)" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty) @(item.Status == NotebookItemStatus.Completed ? "is-completed" : string.Empty)">
     <div class="notebook-card-body">
-        <a href="@Model.OpenUrl" class="notebook-card-link notebook-card__open-area" data-action="open-note" aria-label="Open @item.Title">
+        <a href="@(isTrash ? "#" : Model.OpenUrl)" class="notebook-card-link notebook-card__open-area @(isTrash ? "is-disabled" : "")" data-action="@(isTrash ? null : "open-note")" aria-label="@(isTrash ? item.Title : $"Open {item.Title}")" aria-disabled="@isTrash.ToString().ToLowerInvariant()">
             <div class="notebook-card-topline">
                 <span class="notebook-card-indicators">
                     @if (item.Status == NotebookItemStatus.Completed) { <i class="bi bi-check2-circle notebook-card-completed-indicator" title="Completed" aria-label="Completed"></i> }
@@ -46,7 +47,7 @@
                         <div class="notebook-check-row">
                             <button type="button"
                                     class="notebook-check-toggle @(checklistItem.IsDone ? "is-done" : string.Empty)"
-                                    data-action="toggle-checklist"
+                                    data-action="@(isTrash ? null : "toggle-checklist")"
                                     data-item-id="@item.Id"
                                     data-row-id="@checklistItem.Id"
                                     data-is-done="@checklistItem.IsDone.ToString().ToLowerInvariant()"

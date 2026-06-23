@@ -421,7 +421,9 @@ builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddSingleton<IActionTrackerClock, SystemActionTrackerClock>();
 builder.Services.AddScoped<ITodoService, TodoService>();
 // SECTION: My Notebook services
+builder.Services.Configure<NotebookTrashOptions>(builder.Configuration.GetSection(NotebookTrashOptions.SectionName));
 builder.Services.AddScoped<INotebookService, NotebookService>();
+builder.Services.AddHostedService<NotebookTrashRetentionWorker>();
 builder.Services.AddScoped<INotebookCardModelFactory, NotebookCardModelFactory>();
 builder.Services.AddScoped<INotebookCardRenderer, RazorNotebookCardRenderer>();
 builder.Services.AddScoped<INotebookTodoImportService, NotebookTodoImportService>();

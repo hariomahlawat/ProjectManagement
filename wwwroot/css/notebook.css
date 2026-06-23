@@ -1,4 +1,4 @@
-﻿/* SECTION: Notebook shell and rail */
+/* SECTION: Notebook shell and rail */
 .notebook-shell {
     display: grid;
 
@@ -2328,3 +2328,10 @@ body.notebook-confirm-open { overflow: hidden; }
   .notebook-confirm__button { width: 100%; }
   .notebook-toast-region { bottom: 12px; }
 }
+
+
+/* SECTION: Notebook Trash */
+.notebook-shell[data-view="trash"] .notebook-card { opacity: .86; }
+.notebook-shell[data-view="trash"] .notebook-card:hover { opacity: 1; }
+.notebook-actions [data-action="restore-trash-note"] { display: inline-flex; align-items: center; gap: .35rem; }
+@media (max-width: 640px) { [data-empty-notebook-trash] { width: 100%; justify-content: center; } }

@@ -56,6 +56,7 @@ public sealed class NotebookCardModelFactory : INotebookCardModelFactory
         "labels" => "labels",
         "archive" => "archive",
         "completed" => "completed",
+        "trash" => "trash",
         _ => NotebookCardContexts.Home
     };
 

@@ -1,4 +1,4 @@
-﻿import { notifySessionExpired } from '../core/session-auth.js';
+import { notifySessionExpired } from '../core/session-auth.js';
 
 // SECTION: Notebook API error type and fetch wrapper
 export class NotebookApiError extends Error {
@@ -236,6 +236,10 @@ export const NotebookApi = {
   reopenItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/reopen`, jsonRequestOptions('POST', { version })),
   duplicateItem: (id) => request(`/api/notebook/items/${encodeURIComponent(id)}/duplicate`, jsonRequestOptions('POST', {})),
   deleteItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}`, jsonRequestOptions('DELETE', { version })),
+  moveToTrash: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/trash`, jsonRequestOptions('POST', { version })),
+  restoreFromTrash: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/restore-from-trash`, jsonRequestOptions('POST', { version })),
+  deletePermanently: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/permanent`, jsonRequestOptions('DELETE', { version })),
+  emptyTrash: () => request('/api/notebook/trash', { method: 'DELETE' }),
   restoreItem: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/restore`, jsonRequestOptions('POST', { version })),
   showCheckboxes: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/show-checkboxes`, jsonRequestOptions('POST', { version })),
   hideCheckboxes: (id, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/hide-checkboxes`, jsonRequestOptions('POST', { version })),

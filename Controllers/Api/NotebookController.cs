@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -271,8 +271,47 @@ public sealed class NotebookController : Controller
     public async Task<IActionResult> Delete(Guid id, [FromBody] DeleteNotebookItemRequest? request, CancellationToken ct)
     {
         if (request is null || request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
-        await _notebook.DeleteAsync(CurrentUserId(), id, request.Version, ct);
+        await _notebook.MoveToTrashAsync(CurrentUserId(), id, request.Version, ct);
         return Ok(await BuildRemovalResponseAsync(id, ct));
+    }
+
+    [Consumes("application/json")]
+    [HttpPost("{id:guid}/trash")]
+    public async Task<IActionResult> MoveToTrash(Guid id, [FromBody] DeleteNotebookItemRequest request, CancellationToken ct)
+    {
+        if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
+        var trashed = await _notebook.MoveToTrashAsync(CurrentUserId(), id, request.Version, ct);
+        return Ok(new NotebookMutationResponse
+        {
+            Item = ToResponse(trashed),
+            RemovedItemId = id,
+            Counts = await TryGetCountsAsync(CurrentUserId(), ct)
+        });
+    }
+
+    [Consumes("application/json")]
+    [HttpPost("{id:guid}/restore-from-trash")]
+    public async Task<IActionResult> RestoreFromTrash(Guid id, [FromBody] RestoreNotebookTrashItemRequest request, CancellationToken ct)
+    {
+        if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
+        var updated = await _notebook.RestoreFromTrashAsync(CurrentUserId(), id, request.Version, ct);
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
+    }
+
+    [Consumes("application/json")]
+    [HttpDelete("{id:guid}/permanent")]
+    public async Task<IActionResult> DeletePermanently(Guid id, [FromBody] PermanentlyDeleteNotebookItemRequest request, CancellationToken ct)
+    {
+        if (request.Version == Guid.Empty) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
+        await _notebook.DeletePermanentlyAsync(CurrentUserId(), id, request.Version, ct);
+        return Ok(await BuildRemovalResponseAsync(id, ct));
+    }
+
+    [HttpDelete("~/api/notebook/trash")]
+    public async Task<IActionResult> EmptyTrash(CancellationToken ct)
+    {
+        var removed = await _notebook.EmptyTrashAsync(CurrentUserId(), ct);
+        return Ok(new { removed, counts = await TryGetCountsAsync(CurrentUserId(), ct) });
     }
 
     [Consumes("application/json")]
@@ -519,6 +558,7 @@ public sealed class NotebookController : Controller
         Labels = counts.GetValueOrDefault("labels"),
         Archive = counts.GetValueOrDefault("archive", counts.GetValueOrDefault("archived")),
         Completed = counts.GetValueOrDefault("completed"),
+        Trash = counts.GetValueOrDefault("trash"),
         Pinned = counts.GetValueOrDefault("pinned"),
         Others = counts.GetValueOrDefault("others")
     };
@@ -537,6 +577,7 @@ public sealed class NotebookController : Controller
         IsFavorite = item.IsFavorite,
         ColorKey = item.ColorKey,
         UpdatedAtUtc = item.UpdatedAtUtc,
+        DeletedAtUtc = item.DeletedAtUtc,
         Tags = item.Tags,
         ChecklistTotal = item.ChecklistTotal,
         ChecklistDone = item.ChecklistDone,
@@ -577,6 +618,7 @@ public sealed class NotebookController : Controller
         ReminderAtUtc = item.ReminderAtUtc,
         ReminderDisplay = item.ReminderDisplay,
         UpdatedAtUtc = item.UpdatedAtUtc,
+        DeletedAtUtc = item.DeletedAtUtc,
         Version = item.Version,
         ChecklistRows = item.ChecklistItems.Select(row => new NotebookChecklistRowResponse { Id = row.Id, ClientKey = row.ClientKey, Text = row.Text, IsDone = row.IsDone, SortOrder = row.SortOrder }).ToList(),
         Labels = item.Tags.Select(tag => new NotebookLabelResponse { Name = tag }).ToList()
