@@ -31,7 +31,7 @@ function restoreOrder(board, ids) {
 function isInteractiveDragTarget(target) {
   if (!(target instanceof Element)) return true;
   if (target.closest('[data-notebook-drag-handle]')) return false;
-  if (target.closest('.notebook-card-actions, .notebook-card-tags, .notebook-checklist-preview')) return true;
+  if (target.closest('.notebook-card-actions, .notebook-card-tags, [data-no-card-drag]')) return true;
   const interactive = target.closest('button, input, textarea, select, option, [contenteditable="true"], [role="button"]');
   if (interactive) return true;
   const link = target.closest('a');
@@ -131,6 +131,7 @@ function movePlaceholder(board, placeholder, desiredIndex, lastMove, pointer) {
   const before = captureRects(animatedCards);
   const target = cards[normalizedIndex] || null;
   if (target) board.insertBefore(placeholder, target); else board.append(placeholder);
+  board.dispatchEvent(new CustomEvent('notebook:masonry-refresh', { bubbles: true }));
   playFlip(animatedCards, before);
   return true;
 }
@@ -295,6 +296,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
     const { card, board, placeholder, preview, originalIds, pointerId } = dragState;
     preview.remove();
     placeholder.replaceWith(card);
+    board.dispatchEvent(new CustomEvent('notebook:masonry-refresh', { bubbles: true }));
     card.classList.remove('is-drag-source');
     shell.classList.remove('is-pointer-dragging');
     document.body.classList.remove('notebook-is-dragging');
@@ -432,6 +434,7 @@ export function initNotebookDragOrder(shell, boardController, options = {}) {
     const before = captureRects(cards);
     const target = cards[nextIndex];
     if (delta < 0) target.before(card); else target.after(card);
+    keyboardState.board.dispatchEvent(new CustomEvent('notebook:masonry-refresh', { bubbles: true }));
     playFlip(cards, before);
     announce(`Moved to position ${directCards(keyboardState.board).indexOf(card) + 1} of ${cards.length}.`);
   };

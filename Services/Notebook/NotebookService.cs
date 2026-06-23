@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using ProjectManagement.Data;
@@ -1224,7 +1224,7 @@ public sealed class NotebookService : INotebookService
         ChecklistDone = item.ChecklistItems.Count(checklistItem => checklistItem.IsDone),
         ChecklistPreviewItems = item.ChecklistItems
             .OrderBy(checklistItem => checklistItem.SortOrder)
-            .Take(3)
+            .Take(10)
             .Select(checklistItem => new NotebookChecklistItemVm
             {
                 Id = checklistItem.Id,

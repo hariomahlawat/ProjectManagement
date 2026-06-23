@@ -44,6 +44,8 @@ export function createNotebookBoard(root = document) {
     board.dataset.itemCount = String(count);
     const policy = board.dataset.layoutPolicy || 'fixed-grid';
     board.dataset.layout = policy === 'masonry-threshold' && count > 4 ? 'masonry' : 'grid';
+    const EventCtor = board.ownerDocument?.defaultView?.CustomEvent;
+    if (EventCtor) board.dispatchEvent(new EventCtor('notebook:masonry-refresh', { bubbles: true }));
   }
 
   const refreshSectionVisibility = () => {

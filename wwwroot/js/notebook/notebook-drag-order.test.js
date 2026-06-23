@@ -87,3 +87,20 @@ test('drag engine no longer depends on native HTML drag events', () => {
   assert.equal(/addEventListener\(['"]drop/.test(source), false);
   assert.equal(/\.draggable\s*=\s*true/.test(source), false);
 });
+
+
+test('checklist blank space is draggable while checklist controls remain protected', () => {
+  const dom = new JSDOM(`
+    <article data-note-id="a">
+      <div class="notebook-checklist-preview" id="checklist">
+        <div id="blank"></div>
+        <button class="notebook-check-toggle" id="toggle"><span id="rowtext">Row</span></button>
+        <strong id="summary">1/2 complete</strong>
+      </div>
+    </article>`);
+  const helpers = loadHelpers(dom.window.document);
+  assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#blank')), false);
+  assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#summary')), false);
+  assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#toggle')), true);
+  assert.equal(helpers.isInteractiveDragTarget(dom.window.document.querySelector('#rowtext')), true);
+});

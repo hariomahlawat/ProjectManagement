@@ -327,6 +327,8 @@ function createNotebookBoard(root = document) {
     board.dataset.itemCount = String(count);
     const policy = board.dataset.layoutPolicy || "fixed-grid";
     board.dataset.layout = policy === "masonry-threshold" && count > 4 ? "masonry" : "grid";
+    const EventCtor = board.ownerDocument?.defaultView?.CustomEvent;
+    if (EventCtor) board.dispatchEvent(new EventCtor("notebook:masonry-refresh", { bubbles: true }));
   }
   const refreshSectionVisibility = () => {
     root.querySelectorAll("[data-notebook-board]").forEach(refreshBoardLayout);
@@ -2937,7 +2939,7 @@ function restoreOrder(board, ids) {
 function isInteractiveDragTarget(target) {
   if (!(target instanceof Element)) return true;
   if (target.closest("[data-notebook-drag-handle]")) return false;
-  if (target.closest(".notebook-card-actions, .notebook-card-tags, .notebook-checklist-preview")) return true;
+  if (target.closest(".notebook-card-actions, .notebook-card-tags, [data-no-card-drag]")) return true;
   const interactive = target.closest('button, input, textarea, select, option, [contenteditable="true"], [role="button"]');
   if (interactive) return true;
   const link = target.closest("a");
@@ -3023,6 +3025,7 @@ function movePlaceholder(board, placeholder, desiredIndex, lastMove, pointer) {
   const target = cards[normalizedIndex] || null;
   if (target) board.insertBefore(placeholder, target);
   else board.append(placeholder);
+  board.dispatchEvent(new CustomEvent("notebook:masonry-refresh", { bubbles: true }));
   playFlip(animatedCards, before);
   return true;
 }
@@ -3175,6 +3178,7 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
     const { card, board, placeholder, preview, originalIds, pointerId } = dragState;
     preview.remove();
     placeholder.replaceWith(card);
+    board.dispatchEvent(new CustomEvent("notebook:masonry-refresh", { bubbles: true }));
     card.classList.remove("is-drag-source");
     shell.classList.remove("is-pointer-dragging");
     document.body.classList.remove("notebook-is-dragging");
@@ -3303,6 +3307,7 @@ function initNotebookDragOrder(shell, boardController, options = {}) {
     const target = cards[nextIndex];
     if (delta < 0) target.before(card);
     else target.after(card);
+    keyboardState.board.dispatchEvent(new CustomEvent("notebook:masonry-refresh", { bubbles: true }));
     playFlip(cards, before);
     announce(`Moved to position ${directCards(keyboardState.board).indexOf(card) + 1} of ${cards.length}.`);
   };
@@ -3357,6 +3362,102 @@ var init_notebook_drag_order = __esm({
     EDGE_SCROLL_ZONE_PX = 72;
     MAX_EDGE_SCROLL_PX = 18;
     FLIP_DURATION_MS = 150;
+  }
+});
+
+// wwwroot/js/notebook/notebook-masonry-grid.js
+function directItems(board) {
+  return [...board.querySelectorAll(ITEM_SELECTOR)];
+}
+function numericStyle(value, fallback) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+function calculateMasonrySpan(height, rowHeight = DEFAULT_ROW_HEIGHT, gap = DEFAULT_GAP) {
+  if (!Number.isFinite(height) || height <= 0) return 1;
+  return Math.max(1, Math.ceil((height + gap) / (rowHeight + gap)));
+}
+function layoutMasonryBoard(board, shell = board?.closest?.(".notebook-shell")) {
+  if (!board) return;
+  const isGrid = shell?.dataset?.boardView !== "list";
+  const useMasonry = isGrid && board.dataset.layout === "masonry";
+  const items = directItems(board);
+  if (!useMasonry) {
+    items.forEach((item) => item.style.removeProperty("grid-row-end"));
+    board.classList.remove("is-masonry-ready");
+    return;
+  }
+  const style = getComputedStyle(board);
+  const rowHeight = numericStyle(style.gridAutoRows, DEFAULT_ROW_HEIGHT);
+  const rowGap = numericStyle(style.rowGap, DEFAULT_GAP);
+  items.forEach((item) => {
+    item.style.removeProperty("grid-row-end");
+    const height = item.getBoundingClientRect().height;
+    item.style.gridRowEnd = `span ${calculateMasonrySpan(height, rowHeight, rowGap)}`;
+  });
+  board.classList.add("is-masonry-ready");
+}
+function initNotebookMasonryGrid(shell, options = {}) {
+  if (!shell) return null;
+  const windowRef = options.windowRef || window;
+  const boards = () => [...shell.querySelectorAll(BOARD_SELECTOR2)];
+  let frame = 0;
+  let cardObserver = null;
+  const run = () => {
+    frame = 0;
+    boards().forEach((board) => layoutMasonryBoard(board, shell));
+  };
+  const schedule = () => {
+    if (frame) return;
+    frame = windowRef.requestAnimationFrame(run);
+  };
+  const observeCards = () => {
+    if (!cardObserver || shell.dataset.boardView === "list") return;
+    cardObserver.disconnect();
+    boards().forEach((board) => directItems(board).forEach((item) => cardObserver.observe(item)));
+  };
+  if ("ResizeObserver" in windowRef) {
+    cardObserver = new windowRef.ResizeObserver(schedule);
+  }
+  const boardObserver = new MutationObserver(() => {
+    observeCards();
+    schedule();
+  });
+  boards().forEach((board) => boardObserver.observe(board, { childList: true, subtree: true }));
+  const onImageLoad = (event) => {
+    if (event.target instanceof HTMLImageElement && event.target.closest(BOARD_SELECTOR2)) schedule();
+  };
+  const onBoardView = () => {
+    observeCards();
+    schedule();
+  };
+  const onExplicitRefresh = () => schedule();
+  shell.addEventListener("load", onImageLoad, true);
+  shell.addEventListener("notebook:masonry-refresh", onExplicitRefresh);
+  document.addEventListener("notebook:board-view-changed", onBoardView);
+  windowRef.addEventListener("resize", schedule, { passive: true });
+  observeCards();
+  schedule();
+  return {
+    refresh: schedule,
+    destroy() {
+      if (frame) windowRef.cancelAnimationFrame(frame);
+      cardObserver?.disconnect();
+      boardObserver.disconnect();
+      shell.removeEventListener("load", onImageLoad, true);
+      shell.removeEventListener("notebook:masonry-refresh", onExplicitRefresh);
+      document.removeEventListener("notebook:board-view-changed", onBoardView);
+      windowRef.removeEventListener("resize", schedule);
+    }
+  };
+}
+var BOARD_SELECTOR2, ITEM_SELECTOR, DEFAULT_ROW_HEIGHT, DEFAULT_GAP;
+var init_notebook_masonry_grid = __esm({
+  "wwwroot/js/notebook/notebook-masonry-grid.js"() {
+    BOARD_SELECTOR2 = "[data-notebook-board]";
+    ITEM_SELECTOR = ":scope > [data-note-id], :scope > .notebook-card-placeholder";
+    DEFAULT_ROW_HEIGHT = 8;
+    DEFAULT_GAP = 12;
   }
 });
 
@@ -3504,6 +3605,7 @@ function initNotebookApp() {
   }
   viewButtons.forEach((button) => button.addEventListener("click", () => applyBoardView(button.dataset.notebookView)));
   applyBoardView(localStorage.getItem(storageKey) || shell.dataset.boardView || "grid");
+  const masonryGrid = initNotebookMasonryGrid(shell);
   const dragOrder = initNotebookDragOrder(shell, board, { api: NotebookApi, showError: showGlobalError, showToast: showNotebookToast });
   document.addEventListener("click", async (event) => {
     const cardColourToggle = event.target.closest(".notebook-card [data-colour-picker-toggle]");
@@ -3771,6 +3873,7 @@ var init_notebook_app = __esm({
     init_notebook_confirm_dialog();
     init_notebook_toast();
     init_notebook_drag_order();
+    init_notebook_masonry_grid();
   }
 });
 

@@ -1,4 +1,4 @@
-﻿import { closestAction } from './notebook-utils.js';
+import { closestAction } from './notebook-utils.js';
 import { NotebookApi } from './notebook-api.js';
 import { createNotebookBoard } from './notebook-board.js';
 import { initNotebookComposer } from './notebook-composer.js';
@@ -11,6 +11,7 @@ import { hydrateNotebookLabelCatalog, initNotebookLabelPicker, refreshNotebookLa
 import { confirmNotebookAction, initNotebookConfirmDialog } from './notebook-confirm-dialog.js';
 import { initNotebookToastRegion, showNotebookToast } from './notebook-toast.js';
 import { initNotebookDragOrder } from './notebook-drag-order.js';
+import { initNotebookMasonryGrid } from './notebook-masonry-grid.js';
 
 
 export function renderNotebookLabelNavigation(shell, labels = []) {
@@ -128,6 +129,7 @@ export function initNotebookApp() {
   function applyBoardView(next) { const selected = next === 'list' ? 'list' : 'grid'; shell.dataset.boardView = selected; localStorage.setItem(storageKey, selected); viewButtons.forEach((button) => { const active = button.dataset.notebookView === selected; button.classList.toggle('is-active', active); button.setAttribute('aria-pressed', String(active)); }); document.dispatchEvent(new CustomEvent('notebook:board-view-changed', { detail: { view: selected } })); }
   viewButtons.forEach((button) => button.addEventListener('click', () => applyBoardView(button.dataset.notebookView)));
   applyBoardView(localStorage.getItem(storageKey) || shell.dataset.boardView || 'grid');
+  const masonryGrid = initNotebookMasonryGrid(shell);
   const dragOrder = initNotebookDragOrder(shell, board, { api: NotebookApi, showError: showGlobalError, showToast: showNotebookToast });
 
   document.addEventListener('click', async (event) => {
