@@ -39,7 +39,37 @@
     var ffcGeoUrl = Url.Content("~/ffc/maps/world_india_view.geojson");
     var ffcFullMapUrl = Url.Page("/FFC/Map", values: new { area = "ProjectOfficeReports" }) ?? "#";
     var canOpenOcrConsole = User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.HoD);
-    var searchHealthy = Model.SearchHealth.WorkerActive && Model.SearchHealth.Ocr.Pending == 0 && Model.SearchHealth.Ocr.Failed == 0;
+    var ocrPending = Model.SearchHealth.Ocr.Pending;
+    var ocrFailed = Model.SearchHealth.Ocr.Failed;
+    var ocrWorkerActive = Model.SearchHealth.WorkerActive;
+    var processingState = ocrFailed > 0
+        ? "failed"
+        : ocrPending > 0 && !ocrWorkerActive
+            ? "attention"
+            : ocrWorkerActive
+                ? "processing"
+                : "idle";
+    var processingTitle = processingState switch
+    {
+        "failed" => "Document processing requires attention",
+        "attention" => "Document processing is waiting",
+        "processing" => "Document processing in progress",
+        _ => "Document processing is idle"
+    };
+    var processingBadge = processingState switch
+    {
+        "failed" => "Failures detected",
+        "attention" => "Queue waiting",
+        "processing" => "Processing",
+        _ => "Standby"
+    };
+    var processingDescription = processingState switch
+    {
+        "failed" => "One or more OCR jobs failed and should be reviewed.",
+        "attention" => "Documents are pending while the OCR worker is not active.",
+        "processing" => "The OCR worker is currently processing or has been active recently.",
+        _ => "No documents are waiting. The OCR worker is at rest and searchable documents remain available."
+    };
     string Json<T>(IEnumerable<T>? values) => JsonSerializer.Serialize(values ?? Array.Empty<T>());
     string OngoingStageUrl(string stageCode) => Url.Page("/Projects/Ongoing/Index", new { PresentStageCode = stageCode }) ?? (pulse?.OngoingUrl ?? "#");
     string StageDisplayLabel(string stageCode) => stageCode.ToUpperInvariant() switch
@@ -249,7 +279,10 @@
                         <canvas role="img" aria-label="Institutional activities recorded per month for the last 12 months"></canvas>
                         @if (Model.ActivitySummary.MonthlyLabels.Count > 0)
                         {
-                            <div class="db-activity-trend__range"><span>@Model.ActivitySummary.MonthlyLabels.First()</span><span>@Model.ActivitySummary.MonthlyLabels.Last()</span></div>
+                            <div class="db-activity-trend__axis" aria-hidden="true">
+                                <span>@Model.ActivitySummary.MonthlyLabels.First()</span>
+                                <span>@Model.ActivitySummary.MonthlyLabels.Last()</span>
+                            </div>
                         }
                     </div>
                 </div>
@@ -364,32 +397,34 @@
             else { <div class="db-empty">FFC project unit data is not available right now.</div> }
         </section>
 
-        @if (!searchHealthy)
-        {
-            <section class="db-processing-alert db-panel db-reveal is-warning" aria-labelledby="document-processing-title">
-                <div class="db-processing-alert__identity">
-                    <span class="db-utility-card__icon"><i class="bi bi-exclamation-triangle"></i></span>
-                    <div>
-                        <div class="db-processing-title-row"><h2 id="document-processing-title">Document processing requires attention</h2><span class="db-status-badge">Service offline</span></div>
-                        <p>OCR processing is not fully operational. Searchable documents remain available.</p>
+        <section class="db-processing-alert db-panel db-reveal is-@processingState" aria-labelledby="document-processing-title">
+            <div class="db-processing-alert__identity">
+                <span class="db-utility-card__icon" aria-hidden="true">
+                    <i class="bi @(processingState == "failed" ? "bi-x-octagon" : processingState == "attention" ? "bi-hourglass-split" : processingState == "processing" ? "bi-arrow-repeat" : "bi-pause-circle")"></i>
+                </span>
+                <div>
+                    <div class="db-processing-title-row">
+                        <h2 id="document-processing-title">@processingTitle</h2>
+                        <span class="db-status-badge">@processingBadge</span>
                     </div>
+                    <p>@processingDescription</p>
                 </div>
-                <div class="db-processing-metrics" aria-label="Document processing metrics">
-                    <div><span>OCR worker</span><strong class="@(Model.SearchHealth.WorkerActive ? "is-good" : "is-bad")">@(Model.SearchHealth.WorkerActive ? "Online" : "Offline")</strong></div>
-                    <div><span>Pending</span><strong>@Model.SearchHealth.Ocr.Pending <small>documents</small></strong></div>
-                    <div><span>Failed</span><strong class="@(Model.SearchHealth.Ocr.Failed > 0 ? "is-bad" : "")">@Model.SearchHealth.Ocr.Failed <small>documents</small></strong></div>
-                    <div><span>Searchable</span><strong>@Model.SearchHealth.TotalSearchable.ToString("N0") <small>documents</small></strong></div>
-                </div>
-                @if (canOpenOcrConsole)
-                {
-                    <a asp-area="DocumentRepository" asp-page="/Admin/OCRFailures/OcrFailures" class="db-processing-action">Open OCR status <i class="bi bi-arrow-right"></i></a>
-                }
-                else
-                {
-                    <span class="db-processing-note">Administrator action is required.</span>
-                }
-            </section>
-        }
+            </div>
+            <div class="db-processing-metrics" aria-label="Document processing metrics">
+                <div><span>OCR worker</span><strong class="is-@processingState">@(ocrWorkerActive ? "Active" : processingState == "idle" ? "At rest" : "Inactive")</strong></div>
+                <div><span>Pending</span><strong>@ocrPending <small>documents</small></strong></div>
+                <div><span>Failed</span><strong class="@(ocrFailed > 0 ? "is-failed" : "")">@ocrFailed <small>documents</small></strong></div>
+                <div><span>Searchable</span><strong>@Model.SearchHealth.TotalSearchable.ToString("N0") <small>documents</small></strong></div>
+            </div>
+            @if (canOpenOcrConsole)
+            {
+                <a asp-area="DocumentRepository" asp-page="/Admin/OCRFailures/OcrFailures" class="db-processing-action">View processing status <i class="bi bi-arrow-right"></i></a>
+            }
+            else if (processingState is "failed" or "attention")
+            {
+                <span class="db-processing-note">Administrator review may be required.</span>
+            }
+        </section>
     </main>
 
     <footer class="db-footer db-footer--timezone"><span>All times shown in IST</span></footer>

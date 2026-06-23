@@ -216,12 +216,7 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 var prev = values.Skip(Math.Max(0, values.Count - 6)).Take(3).Sum();
                 if (cur == 0 && prev == 0)
                 {
-                    return (cur, prev, null, null);
-                }
-
-                if (cur == 0 && prev == 0)
-                {
-                    return (cur, prev, null, "No activity");
+                    return (cur, prev, null, "No recent activity");
                 }
 
                 if (prev == 0 && cur > 0)

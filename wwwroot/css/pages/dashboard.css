@@ -274,3 +274,50 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
     .db-category-row .db-category-track { grid-column:1/-1; grid-row:2; }
     .db-footer { flex-direction:column; }
 }
+
+/* Document-processing operational states and activity trend axis */
+.db-activity-trend__axis {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    width:100%;
+    margin-top:3px;
+    color:var(--db-muted);
+    font-size:.54rem;
+    line-height:1;
+    pointer-events:none;
+}
+.db-activity-trend__axis span:last-child { text-align:right; }
+
+.db-processing-title-row { display:flex; align-items:center; flex-wrap:wrap; gap:7px; }
+.db-status-badge {
+    display:inline-flex;
+    align-items:center;
+    min-height:20px;
+    padding:2px 7px;
+    border:1px solid var(--db-border-soft);
+    border-radius:999px;
+    background:#f3f6fa;
+    color:#607086;
+    font-size:.54rem;
+    font-weight:750;
+    white-space:nowrap;
+}
+.db-processing-alert.is-idle { border-color:#d8e2ec; background:linear-gradient(180deg,#fff,#fbfcfe); }
+.db-processing-alert.is-idle .db-utility-card__icon { color:#58708f; background:#eef3f8; }
+.db-processing-alert.is-idle .db-status-badge { color:#536b86; border-color:#d5e0eb; background:#eef3f8; }
+.db-processing-alert.is-processing { border-color:#cddcf7; background:linear-gradient(180deg,#fff,#f8fbff); }
+.db-processing-alert.is-processing .db-utility-card__icon { color:#3566cf; background:#eaf1ff; }
+.db-processing-alert.is-processing .db-status-badge { color:#315ebc; border-color:#cbdaf8; background:#edf3ff; }
+.db-processing-alert.is-attention { border-color:#ead8aa; background:linear-gradient(180deg,#fff,#fffcf5); }
+.db-processing-alert.is-attention .db-utility-card__icon { color:#a86600; background:#fff4dc; }
+.db-processing-alert.is-attention .db-status-badge { color:#8f5a00; border-color:#ead6a3; background:#fff5dc; }
+.db-processing-alert.is-failed { border-color:#efc7cd; background:linear-gradient(180deg,#fff,#fff9fa); }
+.db-processing-alert.is-failed .db-utility-card__icon { color:#bf3148; background:#fdecef; }
+.db-processing-alert.is-failed .db-status-badge { color:#a5283d; border-color:#efc4cb; background:#fdecef; }
+.db-processing-metrics strong.is-idle { color:#536b86; }
+.db-processing-metrics strong.is-processing { color:#315ebc; }
+.db-processing-metrics strong.is-attention { color:#956000; }
+.db-processing-metrics strong.is-failed,
+.db-processing-metrics strong.is-failed { color:var(--db-red); }
+.db-activity-trend canvas { height:48px!important; }
