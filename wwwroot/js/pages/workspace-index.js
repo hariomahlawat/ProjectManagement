@@ -1,6 +1,7 @@
 (() => {
+    const nav = document.querySelector('.po-section-nav');
     const links = Array.from(document.querySelectorAll('.po-section-nav a[href^="#"]'));
-    if (!links.length) return;
+    if (!nav || !links.length) return;
 
     const entries = links
         .map(link => ({ link, section: document.querySelector(link.getAttribute('href')) }))
@@ -15,25 +16,41 @@
         }
     };
 
+    const stickyOffset = () => {
+        const siteHeader = document.querySelector('header, .navbar, .app-header');
+        const headerHeight = siteHeader?.getBoundingClientRect().height || 70;
+        return Math.round(headerHeight + nav.getBoundingClientRect().height + 16);
+    };
+
+    const activateFromScroll = () => {
+        const marker = stickyOffset();
+        let active = entries[0];
+        for (const entry of entries) {
+            if (entry.section.getBoundingClientRect().top <= marker) active = entry;
+        }
+        setActive(active.link);
+    };
+
     for (const { link, section } of entries) {
         link.addEventListener('click', event => {
             event.preventDefault();
-            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const top = window.scrollY + section.getBoundingClientRect().top - stickyOffset();
+            window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
             history.replaceState(null, '', link.getAttribute('href'));
             setActive(link);
         });
     }
 
-    if ('IntersectionObserver' in window) {
-        const observer = new IntersectionObserver(observed => {
-            const visible = observed
-                .filter(item => item.isIntersecting)
-                .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-            if (!visible) return;
-            const match = entries.find(entry => entry.section === visible.target);
-            if (match) setActive(match.link);
-        }, { rootMargin: '-22% 0px -65% 0px', threshold: [0, .15, .35] });
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+        if (ticking) return;
+        ticking = true;
+        window.requestAnimationFrame(() => {
+            activateFromScroll();
+            ticking = false;
+        });
+    }, { passive: true });
 
-        for (const { section } of entries) observer.observe(section);
-    }
+    window.addEventListener('resize', activateFromScroll);
+    activateFromScroll();
 })();
