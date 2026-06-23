@@ -437,7 +437,9 @@ public static class WorkspaceDisplayHelpers
             return "good";
         }
 
-        if (percent >= 60)
+        // Incomplete records need attention, but only very low completeness is critical.
+        // This keeps red reserved for genuinely severe conditions.
+        if (percent >= 26)
         {
             return "attention";
         }

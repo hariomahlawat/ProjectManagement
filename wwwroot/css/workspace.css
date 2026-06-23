@@ -288,3 +288,158 @@
 .po-project-table tbody tr.po-project-row--normal .po-project-indicator { background: #9ba8ba; }
 .po-project-table tbody tr.po-project-row--warning .po-project-indicator { background: #d48b19; }
 .po-project-table tbody tr.po-project-row--critical .po-project-indicator { background: var(--po-danger); }
+
+/* Release visual-system correction: flatter, more disciplined enterprise surfaces */
+:root {
+    --po-shadow: 0 1px 2px rgba(15, 31, 58, .035);
+}
+
+/* Command surface: use structure, not floating elevation. */
+.po-command {
+    border-color: #dbe3ed;
+    border-top-width: 3px;
+    border-radius: 10px;
+    box-shadow: none;
+}
+.po-command__main {
+    background: linear-gradient(105deg, #fff 0%, #fff 78%, #f8faff 100%);
+}
+.po-command__mark {
+    flex-basis: 38px;
+    height: 38px;
+    border-radius: 8px;
+    box-shadow: none;
+    font-size: .92rem;
+}
+.po-operational-summary {
+    margin-top: 9px;
+    color: #65758d;
+    font-weight: 560;
+}
+.po-operational-summary i { color: #6f86ae; }
+.po-btn--primary { box-shadow: 0 2px 6px rgba(46, 102, 212, .14); }
+.po-btn--primary:hover { transform: none; }
+
+/* Metrics remain informative but visually subordinate to the work queue. */
+.po-command__metrics { min-height: 52px; }
+.po-metric { gap: 10px; padding: 8px 20px; }
+.po-metric__icon { flex-basis: 27px; height: 27px; }
+.po-metric strong { font-size: .9rem; }
+.po-metric small { font-size: .65rem; }
+
+/* Tabs behave as an integrated toolbar rather than another floating card. */
+.po-section-nav {
+    margin: 10px 0 14px;
+    min-height: 42px;
+    padding: 0 9px;
+    border: 0;
+    border-bottom: 1px solid var(--po-line);
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    background: #fff;
+}
+.po-section-nav::before { background: var(--po-page); }
+.po-section-nav a { min-height: 42px; }
+.po-section-nav.is-stuck {
+    border: 0;
+    border-bottom: 1px solid #d7e0eb;
+    border-radius: 0;
+    box-shadow: 0 3px 8px rgba(15, 31, 58, .055);
+}
+
+/* Main surfaces use a single restrained border/elevation language. */
+.po-panel,
+.po-readiness {
+    border-color: #dce4ee;
+    border-radius: 9px;
+    box-shadow: var(--po-shadow);
+}
+.po-panel__head { padding: 17px 20px 14px; }
+.po-main .po-panel__kicker { display: none; }
+.po-main .po-panel__head h2 { margin-top: 0; }
+
+/* Ordinary review work is neutral; colour is reserved for priority and severity. */
+.po-action:not(.po-action--recommended):not(.po-action--danger):not(.po-action--critical):not(.po-action--warning):not(.po-action--attention) .po-action__rail {
+    background: #cbd4df;
+}
+.po-action--recommended .po-action__rail { background: var(--po-blue-600); }
+.po-action__button:hover { transform: none; }
+
+/* Readiness panel remains authoritative but clearly secondary to the page command area. */
+.po-readiness__head {
+    padding: 16px 17px;
+    background: #1b3157;
+}
+.po-readiness__count {
+    flex-basis: 30px;
+    height: 30px;
+    border-radius: 7px;
+    background: rgba(255,255,255,.055);
+}
+.po-gap-list { gap: 0; padding: 0 14px; }
+.po-gap-item {
+    padding: 13px 0 12px 11px;
+    border: 0;
+    border-bottom: 1px solid var(--po-line-soft);
+    border-left: 3px solid #8ea0b7;
+    border-radius: 0;
+    background: transparent;
+}
+.po-gap-item:last-child { border-bottom: 0; }
+.po-readiness__footer {
+    color: #526b95;
+    background: #fbfcfe;
+}
+
+/* Severity is explicit: critical red, attention amber, routine neutral. */
+.po-project-table tbody tr.po-project-row--normal .po-project-indicator { background: #a8b3c2; }
+.po-project-table tbody tr.po-project-row--warning .po-project-indicator { background: #d48b19; }
+.po-project-table tbody tr.po-project-row--critical .po-project-indicator { background: var(--po-danger); }
+.po-record--attention .po-record__bar i { background: #d48b19; }
+.po-record--danger .po-record__bar i { background: var(--po-danger); }
+.po-record--good .po-record__bar i { background: var(--po-success); }
+
+/* Follow-ups: warning treatment is local to the affected row, not the whole column. */
+.po-follow-list > a.po-follow-item--overdue {
+    position: relative;
+    margin: 2px 0;
+    padding: 8px 8px 8px 13px;
+    border: 0;
+    border-radius: 5px;
+    background: #fff7f8;
+}
+.po-follow-list > a.po-follow-item--overdue::before {
+    content: "";
+    position: absolute;
+    top: 9px;
+    bottom: 9px;
+    left: 0;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--po-danger);
+}
+.po-follow-list > a.po-follow-item--overdue strong { color: #8f3040; }
+.po-follow-list > a.po-follow-item--overdue small { color: #8a6570; }
+
+/* Reduce simultaneous bright-blue competition for tertiary navigation. */
+.po-link,
+.po-row-action,
+.po-text-action,
+.po-readiness__footer,
+.po-follow-column__head a {
+    color: #4c6691;
+}
+.po-link:hover,
+.po-row-action:hover,
+.po-text-action:hover,
+.po-readiness__footer:hover,
+.po-follow-column__head a:hover {
+    color: var(--po-blue-700);
+}
+.po-action__button { color: #315da9; }
+
+@media (max-width: 760px) {
+    .po-command { border-radius: 8px; }
+    .po-panel, .po-readiness { border-radius: 8px; }
+}

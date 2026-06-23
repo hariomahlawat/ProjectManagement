@@ -28,11 +28,15 @@
         const stickyTop = Math.round(topbar?.getBoundingClientRect().height || 70);
         nav.classList.toggle('is-stuck', nav.getBoundingClientRect().top <= stickyTop + 1 && window.scrollY > 12);
 
-        const marker = stickyTop + nav.getBoundingClientRect().height + 10;
+        const marker = stickyTop + nav.getBoundingClientRect().height + 2;
         let active = entries[0];
         for (const entry of entries) {
             const heading = entry.section.querySelector('.po-panel__head, .po-readiness__head') || entry.section;
-            if (heading.getBoundingClientRect().top <= marker) active = entry;
+            if (heading.getBoundingClientRect().top <= marker) {
+                active = entry;
+            } else {
+                break;
+            }
         }
         setActive(active.link);
     };
