@@ -5,7 +5,7 @@ import { cloneNotebookEditorTemplate, requireEditorElement, EditorSelectors } fr
 import { initNotebookColourPicker, applyNotebookSurfaceColour } from './notebook-colour-picker.js';
 import { initNotebookLabelPicker } from './notebook-label-picker.js';
 
-const ALLOWED_TYPES = new Set(['Note', 'Checklist', 'Reminder', 'Idea', 'Draft', 'Sticky']);
+const ALLOWED_TYPES = new Set(['Note', 'Checklist', 'Reminder']);
 
 export function toIstIso(localValue) {
   const value = String(localValue || '').trim();
@@ -34,10 +34,7 @@ export function getCreateTypeUi(type) {
   const names = {
     Note: 'note',
     Checklist: 'checklist',
-    Reminder: 'reminder',
-    Idea: 'idea',
-    Draft: 'draft',
-    Sticky: 'sticky note'
+    Reminder: 'reminder'
   };
   return {
     type: safeType,

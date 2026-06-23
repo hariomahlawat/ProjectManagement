@@ -28,12 +28,8 @@ test('parseLabels trims, removes blanks and deduplicates case-insensitively', ()
   assert.deepEqual(Array.from(parseLabels(' Docs, procurement, docs, ')), ['Docs', 'procurement']);
 });
 
-test('getCreateTypeUi uses human-readable sticky-note wording and adaptive layout', () => {
+test('getCreateTypeUi exposes only structural creation types', () => {
   const { getCreateTypeUi } = loadHelpers();
-  const sticky = getCreateTypeUi('Sticky');
-  assert.equal(sticky.actionLabel, 'Create sticky note');
-  assert.equal(sticky.showBody, true);
-  assert.equal(sticky.openDetails, false);
 
   const reminder = getCreateTypeUi('Reminder');
   assert.equal(reminder.titlePlaceholder, 'Reminder title');
@@ -42,6 +38,18 @@ test('getCreateTypeUi uses human-readable sticky-note wording and adaptive layou
   const checklist = getCreateTypeUi('Checklist');
   assert.equal(checklist.showChecklist, true);
   assert.equal(checklist.showBody, false);
+
+  for (const legacyType of ['Idea', 'Draft', 'Sticky']) {
+    const normalized = getCreateTypeUi(legacyType);
+    assert.equal(normalized.type, 'Note');
+    assert.equal(normalized.actionLabel, 'Create note');
+  }
+});
+
+test('create editor template contains only Note, Checklist and Reminder options', () => {
+  const template = fs.readFileSync(path.join(__dirname, '../../../Pages/Notebook/_NotebookEditorTemplate.cshtml'), 'utf8');
+  const optionValues = [...template.matchAll(/<option value="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(optionValues.filter((value) => ['Note', 'Checklist', 'Reminder', 'Idea', 'Draft', 'Sticky'].includes(value)), ['Note', 'Checklist', 'Reminder']);
 });
 
 test('buildCreatePayload includes reminder and checklist data only for relevant types', () => {

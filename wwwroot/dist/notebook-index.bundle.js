@@ -2444,10 +2444,7 @@ function getCreateTypeUi(type) {
   const names = {
     Note: "note",
     Checklist: "checklist",
-    Reminder: "reminder",
-    Idea: "idea",
-    Draft: "draft",
-    Sticky: "sticky note"
+    Reminder: "reminder"
   };
   return {
     type: safeType,
@@ -2679,7 +2676,7 @@ var init_notebook_create_editor = __esm({
     init_notebook_editor();
     init_notebook_colour_picker();
     init_notebook_label_picker();
-    ALLOWED_TYPES = /* @__PURE__ */ new Set(["Note", "Checklist", "Reminder", "Idea", "Draft", "Sticky"]);
+    ALLOWED_TYPES = /* @__PURE__ */ new Set(["Note", "Checklist", "Reminder"]);
   }
 });
 
