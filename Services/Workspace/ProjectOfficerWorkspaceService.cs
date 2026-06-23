@@ -85,7 +85,6 @@ public sealed class ProjectOfficerWorkspaceService
         var aotsUnreadCount = await _aotsUnreadService.GetUnreadCountAsync(userId, ct);
         var aotsDocuments = await LoadUnreadAotsDocumentsAsync(userId, ct);
         var timelineAlerts = _nudges.BuildTimelineAlerts(projects, today).ToList();
-        var dailyActionCount = remarksDue.Count + officialTasksDue.Count + ideasNeedingUpdate.Count + aotsUnreadCount;
         var actionQueueResult = BuildActionQueue(
             returnedItems,
             officialTasksDue,
@@ -94,6 +93,7 @@ public sealed class ProjectOfficerWorkspaceService
             aotsDocuments,
             aotsUnreadCount);
         var actionQueue = actionQueueResult.Items;
+        var dailyActionCount = actionQueueResult.TotalCount;
 
         var pending = returnedItems
             .Concat(remarksDue)
@@ -119,7 +119,14 @@ public sealed class ProjectOfficerWorkspaceService
             .ToListAsync(ct);
         var myWorkQueue = _myWorkQueueBuilder.Build(taskRows, activeSprint: null);
         var waitingOnOthers = await BuildWaitingOnOthersAsync(userId, myWorkQueue.SubmittedAwaitingClosureTasks, ct);
-        var matrix = projects.Take(6).Select(p => BuildMatrixRow(p, health[p.Id], userId, today)).ToList();
+        var matrix = projects
+            .Select(p => BuildMatrixRow(p, health[p.Id], userId, today))
+            .OrderBy(ProjectAttentionRank)
+            .ThenByDescending(row => row.RecordGapCount)
+            .ThenByDescending(row => row.DaysInCurrentStage ?? 0)
+            .ThenBy(row => row.ProjectName)
+            .Take(8)
+            .ToList();
         var engagement = await BuildEngagementAsync(userId, user, monthStartUtc, ct);
         var avgHealth = health.Count == 0 ? 100 : (int)Math.Round(health.Values.Average(h => h.HealthPercent));
         var improveProjectsResult = BuildImproveProjects(health.Values, maxProjects: 3);
@@ -614,6 +621,17 @@ public sealed class ProjectOfficerWorkspaceService
             AddRemarkUrl = WorkspaceRouteHelper.ProjectRemarks(p.Id),
             TimelineUrl = WorkspaceRouteHelper.ProjectTimeline(p.Id)
         };
+    }
+
+
+    // SECTION: Project table ordering surfaces operational risk before routine records.
+    private static int ProjectAttentionRank(WorkspaceProjectMatrixRowVm row)
+    {
+        if (row.HasOverdueCurrentStage || row.UpdateStatus == "ActionRequired") return 0;
+        if (row.HasBackfill || row.TimelineStatus == "ActionRequired") return 1;
+        if (row.HasCurrentStageIssue || row.UpdateStatus == "Attention") return 2;
+        if (row.RecordGapCount > 0) return 3;
+        return 4;
     }
 
     // SECTION: Pending item ordering keeps returned corrections above lower-priority nudges.

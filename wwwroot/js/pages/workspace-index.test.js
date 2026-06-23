@@ -7,22 +7,22 @@ const path = require('node:path');
 const scriptPath = path.resolve(__dirname, 'workspace-index.js');
 const scriptContent = fs.readFileSync(scriptPath, 'utf8');
 
-// SECTION: Workspace rail fixture with shared action queue anchors.
-function createWorkspaceRailDom() {
+function createWorkspaceDom() {
     const dom = new JSDOM(`<!DOCTYPE html><html><body>
-        <nav aria-label="Workspace sections">
-            <a href="#today" class="workspace-rail-link active" data-workspace-section="today" aria-current="true">Today</a>
-            <a href="#action-queue" class="workspace-rail-link" data-workspace-section="action-queue">Remarks Due</a>
-            <a href="#action-queue" class="workspace-rail-link" data-workspace-section="action-queue">Other Assigned Tasks</a>
-            <a href="#action-queue" class="workspace-rail-link" data-workspace-section="action-queue">AOTS</a>
+        <nav class="po-section-nav" aria-label="Workspace sections">
+            <a href="#action-queue" class="active">Actions</a>
+            <a href="#assigned-projects">Projects</a>
+            <a href="#record-gaps">Record gaps</a>
         </nav>
-        <div id="today"></div>
         <section id="action-queue"></section>
+        <section id="assigned-projects"></section>
+        <section id="record-gaps"></section>
     </body></html>`, { url: 'https://example.test/Workspace', runScripts: 'dangerously' });
 
     const { window } = dom;
+    window.HTMLElement.prototype.scrollIntoView = function scrollIntoView() {};
     window.IntersectionObserver = class {
-        observe() { }
+        observe() {}
     };
 
     const scriptEl = window.document.createElement('script');
@@ -32,19 +32,13 @@ function createWorkspaceRailDom() {
     return { window, document: window.document };
 }
 
-// SECTION: Shared target click behavior.
-test('workspace rail preserves the clicked item when multiple links share a section', () => {
-    const { window, document } = createWorkspaceRailDom();
-    const links = Array.from(document.querySelectorAll('.workspace-rail-link'));
-    const remarksLink = links[1];
-    const tasksLink = links[2];
+test('workspace section navigation keeps one active destination', () => {
+    const { window, document } = createWorkspaceDom();
+    const links = Array.from(document.querySelectorAll('.po-section-nav a'));
 
-    remarksLink.dispatchEvent(new window.Event('click', { bubbles: true }));
-    assert.equal(document.querySelector('.workspace-rail-link.active'), remarksLink);
-    assert.equal(remarksLink.getAttribute('aria-current'), 'true');
+    links[1].dispatchEvent(new window.Event('click', { bubbles: true, cancelable: true }));
 
-    tasksLink.dispatchEvent(new window.Event('click', { bubbles: true }));
-    assert.equal(document.querySelector('.workspace-rail-link.active'), tasksLink);
-    assert.equal(tasksLink.getAttribute('aria-current'), 'true');
-    assert.equal(remarksLink.hasAttribute('aria-current'), false);
+    assert.equal(document.querySelector('.po-section-nav a.active'), links[1]);
+    assert.equal(links[1].getAttribute('aria-current'), 'page');
+    assert.equal(links[0].hasAttribute('aria-current'), false);
 });
