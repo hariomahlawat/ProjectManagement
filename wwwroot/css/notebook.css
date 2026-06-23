@@ -2395,12 +2395,12 @@ body.notebook-confirm-open { overflow: hidden; }
     justify-content: center;
     border: 0;
     border-radius: 50%;
-    background: rgba(255,255,255,.92);
+    background: rgba(255,255,255,.94);
     color: #667085;
     box-shadow: 0 1px 3px rgba(16,24,40,.16);
     cursor: grab;
     opacity: 0;
-    transition: opacity .15s ease, background .15s ease, transform .15s ease;
+    transition: opacity .14s ease, background .14s ease, transform .14s ease;
     touch-action: none;
 }
 
@@ -2410,16 +2410,54 @@ body.notebook-confirm-open { overflow: hidden; }
     opacity: 1;
 }
 
-.notebook-card-drag-handle:active {
-    cursor: grabbing;
+.notebook-card-drag-handle:active,
+.notebook-is-dragging,
+.notebook-is-dragging * {
+    cursor: grabbing !important;
 }
 
-.notebook-card.is-dragging,
+.notebook-shell[data-reorder-enabled="true"] .notebook-card,
+.notebook-board[data-reorder-enabled="true"] > .notebook-card,
+.notebook-board[data-reorder-enabled="true"] > .notebook-card .notebook-card__open-area {
+    cursor: grab;
+}
+
+.notebook-card a,
+.notebook-card img {
+    -webkit-user-drag: none;
+}
+
+.notebook-card.is-drag-source {
+    display: none !important;
+}
+
+.notebook-card.is-drag-preview {
+    opacity: .97;
+    overflow: hidden;
+    transform-origin: center center;
+    box-shadow: 0 18px 40px rgba(16,24,40,.22), 0 5px 12px rgba(16,24,40,.14);
+    cursor: grabbing;
+    will-change: transform;
+}
+
+.notebook-card-placeholder {
+    box-sizing: border-box;
+    min-width: 0;
+    border: 2px dashed rgba(91,141,239,.36);
+    border-radius: 12px;
+    background: rgba(91,141,239,.055);
+}
+
 .notebook-card.is-keyboard-dragging {
-    opacity: .58;
-    transform: scale(.985);
-    outline: 2px dashed #5b8def;
+    outline: 2px solid #5b8def;
     outline-offset: 3px;
+    box-shadow: 0 10px 26px rgba(16,24,40,.16);
+}
+
+.notebook-shell.is-pointer-dragging,
+.notebook-shell.is-pointer-dragging * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
 }
 
 .notebook-shell[data-board-view="list"] .notebook-card-drag-handle,
@@ -2442,6 +2480,18 @@ body.notebook-confirm-open { overflow: hidden; }
     .notebook-shell.is-rearranging .notebook-card-drag-handle {
         opacity: 1;
         pointer-events: auto;
+    }
+
+    .notebook-shell.is-rearranging .notebook-card {
+        touch-action: pan-y;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .notebook-card-drag-handle,
+    .notebook-card.is-drag-preview {
+        transition: none !important;
+        animation: none !important;
     }
 }
 
