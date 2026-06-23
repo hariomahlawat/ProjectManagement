@@ -1,35 +1,40 @@
 @page
 @model ProjectManagement.Pages.Dashboard.IndexModel
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Globalization
 @using System.Linq
 @{
     ViewData["Title"] = "Dashboard";
 
     var pulse = Model.ProjectPulse;
-    var ongoingCount = pulse?.OngoingCount ?? 0;
-    var completedCount = pulse?.CompletedCount ?? 0;
-    var readyCount = pulse?.ProliferationEligible ?? 0;
-    var searchableCount = Model.SearchHealth?.TotalSearchable ?? 0;
-    var assignedProjects = Model.MyProjectSections.SelectMany(section => section.Items).ToList();
-    var currentStagesNeedingAttention = assignedProjects.Count(project =>
-        project.StageSummary is null ||
-        project.StageSummary.PlannedDue is null ||
-        project.StageSummary.IsOverdue);
-
-    var overdueReminders = Model.NotebookWidget?.OverdueCount ?? 0;
-    var dueTodayReminders = Model.NotebookWidget?.DueTodayCount ?? 0;
-    var workerHealthy = Model.SearchHealth?.WorkerActive == true;
-    var searchHealthy = workerHealthy && (Model.SearchHealth?.Ocr.Failed ?? 0) == 0;
-
-    var today = DateTime.Today;
-    var fyStartYear = today.Month >= 4 ? today.Year : today.Year - 1;
-    var fyLabel = $"Apr {fyStartYear} – Mar {fyStartYear + 1}";
+    ProjectManagement.Areas.Dashboard.Components.ProjectPulse.OngoingBucketSetVm? totalBucket = null;
+    if (pulse is not null)
+    {
+        if (!pulse.OngoingBucketsByKey.TryGetValue("total", out totalBucket))
+        {
+            totalBucket = pulse.OngoingBucketsByKey.Values.FirstOrDefault();
+        }
+    }
+    var stageItems = pulse?.OngoingStageDistributionTotal.Items
+        .Where(x => x.Count > 0)
+        .OrderBy(x => Array.IndexOf(new[] { "FS", "IPA", "SOW", "AON", "BID", "TEC", "BM", "COB", "PNC", "SO", "DEVP", "ATP", "PAYMENT", "TOT" }, x.StageCode))
+        .ToList() ?? new List<ProjectManagement.Services.Analytics.StageDistributionItem>();
+    var projectTypes = pulse?.OngoingBucketFilters
+        .Where(x => !string.Equals(x.Key, "total", StringComparison.OrdinalIgnoreCase))
+        .ToList() ?? new List<ProjectManagement.Areas.Dashboard.Components.ProjectPulse.OngoingBucketFilterVm>();
+    var completedCategories = pulse?.UniqueCompletedByTechnicalCategory.Take(6).ToList()
+        ?? new List<ProjectManagement.Areas.Dashboard.Components.ProjectPulse.TreemapNode>();
+    var maxCompletedCategory = completedCategories.Count > 0 ? Math.Max(1, completedCategories.Max(x => x.Count)) : 1;
+    var outputTiles = Model.OpsSignals.Tiles.ToList();
+    var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ProjectManagement.Infrastructure.IstClock.TimeZone);
+    var latestActivityIst = Model.ActivitySummary.LatestAtUtc is null
+        ? (DateTimeOffset?)null
+        : TimeZoneInfo.ConvertTime(Model.ActivitySummary.LatestAtUtc.Value, ProjectManagement.Infrastructure.IstClock.TimeZone);
+    var searchHealthy = Model.SearchHealth.WorkerActive && Model.SearchHealth.Ocr.Failed == 0;
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/dashboard.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/css/widgets/project-pulse.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/css/widgets/ops-signals.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/lib/leaflet/1.9.4/leaflet.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/widgets/ffc-simulator-map.css" asp-append-version="true" />
 }
@@ -41,170 +46,281 @@
     </div>
 }
 
-<div class="executive-dashboard">
-    <header class="executive-dashboard__header">
+<div class="db-page" data-dashboard>
+    <header class="db-header db-reveal">
         <div>
+            <p class="db-eyebrow">PRISM ERP</p>
             <h1>Dashboard</h1>
-            <p>Portfolio overview and institutional performance</p>
+            <p class="db-header__subtitle">Portfolio, institutional outputs, engagement and innovation at a glance.</p>
         </div>
-        <div class="executive-dashboard__header-actions">
-            <span class="executive-dashboard__updated">
-                <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
-                Updated @DateTime.Now.ToString("dd MMM yyyy, HH:mm")
-            </span>
+        <div class="db-header__actions">
+            <span class="db-updated"><i class="bi bi-arrow-repeat"></i> Updated @nowIst.ToString("dd MMM yyyy, HH:mm") IST</span>
             @if (pulse is not null)
             {
-                <a class="btn btn-outline-primary btn-sm" href="@pulse.AnalyticsUrl">
-                    <i class="bi bi-graph-up-arrow me-1" aria-hidden="true"></i>Open analytics
+                <a class="btn btn-primary btn-sm db-primary-action" href="@pulse.AnalyticsUrl">
+                    <i class="bi bi-graph-up-arrow"></i><span>Open analytics</span>
                 </a>
             }
         </div>
     </header>
 
-    <div class="executive-dashboard__layout">
-        <main class="executive-dashboard__main">
-            <section class="dashboard-kpis" aria-label="Portfolio summary">
-                <a class="dashboard-kpi" href="@(pulse?.OngoingUrl ?? "#")">
-                    <span class="dashboard-kpi__icon dashboard-kpi__icon--blue"><i class="bi bi-folder2-open"></i></span>
-                    <span class="dashboard-kpi__body">
-                        <span class="dashboard-kpi__label">Ongoing projects</span>
-                        <strong>@ongoingCount</strong>
-                        <small>Across all stages</small>
-                    </span>
-                    <span class="dashboard-kpi__link">View projects <i class="bi bi-arrow-right"></i></span>
-                </a>
-
-                <a class="dashboard-kpi" href="/Workspace#assigned-projects">
-                    <span class="dashboard-kpi__icon dashboard-kpi__icon--amber"><i class="bi bi-exclamation-triangle"></i></span>
-                    <span class="dashboard-kpi__body">
-                        <span class="dashboard-kpi__label">Current stages needing attention</span>
-                        <strong>@currentStagesNeedingAttention</strong>
-                        <small>Overdue or incomplete current-stage timelines</small>
-                    </span>
-                    <span class="dashboard-kpi__link">View details <i class="bi bi-arrow-right"></i></span>
-                </a>
-
-                <a class="dashboard-kpi" href="@(pulse?.ProliferationEligibleUrl ?? "#")">
-                    <span class="dashboard-kpi__icon dashboard-kpi__icon--green"><i class="bi bi-patch-check"></i></span>
-                    <span class="dashboard-kpi__body">
-                        <span class="dashboard-kpi__label">Ready for proliferation</span>
-                        <strong>@readyCount</strong>
-                        <small>Approved and suitable for proliferation</small>
-                    </span>
-                    <span class="dashboard-kpi__link">View list <i class="bi bi-arrow-right"></i></span>
-                </a>
-
-                <a class="dashboard-kpi" href="@(pulse?.CompletedUrl ?? "#")">
-                    <span class="dashboard-kpi__icon dashboard-kpi__icon--purple"><i class="bi bi-flag"></i></span>
-                    <span class="dashboard-kpi__body">
-                        <span class="dashboard-kpi__label">Completed projects</span>
-                        <strong>@completedCount</strong>
-                        <small>Portfolio total</small>
-                    </span>
-                    <span class="dashboard-kpi__link">View completed <i class="bi bi-arrow-right"></i></span>
-                </a>
-            </section>
-
-            <section class="dashboard-primary-panel" aria-label="Portfolio pulse">
-                @if (pulse is not null)
-                {
-                    @await Html.PartialAsync("~/Areas/Dashboard/Components/ProjectPulse/_Widget.cshtml", pulse)
-                }
-                else
-                {
-                    <div class="dashboard-empty-state">Portfolio data is temporarily unavailable.</div>
-                }
-            </section>
-
-            <section class="dashboard-primary-panel dashboard-outputs" aria-labelledby="dashboard-outputs-title">
-                <div class="dashboard-panel-heading">
+    <main class="db-sections">
+        <section class="db-panel db-panel--hero db-reveal" aria-labelledby="portfolio-pulse-title">
+            <div class="db-section-head">
+                <div>
+                    <span class="db-section-icon db-section-icon--blue"><i class="bi bi-activity"></i></span>
                     <div>
-                        <h2 id="dashboard-outputs-title">Key outputs</h2>
-                        <p>Current financial year · @fyLabel</p>
-                    </div>
-                    <a href="@(pulse?.AnalyticsUrl ?? "#")">View detailed analytics <i class="bi bi-arrow-right"></i></a>
-                </div>
-                @await Html.PartialAsync("~/Areas/Dashboard/Components/OpsSignals/_Widget.cshtml", Model.OpsSignals)
-            </section>
-
-            <section class="dashboard-primary-panel dashboard-ffc-compact" aria-label="FFC footprint">
-                @await Html.PartialAsync("~/Areas/Dashboard/Components/FfcSimulatorMap/_Widget.cshtml", Model.FfcSimulatorMap)
-            </section>
-        </main>
-
-        <aside class="executive-dashboard__rail">
-            <section class="dashboard-rail-card dashboard-reminders-card" aria-labelledby="dashboard-reminders-title">
-                <div class="dashboard-rail-card__head">
-                    <div class="dashboard-rail-card__title">
-                        <span class="dashboard-rail-card__icon"><i class="bi bi-calendar-check"></i></span>
-                        <h2 id="dashboard-reminders-title">My reminders</h2>
-                    </div>
-                    <a asp-page="/Notebook/Index">View all</a>
-                </div>
-
-                <div class="dashboard-reminder-summary">
-                    <div class="dashboard-reminder-summary__item dashboard-reminder-summary__item--danger">
-                        <span>Overdue</span><strong>@overdueReminders</strong>
-                    </div>
-                    <div class="dashboard-reminder-summary__item">
-                        <span>Due today</span><strong>@dueTodayReminders</strong>
+                        <h2 id="portfolio-pulse-title">Portfolio pulse</h2>
+                        <p>@pulse?.OngoingCount ongoing projects across the development lifecycle</p>
                     </div>
                 </div>
+                <a href="@(pulse?.OngoingUrl ?? "#")" class="db-text-link">View ongoing projects <i class="bi bi-arrow-right"></i></a>
+            </div>
 
-                @if (Model.NotebookWidget is not null)
+            @if (pulse is not null)
+            {
+                <div class="db-pulse-grid">
+                    <article class="db-pulse-block db-pulse-block--lifecycle">
+                        <div class="db-block-heading">
+                            <h3>Lifecycle distribution</h3>
+                            <span>@pulse.OngoingCount total</span>
+                        </div>
+                        <div class="db-lifecycle" role="list" aria-label="Ongoing projects by lifecycle bucket">
+                            @{
+                                var bucketTotal = Math.Max(1, totalBucket?.Total ?? 0);
+                                var lifecycleItems = new[]
+                                {
+                                    ("Approval", totalBucket?.Apvl ?? 0, "approval"),
+                                    ("AoN", totalBucket?.Aon ?? 0, "aon"),
+                                    ("Tendering", totalBucket?.Tender ?? 0, "tender"),
+                                    ("Development", totalBucket?.Devp ?? 0, "development")
+                                };
+                            }
+                            @foreach (var item in lifecycleItems)
+                            {
+                                var pct = (int)Math.Round(item.Item2 * 100d / bucketTotal);
+                                <div class="db-lifecycle__segment db-lifecycle__segment--@item.Item3" style="--segment-grow:@Math.Max(1, item.Item2)" role="listitem">
+                                    <span>@item.Item1</span>
+                                    <strong>@item.Item2</strong>
+                                    <small>@pct%</small>
+                                </div>
+                            }
+                        </div>
+                    </article>
+
+                    <article class="db-pulse-block db-pulse-block--stages">
+                        <div class="db-block-heading">
+                            <h3>Stage distribution</h3>
+                            <span>Active portfolio</span>
+                        </div>
+                        <div class="db-stage-grid" role="list">
+                            @foreach (var stage in stageItems)
+                            {
+                                <a href="@(pulse.OngoingUrl)" class="db-stage" role="listitem" title="@stage.StageName">
+                                    <span>@stage.StageCode</span><strong>@stage.Count</strong>
+                                </a>
+                            }
+                        </div>
+                    </article>
+
+                    <article class="db-pulse-block db-pulse-block--classification">
+                        <div class="db-block-heading">
+                            <h3>Project classification</h3>
+                            <span>Ongoing</span>
+                        </div>
+                        <div class="db-classification-list">
+                            @foreach (var item in projectTypes)
+                            {
+                                var width = pulse.OngoingCount > 0 ? Math.Max(6, item.Count * 100d / pulse.OngoingCount) : 0;
+                                <div class="db-classification-row">
+                                    <div><span>@item.Label</span><strong>@item.Count</strong></div>
+                                    <div class="db-meter"><span style="--meter-width:@width.ToString("0.##", CultureInfo.InvariantCulture)%"></span></div>
+                                </div>
+                            }
+                        </div>
+                    </article>
+                </div>
+            }
+            else
+            {
+                <div class="db-empty">Portfolio data is temporarily unavailable.</div>
+            }
+        </section>
+
+        <section class="db-panel db-reveal" aria-labelledby="completed-title">
+            <div class="db-section-head">
+                <div>
+                    <span class="db-section-icon db-section-icon--green"><i class="bi bi-check2-circle"></i></span>
+                    <div>
+                        <h2 id="completed-title">Completed projects</h2>
+                        <p>Portfolio outcomes and technical-category composition</p>
+                    </div>
+                </div>
+                <a href="@(pulse?.CompletedUrl ?? "#")" class="db-text-link">View completed projects <i class="bi bi-arrow-right"></i></a>
+            </div>
+
+            <div class="db-completed-grid">
+                <div class="db-completed-summary">
+                    <div class="db-summary-stat db-summary-stat--primary"><span>Total completed</span><strong>@(pulse?.CompletedCount ?? 0)</strong></div>
+                    <div class="db-summary-stat"><span>Unique projects</span><strong>@(pulse?.CompletedUniqueCount ?? 0)</strong></div>
+                    <div class="db-summary-stat"><span>Rebuilds</span><strong>@(pulse?.CompletedRebuildCount ?? 0)</strong></div>
+                    <div class="db-summary-stat db-summary-stat--accent"><span>Ready for proliferation</span><strong>@(pulse?.ProliferationEligible ?? 0)</strong></div>
+                </div>
+                <div class="db-category-bars">
+                    @foreach (var category in completedCategories)
+                    {
+                        var pct = category.Count * 100d / maxCompletedCategory;
+                        <div class="db-category-row">
+                            <span>@category.Label</span>
+                            <div class="db-category-track"><i style="--bar-width:@pct.ToString("0.##", CultureInfo.InvariantCulture)%"></i></div>
+                            <strong>@category.Count</strong>
+                        </div>
+                    }
+                </div>
+            </div>
+        </section>
+
+        <section class="db-panel db-reveal" aria-labelledby="outputs-title">
+            <div class="db-section-head">
+                <div>
+                    <span class="db-section-icon db-section-icon--teal"><i class="bi bi-bar-chart-line"></i></span>
+                    <div>
+                        <h2 id="outputs-title">Institutional outputs</h2>
+                        <p>Cumulative totals recorded in PRISM ERP</p>
+                    </div>
+                </div>
+            </div>
+            <div class="db-output-grid">
+                @foreach (var tile in outputTiles)
                 {
-                    <div class="dashboard-rail-list">
-                        <h3>Due / overdue</h3>
-                        @await Html.PartialAsync("_NotebookWidgetList", Model.NotebookWidget.DueItems.Take(3).ToList())
-                    </div>
-                    <div class="dashboard-rail-list">
-                        <h3>Pinned</h3>
-                        @await Html.PartialAsync("_NotebookWidgetList", Model.NotebookWidget.PinnedItems.Take(2).ToList())
-                    </div>
+                    <a class="db-output-card" href="@tile.LinkUrl">
+                        <span class="db-output-card__icon"><i class="bi @tile.Icon"></i></span>
+                        <div class="db-output-card__label">@tile.Label</div>
+                        <div class="db-output-card__value">@tile.Value.ToString("N0")</div>
+                        @if (!string.IsNullOrWhiteSpace(tile.Unit))
+                        {
+                            <div class="db-output-card__unit">@tile.Unit</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(tile.Caption))
+                        {
+                            <div class="db-output-card__caption">@tile.Caption</div>
+                        }
+                        else
+                        {
+                            <div class="db-output-card__caption">Cumulative record</div>
+                        }
+                        <span class="db-output-card__arrow"><i class="bi bi-arrow-up-right"></i></span>
+                    </a>
                 }
+            </div>
+        </section>
 
-                <a class="btn btn-primary btn-sm w-100 mt-3" asp-page="/Notebook/Index">Open My Notebook</a>
-            </section>
-
-            <section class="dashboard-rail-card dashboard-system-card" aria-labelledby="dashboard-system-title">
-                <div class="dashboard-rail-card__head">
-                    <div class="dashboard-rail-card__title">
-                        <span class="dashboard-rail-card__icon"><i class="bi bi-cpu"></i></span>
-                        <h2 id="dashboard-system-title">System status</h2>
+        <section class="db-dual-grid db-reveal" aria-label="Engagement and innovation">
+            <article class="db-panel db-engagement-card">
+                <div class="db-section-head">
+                    <div>
+                        <span class="db-section-icon db-section-icon--teal"><i class="bi bi-people"></i></span>
+                        <div>
+                            <h2>Institutional activities</h2>
+                            <p>Engagements, media and supporting records</p>
+                        </div>
                     </div>
-                    <span class="dashboard-system-pill @(searchHealthy ? "is-healthy" : "is-warning")">
-                        @(searchHealthy ? "Operational" : "Attention")
-                    </span>
+                    <a asp-page="/Activities/Index" class="db-text-link">View activities <i class="bi bi-arrow-right"></i></a>
                 </div>
+                <div class="db-mini-metrics">
+                    <div><strong>@Model.ActivitySummary.TotalActivities</strong><span>Activities</span></div>
+                    <div><strong>@Model.ActivitySummary.WithMedia</strong><span>With media</span></div>
+                    <div><strong>@Model.ActivitySummary.PhotoCount</strong><span>Photos</span></div>
+                    <div><strong>@Model.ActivitySummary.DocumentCount</strong><span>Documents</span></div>
+                    <div><strong>@Model.ActivitySummary.VideoCount</strong><span>Videos</span></div>
+                </div>
+                <div class="db-latest-record">
+                    <span class="db-latest-record__label">Latest activity</span>
+                    @if (!string.IsNullOrWhiteSpace(Model.ActivitySummary.LatestTitle))
+                    {
+                        <strong>@Model.ActivitySummary.LatestTitle</strong>
+                        <div>
+                            @if (!string.IsNullOrWhiteSpace(Model.ActivitySummary.LatestType)) { <span>@Model.ActivitySummary.LatestType</span> }
+                            @if (latestActivityIst is not null) { <span>@latestActivityIst.Value.ToString("dd MMM yyyy")</span> }
+                            @if (!string.IsNullOrWhiteSpace(Model.ActivitySummary.LatestLocation)) { <span>@Model.ActivitySummary.LatestLocation</span> }
+                        </div>
+                    }
+                    else
+                    {
+                        <strong>No activities recorded</strong>
+                    }
+                </div>
+            </article>
 
-                <div class="dashboard-system-list">
-                    <div><span>OCR worker</span><strong class="@(workerHealthy ? "text-success" : "text-warning")">@(workerHealthy ? "Online" : "Offline")</strong></div>
-                    <div><span>OCR failures</span><strong>@(Model.SearchHealth?.Ocr.Failed ?? 0)</strong></div>
-                    <div><span>Searchable corpus</span><strong>@searchableCount documents</strong></div>
-                    <div><span>Queue</span><strong>@((Model.SearchHealth?.Ocr.Pending ?? 0) == 0 ? "Clear" : $"{Model.SearchHealth!.Ocr.Pending} pending")</strong></div>
+            <article class="db-panel db-innovation-card">
+                <div class="db-section-head">
+                    <div>
+                        <span class="db-section-icon db-section-icon--indigo"><i class="bi bi-lightbulb"></i></span>
+                        <div>
+                            <h2>Innovation pipeline</h2>
+                            <p>Project ideas progressing through discussion and refinement</p>
+                        </div>
+                    </div>
+                    <a asp-page="/ProjectIdeas/Index" class="db-text-link">Open ideation board <i class="bi bi-arrow-right"></i></a>
                 </div>
-                <a asp-area="DocumentRepository" asp-page="/Documents/Index" class="dashboard-rail-link">View document processing <i class="bi bi-arrow-right"></i></a>
-            </section>
+                <div class="db-idea-summary">
+                    <div class="db-idea-summary__primary"><strong>@Model.IdeaSummary.ActiveCount</strong><span>Active ideas</span></div>
+                    <div><strong>@Model.IdeaSummary.OnHoldCount</strong><span>On hold</span></div>
+                    <div><strong>@Model.IdeaSummary.UpdatedLast30Days</strong><span>Updated in 30 days</span></div>
+                    <div><strong>@Model.IdeaSummary.IdeasWithDiscussion</strong><span>With discussion</span></div>
+                    <div><strong>@Model.IdeaSummary.DocumentCount</strong><span>Supporting documents</span></div>
+                </div>
+                <div class="db-idea-list">
+                    @foreach (var idea in Model.IdeaSummary.LatestIdeas)
+                    {
+                        <a asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id" class="db-idea-row">
+                            <div>
+                                <strong>@idea.Title</strong>
+                                <span>@idea.Status · Updated @idea.UpdatedAt.ToString("dd MMM yyyy")</span>
+                            </div>
+                            <div><span><i class="bi bi-chat"></i> @idea.CommentCount</span><span><i class="bi bi-paperclip"></i> @idea.DocumentCount</span></div>
+                        </a>
+                    }
+                    @if (Model.IdeaSummary.LatestIdeas.Count == 0)
+                    {
+                        <div class="db-empty db-empty--compact">No active ideas recorded.</div>
+                    }
+                </div>
+            </article>
+        </section>
 
-            <section class="dashboard-rail-card dashboard-quick-links" aria-labelledby="dashboard-quick-links-title">
-                <div class="dashboard-rail-card__head">
-                    <div class="dashboard-rail-card__title"><h2 id="dashboard-quick-links-title">Quick links</h2></div>
+        <section class="db-panel db-ffc-panel db-reveal" aria-label="FFC footprint">
+            @await Html.PartialAsync("~/Areas/Dashboard/Components/FfcSimulatorMap/_Widget.cshtml", Model.FfcSimulatorMap)
+        </section>
+
+        <section class="db-utility-grid db-reveal" aria-label="Personal and system status">
+            <article class="db-panel db-utility-card">
+                <div class="db-utility-card__icon"><i class="bi bi-bell"></i></div>
+                <div>
+                    <h2>Personal reminders</h2>
+                    <p><strong>@(Model.NotebookWidget?.OverdueCount ?? 0)</strong> overdue · <strong>@(Model.NotebookWidget?.DueTodayCount ?? 0)</strong> due today</p>
                 </div>
-                <div class="dashboard-quick-links__grid">
-                    <a asp-page="/Projects/Ongoing"><i class="bi bi-folder2"></i><span>Projects</span></a>
-                    <a asp-page="/Calendar/Index"><i class="bi bi-calendar3"></i><span>Calendar</span></a>
-                    <a asp-area="DocumentRepository" asp-page="/Documents/Index"><i class="bi bi-file-earmark-text"></i><span>Documents</span></a>
-                    <a href="@(pulse?.AnalyticsUrl ?? "#")"><i class="bi bi-bar-chart"></i><span>Analytics</span></a>
+                <a asp-page="/Notebook/Index">Open notebook <i class="bi bi-arrow-right"></i></a>
+            </article>
+            <article class="db-panel db-utility-card @(searchHealthy ? "is-healthy" : "is-warning")">
+                <div class="db-utility-card__icon"><i class="bi @(searchHealthy ? "bi-check2-circle" : "bi-exclamation-triangle")"></i></div>
+                <div>
+                    <h2>Document processing</h2>
+                    <p>@(searchHealthy ? "All systems operational" : "OCR worker requires attention") · @Model.SearchHealth.TotalSearchable searchable documents</p>
                 </div>
-            </section>
-        </aside>
-    </div>
+                <a asp-area="DocumentRepository" asp-page="/Documents/Index">View status <i class="bi bi-arrow-right"></i></a>
+            </article>
+        </section>
+    </main>
+
+    <footer class="db-footer">
+        <span>PRISM ERP · Simulator Development Division</span>
+        <span>All times shown in IST</span>
+    </footer>
 </div>
 
 @section Scripts {
-    <script src="~/lib/chart.js/chart.umd.js" asp-append-version="true" defer></script>
-    <script type="module" src="~/js/widgets/project-pulse.js" asp-append-version="true"></script>
-    <script type="module" src="~/js/widgets/ops-signals.js" asp-append-version="true"></script>
-    <script src="~/lib/leaflet/1.9.4/leaflet.js" asp-append-version="true" defer></script>
-    <script src="~/js/widgets/ffc-simulator-map.js" asp-append-version="true" defer></script>
+    <script src="~/js/pages/dashboard.js" asp-append-version="true"></script>
+    <script src="~/lib/leaflet/1.9.4/leaflet.js" asp-append-version="true"></script>
+    <script src="~/js/widgets/ffc-simulator-map.js" asp-append-version="true"></script>
 }

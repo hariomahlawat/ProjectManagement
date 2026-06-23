@@ -23,6 +23,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.ViewModels.Dashboard;
 using ProjectManagement.ViewModels.Notebook;
 using Microsoft.Extensions.Logging;
@@ -68,7 +69,43 @@ namespace ProjectManagement.Pages.Dashboard
         public OpsSignalsVm OpsSignals { get; private set; } = new() { Tiles = Array.Empty<OpsTileVm>() };
         public FfcSimulatorMapVm FfcSimulatorMap { get; private set; } = new();
         public SearchHealthVm SearchHealth { get; private set; } = new();
+        public DashboardActivitySummaryVm ActivitySummary { get; private set; } = new();
+        public DashboardIdeaSummaryVm IdeaSummary { get; private set; } = new();
         // END SECTION
+
+        public sealed class DashboardActivitySummaryVm
+        {
+            public int TotalActivities { get; init; }
+            public int WithMedia { get; init; }
+            public int PhotoCount { get; init; }
+            public int DocumentCount { get; init; }
+            public int VideoCount { get; init; }
+            public string? LatestTitle { get; init; }
+            public string? LatestType { get; init; }
+            public string? LatestLocation { get; init; }
+            public DateTimeOffset? LatestAtUtc { get; init; }
+        }
+
+        public sealed class DashboardIdeaSummaryVm
+        {
+            public int ActiveCount { get; init; }
+            public int OnHoldCount { get; init; }
+            public int ArchivedCount { get; init; }
+            public int UpdatedLast30Days { get; init; }
+            public int IdeasWithDiscussion { get; init; }
+            public int DocumentCount { get; init; }
+            public IReadOnlyList<DashboardIdeaItemVm> LatestIdeas { get; init; } = Array.Empty<DashboardIdeaItemVm>();
+        }
+
+        public sealed class DashboardIdeaItemVm
+        {
+            public int Id { get; init; }
+            public string Title { get; init; } = string.Empty;
+            public string Status { get; init; } = string.Empty;
+            public int CommentCount { get; init; }
+            public int DocumentCount { get; init; }
+            public DateTime UpdatedAt { get; init; }
+        }
 
         // SECTION: My Projects widget state
         public bool ShowMyProjectsWidget { get; private set; }
@@ -300,6 +337,95 @@ namespace ProjectManagement.Pages.Dashboard
             {
                 _logger.LogError(ex, "Dashboard widget failed: SearchHealth");
                 SearchHealth = new SearchHealthVm();
+            }
+
+            try
+            {
+                var activityBase = _db.Activities.AsNoTracking().Where(a => !a.IsDeleted);
+                var latestActivity = await activityBase
+                    .OrderByDescending(a => a.ScheduledStartUtc ?? a.CreatedAtUtc)
+                    .Select(a => new
+                    {
+                        a.Title,
+                        Type = a.ActivityType.Name,
+                        a.Location,
+                        When = a.ScheduledStartUtc ?? a.CreatedAtUtc
+                    })
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                var activityCounts = await activityBase
+                    .Select(a => new
+                    {
+                        HasMedia = a.Attachments.Any(),
+                        Photos = a.Attachments.Count(x => x.ContentType.StartsWith("image/")),
+                        Videos = a.Attachments.Count(x => x.ContentType.StartsWith("video/")),
+                        Documents = a.Attachments.Count(x => !x.ContentType.StartsWith("image/") && !x.ContentType.StartsWith("video/"))
+                    })
+                    .ToListAsync(cancellationToken);
+
+                ActivitySummary = new DashboardActivitySummaryVm
+                {
+                    TotalActivities = activityCounts.Count,
+                    WithMedia = activityCounts.Count(x => x.HasMedia),
+                    PhotoCount = activityCounts.Sum(x => x.Photos),
+                    DocumentCount = activityCounts.Sum(x => x.Documents),
+                    VideoCount = activityCounts.Sum(x => x.Videos),
+                    LatestTitle = latestActivity?.Title,
+                    LatestType = latestActivity?.Type,
+                    LatestLocation = latestActivity?.Location,
+                    LatestAtUtc = latestActivity?.When
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Dashboard widget failed: Activities summary");
+                ActivitySummary = new DashboardActivitySummaryVm();
+            }
+
+            try
+            {
+                var ideas = await _db.ProjectIdeas.AsNoTracking()
+                    .Where(i => !i.IsDeleted)
+                    .Select(i => new
+                    {
+                        i.Id,
+                        i.Title,
+                        i.Status,
+                        i.UpdatedAt,
+                        CommentCount = i.Comments.Count(c => !c.IsDeleted),
+                        DocumentCount = i.Documents.Count(d => !d.IsDeleted)
+                    })
+                    .ToListAsync(cancellationToken);
+
+                var last30Days = DateTime.UtcNow.AddDays(-30);
+                IdeaSummary = new DashboardIdeaSummaryVm
+                {
+                    ActiveCount = ideas.Count(i => i.Status == ProjectIdeaStatuses.Active),
+                    OnHoldCount = ideas.Count(i => i.Status == ProjectIdeaStatuses.OnHold),
+                    ArchivedCount = ideas.Count(i => i.Status == ProjectIdeaStatuses.Archived),
+                    UpdatedLast30Days = ideas.Count(i => i.UpdatedAt >= last30Days),
+                    IdeasWithDiscussion = ideas.Count(i => i.CommentCount > 0),
+                    DocumentCount = ideas.Sum(i => i.DocumentCount),
+                    LatestIdeas = ideas
+                        .Where(i => i.Status != ProjectIdeaStatuses.Archived)
+                        .OrderByDescending(i => i.UpdatedAt)
+                        .Take(3)
+                        .Select(i => new DashboardIdeaItemVm
+                        {
+                            Id = i.Id,
+                            Title = i.Title,
+                            Status = ProjectIdeaStatuses.ToDisplay(i.Status),
+                            CommentCount = i.CommentCount,
+                            DocumentCount = i.DocumentCount,
+                            UpdatedAt = i.UpdatedAt
+                        })
+                        .ToList()
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Dashboard widget failed: Project ideas summary");
+                IdeaSummary = new DashboardIdeaSummaryVm();
             }
 
             try
