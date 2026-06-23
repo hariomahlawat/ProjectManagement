@@ -184,6 +184,8 @@ public sealed class WorkspaceProjectMatrixRowVm
 
     public int RecordGapCount { get; set; }
 
+    public WorkspaceRecordHealthVm RecordHealth { get; set; } = new();
+
     public DateTime? LastPoRemarkAtUtc { get; set; }
 
     public bool HasBackfill { get; set; }
@@ -285,6 +287,8 @@ public sealed class WorkspaceProjectImprovementVm
 
     public int HealthPercent { get; set; }
 
+    public WorkspaceRecordHealthVm RecordHealth { get; set; } = new();
+
     public string HealthLabel { get; set; } = string.Empty;
 
     public string HealthCss { get; set; } = string.Empty;
@@ -308,9 +312,60 @@ public sealed class WorkspaceRecordHealthVm
 
     public string HealthLabel { get; set; } = "Good";
 
+    // Legacy text list retained for compatibility with existing consumers and tests.
     public IReadOnlyList<string> Gaps { get; set; } = Array.Empty<string>();
 
+    public IReadOnlyList<WorkspaceRecordGapVm> GapDetails { get; set; } = Array.Empty<WorkspaceRecordGapVm>();
+
+    public IReadOnlyList<WorkspaceRecordComponentScoreVm> Components { get; set; } = Array.Empty<WorkspaceRecordComponentScoreVm>();
+
+    public int PendingFieldCount => GapDetails.Count;
+
     public string OpenUrl { get; set; } = string.Empty;
+}
+
+public sealed class WorkspaceRecordGapVm
+{
+    public string Code { get; set; } = string.Empty;
+
+    public string Component { get; set; } = string.Empty;
+
+    public string FieldLabel { get; set; } = string.Empty;
+
+    public string? StageCode { get; set; }
+
+    public string Status { get; set; } = "Pending";
+
+    public string Reason { get; set; } = string.Empty;
+
+    public decimal EarnedPoints { get; set; }
+
+    public decimal MaximumPoints { get; set; }
+
+    public string ActionText { get; set; } = string.Empty;
+
+    public string ActionUrl { get; set; } = string.Empty;
+
+    public string Icon { get; set; } = "bi-exclamation-circle";
+
+    public int Priority { get; set; }
+}
+
+public sealed class WorkspaceRecordComponentScoreVm
+{
+    public string Code { get; set; } = string.Empty;
+
+    public string Label { get; set; } = string.Empty;
+
+    public decimal EarnedPoints { get; set; }
+
+    public decimal MaximumPoints { get; set; }
+
+    public string Status { get; set; } = "Complete";
+
+    public string Explanation { get; set; } = string.Empty;
+
+    public IReadOnlyList<WorkspaceRecordGapVm> Gaps { get; set; } = Array.Empty<WorkspaceRecordGapVm>();
 }
 
 public sealed class WorkspaceEngagementVm

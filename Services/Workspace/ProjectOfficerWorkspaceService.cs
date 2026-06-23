@@ -148,7 +148,7 @@ public sealed class ProjectOfficerWorkspaceService
             IdeasNeedingUpdateCount = ideaVms.Count(i => i.NeedsUpdate),
             AotsUnreadCount = aotsUnreadCount,
             AotsUrl = WorkspaceRouteHelper.AotsInbox(),
-            RecordGapCount = health.Values.Sum(h => h.Gaps.Count),
+            RecordGapCount = health.Values.Sum(h => h.GapDetails.Count),
             AssignedIdeaCount = ideaVms.Count,
             Engagement = engagement,
             CommandChips = BuildCommandChips(
@@ -610,7 +610,8 @@ public sealed class ProjectOfficerWorkspaceService
                 : issue ? "Attention" : "Ok",
             RecordStatus = health.HealthPercent >= 80 ? "Ok" : health.HealthPercent >= 60 ? "Attention" : "ActionRequired",
             RecordHealthPercent = health.HealthPercent,
-            RecordGapCount = health.Gaps.Count,
+            RecordGapCount = health.GapDetails.Count,
+            RecordHealth = health,
             LastPoRemarkAtUtc = last,
             HasBackfill = p.ProjectStages.Any(s => s.RequiresBackfill),
             HasCurrentStageIssue = issue,
@@ -781,30 +782,38 @@ public sealed class ProjectOfficerWorkspaceService
         int maxProjects)
     {
         var projectsWithGaps = healthRows
-            .Where(h => h.Gaps.Any())
+            .Where(h => h.GapDetails.Any())
             .OrderBy(h => h.HealthPercent)
-            .ThenByDescending(h => h.Gaps.Count)
+            .ThenByDescending(h => h.GapDetails.Count)
             .ToList();
 
         var items = projectsWithGaps
             .Take(maxProjects)
             .Select(h =>
             {
-                var gapDetails = h.Gaps
-                    .Select(gap => BuildGapDetail(h.ProjectId, gap))
+                var gapDetails = h.GapDetails
+                    .Select(gap => new WorkspaceProjectGapDetailVm
+                    {
+                        Label = gap.FieldLabel,
+                        ActionText = gap.ActionText,
+                        ActionUrl = gap.ActionUrl,
+                        Icon = gap.Icon,
+                        Severity = gap.Status == "Pending" ? "Warning" : "Info"
+                    })
                     .ToList();
 
                 return new WorkspaceProjectImprovementVm
                 {
                     ProjectId = h.ProjectId,
                     ProjectName = h.ProjectName,
-                    FixCount = h.Gaps.Count,
+                    FixCount = h.GapDetails.Count,
                     FixLabels = gapDetails
                         .Take(3)
                         .Select(detail => detail.Label)
                         .ToList(),
                     GapDetails = gapDetails,
                     HealthPercent = h.HealthPercent,
+                    RecordHealth = h,
                     HealthLabel = WorkspaceDisplayHelpers.HealthBandLabel(h.HealthPercent),
                     HealthCss = WorkspaceDisplayHelpers.HealthCss(h.HealthPercent),
                     Url = WorkspaceRouteHelper.ProjectOverview(h.ProjectId),
@@ -983,7 +992,7 @@ public sealed class ProjectOfficerWorkspaceService
             .FirstOrDefault();
         var worst = healthItems
             .OrderBy(h => h.HealthPercent)
-            .ThenByDescending(h => h.Gaps.Count)
+            .ThenByDescending(h => h.GapDetails.Count)
             .ThenBy(h => h.ProjectName)
             .FirstOrDefault();
 

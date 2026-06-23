@@ -128,7 +128,8 @@
     {
         <div id="open-plan-review" data-open="1"></div>
     }
-    @if (TempData["OpenOffcanvas"] as string == "actuals-edit")
+    @if (TempData["OpenOffcanvas"] as string == "actuals-edit" ||
+        string.Equals(Request.Query["oc"], "actuals", StringComparison.Ordinal))
     {
         <div id="open-actuals-edit" data-open="1"></div>
     }

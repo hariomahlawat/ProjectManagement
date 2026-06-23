@@ -35,6 +35,15 @@ internal static class WorkspaceRouteHelper
     public static string ProjectMetaRequest(int projectId)
         => $"/Projects/Overview/{projectId}";
 
+    public static string ProjectMetaEdit(int projectId)
+        => $"/Projects/Meta/Edit/{projectId}";
+
+    public static string ProjectProcurementEdit(int projectId)
+        => $"/Projects/Overview/{projectId}?oc=procurement#procurement";
+
+    public static string ProjectTimelineActuals(int projectId)
+        => $"/Projects/Overview/{projectId}?oc=actuals#timeline";
+
     public static string ProjectDocumentRequest(int projectId)
         => $"/Projects/Documents/UploadRequest?id={projectId}";
 

@@ -45,8 +45,8 @@ public sealed class WorkspaceProjectRecordHealthServiceTests
         // 15 profile + 25 no procurement fields applicable + 10/20 historical
         // + 15 current-stage planning + 0 documents + 0 media = 65.
         Assert.Equal(65, health.HealthPercent);
-        Assert.Contains("FS actual completion missing", health.Gaps);
-        Assert.DoesNotContain(health.Gaps, gap => gap.Contains("planned", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(health.GapDetails, gap => gap.Code == "FS_ACTUAL_COMPLETION" && gap.FieldLabel == "FS — Actual Completion");
+        Assert.DoesNotContain(health.GapDetails, gap => gap.FieldLabel.Contains("planned", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -110,8 +110,8 @@ public sealed class WorkspaceProjectRecordHealthServiceTests
         var result = await service.CalculateForProjectsAsync(new[] { project }, "po-1", default);
         var health = result[project.Id];
 
-        Assert.Contains("AoN Cost pending", health.Gaps);
-        Assert.DoesNotContain("Benchmark Cost pending", health.Gaps); // BM is not completed yet.
+        Assert.Contains(health.GapDetails, gap => gap.Code == "AON_COST" && gap.FieldLabel == "AoN Cost");
+        Assert.DoesNotContain(health.GapDetails, gap => gap.Code == "BENCHMARK_COST"); // BM is not completed yet.
         Assert.Equal(63, health.HealthPercent);
     }
 
@@ -138,8 +138,8 @@ public sealed class WorkspaceProjectRecordHealthServiceTests
 
         // 15 profile + 25 procurement N/A + 20 no historical stages + 6/15 current stage.
         Assert.Equal(66, health.HealthPercent);
-        Assert.Contains("Current-stage timeline (PDC) pending", health.Gaps);
-        Assert.DoesNotContain("Current-stage Actual Start pending", health.Gaps);
+        Assert.Contains(health.GapDetails, gap => gap.Code == "CURRENT_STAGE_PDC" && gap.FieldLabel == "FS — PDC");
+        Assert.DoesNotContain(health.GapDetails, gap => gap.Code == "CURRENT_STAGE_ACTUAL_START");
     }
 
     private static ProjectRecordHealthService CreateService(ApplicationDbContext db)

@@ -17,11 +17,6 @@ public sealed class ProjectRecordHealthService
     private const decimal DocumentsWeight = 15m;
     private const decimal SupportingMediaWeight = 10m;
 
-    private const string GapBriefDescription = "Brief description pending";
-    private const string GapPhotos = "Add at least 3 project photos";
-    private const string GapDocuments = "Upload at least 3 project documents";
-    private const string GapVideo = "Add at least 1 project video";
-
     private readonly ApplicationDbContext _db;
     private readonly ProjectProcurementReadService _procurementRead;
 
@@ -33,15 +28,14 @@ public sealed class ProjectRecordHealthService
         _procurementRead = procurementRead;
     }
 
-    // SECTION: Batch project-record completeness calculation
-    // The percentage answers one question only: of the information that should exist at
-    // the project's present stage, how much has actually been recorded?
+    // The score answers one question only: of the information that should exist at the
+    // project's present stage, how much has actually been recorded?
     public async Task<IReadOnlyDictionary<int, WorkspaceRecordHealthVm>> CalculateForProjectsAsync(
         IReadOnlyList<Project> projects,
         string userId,
         CancellationToken ct)
     {
-        _ = userId; // Update freshness is intentionally assessed elsewhere, not in completeness.
+        _ = userId; // Freshness is assessed separately and never changes completeness.
 
         var projectIds = projects.Select(p => p.Id).Distinct().ToArray();
         var mediaCounts = await LoadMediaCountsAsync(projectIds, ct);
@@ -51,18 +45,25 @@ public sealed class ProjectRecordHealthService
 
         foreach (var project in projects)
         {
-            var gaps = new List<string>();
-            decimal score = 0m;
+            var components = new List<WorkspaceRecordComponentScoreVm>
+            {
+                ScoreCoreProfile(project),
+                ScoreProcurement(project, procurement, pncApplicability),
+                ScoreHistoricalTimeline(project),
+                ScoreCurrentStageTimeline(project),
+                ScoreDocuments(project.Id, mediaCounts),
+                ScoreSupportingMedia(project.Id, mediaCounts)
+            };
 
-            score += ScoreCoreProfile(project, gaps);
-            score += ScoreProcurement(project, procurement, pncApplicability, gaps);
-            score += ScoreHistoricalTimeline(project, gaps);
-            score += ScoreCurrentStageTimeline(project, gaps);
-            score += ScoreDocuments(project.Id, mediaCounts, gaps);
-            score += ScoreSupportingMedia(project.Id, mediaCounts, gaps);
+            var gapDetails = components
+                .SelectMany(component => component.Gaps)
+                .OrderBy(gap => gap.Priority)
+                .ThenBy(gap => gap.Component)
+                .ThenBy(gap => gap.FieldLabel)
+                .ToList();
 
             var roundedScore = Math.Clamp(
-                (int)Math.Round(score, MidpointRounding.AwayFromZero),
+                (int)Math.Round(components.Sum(component => component.EarnedPoints), MidpointRounding.AwayFromZero),
                 0,
                 100);
 
@@ -72,7 +73,10 @@ public sealed class ProjectRecordHealthService
                 ProjectName = project.Name,
                 HealthPercent = roundedScore,
                 HealthLabel = Label(roundedScore),
-                Gaps = gaps,
+                Components = components,
+                GapDetails = gapDetails,
+                // Retained for compatibility with existing consumers and tests.
+                Gaps = gapDetails.Select(gap => gap.FieldLabel).ToList(),
                 OpenUrl = WorkspaceRouteHelper.ProjectOverview(project.Id)
             };
         }
@@ -80,9 +84,6 @@ public sealed class ProjectRecordHealthService
         return results;
     }
 
-    // SECTION: PNC applicability comes from the latest approved timeline plan.
-    // If no approved plan exists, the workflow's PNC stage remains applicable by default,
-    // matching the application's existing planning default.
     private async Task<IReadOnlyDictionary<int, bool>> LoadPncApplicabilityAsync(
         int[] projectIds,
         CancellationToken ct)
@@ -112,7 +113,6 @@ public sealed class ProjectRecordHealthService
                     .PncApplicable);
     }
 
-    // SECTION: Media and document counts
     private async Task<IReadOnlyDictionary<int, ProjectDataCounts>> LoadMediaCountsAsync(
         int[] projectIds,
         CancellationToken ct)
@@ -149,95 +149,100 @@ public sealed class ProjectRecordHealthService
                 videoCounts.GetValueOrDefault(id)));
     }
 
-    // SECTION: Core profile — stable project-record information only
-    private static decimal ScoreCoreProfile(Project project, List<string> gaps)
+    private static WorkspaceRecordComponentScoreVm ScoreCoreProfile(Project project)
     {
-        if (!string.IsNullOrWhiteSpace(project.Description) &&
-            project.Description.Trim().Length >= 30)
+        var gaps = new List<WorkspaceRecordGapVm>();
+        var descriptionComplete = !string.IsNullOrWhiteSpace(project.Description) &&
+                                  project.Description.Trim().Length >= 30;
+
+        if (!descriptionComplete)
         {
-            return CoreProfileWeight;
+            gaps.Add(Gap(
+                code: "PROJECT_DESCRIPTION",
+                component: "Core project profile",
+                fieldLabel: "Project description",
+                reason: "Required for every project and must contain a meaningful description.",
+                earned: 0m,
+                maximum: CoreProfileWeight,
+                actionText: "Edit project details",
+                actionUrl: WorkspaceRouteHelper.ProjectMetaEdit(project.Id),
+                icon: "bi-card-text",
+                priority: 40));
         }
 
-        gaps.Add(GapBriefDescription);
-        return 0m;
+        return Component(
+            "CORE_PROFILE",
+            "Core project profile",
+            descriptionComplete ? CoreProfileWeight : 0m,
+            CoreProfileWeight,
+            gaps);
     }
 
-    // SECTION: Procurement at a glance — stage-aware, field-level proportional scoring
-    private static decimal ScoreProcurement(
+    private static WorkspaceRecordComponentScoreVm ScoreProcurement(
         Project project,
         IReadOnlyDictionary<int, ProcurementAtAGlanceVm> procurementByProject,
-        IReadOnlyDictionary<int, bool> pncApplicability,
-        List<string> gaps)
+        IReadOnlyDictionary<int, bool> pncApplicability)
     {
         var snapshot = procurementByProject.GetValueOrDefault(project.Id) ?? ProcurementAtAGlanceVm.Empty;
-        var applicableFields = new List<(bool IsComplete, string Gap)>();
+        var fields = new List<ApplicableField>();
+        var actionUrl = WorkspaceRouteHelper.ProjectProcurementEdit(project.Id);
 
-        AddWhenStageCompleted(
-            project,
-            ProcurementStageRules.StageForIpaCost,
-            snapshot.IpaCost is > 0m,
-            "IPA Cost pending",
-            applicableFields);
-
-        AddWhenStageCompleted(
-            project,
-            ProcurementStageRules.StageForAonCost,
-            snapshot.AonCost is > 0m,
-            "AoN Cost pending",
-            applicableFields);
-
-        AddWhenStageCompleted(
-            project,
-            ProcurementStageRules.StageForBenchmarkCost,
-            snapshot.BenchmarkCost is > 0m,
-            "Benchmark Cost pending",
-            applicableFields);
-
-        AddWhenStageCompleted(
-            project,
-            ProcurementStageRules.StageForL1Cost,
-            snapshot.L1Cost is > 0m,
-            "L1 Cost pending",
-            applicableFields);
+        AddWhenStageCompleted(project, ProcurementStageRules.StageForIpaCost,
+            snapshot.IpaCost is > 0m, "IPA_COST", "IPA Cost", actionUrl, fields);
+        AddWhenStageCompleted(project, ProcurementStageRules.StageForAonCost,
+            snapshot.AonCost is > 0m, "AON_COST", "AoN Cost", actionUrl, fields);
+        AddWhenStageCompleted(project, ProcurementStageRules.StageForBenchmarkCost,
+            snapshot.BenchmarkCost is > 0m, "BENCHMARK_COST", "Benchmark Cost", actionUrl, fields);
+        AddWhenStageCompleted(project, ProcurementStageRules.StageForL1Cost,
+            snapshot.L1Cost is > 0m, "L1_COST", "L1 Cost", actionUrl, fields);
 
         var isPncApplicable = !pncApplicability.TryGetValue(project.Id, out var applicable) || applicable;
         if (isPncApplicable)
         {
-            AddWhenStageCompleted(
-                project,
-                ProcurementStageRules.StageForPncCost,
-                snapshot.PncCost is > 0m,
-                "PNC Cost pending",
-                applicableFields);
+            AddWhenStageCompleted(project, ProcurementStageRules.StageForPncCost,
+                snapshot.PncCost is > 0m, "PNC_COST", "PNC Cost", actionUrl, fields);
         }
 
-        AddWhenStageCompleted(
-            project,
-            ProcurementStageRules.StageForSupplyOrder,
+        AddWhenStageCompleted(project, ProcurementStageRules.StageForSupplyOrder,
             snapshot.SupplyOrderDate.HasValue && snapshot.SupplyOrderDate.Value != default,
-            "Supply Order Date pending",
-            applicableFields);
+            "SUPPLY_ORDER_DATE", "Supply Order Date", actionUrl, fields);
 
-        return ScoreApplicableFields(ProcurementWeight, applicableFields, gaps);
+        return ScoreApplicableFields(
+            code: "PROCUREMENT",
+            label: "Procurement at a glance",
+            weight: ProcurementWeight,
+            fields: fields,
+            componentReason: "Applicable procurement fields are determined by completed project stages.",
+            actionText: "Update procurement",
+            icon: "bi-currency-rupee",
+            priority: 20);
     }
 
     private static void AddWhenStageCompleted(
         Project project,
         string stageCode,
         bool isComplete,
-        string gap,
-        ICollection<(bool IsComplete, string Gap)> applicableFields)
+        string code,
+        string fieldLabel,
+        string actionUrl,
+        ICollection<ApplicableField> fields)
     {
-        if (IsStageCompleted(project, stageCode))
+        if (!IsStageCompleted(project, stageCode))
         {
-            applicableFields.Add((isComplete, gap));
+            return;
         }
+
+        fields.Add(new ApplicableField(
+            isComplete,
+            code,
+            fieldLabel,
+            stageCode,
+            $"Required because the {stageCode} stage is completed.",
+            actionUrl));
     }
 
-    // SECTION: Historical timeline — only actual dates count
-    // Planned dates are deliberately excluded. Every completed historical stage contributes
-    // two equally weighted fields: Actual Start and Actual Completion.
-    private static decimal ScoreHistoricalTimeline(Project project, List<string> gaps)
+    // Historical stages deliberately consider only Actual Start and Actual Completion.
+    private static WorkspaceRecordComponentScoreVm ScoreHistoricalTimeline(Project project)
     {
         var current = PresentStageHelper.Resolve(project.ProjectStages);
         var hasActiveOrFutureCurrent = current is not null && current.Status != StageStatus.Completed;
@@ -249,39 +254,50 @@ public sealed class ProjectRecordHealthService
             .ThenBy(stage => stage.StageCode)
             .ToList();
 
-        if (historicalStages.Count == 0)
-        {
-            return HistoricalTimelineWeight;
-        }
-
-        var applicableFields = new List<(bool IsComplete, string Gap)>(historicalStages.Count * 2);
+        var fields = new List<ApplicableField>(historicalStages.Count * 2);
+        var actionUrl = WorkspaceRouteHelper.ProjectTimelineActuals(project.Id);
 
         foreach (var stage in historicalStages)
         {
-            applicableFields.Add((
+            fields.Add(new ApplicableField(
                 stage.ActualStart.HasValue,
-                $"{stage.StageCode} actual start missing"));
-            applicableFields.Add((
+                $"{stage.StageCode}_ACTUAL_START",
+                $"{stage.StageCode} — Actual Start",
+                stage.StageCode,
+                $"Required because the {stage.StageCode} stage is completed.",
+                actionUrl));
+            fields.Add(new ApplicableField(
                 stage.CompletedOn.HasValue,
-                $"{stage.StageCode} actual completion missing"));
+                $"{stage.StageCode}_ACTUAL_COMPLETION",
+                $"{stage.StageCode} — Actual Completion",
+                stage.StageCode,
+                $"Required because the {stage.StageCode} stage is completed.",
+                actionUrl));
         }
 
-        return ScoreApplicableFields(HistoricalTimelineWeight, applicableFields, gaps);
+        return ScoreApplicableFields(
+            code: "HISTORICAL_TIMELINE",
+            label: "Historical stage actual dates",
+            weight: HistoricalTimelineWeight,
+            fields: fields,
+            componentReason: "Completed historical stages require Actual Start and Actual Completion. Planned dates are not assessed.",
+            actionText: "Complete historical dates",
+            icon: "bi-clock-history",
+            priority: 30);
     }
 
-    // SECTION: Current-stage timeline (PDC)
-    // PDC is the controlling date and therefore carries 60% of this category.
-    // Overdue dates do not reduce completeness; they are handled separately as schedule health.
-    private static decimal ScoreCurrentStageTimeline(Project project, List<string> gaps)
+    private static WorkspaceRecordComponentScoreVm ScoreCurrentStageTimeline(Project project)
     {
         var current = PresentStageHelper.Resolve(project.ProjectStages);
-
         if (current is null || current.Status is StageStatus.Completed or StageStatus.Skipped)
         {
-            return CurrentStageTimelineWeight;
+            return Component("CURRENT_STAGE_PDC", "Current-stage timeline (PDC)",
+                CurrentStageTimelineWeight, CurrentStageTimelineWeight, Array.Empty<WorkspaceRecordGapVm>());
         }
 
+        var gaps = new List<WorkspaceRecordGapVm>();
         decimal score = 0m;
+        var actionUrl = WorkspaceRouteHelper.ProjectTimelineActuals(project.Id);
 
         if (current.Status == StageStatus.InProgress)
         {
@@ -291,7 +307,18 @@ public sealed class ProjectRecordHealthService
             }
             else
             {
-                gaps.Add("Current-stage Actual Start pending");
+                gaps.Add(Gap(
+                    "CURRENT_STAGE_ACTUAL_START",
+                    "Current-stage timeline (PDC)",
+                    $"{current.StageCode} — Actual Start",
+                    $"Required because {current.StageCode} is the current in-progress stage.",
+                    0m,
+                    CurrentStageTimelineWeight * 0.40m,
+                    "Update current-stage timeline",
+                    actionUrl,
+                    "bi-calendar-check",
+                    10,
+                    current.StageCode));
             }
         }
         else
@@ -302,7 +329,18 @@ public sealed class ProjectRecordHealthService
             }
             else
             {
-                gaps.Add("Current-stage Planned Start pending");
+                gaps.Add(Gap(
+                    "CURRENT_STAGE_PLANNED_START",
+                    "Current-stage timeline (PDC)",
+                    $"{current.StageCode} — Planned Start",
+                    $"Required because {current.StageCode} is the current stage and has not started.",
+                    0m,
+                    CurrentStageTimelineWeight * 0.40m,
+                    "Update current-stage timeline",
+                    actionUrl,
+                    "bi-calendar-event",
+                    10,
+                    current.StageCode));
             }
         }
 
@@ -312,46 +350,80 @@ public sealed class ProjectRecordHealthService
         }
         else
         {
-            gaps.Add("Current-stage timeline (PDC) pending");
+            gaps.Add(Gap(
+                "CURRENT_STAGE_PDC",
+                "Current-stage timeline (PDC)",
+                $"{current.StageCode} — PDC",
+                $"Required because {current.StageCode} is the current stage.",
+                0m,
+                CurrentStageTimelineWeight * 0.60m,
+                "Update current-stage timeline",
+                actionUrl,
+                "bi-calendar2-week",
+                5,
+                current.StageCode));
         }
 
-        return score;
+        return Component("CURRENT_STAGE_PDC", "Current-stage timeline (PDC)", score,
+            CurrentStageTimelineWeight, gaps);
     }
 
-    // SECTION: Required project documents
-    private static decimal ScoreDocuments(
+    private static WorkspaceRecordComponentScoreVm ScoreDocuments(
         int projectId,
-        IReadOnlyDictionary<int, ProjectDataCounts> counts,
-        List<string> gaps)
+        IReadOnlyDictionary<int, ProjectDataCounts> counts)
     {
         var count = counts.TryGetValue(projectId, out var value) ? value.DocumentCount : 0;
         var completed = Math.Min(count, 3);
+        var score = DocumentsWeight * completed / 3m;
+        var gaps = new List<WorkspaceRecordGapVm>();
 
         if (count < 3)
         {
-            gaps.Add(GapDocuments);
+            var remaining = 3 - count;
+            gaps.Add(Gap(
+                "PROJECT_DOCUMENTS",
+                "Published project documents",
+                $"{remaining} additional project document{(remaining == 1 ? "" : "s")}",
+                "At least three published, non-archived project documents are required.",
+                0m,
+                DocumentsWeight - score,
+                "Upload documents",
+                WorkspaceRouteHelper.ProjectDocumentsTab(projectId),
+                "bi-file-earmark-text",
+                50));
         }
 
-        return DocumentsWeight * completed / 3m;
+        return Component("DOCUMENTS", "Published project documents", score, DocumentsWeight, gaps);
     }
 
-    // SECTION: Supporting media — deliberately lower-weight than substantive records
-    private static decimal ScoreSupportingMedia(
+    private static WorkspaceRecordComponentScoreVm ScoreSupportingMedia(
         int projectId,
-        IReadOnlyDictionary<int, ProjectDataCounts> counts,
-        List<string> gaps)
+        IReadOnlyDictionary<int, ProjectDataCounts> counts)
     {
         var value = counts.TryGetValue(projectId, out var found)
             ? found
             : new ProjectDataCounts(0, 0, 0);
 
         decimal score = 0m;
+        var gaps = new List<WorkspaceRecordGapVm>();
 
         var completedPhotoSlots = Math.Min(value.PhotoCount, 3);
-        score += 6m * completedPhotoSlots / 3m;
+        var photoScore = 6m * completedPhotoSlots / 3m;
+        score += photoScore;
         if (value.PhotoCount < 3)
         {
-            gaps.Add(GapPhotos);
+            var remaining = 3 - value.PhotoCount;
+            gaps.Add(Gap(
+                "PROJECT_PHOTOS",
+                "Supporting media",
+                $"{remaining} additional project photo{(remaining == 1 ? "" : "s")}",
+                "At least three project photos are required as supporting evidence.",
+                0m,
+                6m - photoScore,
+                "Add photos",
+                WorkspaceRouteHelper.ProjectPhotos(projectId),
+                "bi-images",
+                60));
         }
 
         if (value.VideoCount > 0)
@@ -360,37 +432,104 @@ public sealed class ProjectRecordHealthService
         }
         else
         {
-            gaps.Add(GapVideo);
+            gaps.Add(Gap(
+                "PROJECT_VIDEO",
+                "Supporting media",
+                "Project video",
+                "At least one project video is required as supporting evidence.",
+                0m,
+                4m,
+                "Add video",
+                WorkspaceRouteHelper.ProjectVideos(projectId),
+                "bi-camera-video",
+                65));
         }
 
-        return score;
+        return Component("MEDIA", "Supporting media", score, SupportingMediaWeight, gaps);
     }
 
-    private static decimal ScoreApplicableFields(
-        decimal categoryWeight,
-        IReadOnlyCollection<(bool IsComplete, string Gap)> applicableFields,
-        ICollection<string> gaps)
+    private static WorkspaceRecordComponentScoreVm ScoreApplicableFields(
+        string code,
+        string label,
+        decimal weight,
+        IReadOnlyCollection<ApplicableField> fields,
+        string componentReason,
+        string actionText,
+        string icon,
+        int priority)
     {
-        if (applicableFields.Count == 0)
+        if (fields.Count == 0)
         {
-            return categoryWeight;
+            return Component(code, label, weight, weight, Array.Empty<WorkspaceRecordGapVm>());
         }
 
-        var completeCount = 0;
-        foreach (var field in applicableFields)
-        {
-            if (field.IsComplete)
-            {
-                completeCount++;
-            }
-            else
-            {
-                gaps.Add(field.Gap);
-            }
-        }
+        var fieldShare = weight / fields.Count;
+        var completeCount = fields.Count(field => field.IsComplete);
+        var earned = fieldShare * completeCount;
+        var gaps = fields
+            .Where(field => !field.IsComplete)
+            .Select(field => Gap(
+                field.Code,
+                label,
+                field.FieldLabel,
+                field.Reason,
+                0m,
+                fieldShare,
+                actionText,
+                field.ActionUrl,
+                icon,
+                priority,
+                field.StageCode))
+            .ToList();
 
-        return categoryWeight * completeCount / applicableFields.Count;
+        return Component(code, label, earned, weight, gaps, componentReason);
     }
+
+    private static WorkspaceRecordComponentScoreVm Component(
+        string code,
+        string label,
+        decimal earned,
+        decimal maximum,
+        IReadOnlyList<WorkspaceRecordGapVm> gaps,
+        string? explanation = null)
+        => new()
+        {
+            Code = code,
+            Label = label,
+            EarnedPoints = decimal.Round(earned, 2),
+            MaximumPoints = maximum,
+            Status = gaps.Count == 0 ? "Complete" : earned > 0 ? "Partial" : "Pending",
+            Explanation = explanation ?? string.Empty,
+            Gaps = gaps
+        };
+
+    private static WorkspaceRecordGapVm Gap(
+        string code,
+        string component,
+        string fieldLabel,
+        string reason,
+        decimal earned,
+        decimal maximum,
+        string actionText,
+        string actionUrl,
+        string icon,
+        int priority,
+        string? stageCode = null)
+        => new()
+        {
+            Code = code,
+            Component = component,
+            FieldLabel = fieldLabel,
+            StageCode = stageCode,
+            Status = earned > 0 ? "Partial" : "Pending",
+            Reason = reason,
+            EarnedPoints = decimal.Round(earned, 2),
+            MaximumPoints = decimal.Round(maximum, 2),
+            ActionText = actionText,
+            ActionUrl = actionUrl,
+            Icon = icon,
+            Priority = priority
+        };
 
     private static bool IsStageCompleted(Project project, string stageCode)
         => project.ProjectStages.Any(stage =>
@@ -401,4 +540,12 @@ public sealed class ProjectRecordHealthService
         => score >= 80 ? "Good" : score >= 60 ? "Attention" : "Needs Work";
 
     private sealed record ProjectDataCounts(int PhotoCount, int DocumentCount, int VideoCount);
+
+    private sealed record ApplicableField(
+        bool IsComplete,
+        string Code,
+        string FieldLabel,
+        string? StageCode,
+        string Reason,
+        string ActionUrl);
 }
