@@ -51,7 +51,7 @@
 }
 @section Styles { <link rel="stylesheet" href="~/css/notebook.css" asp-append-version="true" /> }
 
-<div class="notebook-shell @(Model.UseLegacyEditor ? "has-editor" : "editor-collapsed")" data-board-view="grid">
+<div class="notebook-shell @(Model.UseLegacyEditor ? "has-editor" : "editor-collapsed")" data-board-view="grid" data-open-label-manager-on-load="@Model.EditLabels.ToString().ToLowerInvariant()">
     @* SECTION: Dedicated anti-forgery token for Notebook API mutations *@
     <div id="notebook-antiforgery-token" hidden>
         @Html.AntiForgeryToken()
@@ -59,18 +59,36 @@
     <script id="notebook-label-catalog" type="application/json">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Notebook.Tags.Select(tag => new { id = tag.Id, name = tag.Name, count = tag.Count })))</script>
     <aside class="notebook-rail" aria-label="Notebook views">
         <div class="notebook-rail__brand"><i class="bi bi-journal-bookmark"></i><span>My Notebook</span></div>
-        @foreach (var item in Model.Notebook.RailItems)
+
+        @foreach (var item in Model.Notebook.RailItems.Where(item => item.Key is "home" or "today" or "reminders"))
         {
             <a class="notebook-rail__item @(item.IsActive ? "is-active" : "")" href="@item.Url"><i class="bi @item.Icon"></i><span>@item.Label</span><b data-notebook-count="@item.Key">@item.Count</b></a>
-            @if (item.Key == "labels" && Model.Notebook.Tags.Any())
+        }
+
+        <div class="notebook-rail-labels notebook-rail-labels--flat" data-notebook-label-rail aria-label="Notebook labels">
+            @foreach (var label in Model.Notebook.Tags)
             {
-                <div class="notebook-rail-labels" data-notebook-label-rail aria-label="Notebook labels">
-                    @foreach (var label in Model.Notebook.Tags.Take(8))
-                    {
-                        <a asp-page="/Notebook/Index" asp-route-view="labels" asp-route-tag="@label.Name" class="@(string.Equals(Model.Notebook.Tag, label.Name.ToUpperInvariant(), StringComparison.OrdinalIgnoreCase) ? "is-active" : "")"><i class="bi bi-tag"></i><span>@label.Name</span><b>@label.Count</b></a>
-                    }
-                </div>
+                <a asp-page="/Notebook/Index"
+                   asp-route-view="labels"
+                   asp-route-tag="@label.Name"
+                   class="notebook-rail__item notebook-rail__item--label @(string.Equals(Model.Notebook.Tag, label.Name, StringComparison.OrdinalIgnoreCase) ? "is-active" : "")">
+                    <i class="bi bi-tag"></i><span>@label.Name</span><b>@label.Count</b>
+                </a>
             }
+        </div>
+
+        <button type="button"
+                class="notebook-rail__item notebook-rail__item--button"
+                data-open-label-manager
+                aria-haspopup="dialog">
+            <i class="bi bi-pencil"></i><span>Edit labels</span><b aria-hidden="true"></b>
+        </button>
+
+        <div class="notebook-rail__separator" aria-hidden="true"></div>
+
+        @foreach (var item in Model.Notebook.RailItems.Where(item => item.Key is "archive" or "completed"))
+        {
+            <a class="notebook-rail__item @(item.IsActive ? "is-active" : "")" href="@item.Url"><i class="bi @item.Icon"></i><span>@item.Label</span><b data-notebook-count="@item.Key">@item.Count</b></a>
         }
     </aside>
 
@@ -78,10 +96,6 @@
         <section class="notebook-commandbar">
             <div class="notebook-commandbar__heading"><h1>@viewTitle</h1><p>@viewSubtitle</p></div>
             <div class="notebook-command-actions">
-                @if (Model.Notebook.View == "labels")
-                {
-                    <button type="button" class="notebook-manage-labels-button" data-open-label-manager><i class="bi bi-pencil"></i><span>Manage labels</span></button>
-                }
                 <form method="get" class="notebook-search" aria-label="Search this notebook"><input type="hidden" name="view" value="@Model.Notebook.View" /><input type="hidden" name="filter" value="@Model.Notebook.Filter" /><input type="hidden" name="tag" value="@Model.Notebook.Tag" /><i class="bi bi-search"></i><input name="Query" value="@Model.Query" placeholder="Search this notebook" aria-label="Search this notebook" /></form>
                 <div class="notebook-view-toggle" role="group" aria-label="Board layout">
                     <button type="button" data-notebook-view="grid" aria-label="Grid view"><i class="bi bi-grid-3x3-gap"></i></button>

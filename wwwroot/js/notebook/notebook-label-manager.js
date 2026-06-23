@@ -1,4 +1,4 @@
-import { NotebookApi } from './notebook-api.js';
+﻿import { NotebookApi } from './notebook-api.js';
 import { getNotebookLabelCatalog, normaliseLabelName, refreshNotebookLabelCatalog, setNotebookLabelCatalog } from './notebook-label-picker.js';
 
 export function initNotebookLabelManager(root, options = {}) {
@@ -106,11 +106,17 @@ export function initNotebookLabelManager(root, options = {}) {
       try {
         busy = true;
         setFeedback('Saving…');
+        const previousName = row.dataset.originalName;
         const result = await NotebookApi.renameLabel(id, name);
         setNotebookLabelCatalog(result.labels || []);
         render(result.labels || []);
         setFeedback('Label updated.');
         options.onCatalogChange?.(result.labels || []);
+        const currentTag = new URL(location.href).searchParams.get('tag');
+        if (currentTag && currentTag.toLocaleLowerCase() === previousName.toLocaleLowerCase()) {
+          location.assign(`/Notebook?view=labels&tag=${encodeURIComponent(name)}`);
+          return;
+        }
       } catch (error) {
         input.value = row.dataset.originalName;
         setFeedback(error.message || 'Unable to rename the label.', true);
@@ -129,7 +135,7 @@ export function initNotebookLabelManager(root, options = {}) {
         options.onCatalogChange?.(result.labels || []);
         const currentTag = new URL(location.href).searchParams.get('tag');
         if (currentTag && currentTag.toLocaleLowerCase() === row.dataset.originalName.toLocaleLowerCase()) {
-          history.replaceState({}, '', '/Notebook?view=labels');
+          location.assign('/Notebook?view=home');
         }
       } catch (error) {
         setFeedback(error.message || 'Unable to delete the label.', true);

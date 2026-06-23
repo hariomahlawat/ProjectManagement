@@ -39,6 +39,8 @@ public class IndexModel : PageModel
     public string? Filter { get; set; }
     [BindProperty(SupportsGet = true)]
     public string? Tag { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public bool EditLabels { get; set; }
     [BindProperty]
     public string? QuickCaptureText { get; set; }
     [BindProperty]
@@ -64,6 +66,12 @@ public class IndexModel : PageModel
         if (SelectedId.HasValue)
         {
             return RedirectToPage(new { note = SelectedId, view = View, query = Query, filter = Filter, tag = Tag });
+        }
+
+        // SECTION: Legacy/root Labels navigation now opens the in-place editor over Home.
+        if (string.Equals(View, "labels", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(Tag))
+        {
+            return RedirectToPage(new { view = "home", editLabels = true });
         }
 
         // SECTION: The modern note query opens the JavaScript modal only.

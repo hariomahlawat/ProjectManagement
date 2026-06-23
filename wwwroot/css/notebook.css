@@ -2074,11 +2074,27 @@
 .notebook-label-picker__suggestion:hover,.notebook-label-picker__suggestion:focus,.notebook-label-picker__create:hover { background:#f3f6fa; }
 .notebook-label-picker__suggestion small { color:#7b8798; }
 .notebook-label-picker__create { display:block; color:#2563eb; }
-.notebook-rail-labels { margin:2px 0 6px 28px; display:grid; gap:2px; }
-.notebook-rail-labels a { display:grid; grid-template-columns:auto 1fr auto; gap:7px; align-items:center; padding:6px 10px; border-radius:8px; color:#526174; text-decoration:none; font-size:.82rem; }
-.notebook-rail-labels a:hover,.notebook-rail-labels a.is-active { background:#eaf0ff; color:#315bd5; }
-.notebook-rail-labels b { font-size:.72rem; color:#8a96a8; }
-.notebook-manage-labels-button { display:inline-flex; align-items:center; gap:6px; height:38px; padding:0 12px; border:1px solid #d6deea; border-radius:999px; background:#fff; color:#475569; }
+.notebook-rail-labels {
+  display: grid;
+  gap: 1px;
+  margin: .18rem 0;
+}
+.notebook-rail-labels .notebook-rail__item {
+  font-size: inherit;
+}
+.notebook-rail__item--button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.notebook-rail__separator {
+  height: 1px;
+  margin: .35rem .65rem;
+  background: #e6ebf2;
+}
 .notebook-label-manager[hidden] { display:none; }
 .notebook-label-manager { position:fixed; inset:0; z-index:2000; display:grid; place-items:center; }
 .notebook-label-manager__backdrop { position:absolute; inset:0; background:rgba(15,23,42,.46); }
@@ -2091,7 +2107,11 @@
 .notebook-label-manager__row input:focus { border-color:#8db0ff; outline:0; }
 .notebook-label-manager__feedback { margin:10px 16px 0; padding:9px 10px; border-radius:8px; background:#eef6ff; color:#2456a6; }
 .notebook-label-manager__feedback.is-error { background:#fff1f2; color:#b42318; }
-@media (max-width:700px){ .notebook-rail-labels{display:none}.notebook-label-picker__popover{position:fixed;left:16px;right:16px;bottom:16px;width:auto}.notebook-label-manager__row{grid-template-columns:auto 1fr auto auto}.notebook-label-manager__row>span{display:none}.notebook-manage-labels-button span{display:none} }
+@media (max-width:700px){
+  .notebook-label-picker__popover{position:fixed;left:16px;right:16px;bottom:16px;width:auto}
+  .notebook-label-manager__row{grid-template-columns:auto 1fr auto auto}
+  .notebook-label-manager__row>span{display:none}
+}
 
 /* SECTION: Professional Keep-style label management and assignment */
 .notebook-label-picker__suggestion[aria-selected="true"] {
@@ -2245,4 +2265,28 @@
   .notebook-card-label-host .notebook-label-picker__popover {
     max-height: 60vh;
   }
+}
+
+
+/* SECTION: Flat Google Keep-style label navigation */
+.notebook-rail-labels--flat .notebook-rail__item,
+.notebook-rail__item--button {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .6rem;
+}
+.notebook-rail-labels--flat .notebook-rail__item span,
+.notebook-rail__item--button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notebook-rail__item--label.is-active {
+  background: #e7efff;
+  color: #2457c5;
+}
+.notebook-rail__item--button:focus-visible {
+  outline: 2px solid #4f7cff;
+  outline-offset: 2px;
 }

@@ -16,11 +16,14 @@ export function renderNotebookLabelNavigation(shell, labels = []) {
   const rail = shell.querySelector('[data-notebook-label-rail]');
   if (rail) {
     rail.innerHTML = '';
-    safeLabels.slice(0, 20).forEach((label) => {
+    const currentTag = new URL(location.href).searchParams.get('tag');
+    safeLabels.forEach((label) => {
       const link = document.createElement('a');
       link.href = `/Notebook?view=labels&tag=${encodeURIComponent(label.name)}`;
-      const currentTag = new URL(location.href).searchParams.get('tag');
-      if (currentTag && currentTag.toLocaleLowerCase() === String(label.name).toLocaleLowerCase()) link.classList.add('is-active');
+      link.className = 'notebook-rail__item notebook-rail__item--label';
+      if (currentTag && currentTag.toLocaleLowerCase() === String(label.name).toLocaleLowerCase()) {
+        link.classList.add('is-active');
+      }
       link.innerHTML = `<i class="bi bi-tag"></i><span>${escapeLabelHtml(label.name)}</span><b>${Number(label.count || 0)}</b>`;
       rail.appendChild(link);
     });
@@ -38,7 +41,6 @@ export function renderNotebookLabelNavigation(shell, labels = []) {
   }
   const empty = shell.querySelector('[data-notebook-label-directory-empty]');
   if (empty) empty.hidden = safeLabels.length !== 0;
-  shell.querySelectorAll('[data-notebook-count="labels"]').forEach((element) => { element.textContent = String(safeLabels.length); });
 }
 
 function parseCardLabels(card) {
@@ -69,6 +71,9 @@ export function initNotebookApp() {
     onCatalogChange: (labels) => renderNotebookLabelNavigation(shell, labels)
   });
   document.querySelectorAll('[data-open-label-manager]').forEach((button) => button.addEventListener('click', () => labelManager?.open()));
+  if (shell.dataset.openLabelManagerOnLoad === 'true') {
+    queueMicrotask(() => labelManager?.open());
+  }
 
   let activeLabelCard = null;
   const cardLabelPicker = initNotebookLabelPicker(

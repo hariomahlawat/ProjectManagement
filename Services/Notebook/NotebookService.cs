@@ -1184,7 +1184,6 @@ public sealed class NotebookService : INotebookService
                 item.ReminderAtUtc < bounds.EndUtc,
                 ct),
             "reminders" => await ReminderItems(ActiveItems(query)).CountAsync(ct),
-            "labels" => await _db.NotebookTags.AsNoTracking().CountAsync(tag => tag.OwnerId == ownerId, ct),
             "archive" or "archived" => await query.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
             "completed" => await query.CountAsync(item => item.Status == NotebookItemStatus.Completed, ct),
             _ => 0
@@ -1195,7 +1194,6 @@ public sealed class NotebookService : INotebookService
             ("home", "All Notes", "bi-journal-text"),
             ("today", "Today", "bi-calendar-check"),
             ("reminders", "Reminders", "bi-bell"),
-            ("labels", "Labels", "bi-tags"),
             ("archive", "Archive", "bi-archive"),
             ("completed", "Completed", "bi-check2-circle")
         };
