@@ -7,7 +7,7 @@ import { initNotebookCreateEditor } from './notebook-create-editor.js';
 import { reconcileMutation, requireMutationItem, updateCardConcurrencyState } from './notebook-reconcile.js';
 import { closeNotebookColourPickers, normaliseNotebookColour } from './notebook-colour-picker.js';
 import { initNotebookLabelManager } from './notebook-label-manager.js';
-import { getNotebookLabelCatalog, initNotebookLabelPicker, refreshNotebookLabelCatalog, setNotebookLabelCatalog } from './notebook-label-picker.js';
+import { hydrateNotebookLabelCatalog, initNotebookLabelPicker, refreshNotebookLabelCatalog } from './notebook-label-picker.js';
 
 
 export function renderNotebookLabelNavigation(shell, labels = []) {
@@ -61,8 +61,8 @@ export function initNotebookApp() {
   const showGlobalError = (message) => { if (!globalError || !globalErrorText) { shell.dataset.error = message || 'Notebook action failed.'; return; } globalErrorText.textContent = message || 'Notebook action failed.'; globalError.hidden = false; };
   const applyCounts = (counts) => { if (!counts) return; Object.entries(counts).forEach(([key, value]) => shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => { el.textContent = String(value); })); };
   const refreshCounts = async () => applyCounts(await NotebookApi.getCounts());
+  const labels = hydrateNotebookLabelCatalog(document);
   const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts });
-  getNotebookLabelCatalog(document);
   const createEditor = initNotebookCreateEditor(board, view, { shell, showGlobalError, applyCounts });
   const labelManager = initNotebookLabelManager(document.querySelector('[data-notebook-label-manager]'), {
     showGlobalError,
@@ -107,9 +107,10 @@ export function initNotebookApp() {
   );
 
   document.addEventListener('notebook:labels-changed', (event) => {
-    renderNotebookLabelNavigation(shell, event.detail?.labels || getNotebookLabelCatalog());
+    const nextLabels = Array.isArray(event.detail?.labels) ? event.detail.labels : [];
+    renderNotebookLabelNavigation(shell, nextLabels);
   });
-  renderNotebookLabelNavigation(shell, getNotebookLabelCatalog());
+  renderNotebookLabelNavigation(shell, labels);
   composer = initNotebookComposer(shell.querySelector('[data-notebook-composer]'), board, view, { showGlobalError, applyCounts });
   document.querySelector('[data-notebook-global-error-close]')?.addEventListener('click', () => { globalError.hidden = true; globalErrorText.textContent = ''; });
   const storageKey = 'notebook.boardView';

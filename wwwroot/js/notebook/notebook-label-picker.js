@@ -1,6 +1,9 @@
 import { NotebookApi } from './notebook-api.js';
 
-const state = { labels: [] };
+const state = {
+  labels: [],
+  initialised: false
+};
 
 export function normaliseLabelName(value) {
   return String(value || '').trim().replace(/^#+/, '').trim();
@@ -17,36 +20,90 @@ export function normaliseLabels(values) {
   });
 }
 
-export function setNotebookLabelCatalog(labels = [], documentRef = document) {
-  state.labels = (Array.isArray(labels) ? labels : []).map((label) => ({
+function normaliseCatalogue(labels = []) {
+  return (Array.isArray(labels) ? labels : []).map((label) => ({
     id: Number(label?.id || 0),
     name: normaliseLabelName(label?.name),
     count: Number(label?.count || 0)
   })).filter((label) => label.id > 0 && label.name)
     .sort((a, b) => a.name.localeCompare(b.name));
+}
 
-  documentRef.dispatchEvent(new CustomEvent('notebook:labels-changed', {
-    detail: { labels: state.labels.map((label) => ({ ...label })) }
+function cataloguesEqual(current, next) {
+  if (current.length !== next.length) return false;
+  return current.every((label, index) => {
+    const candidate = next[index];
+    return label.id === candidate.id &&
+      label.name === candidate.name &&
+      label.count === candidate.count;
+  });
+}
+
+function cloneCatalogue() {
+  return state.labels.map((label) => ({ ...label }));
+}
+
+function dispatchCatalogueChanged(documentRef, labels) {
+  if (!documentRef?.dispatchEvent) return;
+  const EventCtor = documentRef.defaultView?.CustomEvent ?? globalThis.CustomEvent;
+  if (!EventCtor) return;
+  documentRef.dispatchEvent(new EventCtor('notebook:labels-changed', {
+    detail: { labels: labels.map((label) => ({ ...label })) }
   }));
 }
 
-export function getNotebookLabelCatalog(documentRef = document) {
-  const script = documentRef.querySelector('#notebook-label-catalog');
-  if (script && state.labels.length === 0) {
-    try { setNotebookLabelCatalog(JSON.parse(script.textContent || '[]'), documentRef); }
-    catch { state.labels = []; }
+export function setNotebookLabelCatalog(labels = [], documentRef = document, options = {}) {
+  const next = normaliseCatalogue(labels);
+  const changed = !cataloguesEqual(state.labels, next);
+  state.labels = next;
+  state.initialised = options.markInitialised !== false;
+
+  if (changed && options.notify !== false) {
+    dispatchCatalogueChanged(documentRef, state.labels);
   }
-  return state.labels.map((label) => ({ ...label }));
+
+  return cloneCatalogue();
+}
+
+export function hydrateNotebookLabelCatalog(documentRef = document) {
+  if (state.initialised) return cloneCatalogue();
+
+  const script = documentRef?.querySelector?.('#notebook-label-catalog');
+  let labels = [];
+  if (script) {
+    try {
+      labels = JSON.parse(script.textContent || '[]');
+    } catch {
+      labels = [];
+    }
+  }
+
+  return setNotebookLabelCatalog(labels, documentRef, {
+    notify: false,
+    markInitialised: true
+  });
+}
+
+export function getNotebookLabelCatalog() {
+  return cloneCatalogue();
 }
 
 export async function refreshNotebookLabelCatalog(documentRef = document) {
   const labels = await NotebookApi.getLabels();
-  setNotebookLabelCatalog(labels || [], documentRef);
-  return getNotebookLabelCatalog(documentRef);
+  return setNotebookLabelCatalog(labels || [], documentRef, {
+    notify: true,
+    markInitialised: true
+  });
+}
+
+export function resetNotebookLabelCatalogForTests() {
+  state.labels = [];
+  state.initialised = false;
 }
 
 export function initNotebookLabelPicker(root, options = {}) {
   if (!root) return null;
+  const documentRef = root.ownerDocument || document;
   const toggle = root.querySelector('[data-label-picker-toggle]');
   const popover = root.querySelector('[data-label-picker-popover]');
   const close = root.querySelector('[data-label-picker-close]');
@@ -58,20 +115,23 @@ export function initNotebookLabelPicker(root, options = {}) {
   let selected = normaliseLabels(options.value || []);
   let busy = false;
   let onChange = options.onChange;
+  let destroyed = false;
 
   function setBusy(value) {
+    if (destroyed) return;
     busy = Boolean(value);
     if (toggle) toggle.disabled = busy;
-    input.disabled = busy;
-    suggestions.querySelectorAll('button').forEach((button) => { button.disabled = busy; });
-    create.disabled = busy;
+    if (input) input.disabled = busy;
+    suggestions?.querySelectorAll('button').forEach((button) => { button.disabled = busy; });
+    if (create) create.disabled = busy;
     root.classList.toggle('is-busy', busy);
   }
 
   function renderSelected() {
+    if (destroyed || !selectedRoot) return;
     selectedRoot.innerHTML = '';
     selected.forEach((name) => {
-      const chip = document.createElement('button');
+      const chip = documentRef.createElement('button');
       chip.type = 'button';
       chip.className = 'notebook-label-chip';
       chip.dataset.removeLabel = name;
@@ -83,15 +143,17 @@ export function initNotebookLabelPicker(root, options = {}) {
   }
 
   function renderSuggestions() {
+    if (destroyed || !input || !suggestions || !create) return;
     const queryText = normaliseLabelName(input.value);
     const query = queryText.toLocaleLowerCase();
     const selectedKeys = new Set(selected.map((x) => x.toLocaleLowerCase()));
-    const matches = getNotebookLabelCatalog().filter((label) => !query || label.name.toLocaleLowerCase().includes(query));
+    const catalogue = getNotebookLabelCatalog();
+    const matches = catalogue.filter((label) => !query || label.name.toLocaleLowerCase().includes(query));
 
     suggestions.innerHTML = '';
     matches.slice(0, 50).forEach((label) => {
       const checked = selectedKeys.has(label.name.toLocaleLowerCase());
-      const button = document.createElement('button');
+      const button = documentRef.createElement('button');
       button.type = 'button';
       button.className = 'notebook-label-picker__suggestion';
       button.dataset.toggleLabel = label.name;
@@ -101,13 +163,13 @@ export function initNotebookLabelPicker(root, options = {}) {
       suggestions.appendChild(button);
     });
 
-    const exact = getNotebookLabelCatalog().some((label) => label.name.toLocaleLowerCase() === query);
+    const exact = catalogue.some((label) => label.name.toLocaleLowerCase() === query);
     create.hidden = !queryText || exact;
     create.textContent = queryText ? `Create “${queryText}”` : '';
   }
 
   async function commit(next) {
-    if (busy) return;
+    if (busy || destroyed) return;
     const previous = selected;
     selected = normaliseLabels(next);
     renderSelected();
@@ -127,17 +189,18 @@ export function initNotebookLabelPicker(root, options = {}) {
 
   function positionFloating(anchor) {
     if (!floatingHost || !anchor) return;
+    const view = documentRef.defaultView || window;
     const rect = anchor.getBoundingClientRect();
-    const width = Math.min(320, window.innerWidth - 24);
-    const left = Math.min(Math.max(12, rect.left), window.innerWidth - width - 12);
-    const top = Math.min(rect.bottom + 8, window.innerHeight - 360);
+    const width = Math.min(320, view.innerWidth - 24);
+    const left = Math.min(Math.max(12, rect.left), view.innerWidth - width - 12);
+    const top = Math.min(rect.bottom + 8, view.innerHeight - 360);
     floatingHost.style.left = `${left}px`;
     floatingHost.style.top = `${Math.max(12, top)}px`;
     floatingHost.style.width = `${width}px`;
   }
 
   function open(anchor = null) {
-    if (busy) return;
+    if (busy || destroyed || !popover) return;
     if (floatingHost) {
       floatingHost.hidden = false;
       positionFloating(anchor);
@@ -146,31 +209,30 @@ export function initNotebookLabelPicker(root, options = {}) {
     toggle?.setAttribute('aria-expanded', 'true');
     renderSelected();
     renderSuggestions();
-    queueMicrotask(() => input.focus());
+    queueMicrotask(() => input?.focus());
   }
 
   function closePicker() {
+    if (destroyed || !popover) return;
     popover.hidden = true;
     toggle?.setAttribute('aria-expanded', 'false');
-    input.value = '';
+    if (input) input.value = '';
     renderSuggestions();
     if (floatingHost) floatingHost.hidden = true;
   }
 
-  toggle?.addEventListener('click', () => popover.hidden ? open(toggle) : closePicker());
-  close.addEventListener('click', closePicker);
-  input.addEventListener('input', renderSuggestions);
-  input.addEventListener('keydown', (event) => {
+  const handleToggleClick = () => popover?.hidden ? open(toggle) : closePicker();
+  const handleInput = () => renderSuggestions();
+  const handleInputKeydown = (event) => {
     if (event.key === 'Escape') { event.preventDefault(); closePicker(); }
     if (event.key === 'Enter') {
       event.preventDefault();
-      const first = suggestions.querySelector('[data-toggle-label]');
+      const first = suggestions?.querySelector('[data-toggle-label]');
       if (first) first.click();
-      else if (!create.hidden) create.click();
+      else if (create && !create.hidden) create.click();
     }
-  });
-
-  suggestions.addEventListener('click', (event) => {
+  };
+  const handleSuggestionClick = (event) => {
     const button = event.target.closest('[data-toggle-label]');
     if (!button) return;
     const name = button.dataset.toggleLabel;
@@ -179,39 +241,46 @@ export function initNotebookLabelPicker(root, options = {}) {
       ? selected.filter((value) => value.toLocaleLowerCase() !== name.toLocaleLowerCase())
       : [...selected, name];
     commit(next).catch(() => {});
-  });
-
-  selectedRoot.addEventListener('click', (event) => {
+  };
+  const handleSelectedClick = (event) => {
     const button = event.target.closest('[data-remove-label]');
     if (!button) return;
     const key = button.dataset.removeLabel.toLocaleLowerCase();
     commit(selected.filter((value) => value.toLocaleLowerCase() !== key)).catch(() => {});
-  });
-
-  create.addEventListener('click', async () => {
-    const name = normaliseLabelName(input.value);
-    if (!name || busy) return;
+  };
+  const handleCreateClick = async () => {
+    const name = normaliseLabelName(input?.value);
+    if (!name || busy || destroyed) return;
     try {
       setBusy(true);
       const result = await NotebookApi.createLabel(name);
-      setNotebookLabelCatalog(result?.labels || []);
+      setNotebookLabelCatalog(result?.labels || [], documentRef);
       const canonical = result?.label?.name || name;
-      input.value = '';
+      if (input) input.value = '';
       setBusy(false);
       await commit([...selected, canonical]);
     } catch (error) {
       setBusy(false);
       options.onError?.(error);
     }
-  });
-
-  document.addEventListener('click', (event) => {
-    if (popover.hidden) return;
+  };
+  const handleDocumentClick = (event) => {
+    if (destroyed || !popover || popover.hidden) return;
     if (root.contains(event.target) || floatingHost?.contains(event.target)) return;
     closePicker();
-  });
+  };
+  const handleCatalogChanged = () => renderSuggestions();
 
-  document.addEventListener('notebook:labels-changed', renderSuggestions);
+  toggle?.addEventListener('click', handleToggleClick);
+  close?.addEventListener('click', closePicker);
+  input?.addEventListener('input', handleInput);
+  input?.addEventListener('keydown', handleInputKeydown);
+  suggestions?.addEventListener('click', handleSuggestionClick);
+  selectedRoot?.addEventListener('click', handleSelectedClick);
+  create?.addEventListener('click', handleCreateClick);
+  documentRef.addEventListener('click', handleDocumentClick);
+  documentRef.addEventListener('notebook:labels-changed', handleCatalogChanged);
+
   renderSelected();
   renderSuggestions();
 
@@ -228,7 +297,21 @@ export function initNotebookLabelPicker(root, options = {}) {
     },
     open,
     close: closePicker,
-    refresh: () => refreshNotebookLabelCatalog()
+    refresh: () => refreshNotebookLabelCatalog(documentRef),
+    destroy: () => {
+      if (destroyed) return;
+      destroyed = true;
+      toggle?.removeEventListener('click', handleToggleClick);
+      close?.removeEventListener('click', closePicker);
+      input?.removeEventListener('input', handleInput);
+      input?.removeEventListener('keydown', handleInputKeydown);
+      suggestions?.removeEventListener('click', handleSuggestionClick);
+      selectedRoot?.removeEventListener('click', handleSelectedClick);
+      create?.removeEventListener('click', handleCreateClick);
+      documentRef.removeEventListener('click', handleDocumentClick);
+      documentRef.removeEventListener('notebook:labels-changed', handleCatalogChanged);
+      if (floatingHost) floatingHost.hidden = true;
+    }
   };
 }
 
