@@ -14,6 +14,20 @@
             : $"{actionCount} actions require attention";
     var visibleProjectCount = Model.Workspace.ProjectMatrix.Count;
     var followUpCount = Model.Workspace.PersonalReminders.Count + Model.Workspace.Ideas.Count;
+    var overdueProjectCount = Model.Workspace.ProjectMatrix.Count(row =>
+        row.UpdateStatus.Equals("ActionRequired", StringComparison.OrdinalIgnoreCase) ||
+        WorkspaceDisplayHelpers.TimelineStatusCss(row) == "danger");
+    var incompleteTimelineCount = Model.Workspace.ProjectMatrix.Count(row =>
+        WorkspaceDisplayHelpers.TimelineStatusLabel(row).Contains("missing", StringComparison.OrdinalIgnoreCase));
+    var reviewDocumentCount = Model.Workspace.ActionQueue.Count(item =>
+        item.Type.Equals("Aots", StringComparison.OrdinalIgnoreCase));
+    var operationalSummaryParts = new List<string>();
+    if (overdueProjectCount > 0) operationalSummaryParts.Add($"{overdueProjectCount} project{(overdueProjectCount == 1 ? "" : "s")} overdue");
+    if (incompleteTimelineCount > 0) operationalSummaryParts.Add($"{incompleteTimelineCount} timeline{(incompleteTimelineCount == 1 ? "" : "s")} incomplete");
+    if (reviewDocumentCount > 0) operationalSummaryParts.Add($"{reviewDocumentCount} document{(reviewDocumentCount == 1 ? "" : "s")} awaiting review");
+    var operationalSummary = operationalSummaryParts.Count > 0
+        ? string.Join(" · ", operationalSummaryParts)
+        : "No overdue project actions or incomplete timelines";
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/workspace.css" asp-append-version="true" />
@@ -28,6 +42,7 @@
                     <div class="po-eyebrow">Project Officer Workspace</div>
                     <h1>@dailyActionTitle</h1>
                     <p>Review priority work, maintain records and keep assigned projects moving.</p>
+                    <div class="po-operational-summary"><i class="bi bi-activity"></i><span>@operationalSummary</span></div>
                 </div>
             </div>
 
@@ -163,8 +178,10 @@
                                 @foreach (var row in Model.Workspace.ProjectMatrix)
                                 {
                                     var timelineCss = WorkspaceDisplayHelpers.TimelineStatusCss(row);
-                                    var rowAttention = row.UpdateStatus.Equals("ActionRequired", StringComparison.OrdinalIgnoreCase) || timelineCss == "danger";
-                                    <tr class="@(rowAttention ? "po-project-row--critical" : string.Empty)">
+                                    var rowCritical = row.UpdateStatus.Equals("ActionRequired", StringComparison.OrdinalIgnoreCase) || timelineCss == "danger";
+                                    var rowWarning = !rowCritical && (timelineCss == "warning" || row.RecordHealthPercent < 50);
+                                    var rowClass = rowCritical ? "po-project-row--critical" : rowWarning ? "po-project-row--warning" : "po-project-row--normal";
+                                    <tr class="@rowClass">
                                         <td>
                                             <div class="po-project-cell">
                                                 <span class="po-project-indicator" aria-hidden="true"></span>
@@ -179,7 +196,7 @@
                                         <td><span class="po-status po-status--@timelineCss"><i></i>@WorkspaceDisplayHelpers.TimelineStatusLabel(row)</span></td>
                                         <td>
                                             <a class="po-record po-record--@WorkspaceDisplayHelpers.HealthCss(row.RecordHealthPercent)" href="@row.OpenUrl" title="@row.RecordHealthPercent% complete">
-                                                <span class="po-record__top"><strong>@row.RecordHealthPercent%</strong><small>@row.RecordGapCount gap@(row.RecordGapCount == 1 ? "" : "s")</small></span>
+                                                <span class="po-record__top"><strong>@row.RecordHealthPercent% complete</strong><small>@row.RecordGapCount field@(row.RecordGapCount == 1 ? "" : "s") missing</small></span>
                                                 <span class="po-record__bar"><i style="width:@row.RecordHealthPercent%"></i></span>
                                             </a>
                                         </td>

@@ -24,10 +24,15 @@
     };
 
     const activateFromScroll = () => {
-        const marker = stickyOffset();
+        const topbar = document.querySelector('.pm-topbar');
+        const stickyTop = Math.round(topbar?.getBoundingClientRect().height || 70);
+        nav.classList.toggle('is-stuck', nav.getBoundingClientRect().top <= stickyTop + 1 && window.scrollY > 12);
+
+        const marker = stickyTop + nav.getBoundingClientRect().height + 10;
         let active = entries[0];
         for (const entry of entries) {
-            if (entry.section.getBoundingClientRect().top <= marker) active = entry;
+            const heading = entry.section.querySelector('.po-panel__head, .po-readiness__head') || entry.section;
+            if (heading.getBoundingClientRect().top <= marker) active = entry;
         }
         setActive(active.link);
     };
