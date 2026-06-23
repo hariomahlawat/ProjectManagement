@@ -325,7 +325,7 @@ public sealed class ProjectPulseService : IProjectPulseService
             .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return BuildTreemapSeries(ordered, unclassifiedCount);
+        return BuildTreemapSeries(ordered, unclassifiedCount, "TechnicalCategoryId");
     }
 
     private async Task<IReadOnlyList<TreemapNode>> BuildUniqueCompletedByProjectTypeTreemapAsync(
@@ -366,7 +366,7 @@ public sealed class ProjectPulseService : IProjectPulseService
             .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return BuildTreemapSeries(ordered, unclassifiedCount);
+        return BuildTreemapSeries(ordered, unclassifiedCount, "ProjectTypeId");
     }
     // END SECTION
 
@@ -405,7 +405,8 @@ public sealed class ProjectPulseService : IProjectPulseService
 
     private static IReadOnlyList<TreemapNode> BuildTreemapSeries(
         IReadOnlyList<TreemapBucket> ordered,
-        int unclassifiedCount)
+        int unclassifiedCount,
+        string filterName)
     {
         var top = ordered.Take(5).ToList();
         var rest = ordered.Skip(5).ToList();
@@ -414,7 +415,7 @@ public sealed class ProjectPulseService : IProjectPulseService
 
         foreach (var node in top)
         {
-            nodes.Add(new TreemapNode(node.Label, node.Count, null));
+            nodes.Add(new TreemapNode(node.Label, node.Count, $"{CompletedPage}?{filterName}={node.Id}"));
         }
 
         if (unclassifiedCount > 0)

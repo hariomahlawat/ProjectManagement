@@ -4,6 +4,7 @@
 @using System.Globalization
 @using System.Linq
 @using System.Text.Json
+@using ProjectManagement.Configuration
 @{
     ViewData["Title"] = "Dashboard";
     ViewData["UseFullWidth"] = true;
@@ -18,24 +19,38 @@
     var stageOrder = new[] { "FS", "IPA", "SOW", "AON", "BID", "TEC", "BM", "COB", "PNC", "SO", "DEVP", "ATP", "PAYMENT", "TOT" };
     var stageItems = pulse?.OngoingStageDistributionTotal.Items
         .Where(x => x.Count > 0)
-        .OrderBy(x => Array.IndexOf(stageOrder, x.StageCode))
+        .OrderBy(x => { var i = Array.IndexOf(stageOrder, x.StageCode); return i < 0 ? int.MaxValue : i; })
         .ToList() ?? new List<ProjectManagement.Services.Analytics.StageDistributionItem>();
     var projectTypes = pulse?.OngoingBucketFilters
         .Where(x => !string.Equals(x.Key, "total", StringComparison.OrdinalIgnoreCase))
         .ToList() ?? new List<ProjectManagement.Areas.Dashboard.Components.ProjectPulse.OngoingBucketFilterVm>();
     var completedCategories = pulse?.UniqueCompletedByTechnicalCategory.Take(6).ToList()
         ?? new List<ProjectManagement.Areas.Dashboard.Components.ProjectPulse.TreemapNode>();
-    var maxCompletedCategory = completedCategories.Count > 0 ? Math.Max(1, completedCategories.Max(x => x.Count)) : 1;
+    var completedTotal = Math.Max(1, pulse?.CompletedUniqueCount ?? 0);
     var outputTiles = Model.OpsSignals.Tiles.ToList();
-    var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ProjectManagement.Infrastructure.IstClock.TimeZone);
-    var latestActivityIst = Model.ActivitySummary.LatestAtUtc is null
-        ? (DateTimeOffset?)null
-        : TimeZoneInfo.ConvertTime(Model.ActivitySummary.LatestAtUtc.Value, ProjectManagement.Infrastructure.IstClock.TimeZone);
-    var searchHealthy = Model.SearchHealth.WorkerActive && Model.SearchHealth.Ocr.Failed == 0;
-    var activityMediaRate = Model.ActivitySummary.TotalActivities > 0
-        ? (int)Math.Round(Model.ActivitySummary.WithMedia * 100d / Model.ActivitySummary.TotalActivities)
-        : 0;
+    var topFfcCountries = Model.FfcSimulatorMap.Countries
+        .Where(x => x.TotalUnits > 0)
+        .OrderByDescending(x => x.Completed)
+        .ThenByDescending(x => x.Planned)
+        .ThenBy(x => x.Name)
+        .Take(5)
+        .ToList();
+    var ffcPayload = JsonSerializer.Serialize(Model.FfcSimulatorMap.Countries, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    var ffcGeoUrl = Url.Content("~/ffc/maps/world_india_view.geojson");
+    var ffcFullMapUrl = Url.Page("/FFC/Map", values: new { area = "ProjectOfficeReports" }) ?? "#";
+    var canOpenOcrConsole = User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.HoD);
+    var searchHealthy = Model.SearchHealth.WorkerActive && Model.SearchHealth.Ocr.Pending == 0 && Model.SearchHealth.Ocr.Failed == 0;
     string Json<T>(IEnumerable<T>? values) => JsonSerializer.Serialize(values ?? Array.Empty<T>());
+    string OngoingStageUrl(string stageCode) => Url.Page("/Projects/Ongoing/Index", new { PresentStageCode = stageCode }) ?? (pulse?.OngoingUrl ?? "#");
+    string OngoingBucketUrl(string bucket) => Url.Page("/Projects/Ongoing/Index", new { StageBucket = bucket }) ?? (pulse?.OngoingUrl ?? "#");
+    string OngoingCategoryUrl(string key)
+    {
+        if (key.StartsWith("cat-", StringComparison.OrdinalIgnoreCase) && int.TryParse(key[4..], out var categoryId))
+        {
+            return Url.Page("/Projects/Ongoing/Index", new { ProjectCategoryId = categoryId }) ?? (pulse?.OngoingUrl ?? "#");
+        }
+        return pulse?.OngoingUrl ?? "#";
+    }
 }
 
 @section Styles {
@@ -46,9 +61,7 @@
 
 @if (TempData["Error"] is string err && !string.IsNullOrWhiteSpace(err))
 {
-    <div class="alert alert-warning py-2 mb-3">
-        <i class="bi bi-exclamation-triangle-fill me-2"></i>@err
-    </div>
+    <div class="alert alert-warning py-2 mb-3"><i class="bi bi-exclamation-triangle-fill me-2"></i>@err</div>
 }
 
 <div class="db-page" data-dashboard>
@@ -59,12 +72,10 @@
             <p class="db-header__subtitle">Portfolio, institutional outputs, engagement and innovation at a glance.</p>
         </div>
         <div class="db-header__actions">
-            <span class="db-updated"><i class="bi bi-arrow-repeat"></i> Updated @nowIst.ToString("dd MMM yyyy, HH:mm") IST</span>
+            <span class="db-updated"><i class="bi bi-clock-history"></i> Loaded @Model.DashboardLoadedAtIst.ToString("dd MMM yyyy, HH:mm") IST</span>
             @if (pulse is not null)
             {
-                <a class="btn btn-primary btn-sm db-primary-action" href="@pulse.AnalyticsUrl">
-                    <i class="bi bi-graph-up-arrow"></i><span>Open analytics</span>
-                </a>
+                <a class="btn btn-primary btn-sm db-primary-action" href="@pulse.AnalyticsUrl"><i class="bi bi-graph-up-arrow"></i><span>Open analytics</span></a>
             }
         </div>
     </header>
@@ -75,10 +86,7 @@
                 <div class="db-section-head">
                     <div>
                         <span class="db-section-icon db-section-icon--blue"><i class="bi bi-activity"></i></span>
-                        <div>
-                            <h2 id="portfolio-pulse-title">Portfolio pulse</h2>
-                            <p>@(pulse?.OngoingCount ?? 0) ongoing projects across the development lifecycle</p>
-                        </div>
+                        <div><h2 id="portfolio-pulse-title">Portfolio pulse</h2><p>@(pulse?.OngoingCount ?? 0) ongoing projects across the development lifecycle</p></div>
                     </div>
                     <a href="@(pulse?.OngoingUrl ?? "#")" class="db-text-link">View ongoing projects <i class="bi bi-arrow-right"></i></a>
                 </div>
@@ -92,16 +100,16 @@
                                 @{ var bucketTotal = Math.Max(1, totalBucket?.Total ?? 0); }
                                 @foreach (var item in new[]
                                 {
-                                    (Label: "Approval", Count: totalBucket?.Apvl ?? 0, Css: "approval"),
-                                    (Label: "AoN", Count: totalBucket?.Aon ?? 0, Css: "aon"),
-                                    (Label: "Tendering", Count: totalBucket?.Tender ?? 0, Css: "tender"),
-                                    (Label: "Development", Count: totalBucket?.Devp ?? 0, Css: "development")
+                                    (Label: "Approval", Count: totalBucket?.Apvl ?? 0, Css: "approval", Bucket: "approval"),
+                                    (Label: "AoN", Count: totalBucket?.Aon ?? 0, Css: "aon", Bucket: "aon"),
+                                    (Label: "Tendering", Count: totalBucket?.Tender ?? 0, Css: "tender", Bucket: "procurement"),
+                                    (Label: "Development", Count: totalBucket?.Devp ?? 0, Css: "development", Bucket: "development")
                                 })
                                 {
                                     var pct = (int)Math.Round(item.Count * 100d / bucketTotal);
-                                    <div class="db-lifecycle__segment db-lifecycle__segment--@item.Css" style="--segment-grow:@Math.Max(1, item.Count)" role="listitem">
+                                    <a class="db-lifecycle__segment db-lifecycle__segment--@item.Css" href="@OngoingBucketUrl(item.Bucket)" role="listitem" aria-label="@item.Label: @item.Count projects, @pct percent">
                                         <span>@item.Label</span><strong>@item.Count</strong><small>@pct%</small>
-                                    </div>
+                                    </a>
                                 }
                             </div>
                         </article>
@@ -111,9 +119,7 @@
                             <div class="db-stage-grid" role="list">
                                 @foreach (var stage in stageItems)
                                 {
-                                    <a href="@pulse.OngoingUrl" class="db-stage" role="listitem" title="@stage.StageName">
-                                        <span>@stage.StageCode</span><strong>@stage.Count</strong>
-                                    </a>
+                                    <a href="@OngoingStageUrl(stage.StageCode)" class="db-stage" role="listitem" title="View projects at @stage.StageName"><span>@stage.StageCode</span><strong>@stage.Count</strong></a>
                                 }
                             </div>
                         </article>
@@ -124,10 +130,10 @@
                                 @foreach (var item in projectTypes)
                                 {
                                     var width = pulse.OngoingCount > 0 ? Math.Max(6, item.Count * 100d / pulse.OngoingCount) : 0;
-                                    <div class="db-classification-row">
+                                    <a class="db-classification-row" href="@OngoingCategoryUrl(item.Key)">
                                         <div><span>@item.Label</span><strong>@item.Count</strong></div>
                                         <div class="db-meter"><span style="--meter-width:@width.ToString("0.##", CultureInfo.InvariantCulture)%"></span></div>
-                                    </div>
+                                    </a>
                                 }
                             </div>
                         </article>
@@ -143,26 +149,27 @@
                 <div class="db-section-head db-section-head--compact">
                     <div>
                         <span class="db-section-icon db-section-icon--green"><i class="bi bi-check2-circle"></i></span>
-                        <div><h2 id="completed-title">Completed projects</h2><p>Portfolio outcomes</p></div>
+                        <div><h2 id="completed-title">Completed projects</h2><p>Portfolio outcomes and technical composition</p></div>
                     </div>
                     <a href="@(pulse?.CompletedUrl ?? "#")" class="db-text-link">View all <i class="bi bi-arrow-right"></i></a>
                 </div>
                 <div class="db-completed-compact">
                     <div class="db-completed-summary">
                         <div class="db-summary-stat db-summary-stat--primary"><span>Total completed</span><strong>@(pulse?.CompletedCount ?? 0)</strong></div>
-                        <div class="db-summary-stat"><span>Unique projects</span><strong>@(pulse?.CompletedUniqueCount ?? 0)</strong></div>
-                        <div class="db-summary-stat"><span>Rebuilds</span><strong>@(pulse?.CompletedRebuildCount ?? 0)</strong></div>
-                        <div class="db-summary-stat db-summary-stat--accent"><span>Ready for proliferation</span><strong>@(pulse?.ProliferationEligible ?? 0)</strong></div>
+                        <div class="db-summary-stat"><span>Original projects</span><strong>@(pulse?.CompletedUniqueCount ?? 0)</strong></div>
+                        <div class="db-summary-stat"><span>Rebuild projects</span><strong>@(pulse?.CompletedRebuildCount ?? 0)</strong></div>
+                        <a href="@(pulse?.ProliferationEligibleUrl ?? "#")" class="db-summary-stat db-summary-stat--accent"><span>Ready for proliferation</span><strong>@(pulse?.ProliferationEligible ?? 0)</strong></a>
                     </div>
-                    <div class="db-category-bars">
+                    <div class="db-category-bars" aria-label="Completed projects by technical category">
                         @foreach (var category in completedCategories)
                         {
-                            var pct = category.Count * 100d / maxCompletedCategory;
-                            <div class="db-category-row">
+                            var share = category.Count * 100d / completedTotal;
+                            var categoryUrl = string.IsNullOrWhiteSpace(category.Url) ? pulse?.CompletedUrl ?? "#" : category.Url;
+                            <a class="db-category-row" href="@categoryUrl">
                                 <span>@category.Label</span>
-                                <div class="db-category-track"><i style="--bar-width:@pct.ToString("0.##", CultureInfo.InvariantCulture)%"></i></div>
-                                <strong>@category.Count</strong>
-                            </div>
+                                <div class="db-category-track"><i style="--bar-width:@share.ToString("0.##", CultureInfo.InvariantCulture)%"></i></div>
+                                <strong>@category.Count <small>@share.ToString("0")%</small></strong>
+                            </a>
                         }
                     </div>
                 </div>
@@ -175,6 +182,7 @@
                     <span class="db-section-icon db-section-icon--teal"><i class="bi bi-bar-chart-line"></i></span>
                     <div><h2 id="outputs-title">Institutional outputs</h2><p>Cumulative totals with monthly activity for the last 12 months</p></div>
                 </div>
+                <span class="db-context-note">Trend comparison: last 3 months vs previous 3 months</span>
             </div>
             <div class="db-output-grid">
                 @foreach (var tile in outputTiles)
@@ -182,16 +190,16 @@
                     var values = tile.Sparkline ?? Array.Empty<int>();
                     var labels = tile.SparklineLabels ?? Array.Empty<string>();
                     <a class="db-output-card" href="@tile.LinkUrl">
-                        <div class="db-output-card__head">
-                            <span class="db-output-card__icon"><i class="bi @tile.Icon"></i></span>
-                            <span class="db-output-card__label">@tile.Label</span>
-                        </div>
+                        <div class="db-output-card__head"><span class="db-output-card__icon"><i class="bi @tile.Icon"></i></span><span class="db-output-card__label">@tile.Label</span></div>
                         <div class="db-output-card__metric">
                             <strong>@tile.Value.ToString("N0")</strong>
-                            @if (!string.IsNullOrWhiteSpace(tile.Unit)) { <span>@tile.Unit</span> }
+                            @if (!string.IsNullOrWhiteSpace(tile.Unit))
+                            {
+                                <span>@tile.Unit</span>
+                            }
                         </div>
-                        <div class="db-output-card__chart" data-db-spark data-values='@Html.Raw(Json(values))' data-labels='@Html.Raw(Json(labels))' aria-label="@tile.Label monthly activity over the last 12 months">
-                            <canvas></canvas>
+                        <div class="db-output-card__chart" data-db-spark data-values='@Html.Raw(Json(values))' data-labels='@Html.Raw(Json(labels))'>
+                            <canvas role="img" aria-label="@tile.Label monthly activity over the last 12 months"></canvas>
                         </div>
                         <div class="db-output-card__foot">
                             <span>Monthly activity · 12 months</span>
@@ -213,47 +221,60 @@
         <section class="db-dual-grid db-reveal" aria-label="Engagement and innovation">
             <article class="db-panel db-engagement-card">
                 <div class="db-section-head">
-                    <div>
-                        <span class="db-section-icon db-section-icon--teal"><i class="bi bi-people"></i></span>
-                        <div><h2>Institutional activities</h2><p>Engagements, media and supporting records</p></div>
-                    </div>
+                    <div><span class="db-section-icon db-section-icon--teal"><i class="bi bi-people"></i></span><div><h2>Institutional activities</h2><p>Activity mix, recent momentum and latest engagements</p></div></div>
                     <a asp-page="/Activities/Index" class="db-text-link">View activities <i class="bi bi-arrow-right"></i></a>
                 </div>
-                <div class="db-mini-metrics">
-                    <div><strong>@Model.ActivitySummary.TotalActivities</strong><span>Activities</span></div>
-                    <div><strong>@Model.ActivitySummary.WithMedia</strong><span>With media</span></div>
-                    <div><strong>@Model.ActivitySummary.PhotoCount</strong><span>Photos</span></div>
-                    <div><strong>@Model.ActivitySummary.DocumentCount</strong><span>Documents</span></div>
-                    <div><strong>@Model.ActivitySummary.VideoCount</strong><span>Videos</span></div>
-                </div>
-                <div class="db-engagement-body">
-                    <div class="db-coverage">
-                        <div><span>Media-backed activities</span><strong>@activityMediaRate%</strong></div>
-                        <div class="db-coverage__track"><i style="--coverage-width:@activityMediaRate%"></i></div>
-                        <small>@Model.ActivitySummary.WithMedia of @Model.ActivitySummary.TotalActivities activities include supporting media.</small>
+                <div class="db-activity-overview">
+                    <div class="db-activity-kpis">
+                        <div><span>Total activities</span><strong>@Model.ActivitySummary.TotalActivities</strong></div>
+                        <div><span>Last 30 days</span><strong>@Model.ActivitySummary.Last30DaysCount</strong></div>
                     </div>
-                    <div class="db-latest-record">
-                        <span class="db-latest-record__label">Latest activity</span>
-                        @if (!string.IsNullOrWhiteSpace(Model.ActivitySummary.LatestTitle))
+                    <div class="db-activity-trend" data-db-activity-trend data-values='@Html.Raw(Json(Model.ActivitySummary.MonthlyTrend))' data-labels='@Html.Raw(Json(Model.ActivitySummary.MonthlyLabels))'>
+                        <div class="db-activity-trend__head"><span>12-month activity trend</span><small>activities per month</small></div>
+                        <canvas role="img" aria-label="Institutional activities recorded per month for the last 12 months"></canvas>
+                    </div>
+                </div>
+                <div class="db-activity-detail">
+                    <div class="db-top-types">
+                        <h3>Top activity types</h3>
+                        @if (Model.ActivitySummary.TopTypes.Count > 0)
                         {
-                            <strong>@Model.ActivitySummary.LatestTitle</strong>
-                            <div>
-                                @if (!string.IsNullOrWhiteSpace(Model.ActivitySummary.LatestType)) { <span>@Model.ActivitySummary.LatestType</span> }
-                                @if (latestActivityIst is not null) { <span>@latestActivityIst.Value.ToString("dd MMM yyyy")</span> }
-                                @if (!string.IsNullOrWhiteSpace(Model.ActivitySummary.LatestLocation)) { <span>@Model.ActivitySummary.LatestLocation</span> }
-                            </div>
+                            var maxType = Math.Max(1, Model.ActivitySummary.TopTypes.Max(x => x.Count));
+                            @foreach (var type in Model.ActivitySummary.TopTypes)
+                            {
+                                var width = type.Count * 100d / maxType;
+                                <a asp-page="/Activities/Index" asp-route-ActivityTypeId="@type.ActivityTypeId" class="db-type-row"><span>@type.Name</span><div><i style="--type-width:@width.ToString("0.##", CultureInfo.InvariantCulture)%"></i></div><strong>@type.Count</strong></a>
+                            }
                         }
-                        else { <strong>No activities recorded</strong> }
+                        else { <div class="db-empty db-empty--compact">No activity types recorded.</div> }
+                    </div>
+                    <div class="db-recent-activities">
+                        <h3>Recent activities</h3>
+                        @foreach (var activity in Model.ActivitySummary.RecentActivities)
+                        {
+                            var occurredIst = TimeZoneInfo.ConvertTime(activity.OccurredAtUtc, ProjectManagement.Infrastructure.IstClock.TimeZone);
+                            <a asp-page="/Activities/Details" asp-route-id="@activity.Id" class="db-recent-row">
+                                <div>
+                                    <strong>@activity.Title</strong>
+                                    <span>
+                                        @activity.Type · @occurredIst.ToString("dd MMM yyyy")
+                                        @if (!string.IsNullOrWhiteSpace(activity.Location))
+                                        {
+                                            <text> · @activity.Location</text>
+                                        }
+                                    </span>
+                                </div>
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
+                        }
+                        @if (Model.ActivitySummary.RecentActivities.Count == 0) { <div class="db-empty db-empty--compact">No activities recorded.</div> }
                     </div>
                 </div>
             </article>
 
             <article class="db-panel db-innovation-card">
                 <div class="db-section-head">
-                    <div>
-                        <span class="db-section-icon db-section-icon--indigo"><i class="bi bi-lightbulb"></i></span>
-                        <div><h2>Innovation pipeline</h2><p>Ideas progressing through discussion and refinement</p></div>
-                    </div>
+                    <div><span class="db-section-icon db-section-icon--indigo"><i class="bi bi-lightbulb"></i></span><div><h2>Innovation pipeline</h2><p>Active and on-hold ideas progressing through refinement</p></div></div>
                     <a asp-page="/ProjectIdeas/Index" class="db-text-link">Open ideation board <i class="bi bi-arrow-right"></i></a>
                 </div>
                 <div class="db-idea-summary">
@@ -261,23 +282,61 @@
                     <div><strong>@Model.IdeaSummary.OnHoldCount</strong><span>On hold</span></div>
                     <div><strong>@Model.IdeaSummary.UpdatedLast30Days</strong><span>Updated in 30 days</span></div>
                     <div><strong>@Model.IdeaSummary.IdeasWithDiscussion</strong><span>With discussion</span></div>
-                    <div><strong>@Model.IdeaSummary.DocumentCount</strong><span>Documents</span></div>
+                    <div><strong>@Model.IdeaSummary.DocumentCount</strong><span>Supporting documents</span></div>
                 </div>
                 <div class="db-idea-list">
                     @foreach (var idea in Model.IdeaSummary.LatestIdeas)
                     {
-                        <a asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id" class="db-idea-row">
-                            <div><strong>@idea.Title</strong><span>@idea.Status · Updated @idea.UpdatedAt.ToString("dd MMM yyyy")</span></div>
-                            <div><span><i class="bi bi-chat"></i> @idea.CommentCount</span><span><i class="bi bi-paperclip"></i> @idea.DocumentCount</span></div>
-                        </a>
+                        <a asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id" class="db-idea-row"><div><strong>@idea.Title</strong><span>@idea.Status · Updated @idea.UpdatedAt.ToString("dd MMM yyyy")</span></div><div><span><i class="bi bi-chat"></i> @idea.CommentCount</span><span><i class="bi bi-paperclip"></i> @idea.DocumentCount</span></div></a>
                     }
-                    @if (Model.IdeaSummary.LatestIdeas.Count == 0) { <div class="db-empty db-empty--compact">No active ideas recorded.</div> }
+                    @if (Model.IdeaSummary.LatestIdeas.Count == 0) { <div class="db-empty db-empty--compact">No active or on-hold ideas recorded.</div> }
                 </div>
             </article>
         </section>
 
-        <section class="db-panel db-ffc-panel db-reveal" aria-label="FFC footprint">
-            @await Html.PartialAsync("~/Areas/Dashboard/Components/FfcSimulatorMap/_Widget.cshtml", Model.FfcSimulatorMap)
+        <section class="db-panel db-ffc-panel db-reveal" aria-labelledby="ffc-title">
+            <div class="db-section-head">
+                <div><span class="db-section-icon db-section-icon--blue"><i class="bi bi-globe-asia-australia"></i></span><div><h2 id="ffc-title">Simulator footprint across FFCs</h2><p>Completed and planned units by partner country</p></div></div>
+                <a href="@ffcFullMapUrl" class="db-text-link">View full map <i class="bi bi-arrow-right"></i></a>
+            </div>
+            @if (Model.FfcSimulatorMap.HasData)
+            {
+                <div class="db-ffc-layout">
+                    <div class="db-ffc-map-wrap">
+                        <div class="ffc-simulator-map db-ffc-map" data-widget="ffc-simulator-map" data-countries='@Html.Raw(ffcPayload)' data-geo-url="@ffcGeoUrl" data-focus-bounds="37,-20|-35,55" data-highlight-color="var(--db-primary)">
+                            <div class="ffc-simulator-map__canvas" role="img" aria-label="Map showing simulator footprint across Friendly Foreign Countries"></div>
+                            <div class="ffc-simulator-map__status" data-map-status>Loading footprint…</div>
+                        </div>
+                    </div>
+                    <aside class="db-ffc-insights">
+                        <div class="db-ffc-stats">
+                            <div><span>Countries covered</span><strong>@Model.FfcSimulatorMap.Countries.Count(x => x.Completed > 0)</strong></div>
+                            <div><span>Completed units</span><strong>@Model.FfcSimulatorMap.TotalCompleted</strong></div>
+                            <div><span>Installed</span><strong>@Model.FfcSimulatorMap.TotalInstalled</strong></div>
+                            <div><span>Delivered</span><strong>@Model.FfcSimulatorMap.TotalDelivered</strong></div>
+                            <div class="is-planned"><span>Planned units</span><strong>@Model.FfcSimulatorMap.TotalPlanned</strong></div>
+                        </div>
+                        <div class="db-ffc-countries">
+                            <h3>Top countries</h3>
+                            @foreach (var country in topFfcCountries)
+                            {
+                                <a asp-area="ProjectOfficeReports" asp-page="/FFC/MapTableDetailed" asp-route-countryId="@country.CountryId" data-country-chip="@country.Iso3" class="db-country-row">
+                                    <span>@country.Name</span>
+                                    <div>
+                                        <strong>@country.Completed</strong>
+                                        <small>completed</small>
+                                        @if (country.Planned > 0)
+                                        {
+                                            <em>+@country.Planned planned</em>
+                                        }
+                                    </div>
+                                </a>
+                            }
+                        </div>
+                    </aside>
+                </div>
+            }
+            else { <div class="db-empty">FFC project unit data is not available right now.</div> }
         </section>
 
         <section class="db-utility-grid db-reveal" aria-label="Personal and system status">
@@ -286,10 +345,22 @@
                 <div><h2>Personal reminders</h2><p><strong>@(Model.NotebookWidget?.OverdueCount ?? 0)</strong> overdue · <strong>@(Model.NotebookWidget?.DueTodayCount ?? 0)</strong> due today</p></div>
                 <a asp-page="/Notebook/Index">Open notebook <i class="bi bi-arrow-right"></i></a>
             </article>
-            <article class="db-panel db-utility-card @(searchHealthy ? "is-healthy" : "is-warning")">
-                <div class="db-utility-card__icon"><i class="bi @(searchHealthy ? "bi-check2-circle" : "bi-exclamation-triangle")"></i></div>
-                <div><h2>Document processing</h2><p>@(searchHealthy ? "All systems operational" : "OCR worker requires attention") · @Model.SearchHealth.TotalSearchable searchable documents</p></div>
-                <a asp-area="DocumentRepository" asp-page="/Documents/Index">View status <i class="bi bi-arrow-right"></i></a>
+            <article class="db-panel db-processing-card @(searchHealthy ? "is-healthy" : "is-warning")">
+                <div class="db-processing-card__head"><span class="db-utility-card__icon"><i class="bi @(searchHealthy ? "bi-check2-circle" : "bi-exclamation-triangle")"></i></span><div><h2>Document processing</h2><p>@(searchHealthy ? "Operational" : "Requires attention")</p></div></div>
+                <div class="db-processing-metrics">
+                    <div><span>OCR worker</span><strong class="@(Model.SearchHealth.WorkerActive ? "is-good" : "is-bad")">@(Model.SearchHealth.WorkerActive ? "Online" : "Offline")</strong></div>
+                    <div><span>Pending</span><strong>@Model.SearchHealth.Ocr.Pending</strong></div>
+                    <div><span>Failed</span><strong class="@(Model.SearchHealth.Ocr.Failed > 0 ? "is-bad" : "")">@Model.SearchHealth.Ocr.Failed</strong></div>
+                    <div><span>Searchable</span><strong>@Model.SearchHealth.TotalSearchable.ToString("N0")</strong></div>
+                </div>
+                @if (canOpenOcrConsole)
+                {
+                    <a asp-area="DocumentRepository" asp-page="/Admin/OCRFailures/OcrFailures" class="db-processing-action">Open OCR status <i class="bi bi-arrow-right"></i></a>
+                }
+                else
+                {
+                    <span class="db-processing-note">Administrator action is required when processing is offline.</span>
+                }
             </article>
         </section>
     </main>

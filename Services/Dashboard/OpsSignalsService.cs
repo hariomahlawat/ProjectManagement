@@ -187,14 +187,13 @@ public sealed class OpsSignalsService : IOpsSignalsService
                           .Select(x => (int)x.Value).FirstOrDefault()
             ).ToList();
             var iprTotal = await _db.IprRecords.LongCountAsync(ct);
-            var iprGranted = await _db.IprRecords.LongCountAsync(r => r.Status == IprStatus.Granted, ct);
             // END SECTION
 
             // SECTION: Proliferation aggregation
             var prolifByMonth = await _db.ProliferationGranularEntries
                 .Where(p => p.ProliferationDate >= start && p.ProliferationDate <= end)
                 .GroupBy(p => new { p.ProliferationDate.Year, p.ProliferationDate.Month })
-                .Select(g => new { g.Key.Year, g.Key.Month, Value = g.Count() })
+                .Select(g => new { g.Key.Year, g.Key.Month, Value = g.Sum(x => x.Quantity) })
                 .ToListAsync(ct);
             var prolifSpark = months.Select(m =>
                 prolifByMonth.Where(x => (int)x.Year == m.Year && (int)x.Month == m.Month)
@@ -222,7 +221,7 @@ public sealed class OpsSignalsService : IOpsSignalsService
 
                 if (cur == 0 || prev == 0)
                 {
-                    var noBaselineLabel = prev == 0 && cur > 0 ? "—" : null;
+                    var noBaselineLabel = prev == 0 && cur > 0 ? "New activity" : null;
                     return (cur, prev, null, noBaselineLabel);
                 }
 
@@ -253,19 +252,20 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     DeltaAbs = vCur - vPrev,
                     DeltaPct = vPct,
                     DeltaLabel = vLabel,
-                    LinkUrl = "/ProjectOfficeReports/Visits?range=last12m",
+                    LinkUrl = "/ProjectOfficeReports/Visits",
                     Icon = "bi-people"
                 },
                 new()
                 {
                     Key = "outreach",
-                    Label = "Social media",
+                    Label = "Social-media activities",
                     Value = outreachTotal,
+                    Unit = "activities",
                     Sparkline = outreachSpark,
                     SparklineLabels = labels,
                     DeltaPct = outPct,
                     DeltaLabel = outLabel,
-                    LinkUrl = "/ProjectOfficeReports/SocialMedia?range=last12m",
+                    LinkUrl = "/ProjectOfficeReports/SocialMedia",
                     Icon = "bi-megaphone"
                 },
                 new()
@@ -278,14 +278,15 @@ public sealed class OpsSignalsService : IOpsSignalsService
                     SparklineLabels = labels,
                     DeltaPct = trPct,
                     DeltaLabel = trLabel,
-                    LinkUrl = "/ProjectOfficeReports/Training?range=last12m",
+                    LinkUrl = "/ProjectOfficeReports/Training",
                     Icon = "bi-mortarboard"
                 },
                 new()
                 {
                     Key = "tot",
-                    Label = "ToT",
+                    Label = "ToT completed",
                     Value = totTotal,
+                    Unit = "projects",
                     Sparkline = totSpark,
                     SparklineLabels = labels,
                     DeltaPct = totPct,
@@ -296,8 +297,9 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 new()
                 {
                     Key = "ipr",
-                    Label = "Patents",
-                    Value = iprGranted,
+                    Label = "IPR filings",
+                    Value = iprTotal,
+                    Unit = "filings",
                     Sparkline = iprSpark,
                     SparklineLabels = labels,
                     DeltaPct = iprPct,
@@ -308,8 +310,9 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 new()
                 {
                     Key = "proliferation",
-                    Label = "Proliferation",
+                    Label = "Proliferated units",
                     Value = prolifGrandTotal > 0 ? prolifGrandTotal : prolifTotal,
+                    Unit = "units",
                     Sparkline = prolifSpark,
                     SparklineLabels = labels,
                     DeltaPct = prPct,

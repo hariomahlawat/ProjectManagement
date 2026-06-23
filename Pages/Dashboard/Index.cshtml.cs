@@ -71,19 +71,33 @@ namespace ProjectManagement.Pages.Dashboard
         public SearchHealthVm SearchHealth { get; private set; } = new();
         public DashboardActivitySummaryVm ActivitySummary { get; private set; } = new();
         public DashboardIdeaSummaryVm IdeaSummary { get; private set; } = new();
+        public DateTimeOffset DashboardLoadedAtIst { get; private set; }
         // END SECTION
 
         public sealed class DashboardActivitySummaryVm
         {
             public int TotalActivities { get; init; }
-            public int WithMedia { get; init; }
-            public int PhotoCount { get; init; }
-            public int DocumentCount { get; init; }
-            public int VideoCount { get; init; }
-            public string? LatestTitle { get; init; }
-            public string? LatestType { get; init; }
-            public string? LatestLocation { get; init; }
-            public DateTimeOffset? LatestAtUtc { get; init; }
+            public int Last30DaysCount { get; init; }
+            public IReadOnlyList<DashboardActivityTypeVm> TopTypes { get; init; } = Array.Empty<DashboardActivityTypeVm>();
+            public IReadOnlyList<int> MonthlyTrend { get; init; } = Array.Empty<int>();
+            public IReadOnlyList<string> MonthlyLabels { get; init; } = Array.Empty<string>();
+            public IReadOnlyList<DashboardActivityItemVm> RecentActivities { get; init; } = Array.Empty<DashboardActivityItemVm>();
+        }
+
+        public sealed class DashboardActivityTypeVm
+        {
+            public int ActivityTypeId { get; init; }
+            public string Name { get; init; } = string.Empty;
+            public int Count { get; init; }
+        }
+
+        public sealed class DashboardActivityItemVm
+        {
+            public int Id { get; init; }
+            public string Title { get; init; } = string.Empty;
+            public string Type { get; init; } = string.Empty;
+            public string? Location { get; init; }
+            public DateTimeOffset OccurredAtUtc { get; init; }
         }
 
         public sealed class DashboardIdeaSummaryVm
@@ -130,6 +144,7 @@ namespace ProjectManagement.Pages.Dashboard
 
         public async Task OnGetAsync(CancellationToken cancellationToken)
         {
+            DashboardLoadedAtIst = GetNowIst();
             var uid = _users.GetUserId(User);
             // SECTION: Notebook widget load with fault isolation
             if (uid != null)
@@ -341,39 +356,66 @@ namespace ProjectManagement.Pages.Dashboard
 
             try
             {
-                var activityBase = _db.Activities.AsNoTracking().Where(a => !a.IsDeleted);
-                var latestActivity = await activityBase
-                    .OrderByDescending(a => a.ScheduledStartUtc ?? a.CreatedAtUtc)
-                    .Select(a => new
-                    {
-                        a.Title,
-                        Type = a.ActivityType.Name,
-                        a.Location,
-                        When = a.ScheduledStartUtc ?? a.CreatedAtUtc
-                    })
-                    .FirstOrDefaultAsync(cancellationToken);
+                var now = DateTimeOffset.UtcNow;
+                var firstMonth = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero).AddMonths(-11);
+                var last30Days = now.AddDays(-30);
 
-                var activityCounts = await activityBase
-                    .Select(a => new
+                // Activities represent completed/occurred institutional engagements. Future scheduled records are excluded.
+                var activityBase = _db.Activities
+                    .AsNoTracking()
+                    .Where(a => !a.IsDeleted && (a.ScheduledStartUtc ?? a.CreatedAtUtc) <= now);
+
+                // EF Core DbContext does not support concurrent operations; keep these compact aggregates sequential.
+                var totalActivities = await activityBase.CountAsync(cancellationToken);
+                var last30DaysCount = await activityBase.CountAsync(
+                    a => (a.ScheduledStartUtc ?? a.CreatedAtUtc) >= last30Days,
+                    cancellationToken);
+                var topTypes = await activityBase
+                    .GroupBy(a => new { a.ActivityTypeId, a.ActivityType.Name })
+                    .Select(g => new DashboardActivityTypeVm
                     {
-                        HasMedia = a.Attachments.Any(),
-                        Photos = a.Attachments.Count(x => x.ContentType.StartsWith("image/")),
-                        Videos = a.Attachments.Count(x => x.ContentType.StartsWith("video/")),
-                        Documents = a.Attachments.Count(x => !x.ContentType.StartsWith("image/") && !x.ContentType.StartsWith("video/"))
+                        ActivityTypeId = g.Key.ActivityTypeId,
+                        Name = g.Key.Name,
+                        Count = g.Count()
+                    })
+                    .OrderByDescending(x => x.Count)
+                    .ThenBy(x => x.Name)
+                    .Take(3)
+                    .ToListAsync(cancellationToken);
+                var monthlyRows = await activityBase
+                    .Where(a => (a.ScheduledStartUtc ?? a.CreatedAtUtc) >= firstMonth)
+                    .GroupBy(a => new
+                    {
+                        Year = (a.ScheduledStartUtc ?? a.CreatedAtUtc).Year,
+                        Month = (a.ScheduledStartUtc ?? a.CreatedAtUtc).Month
+                    })
+                    .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
+                    .ToListAsync(cancellationToken);
+                var recentActivities = await activityBase
+                    .OrderByDescending(a => a.ScheduledStartUtc ?? a.CreatedAtUtc)
+                    .Take(3)
+                    .Select(a => new DashboardActivityItemVm
+                    {
+                        Id = a.Id,
+                        Title = a.Title,
+                        Type = a.ActivityType.Name,
+                        Location = a.Location,
+                        OccurredAtUtc = a.ScheduledStartUtc ?? a.CreatedAtUtc
                     })
                     .ToListAsync(cancellationToken);
 
+                var months = Enumerable.Range(0, 12).Select(i => firstMonth.AddMonths(i)).ToArray();
                 ActivitySummary = new DashboardActivitySummaryVm
                 {
-                    TotalActivities = activityCounts.Count,
-                    WithMedia = activityCounts.Count(x => x.HasMedia),
-                    PhotoCount = activityCounts.Sum(x => x.Photos),
-                    DocumentCount = activityCounts.Sum(x => x.Documents),
-                    VideoCount = activityCounts.Sum(x => x.Videos),
-                    LatestTitle = latestActivity?.Title,
-                    LatestType = latestActivity?.Type,
-                    LatestLocation = latestActivity?.Location,
-                    LatestAtUtc = latestActivity?.When
+                    TotalActivities = totalActivities,
+                    Last30DaysCount = last30DaysCount,
+                    TopTypes = topTypes,
+                    MonthlyLabels = months.Select(m => m.ToString("MMM", CultureInfo.CurrentCulture)).ToArray(),
+                    MonthlyTrend = months.Select(m => monthlyRows
+                        .Where(x => x.Year == m.Year && x.Month == m.Month)
+                        .Select(x => x.Count)
+                        .FirstOrDefault()).ToArray(),
+                    RecentActivities = recentActivities
                 };
             }
             catch (Exception ex)
@@ -398,16 +440,18 @@ namespace ProjectManagement.Pages.Dashboard
                     .ToListAsync(cancellationToken);
 
                 var last30Days = DateTime.UtcNow.AddDays(-30);
+                var pipelineIdeas = ideas
+                    .Where(i => i.Status == ProjectIdeaStatuses.Active || i.Status == ProjectIdeaStatuses.OnHold)
+                    .ToList();
                 IdeaSummary = new DashboardIdeaSummaryVm
                 {
-                    ActiveCount = ideas.Count(i => i.Status == ProjectIdeaStatuses.Active),
-                    OnHoldCount = ideas.Count(i => i.Status == ProjectIdeaStatuses.OnHold),
+                    ActiveCount = pipelineIdeas.Count(i => i.Status == ProjectIdeaStatuses.Active),
+                    OnHoldCount = pipelineIdeas.Count(i => i.Status == ProjectIdeaStatuses.OnHold),
                     ArchivedCount = ideas.Count(i => i.Status == ProjectIdeaStatuses.Archived),
-                    UpdatedLast30Days = ideas.Count(i => i.UpdatedAt >= last30Days),
-                    IdeasWithDiscussion = ideas.Count(i => i.CommentCount > 0),
-                    DocumentCount = ideas.Sum(i => i.DocumentCount),
-                    LatestIdeas = ideas
-                        .Where(i => i.Status != ProjectIdeaStatuses.Archived)
+                    UpdatedLast30Days = pipelineIdeas.Count(i => i.UpdatedAt >= last30Days),
+                    IdeasWithDiscussion = pipelineIdeas.Count(i => i.CommentCount > 0),
+                    DocumentCount = pipelineIdeas.Sum(i => i.DocumentCount),
+                    LatestIdeas = pipelineIdeas
                         .OrderByDescending(i => i.UpdatedAt)
                         .Take(3)
                         .Select(i => new DashboardIdeaItemVm
