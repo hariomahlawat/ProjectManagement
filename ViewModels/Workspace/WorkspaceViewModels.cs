@@ -405,12 +405,12 @@ public static class WorkspaceDisplayHelpers
 
     public static string TimelineStatusCss(WorkspaceProjectMatrixRowVm row)
     {
-        if (row.HasBackfill || row.HasOverdueCurrentStage)
+        if (row.HasOverdueCurrentStage)
         {
             return "danger";
         }
 
-        if (row.HasCurrentStageIssue)
+        if (row.HasBackfill || row.HasCurrentStageIssue)
         {
             return "warning";
         }
@@ -527,8 +527,14 @@ public static class WorkspaceDisplayHelpers
     // SECTION: Reminder due-date display is shared by workspace reminder cards.
     public static string FormatReminderDate(DateTimeOffset? dueAtUtc)
     {
-        return dueAtUtc.HasValue
-            ? $"Due {dueAtUtc.Value.LocalDateTime:dd MMM}"
-            : "No due date";
+        if (!dueAtUtc.HasValue)
+        {
+            return "No due date";
+        }
+
+        var localDue = dueAtUtc.Value.LocalDateTime;
+        return localDue.Year == DateTime.Now.Year
+            ? $"Due {localDue:dd MMM}"
+            : $"Due {localDue:dd MMM yyyy}";
     }
 }

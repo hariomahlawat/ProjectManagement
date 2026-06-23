@@ -54,9 +54,9 @@
         </div>
 
         <div class="po-command__metrics" aria-label="Workspace summary">
-            <a class="po-metric @(actionCount > 0 ? "po-metric--attention" : "po-metric--clear")" href="#action-queue">
-                <span class="po-metric__icon"><i class="bi bi-lightning-charge-fill"></i></span>
-                <span><strong>@actionCount</strong><small>Actions pending</small></span>
+            <a class="po-metric @(reviewDocumentCount > 0 ? "po-metric--attention" : "po-metric--clear")" href="#action-queue">
+                <span class="po-metric__icon"><i class="bi bi-file-earmark-text-fill"></i></span>
+                <span><strong>@reviewDocumentCount</strong><small>Documents to review</small></span>
                 <i class="bi bi-arrow-down-right po-metric__arrow"></i>
             </a>
             <a class="po-metric @(Model.Workspace.AssignedProjectCount > 0 ? "po-metric--primary" : "po-metric--clear")" href="#assigned-projects">
@@ -105,7 +105,10 @@
                         {
                             var item = Model.Workspace.ActionQueue[i];
                             var isRecommended = i == 0;
-                            <article role="listitem" class="po-action @(isRecommended ? "po-action--recommended" : string.Empty) po-action--@item.Severity.ToLowerInvariant()">
+                            var actionSeverityClass = item.Type.Equals("Aots", StringComparison.OrdinalIgnoreCase)
+                                ? "routine"
+                                : item.Severity.ToLowerInvariant();
+                            <article role="listitem" class="po-action @(isRecommended ? "po-action--recommended" : string.Empty) po-action--@actionSeverityClass">
                                 <span class="po-action__rail" aria-hidden="true"></span>
                                 <div class="po-action__type">
                                     <span class="po-type po-type--@item.Type.ToLowerInvariant()">@item.BadgeText</span>
@@ -234,7 +237,19 @@
                             <div class="po-follow-list">
                                 @foreach (var reminder in Model.Workspace.PersonalReminders.Take(4))
                                 {
-                                    <a href="@reminder.OpenUrl" class="@(reminder.DueAtUtc.HasValue && reminder.DueAtUtc.Value < DateTimeOffset.UtcNow ? "po-follow-item--overdue" : string.Empty)">
+                                    var reminderClass = string.Empty;
+                                    if (reminder.DueAtUtc.HasValue)
+                                    {
+                                        if (reminder.DueAtUtc.Value < DateTimeOffset.UtcNow)
+                                        {
+                                            reminderClass = "po-follow-item--overdue";
+                                        }
+                                        else if (reminder.DueAtUtc.Value <= DateTimeOffset.UtcNow.AddDays(7))
+                                        {
+                                            reminderClass = "po-follow-item--due-soon";
+                                        }
+                                    }
+                                    <a href="@reminder.OpenUrl" class="@reminderClass">
                                         <span><strong>@reminder.Title</strong><small>@reminder.Priority · @WorkspaceDisplayHelpers.FormatReminderDate(reminder.DueAtUtc)</small></span>
                                         <i class="bi bi-chevron-right"></i>
                                     </a>

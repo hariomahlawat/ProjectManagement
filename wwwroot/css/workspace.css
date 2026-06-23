@@ -443,3 +443,87 @@
     .po-command { border-radius: 8px; }
     .po-panel, .po-readiness { border-radius: 8px; }
 }
+
+/* Final release refinement: exact sticky behaviour, calm severity and balanced utility states. */
+.po-section-nav {
+    overflow: visible;
+}
+.po-section-nav::before {
+    top: -34px;
+    height: 34px;
+    background: var(--po-page);
+}
+.po-section-nav.is-stuck {
+    box-shadow: 0 2px 5px rgba(15, 31, 58, .045);
+}
+.po-section-nav.is-stuck::before {
+    top: -40px;
+    height: 40px;
+}
+
+/* Routine reading/review work is not a warning condition. */
+.po-action--routine .po-action__rail {
+    background: #cbd4df;
+}
+
+/* Missing history is attention-level; only active delay or overdue work is critical. */
+.po-status--warning i {
+    background: #d48b19;
+    box-shadow: 0 0 0 3px #fff3d8;
+}
+.po-project-table tbody tr.po-project-row--warning .po-project-indicator {
+    background: #d48b19;
+}
+
+/* Make the parallel readiness rail authoritative but quieter than the main work surface. */
+.po-readiness__head {
+    padding-top: 14px;
+    padding-bottom: 14px;
+    background: #20375f;
+}
+.po-readiness__count {
+    flex-basis: 28px;
+    height: 28px;
+    font-size: .66rem;
+}
+
+/* Reminder urgency is date-aware: overdue red, due soon amber, future neutral. */
+.po-follow-list > a.po-follow-item--due-soon {
+    position: relative;
+    margin: 2px 0;
+    padding: 8px 8px 8px 13px;
+    border-radius: 5px;
+    background: #fffbef;
+}
+.po-follow-list > a.po-follow-item--due-soon::before {
+    content: "";
+    position: absolute;
+    top: 9px;
+    bottom: 9px;
+    left: 0;
+    width: 2px;
+    border-radius: 2px;
+    background: #d48b19;
+}
+.po-follow-list > a.po-follow-item--due-soon strong { color: #76510d; }
+.po-follow-list > a.po-follow-item--due-soon small { color: #806d48; }
+
+/* Keep tertiary links legible without letting them compete with work actions. */
+.po-link,
+.po-readiness__footer,
+.po-follow-column__head a {
+    color: #526b95;
+    font-weight: 700;
+}
+.po-row-action,
+.po-text-action {
+    color: #315da9;
+}
+
+@media (max-width: 980px) {
+    .po-section-nav::before,
+    .po-section-nav.is-stuck::before {
+        top: -28px;
+        height: 28px;
+    }
+}
