@@ -527,3 +527,61 @@
         height: 28px;
     }
 }
+
+/* Header integrity correction: keep the command summary and metric row in normal flow. */
+.po-command {
+    display: grid;
+    grid-template-rows: auto auto;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden;
+    contain: none;
+}
+
+.po-command__main {
+    position: relative;
+    z-index: 1;
+    min-height: 116px;
+    padding: 20px 26px 17px;
+}
+
+.po-command__identity,
+.po-command__actions {
+    align-self: center;
+}
+
+.po-operational-summary {
+    margin-top: 10px;
+    line-height: 1.35;
+}
+
+.po-command__metrics {
+    position: relative;
+    z-index: 1;
+    align-self: stretch;
+    min-height: 58px;
+    height: auto;
+    overflow: visible;
+}
+
+.po-metric {
+    min-height: 58px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+}
+
+.po-command + .po-section-nav {
+    margin-top: 12px;
+}
+
+@media (max-width: 760px) {
+    .po-command__main {
+        min-height: 0;
+    }
+
+    .po-command__metrics,
+    .po-metric {
+        min-height: 54px;
+    }
+}
