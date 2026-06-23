@@ -42,6 +42,12 @@
     var searchHealthy = Model.SearchHealth.WorkerActive && Model.SearchHealth.Ocr.Pending == 0 && Model.SearchHealth.Ocr.Failed == 0;
     string Json<T>(IEnumerable<T>? values) => JsonSerializer.Serialize(values ?? Array.Empty<T>());
     string OngoingStageUrl(string stageCode) => Url.Page("/Projects/Ongoing/Index", new { PresentStageCode = stageCode }) ?? (pulse?.OngoingUrl ?? "#");
+    string StageDisplayLabel(string stageCode) => stageCode.ToUpperInvariant() switch
+    {
+        "PAYMENT" or "PAYMENT1" => "Payment",
+        "DEVP" => "DEVP",
+        _ => stageCode
+    };
     string OngoingBucketUrl(string bucket) => Url.Page("/Projects/Ongoing/Index", new { StageBucket = bucket }) ?? (pulse?.OngoingUrl ?? "#");
     string OngoingCategoryUrl(string key)
     {
@@ -119,7 +125,7 @@
                             <div class="db-stage-grid" role="list">
                                 @foreach (var stage in stageItems)
                                 {
-                                    <a href="@OngoingStageUrl(stage.StageCode)" class="db-stage" role="listitem" title="View projects at @stage.StageName"><span>@stage.StageCode</span><strong>@stage.Count</strong></a>
+                                    <a href="@OngoingStageUrl(stage.StageCode)" class="db-stage" role="listitem" title="View projects at @stage.StageName"><span>@StageDisplayLabel(stage.StageCode)</span><strong>@stage.Count</strong></a>
                                 }
                             </div>
                         </article>
@@ -339,19 +345,21 @@
             else { <div class="db-empty">FFC project unit data is not available right now.</div> }
         </section>
 
-        <section class="db-utility-grid db-reveal" aria-label="Personal and system status">
-            <article class="db-panel db-utility-card">
-                <div class="db-utility-card__icon"><i class="bi bi-bell"></i></div>
-                <div><h2>Personal reminders</h2><p><strong>@(Model.NotebookWidget?.OverdueCount ?? 0)</strong> overdue · <strong>@(Model.NotebookWidget?.DueTodayCount ?? 0)</strong> due today</p></div>
-                <a asp-page="/Notebook/Index">Open notebook <i class="bi bi-arrow-right"></i></a>
-            </article>
-            <article class="db-panel db-processing-card @(searchHealthy ? "is-healthy" : "is-warning")">
-                <div class="db-processing-card__head"><span class="db-utility-card__icon"><i class="bi @(searchHealthy ? "bi-check2-circle" : "bi-exclamation-triangle")"></i></span><div><h2>Document processing</h2><p>@(searchHealthy ? "Operational" : "Requires attention")</p></div></div>
-                <div class="db-processing-metrics">
+        @if (!searchHealthy)
+        {
+            <section class="db-processing-alert db-panel db-reveal is-warning" aria-labelledby="document-processing-title">
+                <div class="db-processing-alert__identity">
+                    <span class="db-utility-card__icon"><i class="bi bi-exclamation-triangle"></i></span>
+                    <div>
+                        <h2 id="document-processing-title">Document processing requires attention</h2>
+                        <p>OCR processing is not fully operational. Searchable documents remain available.</p>
+                    </div>
+                </div>
+                <div class="db-processing-metrics" aria-label="Document processing metrics">
                     <div><span>OCR worker</span><strong class="@(Model.SearchHealth.WorkerActive ? "is-good" : "is-bad")">@(Model.SearchHealth.WorkerActive ? "Online" : "Offline")</strong></div>
-                    <div><span>Pending</span><strong>@Model.SearchHealth.Ocr.Pending</strong></div>
-                    <div><span>Failed</span><strong class="@(Model.SearchHealth.Ocr.Failed > 0 ? "is-bad" : "")">@Model.SearchHealth.Ocr.Failed</strong></div>
-                    <div><span>Searchable</span><strong>@Model.SearchHealth.TotalSearchable.ToString("N0")</strong></div>
+                    <div><span>Pending</span><strong>@Model.SearchHealth.Ocr.Pending <small>documents</small></strong></div>
+                    <div><span>Failed</span><strong class="@(Model.SearchHealth.Ocr.Failed > 0 ? "is-bad" : "")">@Model.SearchHealth.Ocr.Failed <small>documents</small></strong></div>
+                    <div><span>Searchable</span><strong>@Model.SearchHealth.TotalSearchable.ToString("N0") <small>documents</small></strong></div>
                 </div>
                 @if (canOpenOcrConsole)
                 {
@@ -359,10 +367,10 @@
                 }
                 else
                 {
-                    <span class="db-processing-note">Administrator action is required when processing is offline.</span>
+                    <span class="db-processing-note">Administrator action is required.</span>
                 }
-            </article>
-        </section>
+            </section>
+        }
     </main>
 
     <footer class="db-footer"><span>PRISM ERP · Simulator Development Division</span><span>All times shown in IST</span></footer>
