@@ -1,11 +1,29 @@
 @page
 @model ProjectManagement.Pages.Dashboard.IndexModel
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
-@using ProjectManagement.Services
-@using ProjectManagement.Models
+@using System.Linq
 @{
     ViewData["Title"] = "Dashboard";
-    // ViewData["UseFullWidth"] = true;
+
+    var pulse = Model.ProjectPulse;
+    var ongoingCount = pulse?.OngoingCount ?? 0;
+    var completedCount = pulse?.CompletedCount ?? 0;
+    var readyCount = pulse?.ProliferationEligible ?? 0;
+    var searchableCount = Model.SearchHealth?.TotalSearchable ?? 0;
+    var assignedProjects = Model.MyProjectSections.SelectMany(section => section.Items).ToList();
+    var currentStagesNeedingAttention = assignedProjects.Count(project =>
+        project.StageSummary is null ||
+        project.StageSummary.PlannedDue is null ||
+        project.StageSummary.IsOverdue);
+
+    var overdueReminders = Model.NotebookWidget?.OverdueCount ?? 0;
+    var dueTodayReminders = Model.NotebookWidget?.DueTodayCount ?? 0;
+    var workerHealthy = Model.SearchHealth?.WorkerActive == true;
+    var searchHealthy = workerHealthy && (Model.SearchHealth?.Ocr.Failed ?? 0) == 0;
+
+    var today = DateTime.Today;
+    var fyStartYear = today.Month >= 4 ? today.Year : today.Year - 1;
+    var fyLabel = $"Apr {fyStartYear} – Mar {fyStartYear + 1}";
 }
 
 @section Styles {
@@ -14,295 +32,173 @@
     <link rel="stylesheet" href="~/css/widgets/ops-signals.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/lib/leaflet/1.9.4/leaflet.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/widgets/ffc-simulator-map.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/css/todo-widget.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/css/dashboard/search-health-widget.css" asp-append-version="true" />
 }
 
 @if (TempData["Error"] is string err && !string.IsNullOrWhiteSpace(err))
 {
-    <div class="alert alert-warning py-2">
+    <div class="alert alert-warning py-2 mb-3">
         <i class="bi bi-exclamation-triangle-fill me-2"></i>@err
     </div>
 }
 
-<div class="row g-3 dashboard">
-    @* SECTION: Primary dashboard content (Project pulse + sidebar) *@
-    <div class="col-12 col-lg-9">
-        <div class="dashboard-main-content h-100">
+<div class="executive-dashboard">
+    <header class="executive-dashboard__header">
+        <div>
+            <h1>Dashboard</h1>
+            <p>Portfolio overview and institutional performance</p>
+        </div>
+        <div class="executive-dashboard__header-actions">
+            <span class="executive-dashboard__updated">
+                <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+                Updated @DateTime.Now.ToString("dd MMM yyyy, HH:mm")
+            </span>
+            @if (pulse is not null)
+            {
+                <a class="btn btn-outline-primary btn-sm" href="@pulse.AnalyticsUrl">
+                    <i class="bi bi-graph-up-arrow me-1" aria-hidden="true"></i>Open analytics
+                </a>
+            }
+        </div>
+    </header>
 
-            @* SECTION: Project Pulse widget *@
-            <section class="dashboard-section" aria-label="Project pulse">
-                @if (Model.ProjectPulse is not null)
+    <div class="executive-dashboard__layout">
+        <main class="executive-dashboard__main">
+            <section class="dashboard-kpis" aria-label="Portfolio summary">
+                <a class="dashboard-kpi" href="@(pulse?.OngoingUrl ?? "#")">
+                    <span class="dashboard-kpi__icon dashboard-kpi__icon--blue"><i class="bi bi-folder2-open"></i></span>
+                    <span class="dashboard-kpi__body">
+                        <span class="dashboard-kpi__label">Ongoing projects</span>
+                        <strong>@ongoingCount</strong>
+                        <small>Across all stages</small>
+                    </span>
+                    <span class="dashboard-kpi__link">View projects <i class="bi bi-arrow-right"></i></span>
+                </a>
+
+                <a class="dashboard-kpi" href="/Workspace#assigned-projects">
+                    <span class="dashboard-kpi__icon dashboard-kpi__icon--amber"><i class="bi bi-exclamation-triangle"></i></span>
+                    <span class="dashboard-kpi__body">
+                        <span class="dashboard-kpi__label">Current stages needing attention</span>
+                        <strong>@currentStagesNeedingAttention</strong>
+                        <small>Overdue or incomplete current-stage timelines</small>
+                    </span>
+                    <span class="dashboard-kpi__link">View details <i class="bi bi-arrow-right"></i></span>
+                </a>
+
+                <a class="dashboard-kpi" href="@(pulse?.ProliferationEligibleUrl ?? "#")">
+                    <span class="dashboard-kpi__icon dashboard-kpi__icon--green"><i class="bi bi-patch-check"></i></span>
+                    <span class="dashboard-kpi__body">
+                        <span class="dashboard-kpi__label">Ready for proliferation</span>
+                        <strong>@readyCount</strong>
+                        <small>Approved and suitable for proliferation</small>
+                    </span>
+                    <span class="dashboard-kpi__link">View list <i class="bi bi-arrow-right"></i></span>
+                </a>
+
+                <a class="dashboard-kpi" href="@(pulse?.CompletedUrl ?? "#")">
+                    <span class="dashboard-kpi__icon dashboard-kpi__icon--purple"><i class="bi bi-flag"></i></span>
+                    <span class="dashboard-kpi__body">
+                        <span class="dashboard-kpi__label">Completed projects</span>
+                        <strong>@completedCount</strong>
+                        <small>Portfolio total</small>
+                    </span>
+                    <span class="dashboard-kpi__link">View completed <i class="bi bi-arrow-right"></i></span>
+                </a>
+            </section>
+
+            <section class="dashboard-primary-panel" aria-label="Portfolio pulse">
+                @if (pulse is not null)
                 {
-                    @await Html.PartialAsync(
-                    "~/Areas/Dashboard/Components/ProjectPulse/_Widget.cshtml",
-                                Model.ProjectPulse
-                                )
-                                }
+                    @await Html.PartialAsync("~/Areas/Dashboard/Components/ProjectPulse/_Widget.cshtml", pulse)
+                }
                 else
                 {
-                    <p class="text-secondary mb-0">Project pulse data is not available right now.</p>
+                    <div class="dashboard-empty-state">Portfolio data is temporarily unavailable.</div>
                 }
             </section>
-            @* END SECTION *@
 
-            @* SECTION: OpsSignals widget *@
-            <section class="dashboard-section" aria-label="Operational signals">
-                @await Html.PartialAsync(
-                "~/Areas/Dashboard/Components/OpsSignals/_Widget.cshtml",
-                                Model.OpsSignals
-                                )
-            </section>
-            @* END SECTION *@
-
-            @* SECTION: FFC simulator map widget *@
-            <section class="dashboard-section" aria-label="FFC simulators footprint">
-                @await Html.PartialAsync(
-                                "~/Areas/Dashboard/Components/FfcSimulatorMap/_Widget.cshtml",
-                                Model.FfcSimulatorMap
-                                )
-            </section>
-            @* END SECTION *@
-
-        </div>
-    </div>
-
-    <div class="col-12 col-lg-3">
-        <div class="dashboard-sidebar dashboard-right-column">
-            <div class="d-flex flex-column gap-3">
-                <partial name="_NotebookWidget" model="Model.NotebookWidget" />
-                <partial name="~/Pages/Dashboard/Partials/_SearchHealthWidget.cshtml" model="Model.SearchHealth" />
-            </div>
-
-            <div class="dashboard-floating-actions mt-3 mt-lg-0">
-                <button type="button"
-                        class="dashboard-events-card pm-shadow"
-                        data-drawer-toggle
-                        data-drawer-target="dashboard-events"
-                        aria-controls="dashboard-events"
-                        aria-haspopup="dialog"
-                        aria-label="View upcoming events">
-                    <span class="visually-hidden">View upcoming events</span>
-                    <span class="dashboard-events-card__icon" aria-hidden="true">
-                        <i class="bi bi-calendar-event"></i>
-                    </span>
-                </button>
-                <a asp-area="Common"
-                   asp-page="/Search/Index"
-                   class="dashboard-events-card pm-shadow"
-                   aria-label="Open global search">
-                    <span class="visually-hidden">Open global search</span>
-                    <span class="dashboard-events-card__icon" aria-hidden="true">
-                        <i class="bi bi-search"></i>
-                    </span>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-12">
-        @* SECTION: Critical PDC alerts *@
-        @if (Model.HasMyProjects)
-        {
-            // Flatten all projects assigned to the user
-            var pdcProjects = Model.MyProjectSections
-            .SelectMany(projectSection => projectSection.Items)
-            .ToList();
-
-            // Buckets
-            var overdueProjects = pdcProjects
-            .Where(project => project.StageSummary?.IsOverdue == true)
-            .ToList();
-
-            var dueSoonProjects = pdcProjects
-            .Where(project => project.StageSummary is { IsOverdue: false, DaysToPdc: <= 30, PlannedDue: not null })
-            .ToList();
-
-            var notSetProjects = pdcProjects
-            .Where(project => project.StageSummary is null || project.StageSummary.PlannedDue is null)
-            .ToList();
-
-            if (overdueProjects.Any() || dueSoonProjects.Any() || notSetProjects.Any())
-            {
-                <div class="dashboard-my-projects__pdc-groups pm-scroll" role="list">
-                    @* PDC overdue *@
-                    @if (overdueProjects.Any())
-                    {
-                        <div class="dashboard-my-projects__pdc-group">
-                            <p class="dashboard-my-projects__pdc-group-title text-uppercase text-secondary fw-semibold small mb-2">
-                                PDC overdue
-                            </p>
-                            <div class="dashboard-my-projects__pdc-list" role="list">
-                                @foreach (var project in overdueProjects)
-                                {
-                                    var stage = project.StageSummary;
-                                    <div class="myproj-stage-widget__pdc-row" data-project-id="@project.ProjectId" role="listitem">
-                                        <a asp-page="/Projects/Overview"
-                                           asp-route-id="@project.ProjectId"
-                                           class="dashboard-my-projects__pdc-link">
-                                            <div class="myproj-stage-widget__pdc-main">
-                                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                                    <div class="dashboard-my-projects__pdc-name" title="@project.Name">
-                                                        @project.Name
-                                                    </div>
-                                                    <span class="badge rounded-pill text-bg-danger">
-                                                        PDC overdue
-                                                    </span>
-                                                </div>
-
-                                                <div class="small text-muted">
-                                                    @if (stage is not null)
-                                                    {
-                                                        @:Stage: @stage.StageName (@stage.StageCode)
-                                                    }
-                                                    else
-                                                    {
-                                                        <span>Stage data unavailable</span>
-                                                    }
-                                                </div>
-
-                                                @if (stage?.DaysToPdc is { } daysLate)
-                                                {
-                                                    <div class="small text-danger mt-1">
-                                                        Overdue by @daysLate day@(daysLate == 1 ? string.Empty : "s")
-                                                    </div>
-                                                }
-                                            </div>
-                                        </a>
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                    }
-
-                    @* PDC in next 30 days *@
-                    @if (dueSoonProjects.Any())
-                    {
-                        <div class="dashboard-my-projects__pdc-group">
-                            <p class="dashboard-my-projects__pdc-group-title text-uppercase text-secondary fw-semibold small mb-2">
-                                PDC in next 30 days
-                            </p>
-                            <div class="dashboard-my-projects__pdc-list" role="list">
-                                @foreach (var project in dueSoonProjects)
-                                {
-                                    var stage = project.StageSummary;
-                                    <div class="myproj-stage-widget__pdc-row" data-project-id="@project.ProjectId" role="listitem">
-                                        <a asp-page="/Projects/Overview"
-                                           asp-route-id="@project.ProjectId"
-                                           class="dashboard-my-projects__pdc-link">
-                                            <div class="myproj-stage-widget__pdc-main">
-                                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                                    <div class="dashboard-my-projects__pdc-name" title="@project.Name">
-                                                        @project.Name
-                                                    </div>
-                                                    <span class="badge rounded-pill text-bg-success">
-                                                        PDC in next 30 days
-                                                    </span>
-                                                </div>
-
-                                                <div class="small text-muted">
-                                                    @if (stage is not null)
-                                                    {
-                                                        @:Stage: @stage.StageName (@stage.StageCode)
-                                                    }
-                                                    else
-                                                    {
-                                                        <span>Stage data unavailable</span>
-                                                    }
-                                                </div>
-
-                                                @if (stage?.DaysToPdc is { } daysToGo)
-                                                {
-                                                    <div class="small text-success mt-1">
-                                                        @daysToGo day@(daysToGo == 1 ? string.Empty : "s") to PDC
-                                                    </div>
-                                                }
-                                            </div>
-                                        </a>
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                    }
-
-                    @* PDC not set *@
-                    @if (notSetProjects.Any())
-                    {
-                        <div class="dashboard-my-projects__pdc-group">
-                            <p class="dashboard-my-projects__pdc-group-title text-uppercase text-secondary fw-semibold small mb-2">
-                                PDC not set
-                            </p>
-                            <div class="dashboard-my-projects__pdc-list" role="list">
-                                @foreach (var project in notSetProjects)
-                                {
-                                    var stage = project.StageSummary;
-                                    <div class="myproj-stage-widget__pdc-row" data-project-id="@project.ProjectId" role="listitem">
-                                        <a asp-page="/Projects/Overview"
-                                           asp-route-id="@project.ProjectId"
-                                           class="dashboard-my-projects__pdc-link">
-                                            <div class="myproj-stage-widget__pdc-main">
-                                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                                    <div class="dashboard-my-projects__pdc-name" title="@project.Name">
-                                                        @project.Name
-                                                    </div>
-                                                    <span class="badge rounded-pill text-bg-secondary">
-                                                        PDC not set
-                                                    </span>
-                                                </div>
-
-                                                <div class="small text-muted">
-                                                    @if (stage is not null)
-                                                    {
-                                                        @:Stage: @stage.StageName (@stage.StageCode)
-                                                    }
-                                                    else
-                                                    {
-                                                        <span>Stage data unavailable</span>
-                                                    }
-                                                </div>
-                                            </div>
-                                        </a>
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                    }
+            <section class="dashboard-primary-panel dashboard-outputs" aria-labelledby="dashboard-outputs-title">
+                <div class="dashboard-panel-heading">
+                    <div>
+                        <h2 id="dashboard-outputs-title">Key outputs</h2>
+                        <p>Current financial year · @fyLabel</p>
+                    </div>
+                    <a href="@(pulse?.AnalyticsUrl ?? "#")">View detailed analytics <i class="bi bi-arrow-right"></i></a>
                 </div>
-            }
-            else
-            {
-                <p class="text-secondary small mb-0">No critical PDC alerts right now.</p>
-            }
-        }
-        else
-        {
-            <p class="text-secondary small mb-0">Add yourself to a project to see its PDC.</p>
-        }
+                @await Html.PartialAsync("~/Areas/Dashboard/Components/OpsSignals/_Widget.cshtml", Model.OpsSignals)
+            </section>
+
+            <section class="dashboard-primary-panel dashboard-ffc-compact" aria-label="FFC footprint">
+                @await Html.PartialAsync("~/Areas/Dashboard/Components/FfcSimulatorMap/_Widget.cshtml", Model.FfcSimulatorMap)
+            </section>
+        </main>
+
+        <aside class="executive-dashboard__rail">
+            <section class="dashboard-rail-card dashboard-reminders-card" aria-labelledby="dashboard-reminders-title">
+                <div class="dashboard-rail-card__head">
+                    <div class="dashboard-rail-card__title">
+                        <span class="dashboard-rail-card__icon"><i class="bi bi-calendar-check"></i></span>
+                        <h2 id="dashboard-reminders-title">My reminders</h2>
+                    </div>
+                    <a asp-page="/Notebook/Index">View all</a>
+                </div>
+
+                <div class="dashboard-reminder-summary">
+                    <div class="dashboard-reminder-summary__item dashboard-reminder-summary__item--danger">
+                        <span>Overdue</span><strong>@overdueReminders</strong>
+                    </div>
+                    <div class="dashboard-reminder-summary__item">
+                        <span>Due today</span><strong>@dueTodayReminders</strong>
+                    </div>
+                </div>
+
+                @if (Model.NotebookWidget is not null)
+                {
+                    <div class="dashboard-rail-list">
+                        <h3>Due / overdue</h3>
+                        @await Html.PartialAsync("_NotebookWidgetList", Model.NotebookWidget.DueItems.Take(3).ToList())
+                    </div>
+                    <div class="dashboard-rail-list">
+                        <h3>Pinned</h3>
+                        @await Html.PartialAsync("_NotebookWidgetList", Model.NotebookWidget.PinnedItems.Take(2).ToList())
+                    </div>
+                }
+
+                <a class="btn btn-primary btn-sm w-100 mt-3" asp-page="/Notebook/Index">Open My Notebook</a>
+            </section>
+
+            <section class="dashboard-rail-card dashboard-system-card" aria-labelledby="dashboard-system-title">
+                <div class="dashboard-rail-card__head">
+                    <div class="dashboard-rail-card__title">
+                        <span class="dashboard-rail-card__icon"><i class="bi bi-cpu"></i></span>
+                        <h2 id="dashboard-system-title">System status</h2>
+                    </div>
+                    <span class="dashboard-system-pill @(searchHealthy ? "is-healthy" : "is-warning")">
+                        @(searchHealthy ? "Operational" : "Attention")
+                    </span>
+                </div>
+
+                <div class="dashboard-system-list">
+                    <div><span>OCR worker</span><strong class="@(workerHealthy ? "text-success" : "text-warning")">@(workerHealthy ? "Online" : "Offline")</strong></div>
+                    <div><span>OCR failures</span><strong>@(Model.SearchHealth?.Ocr.Failed ?? 0)</strong></div>
+                    <div><span>Searchable corpus</span><strong>@searchableCount documents</strong></div>
+                    <div><span>Queue</span><strong>@((Model.SearchHealth?.Ocr.Pending ?? 0) == 0 ? "Clear" : $"{Model.SearchHealth!.Ocr.Pending} pending")</strong></div>
+                </div>
+                <a asp-area="DocumentRepository" asp-page="/Documents/Index" class="dashboard-rail-link">View document processing <i class="bi bi-arrow-right"></i></a>
+            </section>
+
+            <section class="dashboard-rail-card dashboard-quick-links" aria-labelledby="dashboard-quick-links-title">
+                <div class="dashboard-rail-card__head">
+                    <div class="dashboard-rail-card__title"><h2 id="dashboard-quick-links-title">Quick links</h2></div>
+                </div>
+                <div class="dashboard-quick-links__grid">
+                    <a asp-page="/Projects/Ongoing"><i class="bi bi-folder2"></i><span>Projects</span></a>
+                    <a asp-page="/Calendar/Index"><i class="bi bi-calendar3"></i><span>Calendar</span></a>
+                    <a asp-area="DocumentRepository" asp-page="/Documents/Index"><i class="bi bi-file-earmark-text"></i><span>Documents</span></a>
+                    <a href="@(pulse?.AnalyticsUrl ?? "#")"><i class="bi bi-bar-chart"></i><span>Analytics</span></a>
+                </div>
+            </section>
+        </aside>
     </div>
-
-
-<div class="pm-drawer pm-drawer--end"
-     data-drawer="dashboard-events"
-     id="dashboard-events"
-     aria-labelledby="dashboard-events-title">
-    <div class="pm-drawer__overlay" data-drawer-overlay></div>
-    <div class="pm-drawer__panel"
-         data-drawer-panel
-         role="dialog"
-         aria-modal="true"
-         aria-labelledby="dashboard-events-title">
-        <div class="pm-drawer__header justify-content-end">
-            <button type="button"
-                    class="btn-close"
-                    data-drawer-close
-                    aria-label="Close upcoming events"></button>
-        </div>
-        <div class="pm-drawer__body">
-            <partial name="_UpcomingEventsWidget" model="Model.UpcomingEvents" />
-        </div>
-    </div>
-</div>
-
 </div>
 
 @section Scripts {
@@ -311,9 +207,4 @@
     <script type="module" src="~/js/widgets/ops-signals.js" asp-append-version="true"></script>
     <script src="~/lib/leaflet/1.9.4/leaflet.js" asp-append-version="true" defer></script>
     <script src="~/js/widgets/ffc-simulator-map.js" asp-append-version="true" defer></script>
-    <script src="~/js/todo-widget.js" asp-append-version="true" defer></script>
-    <script src="~/js/dashboard/search-health-widget.js" asp-append-version="true" defer></script>
-    <script type="module" src="~/js/dashboard/myproj-stage-widget.js" asp-append-version="true"></script>
 }
-
-    

@@ -1,753 +1,290 @@
-/* SECTION: Dashboard surface & card shell */
-
-/* Shared vertical rhythm tokens for all four circled gaps */
-.dashboard {
-    --dashboard-gap-small: 1.5rem; /* 1 & 2 */
-    --dashboard-gap-large: 1.5rem; /* 3 & 4 */
+/* PRISM ERP dashboard — portfolio command surface */
+:root {
+    --db-bg: #f4f7fb;
+    --db-card: #ffffff;
+    --db-border: #dfe6f0;
+    --db-border-soft: #e9eef5;
+    --db-text: #10213a;
+    --db-muted: #687991;
+    --db-primary: #2d63df;
+    --db-primary-soft: #eef4ff;
+    --db-radius: 14px;
 }
 
-/* Dashboard-only elevation tuning: reduces washed-out feel */
-.dashboard .card {
-    border: 1px solid var(--pm-border);
-    box-shadow: var(--pm-shadow);
-}
-
-.dashboard .card:hover {
-    transform: translateY(-1px);
-}
-
-/* Base shell for dashboard cards to match Analytics polish */
-.dashboard-card-shell,
-.ppulse,
-.ops-signals__tile,
-.ffc-simulator-map-widget,
-.todo-widget,
-.search-health-card,
-.dashboard-my-projects__projects {
-    background-color: var(--pm-card);
-    border: 1px solid var(--pm-border-muted);
-    border-radius: 18px;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-}
-
-/* SECTION: Dashboard section & card hierarchy */
-.dashboard-main-content {
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    border-radius: 0;
-    padding: 0;
-    overflow: visible;
-}
-
-.dashboard-section {
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    border-radius: 0;
-    padding: 0;
-    overflow: visible;
-}
-
-.dashboard-card {
-    border-radius: 1.25rem;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    box-shadow: 0 12px 34px rgba(15, 23, 42, 0.08);
-    overflow: hidden;
-    background: var(--pm-card);
-}
-/* END SECTION */
-
-/* Light, cool dashboard canvas behind the cards */
 .analytics-main {
-    background: linear-gradient(
-        180deg,
-        rgba(226, 232, 240, 0.55) 0%,
-        var(--pm-page-bg) 42%,
-        var(--pm-page-bg) 100%
-    );
+    background: var(--db-bg);
     min-height: 100vh;
-    padding: 24px;
-}
-/* END SECTION */
-
-
-/* SECTION: Dashboard layout spacing */
-
-/* Circle 1: header → Project pulse; also kill Bootstrap's vertical gutter */
-.row.dashboard {
-    margin-top: var(--dashboard-gap-small);
-    --bs-gutter-y: 0;
+    padding: 22px 24px 32px;
 }
 
-/* Main left column: stack sections with flex + explicit gaps */
-.dashboard-main-content {
+.executive-dashboard {
+    max-width: 1510px;
+    margin: 0 auto;
+    color: var(--db-text);
+}
+
+.executive-dashboard__header {
     display: flex;
-    flex-direction: column;
-}
-
-    /* Align major dashboard sections with consistent rhythm */
-    .dashboard-main-content > .dashboard-section + .dashboard-section {
-        margin-top: 1.5rem;
-    }
-
-    /* Normalise section margins so spacing is owned by gap tokens */
-    .dashboard-main-content > .dashboard-section {
-        margin: 0;
-    }
-
-        .dashboard-main-content > .dashboard-section > * {
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
-        }
-
-        /* Circle 2: Project pulse → OpsSignals */
-        .dashboard-main-content > .dashboard-section:nth-of-type(2) {
-            margin-top: var(--dashboard-gap-small);
-        }
-
-        /* Circle 3: OpsSignals → FFC map (more breathing room before heavy map slab) */
-        .dashboard-main-content > .dashboard-section:nth-of-type(3) {
-            margin-top: var(--dashboard-gap-large);
-        }
-
-/* Circle 4: FFC map → My projects row */
-.dashboard-my-projects {
-    margin-top: 2rem; /* slightly more separation from the map */
-}
-
-/* END SECTION */
-
-
-/* SECTION: Dashboard events & sidebar */
-
-.dashboard-events-card {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: .75rem;
-    border: 1px solid var(--pm-border);
-    border-radius: 999px;
-    background-color: var(--pm-card);
-    text-align: left;
-    color: inherit;
-    cursor: pointer;
-    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-    width: 3.25rem;
-    height: 3.25rem;
-    margin-left: auto;
-}
-
-/* Dashboard sidebar alignment helpers */
-.dashboard-sidebar {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-}
-
-/* Wrapper for all floating actions on the sidebar */
-.dashboard-floating-actions {
-    display: flex;
-    flex-direction: column;
     align-items: flex-end;
-    margin-right: -6px;
-    gap: .75rem;
-    z-index: 5;
-}
-
-/* Desktop: float the actions slightly outside the sidebar */
-@media (min-width: 992px) {
-    .dashboard-floating-actions {
-        position: absolute;
-        top: .5rem; /* align with top of To-Do card */
-        margin-right: -6px;
-        transform: translateX(120%); /* push into the gutter without relying on margins */
-    }
-}
-
-/* Mobile / tablet: keep the button in normal flow under To-Do */
-@media (max-width: 991.98px) {
-    .dashboard-floating-actions {
-        position: static;
-        margin-left: auto;
-        margin-right: 0px;
-    }
-}
-
-.dashboard-events-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 20px 30px -20px rgba(15, 23, 42, .25);
-}
-
-.dashboard-events-card:focus {
-    outline: none;
-}
-
-.dashboard-events-card:focus-visible {
-    outline: 2px solid var(--pm-primary);
-    outline-offset: 4px;
-}
-
-.dashboard-events-card:active {
-    transform: translateY(0);
-}
-
-.dashboard-events-card__icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    color: var(--pm-primary);
-    font-size: 1.3rem;
-}
-/* END SECTION */
-
-
-/* SECTION: Dashboard right column softening */
-
-.dashboard-sidebar .card-body,
-.dashboard-sidebar .pm-card-body {
-    padding: 1rem 1.25rem;
-}
-
-.dashboard-sidebar .btn-primary {
-    border-radius: 999px;
-    padding-inline: 1.05rem;
-}
-
-.dashboard-ocr-card .btn-primary {
-    background-color: var(--pm-primary-strong);
-    border-color: var(--pm-primary-strong);
-    border-radius: 999px;
-    padding-inline: 1.25rem;
-    font-weight: 500;
-    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
-}
-
-    .dashboard-ocr-card .btn-primary:hover,
-    .dashboard-ocr-card .btn-primary:focus-visible {
-        background-color: #2563eb;
-        border-color: #2563eb;
-        box-shadow: 0 6px 14px rgba(37, 99, 235, 0.22);
-    }
-
-.dashboard-right-column .card-body,
-.dashboard-right-column .pm-card-body {
-    padding: 1rem 1.25rem;
-}
-
-.todo-widget .todo-badge {
-    background: var(--pm-chip-bg);
-    color: var(--pm-chip-text, var(--pm-text));
-    border-radius: 999px;
-    padding: 0.1rem 0.55rem;
-    font-size: 0.7rem;
-    font-weight: 600;
-}
-
-.dashboard-todo-card .todo-filter-pill {
-    background: var(--pm-chip-bg);
-    color: var(--pm-chip-text);
-    border-radius: 999px;
-    padding: 0.1rem 0.55rem;
-    font-size: 0.7rem;
-    font-weight: 500;
-    border: 1px solid var(--pm-chip-border);
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.dashboard-todo-card .todo-filter-pill--muted {
-    opacity: 0.6;
-}
-
-.dashboard-todo-card .todo-filter-pill--overdue::before,
-.dashboard-todo-card .todo-filter-pill--due-today::before,
-.dashboard-todo-card .todo-filter-pill--next-7::before {
-    content: '';
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    border-radius: 999px;
-}
-
-.dashboard-todo-card .todo-filter-pill--overdue::before {
-    background: #f97373;
-}
-
-.dashboard-todo-card .todo-filter-pill--due-today::before {
-    background: #fbbf24;
-}
-
-.dashboard-todo-card .todo-filter-pill--next-7::before {
-    background: #38bdf8;
-}
-/* END SECTION */
-
-
-/* SECTION: Dashboard - My projects (general structure) */
-
-.dashboard-my-projects {
-    display: flex;
-    flex-direction: column;
-}
-
-.dashboard-my-projects__layout {
-    align-items: stretch;
-}
-
-.dashboard-my-projects__projects {
-    border: 1px solid var(--pm-border-muted);
-    border-radius: 18px;
-    background-color: var(--pm-card);
-    padding: 1rem 1.25rem;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.dashboard-my-projects__sections {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-}
-
-.dashboard-my-projects__section + .dashboard-my-projects__section {
-    margin-top: 1.5rem;
-}
-
-.dashboard-my-projects__list {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
-    overflow: visible;
-    padding-bottom: 0;
-    scrollbar-width: none;
-}
-
-    .dashboard-my-projects__list::-webkit-scrollbar {
-        display: none;
-    }
-
-.dashboard-my-projects__empty {
-    background: var(--pm-surface);
-}
-
-.dashboard-project-card {
-    display: flex;
-    align-items: center;
-    gap: .75rem;
-    padding: .65rem .75rem;
-    border: 1px solid var(--pm-border);
-    border-radius: .9rem;
-    background-color: var(--pm-card);
-    color: inherit;
-    text-decoration: none;
-    box-shadow: 0 16px 24px -26px rgba(15, 23, 42, .35);
-    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
-    height: 100%;
-}
-
-    .dashboard-project-card:hover,
-    .dashboard-project-card:focus {
-        text-decoration: none;
-        border-color: rgba(45, 108, 223, .45);
-        box-shadow: 0 22px 32px -26px rgba(45, 108, 223, .4);
-        transform: translateY(-1px);
-    }
-
-    .dashboard-project-card:focus-visible {
-        outline: 2px solid var(--pm-primary);
-        outline-offset: 4px;
-    }
-
-.dashboard-project-card__cover {
-    width: 80px;
-    aspect-ratio: 4 / 3;
-    border-radius: .75rem;
-    overflow: hidden;
-    border: 1px solid var(--pm-border);
-    background-color: var(--pm-surface);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--pm-muted);
-    font-size: var(--pm-font-size-xs);
-    flex-shrink: 0;
-}
-
-    .dashboard-project-card__cover img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-    }
-
-.dashboard-project-card__cover-placeholder {
-    padding-inline: .25rem;
-    text-align: center;
-    text-transform: uppercase;
-    letter-spacing: .6px;
-    font-size: var(--pm-font-size-xxs);
-}
-
-.dashboard-project-card__content {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.dashboard-project-card__title {
-    font-weight: 600;
-    letter-spacing: .1px;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.dashboard-project-card__meta {
-    margin-top: .125rem;
-    font-size: var(--pm-font-size-xs);
-    color: var(--pm-text-secondary);
-}
-
-.dashboard-project-card__chevron {
-    color: var(--pm-primary);
-    font-size: 1.35rem;
-    flex-shrink: 0;
-}
-
-.dashboard-my-projects__pdc-card {
-    border: 1px solid var(--pm-border);
-    border-radius: 1.5rem;
-    background-color: var(--pm-card);
-    padding: 1rem 1.25rem 1.25rem;
-    display: flex;
-    flex-direction: column;
-    gap: .75rem;
-}
-
-.dashboard-my-projects__section-title {
-    letter-spacing: .4px;
-}
-/* END SECTION */
-
-
-/* SECTION: Dashboard - My projects + Stage PDC widget */
-
-.myproj-stage-widget {
-    border-radius: 1.5rem;
-    box-shadow: var(--pm-shadow);
-    background-color: var(--pm-card);
-    padding: 1.25rem 1.5rem 1.5rem;
-}
-
-.myproj-stage-widget__header {
-    display: flex;
-    align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1rem;
+    gap: 24px;
+    margin-bottom: 16px;
 }
 
-.myproj-stage-widget__heading {
-    display: inline-flex;
-    align-items: center;
-    gap: .75rem;
-    min-width: 0;
+.executive-dashboard__header h1 {
+    margin: 0 0 3px;
+    font-size: 1.65rem;
+    font-weight: 750;
+    letter-spacing: -.025em;
 }
 
-.myproj-stage-widget__icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-    background: rgba(45, 108, 223, 0.08);
-    color: var(--pm-primary, var(--pm-primary));
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.15rem;
-    box-shadow: 0 12px 22px -16px rgba(45, 108, 223, 0.38);
-}
-
-.myproj-stage-widget__title {
+.executive-dashboard__header p {
     margin: 0;
-    font-size: 1.05rem;
-    letter-spacing: .01em;
-    color: var(--pm-body, var(--pm-text-contrast));
-    font-weight: 700;
+    color: var(--db-muted);
+    font-size: .88rem;
 }
 
-.myproj-stage-widget__badge {
-    display: inline-flex;
+.executive-dashboard__header-actions {
+    display: flex;
     align-items: center;
-    gap: .4rem;
-    padding: .35rem .75rem;
-    border-radius: 999px;
-    font-size: .85rem;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    background: rgba(45, 108, 223, 0.08);
-    color: var(--pm-primary, var(--pm-primary));
-    border: 1px solid rgba(45, 108, 223, 0.35);
+    gap: 12px;
+}
+
+.executive-dashboard__updated {
+    color: var(--db-muted);
+    font-size: .76rem;
     white-space: nowrap;
 }
 
-.myproj-stage-widget__body {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.myproj-stage-widget__pdc {
-    width: 100%;
-}
-
-.myproj-stage-widget__divider {
-    display: none;
-}
-
-/* My projects category summary */
-.myproj-summary {
-    margin-top: 0.75rem;
-    margin-bottom: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.9rem;
-    background: rgba(148, 163, 184, 0.12);
-}
-
-.myproj-summary__chips {
-    display: inline-flex;
-    gap: 0.4rem;
-    flex-wrap: wrap;
-}
-
-.myproj-summary__chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.2rem 0.6rem;
-    border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.5);
-    background: #ffffff;
-}
-
-.myproj-summary__chip-label {
-    font-size: 0.72rem;
-    color: var(--pm-text-muted);
-}
-
-.myproj-summary__chip-count {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--pm-text-strong);
-}
-
-.myproj-summary__chip--total {
-    border-color: rgba(37, 99, 235, 0.7);
-    background: rgba(37, 99, 235, 0.06);
-}
-
-/* Responsive header tweaks */
-@media (max-width: 576px) {
-    .myproj-stage-widget__header {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-
-    .myproj-stage-widget__badge {
-        align-self: flex-start;
-    }
-}
-
-/* Old project grid: single column on small devices */
-@media (max-width: 767.98px) {
-    .dashboard-my-projects__list {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* Keep existing floating actions positioning */
-@media (min-width: 992px) {
-    .dashboard-floating-actions {
-        position: absolute;
-        top: .5rem;
-        right: 0;
-        margin-right: 0;
-    }
-}
-
-@media (min-width: 1200px) {
-    .dashboard-floating-actions {
-        right: 1rem;
-    }
-}
-/* END SECTION */
-
-
-/* SECTION: Dashboard widget helpers */
-
-.pm-scroll {
-    max-height: 340px;
-    overflow-y: auto;
-    overflow-x: visible;
-}
-
-/* Keep dropdowns above any cards/sections on the dashboard */
-.dashboard .dropdown-menu,
-.todo-widget .dropdown-menu {
-    z-index: 1080;
-}
-
-/* Menus we move to body must sit above dashboard cards */
-.dropdown-menu.todo-menu {
-    z-index: 1085;
-}
-
-/* If any card/section had overflow clipping, turn it off at the outer wrapper */
-.dashboard .card,
-.dashboard .card > .card-body {
-    overflow: visible;
-}
-/* END SECTION */
-
-/* === PDC widget refinements ======================================= */
-
-/* Give the whole PDC alerts area a proper card shell */
-.dashboard-my-projects__pdc-groups {
-    margin-top: 0.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
-    /* card shell */
-    border: 1px solid var(--pm-border-muted);
-    border-radius: 1.5rem;
-    padding: 1rem 1.25rem 1.25rem;
-    background-color: var(--pm-card);
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-    max-height: none; /* ensure no internal scroll */
-    overflow-y: visible;
-}
-
-/* Visually separate the three logical groups:
-   - PDC overdue
-   - PDC in next 30 days
-   - PDC not set */
-.dashboard-my-projects__pdc-group {
-    margin-top: 0.5rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--pm-border-muted);
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-    /* First group should not have a top divider */
-    .dashboard-my-projects__pdc-group:first-child {
-        margin-top: 0;
-        padding-top: 0;
-        border-top: none;
-    }
-
-/* Group title styling (header-like) */
-.dashboard-my-projects__pdc-group-title {
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--pm-text-secondary);
-}
-
-/* Two-column layout of PDC rows */
-.dashboard-my-projects__pdc-list {
+.executive-dashboard__layout {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 18px;
+    align-items: start;
 }
 
-/* Collapse to one column on smaller viewports */
-@media (max-width: 991.98px) {
-    .dashboard-my-projects__pdc-list {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* Each PDC row as a clean white card */
-.myproj-stage-widget__pdc-row {
-    background-color: var(--pm-card);
-    border-radius: 1rem;
-    border: 1px solid var(--pm-border-muted);
-    padding: 0.7rem 1rem;
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
-    transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.10s ease;
-}
-
-    .myproj-stage-widget__pdc-row:hover,
-    .myproj-stage-widget__pdc-row:focus-within {
-        background-color: rgba(37, 99, 235, 0.02);
-        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
-        transform: translateY(-1px);
-    }
-
-/* Make the anchor just a flex container, no extra background */
-.dashboard-my-projects__pdc-link {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 0.8rem; /* more gap between name and badge column */
-    text-decoration: none;
-    color: inherit;
-}
-
-/* Left column: name + stage */
-.dashboard-my-projects__pdc-text {
+.executive-dashboard__main,
+.executive-dashboard__rail {
     min-width: 0;
+}
+
+.executive-dashboard__main {
     display: flex;
     flex-direction: column;
-    gap: 0.18rem;
+    gap: 16px;
 }
 
-.dashboard-my-projects__pdc-name {
-    font-size: 0.9rem;
-    font-weight: 600;
-    line-height: 1.3;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+.executive-dashboard__rail {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.dashboard-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    background: var(--db-card);
+    border: 1px solid var(--db-border);
+    border-radius: var(--db-radius);
     overflow: hidden;
 }
 
-.dashboard-my-projects__pdc-stage {
-    font-size: 0.78rem;
-    color: var(--pm-text-muted);
+.dashboard-kpi {
+    position: relative;
+    min-height: 154px;
+    padding: 18px 18px 16px;
+    color: inherit;
+    text-decoration: none;
+    border-right: 1px solid var(--db-border-soft);
+    transition: background .16s ease;
 }
 
-/* Right column: chip + any extra meta */
-.dashboard-my-projects__pdc-meta {
-    flex-shrink: 0;
+.dashboard-kpi:last-child { border-right: 0; }
+.dashboard-kpi:hover { background: #fbfdff; color: inherit; }
+
+.dashboard-kpi__icon {
+    display: inline-flex;
+    width: 38px;
+    height: 38px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 11px;
+    margin-bottom: 12px;
+    font-size: 1.05rem;
+}
+
+.dashboard-kpi__icon--blue { background: #edf3ff; color: #2d63df; }
+.dashboard-kpi__icon--amber { background: #fff5e8; color: #d97706; }
+.dashboard-kpi__icon--green { background: #eaf8f0; color: #159455; }
+.dashboard-kpi__icon--purple { background: #f2edff; color: #7451d7; }
+
+.dashboard-kpi__body { display: block; }
+.dashboard-kpi__label { display: block; min-height: 34px; font-size: .78rem; font-weight: 700; line-height: 1.3; }
+.dashboard-kpi strong { display: block; margin-top: 4px; font-size: 1.62rem; line-height: 1; letter-spacing: -.02em; }
+.dashboard-kpi small { display: block; min-height: 32px; margin-top: 7px; color: var(--db-muted); font-size: .71rem; line-height: 1.35; }
+.dashboard-kpi__link { position: absolute; left: 18px; bottom: 14px; color: var(--db-primary); font-size: .73rem; font-weight: 650; }
+
+.dashboard-primary-panel,
+.dashboard-rail-card {
+    background: var(--db-card);
+    border: 1px solid var(--db-border);
+    border-radius: var(--db-radius);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .025);
+}
+
+.dashboard-primary-panel { overflow: hidden; }
+
+.dashboard-panel-heading,
+.dashboard-rail-card__head {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.2rem;
-    padding-top: 0.1rem; /* loosen from name baseline */
-    white-space: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
 }
 
-    /* Extra breathing space around the chip so it does not hug the name */
-    .dashboard-my-projects__pdc-meta .badge {
-        font-size: 0.7rem;
-        padding-inline: 0.6rem;
-        margin-top: 0.05rem;
-    }
-
-/* Optional: stronger highlight for the currently selected project, if used */
-.myproj-stage-widget__pdc-row.is-active {
-    border-color: rgba(37, 99, 235, 0.65);
+.dashboard-panel-heading {
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid var(--db-border-soft);
 }
 
-    .myproj-stage-widget__pdc-row.is-active .dashboard-my-projects__pdc-name {
-        font-weight: 600;
-    }
+.dashboard-panel-heading h2,
+.dashboard-rail-card h2 {
+    margin: 0;
+    font-size: .98rem;
+    font-weight: 750;
+}
+
+.dashboard-panel-heading p {
+    margin: 3px 0 0;
+    color: var(--db-muted);
+    font-size: .75rem;
+}
+
+.dashboard-panel-heading a,
+.dashboard-rail-card__head a,
+.dashboard-rail-link {
+    color: var(--db-primary);
+    text-decoration: none;
+    font-size: .73rem;
+    font-weight: 650;
+}
+
+/* Project pulse: flatten the old nested card treatment */
+.dashboard-primary-panel .ppulse {
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    background: transparent !important;
+}
+
+.dashboard-primary-panel .ppulse__head {
+    padding: 15px 18px;
+    border-bottom: 1px solid var(--db-border-soft);
+}
+
+.dashboard-primary-panel .ppulse__grid {
+    gap: 0;
+    grid-template-columns: 1.15fr .85fr;
+}
+
+.dashboard-primary-panel .ppulse__card {
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+.dashboard-primary-panel .ppulse__card + .ppulse__card {
+    border-left: 1px solid var(--db-border-soft) !important;
+}
+
+.dashboard-primary-panel .ppulse__pulse { background: var(--db-primary-soft); color: var(--db-primary); }
+.dashboard-primary-panel .pm-powered-by__logo { display: none; }
+.dashboard-primary-panel .ppulse__pill--link { display: none; }
+
+.dashboard-outputs .ops-signals { padding: 14px; }
+.dashboard-outputs .ops-signals__grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.dashboard-outputs .ops-signals__tile {
+    min-width: 0;
+    border: 1px solid var(--db-border-soft);
+    border-radius: 11px;
+    box-shadow: none;
+    padding: 13px 12px;
+}
+.dashboard-outputs .ops-signals__tile:hover { transform: none; border-color: #cdd8e8; }
+.dashboard-outputs .ops-signals__num { font-size: 1.45rem; }
+.dashboard-outputs .ops-signals__spark { height: 42px; }
+
+.dashboard-ffc-compact .ffc-simulator-map-widget {
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+}
+.dashboard-ffc-compact .pm-card-body { padding: 16px 18px; }
+.dashboard-ffc-compact .ffc-simulator-map-widget__eyebrow { display: none; }
+.dashboard-ffc-compact .ffc-simulator-map-widget__header { align-items: center; }
+.dashboard-ffc-compact .ffc-simulator-map__canvas { height: 300px !important; }
+.dashboard-ffc-compact .ffc-simulator-map__country-strip,
+.dashboard-ffc-compact .dashboard-ffc-footnotes .mt-2 { display: none; }
+
+.dashboard-rail-card { padding: 16px; }
+.dashboard-rail-card__head { margin-bottom: 14px; }
+.dashboard-rail-card__title { display: flex; align-items: center; gap: 9px; }
+.dashboard-rail-card__icon { display: inline-flex; align-items: center; justify-content: center; width: 31px; height: 31px; border-radius: 9px; background: var(--db-primary-soft); color: var(--db-primary); }
+
+.dashboard-reminder-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+.dashboard-reminder-summary__item { padding: 11px 12px; border: 1px solid var(--db-border-soft); border-radius: 10px; background: #fbfcfe; }
+.dashboard-reminder-summary__item span { display: block; color: var(--db-primary); font-size: .7rem; font-weight: 700; }
+.dashboard-reminder-summary__item strong { display: block; margin-top: 5px; font-size: 1.35rem; }
+.dashboard-reminder-summary__item--danger { background: #fff7f7; }
+.dashboard-reminder-summary__item--danger span,
+.dashboard-reminder-summary__item--danger strong { color: #d92d42; }
+
+.dashboard-rail-list + .dashboard-rail-list { margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--db-border-soft); }
+.dashboard-rail-list h3 { margin: 0 0 5px; color: var(--db-text); font-size: .72rem; font-weight: 750; text-transform: uppercase; letter-spacing: .04em; }
+.dashboard-rail-list li { padding-block: 4px !important; }
+.dashboard-rail-list li span { font-size: .66rem; }
+
+.dashboard-system-pill { display: inline-flex; padding: 4px 8px; border-radius: 999px; font-size: .65rem; font-weight: 700; }
+.dashboard-system-pill.is-healthy { background: #e9f8ef; color: #16864e; }
+.dashboard-system-pill.is-warning { background: #fff4df; color: #a86400; }
+.dashboard-system-list { border: 1px solid var(--db-border-soft); border-radius: 10px; overflow: hidden; }
+.dashboard-system-list div { display: flex; justify-content: space-between; gap: 10px; padding: 10px 11px; border-bottom: 1px solid var(--db-border-soft); font-size: .72rem; }
+.dashboard-system-list div:last-child { border-bottom: 0; }
+.dashboard-system-list span { color: var(--db-muted); }
+.dashboard-rail-link { display: inline-block; margin-top: 12px; }
+
+.dashboard-quick-links__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.dashboard-quick-links__grid a { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 9px 5px; color: var(--db-muted); text-decoration: none; font-size: .65rem; border-radius: 9px; }
+.dashboard-quick-links__grid a:hover { background: var(--db-primary-soft); color: var(--db-primary); }
+.dashboard-quick-links__grid i { font-size: 1.1rem; color: var(--db-primary); }
+
+.dashboard-empty-state { padding: 28px; color: var(--db-muted); text-align: center; }
+
+@media (max-width: 1199.98px) {
+    .executive-dashboard__layout { grid-template-columns: minmax(0, 1fr) 280px; }
+    .dashboard-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .dashboard-kpi:nth-child(2) { border-right: 0; }
+    .dashboard-kpi:nth-child(-n+2) { border-bottom: 1px solid var(--db-border-soft); }
+    .dashboard-outputs .ops-signals__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 991.98px) {
+    .analytics-main { padding: 16px; }
+    .executive-dashboard__layout { grid-template-columns: 1fr; }
+    .executive-dashboard__rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .dashboard-quick-links { grid-column: 1 / -1; }
+}
+
+@media (max-width: 767.98px) {
+    .executive-dashboard__header { align-items: flex-start; flex-direction: column; }
+    .executive-dashboard__header-actions { width: 100%; justify-content: space-between; }
+    .dashboard-kpis { grid-template-columns: 1fr; }
+    .dashboard-kpi { border-right: 0; border-bottom: 1px solid var(--db-border-soft); }
+    .dashboard-kpi:last-child { border-bottom: 0; }
+    .dashboard-primary-panel .ppulse__grid { grid-template-columns: 1fr; }
+    .dashboard-primary-panel .ppulse__card + .ppulse__card { border-left: 0 !important; border-top: 1px solid var(--db-border-soft) !important; }
+    .dashboard-outputs .ops-signals__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .executive-dashboard__rail { grid-template-columns: 1fr; }
+}
