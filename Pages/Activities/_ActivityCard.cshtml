@@ -60,7 +60,11 @@
                         if (!string.IsNullOrWhiteSpace(media.ThumbnailUrl))
                         {
                             <a class="activity-card__preview" href="@media.DownloadUrl" title="Open @media.FileName">
-                                <img src="@media.ThumbnailUrl" alt="@media.FileName" loading="lazy" />
+                                <img src="@media.ThumbnailUrl" alt="@media.FileName" loading="lazy" data-activity-preview-image data-file-name="@media.FileName" />
+                                <span class="activity-card__preview-fallback" aria-hidden="true">
+                                    <i class="bi bi-image"></i>
+                                    <span>@media.FileName</span>
+                                </span>
                             </a>
                         }
                         else
@@ -75,9 +79,8 @@
                     {
                         <a class="activity-card__more" asp-page="./Details" asp-route-id="@Model.Id">+@remainingMedia more</a>
                     }
-                </div>
 
-                <div class="activity-card__evidence-summary">
+                    <div class="activity-card__evidence-summary">
                     @if (Model.PhotoAttachmentCount > 0)
                     {
                         <span><i class="bi bi-image" aria-hidden="true"></i> @Model.PhotoAttachmentCount photo@(Model.PhotoAttachmentCount == 1 ? "" : "s")</span>
@@ -90,6 +93,7 @@
                     {
                         <span><i class="bi bi-file-earmark-text" aria-hidden="true"></i> @Model.DocumentAttachmentCount document@(Model.DocumentAttachmentCount == 1 ? "" : "s")</span>
                     }
+                    </div>
                 </div>
             </div>
         }

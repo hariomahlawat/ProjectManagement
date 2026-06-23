@@ -2,6 +2,12 @@
   const moduleRoot = document.querySelector('[data-module="activities-index"]');
   if (!moduleRoot) return;
 
+  moduleRoot.querySelectorAll('[data-activity-preview-image]').forEach((image) => {
+    const markBroken = () => image.closest('.activity-card__preview')?.classList.add('is-broken');
+    image.addEventListener('error', markBroken, { once: true });
+    if (image.complete && image.naturalWidth === 0) markBroken();
+  });
+
   const filterForm = document.getElementById('activitiesFilterForm');
   if (filterForm) {
     const submitFromFirstPage = () => {
