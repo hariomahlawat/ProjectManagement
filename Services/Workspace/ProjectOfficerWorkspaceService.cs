@@ -816,7 +816,7 @@ public sealed class ProjectOfficerWorkspaceService
         return new WorkspaceImproveProjectsBuildResult(items, projectsWithGaps.Count);
     }
 
-    // SECTION: Gap details map record-health service output to direct workspace correction actions.
+    // SECTION: Gap details map record-completeness output to direct correction actions.
     private static WorkspaceProjectGapDetailVm BuildGapDetail(int projectId, string gap)
     {
         if (gap.Contains("description", StringComparison.OrdinalIgnoreCase))
@@ -835,7 +835,7 @@ public sealed class ProjectOfficerWorkspaceService
         {
             return new WorkspaceProjectGapDetailVm
             {
-                Label = "Add at least 3 project photos",
+                Label = "Add project photos",
                 ActionText = "Add photos",
                 ActionUrl = WorkspaceRouteHelper.ProjectPhotos(projectId),
                 Icon = "bi-images",
@@ -847,7 +847,7 @@ public sealed class ProjectOfficerWorkspaceService
         {
             return new WorkspaceProjectGapDetailVm
             {
-                Label = "Upload at least 3 project documents",
+                Label = "Upload project documents",
                 ActionText = "Upload",
                 ActionUrl = WorkspaceRouteHelper.ProjectDocumentsTab(projectId),
                 Icon = "bi-file-earmark-text",
@@ -859,7 +859,7 @@ public sealed class ProjectOfficerWorkspaceService
         {
             return new WorkspaceProjectGapDetailVm
             {
-                Label = "Add at least 1 project video",
+                Label = "Add project video",
                 ActionText = "Add video",
                 ActionUrl = WorkspaceRouteHelper.ProjectVideos(projectId),
                 Icon = "bi-camera-video",
@@ -867,50 +867,28 @@ public sealed class ProjectOfficerWorkspaceService
             };
         }
 
-        if (gap.Contains("budget", StringComparison.OrdinalIgnoreCase))
+        if (IsProcurementGap(gap))
         {
             return new WorkspaceProjectGapDetailVm
             {
-                Label = "Update applicable budget details",
-                ActionText = "Update",
+                Label = gap,
+                ActionText = "Update procurement",
                 ActionUrl = WorkspaceRouteHelper.ProjectOverview(projectId),
                 Icon = "bi-currency-rupee",
                 Severity = "Warning"
             };
         }
 
-        if (gap.Contains("backfill", StringComparison.OrdinalIgnoreCase))
+        if (IsTimelineGap(gap))
         {
             return new WorkspaceProjectGapDetailVm
             {
-                Label = "Clear timeline backfill",
-                ActionText = "Backfill",
-                ActionUrl = WorkspaceRouteHelper.ProjectTimeline(projectId),
-                Icon = "bi-clock-history",
-                Severity = "Danger"
-            };
-        }
-
-        if (gap.Contains("current stage timeline", StringComparison.OrdinalIgnoreCase))
-        {
-            return new WorkspaceProjectGapDetailVm
-            {
-                Label = "Update current stage timeline",
-                ActionText = "Timeline",
+                Label = gap,
+                ActionText = gap.Contains("Current-stage", StringComparison.OrdinalIgnoreCase)
+                    ? "Update PDC"
+                    : "Complete dates",
                 ActionUrl = WorkspaceRouteHelper.ProjectTimeline(projectId),
                 Icon = "bi-calendar-check",
-                Severity = "Warning"
-            };
-        }
-
-        if (gap.Contains("remark", StringComparison.OrdinalIgnoreCase))
-        {
-            return new WorkspaceProjectGapDetailVm
-            {
-                Label = "Add recent project remark",
-                ActionText = "Add remark",
-                ActionUrl = WorkspaceRouteHelper.ProjectRemarks(projectId),
-                Icon = "bi-chat-left-text",
                 Severity = "Warning"
             };
         }
@@ -924,6 +902,15 @@ public sealed class ProjectOfficerWorkspaceService
             Severity = "Warning"
         };
     }
+
+    private static bool IsProcurementGap(string gap)
+        => gap.Contains("Cost pending", StringComparison.OrdinalIgnoreCase)
+           || gap.Contains("Supply Order Date pending", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTimelineGap(string gap)
+        => gap.Contains("Current-stage", StringComparison.OrdinalIgnoreCase)
+           || gap.Contains("actual start missing", StringComparison.OrdinalIgnoreCase)
+           || gap.Contains("actual completion missing", StringComparison.OrdinalIgnoreCase);
 
     // SECTION: Quick actions keep only durable workspace destinations.
     private static IReadOnlyList<WorkspaceQuickActionVm> BuildQuickActions(string userId)

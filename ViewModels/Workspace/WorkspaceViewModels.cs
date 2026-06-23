@@ -464,42 +464,41 @@ public static class WorkspaceDisplayHelpers
         return "Needs Work";
     }
 
-    // SECTION: Improvement labels turn internal checklist gaps into action wording.
+    // SECTION: Improvement labels turn completeness gaps into direct action wording.
     public static string ImprovementLabel(string gap) => gap switch
     {
         "Brief description pending" => "Add brief description",
         "Add at least 3 project photos" => "Add project photos",
         "Upload at least 3 project documents" => "Upload project documents",
         "Add at least 1 project video" => "Add project video",
-        "Update applicable budget details" => "Update budget details",
-        "Clear timeline backfill" => "Clear timeline backfill",
-        "Update current stage timeline" => "Update current stage timeline",
-        "Add recent project remark" => "Add recent project remark",
-        "Basic metadata incomplete" => "Complete basic project details",
-        "Category / technical category / project type incomplete" => "Complete project classification",
-        "Timeline backfill required" => "Clear timeline backfill",
-        "Required current/past stage facts missing" => "Update required stage facts",
-        "No PO remark in last 10 days" => "Add a fresh PO remark",
-        "No PO remark has been added yet" => "Add first PO remark",
-        "No project document uploaded" => "Upload at least one project document",
-        "Current stage overdue" => "Review overdue current stage",
-        "Current stage actual start missing" => "Update current stage actual start",
-        "Current stage planned due missing" => "Update current stage planned due date",
-        _ when gap.Contains("completion date missing", StringComparison.OrdinalIgnoreCase) => "Update current stage completion date",
+        _ when gap.Contains("Cost pending", StringComparison.OrdinalIgnoreCase) => gap.Replace(" pending", string.Empty, StringComparison.OrdinalIgnoreCase),
+        "Supply Order Date pending" => "Add Supply Order Date",
+        _ when gap.Contains("actual start missing", StringComparison.OrdinalIgnoreCase) => gap,
+        _ when gap.Contains("actual completion missing", StringComparison.OrdinalIgnoreCase) => gap,
+        "Current-stage Actual Start pending" => "Add current-stage Actual Start",
+        "Current-stage Planned Start pending" => "Add current-stage Planned Start",
+        "Current-stage timeline (PDC) pending" => "Add current-stage PDC",
         _ => gap
     };
 
-    // SECTION: Short gap labels keep right-rail project data summaries scannable.
+    // SECTION: Short gap labels keep right-rail project summaries scannable.
     public static string ShortGapLabel(string gap) => gap switch
     {
         "Brief description pending" => "Description",
         "Add at least 3 project photos" => "Photos",
         "Upload at least 3 project documents" => "Documents",
         "Add at least 1 project video" => "Video",
-        "Update applicable budget details" => "Budget",
-        "Clear timeline backfill" => "Backfill",
-        "Update current stage timeline" => "Timeline",
-        "Add recent project remark" => "Recent remark",
+        "IPA Cost pending" => "IPA Cost",
+        "AoN Cost pending" => "AoN Cost",
+        "Benchmark Cost pending" => "Benchmark",
+        "L1 Cost pending" => "L1 Cost",
+        "PNC Cost pending" => "PNC Cost",
+        "Supply Order Date pending" => "SO Date",
+        "Current-stage Actual Start pending" => "Actual Start",
+        "Current-stage Planned Start pending" => "Planned Start",
+        "Current-stage timeline (PDC) pending" => "PDC",
+        _ when gap.Contains("actual start missing", StringComparison.OrdinalIgnoreCase) => "Historical start",
+        _ when gap.Contains("actual completion missing", StringComparison.OrdinalIgnoreCase) => "Historical completion",
         _ => gap
     };
 

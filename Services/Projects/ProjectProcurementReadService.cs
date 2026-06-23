@@ -1,6 +1,3 @@
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 
@@ -17,49 +14,88 @@ public sealed class ProjectProcurementReadService
 
     public async Task<ProcurementAtAGlanceVm> GetAsync(int projectId, CancellationToken ct = default)
     {
-        decimal? latestIpa = await _db.ProjectIpaFacts
-            .Where(f => f.ProjectId == projectId)
-            .OrderByDescending(f => f.CreatedOnUtc)
-            .Select(f => (decimal?)f.IpaCost)
-            .FirstOrDefaultAsync(ct);
+        var values = await GetManyAsync(new[] { projectId }, ct);
+        return values.GetValueOrDefault(projectId) ?? ProcurementAtAGlanceVm.Empty;
+    }
 
-        decimal? latestAon = await _db.ProjectAonFacts
-            .Where(f => f.ProjectId == projectId)
-            .OrderByDescending(f => f.CreatedOnUtc)
-            .Select(f => (decimal?)f.AonCost)
-            .FirstOrDefaultAsync(ct);
+    // SECTION: Batch procurement snapshot
+    // Uses the same latest-record rule as the Project Overview "Procurement at a glance" card,
+    // while avoiding one query per project when the workspace evaluates a portfolio.
+    public async Task<IReadOnlyDictionary<int, ProcurementAtAGlanceVm>> GetManyAsync(
+        IReadOnlyCollection<int> projectIds,
+        CancellationToken ct = default)
+    {
+        if (projectIds.Count == 0)
+        {
+            return new Dictionary<int, ProcurementAtAGlanceVm>();
+        }
 
-        decimal? latestBenchmark = await _db.ProjectBenchmarkFacts
-            .Where(f => f.ProjectId == projectId)
-            .OrderByDescending(f => f.CreatedOnUtc)
-            .Select(f => (decimal?)f.BenchmarkCost)
-            .FirstOrDefaultAsync(ct);
+        var ids = projectIds.Distinct().ToArray();
 
-        decimal? latestL1 = await _db.ProjectCommercialFacts
-            .Where(f => f.ProjectId == projectId)
-            .OrderByDescending(f => f.CreatedOnUtc)
-            .Select(f => (decimal?)f.L1Cost)
-            .FirstOrDefaultAsync(ct);
+        var ipaRows = await _db.ProjectIpaFacts
+            .AsNoTracking()
+            .Where(f => ids.Contains(f.ProjectId))
+            .Select(f => new { f.ProjectId, f.IpaCost, f.CreatedOnUtc })
+            .ToListAsync(ct);
 
-        decimal? latestPnc = await _db.ProjectPncFacts
-            .Where(f => f.ProjectId == projectId)
-            .OrderByDescending(f => f.CreatedOnUtc)
-            .Select(f => (decimal?)f.PncCost)
-            .FirstOrDefaultAsync(ct);
+        var aonRows = await _db.ProjectAonFacts
+            .AsNoTracking()
+            .Where(f => ids.Contains(f.ProjectId))
+            .Select(f => new { f.ProjectId, f.AonCost, f.CreatedOnUtc })
+            .ToListAsync(ct);
 
-        DateOnly? latestSo = await _db.ProjectSupplyOrderFacts
-            .Where(f => f.ProjectId == projectId)
-            .OrderByDescending(f => f.CreatedOnUtc)
-            .Select(f => (DateOnly?)f.SupplyOrderDate)
-            .FirstOrDefaultAsync(ct);
+        var benchmarkRows = await _db.ProjectBenchmarkFacts
+            .AsNoTracking()
+            .Where(f => ids.Contains(f.ProjectId))
+            .Select(f => new { f.ProjectId, f.BenchmarkCost, f.CreatedOnUtc })
+            .ToListAsync(ct);
 
-        return new ProcurementAtAGlanceVm(
-            latestIpa,
-            latestAon,
-            latestBenchmark,
-            latestL1,
-            latestPnc,
-            latestSo);
+        var l1Rows = await _db.ProjectCommercialFacts
+            .AsNoTracking()
+            .Where(f => ids.Contains(f.ProjectId))
+            .Select(f => new { f.ProjectId, f.L1Cost, f.CreatedOnUtc })
+            .ToListAsync(ct);
+
+        var pncRows = await _db.ProjectPncFacts
+            .AsNoTracking()
+            .Where(f => ids.Contains(f.ProjectId))
+            .Select(f => new { f.ProjectId, f.PncCost, f.CreatedOnUtc })
+            .ToListAsync(ct);
+
+        var supplyOrderRows = await _db.ProjectSupplyOrderFacts
+            .AsNoTracking()
+            .Where(f => ids.Contains(f.ProjectId))
+            .Select(f => new { f.ProjectId, f.SupplyOrderDate, f.CreatedOnUtc })
+            .ToListAsync(ct);
+
+        var latestIpa = ipaRows
+            .GroupBy(f => f.ProjectId)
+            .ToDictionary(g => g.Key, g => (decimal?)g.OrderByDescending(f => f.CreatedOnUtc).First().IpaCost);
+        var latestAon = aonRows
+            .GroupBy(f => f.ProjectId)
+            .ToDictionary(g => g.Key, g => (decimal?)g.OrderByDescending(f => f.CreatedOnUtc).First().AonCost);
+        var latestBenchmark = benchmarkRows
+            .GroupBy(f => f.ProjectId)
+            .ToDictionary(g => g.Key, g => (decimal?)g.OrderByDescending(f => f.CreatedOnUtc).First().BenchmarkCost);
+        var latestL1 = l1Rows
+            .GroupBy(f => f.ProjectId)
+            .ToDictionary(g => g.Key, g => (decimal?)g.OrderByDescending(f => f.CreatedOnUtc).First().L1Cost);
+        var latestPnc = pncRows
+            .GroupBy(f => f.ProjectId)
+            .ToDictionary(g => g.Key, g => (decimal?)g.OrderByDescending(f => f.CreatedOnUtc).First().PncCost);
+        var latestSupplyOrder = supplyOrderRows
+            .GroupBy(f => f.ProjectId)
+            .ToDictionary(g => g.Key, g => (DateOnly?)g.OrderByDescending(f => f.CreatedOnUtc).First().SupplyOrderDate);
+
+        return ids.ToDictionary(
+            projectId => projectId,
+            projectId => new ProcurementAtAGlanceVm(
+                latestIpa.GetValueOrDefault(projectId),
+                latestAon.GetValueOrDefault(projectId),
+                latestBenchmark.GetValueOrDefault(projectId),
+                latestL1.GetValueOrDefault(projectId),
+                latestPnc.GetValueOrDefault(projectId),
+                latestSupplyOrder.GetValueOrDefault(projectId)));
     }
 }
 
@@ -69,4 +105,7 @@ public sealed record ProcurementAtAGlanceVm(
     decimal? BenchmarkCost,
     decimal? L1Cost,
     decimal? PncCost,
-    DateOnly? SupplyOrderDate);
+    DateOnly? SupplyOrderDate)
+{
+    public static ProcurementAtAGlanceVm Empty { get; } = new(null, null, null, null, null, null);
+}
