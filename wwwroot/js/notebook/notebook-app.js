@@ -1,4 +1,4 @@
-import { closestAction } from './notebook-utils.js';
+﻿import { closestAction } from './notebook-utils.js';
 import { NotebookApi } from './notebook-api.js';
 import { createNotebookBoard } from './notebook-board.js';
 import { initNotebookComposer } from './notebook-composer.js';
@@ -7,7 +7,48 @@ import { initNotebookCreateEditor } from './notebook-create-editor.js';
 import { reconcileMutation, requireMutationItem, updateCardConcurrencyState } from './notebook-reconcile.js';
 import { closeNotebookColourPickers, normaliseNotebookColour } from './notebook-colour-picker.js';
 import { initNotebookLabelManager } from './notebook-label-manager.js';
-import { getNotebookLabelCatalog, setNotebookLabelCatalog } from './notebook-label-picker.js';
+import { getNotebookLabelCatalog, initNotebookLabelPicker, refreshNotebookLabelCatalog, setNotebookLabelCatalog } from './notebook-label-picker.js';
+
+
+export function renderNotebookLabelNavigation(shell, labels = []) {
+  if (!shell) return;
+  const safeLabels = Array.isArray(labels) ? labels : [];
+  const rail = shell.querySelector('[data-notebook-label-rail]');
+  if (rail) {
+    rail.innerHTML = '';
+    safeLabels.slice(0, 20).forEach((label) => {
+      const link = document.createElement('a');
+      link.href = `/Notebook?view=labels&tag=${encodeURIComponent(label.name)}`;
+      const currentTag = new URL(location.href).searchParams.get('tag');
+      if (currentTag && currentTag.toLocaleLowerCase() === String(label.name).toLocaleLowerCase()) link.classList.add('is-active');
+      link.innerHTML = `<i class="bi bi-tag"></i><span>${escapeLabelHtml(label.name)}</span><b>${Number(label.count || 0)}</b>`;
+      rail.appendChild(link);
+    });
+  }
+
+  const directory = shell.querySelector('[data-notebook-label-directory-list]');
+  if (directory) {
+    directory.innerHTML = '';
+    safeLabels.forEach((label) => {
+      const link = document.createElement('a');
+      link.href = `/Notebook?view=labels&tag=${encodeURIComponent(label.name)}`;
+      link.innerHTML = `<i class="bi bi-tag"></i>${escapeLabelHtml(label.name)} <span>${Number(label.count || 0)}</span>`;
+      directory.appendChild(link);
+    });
+  }
+  const empty = shell.querySelector('[data-notebook-label-directory-empty]');
+  if (empty) empty.hidden = safeLabels.length !== 0;
+  shell.querySelectorAll('[data-notebook-count="labels"]').forEach((element) => { element.textContent = String(safeLabels.length); });
+}
+
+function parseCardLabels(card) {
+  try { return JSON.parse(card?.dataset?.labels || '[]'); }
+  catch { return []; }
+}
+
+function escapeLabelHtml(value) {
+  return String(value || '').replace(/[&<>'"]/g, (character) => ({ '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;' }[character]));
+}
 
 // SECTION: Notebook app bootstrap and delegated interactions
 export function initNotebookApp() {
@@ -23,8 +64,52 @@ export function initNotebookApp() {
   const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts });
   getNotebookLabelCatalog(document);
   const createEditor = initNotebookCreateEditor(board, view, { shell, showGlobalError, applyCounts });
-  const labelManager = initNotebookLabelManager(document.querySelector('[data-notebook-label-manager]'), { showGlobalError });
-  document.querySelector('[data-open-label-manager]')?.addEventListener('click', () => labelManager?.open());
+  const labelManager = initNotebookLabelManager(document.querySelector('[data-notebook-label-manager]'), {
+    showGlobalError,
+    onCatalogChange: (labels) => renderNotebookLabelNavigation(shell, labels)
+  });
+  document.querySelectorAll('[data-open-label-manager]').forEach((button) => button.addEventListener('click', () => labelManager?.open()));
+
+  let activeLabelCard = null;
+  const cardLabelPicker = initNotebookLabelPicker(
+    document.querySelector('[data-notebook-card-label-host] [data-notebook-label-picker]'),
+    {
+      value: [],
+      onError: (error) => showGlobalError(error?.message || 'Unable to create the label.'),
+      onChange: async (labels) => {
+        const card = activeLabelCard;
+        if (!card?.dataset?.noteId) return;
+        const apply = async (version) => {
+          const response = await NotebookApi.setLabels(card.dataset.noteId, labels, version);
+          const updated = requireMutationItem(response);
+          updateCardConcurrencyState(card, updated);
+          await reconcileMutation({
+            response, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts,
+            preservePosition: true, showGlobalError, existingCard: card
+          });
+          editor.syncExternalUpdate?.(updated);
+          activeLabelCard = shell.querySelector(`[data-note-id="${updated.id}"]`) ?? card;
+          const catalogue = await refreshNotebookLabelCatalog();
+          renderNotebookLabelNavigation(shell, catalogue);
+        };
+
+        try { await apply(card.dataset.version); }
+        catch (error) {
+          if (error?.status === 409 && window.confirm('This note changed elsewhere. Apply these labels to the latest saved version?')) {
+            const latest = error.currentItem ?? await NotebookApi.getItem(card.dataset.noteId);
+            await apply(latest.version);
+            return;
+          }
+          throw error;
+        }
+      }
+    }
+  );
+
+  document.addEventListener('notebook:labels-changed', (event) => {
+    renderNotebookLabelNavigation(shell, event.detail?.labels || getNotebookLabelCatalog());
+  });
+  renderNotebookLabelNavigation(shell, getNotebookLabelCatalog());
   composer = initNotebookComposer(shell.querySelector('[data-notebook-composer]'), board, view, { showGlobalError, applyCounts });
   document.querySelector('[data-notebook-global-error-close]')?.addEventListener('click', () => { globalError.hidden = true; globalErrorText.textContent = ''; });
   const storageKey = 'notebook.boardView';
@@ -102,6 +187,14 @@ export function initNotebookApp() {
     }
     const action = closestAction(event); if (!action) return;
     const card = action.closest('[data-note-id]'); const id = card?.dataset.noteId;
+    if (action.dataset.action === 'label-note' && card) {
+      event.preventDefault();
+      action.closest('details')?.removeAttribute('open');
+      activeLabelCard = card;
+      cardLabelPicker?.configure({ value: parseCardLabels(card) });
+      cardLabelPicker?.open(action);
+      return;
+    }
     if (action.dataset.action === 'open-note' && id) { event.preventDefault(); try { await editor.open(id); } catch (error) { showGlobalError(error.message || 'Unable to open the note.'); } }
     if (action.dataset.action === 'toggle-checklist' && card) {
       event.preventDefault(); action.disabled = true;

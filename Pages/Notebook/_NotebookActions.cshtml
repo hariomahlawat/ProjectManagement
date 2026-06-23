@@ -16,6 +16,7 @@
     <details class="notebook-card-more">
         <summary class="notebook-action-button" aria-label="More actions"><i class="bi bi-three-dots"></i></summary>
         <div class="notebook-card-more__menu" role="menu">
+            <button type="button" role="menuitem" data-action="label-note"><i class="bi bi-tag"></i><span>Add label</span></button>
             <button type="button" role="menuitem" data-action="duplicate-note">Make a copy</button>
             @if (Model.Item.Status != NotebookItemStatus.Completed &&
                  (Model.Item.Type == NotebookItemType.Note || Model.Item.Type == NotebookItemType.Checklist))

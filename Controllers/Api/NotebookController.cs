@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -183,6 +183,20 @@ public sealed class NotebookController : Controller
         var labels = await _notebook.GetLabelsAsync(CurrentUserId(), ct);
         return Ok(labels.Select(ToLabelSummary));
     }
+
+    [Consumes("application/json")]
+    [HttpPost("~/api/notebook/labels")]
+    public async Task<IActionResult> CreateLabel([FromBody] CreateNotebookLabelRequest request, CancellationToken ct)
+    {
+        var label = await _notebook.CreateLabelAsync(CurrentUserId(), request.Name, ct);
+        var labels = await _notebook.GetLabelsAsync(CurrentUserId(), ct);
+        return Ok(new NotebookLabelsMutationResponse
+        {
+            Label = ToLabelSummary(label),
+            Labels = labels.Select(ToLabelSummary).ToList()
+        });
+    }
+
 
     [Consumes("application/json")]
     [HttpPost("{id:guid}/labels")]

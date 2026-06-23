@@ -1,4 +1,4 @@
-import { notifySessionExpired } from '../core/session-auth.js';
+﻿import { notifySessionExpired } from '../core/session-auth.js';
 
 // SECTION: Notebook API error type and fetch wrapper
 export class NotebookApiError extends Error {
@@ -227,6 +227,7 @@ export const NotebookApi = {
   setPinned: (id, isPinned, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/pin`, jsonRequestOptions('POST', { isPinned, version })),
   setColour: (id, colorKey, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/colour`, jsonRequestOptions('POST', { colorKey: colorKey || null, version })),
   getLabels: () => request('/api/notebook/labels'),
+  createLabel: (name) => request('/api/notebook/labels', jsonRequestOptions('POST', { name })),
   setLabels: (id, labels, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/labels`, jsonRequestOptions('POST', { labels, version })),
   renameLabel: (id, name) => request(`/api/notebook/labels/${encodeURIComponent(id)}`, jsonRequestOptions('PATCH', { name })),
   deleteLabel: (id) => request(`/api/notebook/labels/${encodeURIComponent(id)}`, { method: 'DELETE' }),

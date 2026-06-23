@@ -1,4 +1,4 @@
-@model ProjectManagement.ViewModels.Notebook.NotebookCardRenderVm
+﻿@model ProjectManagement.ViewModels.Notebook.NotebookCardRenderVm
 @using ProjectManagement.Models
 @using ProjectManagement.ViewModels.Notebook
 @{
@@ -11,7 +11,7 @@
 }
 
 @* SECTION: Notebook board card *@
-<article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-version="@item.Version" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty) @(item.Status == NotebookItemStatus.Completed ? "is-completed" : string.Empty)">
+<article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-version="@item.Version" data-labels="@System.Text.Json.JsonSerializer.Serialize(item.Tags)" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty) @(item.Status == NotebookItemStatus.Completed ? "is-completed" : string.Empty)">
     <div class="notebook-card-body">
         <a href="@Model.OpenUrl" class="notebook-card-link notebook-card__open-area" data-action="open-note" aria-label="Open @item.Title">
             <div class="notebook-card-topline">
@@ -73,7 +73,7 @@
 
         @if (tags.Any())
         {
-            <div class="notebook-card-tags" aria-label="Tags">
+            <div class="notebook-card-tags" aria-label="Labels">
                 @foreach (var tag in tags)
                 {
                     <a class="notebook-tag-chip" asp-page="/Notebook/Index" asp-route-view="labels" asp-route-tag="@tag" aria-label="Open label @tag">@tag</a>

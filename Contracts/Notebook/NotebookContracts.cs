@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Notebook;
 
@@ -88,6 +88,14 @@ public sealed class SetNotebookLabelsRequest : NotebookVersionedRequest
     public List<string> Labels { get; set; } = [];
 }
 
+
+
+public sealed class CreateNotebookLabelRequest
+{
+    [Required, StringLength(NotebookLimits.LabelNameMaxLength)]
+    public string Name { get; set; } = string.Empty;
+}
+
 public sealed class RenameNotebookLabelRequest
 {
     [Required, StringLength(NotebookLimits.LabelNameMaxLength)]
@@ -150,6 +158,7 @@ public sealed class NotebookLabelSummaryResponse
 
 public sealed class NotebookLabelsMutationResponse
 {
+    public NotebookLabelSummaryResponse? Label { get; set; }
     public List<NotebookLabelSummaryResponse> Labels { get; set; } = [];
     public List<Guid> AffectedItemIds { get; set; } = [];
 }

@@ -1,4 +1,4 @@
-using ProjectManagement.Models;
+﻿using ProjectManagement.Models;
 using ProjectManagement.ViewModels.Notebook;
 
 // SECTION: My Notebook module types
@@ -60,6 +60,8 @@ public interface INotebookService
     Task<NotebookItemDetailVm> SetLabelsAsync(string ownerId, Guid id, IReadOnlyList<string> labels, Guid expectedVersion, CancellationToken ct = default);
 
     Task<IReadOnlyList<NotebookTagVm>> GetLabelsAsync(string ownerId, CancellationToken ct = default);
+
+    Task<NotebookTagVm> CreateLabelAsync(string ownerId, string name, CancellationToken ct = default);
 
     Task<(IReadOnlyList<NotebookTagVm> Labels, IReadOnlyList<Guid> AffectedItemIds)> RenameLabelAsync(string ownerId, int labelId, string name, CancellationToken ct = default);
 

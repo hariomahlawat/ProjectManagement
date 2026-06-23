@@ -1,4 +1,4 @@
-@page
+﻿@page
 @model ProjectManagement.Pages.Notebook.IndexModel
 @using ProjectManagement.Models
 @using ProjectManagement.ViewModels.Notebook
@@ -25,13 +25,16 @@
         "completed" => "Completed notes will appear here.",
         _ => "Use quick capture or create a structured notebook item."
     };
+    var selectedLabelName = Model.Notebook.Tags
+        .FirstOrDefault(label => string.Equals(label.Name, Model.Notebook.Tag, StringComparison.OrdinalIgnoreCase))?.Name
+        ?? Model.Notebook.Tag;
     var viewTitle = Model.Notebook.View switch
     {
         "archive" or "archived" => "Archive",
         "completed" => "Completed",
         "today" => "Today",
         "reminders" => "Reminders",
-        "labels" when !string.IsNullOrWhiteSpace(Model.Notebook.Tag) => Model.Notebook.Tag,
+        "labels" when !string.IsNullOrWhiteSpace(Model.Notebook.Tag) => selectedLabelName,
         "labels" => "Labels",
         _ => "My Notebook"
     };
@@ -41,7 +44,7 @@
         "completed" => "Completed reminders and notebook items.",
         "today" => "Items due today.",
         "reminders" => "Upcoming reminders across your notebook.",
-        "labels" when !string.IsNullOrWhiteSpace(Model.Notebook.Tag) => $"Items labelled {Model.Notebook.Tag}.",
+        "labels" when !string.IsNullOrWhiteSpace(Model.Notebook.Tag) => $"Items labelled {selectedLabelName}.",
         "labels" => "Browse and organise notebook labels.",
         _ => "Notes, reminders, checklists, ideas and drafts."
     };
@@ -61,7 +64,7 @@
             <a class="notebook-rail__item @(item.IsActive ? "is-active" : "")" href="@item.Url"><i class="bi @item.Icon"></i><span>@item.Label</span><b data-notebook-count="@item.Key">@item.Count</b></a>
             @if (item.Key == "labels" && Model.Notebook.Tags.Any())
             {
-                <div class="notebook-rail-labels" aria-label="Notebook labels">
+                <div class="notebook-rail-labels" data-notebook-label-rail aria-label="Notebook labels">
                     @foreach (var label in Model.Notebook.Tags.Take(8))
                     {
                         <a asp-page="/Notebook/Index" asp-route-view="labels" asp-route-tag="@label.Name" class="@(string.Equals(Model.Notebook.Tag, label.Name.ToUpperInvariant(), StringComparison.OrdinalIgnoreCase) ? "is-active" : "")"><i class="bi bi-tag"></i><span>@label.Name</span><b>@label.Count</b></a>
@@ -120,15 +123,19 @@
         </div>
 
         @* SECTION: Card-first notebook board *@
-        @if (Model.Notebook.View == "labels")
+        @if (Model.Notebook.View == "labels" && string.IsNullOrWhiteSpace(Model.Notebook.Tag))
         {
-            <section class="notebook-labels-panel" aria-label="Notebook labels">
+            <section class="notebook-labels-panel" data-notebook-label-directory aria-label="Notebook labels">
                 <div class="notebook-section-header"><h2>Labels</h2><span>@Model.Notebook.Tags.Count</span></div>
-                <div class="notebook-label-chips">
+                <div class="notebook-label-chips" data-notebook-label-directory-list>
                     @foreach (var tag in Model.Notebook.Tags)
                     {
-                        <a asp-page="/Notebook/Index" asp-route-view="labels" asp-route-tag="@tag.Name" class="@(Model.Notebook.Tag == tag.Name.ToUpperInvariant() ? "is-active" : "")">#@tag.Name <span>@tag.Count</span></a>
+                        <a asp-page="/Notebook/Index" asp-route-view="labels" asp-route-tag="@tag.Name" class="@(string.Equals(Model.Notebook.Tag, tag.Name.ToUpperInvariant(), StringComparison.OrdinalIgnoreCase) ? "is-active" : "")"><i class="bi bi-tag"></i>@tag.Name <span>@tag.Count</span></a>
                     }
+                </div>
+                <div class="notebook-label-directory-empty" data-notebook-label-directory-empty hidden="@(Model.Notebook.Tags.Any())">
+                    <i class="bi bi-tags"></i><strong>No labels yet</strong><span>Create labels to organise your notes.</span>
+                    <button type="button" class="btn btn-sm btn-primary" data-open-label-manager>Create label</button>
                 </div>
             </section>
         }
@@ -161,7 +168,7 @@
                 }
             </section>
         }
-        else
+        else if (!(Model.Notebook.View == "labels" && string.IsNullOrWhiteSpace(Model.Notebook.Tag)))
         {
             <section class="notebook-board-section">
                 <div class="notebook-board" data-notebook-board data-layout-policy="fixed-grid" data-layout="grid" data-item-count="@Model.Notebook.Items.Count">
@@ -275,6 +282,7 @@
 </div>
 
 
+<partial name="_NotebookCardLabelPicker" />
 <partial name="_NotebookLabelManager" model="Model.Notebook.Tags" />
 <partial name="_NotebookEditorTemplate" />
 

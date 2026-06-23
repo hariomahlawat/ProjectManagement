@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using ProjectManagement.Data;
@@ -66,7 +66,8 @@ public sealed class NotebookService : INotebookService
             "today" => activeQuery.Where(item =>
                 item.ReminderAtUtc != null &&
                 item.ReminderAtUtc < bounds.EndUtc),
-            "labels" => activeQuery,
+            "labels" when !string.IsNullOrWhiteSpace(tag) => activeQuery,
+            "labels" => activeQuery.Where(_ => false),
             "reminders" => remindersQuery,
             "archive" or "archived" => filteredBaseQuery.Where(item => item.Status == NotebookItemStatus.Archived),
             "completed" => filteredBaseQuery.Where(item => item.Status == NotebookItemStatus.Completed),
@@ -513,6 +514,56 @@ public sealed class NotebookService : INotebookService
 
     public Task<IReadOnlyList<NotebookTagVm>> GetLabelsAsync(string ownerId, CancellationToken ct = default)
         => BuildAllTags(ownerId, ct);
+
+    public async Task<NotebookTagVm> CreateLabelAsync(string ownerId, string name, CancellationToken ct = default)
+    {
+        var cleanName = ValidateLabelName(name);
+        var normalized = NormalizeTag(cleanName);
+        var existing = await _db.NotebookTags.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.OwnerId == ownerId && x.NormalizedName == normalized, ct);
+
+        if (existing is not null)
+        {
+            var labels = await BuildAllTags(ownerId, ct);
+            return labels.First(label => label.Id == existing.Id);
+        }
+
+        var tag = new NotebookTag
+        {
+            OwnerId = ownerId,
+            Name = cleanName,
+            NormalizedName = normalized
+        };
+
+        _db.NotebookTags.Add(tag);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            _db.ChangeTracker.Clear();
+            var concurrent = await _db.NotebookTags.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.OwnerId == ownerId && x.NormalizedName == normalized, ct);
+            if (concurrent is null) throw;
+            var labels = await BuildAllTags(ownerId, ct);
+            return labels.First(label => label.Id == concurrent.Id);
+        }
+
+        await TryWriteAuditAsync("Notebook.LabelCreated", ownerId, Guid.Empty, ct, new Dictionary<string, string?>
+        {
+            ["LabelId"] = tag.Id.ToString(),
+            ["LabelName"] = tag.Name
+        });
+
+        return new NotebookTagVm
+        {
+            Id = tag.Id,
+            Name = tag.Name,
+            Count = 0
+        };
+    }
+
 
     public async Task<(IReadOnlyList<NotebookTagVm> Labels, IReadOnlyList<Guid> AffectedItemIds)> RenameLabelAsync(string ownerId, int labelId, string name, CancellationToken ct = default)
     {
@@ -1180,7 +1231,6 @@ public sealed class NotebookService : INotebookService
                     join.NotebookItem.DeletedAtUtc == null &&
                     join.NotebookItem.Status == NotebookItemStatus.Active)
             })
-            .Where(tag => tag.Count > 0)
             .OrderBy(tag => tag.Name)
             .ToArrayAsync(ct);
     }

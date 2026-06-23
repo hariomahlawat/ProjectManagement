@@ -2,20 +2,25 @@
 <div class="notebook-label-manager" data-notebook-label-manager hidden role="dialog" aria-modal="true" aria-labelledby="notebook-label-manager-title">
     <button type="button" class="notebook-label-manager__backdrop" data-label-manager-close aria-label="Close label manager"></button>
     <section class="notebook-label-manager__dialog">
-        <header><h2 id="notebook-label-manager-title">Manage labels</h2><button type="button" data-label-manager-close aria-label="Close"><i class="bi bi-x-lg"></i></button></header>
-        <div class="notebook-label-manager__feedback" data-label-manager-feedback hidden role="alert"></div>
-        <div class="notebook-label-manager__list">
-            @foreach (var label in Model)
-            {
-                <div class="notebook-label-manager__row" data-label-id="@label.Id">
-                    <i class="bi bi-tag"></i>
-                    <input value="@label.Name" maxlength="60" aria-label="Label name" />
-                    <span>@label.Count</span>
-                    <button type="button" data-label-rename aria-label="Save @label.Name"><i class="bi bi-check-lg"></i></button>
-                    <button type="button" data-label-delete aria-label="Delete @label.Name"><i class="bi bi-trash"></i></button>
-                </div>
-            }
+        <header>
+            <h2 id="notebook-label-manager-title">Manage labels</h2>
+            <button type="button" data-label-manager-close aria-label="Close"><i class="bi bi-x-lg"></i></button>
+        </header>
+
+        <div class="notebook-label-manager__create">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+            <input type="text" maxlength="60" data-label-manager-create-input placeholder="Create new label" aria-label="Create new label" autocomplete="off" />
+            <button type="button" data-label-manager-create aria-label="Create label"><i class="bi bi-check-lg"></i></button>
         </div>
+
+        <div class="notebook-label-manager__feedback" data-label-manager-feedback hidden role="alert"></div>
+        <div class="notebook-label-manager__loading" data-label-manager-loading hidden>Loading labels…</div>
+        <div class="notebook-label-manager__empty" data-label-manager-empty hidden>
+            <i class="bi bi-tags"></i>
+            <strong>No labels yet</strong>
+            <span>Create a label above to organise your notes.</span>
+        </div>
+        <div class="notebook-label-manager__list" data-label-manager-list></div>
         <footer><button type="button" class="btn btn-sm btn-primary" data-label-manager-close>Done</button></footer>
     </section>
 </div>

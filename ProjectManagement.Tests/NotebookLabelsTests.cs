@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -9,6 +9,38 @@ namespace ProjectManagement.Tests;
 
 public sealed class NotebookLabelsTests
 {
+
+    [Fact]
+    public async Task Create_label_persists_an_empty_label_and_reuses_case_insensitive_match()
+    {
+        var (db, service, _) = await CreateFixtureAsync();
+        var created = await service.CreateLabelAsync("owner-1", " Procurement ");
+        var reused = await service.CreateLabelAsync("owner-1", "procurement");
+
+        Assert.Equal(created.Id, reused.Id);
+        Assert.Equal("Procurement", created.Name);
+        Assert.Equal(0, created.Count);
+        Assert.Single(await db.NotebookTags.ToListAsync());
+        Assert.Contains(await service.GetLabelsAsync("owner-1"), label => label.Id == created.Id && label.Count == 0);
+    }
+
+    [Fact]
+    public async Task Labels_root_does_not_return_every_active_note()
+    {
+        var (_, service, _) = await CreateFixtureAsync();
+        var index = await service.GetIndexAsync("owner-1", "labels", null, null, null, null);
+        Assert.Empty(index.Items);
+    }
+
+    [Fact]
+    public async Task Empty_labels_are_available_in_index_navigation()
+    {
+        var (_, service, _) = await CreateFixtureAsync();
+        var created = await service.CreateLabelAsync("owner-1", "Unused");
+        var index = await service.GetIndexAsync("owner-1", "labels", null, null, null, null);
+        Assert.Contains(index.Tags, label => label.Id == created.Id && label.Count == 0);
+    }
+
     [Fact]
     public async Task Set_labels_creates_reuses_and_removes_item_links()
     {

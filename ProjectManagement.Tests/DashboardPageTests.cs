@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Security.Claims;
@@ -224,6 +224,9 @@ namespace ProjectManagement.Tests
                 throw new NotImplementedException();
 
             public Task<IReadOnlyList<NotebookTagVm>> GetLabelsAsync(string ownerId, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
+            public Task<NotebookTagVm> CreateLabelAsync(string ownerId, string name, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
             public Task<(IReadOnlyList<NotebookTagVm> Labels, IReadOnlyList<Guid> AffectedItemIds)> RenameLabelAsync(string ownerId, int labelId, string name, CancellationToken ct = default) =>

@@ -245,3 +245,18 @@ test('setLabels sends a dedicated labels mutation payload', async () => {
   assert.equal(captured.url, '/api/notebook/items/abc/labels');
   assert.deepEqual(JSON.parse(captured.options.body), { labels: ['Docs', 'Ops'], version: '123e4567-e89b-12d3-a456-426614174000' });
 });
+
+test('createLabel sends a dedicated server-backed label creation request', async () => {
+  const { NotebookApi } = await loadApiModule();
+  let captured;
+  global.fetch = async (url, options) => {
+    captured = { url, options };
+    return jsonResponse(200, { label: { id: 4, name: 'Work', count: 0 }, labels: [] });
+  };
+
+  await NotebookApi.createLabel('Work');
+
+  assert.equal(captured.url, '/api/notebook/labels');
+  assert.equal(captured.options.method, 'POST');
+  assert.deepEqual(JSON.parse(captured.options.body), { name: 'Work' });
+});

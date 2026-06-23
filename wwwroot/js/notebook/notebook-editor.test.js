@@ -15,7 +15,7 @@ async function loadEditorModule() {
   fs.writeFileSync(path.join(tempDir, 'notebook-reconcile.mjs'), 'export function reconcileMutation() {} export function requireMutationItem(value) { return value?.item ?? value; }\n');
   fs.writeFileSync(path.join(tempDir, 'notebook-errors.mjs'), fs.readFileSync(path.resolve(__dirname, 'notebook-errors.js'), 'utf8'));
   fs.writeFileSync(path.join(tempDir, 'notebook-colour-picker.mjs'), fs.readFileSync(path.resolve(__dirname, 'notebook-colour-picker.js'), 'utf8'));
-  fs.writeFileSync(path.join(tempDir, 'notebook-label-picker.mjs'), fs.readFileSync(path.resolve(__dirname, 'notebook-label-picker.js'), 'utf8'));
+  fs.writeFileSync(path.join(tempDir, 'notebook-label-picker.mjs'), fs.readFileSync(path.resolve(__dirname, 'notebook-label-picker.js'), 'utf8').replace("./notebook-api.js", './notebook-api.mjs'));
   const source = fs.readFileSync(path.resolve(__dirname, 'notebook-editor.js'), 'utf8')
     .replace("./notebook-api.js", './notebook-api.mjs')
     .replace("./notebook-autosave.js", './notebook-autosave.mjs')
