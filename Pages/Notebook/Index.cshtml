@@ -1,4 +1,4 @@
-﻿@page
+@page
 @model ProjectManagement.Pages.Notebook.IndexModel
 @using ProjectManagement.Models
 @using ProjectManagement.ViewModels.Notebook
@@ -53,11 +53,21 @@
     <div id="notebook-antiforgery-token" hidden>
         @Html.AntiForgeryToken()
     </div>
+    <script id="notebook-label-catalog" type="application/json">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Notebook.Tags.Select(tag => new { id = tag.Id, name = tag.Name, count = tag.Count })))</script>
     <aside class="notebook-rail" aria-label="Notebook views">
         <div class="notebook-rail__brand"><i class="bi bi-journal-bookmark"></i><span>My Notebook</span></div>
         @foreach (var item in Model.Notebook.RailItems)
         {
             <a class="notebook-rail__item @(item.IsActive ? "is-active" : "")" href="@item.Url"><i class="bi @item.Icon"></i><span>@item.Label</span><b data-notebook-count="@item.Key">@item.Count</b></a>
+            @if (item.Key == "labels" && Model.Notebook.Tags.Any())
+            {
+                <div class="notebook-rail-labels" aria-label="Notebook labels">
+                    @foreach (var label in Model.Notebook.Tags.Take(8))
+                    {
+                        <a asp-page="/Notebook/Index" asp-route-view="labels" asp-route-tag="@label.Name" class="@(string.Equals(Model.Notebook.Tag, label.Name.ToUpperInvariant(), StringComparison.OrdinalIgnoreCase) ? "is-active" : "")"><i class="bi bi-tag"></i><span>@label.Name</span><b>@label.Count</b></a>
+                    }
+                </div>
+            }
         }
     </aside>
 
@@ -65,6 +75,10 @@
         <section class="notebook-commandbar">
             <div class="notebook-commandbar__heading"><h1>@viewTitle</h1><p>@viewSubtitle</p></div>
             <div class="notebook-command-actions">
+                @if (Model.Notebook.View == "labels")
+                {
+                    <button type="button" class="notebook-manage-labels-button" data-open-label-manager><i class="bi bi-pencil"></i><span>Manage labels</span></button>
+                }
                 <form method="get" class="notebook-search" aria-label="Search this notebook"><input type="hidden" name="view" value="@Model.Notebook.View" /><input type="hidden" name="filter" value="@Model.Notebook.Filter" /><input type="hidden" name="tag" value="@Model.Notebook.Tag" /><i class="bi bi-search"></i><input name="Query" value="@Model.Query" placeholder="Search this notebook" aria-label="Search this notebook" /></form>
                 <div class="notebook-view-toggle" role="group" aria-label="Board layout">
                     <button type="button" data-notebook-view="grid" aria-label="Grid view"><i class="bi bi-grid-3x3-gap"></i></button>
@@ -260,6 +274,8 @@
     }
 </div>
 
+
+<partial name="_NotebookLabelManager" model="Model.Notebook.Tags" />
 <partial name="_NotebookEditorTemplate" />
 
 @section Scripts { <script type="module" src="~/dist/notebook-index.bundle.js" asp-append-version="true"></script> }

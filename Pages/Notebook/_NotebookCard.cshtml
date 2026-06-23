@@ -1,4 +1,4 @@
-﻿@model ProjectManagement.ViewModels.Notebook.NotebookCardRenderVm
+@model ProjectManagement.ViewModels.Notebook.NotebookCardRenderVm
 @using ProjectManagement.Models
 @using ProjectManagement.ViewModels.Notebook
 @{
@@ -76,7 +76,7 @@
             <div class="notebook-card-tags" aria-label="Tags">
                 @foreach (var tag in tags)
                 {
-                    <span class="notebook-tag-chip">#@tag</span>
+                    <a class="notebook-tag-chip" asp-page="/Notebook/Index" asp-route-view="labels" asp-route-tag="@tag" aria-label="Open label @tag">@tag</a>
                 }
                 @if (extraTags > 0)
                 {

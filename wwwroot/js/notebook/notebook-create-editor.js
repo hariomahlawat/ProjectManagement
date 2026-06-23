@@ -3,6 +3,7 @@ import { createChecklistEditor } from './notebook-checklist-editor.js';
 import { reconcileMutation } from './notebook-reconcile.js';
 import { cloneNotebookEditorTemplate, requireEditorElement, EditorSelectors } from './notebook-editor.js';
 import { initNotebookColourPicker, applyNotebookSurfaceColour } from './notebook-colour-picker.js';
+import { initNotebookLabelPicker } from './notebook-label-picker.js';
 
 const ALLOWED_TYPES = new Set(['Note', 'Checklist', 'Reminder', 'Idea', 'Draft', 'Sticky']);
 
@@ -16,9 +17,9 @@ export function toIstIso(localValue) {
 
 export function parseLabels(value) {
   const seen = new Set();
-  return String(value || '')
-    .split(',')
-    .map((label) => label.trim())
+  const source = Array.isArray(value) ? value : String(value || '').split(',');
+  return source
+    .map((label) => String(label || '').trim().replace(/^#+/, '').trim())
     .filter((label) => {
       if (!label) return false;
       const key = label.toLocaleLowerCase();
@@ -83,6 +84,7 @@ export function initNotebookCreateEditor(board, view, options = {}) {
   let isPinned = false;
   let clientRequestId = crypto.randomUUID();
   let colourPicker = null;
+  let labelPicker = null;
 
   function clearCreateQuery() {
     const url = new URL(location.href);
@@ -104,7 +106,7 @@ export function initNotebookCreateEditor(board, view, options = {}) {
       reminder: requireEditorElement(modal, '[data-create-reminder]'),
       priority: requireEditorElement(modal, '[data-create-priority]'),
       colourPickerRoot: requireEditorElement(modal, '[data-notebook-colour-picker]'),
-      labels: requireEditorElement(modal, '[data-create-labels]'),
+      labelPickerRoot: requireEditorElement(modal, '[data-notebook-label-picker]'),
       feedback: requireEditorElement(modal, '[data-notebook-create-feedback]'),
       submit: requireEditorElement(modal, '[data-notebook-create-submit]')
     };
@@ -147,7 +149,7 @@ export function initNotebookCreateEditor(board, view, options = {}) {
     elements.body.value = '';
     elements.reminder.value = '';
     elements.priority.value = 'Normal';
-    elements.labels.value = '';
+    labelPicker?.setValue([]);
     checklist.clear();
     isPinned = false;
     clientRequestId = crypto.randomUUID();
@@ -178,7 +180,7 @@ export function initNotebookCreateEditor(board, view, options = {}) {
       reminderLocal: elements.reminder.value,
       priority: elements.priority.value,
       colorKey: colourPicker?.getValue() || null,
-      labels: elements.labels.value,
+      labels: labelPicker?.getValue() || [],
       isPinned,
       checklistRows: checklist.getRows(),
       clientRequestId
@@ -237,6 +239,10 @@ export function initNotebookCreateEditor(board, view, options = {}) {
       onSelect: (value) => {
         applyNotebookSurfaceColour(modal.querySelector('.notebook-modal__dialog'), value);
       }
+    });
+    labelPicker = initNotebookLabelPicker(elements.labelPickerRoot, {
+      value: [],
+      onChange: () => {}
     });
 
     elements.detailsToggle.hidden = false;

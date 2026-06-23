@@ -1,0 +1,21 @@
+@model IReadOnlyList<ProjectManagement.ViewModels.Notebook.NotebookTagVm>
+<div class="notebook-label-manager" data-notebook-label-manager hidden role="dialog" aria-modal="true" aria-labelledby="notebook-label-manager-title">
+    <button type="button" class="notebook-label-manager__backdrop" data-label-manager-close aria-label="Close label manager"></button>
+    <section class="notebook-label-manager__dialog">
+        <header><h2 id="notebook-label-manager-title">Manage labels</h2><button type="button" data-label-manager-close aria-label="Close"><i class="bi bi-x-lg"></i></button></header>
+        <div class="notebook-label-manager__feedback" data-label-manager-feedback hidden role="alert"></div>
+        <div class="notebook-label-manager__list">
+            @foreach (var label in Model)
+            {
+                <div class="notebook-label-manager__row" data-label-id="@label.Id">
+                    <i class="bi bi-tag"></i>
+                    <input value="@label.Name" maxlength="60" aria-label="Label name" />
+                    <span>@label.Count</span>
+                    <button type="button" data-label-rename aria-label="Save @label.Name"><i class="bi bi-check-lg"></i></button>
+                    <button type="button" data-label-delete aria-label="Delete @label.Name"><i class="bi bi-trash"></i></button>
+                </div>
+            }
+        </div>
+        <footer><button type="button" class="btn btn-sm btn-primary" data-label-manager-close>Done</button></footer>
+    </section>
+</div>

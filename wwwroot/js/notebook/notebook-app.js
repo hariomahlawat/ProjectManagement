@@ -6,6 +6,8 @@ import { initNotebookEditor } from './notebook-editor.js';
 import { initNotebookCreateEditor } from './notebook-create-editor.js';
 import { reconcileMutation, requireMutationItem, updateCardConcurrencyState } from './notebook-reconcile.js';
 import { closeNotebookColourPickers, normaliseNotebookColour } from './notebook-colour-picker.js';
+import { initNotebookLabelManager } from './notebook-label-manager.js';
+import { getNotebookLabelCatalog, setNotebookLabelCatalog } from './notebook-label-picker.js';
 
 // SECTION: Notebook app bootstrap and delegated interactions
 export function initNotebookApp() {
@@ -19,7 +21,10 @@ export function initNotebookApp() {
   const applyCounts = (counts) => { if (!counts) return; Object.entries(counts).forEach(([key, value]) => shell.querySelectorAll(`[data-notebook-count="${key}"]`).forEach((el) => { el.textContent = String(value); })); };
   const refreshCounts = async () => applyCounts(await NotebookApi.getCounts());
   const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts });
+  getNotebookLabelCatalog(document);
   const createEditor = initNotebookCreateEditor(board, view, { shell, showGlobalError, applyCounts });
+  const labelManager = initNotebookLabelManager(document.querySelector('[data-notebook-label-manager]'), { showGlobalError });
+  document.querySelector('[data-open-label-manager]')?.addEventListener('click', () => labelManager?.open());
   composer = initNotebookComposer(shell.querySelector('[data-notebook-composer]'), board, view, { showGlobalError, applyCounts });
   document.querySelector('[data-notebook-global-error-close]')?.addEventListener('click', () => { globalError.hidden = true; globalErrorText.textContent = ''; });
   const storageKey = 'notebook.boardView';

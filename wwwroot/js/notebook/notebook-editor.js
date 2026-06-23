@@ -4,6 +4,7 @@ import { createChecklistEditor } from './notebook-checklist-editor.js';
 import { reconcileMutation, requireMutationItem } from './notebook-reconcile.js';
 import { getFirstValidationMessage, getValidationMessages } from './notebook-errors.js';
 import { initNotebookColourPicker, applyNotebookSurfaceColour } from './notebook-colour-picker.js';
+import { initNotebookLabelPicker, normaliseLabels } from './notebook-label-picker.js';
 
 export const ConflictType = Object.freeze({
   StaleDraft: 'stale-draft',
@@ -102,6 +103,7 @@ export function initNotebookEditor(board, view, options = {}) {
   let autosave;
   let checklist;
   let colourPicker;
+  let labelPicker;
   let trigger;
   let openedByPushState = false;
   let currentSaveError = null;
@@ -119,7 +121,8 @@ export function initNotebookEditor(board, view, options = {}) {
     message: null,
     resolving: false,
     error: null,
-    pendingColour: null
+    pendingColour: null,
+    pendingLabels: null
   };
 
   const shell = options.shell || document.querySelector('.notebook-shell');
@@ -184,6 +187,7 @@ export function initNotebookEditor(board, view, options = {}) {
     conflictState.resolving = false;
     conflictState.error = null;
     conflictState.pendingColour = null;
+    conflictState.pendingLabels = null;
     renderConflictState();
   }
 
@@ -191,13 +195,14 @@ export function initNotebookEditor(board, view, options = {}) {
     return conflictState.active;
   }
 
-  function activateConflict({ type, pendingServerItem = null, localDraft = null, pendingColour = undefined, message }) {
+  function activateConflict({ type, pendingServerItem = null, localDraft = null, pendingColour = undefined, pendingLabels = undefined, message }) {
     conflictGeneration += 1;
     conflictState.active = true;
     conflictState.type = type;
     if (pendingServerItem) conflictState.pendingServerItem = pendingServerItem;
     conflictState.localDraft = localDraft ?? conflictState.localDraft;
     if (pendingColour !== undefined) conflictState.pendingColour = pendingColour;
+    if (pendingLabels !== undefined) conflictState.pendingLabels = pendingLabels;
     conflictState.message = message || 'This note changed elsewhere.';
     conflictState.resolving = false;
     conflictState.error = null;
@@ -287,6 +292,7 @@ export function initNotebookEditor(board, view, options = {}) {
   function applyAuthoritativeItem(updated) {
     item = updated;
     colourPicker?.setValue(updated.colorKey || '');
+    labelPicker?.setValue((updated.labels || []).map((label) => label?.name ?? label));
     applyNotebookSurfaceColour(modal.querySelector('.notebook-modal__dialog'), updated.colorKey || '');
     modal.querySelector('[data-modal-title]').value = updated.title || '';
     modal.querySelector('[data-modal-body]').value = updated.body || '';
@@ -328,6 +334,13 @@ export function initNotebookEditor(board, view, options = {}) {
       {
         value: '',
         onSelect: changeColour
+      }
+    );
+    labelPicker = initNotebookLabelPicker(
+      requireEditorElement(modal, '[data-notebook-label-picker]'),
+      {
+        value: [],
+        onChange: changeLabels
       }
     );
 
@@ -693,10 +706,11 @@ export function initNotebookEditor(board, view, options = {}) {
       clearValidationBlock();
 
       const pendingColour = conflictState.pendingColour;
+      const pendingLabels = conflictState.pendingLabels;
       const result = await saveEditorPayload(buildCurrentPayload(), {
         sequence: ++directSaveSequence,
         conflictGenerationAtDispatch: resolutionGeneration,
-        deliberateConflictResolution: pendingColour === null
+        deliberateConflictResolution: (pendingColour === null || pendingColour === undefined) && (pendingLabels === null || pendingLabels === undefined)
       });
       await applyPersistedResponse(result);
 
@@ -711,9 +725,18 @@ export function initNotebookEditor(board, view, options = {}) {
           applyCounts: options.applyCounts, preservePosition: true,
           showGlobalError: options.showGlobalError
         });
-        clearConflictState();
         setSaveStatus('Saved', SaveState.Saved);
       }
+
+      if (pendingLabels !== null && pendingLabels !== undefined) {
+        const labelsResponse = await NotebookApi.setLabels(item.id, pendingLabels, item.version);
+        item = requireMutationItem(labelsResponse, 'The labels response did not contain the updated note.');
+        draftSourceVersion = item.version;
+        labelPicker?.setValue((item.labels || []).map((label) => label?.name ?? label));
+        await reconcileMutation({ response: labelsResponse, board, view, getCardHtml: NotebookApi.getCardHtml, applyCounts: options.applyCounts, preservePosition: true, showGlobalError: options.showGlobalError });
+        setSaveStatus('Saved', SaveState.Saved);
+      }
+      if (pendingColour !== null && pendingColour !== undefined || pendingLabels !== null && pendingLabels !== undefined) clearConflictState();
     } catch (error) {
       handleEditorError(error);
     } finally {
@@ -792,6 +815,43 @@ export function initNotebookEditor(board, view, options = {}) {
       }
     } finally {
       colourPicker?.setBusy(false);
+    }
+  }
+
+  async function changeLabels(labels, previousLabels) {
+    if (!item || isConflictBlocked()) {
+      labelPicker?.setValue(previousLabels || []);
+      return;
+    }
+    const nextLabels = normaliseLabels(labels);
+    labelPicker?.setBusy(true);
+    try {
+      await autosave?.flush();
+      const response = await NotebookApi.setLabels(item.id, nextLabels, item.version);
+      item = requireMutationItem(response, 'The labels response did not contain the updated note.');
+      draftSourceVersion = item.version;
+      labelPicker?.setValue((item.labels || []).map((label) => label?.name ?? label));
+      await reconcileMutation({
+        response, board, view, getCardHtml: NotebookApi.getCardHtml,
+        applyCounts: options.applyCounts, preservePosition: true,
+        showGlobalError: options.showGlobalError,
+        reconcileFailureMessage: 'The note labels were changed, but the board could not refresh. Reload the page.'
+      });
+      setSaveStatus('Saved', SaveState.Saved);
+    } catch (error) {
+      if (error?.status === 409) {
+        activateConflict({
+          type: ConflictType.VersionConflict,
+          pendingServerItem: error?.currentItem ?? null,
+          pendingLabels: nextLabels,
+          message: 'This note changed elsewhere. Resolve the conflict before applying labels.'
+        });
+      } else {
+        labelPicker?.setValue(previousLabels || []);
+        handleEditorError(error);
+      }
+    } finally {
+      labelPicker?.setBusy(false);
     }
   }
 

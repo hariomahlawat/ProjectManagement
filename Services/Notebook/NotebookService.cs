@@ -499,6 +499,50 @@ public sealed class NotebookService : INotebookService
         return MapDetail(item);
     }
 
+    public async Task<NotebookItemDetailVm> SetLabelsAsync(string ownerId, Guid id, IReadOnlyList<string> labels, Guid expectedVersion, CancellationToken ct = default)
+    {
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
+        var cleanLabels = ValidateLabelNames(labels);
+        await SyncTags(item, ownerId, cleanLabels, ct);
+        Touch(item, _clock.UtcNow);
+        try { await _db.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException ex) { throw await CreateConcurrencyExceptionAsync(ownerId, id, expectedVersion, ex, ct); }
+        await TryWriteAuditAsync("Notebook.SetLabels", ownerId, item.Id, ct);
+        return MapDetail(item);
+    }
+
+    public Task<IReadOnlyList<NotebookTagVm>> GetLabelsAsync(string ownerId, CancellationToken ct = default)
+        => BuildAllTags(ownerId, ct);
+
+    public async Task<(IReadOnlyList<NotebookTagVm> Labels, IReadOnlyList<Guid> AffectedItemIds)> RenameLabelAsync(string ownerId, int labelId, string name, CancellationToken ct = default)
+    {
+        var cleanName = ValidateLabelName(name);
+        var tag = await _db.NotebookTags.Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == labelId && x.OwnerId == ownerId, ct)
+            ?? throw new KeyNotFoundException("The label could not be found.");
+        var affected = tag.Items.Select(x => x.NotebookItemId).Distinct().ToArray();
+        var normalized = NormalizeTag(cleanName);
+        var target = await _db.NotebookTags.Include(x => x.Items).FirstOrDefaultAsync(x => x.OwnerId == ownerId && x.NormalizedName == normalized && x.Id != labelId, ct);
+        if (target is not null)
+        {
+            var existing = target.Items.Select(x => x.NotebookItemId).ToHashSet();
+            foreach (var join in tag.Items.ToList()) if (!existing.Contains(join.NotebookItemId)) target.Items.Add(new NotebookItemTag { NotebookItemId = join.NotebookItemId, NotebookTagId = target.Id });
+            _db.NotebookTags.Remove(tag);
+        }
+        else { tag.Name = cleanName; tag.NormalizedName = normalized; }
+        await _db.SaveChangesAsync(ct);
+        return (await BuildAllTags(ownerId, ct), affected);
+    }
+
+    public async Task<(IReadOnlyList<NotebookTagVm> Labels, IReadOnlyList<Guid> AffectedItemIds)> DeleteLabelAsync(string ownerId, int labelId, CancellationToken ct = default)
+    {
+        var tag = await _db.NotebookTags.Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == labelId && x.OwnerId == ownerId, ct)
+            ?? throw new KeyNotFoundException("The label could not be found.");
+        var affected = tag.Items.Select(x => x.NotebookItemId).Distinct().ToArray();
+        _db.NotebookTags.Remove(tag);
+        await _db.SaveChangesAsync(ct);
+        return (await BuildAllTags(ownerId, ct), affected);
+    }
+
     public async Task<NotebookItemDetailVm> CompleteAsync(string ownerId, Guid id, bool isComplete, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
@@ -1359,6 +1403,28 @@ public sealed class NotebookService : INotebookService
                 NotebookTag = tag
             });
         }
+    }
+
+    private async Task<IReadOnlyList<NotebookTagVm>> BuildAllTags(string ownerId, CancellationToken ct)
+    {
+        return await _db.NotebookTags.AsNoTracking().Where(x => x.OwnerId == ownerId)
+            .Select(x => new NotebookTagVm { Id = x.Id, Name = x.Name, Count = x.Items.Count(j => j.NotebookItem != null && j.NotebookItem.DeletedAtUtc == null && j.NotebookItem.Status == NotebookItemStatus.Active) })
+            .OrderBy(x => x.Name).ToArrayAsync(ct);
+    }
+
+    private static IReadOnlyList<string> ValidateLabelNames(IReadOnlyList<string>? labels)
+    {
+        var result = (labels ?? Array.Empty<string>()).Select(ValidateLabelName).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (result.Length > NotebookLimits.MaxLabelsPerItem) throw new NotebookValidationException($"A note can have at most {NotebookLimits.MaxLabelsPerItem} labels.");
+        return result;
+    }
+
+    private static string ValidateLabelName(string? name)
+    {
+        var value = (name ?? string.Empty).Trim().TrimStart('#').Trim();
+        if (value.Length == 0) throw new NotebookValidationException("Label name is required.");
+        if (value.Length > NotebookLimits.LabelNameMaxLength) throw new NotebookValidationException($"Label name cannot exceed {NotebookLimits.LabelNameMaxLength} characters.");
+        return value;
     }
 
     private static string NormalizeTag(string tag) => tag.ToUpperInvariant();

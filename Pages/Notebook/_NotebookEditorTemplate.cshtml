@@ -1,4 +1,4 @@
-﻿<template id="notebook-editor-template">
+<template id="notebook-editor-template">
     <div class="notebook-modal"
          data-notebook-editor
          hidden
@@ -85,13 +85,6 @@
                     </label>
 
                 </div>
-                <label class="notebook-create-details__labels">
-                    <span>Labels</span>
-                    <input type="text"
-                           data-create-labels
-                           maxlength="500"
-                           placeholder="procurement, docs" />
-                </label>
             </section>
 
             <div class="notebook-create-feedback"
@@ -102,6 +95,7 @@
 
             <div class="notebook-editor-toolbar" data-notebook-editor-toolbar>
                 <partial name="_NotebookColourPicker" model="string.Empty" />
+                <partial name="_NotebookLabelPicker" />
             </div>
 
             <div class="notebook-save-feedback">

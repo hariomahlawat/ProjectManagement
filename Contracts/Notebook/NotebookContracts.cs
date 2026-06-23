@@ -82,6 +82,18 @@ public sealed class SetNotebookColourRequest : NotebookVersionedRequest
     public string? ColorKey { get; set; }
 }
 
+public sealed class SetNotebookLabelsRequest : NotebookVersionedRequest
+{
+    [Required]
+    public List<string> Labels { get; set; } = [];
+}
+
+public sealed class RenameNotebookLabelRequest
+{
+    [Required, StringLength(NotebookLimits.LabelNameMaxLength)]
+    public string Name { get; set; } = string.Empty;
+}
+
 public sealed class ConvertNotebookItemRequest : NotebookVersionedRequest
 {
 }
@@ -127,6 +139,19 @@ public sealed class NotebookChecklistRowResponse
 public sealed class NotebookLabelResponse
 {
     public string Name { get; set; } = string.Empty;
+}
+
+public sealed class NotebookLabelSummaryResponse
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
+public sealed class NotebookLabelsMutationResponse
+{
+    public List<NotebookLabelSummaryResponse> Labels { get; set; } = [];
+    public List<Guid> AffectedItemIds { get; set; } = [];
 }
 
 public sealed class NotebookItemResponse

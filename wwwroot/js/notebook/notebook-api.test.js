@@ -235,3 +235,13 @@ test('aborted Notebook request is reported with a typed cancellation code', asyn
     return true;
   });
 });
+
+test('setLabels sends a dedicated labels mutation payload', async () => {
+  const api = await loadApiModule();
+  let captured;
+  global.fetch = async (url, options) => { captured = { url, options }; return new Response(JSON.stringify({ item: {} }), { status: 200, headers: { 'content-type': 'application/json' } }); };
+  global.document = { querySelector: () => ({ value: 'token' }), documentElement: { dataset: {} } };
+  await api.NotebookApi.setLabels('abc', ['Docs', 'Ops'], '123e4567-e89b-12d3-a456-426614174000');
+  assert.equal(captured.url, '/api/notebook/items/abc/labels');
+  assert.deepEqual(JSON.parse(captured.options.body), { labels: ['Docs', 'Ops'], version: '123e4567-e89b-12d3-a456-426614174000' });
+});

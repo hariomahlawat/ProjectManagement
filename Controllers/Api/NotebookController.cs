@@ -177,6 +177,53 @@ public sealed class NotebookController : Controller
         return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
     }
 
+    [HttpGet("~/api/notebook/labels")]
+    public async Task<IActionResult> Labels(CancellationToken ct)
+    {
+        var labels = await _notebook.GetLabelsAsync(CurrentUserId(), ct);
+        return Ok(labels.Select(ToLabelSummary));
+    }
+
+    [Consumes("application/json")]
+    [HttpPost("{id:guid}/labels")]
+    public async Task<IActionResult> SetLabels(Guid id, [FromBody] SetNotebookLabelsRequest request, CancellationToken ct)
+    {
+        if (request.Version == Guid.Empty)
+        {
+            return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "version", "A valid notebook version is required."));
+        }
+        request.Labels ??= [];
+        if (request.Labels.Count > NotebookLimits.MaxLabelsPerItem || request.Labels.Any(x => x.Trim().TrimStart('#').Length > NotebookLimits.LabelNameMaxLength))
+        {
+            return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "labels", "Too many labels or label text is too long."));
+        }
+        var updated = await _notebook.SetLabelsAsync(CurrentUserId(), id, request.Labels, request.Version, ct);
+        return Ok(await BuildMutationResponseAsync(updated, includeCard: true, ct));
+    }
+
+    [Consumes("application/json")]
+    [HttpPatch("~/api/notebook/labels/{labelId:int}")]
+    public async Task<IActionResult> RenameLabel(int labelId, [FromBody] RenameNotebookLabelRequest request, CancellationToken ct)
+    {
+        var result = await _notebook.RenameLabelAsync(CurrentUserId(), labelId, request.Name, ct);
+        return Ok(new NotebookLabelsMutationResponse
+        {
+            Labels = result.Labels.Select(ToLabelSummary).ToList(),
+            AffectedItemIds = result.AffectedItemIds.ToList()
+        });
+    }
+
+    [HttpDelete("~/api/notebook/labels/{labelId:int}")]
+    public async Task<IActionResult> DeleteLabel(int labelId, CancellationToken ct)
+    {
+        var result = await _notebook.DeleteLabelAsync(CurrentUserId(), labelId, ct);
+        return Ok(new NotebookLabelsMutationResponse
+        {
+            Labels = result.Labels.Select(ToLabelSummary).ToList(),
+            AffectedItemIds = result.AffectedItemIds.ToList()
+        });
+    }
+
     [Consumes("application/json")]
     [HttpPost("{id:guid}/archive")]
     public async Task<IActionResult> Archive(Guid id, [FromBody] ArchiveNotebookItemRequest request, CancellationToken ct)
@@ -495,6 +542,13 @@ public sealed class NotebookController : Controller
     }
 
     private static object ApiError(string code, string message, string field, string error) => new { code, message, errors = new Dictionary<string, string[]> { [field] = new[] { error } } };
+
+    private static NotebookLabelSummaryResponse ToLabelSummary(NotebookTagVm label) => new()
+    {
+        Id = label.Id,
+        Name = label.Name,
+        Count = label.Count
+    };
 
     private static NotebookItemResponse ToResponse(NotebookItemDetailVm item) => new()
     {

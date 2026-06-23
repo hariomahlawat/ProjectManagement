@@ -220,6 +220,18 @@ namespace ProjectManagement.Tests
             public Task<NotebookItemDetailVm> SetColourAsync(string ownerId, Guid id, string? colorKey, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
+            public Task<NotebookItemDetailVm> SetLabelsAsync(string ownerId, Guid id, IReadOnlyList<string> labels, Guid expectedVersion, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
+            public Task<IReadOnlyList<NotebookTagVm>> GetLabelsAsync(string ownerId, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
+            public Task<(IReadOnlyList<NotebookTagVm> Labels, IReadOnlyList<Guid> AffectedItemIds)> RenameLabelAsync(string ownerId, int labelId, string name, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
+            public Task<(IReadOnlyList<NotebookTagVm> Labels, IReadOnlyList<Guid> AffectedItemIds)> DeleteLabelAsync(string ownerId, int labelId, CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
             public Task<NotebookItemDetailVm?> GetDetailAsync(string ownerId, Guid id, CancellationToken ct = default) =>
                 throw new NotImplementedException();
 

@@ -1,0 +1,15 @@
+<div class="notebook-label-picker" data-notebook-label-picker>
+    <button type="button" class="notebook-toolbar-action" data-label-picker-toggle aria-label="Edit labels" aria-expanded="false">
+        <i class="bi bi-tags"></i>
+    </button>
+    <div class="notebook-label-picker__popover" data-label-picker-popover hidden role="dialog" aria-label="Edit labels">
+        <div class="notebook-label-picker__header">
+            <strong>Labels</strong>
+            <button type="button" data-label-picker-close aria-label="Close labels"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="notebook-label-picker__selected" data-label-picker-selected aria-live="polite"></div>
+        <input type="search" data-label-picker-input maxlength="60" placeholder="Search or create label" autocomplete="off" />
+        <div class="notebook-label-picker__suggestions" data-label-picker-suggestions role="listbox"></div>
+        <button type="button" class="notebook-label-picker__create" data-label-picker-create hidden></button>
+    </div>
+</div>
