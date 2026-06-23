@@ -14,15 +14,19 @@
             : $"{actionCount} actions require attention";
     var visibleProjectCount = Model.Workspace.ProjectMatrix.Count;
     var followUpCount = Model.Workspace.PersonalReminders.Count + Model.Workspace.Ideas.Count;
-    var overdueProjectCount = Model.Workspace.ProjectMatrix.Count(row =>
+    var projectAttentionCount = Model.Workspace.ProjectMatrix.Count(row =>
         row.UpdateStatus.Equals("ActionRequired", StringComparison.OrdinalIgnoreCase) ||
+        WorkspaceDisplayHelpers.TimelineStatusCss(row) is "danger" or "warning" ||
+        row.RecordGapCount > 0);
+    var overdueProjectCount = Model.Workspace.ProjectMatrix.Count(row =>
         WorkspaceDisplayHelpers.TimelineStatusCss(row) == "danger");
     var incompleteTimelineCount = Model.Workspace.ProjectMatrix.Count(row =>
         WorkspaceDisplayHelpers.TimelineStatusLabel(row).Contains("missing", StringComparison.OrdinalIgnoreCase));
     var reviewDocumentCount = Model.Workspace.ActionQueue.Count(item =>
         item.Type.Equals("Aots", StringComparison.OrdinalIgnoreCase));
     var operationalSummaryParts = new List<string>();
-    if (overdueProjectCount > 0) operationalSummaryParts.Add($"{overdueProjectCount} project{(overdueProjectCount == 1 ? "" : "s")} overdue");
+    if (projectAttentionCount > 0) operationalSummaryParts.Add($"{projectAttentionCount} project{(projectAttentionCount == 1 ? "" : "s")} need attention");
+    if (overdueProjectCount > 0) operationalSummaryParts.Add($"{overdueProjectCount} overdue");
     if (incompleteTimelineCount > 0) operationalSummaryParts.Add($"{incompleteTimelineCount} timeline{(incompleteTimelineCount == 1 ? "" : "s")} incomplete");
     if (reviewDocumentCount > 0) operationalSummaryParts.Add($"{reviewDocumentCount} document{(reviewDocumentCount == 1 ? "" : "s")} awaiting review");
     var operationalSummary = operationalSummaryParts.Count > 0

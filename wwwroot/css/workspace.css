@@ -585,3 +585,131 @@
         min-height: 54px;
     }
 }
+
+/* Definitive command-header and sticky-toolbar correction.
+   Normal-flow navigation must never paint over the command metrics. */
+.po-command {
+    display: block;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden;
+    margin-bottom: 12px;
+    border: 1px solid #dbe3ed;
+    border-top: 3px solid var(--po-navy-900);
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: none;
+}
+
+.po-command__main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 28px;
+    min-height: 118px;
+    padding: 20px 26px 18px;
+    background: linear-gradient(105deg, #fff 0%, #fff 80%, #f8faff 100%);
+}
+
+.po-command__identity {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 15px;
+}
+
+.po-command__mark {
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+}
+
+.po-command__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 9px;
+}
+
+.po-operational-summary {
+    margin-top: 10px;
+    color: #65758d;
+    font-size: .72rem;
+    font-weight: 560;
+    line-height: 1.35;
+}
+
+.po-command__metrics {
+    position: static;
+    z-index: auto;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-height: 58px;
+    height: auto;
+    overflow: visible;
+    border-top: 1px solid #dbe3ed;
+    background: #fbfcfe;
+}
+
+.po-metric {
+    min-height: 58px;
+    padding: 9px 20px;
+}
+
+.po-command + .po-section-nav {
+    margin-top: 0;
+}
+
+/* The mask exists only after the toolbar is genuinely sticky. */
+.po-section-nav::before {
+    content: none !important;
+}
+
+.po-section-nav.is-stuck::before {
+    content: "" !important;
+    position: absolute;
+    z-index: -1;
+    left: 0;
+    right: 0;
+    top: auto !important;
+    bottom: 100%;
+    height: var(--po-topbar-height);
+    background: var(--po-page);
+    pointer-events: none;
+}
+
+.po-section-nav.is-stuck {
+    isolation: isolate;
+}
+
+@media (max-width: 980px) {
+    .po-command__main {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 14px;
+    }
+
+    .po-command__actions {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 760px) {
+    .po-command__main {
+        min-height: 0;
+        padding: 18px;
+    }
+
+    .po-command__identity {
+        align-items: flex-start;
+    }
+
+    .po-command__metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .po-metric {
+        min-height: 54px;
+    }
+}
