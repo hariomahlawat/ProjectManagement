@@ -373,7 +373,7 @@ public static class WorkspaceDisplayHelpers
     // SECTION: Compact status labels keep dense table cells readable.
     public static string CompactStatusLabel(string status) => status switch
     {
-        "ActionRequired" => "Action",
+        "ActionRequired" => "Update overdue",
         "NotApplicable" => "N/A",
         "Ok" => "OK",
         "Attention" => "Attention",
@@ -387,7 +387,7 @@ public static class WorkspaceDisplayHelpers
     {
         if (row.HasBackfill)
         {
-            return "Backfill";
+            return "Stage dates missing";
         }
 
         if (row.HasOverdueCurrentStage)
@@ -421,10 +421,10 @@ public static class WorkspaceDisplayHelpers
     // SECTION: Matrix action labels are shortened for dense enterprise table rows.
     public static string CompactActionLabel(string action) => action switch
     {
-        "Complete backfill" => "Backfill",
+        "Complete backfill" => "Complete timeline",
         "Update current stage" => "Update stage",
         "Update current stage dates" => "Update dates",
-        "Add remark" => "Remark",
+        "Add remark" => "Add remark",
         "Complete project data" => "Complete data",
         _ => action
     };

@@ -33,7 +33,7 @@
 
             <div class="po-command__actions">
                 <span class="po-date"><i class="bi bi-calendar3"></i>@DateTime.Now.ToString("dd MMM yyyy")</span>
-                <a class="po-btn po-btn--secondary" href="@WorkspaceRouteHelper.ActionTasksMyWork()"><i class="bi bi-list-check"></i><span>My work</span></a>
+                <a class="po-btn po-btn--secondary" href="@WorkspaceRouteHelper.ActionTasksMyWork()"><i class="bi bi-list-check"></i><span>View all work</span></a>
                 <a class="po-btn po-btn--primary" href="@Model.Workspace.MyProjectsUrl"><i class="bi bi-kanban"></i><span>Open projects</span></a>
             </div>
         </div>
@@ -155,7 +155,7 @@
                                     <th>Stage</th>
                                     <th>Update</th>
                                     <th>Timeline</th>
-                                    <th>Record health</th>
+                                    <th>Record completeness</th>
                                     <th><span class="visually-hidden">Next action</span></th>
                                 </tr>
                             </thead>
@@ -195,7 +195,7 @@
             <section id="follow-ups" class="po-panel po-follow-panel" data-workspace-section>
                 <div class="po-panel__head">
                     <div>
-                        <span class="po-panel__kicker">Personal control</span>
+                        <span class="po-panel__kicker">Personal work</span>
                         <h2>Follow-ups</h2>
                         <p>Reminders and project ideas requiring your attention.</p>
                     </div>
@@ -217,7 +217,7 @@
                             <div class="po-follow-list">
                                 @foreach (var reminder in Model.Workspace.PersonalReminders.Take(4))
                                 {
-                                    <a href="@reminder.OpenUrl">
+                                    <a href="@reminder.OpenUrl" class="@(reminder.DueAtUtc.HasValue && reminder.DueAtUtc.Value < DateTimeOffset.UtcNow ? "po-follow-item--overdue" : string.Empty)">
                                         <span><strong>@reminder.Title</strong><small>@reminder.Priority · @WorkspaceDisplayHelpers.FormatReminderDate(reminder.DueAtUtc)</small></span>
                                         <i class="bi bi-chevron-right"></i>
                                     </a>
@@ -277,9 +277,10 @@
                 else
                 {
                     <div class="po-gap-list">
-                        @foreach (var item in Model.Workspace.ImproveProjects.Take(3))
+                        @foreach (var item in Model.Workspace.ImproveProjects.Take(2))
                         {
-                            <article class="po-gap-item">
+                            var gapSeverity = item.FixCount >= 6 ? "critical" : item.FixCount >= 4 ? "attention" : "standard";
+                            <article class="po-gap-item po-gap-item--@gapSeverity">
                                 <div class="po-gap-item__top">
                                     <a href="@item.Url" title="@item.ProjectName">@item.ProjectName</a>
                                     <span>@item.FixCount</span>

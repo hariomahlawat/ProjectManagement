@@ -17,8 +17,9 @@
     };
 
     const stickyOffset = () => {
-        const siteHeader = document.querySelector('header, .navbar, .app-header');
+        const siteHeader = document.querySelector('.pm-topbar');
         const headerHeight = siteHeader?.getBoundingClientRect().height || 70;
+        document.documentElement.style.setProperty('--po-topbar-height', `${Math.round(headerHeight)}px`);
         return Math.round(headerHeight + nav.getBoundingClientRect().height + 16);
     };
 
