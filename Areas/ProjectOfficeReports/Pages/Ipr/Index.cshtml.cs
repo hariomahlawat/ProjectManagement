@@ -138,61 +138,44 @@ public sealed class IndexModel : PageModel
 
     public IprKpis Kpis { get; private set; } = new(0, 0, 0, 0, 0, 0);
 
-    public sealed class PatentTotals
-    {
-        public int Filing { get; set; }
-
-        public int Filed { get; set; }
-
-        public int Granted { get; set; }
-
-        public int Rejected { get; set; }
-
-        public int Withdrawn { get; set; }
-
-        public int Total => Filing + Filed + Granted + Rejected + Withdrawn;
-    }
-
     public sealed class YearlyRow
     {
         public int Year { get; set; }
-
-        public int Filing { get; set; }
-
         public int Filed { get; set; }
-
         public int Granted { get; set; }
-
-        public int Rejected { get; set; }
-
-        public int Withdrawn { get; set; }
-
-        public int Total => Filing + Filed + Granted + Rejected + Withdrawn;
     }
 
     public List<YearlyRow> YearlyStats { get; set; } = new();
 
-    public PatentTotals OverallTotals { get; set; } = new();
+    public sealed record TypeBreakdownRow(string Type, int Filed, int Granted, int AwaitingGrant);
 
-    public sealed record TypeBreakdownRow(string Type, int Filed, int Granted, int AwaitingGrant, int GrantRate);
-
-    public sealed record ProjectIprSummaryRow(
+    public sealed record ProjectIprLinkRow(
+        int Id,
         int? ProjectId,
         string ProjectName,
-        int PatentFiled,
-        int PatentGranted,
-        int CopyrightFiled,
-        int CopyrightGranted,
-        int TotalFiled);
+        string Title,
+        string Type,
+        string Position,
+        DateTime? FiledOn,
+        DateTime? GrantedOn,
+        int ProjectIprCount);
+
+    public sealed record AwaitingGrantRow(
+        int Id,
+        int? ProjectId,
+        string ProjectName,
+        string Title,
+        string Type,
+        DateTime? FiledOn,
+        int WaitingDays);
 
     public IReadOnlyList<TypeBreakdownRow> TypeBreakdown { get; private set; } = Array.Empty<TypeBreakdownRow>();
 
-    public IReadOnlyList<ProjectIprSummaryRow> ProjectIprSummary { get; private set; } = Array.Empty<ProjectIprSummaryRow>();
+    public IReadOnlyList<ProjectIprLinkRow> ProjectIprLinks { get; private set; } = Array.Empty<ProjectIprLinkRow>();
+
+    public IReadOnlyList<AwaitingGrantRow> OldestAwaitingGrant { get; private set; } = Array.Empty<AwaitingGrantRow>();
 
     public int ProjectsWithIpr { get; private set; }
-
-    public int GrantRate => Kpis.Total > 0 ? (int)Math.Round(Kpis.Granted * 100d / Kpis.Total, MidpointRounding.AwayFromZero) : 0;
-
 
     public IReadOnlyList<AttachmentViewModel> Attachments { get; private set; } = Array.Empty<AttachmentViewModel>();
 
@@ -212,8 +195,6 @@ public sealed class IndexModel : PageModel
             || Year.HasValue;
 
     public IReadOnlyList<string> ActiveFilterChips { get; private set; } = Array.Empty<string>();
-
-    public sealed record IprSummaryDto(int Filing, int Filed, int Granted, int Rejected, int Withdrawn);
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -650,6 +631,7 @@ public sealed class IndexModel : PageModel
 
         return new IprRecordRowViewModel(
             dto.Id,
+            dto.ProjectId,
             title,
             project,
             GetTypeLabel(dto.Type),
@@ -831,8 +813,12 @@ public sealed class IndexModel : PageModel
 
         var snapshot = await query.Select(r => new
         {
+            r.Id,
+            r.Title,
             r.Type,
             Status = r.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : r.Status,
+            r.FiledAtUtc,
+            r.GrantedAtUtc,
             FiledYear = r.FiledAtUtc.HasValue ? (int?)r.FiledAtUtc.Value.Year : null,
             GrantedYear = r.GrantedAtUtc.HasValue ? (int?)r.GrantedAtUtc.Value.Year : null,
             r.ProjectId,
@@ -848,22 +834,50 @@ public sealed class IndexModel : PageModel
                 var filed = rows.Count;
                 var granted = rows.Count(x => x.Status == IprStatus.Granted);
                 var awaiting = filed - granted;
-                var rate = filed > 0 ? (int)Math.Round(granted * 100d / filed, MidpointRounding.AwayFromZero) : 0;
-                return new TypeBreakdownRow(GetTypeLabel(type), filed, granted, awaiting, rate);
+                return new TypeBreakdownRow(GetTypeLabel(type), filed, granted, awaiting);
             }).ToList();
 
-        ProjectIprSummary = snapshot
-            .GroupBy(x => new { x.ProjectId, x.ProjectName })
-            .Select(g => new ProjectIprSummaryRow(
-                g.Key.ProjectId,
-                g.Key.ProjectName,
-                g.Count(x => x.Type == IprType.Patent),
-                g.Count(x => x.Type == IprType.Patent && x.Status == IprStatus.Granted),
-                g.Count(x => x.Type == IprType.Copyright),
-                g.Count(x => x.Type == IprType.Copyright && x.Status == IprStatus.Granted),
-                g.Count()))
-            .OrderByDescending(x => x.TotalFiled)
-            .ThenBy(x => x.ProjectName)
+        var projectCounts = snapshot
+            .GroupBy(x => x.ProjectId ?? 0)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        ProjectIprLinks = snapshot
+            .OrderBy(x => x.ProjectName)
+            .ThenBy(x => x.Type)
+            .ThenBy(x => x.Title)
+            .Select(x => new ProjectIprLinkRow(
+                x.Id,
+                x.ProjectId,
+                x.ProjectName,
+                string.IsNullOrWhiteSpace(x.Title) ? "Untitled IPR record" : x.Title!,
+                GetTypeLabel(x.Type),
+                x.Status == IprStatus.Granted ? "Granted" : "Awaiting grant",
+                ConvertToIstDate(x.FiledAtUtc),
+                ConvertToIstDate(x.GrantedAtUtc),
+                projectCounts.TryGetValue(x.ProjectId ?? 0, out var count) ? count : 1))
+            .ToList();
+
+        var todayIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IstTimeZone).Date;
+        OldestAwaitingGrant = snapshot
+            .Where(x => x.Status == IprStatus.Filed)
+            .OrderBy(x => x.FiledAtUtc ?? DateTimeOffset.MaxValue)
+            .Take(5)
+            .Select(x =>
+            {
+                var filedOn = ConvertToIstDate(x.FiledAtUtc);
+                var waitingDays = filedOn.HasValue
+                    ? Math.Max(0, (todayIst - filedOn.Value.Date).Days)
+                    : 0;
+
+                return new AwaitingGrantRow(
+                    x.Id,
+                    x.ProjectId,
+                    x.ProjectName,
+                    string.IsNullOrWhiteSpace(x.Title) ? "Untitled IPR record" : x.Title!,
+                    GetTypeLabel(x.Type),
+                    filedOn,
+                    waitingDays);
+            })
             .ToList();
 
         var years = snapshot
@@ -881,11 +895,6 @@ public sealed class IndexModel : PageModel
             Granted = snapshot.Count(x => x.Status == IprStatus.Granted && x.GrantedYear == year)
         }).ToList();
 
-        OverallTotals = new PatentTotals
-        {
-            Filed = snapshot.Count,
-            Granted = snapshot.Count(x => x.Status == IprStatus.Granted)
-        };
     }
 
     private async Task PopulateSelectListsAsync(CancellationToken cancellationToken)
@@ -1209,8 +1218,8 @@ public sealed class IndexModel : PageModel
     private static string GetStatusLabel(IprStatus status)
         => status switch
         {
-            IprStatus.FilingUnderProcess => "Filed",
-            IprStatus.Filed => "Filed",
+            IprStatus.FilingUnderProcess => "Awaiting grant",
+            IprStatus.Filed => "Awaiting grant",
             IprStatus.Granted => "Granted",
             IprStatus.Rejected => "Rejected",
             IprStatus.Withdrawn => "Withdrawn",

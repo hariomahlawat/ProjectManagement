@@ -207,3 +207,12 @@
     });
   });
 })();
+
+(() => {
+  const form = document.querySelector('.ipr-filter-bar[data-ipr-loading-form]');
+  if (!form) return;
+
+  form.querySelectorAll('[data-ipr-auto-submit]').forEach(control => {
+    control.addEventListener('change', () => form.requestSubmit());
+  });
+})();

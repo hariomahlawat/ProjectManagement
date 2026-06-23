@@ -14,7 +14,6 @@
     var firstItem = hasRecords ? ((Model.PageNumber - 1) * Model.PageSize) + 1 : 0;
     var lastItem = hasRecords ? Math.Min(Model.TotalCount, Model.PageNumber * Model.PageSize) : 0;
     var yearlyJson = JsonSerializer.Serialize(Model.YearlyStats);
-    var typeJson = JsonSerializer.Serialize(Model.TypeBreakdown);
     var recordsRoutes = Model.GetRouteValuesForLinks(new { tab = "records", page = 1 }, includePage: false, includeModeAndId: false);
     var projectRoutes = Model.GetRouteValuesForLinks(new { tab = "project", page = 1 }, includePage: false, includeModeAndId: false);
     var analyticsRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", page = 1 }, includePage: false, includeModeAndId: false);
@@ -30,7 +29,7 @@
             <span class="ipr-register-icon"><i class="bi bi-file-earmark-text"></i></span>
             <div>
                 <h1>IPR Register</h1>
-                <p>Patents and copyrights filed and granted against SDD projects.</p>
+                <p>Track filed and granted patents and copyrights by project.</p>
             </div>
         </div>
         <div class="ipr-register-actions">
@@ -66,26 +65,29 @@
             <i class="bi bi-file-earmark-check"></i>
         </a>
         <a asp-page="./Index" asp-route-tab="records" asp-route-Statuses="Granted" class="ipr-summary-card ipr-summary-card--granted">
-            <div><span>Granted</span><strong>@Model.Kpis.Granted</strong><small>@Model.GrantRate% of total filed</small></div>
+            <div><span>Granted</span><strong>@Model.Kpis.Granted</strong><small>@Model.Kpis.Granted filings have received grant</small></div>
             <i class="bi bi-patch-check"></i>
         </a>
         <a asp-page="./Index" asp-route-tab="records" asp-route-Statuses="Filed" class="ipr-summary-card ipr-summary-card--awaiting">
-            <div><span>Awaiting grant</span><strong>@Model.Kpis.Filed</strong><small>@(100 - Model.GrantRate)% of total filed</small></div>
+            <div><span>Awaiting grant</span><strong>@Model.Kpis.Filed</strong><small>Filed records not yet granted</small></div>
             <i class="bi bi-clock-history"></i>
         </a>
         <a asp-page="./Index" asp-route-tab="project" class="ipr-summary-card ipr-summary-card--projects">
-            <div><span>Projects with IPR</span><strong>@Model.ProjectsWithIpr</strong><small>Linked to at least one record</small></div>
+            <div><span>Projects with IPR</span><strong>@Model.ProjectsWithIpr</strong><small>Distinct projects linked to @Model.Kpis.Total filings</small></div>
             <i class="bi bi-buildings"></i>
         </a>
         <div class="ipr-type-summary">
-            <div class="ipr-type-summary__head"><strong>By type</strong><span>Filed / Granted</span></div>
+            <div class="ipr-type-summary__head"><strong>Position by type</strong></div>
+            <div class="ipr-type-summary__columns" aria-hidden="true">
+                <span>Type</span><span>Filed</span><span>Granted</span><span>Awaiting</span>
+            </div>
             @foreach (var item in Model.TypeBreakdown)
             {
                 <div class="ipr-type-summary__row">
                     <span>@item.Type</span>
                     <strong>@item.Filed</strong>
-                    <strong>@item.Granted</strong>
-                    <span class="ipr-rate-pill">@item.GrantRate%</span>
+                    <strong class="text-success">@item.Granted</strong>
+                    <strong class="ipr-awaiting-value">@item.AwaitingGrant</strong>
                 </div>
             }
         </div>
@@ -93,7 +95,7 @@
 
     <nav class="ipr-tabs" aria-label="IPR views">
         <a asp-page="./Index" asp-all-route-data="recordsRoutes" class="@(Model.Tab == "records" ? "active" : "")"><i class="bi bi-card-list"></i> Records</a>
-        <a asp-page="./Index" asp-all-route-data="projectRoutes" class="@(Model.Tab == "project" ? "active" : "")"><i class="bi bi-building"></i> By project</a>
+        <a asp-page="./Index" asp-all-route-data="projectRoutes" class="@(Model.Tab == "project" ? "active" : "")"><i class="bi bi-building"></i> Projects &amp; IPR</a>
         <a asp-page="./Index" asp-all-route-data="analyticsRoutes" class="@(Model.Tab == "analytics" ? "active" : "")"><i class="bi bi-bar-chart-line"></i> Analytics</a>
     </nav>
 
@@ -103,18 +105,18 @@
             <form method="get" class="ipr-filter-bar" data-ipr-loading-form>
                 <input type="hidden" name="Tab" value="records" />
                 <div class="ipr-search-field"><i class="bi bi-search"></i><input asp-for="Query" type="search" placeholder="Search title, filing number or project" /></div>
-                <select name="Types" class="form-select"><option value="">All types</option>@foreach (var option in Model.TypeOptions)
+                <select name="Types" class="form-select" data-ipr-auto-submit><option value="">All types</option>@foreach (var option in Model.TypeOptions)
                 {
                     if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
                     else { <option value="@option.Value">@option.Text</option> }
                 }</select>
-                <select name="Statuses" class="form-select"><option value="">All statuses</option>@foreach (var option in Model.StatusOptions)
+                <select name="Statuses" class="form-select" data-ipr-auto-submit><option value="">All positions</option>@foreach (var option in Model.StatusOptions)
                 {
                     if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
                     else { <option value="@option.Value">@option.Text</option> }
                 }</select>
-                <select asp-for="ProjectId" asp-items="Model.ProjectOptions" class="form-select"></select>
-                <select asp-for="Year" asp-items="Model.YearOptions" class="form-select"></select>
+                <select asp-for="ProjectId" asp-items="Model.ProjectOptions" class="form-select" data-ipr-auto-submit></select>
+                <select asp-for="Year" asp-items="Model.YearOptions" class="form-select" data-ipr-auto-submit></select>
                 <button type="submit" class="btn btn-primary">Apply</button>
                 @if (Model.HasAnyFilter)
                 {
@@ -140,15 +142,24 @@
                         @foreach (var row in Model.Records)
                         {
                             <tr>
-                                <td><a asp-page="./Manage" asp-route-editId="@row.Id" class="ipr-title-link">@row.Title</a></td>
+                                <td><a asp-page="./Index" asp-route-tab="records" asp-route-mode="edit" asp-route-id="@row.Id" class="ipr-title-link">@row.Title</a></td>
                                 <td><span class="ipr-type-badge ipr-type-badge--@row.IprType.ToLowerInvariant()">@row.IprType</span></td>
-                                <td><span class="ipr-project-name">@row.ProjectName</span></td>
-                                <td><span class="font-monospace small">@row.ApplicationNumber</span></td>
+                                <td>
+                                    @if (row.ProjectId.HasValue)
+                                    {
+                                        <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@row.ProjectId" class="ipr-project-link">@row.ProjectName</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="ipr-project-name">@row.ProjectName</span>
+                                    }
+                                </td>
+                                <td><span class="font-monospace small ipr-filing-number">@row.ApplicationNumber</span></td>
                                 <td>@(row.FiledOn?.ToString("dd MMM yyyy") ?? "—")</td>
                                 <td><span class="ipr-status-badge @(row.Status == "Granted" ? "ipr-status-badge--granted" : "ipr-status-badge--filed")">@row.Status</span></td>
                                 <td>@(row.GrantedOn?.ToString("dd MMM yyyy") ?? "—")</td>
                                 <td class="text-center"><i class="bi bi-paperclip"></i> @row.AttachmentCount</td>
-                                <td class="text-end"><a asp-page="./Manage" asp-route-editId="@row.Id" class="btn btn-sm btn-outline-secondary" aria-label="Open @row.Title"><i class="bi bi-eye"></i></a></td>
+                                <td class="text-end"><a asp-page="./Index" asp-route-tab="records" asp-route-mode="edit" asp-route-id="@row.Id" class="btn btn-sm btn-outline-secondary" aria-label="Edit @row.Title" title="Edit record"><i class="bi bi-pencil"></i></a></td>
                             </tr>
                         }
                         </tbody>
@@ -174,16 +185,43 @@
     else if (Model.Tab == "project")
     {
         <section class="ipr-panel">
-            <div class="ipr-panel-header"><div><h2>IPR by project</h2><p>Filed and granted patents and copyrights against each project.</p></div></div>
+            <div class="ipr-panel-header">
+                <div>
+                    <h2>Projects &amp; IPR</h2>
+                    <p>See which patent or copyright is linked to each project and its current position.</p>
+                </div>
+                <span class="ipr-result-count">@Model.ProjectsWithIpr projects · @Model.Kpis.Total filings</span>
+            </div>
             <div class="table-responsive">
                 <table class="table ipr-project-table align-middle mb-0">
-                    <thead><tr><th>Project</th><th>Patents filed</th><th>Patents granted</th><th>Copyrights filed</th><th>Copyrights granted</th><th>Total filed</th><th>Grant rate</th></tr></thead>
+                    <thead><tr><th>Project</th><th>IPR title</th><th>Type</th><th>Current position</th><th>Filed on</th><th>Granted on</th><th></th></tr></thead>
                     <tbody>
-                    @foreach (var item in Model.ProjectIprSummary)
+                    @foreach (var item in Model.ProjectIprLinks)
                     {
-                        var granted = item.PatentGranted + item.CopyrightGranted;
-                        var rate = item.TotalFiled > 0 ? (int)Math.Round(granted * 100d / item.TotalFiled) : 0;
-                        <tr><td><strong>@item.ProjectName</strong></td><td>@item.PatentFiled</td><td>@item.PatentGranted</td><td>@item.CopyrightFiled</td><td>@item.CopyrightGranted</td><td><strong>@item.TotalFiled</strong></td><td><span class="ipr-rate-pill">@rate%</span></td></tr>
+                        <tr>
+                            <td>
+                                <div class="ipr-project-cell">
+                                    @if (item.ProjectId.HasValue)
+                                    {
+                                        <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@item.ProjectId" class="ipr-project-link">@item.ProjectName</a>
+                                    }
+                                    else
+                                    {
+                                        <span>@item.ProjectName</span>
+                                    }
+                                    @if (item.ProjectIprCount > 1)
+                                    {
+                                        <span class="ipr-multi-badge">@item.ProjectIprCount IPR</span>
+                                    }
+                                </div>
+                            </td>
+                            <td><a asp-page="./Index" asp-route-tab="project" asp-route-mode="edit" asp-route-id="@item.Id" class="ipr-title-link">@item.Title</a></td>
+                            <td><span class="ipr-type-badge ipr-type-badge--@item.Type.ToLowerInvariant()">@item.Type</span></td>
+                            <td><span class="ipr-status-badge @(item.Position == "Granted" ? "ipr-status-badge--granted" : "ipr-status-badge--filed")">@item.Position</span></td>
+                            <td>@(item.FiledOn?.ToString("dd MMM yyyy") ?? "—")</td>
+                            <td>@(item.GrantedOn?.ToString("dd MMM yyyy") ?? "—")</td>
+                            <td class="text-end"><a asp-page="./Index" asp-route-tab="project" asp-route-mode="edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary" title="Edit record" aria-label="Edit @item.Title"><i class="bi bi-pencil"></i></a></td>
+                        </tr>
                     }
                     </tbody>
                 </table>
@@ -197,10 +235,42 @@
                 <div class="ipr-panel-header"><div><h2>Filings and grants by year</h2><p>A filing and its later grant are counted as separate events.</p></div></div>
                 <div class="ipr-chart-canvas"><canvas id="iprEventTrend" data-yearly='@Html.Raw(yearlyJson)' role="img" aria-label="IPR filings and grants by year"></canvas></div>
             </article>
-            <article class="ipr-panel ipr-chart-panel">
-                <div class="ipr-panel-header"><div><h2>Filed versus granted by type</h2><p>Patent and copyright conversion at a glance.</p></div></div>
-                <div class="ipr-chart-canvas"><canvas id="iprTypeTrend" data-types='@Html.Raw(typeJson)' role="img" aria-label="Filed and granted IPR records by type"></canvas></div>
-            </article>
+            <aside class="ipr-analytics-side">
+                <article class="ipr-panel ipr-type-position-panel">
+                    <div class="ipr-panel-header"><div><h2>Position by type</h2><p>Absolute filed, granted and awaiting-grant counts.</p></div></div>
+                    <div class="ipr-type-matrix">
+                        <div class="ipr-type-matrix__head"><span>Type</span><span>Filed</span><span>Granted</span><span>Awaiting</span></div>
+                        @foreach (var item in Model.TypeBreakdown)
+                        {
+                            <div class="ipr-type-matrix__row">
+                                <strong>@item.Type</strong>
+                                <span>@item.Filed</span>
+                                <span class="text-success fw-semibold">@item.Granted</span>
+                                <span class="ipr-awaiting-value fw-semibold">@item.AwaitingGrant</span>
+                            </div>
+                        }
+                    </div>
+                </article>
+                <article class="ipr-panel ipr-pending-panel">
+                    <div class="ipr-panel-header"><div><h2>Oldest filings awaiting grant</h2><p>Records that may require follow-up.</p></div></div>
+                    @if (Model.OldestAwaitingGrant.Count == 0)
+                    {
+                        <div class="ipr-compact-empty"><i class="bi bi-check-circle"></i><span>No filings are awaiting grant.</span></div>
+                    }
+                    else
+                    {
+                        <div class="ipr-pending-list">
+                            @foreach (var item in Model.OldestAwaitingGrant)
+                            {
+                                <a asp-page="./Index" asp-route-tab="analytics" asp-route-mode="edit" asp-route-id="@item.Id" class="ipr-pending-row">
+                                    <div><strong>@item.Title</strong><span>@item.ProjectName · @item.Type</span></div>
+                                    <div class="text-end"><strong>@item.WaitingDays d</strong><span>@(item.FiledOn?.ToString("dd MMM yyyy") ?? "Date unavailable")</span></div>
+                                </a>
+                            }
+                        </div>
+                    }
+                </article>
+            </aside>
         </section>
     }
 

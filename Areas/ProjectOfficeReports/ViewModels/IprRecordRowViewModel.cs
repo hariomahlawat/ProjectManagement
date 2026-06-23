@@ -12,6 +12,7 @@ public sealed record IprRecordAttachmentViewModel(
 
 public sealed record IprRecordRowViewModel(
     int Id,
+    int? ProjectId,
     string Title,
     string ProjectName,
     string IprType,
