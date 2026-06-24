@@ -15,25 +15,57 @@
 }
 
 <div class="command-workspace">
-    <aside class="cw-local-rail" aria-label="Workspace navigation">
-        <div class="cw-local-rail__title"><i class="bi bi-grid-1x2"></i><span>Workspace</span></div>
-        <nav>
+    <aside class="cw-local-rail" data-workspace-rail aria-label="Workspace navigation">
+        <button type="button"
+                class="cw-local-rail__toggle"
+                data-workspace-rail-toggle
+                aria-expanded="false"
+                aria-controls="workspace-local-navigation"
+                title="Expand workspace navigation">
+            <i class="bi bi-grid-1x2" aria-hidden="true"></i>
+            <span>Workspace</span>
+            <i class="bi bi-chevron-right cw-local-rail__toggle-chevron" aria-hidden="true"></i>
+        </button>
+
+        <nav id="workspace-local-navigation">
             @if (Model.CanSwitchWorkspace)
             {
-                <a asp-page="/Workspace/Index" asp-route-mode="command" class="is-active" title="Comdt / HoD workspace">
-                    <i class="bi bi-building"></i><span>Comdt / HoD</span>
-                </a>
-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" title="Project Officer workspace">
-                    <i class="bi bi-person-workspace"></i><span>Project Officer</span>
-                </a>
-                <div class="cw-local-rail__separator" aria-hidden="true"></div>
+                <div class="cw-local-rail__group">
+                    <span class="cw-local-rail__group-label">Workspace</span>
+                    <a asp-page="/Workspace/Index"
+                       asp-route-mode="command"
+                       class="is-context-active"
+                       aria-current="true"
+                       data-tooltip="Comdt / HoD workspace">
+                        <i class="bi bi-building" aria-hidden="true"></i><span>Comdt / HoD</span>
+                    </a>
+                    <a asp-page="/Workspace/Index"
+                       asp-route-mode="project-officer"
+                       data-tooltip="Project Officer workspace">
+                        <i class="bi bi-person-workspace" aria-hidden="true"></i><span>Project Officer</span>
+                    </a>
+                </div>
             }
-            <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="portfolio" class="@(isPortfolio ? "is-active" : null)" title="Project Portfolio">
-                <i class="bi bi-diagram-3"></i><span>Project Portfolio</span><b>@vm.TotalOngoingProjects</b>
-            </a>
-            <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="officers" class="@(!isPortfolio ? "is-active" : null)" title="Officer workload">
-                <i class="bi bi-people"></i><span>Officer workload</span><b>@vm.ProjectOfficerCount</b>
-            </a>
+
+            <div class="cw-local-rail__group cw-local-rail__group--pages">
+                <span class="cw-local-rail__group-label">Comdt / HoD</span>
+                <a asp-page="/Workspace/Index"
+                   asp-route-mode="command"
+                   asp-route-view="portfolio"
+                   class="@(isPortfolio ? "is-active" : null)"
+                   aria-current="@(isPortfolio ? "page" : null)"
+                   data-tooltip="Project Portfolio">
+                    <i class="bi bi-diagram-3" aria-hidden="true"></i><span>Project Portfolio</span><b>@vm.TotalOngoingProjects</b>
+                </a>
+                <a asp-page="/Workspace/Index"
+                   asp-route-mode="command"
+                   asp-route-view="officers"
+                   class="@(!isPortfolio ? "is-active" : null)"
+                   aria-current="@(!isPortfolio ? "page" : null)"
+                   data-tooltip="Officer workload">
+                    <i class="bi bi-people" aria-hidden="true"></i><span>Officer workload</span><b>@vm.ProjectOfficerCount</b>
+                </a>
+            </div>
         </nav>
     </aside>
 

@@ -1,4 +1,35 @@
 (() => {
+    const workspaceRail = document.querySelector('[data-workspace-rail]');
+    const workspaceRailToggle = workspaceRail?.querySelector('[data-workspace-rail-toggle]');
+
+    const setWorkspaceRailExpanded = (expanded, returnFocus = false) => {
+        if (!workspaceRail || !workspaceRailToggle) return;
+        workspaceRail.classList.toggle('is-expanded', expanded);
+        workspaceRailToggle.setAttribute('aria-expanded', String(expanded));
+        workspaceRailToggle.title = expanded ? 'Collapse workspace navigation' : 'Expand workspace navigation';
+        if (returnFocus) workspaceRailToggle.focus();
+    };
+
+    workspaceRailToggle?.addEventListener('click', () => {
+        setWorkspaceRailExpanded(!workspaceRail.classList.contains('is-expanded'));
+    });
+
+    document.addEventListener('pointerdown', (event) => {
+        if (!workspaceRail?.classList.contains('is-expanded')) return;
+        if (workspaceRail.contains(event.target)) return;
+        setWorkspaceRailExpanded(false);
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || !workspaceRail?.classList.contains('is-expanded')) return;
+        event.preventDefault();
+        setWorkspaceRailExpanded(false, true);
+    });
+
+    workspaceRail?.querySelectorAll('a').forEach((link) => {
+        link.addEventListener('click', () => setWorkspaceRailExpanded(false));
+    });
+
     const submitForm = (form) => {
         if (!form || form.classList.contains('is-submitting')) return;
         form.classList.add('is-submitting');
