@@ -103,7 +103,6 @@
 <div class="db-page" data-dashboard>
     <header class="db-header db-reveal">
         <div>
-            <p class="db-eyebrow">PRISM ERP</p>
             <h1>Dashboard</h1>
             <p class="db-header__subtitle">Portfolio, institutional outputs, engagement and innovation at a glance.</p>
         </div>
@@ -228,11 +227,20 @@
                     var hasRecentActivity = values.Any(v => v > 0);
                     <a class="db-output-card" href="@tile.LinkUrl">
                         <div class="db-output-card__head"><span class="db-output-card__icon"><i class="bi @tile.Icon"></i></span><span class="db-output-card__label">@tile.Label</span></div>
-                        <div class="db-output-card__metric">
-                            <strong>@tile.Value.ToString("N0")</strong>
-                            @if (!string.IsNullOrWhiteSpace(tile.Unit))
+                        <div class="db-output-card__metrics @(tile.SecondaryValue.HasValue ? "has-secondary" : "")">
+                            <div class="db-output-card__metric">
+                                <strong>@tile.Value.ToString("N0")</strong>
+                                @if (!string.IsNullOrWhiteSpace(tile.Unit))
+                                {
+                                    <span>@tile.Unit</span>
+                                }
+                            </div>
+                            @if (tile.SecondaryValue.HasValue)
                             {
-                                <span>@tile.Unit</span>
+                                <div class="db-output-card__secondary">
+                                    <strong>@tile.SecondaryValue.Value.ToString("N0")</strong>
+                                    <span>@tile.SecondaryLabel</span>
+                                </div>
                             }
                         </div>
                         <div class="db-output-card__chart @(hasRecentActivity ? "" : "is-empty")" data-db-spark data-values='@Html.Raw(Json(values))' data-labels='@Html.Raw(Json(labels))'>
@@ -243,7 +251,7 @@
                             }
                         </div>
                         <div class="db-output-card__foot">
-                            <span>Monthly activity · 12 months</span>
+                            <span>@(string.IsNullOrWhiteSpace(tile.TrendLabel) ? "Monthly activity · 12 months" : tile.TrendLabel)</span>
                             @if (tile.DeltaPct is not null)
                             {
                                 var deltaUp = tile.DeltaPct >= 0;

@@ -21,7 +21,10 @@ public sealed class OpsTileVm
     // SECTION: Primary values
     public required long Value { get; init; }
     public string? Unit { get; init; }
+    public long? SecondaryValue { get; init; }
+    public string? SecondaryLabel { get; init; }
     public string? Caption { get; init; }
+    public string? TrendLabel { get; init; }
     // END SECTION
 
     // SECTION: Sparkline data

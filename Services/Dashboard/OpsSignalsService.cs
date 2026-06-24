@@ -76,14 +76,15 @@ public sealed class OpsSignalsService : IOpsSignalsService
             var visitsByMonth = await _db.Visits
                 .Where(v => v.DateOfVisit >= start && v.DateOfVisit <= end)
                 .GroupBy(v => new { v.DateOfVisit.Year, v.DateOfVisit.Month })
-                .Select(g => new { g.Key.Year, g.Key.Month, Value = g.Sum(x => x.Strength) })
+                .Select(g => new { g.Key.Year, g.Key.Month, Value = g.Count() })
                 .ToListAsync(ct);
 
             var visitsSpark = months.Select(m =>
                 visitsByMonth.Where(x => (int)x.Year == m.Year && (int)x.Month == m.Month)
-                             .Select(x => (int)x.Value).FirstOrDefault()
+                             .Select(x => x.Value).FirstOrDefault()
             ).ToList();
-            var visitsTotal = await _db.Visits.SumAsync(v => (long)v.Strength, ct);
+            var visitsCount = await _db.Visits.LongCountAsync(ct);
+            var visitorsTotal = await _db.Visits.SumAsync(v => (long)v.Strength, ct);
             // END SECTION
 
             // SECTION: Social media outreach aggregation
@@ -186,7 +187,10 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 iprByMonth.Where(x => (int)x.Year == m.Year && (int)x.Month == m.Month)
                           .Select(x => (int)x.Value).FirstOrDefault()
             ).ToList();
-            var iprTotal = await _db.IprRecords.LongCountAsync(ct);
+            var iprFiledTotal = await _db.IprRecords.LongCountAsync(r => r.FiledAtUtc.HasValue, ct);
+            var iprGrantedTotal = await _db.IprRecords.LongCountAsync(
+                r => r.GrantedAtUtc.HasValue || r.Status == IprStatus.Granted,
+                ct);
             // END SECTION
 
             // SECTION: Proliferation aggregation
@@ -253,9 +257,12 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 new()
                 {
                     Key = "visits",
-                    Label = "Visitor reach",
-                    Value = visitsTotal,
-                    Unit = "people",
+                    Label = "Visits to SDD",
+                    Value = visitsCount,
+                    Unit = "visits",
+                    SecondaryValue = visitorsTotal,
+                    SecondaryLabel = "visitors",
+                    TrendLabel = "Monthly visits · 12 months",
                     Sparkline = visitsSpark,
                     SparklineLabels = labels,
                     DeltaAbs = vCur - vPrev,
@@ -306,9 +313,12 @@ public sealed class OpsSignalsService : IOpsSignalsService
                 new()
                 {
                     Key = "ipr",
-                    Label = "IPR filings",
-                    Value = iprTotal,
-                    Unit = "filings",
+                    Label = "IPR",
+                    Value = iprGrantedTotal,
+                    Unit = "granted",
+                    SecondaryValue = iprFiledTotal,
+                    SecondaryLabel = "filed",
+                    TrendLabel = "Monthly filings · 12 months",
                     Sparkline = iprSpark,
                     SparklineLabels = labels,
                     DeltaPct = iprPct,
