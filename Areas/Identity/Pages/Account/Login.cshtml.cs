@@ -43,14 +43,14 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
         public class InputModel
         {
             [Required]
-            [Display(Name = "User Name")]
+            [Display(Name = "Username")]
             public string UserName { get; set; } = string.Empty;
 
             [Required]
             [DataType(DataType.Password)]
             public string Password { get; set; } = string.Empty;
 
-            [Display(Name = "Remember me?")]
+            [Display(Name = "Remember me")]
             public bool RememberMe { get; set; }
         }
 

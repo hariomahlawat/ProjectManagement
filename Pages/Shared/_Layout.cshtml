@@ -39,6 +39,8 @@
             ? "container-fluid analytics-shell px-3 px-lg-4 px-xxl-5"
             : "container";
         var breadcrumbModel = ViewData["Breadcrumb"] as BreadcrumbModel;
+        var publicHeaderMode = ViewData["PublicHeaderMode"]?.ToString();
+        var isPublicAuthPage = !signedIn && string.Equals(publicHeaderMode, "Auth", StringComparison.OrdinalIgnoreCase);
     }
     <!-- ===========================
          HEADER / TOP BAR
@@ -125,11 +127,23 @@
                     <img src="~/img/logos/artrac.png" alt="ARTRAC crest" />
                     <span>PRISM ERP</span>
                 </a>
-                <nav class="public-topbar__nav" aria-label="Public navigation">
-                    <a href="/#capabilities">Capabilities</a>
-                    <a href="/#roles-title">Role-based experience</a>
-                    <a class="public-topbar__signin" asp-area="Identity" asp-page="/Account/Login">Sign in</a>
-                </nav>
+                @if (isPublicAuthPage)
+                {
+                    <nav class="public-topbar__nav" aria-label="Authentication navigation">
+                        <a class="public-topbar__home" asp-area="" asp-page="/Index">
+                            <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                            Back to home
+                        </a>
+                    </nav>
+                }
+                else
+                {
+                    <nav class="public-topbar__nav" aria-label="Public navigation">
+                        <a href="/#capabilities">Capabilities</a>
+                        <a href="/#roles-title">Role-based experience</a>
+                        <a class="public-topbar__signin" asp-area="Identity" asp-page="/Account/Login">Sign in</a>
+                    </nav>
+                }
             </div>
         </header>
     }

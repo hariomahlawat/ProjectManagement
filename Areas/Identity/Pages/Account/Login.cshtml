@@ -2,38 +2,119 @@
 @model ProjectManagement.Areas.Identity.Pages.Account.LoginModel
 @{
     ViewData["Title"] = "Sign in";
+    ViewData["UseFullWidth"] = true;
+    ViewData["PublicHeaderMode"] = "Auth";
 }
-<h1>@ViewData["Title"]</h1>
-<div class="pm-card pm-shadow p-4 p-md-5">
-  <form method="post">
-    <div class="visually-hidden" aria-live="polite">
-      <span asp-validation-summary="ModelOnly"></span>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/landing.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/auth-login.css" asp-append-version="true" />
+}
+
+<section class="auth-page" aria-labelledby="auth-title">
+    <div class="auth-page__glow auth-page__glow--one" aria-hidden="true"></div>
+    <div class="auth-page__glow auth-page__glow--two" aria-hidden="true"></div>
+
+    <div class="auth-shell">
+        <div class="auth-panel">
+            <aside class="auth-brand-panel" aria-label="PRISM ERP">
+                <div class="auth-brand-panel__identity">
+                    <span class="auth-brand-panel__crests" aria-hidden="true">
+                        <img src="~/img/logos/artrac.png" alt="" />
+                        <img src="~/img/logos/sdd.png" alt="" />
+                    </span>
+                    <span>Simulator Development Division</span>
+                </div>
+
+                <div class="auth-brand-panel__content">
+                    <p class="auth-brand-panel__eyebrow">Project Reporting, Intelligence and Systems Management</p>
+                    <h1>PRISM ERP</h1>
+                    <p class="auth-brand-panel__tagline">Plan. Track. Deliver.</p>
+                    <p class="auth-brand-panel__summary">
+                        Secure access to role-based workspaces, project records,
+                        document intelligence and institutional services.
+                    </p>
+                </div>
+
+                <div class="auth-brand-panel__assurance" aria-label="Platform assurance">
+                    <span><i class="bi bi-shield-check" aria-hidden="true"></i> Authorised access only</span>
+                    <span><i class="bi bi-journal-check" aria-hidden="true"></i> Auditable activity</span>
+                    <span><i class="bi bi-person-lock" aria-hidden="true"></i> Role-based access</span>
+                </div>
+            </aside>
+
+            <div class="auth-form-panel">
+                <div class="auth-form-panel__header">
+                    <span class="auth-form-panel__kicker">Welcome back</span>
+                    <h2 id="auth-title">Sign in to PRISM</h2>
+                    <p>Enter your authorised account credentials to continue.</p>
+                </div>
+
+                <form method="post" class="auth-form" novalidate>
+                    <div asp-validation-summary="ModelOnly"
+                         class="auth-validation-summary text-danger"
+                         role="alert"></div>
+
+                    <div class="auth-field">
+                        <label asp-for="Input.UserName" class="form-label"></label>
+                        <div class="auth-input-wrap">
+                            <i class="bi bi-person auth-input-wrap__icon" aria-hidden="true"></i>
+                            <input asp-for="Input.UserName"
+                                   class="form-control auth-input"
+                                   autocomplete="username"
+                                   autofocus
+                                   placeholder="Enter username" />
+                        </div>
+                        <span asp-validation-for="Input.UserName" class="text-danger auth-field__error"></span>
+                    </div>
+
+                    <div class="auth-field">
+                        <div class="auth-field__label-row">
+                            <label asp-for="Input.Password" class="form-label"></label>
+                        </div>
+                        <div class="auth-input-wrap auth-input-wrap--password password-container">
+                            <i class="bi bi-lock auth-input-wrap__icon" aria-hidden="true"></i>
+                            <input asp-for="Input.Password"
+                                   class="form-control auth-input"
+                                   autocomplete="current-password"
+                                   placeholder="Enter password" />
+                            <button type="button"
+                                    class="password-toggle auth-password-toggle"
+                                    aria-label="Show password"
+                                    aria-pressed="false">
+                                <i class="eye-open bi bi-eye" aria-hidden="true"></i>
+                                <i class="eye-closed bi bi-eye-slash" aria-hidden="true" hidden></i>
+                            </button>
+                        </div>
+                        <span asp-validation-for="Input.Password" class="text-danger auth-field__error"></span>
+                    </div>
+
+                    <div class="auth-form__options">
+                        <div class="form-check auth-remember">
+                            <input asp-for="Input.RememberMe" class="form-check-input" />
+                            <label asp-for="Input.RememberMe" class="form-check-label"></label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn auth-submit">
+                        <span>Sign in</span>
+                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </button>
+                </form>
+
+                <div class="auth-form-panel__footer">
+                    <a asp-area="" asp-page="/Index">
+                        <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                        Back to PRISM home
+                    </a>
+                    <span>Contact the system administrator if you cannot access your account.</span>
+                </div>
+            </div>
+        </div>
     </div>
-    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-    <div class="mb-3">
-      <label asp-for="Input.UserName" class="form-label"></label>
-      <input asp-for="Input.UserName" class="form-control" autocomplete="username" />
-      <span asp-validation-for="Input.UserName" class="text-danger"></span>
-    </div>
-    <div class="mb-3">
-      <label asp-for="Input.Password" class="form-label"></label>
-      <div class="password-container">
-        <input asp-for="Input.Password" class="form-control" autocomplete="current-password" />
-        <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">
-          <i class="eye-open bi bi-eye"></i>
-          <i class="eye-closed bi bi-eye-slash" hidden></i>
-        </button>
-      </div>
-      <span asp-validation-for="Input.Password" class="text-danger"></span>
-    </div>
-    <div class="mb-3 form-check">
-      <input asp-for="Input.RememberMe" class="form-check-input" />
-      <label asp-for="Input.RememberMe" class="form-check-label"></label>
-    </div>
-    <button type="submit" class="btn btn-primary">Sign in</button>
-  </form>
-</div>
+</section>
 
 @section Scripts {
+    <partial name="_ValidationScriptsPartial" />
     <script type="module" src="~/js/utils/password-toggle.js"></script>
 }
