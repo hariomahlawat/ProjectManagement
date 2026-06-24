@@ -5,153 +5,295 @@
 
 @{
     ViewData["Title"] = "PRISM ERP";
+    ViewData["UseFullWidth"] = true;
     var signedIn = SignInManager.IsSignedIn(User);
 }
 
-<!-- ===========================
-     HERO
-     =========================== -->
-<section class="pm-hero pm-hero--prism">
-    <div class="container-xxl">
-        <div class="pm-hero__inner">
-            <!-- LEFT: Copy -->
-            <div class="pm-hero__left">
+@section Styles {
+    <link rel="stylesheet" href="~/css/landing.css" asp-append-version="true" />
+}
 
-                <!-- Brand line -->
-                <div class="d-flex align-items-center pm-hero__brandline" aria-label="Branding">
-                    <img src="~/img/logos/artrac.png"
-                         class="pm-hero__brandlogo pm-hero__brandlogo--parent me-2"
-                         alt="ARTRAC crest" />
-                    <img src="~/img/logos/sdd.png"
-                         class="pm-hero__brandlogo pm-hero__brandlogo--company me-2"
-                         alt="Simulator Development Division logo" />
-                    <span class="pm-hero__brandtext">Simulator Development Division</span>
+<main class="landing-page">
+    <section class="landing-hero" aria-labelledby="landing-title">
+        <div class="landing-hero__glow landing-hero__glow--one" aria-hidden="true"></div>
+        <div class="landing-hero__glow landing-hero__glow--two" aria-hidden="true"></div>
+
+        <div class="landing-shell landing-hero__grid">
+            <div class="landing-hero__copy">
+                <div class="landing-identity" aria-label="Simulator Development Division">
+                    <span class="landing-identity__crests" aria-hidden="true">
+                        <img src="~/img/logos/artrac.png" alt="" />
+                        <img src="~/img/logos/sdd.png" alt="" />
+                    </span>
+                    <span>Simulator Development Division</span>
                 </div>
 
-                @* <!-- Product name and taglines -->*@
-                <h1 class="pm-hero__headline fw-semibold">PRISM ERP</h1>
-                <p class="pm-hero__tagline fw-semibold">Plan. Track. Deliver.</p>
-
-                <!-- Acronym expansion -->
-                <p class="pm-hero__acronym text-uppercase">
-                    PRISM  <strong>Project Reporting, Intelligence and Systems Management</strong>
+                <p class="landing-kicker">Project Reporting, Intelligence and Systems Management</p>
+                <h1 id="landing-title">PRISM ERP</h1>
+                <p class="landing-hero__tagline">Plan. Track. Deliver.</p>
+                <p class="landing-hero__summary">
+                    A unified enterprise platform for project execution, command oversight,
+                    institutional knowledge and digital workflows across Simulator Development Division.
+                </p>
+                <p class="landing-hero__supporting">
+                    PRISM connects projects, people, documents, approvals, analytics and institutional
+                    reporting—from concept initiation to fielding, transfer of technology and proliferation.
                 </p>
 
-                <!-- Secondary tagline -->
-                <p class="pm-hero__summary lead">
-                    Project analytics, AI powered search and office automation in a single PRISM
-                </p>
-
-                <!-- Key bullets -->
-                <ul class="pm-hero__highlights ps-0">
-                    <li class="d-flex align-items-start gap-2">
-                        <i class="bi bi-check-circle-fill text-primary small"></i>
-                        <span>End to end visibility from concept note to fielded simulator.</span>
-                    </li>
-                    <li class="d-flex align-items-start gap-2">
-                        <i class="bi bi-check-circle-fill text-primary small"></i>
-                        <span>ML based OCR and full text search across projects, reports and files.</span>
-                    </li>
-                    <li class="d-flex align-items-start gap-2">
-                        <i class="bi bi-check-circle-fill text-primary small"></i>
-                        <span>Structured approvals and digitised office workflows with audit ready trails.</span>
-                    </li>
-                </ul>
-
-                <!-- CTAs -->
-                <div class="d-flex flex-wrap gap-2 pm-hero__cta">
+                <div class="landing-hero__actions">
                     @if (signedIn)
                     {
-                        <a class="btn btn-primary btn-lg" asp-page="/Dashboard/Index">
-                            Go to your dashboard
+                        <a class="landing-btn landing-btn--primary" asp-page="/Dashboard/Index">
+                            Open dashboard
+                            <i class="bi bi-arrow-right" aria-hidden="true"></i>
                         </a>
-                        <a class="btn btn-outline-secondary btn-lg"
-                           asp-area="Common" asp-page="/Search/Index">
-                            Open global search
+                        <a class="landing-btn landing-btn--secondary" asp-area="Common" asp-page="/Search/Index">
+                            Open enterprise search
                         </a>
                     }
                     else
                     {
-                        <a class="btn btn-primary btn-lg" asp-area="Identity" asp-page="/Account/Login">
-                            Sign in
+                        <a class="landing-btn landing-btn--primary" asp-area="Identity" asp-page="/Account/Login">
+                            Sign in to PRISM
+                            <i class="bi bi-arrow-right" aria-hidden="true"></i>
                         </a>
-                        <a class="btn btn-outline-secondary btn-lg" href="#pillars">
-                            Explore PRISM ERP
+                        <a class="landing-btn landing-btn--secondary" href="#capabilities">
+                            Explore capabilities
                         </a>
                     }
                 </div>
 
+                <div class="landing-trust-row" aria-label="PRISM platform strengths">
+                    <span><i class="bi bi-check2-circle" aria-hidden="true"></i> Role-based access</span>
+                    <span><i class="bi bi-check2-circle" aria-hidden="true"></i> Audit-ready workflows</span>
+                    <span><i class="bi bi-check2-circle" aria-hidden="true"></i> Searchable institutional record</span>
+                </div>
             </div>
 
-            <!-- RIGHT: Image, fills its column -->
-            <div class="pm-hero__right">
-                <figure class="mb-0 w-100 d-flex justify-content-center justify-content-lg-end pm-hero__image-shell">
+            <div class="landing-hero__visual" aria-label="PRISM ERP platform illustration">
+                <div class="landing-visual-card">
+                    <div class="landing-visual-card__halo" aria-hidden="true"></div>
                     <img src="~/img/prism.png"
-                         class="img-fluid pm-hero__image--prism"
-                         alt="PRISM ERP illustration showing project management, office automation and AI search" />
-                </figure>
+                         alt="PRISM ERP platform connecting project management, office automation and document intelligence" />
+                </div>
             </div>
         </div>
-    </div>
-</section>
+    </section>
 
-<!-- ===========================
-     THREE PILLARS
-     =========================== -->
-<section id="pillars" class="container-xxl pm-section pb-5">
-    @* <div class="pm-section__header mb-4 text-center">
-        <span class="pm-section__eyebrow">Platform pillars</span>
-        <h2 class="pm-section__title h4 mb-2">Three pillars of PRISM ERP</h2>
-    </div> *@
-
-    <div class="row g-3 g-lg-4 pm-pillars-grid">
-        <!-- Pillar 1 -->
-        <div class="col-12 col-md-4">
-            <article class="pm-pillar-card pm-card pm-shadow h-100 p-3 p-lg-4 bg-white rounded-4">
-                <div class="pm-pillar-card__icon mb-3 text-primary">
-                    <span class="pm-pillar-card__icon-wrap"><i class="bi bi-kanban"></i></span>
-                </div>
-                <h3 class="pm-pillar-card__title h6 mb-2">Project management &amp; analytics</h3>
-                <p class="pm-pillar-card__text text-muted mb-0 small">
-                    Stage timelines, PDC tracking, lifecycle actions and role aware dashboards that
-                    surface slippages, bottlenecks and completion signals at a glance.
+    <section id="capabilities" class="landing-section landing-section--capabilities" aria-labelledby="capabilities-title">
+        <div class="landing-shell">
+            <div class="landing-section-heading">
+                <span class="landing-section-heading__eyebrow">Integrated capabilities</span>
+                <h2 id="capabilities-title">One platform across the institution</h2>
+                <p>
+                    PRISM brings together project governance, operational work, institutional records and
+                    decision support without fragmenting information across disconnected tools.
                 </p>
-            </article>
-        </div>
+            </div>
 
-        <!-- Pillar 2 -->
-        <div class="col-12 col-md-4">
-            <article class="pm-pillar-card pm-card pm-shadow h-100 p-3 p-lg-4 bg-white rounded-4">
-                <div class="pm-pillar-card__icon mb-3 text-primary">
-                    <span class="pm-pillar-card__icon-wrap"><i class="bi bi-diagram-3"></i></span>
+            <div class="landing-capability-grid">
+                <article class="landing-capability-card landing-capability-card--blue">
+                    <div class="landing-capability-card__icon"><i class="bi bi-kanban" aria-hidden="true"></i></div>
+                    <h3>Project lifecycle management</h3>
+                    <p>
+                        Govern projects across feasibility, approvals, procurement, development, trials,
+                        payments, transfer of technology, completion and proliferation.
+                    </p>
+                    <span>Stages · timelines · costs · remarks · records</span>
+                </article>
+
+                <article class="landing-capability-card landing-capability-card--indigo">
+                    <div class="landing-capability-card__icon"><i class="bi bi-person-workspace" aria-hidden="true"></i></div>
+                    <h3>Role-based workspaces</h3>
+                    <p>
+                        Dedicated experiences for Comdt/HoD and Project Officers provide command visibility,
+                        assigned work and the operational detail relevant to each role.
+                    </p>
+                    <span>Portfolio oversight · officer workload · action queues</span>
+                </article>
+
+                <article class="landing-capability-card landing-capability-card--violet">
+                    <div class="landing-capability-card__icon"><i class="bi bi-bar-chart-line" aria-hidden="true"></i></div>
+                    <h3>Analytics and decision support</h3>
+                    <p>
+                        Analyse ongoing and completed projects by stage, category, lifecycle, cost and process
+                        cycle to support timely command decisions.
+                    </p>
+                    <span>Dashboards · trends · stage insights · exports</span>
+                </article>
+
+                <article class="landing-capability-card landing-capability-card--teal">
+                    <div class="landing-capability-card__icon"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></div>
+                    <h3>Document intelligence</h3>
+                    <p>
+                        Organise policies, reports, project records and AOTS documents in an OCR-enabled
+                        repository with metadata, favourites and full-text search.
+                    </p>
+                    <span>OCR · enterprise search · categorisation · access control</span>
+                </article>
+
+                <article class="landing-capability-card landing-capability-card--green">
+                    <div class="landing-capability-card__icon"><i class="bi bi-building-check" aria-hidden="true"></i></div>
+                    <h3>Institutional reporting</h3>
+                    <p>
+                        Maintain structured records of visits, training, institutional activities, social-media
+                        engagement, IPR, ToT and proliferation outcomes.
+                    </p>
+                    <span>Activities · IPR · training · proliferation · FFC</span>
+                </article>
+
+                <article class="landing-capability-card landing-capability-card--amber">
+                    <div class="landing-capability-card__icon"><i class="bi bi-diagram-3" aria-hidden="true"></i></div>
+                    <h3>Digital workflows and collaboration</h3>
+                    <p>
+                        Coordinate approvals, tasks, project ideas, calendars, reminders, notifications and
+                        auditable office actions within one connected system.
+                    </p>
+                    <span>Approvals · notebook · calendar · notifications · audit</span>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="landing-section landing-section--lifecycle" aria-labelledby="lifecycle-title">
+        <div class="landing-shell">
+            <div class="landing-lifecycle-card">
+                <div class="landing-lifecycle-card__copy">
+                    <span class="landing-section-heading__eyebrow">Connected project record</span>
+                    <h2 id="lifecycle-title">One operating picture across the project lifecycle</h2>
+                    <p>
+                        Every stage remains connected to the same authoritative project record, preserving
+                        ownership, timelines, decisions, documents and outcomes.
+                    </p>
                 </div>
-                <h3 class="pm-pillar-card__title h6 mb-2">Office automation</h3>
-                <p class="pm-pillar-card__text text-muted mb-0 small">
-                    Digitised office procedures for FFC, ToT, IPR, training and other reports.
-                    Structured workflows replace paper work and spreadsheets with auditable,
-                    repeatable processes.
-                </p>
-            </article>
+                <ol class="landing-lifecycle" aria-label="Project lifecycle">
+                    <li><span>01</span>Concept</li>
+                    <li><span>02</span>Approval</li>
+                    <li><span>03</span>Procurement</li>
+                    <li><span>04</span>Development</li>
+                    <li><span>05</span>Trials</li>
+                    <li><span>06</span>Fielding</li>
+                    <li><span>07</span>ToT</li>
+                    <li><span>08</span>Proliferation</li>
+                </ol>
+            </div>
         </div>
+    </section>
 
-        <!-- Pillar 3 -->
-        <div class="col-12 col-md-4">
-            <article class="pm-pillar-card pm-card pm-shadow h-100 p-3 p-lg-4 bg-white rounded-4">
-                <div class="pm-pillar-card__icon mb-3 text-primary">
-                    <span class="pm-pillar-card__icon-wrap"><i class="bi bi-search"></i></span>
+    <section class="landing-section landing-section--roles" aria-labelledby="roles-title">
+        <div class="landing-shell">
+            <div class="landing-section-heading landing-section-heading--centered">
+                <span class="landing-section-heading__eyebrow">Designed around responsibility</span>
+                <h2 id="roles-title">A different view for every level of work</h2>
+                <p>
+                    PRISM presents the same institutional truth through role-specific workspaces, reducing noise
+                    while preserving accountability.
+                </p>
+            </div>
+
+            <div class="landing-role-grid">
+                <article class="landing-role-card landing-role-card--command">
+                    <div class="landing-role-card__label">Comdt / HoD</div>
+                    <h3>Command oversight</h3>
+                    <p>
+                        Review project distribution, portfolio position, officer-wise workload, institutional
+                        outputs, analytics and organisational performance.
+                    </p>
+                    <ul>
+                        <li>Project portfolio by current stage</li>
+                        <li>Officer workload and responsibility</li>
+                        <li>Command dashboard and analytics</li>
+                    </ul>
+                </article>
+
+                <article class="landing-role-card landing-role-card--officer">
+                    <div class="landing-role-card__label">Project Officer</div>
+                    <h3>Project execution</h3>
+                    <p>
+                        Manage assigned projects, current-stage timelines, remarks, documents, pending fields,
+                        tasks, ideas and follow-up actions.
+                    </p>
+                    <ul>
+                        <li>Prioritised action queue</li>
+                        <li>Assigned projects and record completeness</li>
+                        <li>Tasks, reminders and project ideas</li>
+                    </ul>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="landing-knowledge" aria-labelledby="knowledge-title">
+        <div class="landing-shell landing-knowledge__grid">
+            <div>
+                <span class="landing-section-heading__eyebrow">Institutional knowledge</span>
+                <h2 id="knowledge-title">Information that remains searchable, traceable and reusable</h2>
+                <p>
+                    PRISM converts project records, policies, reports and supporting documents into an organised
+                    institutional knowledge base through OCR, metadata and unified enterprise search.
+                </p>
+            </div>
+            <div class="landing-knowledge__features">
+                <span><i class="bi bi-filetype-pdf" aria-hidden="true"></i> OCR-enabled indexing</span>
+                <span><i class="bi bi-search" aria-hidden="true"></i> Full-text enterprise search</span>
+                <span><i class="bi bi-broadcast" aria-hidden="true"></i> AOTS circulation</span>
+                <span><i class="bi bi-link-45deg" aria-hidden="true"></i> Project-linked records</span>
+                <span><i class="bi bi-shield-lock" aria-hidden="true"></i> Role-based access</span>
+                <span><i class="bi bi-clock-history" aria-hidden="true"></i> Audit-ready history</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="landing-section landing-section--outcomes" aria-labelledby="outcomes-title">
+        <div class="landing-shell">
+            <div class="landing-section-heading landing-section-heading--centered">
+                <span class="landing-section-heading__eyebrow">Operational outcomes</span>
+                <h2 id="outcomes-title">Clarity from project floor to command level</h2>
+            </div>
+
+            <div class="landing-outcome-grid">
+                <article>
+                    <i class="bi bi-database-check" aria-hidden="true"></i>
+                    <h3>Single source of truth</h3>
+                    <p>One authoritative record for projects, documents and institutional activity.</p>
+                </article>
+                <article>
+                    <i class="bi bi-person-check" aria-hidden="true"></i>
+                    <h3>Clear accountability</h3>
+                    <p>Visible ownership, timelines, approvals, assignments and pending actions.</p>
+                </article>
+                <article>
+                    <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+                    <h3>Faster retrieval</h3>
+                    <p>Searchable project and document knowledge across the organisation.</p>
+                </article>
+                <article>
+                    <i class="bi bi-graph-up-arrow" aria-hidden="true"></i>
+                    <h3>Better decisions</h3>
+                    <p>Portfolio analytics and command-level visibility grounded in current data.</p>
+                </article>
+                <article>
+                    <i class="bi bi-journal-check" aria-hidden="true"></i>
+                    <h3>Audit-ready records</h3>
+                    <p>Traceable workflows, updates, approvals and institutional history.</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="landing-cta" aria-labelledby="landing-cta-title">
+        <div class="landing-shell">
+            <div class="landing-cta__card">
+                <div>
+                    <span class="landing-section-heading__eyebrow">PRISM ERP</span>
+                    <h2 id="landing-cta-title">One platform for execution, knowledge and institutional oversight</h2>
+                    <p>Access your role-based workspace and continue managing the work assigned to you.</p>
                 </div>
-                <h3 class="pm-pillar-card__title h6 mb-2">Document repository &amp; AI search</h3>
-                <p class="pm-pillar-card__text text-muted mb-0 small">
-                    ML based OCR plus full text, metadata and tag search for a Google like experience
-                    across scanned files, reports and project artefacts with ranked, relevance
-                    aware results.
-                </p>
-            </article>
+                <a class="landing-btn landing-btn--light" asp-area="Identity" asp-page="/Account/Login">
+                    Sign in to PRISM
+                    <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </a>
+            </div>
         </div>
-    </div>
-</section>
-
-@section Scripts {
-    <script type="module" src="~/js/utils/password-toggle.js"></script>
-    <script type="module" src="~/js/utils/login-card.js"></script>
-}
+    </section>
+</main>

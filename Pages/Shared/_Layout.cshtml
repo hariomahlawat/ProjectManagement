@@ -7,7 +7,13 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - PRISM ERP</title>
+    @{
+        var pageTitle = ViewData["Title"]?.ToString();
+        var documentTitle = string.Equals(pageTitle, "PRISM ERP", StringComparison.OrdinalIgnoreCase)
+            ? "PRISM ERP | Simulator Development Division"
+            : $"{pageTitle} - PRISM ERP";
+    }
+    <title>@documentTitle</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
@@ -20,6 +26,7 @@
 </head>
 <body class="d-flex flex-column min-vh-100">
     @{
+        var signedIn = SignInManager.IsSignedIn(User);
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
         var isOngoingProjectsPage = string.Equals(currentPage, "/Projects/Ongoing/Index", StringComparison.OrdinalIgnoreCase);
@@ -36,88 +43,108 @@
     <!-- ===========================
          HEADER / TOP BAR
          =========================== -->
-    <header class="pm-topbar">
-        <div class="container-fluid px-3 px-md-4 px-lg-5 pm-topbar__inner">
-            <div class="pm-topbar__left">
-                @await Component.InvokeAsync("NavigationDrawer")
+    @if (signedIn)
+    {
+        <header class="pm-topbar">
+            <div class="container-fluid px-3 px-md-4 px-lg-5 pm-topbar__inner">
+                <div class="pm-topbar__left">
+                    @await Component.InvokeAsync("NavigationDrawer")
 
-                <a class="pm-brand" asp-area="" asp-page="/Index" aria-label="PRISM ERP Home">
-                    <img src="~/img/logos/artrac.png"
-                         class="pm-nav-logo"
-                         alt="ARTRAC crest" />
-                    <span class="pm-brand__text">PRISM ERP</span>
+                    <a class="pm-brand" asp-area="" asp-page="/Index" aria-label="PRISM ERP Home">
+                        <img src="~/img/logos/artrac.png"
+                             class="pm-nav-logo"
+                             alt="ARTRAC crest" />
+                        <span class="pm-brand__text">PRISM ERP</span>
+                    </a>
+
+                    <nav class="pm-top-tabs" aria-label="Primary">
+                        <a asp-page="/Dashboard/Index"
+                           class="pm-top-tabs__item @(string.Equals(currentPage, "/Dashboard/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
+                            Dashboard
+                        </a>
+                        <a asp-page="/Workspace/Index"
+                           class="pm-top-tabs__item @(string.Equals(currentPage, "/Workspace/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
+                            My Workspace
+                        </a>
+                        <a asp-page="/Calendar/Index"
+                           class="pm-top-tabs__item @(string.Equals(currentPage, "/Calendar/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
+                            Calendar
+                        </a>
+                        <a asp-page="/Notebook/Index"
+                           class="pm-top-tabs__item @(string.Equals(currentPage, "/Notebook/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
+                            Notebook
+                        </a>
+                        <a asp-page="/Projects/Ongoing/Index"
+                           class="pm-top-tabs__item @(isOngoingProjectsPage ? "is-active" : string.Empty)">
+                            Projects
+                        </a>
+                        <a asp-area="ProjectOfficeReports"
+                           asp-page="/FFC/MapTableDetailed"
+                           class="pm-top-tabs__item @(isFfcPage ? "is-active" : string.Empty)">
+                            FFC
+                        </a>
+                        <a asp-area="DocumentRepository"
+                           asp-page="/Documents/Index"
+                           class="pm-top-tabs__item @(isDocumentRepositoryPage ? "is-active" : string.Empty)">
+                            <span>Documents</span>
+                            @await Component.InvokeAsync("AotsUnreadBadge", new { variant = "topnav" })
+                        </a>
+                    </nav>
+                </div>
+
+                <div class="pm-topbar__right">
+                    <form method="get"
+                          asp-area="Common"
+                          asp-page="/Search/Index"
+                          class="pm-top-search d-none d-md-flex">
+                        <i class="bi bi-search pm-top-search__icon"></i>
+                        <input type="text"
+                               name="q"
+                               class="pm-top-search__input"
+                               placeholder="Global Search..." />
+                    </form>
+
+                    <a asp-area="Common"
+                       asp-page="/Search/Index"
+                       class="d-inline-flex d-md-none text-muted align-items-center justify-content-center"
+                       title="Search">
+                        <i class="bi bi-search pm-search-icon"></i>
+                    </a>
+
+                    @await Component.InvokeAsync("NotificationBell")
+                    <partial name="_LoginPartial" />
+                </div>
+            </div>
+        </header>
+    }
+    else
+    {
+        <header class="public-topbar">
+            <div class="public-topbar__inner">
+                <a class="public-brand" asp-area="" asp-page="/Index" aria-label="PRISM ERP home">
+                    <img src="~/img/logos/artrac.png" alt="ARTRAC crest" />
+                    <span>PRISM ERP</span>
                 </a>
-
-                @* ===== Top Navigation Tabs ===== *@
-                <nav class="pm-top-tabs" aria-label="Primary">
-                    <a asp-page="/Dashboard/Index"
-                       class="pm-top-tabs__item @(string.Equals(currentPage, "/Dashboard/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
-                        Dashboard
-                    </a>
-                    <a asp-page="/Workspace/Index"
-                       class="pm-top-tabs__item @(string.Equals(currentPage, "/Workspace/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
-                        My Workspace
-                    </a>
-                    <a asp-page="/Calendar/Index"
-                       class="pm-top-tabs__item @(string.Equals(currentPage, "/Calendar/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
-                        Calendar
-                    </a>
-                    <a asp-page="/Notebook/Index"
-                       class="pm-top-tabs__item @(string.Equals(currentPage, "/Notebook/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
-                        Notebook
-                    </a>
-                    <a asp-page="/Projects/Ongoing/Index"
-                       class="pm-top-tabs__item @(isOngoingProjectsPage ? "is-active" : string.Empty)">
-                        Projects
-                    </a>
-                    @* SECTION: FFC main menu *@
-                    <a asp-area="ProjectOfficeReports"
-                       asp-page="/FFC/MapTableDetailed"
-                       class="pm-top-tabs__item @(isFfcPage ? "is-active" : string.Empty)">
-                        FFC
-                    </a>
-                    <a asp-area="DocumentRepository"
-                       asp-page="/Documents/Index"
-                       class="pm-top-tabs__item @(isDocumentRepositoryPage ? "is-active" : string.Empty)">
-                        <span>Documents</span>
-                        @await Component.InvokeAsync("AotsUnreadBadge", new { variant = "topnav" })
-                    </a>
+                <nav class="public-topbar__nav" aria-label="Public navigation">
+                    <a href="/#capabilities">Capabilities</a>
+                    <a href="/#roles-title">Role-based experience</a>
+                    <a class="public-topbar__signin" asp-area="Identity" asp-page="/Account/Login">Sign in</a>
                 </nav>
             </div>
-
-            <div class="pm-topbar__right">
-                <form method="get"
-                      asp-area="Common"
-                      asp-page="/Search/Index"
-                      class="pm-top-search d-none d-md-flex">
-                    <i class="bi bi-search pm-top-search__icon"></i>
-                    <input type="text"
-                           name="q"
-                           class="pm-top-search__input"
-                           placeholder="Global Search..." />
-                </form>
-
-                <a asp-area="Common"
-                   asp-page="/Search/Index"
-                   class="d-inline-flex d-md-none text-muted align-items-center justify-content-center"
-                   title="Search">
-                    <i class="bi bi-search pm-search-icon"></i>
-                </a>
-
-                @await Component.InvokeAsync("NotificationBell")
-                <partial name="_LoginPartial" />
-            </div>
-        </div>
-    </header>
+        </header>
+    }
 
     <!-- ===========================
          PROJECTS MODULE SUB-NAV
          =========================== -->
-    <div class="pm-module-subnav-wrap">
-        <div class="container-fluid px-3 px-md-4 px-lg-5">
-            @await Component.InvokeAsync("ModuleSubNav")
+    @if (signedIn)
+    {
+        <div class="pm-module-subnav-wrap">
+            <div class="container-fluid px-3 px-md-4 px-lg-5">
+                @await Component.InvokeAsync("ModuleSubNav")
+            </div>
         </div>
-    </div>
+    }
 
     <!-- ===========================
          MAIN CONTENT
@@ -136,20 +163,33 @@
     <!-- ===========================
          FOOTER
          =========================== -->
-    <footer class="pm-footer border-top py-2 mt-auto">
-        <div class="container-xxl">
-            <div class="d-flex flex-column flex-md-row align-items-center justify-content-between gap-2 small">
-                <div class="text-muted">© @DateTime.UtcNow.Year — PRISM ERP</div>
-                <div class="d-flex align-items-center gap-2 fw-semibold">
-                    <img src="~/img/logos/sdd.png" alt="Simulator Development Division logo" class="pm-util-logo-compact" />
-                    <span>Simulator Development Division</span>
-                </div>
-                <div>
-                    <a asp-page="/Developer" class="text-decoration-none">Designed and developed by @@hariomahlawat</a>
+    @if (signedIn)
+    {
+        <footer class="pm-footer border-top py-2 mt-auto">
+            <div class="container-xxl">
+                <div class="d-flex flex-column flex-md-row align-items-center justify-content-between gap-2 small">
+                    <div class="text-muted">© @DateTime.UtcNow.Year — PRISM ERP</div>
+                    <div class="d-flex align-items-center gap-2 fw-semibold">
+                        <img src="~/img/logos/sdd.png" alt="Simulator Development Division logo" class="pm-util-logo-compact" />
+                        <span>Simulator Development Division</span>
+                    </div>
+                    <div>
+                        <a asp-page="/Developer" class="text-decoration-none">Designed and developed by @@hariomahlawat</a>
+                    </div>
                 </div>
             </div>
-        </div>
-    </footer>
+        </footer>
+    }
+    else
+    {
+        <footer class="public-footer">
+            <div class="public-footer__inner">
+                <span>© @DateTime.UtcNow.Year PRISM ERP</span>
+                <span>Simulator Development Division</span>
+                <a asp-area="Identity" asp-page="/Account/Login">Authorised access only</a>
+            </div>
+        </footer>
+    }
 
     <!-- ===========================
          SHARED MODALS
