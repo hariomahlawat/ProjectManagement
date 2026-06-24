@@ -20,8 +20,8 @@
     var changeDateInputValue = Model.SelectedTask is not null && Model.SelectedTask.DueDate.Date >= minimumChangeDate
         ? Model.SelectedTask.DueDate.Date
         : minimumChangeDate;
-    var updatePanelTitle = selectedTaskIsBacklog ? "Add Planning Note" : "Update Progress";
-    var updatePlaceholder = selectedTaskIsBacklog ? "Add planning note or clarification" : "Record progress, blocker details, completion notes, or status-change context";
+    var updatePanelTitle = selectedTaskIsBacklog ? "Add planning note" : "Add update";
+    var updatePlaceholder = selectedTaskIsBacklog ? "Add a planning note or clarification" : "Write a clear progress update";
     var canOpenStatusAction = Model.SelectedTask is not null && !selectedTaskIsBacklog && Model.CanUpdateTaskStatus(Model.SelectedTask);
     var canOpenSubmitAction = Model.SelectedTask is not null && Model.CanSubmitTask(Model.SelectedTask);
     var canOpenCloseAction = Model.SelectedTask is not null && Model.CanCloseTaskDirectly(Model.SelectedTask);
@@ -98,14 +98,14 @@
         {
             <div class="at-inspector-body at-task-command-body">
                 <section class="at-command-section at-task-brief-section" aria-label="Task brief">
-                    <div class="at-command-section-heading">Task Brief</div>
+                    <div class="at-command-section-heading">Task brief</div>
                     <div class="at-task-brief-text @(string.IsNullOrWhiteSpace(Model.SelectedTask.Description) ? "is-muted" : string.Empty)">@taskBrief</div>
                 </section>
 
                 @if (selectedTaskIsClosed)
                 {
                     <section class="at-command-section at-closed-task-summary" aria-label="Closure details">
-                        <div class="at-command-section-heading">Closure Details</div>
+                        <div class="at-command-section-heading">Closure details</div>
                         <dl class="at-task-closure-list">
                             <div>
                                 <dt>Status</dt>
@@ -191,7 +191,7 @@
                             <input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" />
                             <div class="at-action-title">@updatePanelTitle</div>
                             <div class="mb-2">
-                                <label class="form-label at-small" asp-for="UpdateInput.Body">Progress note</label>
+                                <label class="form-label at-small" asp-for="UpdateInput.Body">Update</label>
                                 <textarea class="form-control form-control-sm" rows="4" asp-for="UpdateInput.Body" maxlength="4000" placeholder="@updatePlaceholder"></textarea>
                             </div>
                             @if (!selectedTaskIsBacklog && Model.CanUpdateTaskStatus(Model.SelectedTask))
@@ -217,7 +217,7 @@
                                 <input class="form-control form-control-sm" asp-for="UpdateInput.Files" type="file" multiple />
                                 <div class="form-text at-small">Allowed: PDF, Word, Excel, JPG, PNG, TXT.</div>
                             </div>
-                            <div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm" data-at-submit-update>Save Update</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="update" data-at-cancel-action>Cancel</button></div>
+                            <div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm" data-at-submit-update>Post update</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="update" data-at-cancel-action>Cancel</button></div>
                         </form>
                     </details>
 
@@ -316,13 +316,13 @@
                                 <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" />
-                                <div class="at-action-title">Close Task</div>
+                                <div class="at-action-title">@(selectedTaskIsSubmitted ? "Accept and close" : "Command close")</div>
                                 <div class="mb-2">
                                     <label class="form-label at-small" for="closureRemarks-@Model.SelectedTask.Id">Closure remarks</label>
                                     <textarea id="closureRemarks-@Model.SelectedTask.Id" name="remarks" rows="4" class="form-control form-control-sm" maxlength="2000" required data-at-direct-close-remarks="true" placeholder="Enter closure decision, completion confirmation, or command rationale."></textarea>
                                 </div>
                                 <div class="at-action-buttons">
-                                    <button type="submit" class="btn btn-danger btn-sm" data-at-direct-close-submit="true" disabled>Close Task</button>
+                                    <button type="submit" class="btn btn-danger btn-sm" data-at-direct-close-submit="true" disabled>@(selectedTaskIsSubmitted ? "Accept and close" : "Command close")</button>
                                     <button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="close">Cancel</button>
                                 </div>
                             </form>
@@ -420,7 +420,7 @@
                 @if (hasMoreActions)
                 {
                     <details class="at-command-section at-details-collapsible at-manage-task-panel">
-                        <summary>Manage Task</summary>
+                        <summary>Manage task</summary>
                         <div class="at-manage-task-grid mt-2">
                             @if (canOpenChangeDateAction)
                             {

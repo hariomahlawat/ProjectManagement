@@ -13,29 +13,35 @@
     <script src="~/js/pages/action-tasks/index.js" asp-append-version="true"></script>
 }
 
-<div class="at-shell @(Model.TaskId.HasValue ? "has-selection" : string.Empty) @(Model.IsPlanningView ? "is-planning-board" : string.Empty)">
-    @* SECTION: Compact left rail navigation. *@
-    <aside class="at-rail" aria-label="Task tracker navigation">
+<div class="at-shell at-simple-shell @(Model.TaskId.HasValue ? "has-selection" : string.Empty) @(Model.IsPlanningView ? "is-planning-board" : string.Empty)">
+    <aside class="at-rail at-simple-rail" aria-label="Action Tracker navigation">
         <nav class="at-nav">
-            @* SECTION: Icon-led rail links for compact enterprise navigation. *@
-            <a title="Overview" asp-page="/ActionTasks/Index" asp-route-viewMode="CommandCentre" class="@(Model.IsCommandCentreView ? "active" : string.Empty)"><i class="bi bi-speedometer2" aria-hidden="true"></i><span>Overview</span></a>
-            <a title="Board" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" class="@(Model.IsPlanningView ? "active" : string.Empty)"><i class="bi bi-calendar-range" aria-hidden="true"></i><span>Board</span></a>
-            <a title="My Tasks" asp-page="/ActionTasks/Index" asp-route-viewMode="MyWork" class="@(Model.IsMyWorkView ? "active" : string.Empty)"><i class="bi bi-check2-circle" aria-hidden="true"></i><span>My Tasks</span></a>
-            <a title="All Tasks" asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="@(Model.IsRegisterView ? "active" : string.Empty)"><i class="bi bi-list-task" aria-hidden="true"></i><span>All Tasks</span></a>
+            <a title="Overview" asp-page="/ActionTasks/Index" asp-route-viewMode="CommandCentre" class="@(Model.IsCommandCentreView ? "active" : string.Empty)" aria-current="@(Model.IsCommandCentreView ? "page" : null)"><i class="bi bi-grid-1x2" aria-hidden="true"></i><span>Overview</span></a>
+            <a title="My Tasks" asp-page="/ActionTasks/Index" asp-route-viewMode="MyWork" class="@(Model.IsMyWorkView ? "active" : string.Empty)" aria-current="@(Model.IsMyWorkView ? "page" : null)"><i class="bi bi-check2-circle" aria-hidden="true"></i><span>My Tasks</span></a>
+            <a title="Board" asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Execute" asp-route-SelectedSprintId="@Model.SelectedSprintId" class="@(Model.IsPlanningView ? "active" : string.Empty)" aria-current="@(Model.IsPlanningView ? "page" : null)"><i class="bi bi-kanban" aria-hidden="true"></i><span>Board</span></a>
+            <a title="All Tasks" asp-page="/ActionTasks/Index" asp-route-viewMode="Register" class="@(Model.IsRegisterView ? "active" : string.Empty)" aria-current="@(Model.IsRegisterView ? "page" : null)"><i class="bi bi-list-task" aria-hidden="true"></i><span>All Tasks</span></a>
         </nav>
     </aside>
 
-    @* SECTION: Main workspace column. *@
-    <section class="at-workspace">
-        <header class="at-header">
+    <section class="at-workspace at-simple-workspace">
+        <header class="at-header at-simple-header">
             <div>
                 <h1>@Model.PageHeading</h1>
                 <p>@Model.PageSubtitle</p>
             </div>
-            @if (Model.CanCreate)
-            {
-                <button class="btn btn-primary at-create-trigger" type="button" data-bs-toggle="modal" data-bs-target="#createTaskModal"><i class="bi bi-plus-lg" aria-hidden="true"></i><span>Create Task</span></button>
-            }
+            <div class="at-header-actions">
+                @if (Model.IsCommandCentreView || Model.IsReportsView)
+                {
+                    <a asp-page="/ActionTasks/Index" asp-route-viewMode="@(Model.IsReportsView ? "CommandCentre" : "Reports")" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi @(Model.IsReportsView ? "bi-arrow-left" : "bi-bar-chart")" aria-hidden="true"></i>
+                        <span>@(Model.IsReportsView ? "Back to overview" : "Reports")</span>
+                    </a>
+                }
+                @if (Model.CanCreate)
+                {
+                    <button class="btn btn-primary btn-sm at-create-trigger" type="button" data-bs-toggle="modal" data-bs-target="#createTaskModal"><i class="bi bi-plus-lg" aria-hidden="true"></i><span>Create task</span></button>
+                }
+            </div>
         </header>
 
         @if (Model.CanCreate)
@@ -49,7 +55,6 @@
         }
         else if (Model.IsPlanningView)
         {
-            @* SECTION: Sprint Board internal tabs are rendered inside the board partial to avoid competing major sections. *@
             <partial name="_TaskSprints" model="Model" />
         }
         else if (Model.IsMyWorkView)
@@ -66,7 +71,6 @@
         }
     </section>
 
-    @* SECTION: Task inspector renders only when a task is selected. *@
     @if (Model.TaskId.HasValue)
     {
         <aside class="at-drawer-host is-open">
