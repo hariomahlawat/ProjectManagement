@@ -359,6 +359,10 @@
     initialView: 'dayGridMonth',
     headerToolbar: false,
     firstDay: 1,
+    height: 'auto',
+    dayMaxEvents: 3,
+    nowIndicator: true,
+    navLinks: false,
     slotMinTime: '08:00:00',
     slotMaxTime: '18:00:00',
     scrollTime: '08:00:00',
@@ -608,9 +612,11 @@
 
   // empty state handling
   const emptyEl = document.createElement('div');
-  emptyEl.className = 'text-muted text-center py-5';
+  emptyEl.className = 'calendar-empty-state';
   emptyEl.style.display = 'none';
-  emptyEl.textContent = 'No events in this period.';
+  emptyEl.textContent = canEdit
+    ? 'No events scheduled in this period. Select a date or choose New event to add one.'
+    : 'No events scheduled in this period.';
   calendarEl.appendChild(emptyEl);
   function updateEmptyState() {
     const has = calendar.getEvents().some(e => {
@@ -644,8 +650,9 @@
   function markActiveView() {
     const v = calendar.view?.type;
     viewButtons.forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-view') === v);
-      b.classList.toggle('btn-secondary', b.classList.contains('active'));
+      const isActive = b.getAttribute('data-view') === v;
+      b.classList.toggle('active', isActive);
+      b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
   }
   calendar.on('datesSet', markActiveView);
@@ -697,12 +704,16 @@
     const legend = document.getElementById('categoryLegend');
     if (legend) {
       const legendCats = [...baseCategories, ...Object.keys(counts).filter(cat => !baseCategories.includes(cat))];
-      let html = legendCats.map(cat => {
+      const visibleCats = legendCats.filter(cat => (counts[cat] || 0) > 0);
+      let html = visibleCats.map(cat => {
         const n = counts[cat] || 0;
-        return `<span class="me-3"><span class="legend-dot pm-cat-${cat.toLowerCase()}"></span>${cat} (${n})</span>`;
+        const label = cat === 'Insp' ? 'Inspection' : cat;
+        return `<span><span class="legend-dot pm-cat-${cat.toLowerCase()}"></span>${label} (${n})</span>`;
       }).join('');
       const holidayCount = holidayMap.size;
-      html += `<span class="me-3"><span class="legend-dot pm-holiday"></span>Holiday (${holidayCount})</span>`;
+      if (holidayCount > 0) {
+        html += `<span><span class="legend-dot pm-holiday"></span>Holiday (${holidayCount})</span>`;
+      }
       legend.innerHTML = html;
     }
   }
@@ -823,17 +834,45 @@
     });
 
     const btnNew = document.getElementById('btnNewEvent');
-    btnNew && btnNew.addEventListener('click', () => {
+
+    function openNewEvent(start = null, end = null, allDay = false) {
       if (!form) return;
       form.reset();
       editingOriginal = null;
       idBox.value = '';
-      isAllDayBox.checked = false;
-      setAllDayUI(false);
+      isAllDayBox.checked = !!allDay;
+      setAllDayUI(!!allDay);
       hydrateRepeatUI(null);
       btnDelete && btnDelete.classList.add('d-none');
+
+      const startDate = start ? new Date(start) : new Date();
+      const endDate = end ? new Date(end) : new Date(startDate.getTime() + 60 * 60 * 1000);
+
+      if (allDay) {
+        const inclusiveEnd = new Date(endDate);
+        if (end) inclusiveEnd.setDate(inclusiveEnd.getDate() - 1);
+        form.querySelector('[name="startDate"]').value = toLocalDateInputValue(startDate);
+        form.querySelector('[name="endDate"]').value = toLocalDateInputValue(inclusiveEnd);
+      } else {
+        form.querySelector('[name="start"]').value = toLocalInputValue(startDate);
+        form.querySelector('[name="end"]').value = toLocalInputValue(endDate);
+      }
+
       const lbl = document.getElementById('eventFormLabel');
       lbl && (lbl.textContent = 'New event');
+      bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).show();
+      window.setTimeout(() => titleBox?.focus(), 250);
+    }
+
+    btnNew && btnNew.addEventListener('click', () => openNewEvent());
+
+    calendar.setOption('dateClick', (info) => {
+      openNewEvent(info.date, null, info.allDay);
+    });
+
+    calendar.setOption('select', (info) => {
+      openNewEvent(info.start, info.end, info.allDay);
+      calendar.unselect();
     });
 
     form && form.addEventListener('submit', async (ev) => {
