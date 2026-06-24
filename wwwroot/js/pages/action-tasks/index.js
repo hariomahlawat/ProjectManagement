@@ -248,6 +248,7 @@
 
         const dispositions = Array.from(form.querySelectorAll("[data-at-closure-disposition='true']"));
         const target = form.querySelector("[data-at-closure-target='true']");
+        const targetTools = form.querySelector("[data-at-closure-target-tools='true']");
         const remarks = form.querySelector("[data-at-closure-remarks='true']");
         const submit = form.querySelector("[data-at-closure-submit='true']");
         const summary = form.querySelector("[data-at-closure-summary='true']");
@@ -259,7 +260,16 @@
             const assignedCount = activeDispositions.filter((select) => select.value === "outside").length;
             const backlogCount = activeDispositions.filter((select) => select.value === "backlog").length
                 + form.querySelectorAll("input[type='hidden'][name^='ClosureInput.Dispositions'][value='backlog']").length;
-            const targetReady = carryCount === 0 || (target && target.value);
+            const hasCarry = carryCount > 0;
+            if (targetTools) {
+                const forceVisible = targetTools.dataset.atForceVisible === "true";
+                targetTools.hidden = !hasCarry && !forceVisible;
+            }
+            if (target) {
+                target.disabled = !hasCarry;
+                if (!hasCarry) { target.value = ""; }
+            }
+            const targetReady = !hasCarry || (target && target.value);
             const remarksReady = remarks && remarks.value.trim().length > 0;
             const ready = allChosen && targetReady && remarksReady;
 
@@ -625,7 +635,7 @@
 
     document.addEventListener("DOMContentLoaded", function () {
         openCreateTaskModalOnLoad();
-        initSearchableSelects();
+        // Native selects are used for clarity and accessibility.
         initCreateTaskChoiceFlow();
         initStatusUpdateGuard();
         initTaskRegisterFilters();

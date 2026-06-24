@@ -16,6 +16,13 @@
     string SortLinkClass(string sortKey)
         => string.Equals(Model.SortBy, sortKey, StringComparison.OrdinalIgnoreCase) ? "at-sort-link is-active" : "at-sort-link";
 
+    var activeFilterCount = 0;
+    if (!string.IsNullOrWhiteSpace(Model.FilterAssigneeUserId)) activeFilterCount++;
+    if (!string.IsNullOrWhiteSpace(Model.FilterStatus)) activeFilterCount++;
+    if (!string.IsNullOrWhiteSpace(Model.FilterBucket)) activeFilterCount++;
+    if (!string.IsNullOrWhiteSpace(Model.FilterPriority)) activeFilterCount++;
+    if (Model.FilterDueDate.HasValue) activeFilterCount++;
+
     string SortAriaSort(string sortKey)
     {
         if (!string.Equals(Model.SortBy, sortKey, StringComparison.OrdinalIgnoreCase))
@@ -42,7 +49,7 @@
                 <input type="search" id="RegisterFilterSearch" name="FilterSearch" value="@Model.FilterSearch" placeholder="Search tasks" data-at-filter-search="true" aria-label="Search tasks" />
             </div>
             <details class="at-filter-disclosure" @(Model.HasActiveFilters ? "open" : null)>
-                <summary><i class="bi bi-sliders" aria-hidden="true"></i> Filters @if (Model.HasActiveFilters) { <span class="at-filter-count">Active</span> }</summary>
+                <summary><i class="bi bi-sliders" aria-hidden="true"></i> Filters @if (activeFilterCount > 0) { <span class="at-filter-count">@activeFilterCount</span> } <i class="bi bi-chevron-down at-disclosure-chevron" aria-hidden="true"></i></summary>
                 <div class="at-filter-grid">
                     @if (Model.CanFilterByAssignee)
                     {

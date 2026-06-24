@@ -19,42 +19,42 @@
             <div><span>@review.SubmittedPendingClosureTasks.Count</span><small>Awaiting closure</small></div>
         </div>
 
-        @if (review.UnfinishedTasks.Any() && Model.ShouldShowCreateNextSprint)
-        {
-            <details class="at-next-sprint-panel" open="@Model.ShowCreateNextSprintPanel">
-                <summary class="btn btn-outline-primary btn-sm">Create next sprint</summary>
-                <form method="post" asp-page-handler="CreateNextSprint" class="at-sprint-command-form">
-                    <input type="hidden" name="ViewMode" value="Sprints" />
-                    <input type="hidden" asp-for="NextSprintInput.SourceSprintId" value="@Model.SelectedSprint.Id" />
-                    <div asp-validation-summary="All" class="text-danger small"></div>
-                    <label class="form-label" asp-for="NextSprintInput.Name"></label>
-                    <input class="form-control" asp-for="NextSprintInput.Name" maxlength="160" />
-                    <label class="form-label" asp-for="NextSprintInput.StartDate"></label>
-                    <input class="form-control" asp-for="NextSprintInput.StartDate" type="date" />
-                    <label class="form-label" asp-for="NextSprintInput.EndDate"></label>
-                    <input class="form-control" asp-for="NextSprintInput.EndDate" type="date" />
-                    <label class="form-label" asp-for="NextSprintInput.Goal"></label>
-                    <textarea class="form-control" asp-for="NextSprintInput.Goal" rows="2" maxlength="2000"></textarea>
-                    <button type="submit" class="btn btn-primary btn-sm">Create next sprint</button>
-                </form>
-            </details>
-        }
-
         <form method="post" asp-page-handler="CloseSprintWithDisposition" class="at-closure-form" data-at-closure-form="true">
             <input type="hidden" asp-for="ClosureInput.SprintId" value="@Model.SelectedSprint.Id" />
             <input type="hidden" asp-for="ClosureInput.RowVersion" value="@Convert.ToBase64String(Model.SelectedSprint.RowVersion)" />
 
             @if (review.UnfinishedTasks.Any())
             {
-                <div class="at-closure-target-row">
-                    <label class="form-label" asp-for="ClosureInput.TargetSprintId">Carry unfinished work to</label>
-                    <select class="form-select" asp-for="ClosureInput.TargetSprintId" data-at-closure-target="true">
-                        <option value="">Select a sprint when using Carry forward</option>
-                        @foreach (var sprint in Model.ClosureTargetSprints)
-                        {
-                            <option value="@sprint.Id">@sprint.StartDate.ToString("dd")–@sprint.EndDate.ToString("dd MMM yyyy") · @sprint.Status</option>
-                        }
-                    </select>
+                <div class="at-closure-target-tools" data-at-closure-target-tools="true" data-at-force-visible="@(Model.ShowCreateNextSprintPanel ? "true" : "false")" @(Model.ShowCreateNextSprintPanel ? null : "hidden")>
+                    <div class="at-closure-target-row">
+                        <label class="form-label" asp-for="ClosureInput.TargetSprintId">Carry unfinished work to</label>
+                        <select class="form-select" asp-for="ClosureInput.TargetSprintId" data-at-closure-target="true" disabled>
+                            <option value="">Select destination sprint</option>
+                            @foreach (var sprint in Model.ClosureTargetSprints)
+                            {
+                                <option value="@sprint.Id">@sprint.StartDate.ToString("dd")–@sprint.EndDate.ToString("dd MMM yyyy") · @sprint.Status</option>
+                            }
+                        </select>
+                    </div>
+                    @if (Model.ShouldShowCreateNextSprint)
+                    {
+                        <details class="at-next-sprint-panel" open="@Model.ShowCreateNextSprintPanel" data-at-create-next-sprint="true">
+                            <summary class="btn btn-outline-primary btn-sm">Create next sprint</summary>
+                            <div class="at-sprint-command-form">
+                                <input type="hidden" asp-for="NextSprintInput.SourceSprintId" value="@Model.SelectedSprint.Id" />
+                                <div asp-validation-summary="All" class="text-danger small"></div>
+                                <label class="form-label" asp-for="NextSprintInput.Name"></label>
+                                <input class="form-control" asp-for="NextSprintInput.Name" maxlength="160" />
+                                <label class="form-label" asp-for="NextSprintInput.StartDate"></label>
+                                <input class="form-control" asp-for="NextSprintInput.StartDate" type="date" />
+                                <label class="form-label" asp-for="NextSprintInput.EndDate"></label>
+                                <input class="form-control" asp-for="NextSprintInput.EndDate" type="date" />
+                                <label class="form-label" asp-for="NextSprintInput.Goal"></label>
+                                <textarea class="form-control" asp-for="NextSprintInput.Goal" rows="2" maxlength="2000"></textarea>
+                                <button type="submit" asp-page-handler="CreateNextSprint" class="btn btn-primary btn-sm" formnovalidate>Create next sprint</button>
+                            </div>
+                        </details>
+                    }
                 </div>
 
                 <div class="at-disposition-legend" aria-label="Disposition guidance">
@@ -109,9 +109,11 @@
             <label class="form-label" asp-for="ClosureInput.Remarks">Closure remarks</label>
             <textarea class="form-control" asp-for="ClosureInput.Remarks" rows="3" maxlength="2000" required data-at-closure-remarks="true" placeholder="Record the closure decision and any follow-up required."></textarea>
 
-            <div class="at-closure-summary" data-at-closure-summary="true" aria-live="polite"></div>
-            <div class="at-closure-actions">
-                <button type="submit" class="btn btn-danger" data-at-closure-submit="true" disabled>Close sprint</button>
+            <div class="at-closure-sticky-bar">
+                <div class="at-closure-summary" data-at-closure-summary="true" aria-live="polite"></div>
+                <div class="at-closure-actions">
+                    <button type="submit" class="btn btn-danger" data-at-closure-submit="true" disabled>Close sprint</button>
+                </div>
             </div>
         </form>
     </section>

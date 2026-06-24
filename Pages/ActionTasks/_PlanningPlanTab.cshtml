@@ -48,7 +48,7 @@
             </div>
 
             <details class="at-sprint-list-group is-closed">
-                <summary class="at-sprint-list-heading">Closed <span class="at-count-chip">@Model.ClosedSprints.Count</span></summary>
+                <summary class="at-sprint-list-heading"><span>Sprint history</span><span class="at-sprint-history-meta"><span class="at-count-chip">@Model.ClosedSprints.Count</span><i class="bi bi-chevron-down at-disclosure-chevron" aria-hidden="true"></i></span></summary>
                 @if (!Model.ClosedSprints.Any())
                 {
                     <div class="at-empty-inline">No closed sprints.</div>
@@ -112,7 +112,7 @@
             <details class="at-planning-backlog-filter-shell" open="@hasBacklogFilters">
                 <summary>
                     <span>Filters</span>
-                    <span class="at-filter-state">@(hasBacklogFilters ? "Custom backlog view" : "All backlog items")</span>
+                    <span class="at-filter-state">@(hasBacklogFilters ? "Custom backlog view" : "All backlog items") <i class="bi bi-chevron-down at-disclosure-chevron" aria-hidden="true"></i></span>
                 </summary>
                 <form method="get" class="at-planning-backlog-filter">
                     <input type="hidden" name="viewMode" value="Planning" />
@@ -174,7 +174,7 @@
                                 @if (Model.CanAssignTaskToSprint(task))
                                 {
                                     <details class="at-backlog-add-disclosure at-inline-action">
-                                        <summary class="btn btn-outline-primary btn-sm">Add to sprint</summary>
+                                        <summary class="btn btn-outline-primary btn-sm">Add to selected sprint</summary>
                                         <form method="post" asp-page-handler="AssignToSprint" class="at-inline-sprint-form at-planning-backlog-assign-form">
                                             <input type="hidden" name="ViewMode" value="Planning" />
                                             <input type="hidden" name="PlanningTab" value="Execute" />
@@ -187,13 +187,21 @@
                                                     <option value="@user.UserId">@user.DisplayName</option>
                                                 }
                                             </select>
-                                            <select class="form-select form-select-sm" name="sprintId" aria-label="Select sprint for AT-@task.Id" required>
-                                                <option value="">Select sprint</option>
-                                                @foreach (var sprint in Model.AssignableSprints)
-                                                {
-                                                    <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>
-                                                }
-                                            </select>
+                                            @if (Model.SelectedSprint is not null && Model.AssignableSprints.Any(s => s.Id == Model.SelectedSprint.Id))
+                                            {
+                                                <input type="hidden" name="sprintId" value="@Model.SelectedSprint.Id" />
+                                                <div class="at-selected-sprint-context"><span>Sprint</span><strong>@Model.DisplaySprintName(Model.SelectedSprint)</strong></div>
+                                            }
+                                            else
+                                            {
+                                                <select class="form-select form-select-sm" name="sprintId" aria-label="Select sprint for AT-@task.Id" required>
+                                                    <option value="">Select sprint</option>
+                                                    @foreach (var sprint in Model.AssignableSprints)
+                                                    {
+                                                        <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status)</option>
+                                                    }
+                                                </select>
+                                            }
                                             <button type="submit" class="btn btn-primary btn-sm">Add to sprint</button>
                                         </form>
                                     </details>
@@ -247,7 +255,7 @@
                         @if (Model.CanPlanSprints && Model.CanAddOutsideSprintTaskToSprint(task))
                         {
                             <details class="at-backlog-add-disclosure at-inline-action">
-                                <summary class="btn btn-outline-primary btn-sm">Add to sprint</summary>
+                                <summary class="btn btn-outline-primary btn-sm">Add to selected sprint</summary>
                                 <form method="post" asp-page-handler="AddOutsideSprintTaskToSprint" class="at-inline-sprint-form at-planning-backlog-assign-form">
                                     <input type="hidden" name="ViewMode" value="Planning" />
                                     <input type="hidden" name="PlanningTab" value="Execute" />

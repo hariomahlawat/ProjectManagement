@@ -239,7 +239,7 @@ public class IndexModel : PageModel
     };
     public string PageSubtitle => ResolvedViewMode switch
     {
-        "Planning" => "See sprint work by status. Planning and closure tools appear only when needed.",
+        "Planning" => "Track work in the current sprint.",
         "MyWork" => "Your assigned work, ordered by what needs attention first.",
         "Register" => "Find any task. Use filters only when you need them.",
         "Reports" => "Workload, ageing and sprint performance.",
