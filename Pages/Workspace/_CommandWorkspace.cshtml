@@ -17,41 +17,38 @@
 }
 
 <div class="command-workspace">
-    <nav class="cw-command-bar" aria-label="Comdt/HoD workspace navigation">
-        @if (Model.CanSwitchWorkspace)
-        {
-            <div class="cw-workspace-segment" role="radiogroup" aria-label="Select workspace">
-                <span class="cw-workspace-segment__label">Workspace</span>
-                <a asp-page="/Workspace/Index" asp-route-mode="command" role="radio" aria-checked="true" class="is-active">
+    <aside class="cw-local-rail" aria-label="Workspace navigation">
+        <div class="cw-local-rail__title"><i class="bi bi-grid-1x2"></i><span>Workspace</span></div>
+        <nav>
+            @if (Model.CanSwitchWorkspace)
+            {
+                <a asp-page="/Workspace/Index" asp-route-mode="command" class="is-active" title="Comdt / HoD workspace">
                     <i class="bi bi-building"></i><span>Comdt / HoD</span>
                 </a>
-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" role="radio" aria-checked="false">
+                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" title="Project Officer workspace">
                     <i class="bi bi-person-workspace"></i><span>Project Officer</span>
                 </a>
-            </div>
-        }
-
-        <div class="cw-view-tabs" aria-label="Comdt/HoD workspace views">
-            <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="portfolio" class="@(isPortfolio ? "is-active" : null)">
+                <div class="cw-local-rail__separator" aria-hidden="true"></div>
+            }
+            <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="portfolio" class="@(isPortfolio ? "is-active" : null)" title="Portfolio by stage">
                 <i class="bi bi-diagram-3"></i><span>Portfolio by stage</span><b>@vm.TotalOngoingProjects</b>
             </a>
-            <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="officers" class="@(!isPortfolio ? "is-active" : null)">
+            <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="officers" class="@(!isPortfolio ? "is-active" : null)" title="Officer workload">
                 <i class="bi bi-people"></i><span>Officer workload</span><b>@vm.ProjectOfficerCount</b>
             </a>
-        </div>
+        </nav>
+    </aside>
 
-        @if (isPortfolio)
-        {
-            <a href="/Projects/Ongoing" class="cw-command-bar__action"><i class="bi bi-kanban"></i><span>Open ongoing projects</span></a>
-        }
-    </nav>
-
+    <main class="cw-workspace-content">
     @if (isPortfolio)
     {
         <section class="cw-panel cw-panel--chart">
             <header class="cw-panel__header cw-panel__header--compact">
                 <h2>Projects by current stage</h2>
-                <button type="button" class="cw-icon-button" data-chart-download aria-label="Download chart" title="Download chart"><i class="bi bi-download"></i></button>
+                <div class="cw-panel__actions">
+                    <a href="/Projects/Ongoing" class="cw-header-action"><i class="bi bi-kanban"></i><span>Open ongoing projects</span></a>
+                    <button type="button" class="cw-icon-button" data-chart-download aria-label="Download chart" title="Download chart"><i class="bi bi-download"></i></button>
+                </div>
             </header>
 
             <form method="get" class="cw-filter-grid" data-cw-auto-filter aria-label="Portfolio filters">
@@ -167,87 +164,85 @@
                 <h2>Officer workload</h2>
                 <div class="cw-panel__actions">
                     <span class="cw-result-count">@vm.Officers.Count officers</span>
+                    <button type="button" class="cw-reset-order" data-reset-officer-order title="Restore rank and name order">Reset order</button>
                 </div>
             </header>
 
-            <form method="get" class="cw-filter-grid cw-filter-grid--officers" data-cw-auto-filter aria-label="Officer workload filters">
-                <input type="hidden" name="mode" value="command" />
-                <input type="hidden" name="view" value="officers" />
-                <label class="cw-field cw-field--search"><span class="visually-hidden">Officer search</span><div><i class="bi bi-search"></i><input type="search" name="OfficerSearch" value="@vm.OfficerSearch" placeholder="Search officers" aria-label="Search officers" autocomplete="off" /></div></label>
-                <label class="cw-field"><span class="visually-hidden">Project stage</span><select name="OfficerStageCode" aria-label="Project stage"><option value="">All stages</option>@foreach (var stageCode in ProjectManagement.Models.Stages.StageCodes.All){<option value="@stageCode" selected="@(string.Equals(vm.OfficerStageCode, stageCode, StringComparison.OrdinalIgnoreCase))">@ProjectManagement.Models.Stages.StageCodes.DisplayNameOf(stageCode)</option>}<option value="UNASSIGNED" selected="@(string.Equals(vm.OfficerStageCode, "UNASSIGNED", StringComparison.OrdinalIgnoreCase))">Unassigned</option></select></label>
-                <label class="cw-field"><span class="visually-hidden">Work type</span><select name="OfficerWorkType" aria-label="Work type"><option value="all" selected="@(vm.OfficerWorkType == "all")">All work</option><option value="projects" selected="@(vm.OfficerWorkType == "projects")">Projects</option><option value="ideas" selected="@(vm.OfficerWorkType == "ideas")">Ideas</option><option value="tasks" selected="@(vm.OfficerWorkType == "tasks")">Other tasks</option></select></label>
-                <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="officers" class="cw-reset-link">Reset</a>
-                <span class="cw-filter-status" data-cw-filter-status aria-live="polite"></span>
+            <form class="cw-order-preference" data-officer-order-form data-save-url="?handler=SaveOfficerOrder" hidden>
+                @Html.AntiForgeryToken()
             </form>
 
             @if (vm.Officers.Count == 0)
             {
-                <div class="cw-empty"><i class="bi bi-people"></i><strong>No matching officers</strong><span>Change or reset the current filters.</span></div>
+                <div class="cw-empty"><i class="bi bi-people"></i><strong>No assigned workload</strong><span>No Project Officer currently has projects, ideas or other tasks assigned.</span></div>
             }
             else
             {
-                <div class="cw-officer-grid" aria-label="Project Officer workload cards">
+                <div class="cw-officer-grid" data-officer-grid aria-label="Project Officer workload cards">
                     @foreach (var officer in vm.Officers)
                     {
                         var accentSeed = (officer.UserId ?? officer.OfficerName).Aggregate(0, (total, character) => total + character);
                         var accentIndex = Math.Abs(accentSeed) % 6;
-                        <article class="cw-officer-card cw-officer-card--accent-@accentIndex">
-                                <header class="cw-officer-card__header">
-                                    <span class="cw-avatar">@((officer.OfficerName.FirstOrDefault()).ToString().ToUpperInvariant())</span>
-                                    <div class="cw-officer-identity">
-                                        <h3>@(string.IsNullOrWhiteSpace(officer.Rank) ? officer.OfficerName : $"{officer.Rank} {officer.OfficerName}")</h3>
-                                        <p><span><strong>@officer.ProjectCount</strong> projects</span><span><strong>@officer.IdeaCount</strong> ideas</span><span><strong>@officer.OtherTaskCount</strong> other tasks</span></p>
-                                    </div>
-                                </header>
-                                <div class="cw-work-sections">
-                                    <details open>
-                                        <summary><span><i class="bi bi-kanban"></i>Projects</span><b>@officer.ProjectCount</b></summary>
-                                        @if (officer.Projects.Count == 0)
-                                        {
-                                            <p class="cw-none">No assigned projects</p>
-                                        }
-                                        else
-                                        {
-                                            <ul>
-                                                @for (var i = 0; i < officer.Projects.Count; i++)
-                                                {
-                                                    var project = officer.Projects[i];
-                                                    <li class="@(i >= initialOfficerItems ? "cw-collapsible-item" : null)" hidden="@(i >= initialOfficerItems)"><a href="@project.OpenUrl" title="@project.Name">@project.Name</a><span>@project.StageCode · @project.StageName</span></li>
-                                                }
-                                            </ul>
-                                            @if (officer.Projects.Count > initialOfficerItems)
-                                            {
-                                                <button type="button" class="cw-expand-button" data-expand-projects data-collapsed-label="Show @(officer.Projects.Count - initialOfficerItems) more" data-expanded-label="Show fewer">Show @(officer.Projects.Count - initialOfficerItems) more</button>
-                                            }
-                                        }
-                                    </details>
-                                    @if (officer.IdeaCount > 0)
-                                    {
-                                        <details open>
-                                            <summary><span><i class="bi bi-lightbulb"></i>Ideas</span><b>@officer.IdeaCount</b></summary>
-                                            <ul>@foreach(var idea in officer.Ideas){<li><a href="@idea.OpenUrl" title="@idea.Title">@idea.Title</a><span>@idea.Status</span></li>}</ul>
-                                        </details>
-                                    }
-                                    else
-                                    {
-                                        <div class="cw-empty-work-row"><span><i class="bi bi-lightbulb"></i>Ideas</span><b>0</b></div>
-                                    }
-                                    @if (officer.OtherTaskCount > 0)
-                                    {
-                                        <details open>
-                                            <summary><span><i class="bi bi-list-check"></i>Other tasks</span><b>@officer.OtherTaskCount</b></summary>
-                                            <ul>@foreach(var task in officer.OtherTasks){<li><a href="@task.OpenUrl" title="@task.Title">@task.Title</a><span>@task.Status · Due @task.DueDate.ToString("dd MMM")</span></li>}</ul>
-                                        </details>
-                                    }
-                                    else
-                                    {
-                                        <div class="cw-empty-work-row"><span><i class="bi bi-list-check"></i>Other tasks</span><b>0</b></div>
-                                    }
+                        <article class="cw-officer-card cw-officer-card--accent-@accentIndex" data-officer-id="@officer.UserId">
+                            <header class="cw-officer-card__header">
+                                <button type="button" class="cw-drag-handle" aria-label="Rearrange @(string.IsNullOrWhiteSpace(officer.Rank) ? officer.OfficerName : $"{officer.Rank} {officer.OfficerName}")" title="Drag to rearrange"><i class="bi bi-grip-vertical"></i></button>
+                                <span class="cw-avatar">@((officer.OfficerName.FirstOrDefault()).ToString().ToUpperInvariant())</span>
+                                <div class="cw-officer-identity">
+                                    <h3>@(string.IsNullOrWhiteSpace(officer.Rank) ? officer.OfficerName : $"{officer.Rank} {officer.OfficerName}")</h3>
+                                    <p><span><strong>@officer.ProjectCount</strong> projects</span><span><strong>@officer.IdeaCount</strong> ideas</span><span><strong>@officer.OtherTaskCount</strong> other tasks</span></p>
                                 </div>
-                            </article>
+                            </header>
+                            <div class="cw-work-sections">
+                                <section class="cw-work-section">
+                                    <div class="cw-work-section__heading"><span><i class="bi bi-kanban"></i>Projects</span><b>@officer.ProjectCount</b></div>
+                                    @if (officer.Projects.Count == 0)
+                                    {
+                                        <p class="cw-none">No assigned projects</p>
+                                    }
+                                    else
+                                    {
+                                        <ul>
+                                            @for (var i = 0; i < officer.Projects.Count; i++)
+                                            {
+                                                var project = officer.Projects[i];
+                                                <li class="@(i >= initialOfficerItems ? "cw-collapsible-item" : null)" hidden="@(i >= initialOfficerItems)"><a href="@project.OpenUrl" title="@project.Name">@project.Name</a><span>@project.StageCode · @project.StageName</span></li>
+                                            }
+                                        </ul>
+                                        @if (officer.Projects.Count > initialOfficerItems)
+                                        {
+                                            <button type="button" class="cw-expand-button" data-expand-projects data-collapsed-label="Show @(officer.Projects.Count - initialOfficerItems) more" data-expanded-label="Show fewer">Show @(officer.Projects.Count - initialOfficerItems) more</button>
+                                        }
+                                    }
+                                </section>
+                                <section class="cw-work-section">
+                                    <div class="cw-work-section__heading"><span><i class="bi bi-lightbulb"></i>Ideas</span><b>@officer.IdeaCount</b></div>
+                                    @if (officer.Ideas.Count == 0)
+                                    {
+                                        <p class="cw-none">No assigned ideas</p>
+                                    }
+                                    else
+                                    {
+                                        <ul>@foreach(var idea in officer.Ideas){<li><a href="@idea.OpenUrl" title="@idea.Title">@idea.Title</a><span>@idea.Status</span></li>}</ul>
+                                    }
+                                </section>
+                                <section class="cw-work-section">
+                                    <div class="cw-work-section__heading"><span><i class="bi bi-list-check"></i>Other tasks</span><b>@officer.OtherTaskCount</b></div>
+                                    @if (officer.OtherTasks.Count == 0)
+                                    {
+                                        <p class="cw-none">No other assigned tasks</p>
+                                    }
+                                    else
+                                    {
+                                        <ul>@foreach(var task in officer.OtherTasks){<li><a href="@task.OpenUrl" title="@task.Title">@task.Title</a><span>@task.Status · Due @task.DueDate.ToString("dd MMM")</span></li>}</ul>
+                                    }
+                                </section>
+                            </div>
+                        </article>
                     }
                 </div>
+                <div class="cw-order-feedback" data-officer-order-feedback aria-live="polite"></div>
             }
         </section>
     }
+    </main>
 </div>

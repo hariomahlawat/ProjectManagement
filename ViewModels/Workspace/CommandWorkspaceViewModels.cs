@@ -13,9 +13,6 @@ public sealed class CommandWorkspaceVm
     public IReadOnlyList<CommandStageColumnVm> StageColumns { get; init; } = Array.Empty<CommandStageColumnVm>();
     public IReadOnlyList<CommandOfficerWorkloadVm> Officers { get; init; } = Array.Empty<CommandOfficerWorkloadVm>();
     public IReadOnlyList<CommandFilterOptionVm> StageOptions { get; init; } = Array.Empty<CommandFilterOptionVm>();
-    public string? OfficerSearch { get; init; }
-    public string? OfficerStageCode { get; init; }
-    public string OfficerWorkType { get; init; } = "all";
     public int ProjectOfficerCount { get; init; }
 }
 

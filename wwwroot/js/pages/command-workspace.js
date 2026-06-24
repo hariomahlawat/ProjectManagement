@@ -163,6 +163,90 @@
         });
     });
 
+    const officerGrid = document.querySelector('[data-officer-grid]');
+    const orderForm = document.querySelector('[data-officer-order-form]');
+    const orderFeedback = document.querySelector('[data-officer-order-feedback]');
+    const resetOrderButton = document.querySelector('[data-reset-officer-order]');
+
+    const saveOfficerOrder = async (officerUserIds, successMessage = 'Order saved') => {
+        if (!orderForm) return false;
+        const token = orderForm.querySelector('input[name="__RequestVerificationToken"]')?.value;
+        const saveUrl = orderForm.dataset.saveUrl;
+        if (!token || !saveUrl) return false;
+        if (orderFeedback) {
+            orderFeedback.classList.remove('is-error');
+            orderFeedback.textContent = 'Saving order…';
+        }
+        try {
+            const response = await fetch(saveUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': token
+                },
+                body: JSON.stringify({ officerUserIds })
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            if (orderFeedback) orderFeedback.textContent = successMessage;
+            window.setTimeout(() => {
+                if (orderFeedback?.textContent === successMessage) orderFeedback.textContent = '';
+            }, 2200);
+            return true;
+        } catch (error) {
+            console.error('Unable to save officer card order.', error);
+            if (orderFeedback) {
+                orderFeedback.classList.add('is-error');
+                orderFeedback.textContent = 'Order could not be saved. Please try again.';
+            }
+            return false;
+        }
+    };
+
+    const currentOfficerOrder = () => officerGrid
+        ? [...officerGrid.querySelectorAll('[data-officer-id]')].map(card => card.dataset.officerId).filter(Boolean)
+        : [];
+
+    if (officerGrid && window.Sortable) {
+        window.Sortable.create(officerGrid, {
+            animation: 180,
+            easing: 'cubic-bezier(.2,.8,.2,1)',
+            draggable: '.cw-officer-card',
+            handle: '.cw-drag-handle',
+            ghostClass: 'is-sortable-ghost',
+            chosenClass: 'is-sortable-chosen',
+            dragClass: 'is-sortable-drag',
+            forceFallback: true,
+            fallbackOnBody: true,
+            fallbackTolerance: 4,
+            swapThreshold: .62,
+            onEnd: () => saveOfficerOrder(currentOfficerOrder())
+        });
+
+        officerGrid.querySelectorAll('.cw-drag-handle').forEach((handle) => {
+            handle.addEventListener('keydown', async (event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+                const card = handle.closest('.cw-officer-card');
+                if (!card) return;
+                const moveBackward = event.key === 'ArrowLeft' || event.key === 'ArrowUp';
+                const sibling = moveBackward ? card.previousElementSibling : card.nextElementSibling;
+                if (!sibling) return;
+                event.preventDefault();
+                if (moveBackward) officerGrid.insertBefore(card, sibling);
+                else officerGrid.insertBefore(sibling, card);
+                handle.focus();
+                await saveOfficerOrder(currentOfficerOrder(), 'Order updated');
+            });
+        });
+    }
+
+    resetOrderButton?.addEventListener('click', async () => {
+        resetOrderButton.disabled = true;
+        const saved = await saveOfficerOrder([], 'Default order restored');
+        if (saved) window.location.reload();
+        else resetOrderButton.disabled = false;
+    });
+
     const canvas = document.getElementById('command-stage-chart');
     if (!canvas || !window.Chart) return;
 

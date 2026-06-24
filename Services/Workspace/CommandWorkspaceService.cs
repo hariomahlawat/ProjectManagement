@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
@@ -65,7 +66,7 @@ public sealed class CommandWorkspaceService
             .OrderBy(x => StageOrder(x.StageCode, orderedStageCodes)).ThenBy(x => x.CategoryName)
             .ToList();
 
-        var officers = await BuildOfficerWorkloadAsync(query, normalizedProjects, orderedStageCodes, ct);
+        var officers = await BuildOfficerWorkloadAsync(query.RequestingUserId, normalizedProjects, orderedStageCodes, ct);
         var stageOptions = orderedStageCodes
             .Select((code, index) => new CommandFilterOptionVm(index + 1, code == UnassignedStageCode ? "Unassigned" : StageCodes.DisplayNameOf(code)))
             .ToList();
@@ -83,15 +84,12 @@ public sealed class CommandWorkspaceService
             StageColumns = stageColumns,
             Officers = officers,
             StageOptions = stageOptions,
-            OfficerSearch = query.OfficerSearch,
-            OfficerStageCode = query.OfficerStageCode,
-            OfficerWorkType = query.OfficerWorkType,
             ProjectOfficerCount = officers.Count
         };
     }
 
     private async Task<IReadOnlyList<CommandOfficerWorkloadVm>> BuildOfficerWorkloadAsync(
-        CommandWorkspaceQuery query,
+        string requestingUserId,
         IReadOnlyList<NormalizedProject> allProjects,
         IReadOnlyList<string> orderedStageCodes,
         CancellationToken ct)
@@ -114,25 +112,9 @@ public sealed class CommandWorkspaceService
         foreach (var user in users)
         {
             var officerProjects = allProjects.Where(p => string.Equals(p.LeadPoUserId, user.Id, StringComparison.Ordinal)).ToList();
-            if (!string.IsNullOrWhiteSpace(query.OfficerStageCode))
-                officerProjects = officerProjects.Where(p => string.Equals(p.StageCode, query.OfficerStageCode, StringComparison.OrdinalIgnoreCase)).ToList();
             var officerIdeas = ideas.Where(i => i.UserId == user.Id).ToList();
             var officerTasks = tasks.Where(t => t.UserId == user.Id).ToList();
-
-            if (!string.IsNullOrWhiteSpace(query.OfficerSearch))
-            {
-                var full = DisplayName(user);
-                if (!full.Contains(query.OfficerSearch.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
-            }
-
-            var include = query.OfficerWorkType switch
-            {
-                "projects" => officerProjects.Count > 0,
-                "ideas" => officerIdeas.Count > 0,
-                "tasks" => officerTasks.Count > 0,
-                _ => officerProjects.Count + officerIdeas.Count + officerTasks.Count > 0
-            };
-            if (!include) continue;
+            if (officerProjects.Count + officerIdeas.Count + officerTasks.Count == 0) continue;
 
             result.Add(new CommandOfficerWorkloadVm
             {
@@ -151,7 +133,48 @@ public sealed class CommandWorkspaceService
             });
         }
 
-        return result.OrderByDescending(x => x.ProjectCount + x.IdeaCount + x.OtherTaskCount).ThenBy(x => x.OfficerName).ToList();
+        var defaultOrder = result
+            .OrderBy(x => RankOrder(x.Rank))
+            .ThenBy(x => x.OfficerName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (string.IsNullOrWhiteSpace(requestingUserId)) return defaultOrder;
+        var orderJson = await _db.Users.AsNoTracking()
+            .Where(x => x.Id == requestingUserId)
+            .Select(x => x.ComdtOfficerWorkloadOrderJson)
+            .SingleOrDefaultAsync(ct);
+        if (string.IsNullOrWhiteSpace(orderJson)) return defaultOrder;
+
+        try
+        {
+            var savedOrder = JsonSerializer.Deserialize<List<string>>(orderJson) ?? new List<string>();
+            var positions = savedOrder
+                .Select((id, index) => new { id, index })
+                .Where(x => !string.IsNullOrWhiteSpace(x.id))
+                .GroupBy(x => x.id, StringComparer.Ordinal)
+                .ToDictionary(x => x.Key, x => x.First().index, StringComparer.Ordinal);
+            return defaultOrder
+                .OrderBy(x => positions.TryGetValue(x.UserId, out var position) ? position : int.MaxValue)
+                .ThenBy(x => RankOrder(x.Rank))
+                .ThenBy(x => x.OfficerName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (JsonException)
+        {
+            return defaultOrder;
+        }
+    }
+
+    private static int RankOrder(string? rank)
+    {
+        if (string.IsNullOrWhiteSpace(rank)) return int.MaxValue;
+        var value = rank.Trim().ToUpperInvariant();
+        if (value.Contains("LT COL") || value.Contains("LIEUTENANT COLONEL")) return 20;
+        if (value.Contains("COLONEL") || value == "COL") return 10;
+        if (value.Contains("MAJOR") || value == "MAJ") return 30;
+        if (value.Contains("CAPTAIN") || value == "CAPT") return 40;
+        if (value.Contains("LIEUTENANT") || value == "LT") return 50;
+        return 100;
     }
 
     private static IReadOnlyList<CommandStageColumnVm> BuildStageColumns(IReadOnlyList<NormalizedProject> projects, IReadOnlyList<string> orderedCodes, bool populatedOnly)
@@ -220,7 +243,5 @@ public sealed class CommandWorkspaceQuery
     public IReadOnlyList<int> ParentCategoryIds { get; init; } = Array.Empty<int>();
     public string? ProjectSearch { get; init; }
     public bool PopulatedStagesOnly { get; init; }
-    public string? OfficerSearch { get; init; }
-    public string? OfficerStageCode { get; init; }
-    public string OfficerWorkType { get; init; } = "all";
+    public string RequestingUserId { get; init; } = string.Empty;
 }

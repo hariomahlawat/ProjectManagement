@@ -33,6 +33,9 @@ namespace ProjectManagement.Models
 
         // SECTION: Personalisation
         public bool ShowCelebrationsInCalendar { get; set; } = true;
+
+        // SECTION: Workspace personalisation
+        public string? ComdtOfficerWorkloadOrderJson { get; set; }
     }
 }
 

@@ -175,6 +175,10 @@ namespace ProjectManagement.Data
                 .HasDbFunction(typeof(ApplicationDbContext).GetMethod(nameof(TsRankCd))!)
                 .HasName("ts_rank_cd");
 
+            builder.Entity<ApplicationUser>()
+                .Property(x => x.ComdtOfficerWorkloadOrderJson)
+                .HasMaxLength(8000);
+
             builder.Entity<ApplicationUser>().HasData(
                 new ApplicationUser
                 {

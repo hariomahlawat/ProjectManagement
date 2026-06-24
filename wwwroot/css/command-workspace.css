@@ -278,3 +278,179 @@
     .cw-chart-wrap { height:220px; padding-inline:4px; }
     .cw-filter-result,.cw-filter-status { justify-self:start; }
 }
+
+/* SECTION: Comdt/HoD workspace-local navigation rail */
+.command-workspace {
+    display:grid;
+    grid-template-columns:54px minmax(0,1fr);
+    align-items:start;
+    gap:8px;
+}
+.cw-workspace-content { min-width:0; }
+.cw-workspace-content > .cw-panel:first-child { margin-top:0; }
+.cw-local-rail {
+    position:sticky;
+    top:72px;
+    z-index:36;
+    width:54px;
+    min-height:148px;
+    padding:5px;
+    overflow:hidden;
+    background:#fff;
+    border:1px solid var(--cw-line);
+    border-radius:10px;
+    box-shadow:var(--cw-shadow);
+    transition:width .18s ease, box-shadow .18s ease;
+}
+.cw-local-rail:hover,
+.cw-local-rail:focus-within {
+    width:218px;
+    box-shadow:0 14px 34px rgba(25,45,85,.16);
+}
+.cw-local-rail__title,
+.cw-local-rail nav a {
+    position:relative;
+    display:flex;
+    align-items:center;
+    min-height:42px;
+    border-radius:7px;
+    color:#596980;
+    text-decoration:none;
+    white-space:nowrap;
+}
+.cw-local-rail__title { color:#8290a4; }
+.cw-local-rail__title i,
+.cw-local-rail nav a > i {
+    flex:0 0 42px;
+    width:42px;
+    text-align:center;
+    font-size:.92rem;
+}
+.cw-local-rail__title span,
+.cw-local-rail nav a > span {
+    max-width:0;
+    overflow:hidden;
+    opacity:0;
+    transform:translateX(-4px);
+    font-size:.77rem;
+    font-weight:800;
+    transition:max-width .18s ease, opacity .12s ease, transform .18s ease;
+}
+.cw-local-rail:hover .cw-local-rail__title span,
+.cw-local-rail:focus-within .cw-local-rail__title span,
+.cw-local-rail:hover nav a > span,
+.cw-local-rail:focus-within nav a > span {
+    max-width:140px;
+    opacity:1;
+    transform:none;
+}
+.cw-local-rail nav { display:grid; gap:2px; }
+.cw-local-rail nav a:hover { background:#f3f6fb; color:#304b73; }
+.cw-local-rail nav a.is-active { background:var(--cw-blue-soft); color:var(--cw-blue); }
+.cw-local-rail nav a b {
+    position:absolute;
+    right:7px;
+    min-width:19px;
+    height:19px;
+    display:grid;
+    place-items:center;
+    padding:0 5px;
+    border-radius:999px;
+    background:#edf2f8;
+    color:#59708f;
+    font-size:.61rem;
+    opacity:0;
+    transition:opacity .12s ease;
+}
+.cw-local-rail:hover nav a b,
+.cw-local-rail:focus-within nav a b { opacity:1; }
+.cw-local-rail__separator { height:1px; margin:4px 6px; background:#e5eaf1; }
+.cw-header-action {
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    min-height:30px;
+    padding:5px 8px;
+    border:1px solid #d4ddea;
+    border-radius:7px;
+    color:#304b73;
+    text-decoration:none;
+    font-size:.71rem;
+    font-weight:800;
+}
+.cw-header-action:hover { background:#f6f8fc; border-color:#b8c5d7; }
+
+/* SECTION: Officer cards remain fully readable and reorderable */
+.cw-officer-panel { margin-top:0; }
+.cw-officer-grid { position:relative; }
+.cw-officer-card { position:relative; }
+.cw-officer-card__header { padding-left:5px; }
+.cw-drag-handle {
+    flex:0 0 24px;
+    width:24px;
+    height:32px;
+    display:grid;
+    place-items:center;
+    border:0;
+    border-radius:6px;
+    background:transparent;
+    color:#91a0b3;
+    cursor:grab;
+    touch-action:none;
+}
+.cw-drag-handle:hover,
+.cw-drag-handle:focus-visible { background:rgba(73,105,168,.09); color:var(--officer-accent); outline:none; }
+.cw-drag-handle:active { cursor:grabbing; }
+.cw-work-section + .cw-work-section { border-top:1px solid #e6ebf2; }
+.cw-work-section__heading {
+    min-height:31px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:7px;
+    color:#4b607f;
+    font-size:.69rem;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:.035em;
+}
+.cw-work-section__heading > span { display:flex; align-items:center; gap:5px; }
+.cw-work-section__heading > b {
+    background:#edf2f9;
+    border-radius:999px;
+    padding:2px 6px;
+    font-size:.63rem;
+}
+.cw-work-section .cw-none { margin:0 0 5px; padding:2px 0 4px; }
+.cw-officer-card.is-sortable-chosen { box-shadow:0 14px 30px rgba(25,45,85,.16); }
+.cw-officer-card.is-sortable-drag { opacity:.96; transform:rotate(.35deg); }
+.cw-officer-card.is-sortable-ghost {
+    opacity:.3;
+    border:2px dashed #8fa8d8;
+    background:#eef4ff;
+}
+.cw-reset-order {
+    border:0;
+    background:transparent;
+    color:#5d6e86;
+    padding:5px 6px;
+    font-size:.68rem;
+    font-weight:800;
+}
+.cw-reset-order:hover { color:var(--cw-blue); text-decoration:underline; }
+.cw-order-feedback {
+    min-height:20px;
+    padding:0 10px 5px;
+    color:#62728a;
+    font-size:.68rem;
+    text-align:right;
+}
+.cw-order-feedback.is-error { color:#b4233b; }
+
+@media (max-width:720px) {
+    .command-workspace { grid-template-columns:46px minmax(0,1fr); gap:5px; }
+    .cw-local-rail { width:46px; padding:3px; top:66px; }
+    .cw-local-rail:hover,.cw-local-rail:focus-within { width:196px; }
+    .cw-local-rail__title i,.cw-local-rail nav a > i { flex-basis:38px; width:38px; }
+    .cw-header-action span { display:none; }
+}

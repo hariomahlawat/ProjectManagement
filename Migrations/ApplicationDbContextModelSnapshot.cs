@@ -3067,6 +3067,10 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<string>("ComdtOfficerWorkloadOrderJson")
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)");
+
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
 

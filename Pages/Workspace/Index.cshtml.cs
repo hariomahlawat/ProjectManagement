@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -26,9 +27,6 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public List<int> ParentCategoryIds { get; set; } = new();
     [BindProperty(SupportsGet = true)] public string? ProjectSearch { get; set; }
     [BindProperty(SupportsGet = true)] public bool PopulatedStagesOnly { get; set; }
-    [BindProperty(SupportsGet = true)] public string? OfficerSearch { get; set; }
-    [BindProperty(SupportsGet = true)] public string? OfficerStageCode { get; set; }
-    [BindProperty(SupportsGet = true)] public string OfficerWorkType { get; set; } = "all";
 
     public IndexModel(ProjectOfficerWorkspaceService projectOfficerWorkspaceService, CommandWorkspaceService commandWorkspaceService, UserManager<ApplicationUser> userManager)
     {
@@ -62,9 +60,7 @@ public class IndexModel : PageModel
                 ParentCategoryIds = ParentCategoryIds,
                 ProjectSearch = ProjectSearch,
                 PopulatedStagesOnly = PopulatedStagesOnly,
-                OfficerSearch = OfficerSearch,
-                OfficerStageCode = OfficerStageCode,
-                OfficerWorkType = OfficerWorkType
+                RequestingUserId = userId
             }, ct);
         }
         else
@@ -74,4 +70,39 @@ public class IndexModel : PageModel
 
         return Page();
     }
+    public async Task<IActionResult> OnPostSaveOfficerOrderAsync([FromBody] SaveOfficerOrderRequest request, CancellationToken ct)
+    {
+        if (!User.IsInRole(RoleNames.Comdt) && !User.IsInRole(RoleNames.HoD)) return Forbid();
+        if (request.OfficerUserIds is null || request.OfficerUserIds.Count > 250) return BadRequest();
+
+        var userId = _userManager.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+
+        var validOfficerIds = (await _userManager.GetUsersInRoleAsync(RoleNames.ProjectOfficer))
+            .Where(x => !x.IsDisabled && !x.PendingDeletion)
+            .Select(x => x.Id)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var normalized = request.OfficerUserIds
+            .Where(id => !string.IsNullOrWhiteSpace(id) && validOfficerIds.Contains(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        var currentUser = await _userManager.FindByIdAsync(userId);
+        if (currentUser is null) return Challenge();
+        currentUser.ComdtOfficerWorkloadOrderJson = JsonSerializer.Serialize(normalized);
+        var result = await _userManager.UpdateAsync(currentUser);
+        if (!result.Succeeded)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "The officer order could not be saved." });
+        }
+
+        return new JsonResult(new { saved = true });
+    }
+
+    public sealed class SaveOfficerOrderRequest
+    {
+        public List<string> OfficerUserIds { get; init; } = new();
+    }
+
 }
