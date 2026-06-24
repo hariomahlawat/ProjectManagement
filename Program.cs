@@ -434,6 +434,7 @@ builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaPe
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaDocumentService>();
 // SECTION: Project Officer workspace services
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectOfficerWorkspaceService>();
+builder.Services.AddScoped<ProjectManagement.Services.Workspace.CommandWorkspaceService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectRecordHealthService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.WorkspaceNudgeService>();
 builder.Services.AddScoped<ActionTaskPermissionService>();

@@ -1,0 +1,180 @@
+@using System.Text.Json
+@model ProjectManagement.Pages.Workspace.IndexModel
+@{
+    var vm = Model.CommandWorkspace;
+    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    var isPortfolio = vm.ActiveView == "portfolio";
+}
+
+<div class="command-workspace">
+    <header class="cw-hero">
+        <div class="cw-hero__copy">
+            <span class="cw-eyebrow">Command / HoD Workspace</span>
+            <h1>Portfolio oversight</h1>
+            <p>Review ongoing projects by current stage and examine the distribution of work across Project Officers.</p>
+        </div>
+        <div class="cw-hero__meta">
+            <span><i class="bi bi-arrow-clockwise"></i>Refreshed @vm.GeneratedAtUtc.ToLocalTime().ToString("HH:mm")</span>
+            <a href="/Projects/Ongoing" class="cw-button cw-button--secondary"><i class="bi bi-kanban"></i>Open ongoing projects</a>
+        </div>
+    </header>
+
+    <nav class="cw-view-tabs" aria-label="Command workspace views">
+        <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="portfolio" class="@(isPortfolio ? "is-active" : null)">
+            <i class="bi bi-diagram-3"></i><span>Portfolio by stage</span><b>@vm.TotalOngoingProjects</b>
+        </a>
+        <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="officers" class="@(!isPortfolio ? "is-active" : null)">
+            <i class="bi bi-people"></i><span>Officer workload</span><b>@vm.ProjectOfficerCount</b>
+        </a>
+    </nav>
+
+    @if (isPortfolio)
+    {
+        <section class="cw-toolbar-card" aria-label="Portfolio filters">
+            <form method="get" class="cw-filter-grid">
+                <input type="hidden" name="mode" value="command" />
+                <input type="hidden" name="view" value="portfolio" />
+                <label class="cw-field cw-field--search">
+                    <span>Project search</span>
+                    <div><i class="bi bi-search"></i><input type="search" name="ProjectSearch" value="@vm.ProjectSearch" placeholder="Search project name" /></div>
+                </label>
+                <div class="cw-field cw-field--categories">
+                    <span>Project categories</span>
+                    <button type="button" class="cw-multi-trigger" data-cw-filter-trigger aria-expanded="false">
+                        <span>@(vm.SelectedParentCategoryIds.Count == 0 ? "All categories" : $"{vm.SelectedParentCategoryIds.Count} selected")</span><i class="bi bi-chevron-down"></i>
+                    </button>
+                    <div class="cw-multi-popover" data-cw-filter-popover hidden>
+                        @foreach (var option in vm.ParentCategoryOptions)
+                        {
+                            <label><input type="checkbox" name="ParentCategoryIds" value="@option.Id" checked="@vm.SelectedParentCategoryIds.Contains(option.Id)" /> <span>@option.Name</span></label>
+                        }
+                    </div>
+                </div>
+                <label class="cw-check"><input type="checkbox" name="PopulatedStagesOnly" value="true" checked="@vm.PopulatedStagesOnly" /><span>Show populated stages only</span></label>
+                <button class="cw-button cw-button--primary" type="submit"><i class="bi bi-funnel"></i>Apply filters</button>
+                <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="portfolio" class="cw-button cw-button--ghost">Reset</a>
+            </form>
+        </section>
+
+        <section class="cw-panel cw-panel--chart">
+            <header class="cw-panel__header">
+                <div>
+                    <span class="cw-kicker">Ongoing portfolio</span>
+                    <h2>Projects by current stage</h2>
+                    <p>Stage-wise distribution with the same project-category breakdown used in Analytics.</p>
+                </div>
+                <button type="button" class="cw-icon-button" data-chart-download aria-label="Download chart" title="Download chart"><i class="bi bi-download"></i></button>
+            </header>
+            <div class="cw-chart-wrap">
+                <canvas id="command-stage-chart" role="img" aria-label="Ongoing projects by current stage" data-series='@Html.Raw(JsonSerializer.Serialize(vm.StageSeries, jsonOptions))'></canvas>
+            </div>
+        </section>
+
+        <section class="cw-panel cw-stage-board-panel">
+            <header class="cw-panel__header">
+                <div>
+                    <span class="cw-kicker">Stage-wise project register</span>
+                    <h2>Written stage distribution</h2>
+                    <p>Projects are grouped by stage and parent project category. The assigned Project Officer is shown against each project.</p>
+                </div>
+                <span class="cw-result-count">@vm.StageColumns.Sum(x => x.ProjectCount) projects shown</span>
+            </header>
+            @if (vm.StageColumns.Count == 0 || vm.StageColumns.All(x => x.ProjectCount == 0))
+            {
+                <div class="cw-empty"><i class="bi bi-inbox"></i><strong>No matching projects</strong><span>Change or reset the current filters.</span></div>
+            }
+            else
+            {
+                <div class="cw-stage-board" tabindex="0" aria-label="Horizontally scrollable stage-wise project list">
+                    @foreach (var stage in vm.StageColumns)
+                    {
+                        <article class="cw-stage-column @(stage.ProjectCount == 0 ? "is-empty" : null)">
+                            <header><span>@stage.StageCode</span><div><h3>@stage.StageName</h3><b>@stage.ProjectCount</b></div></header>
+                            <div class="cw-stage-column__body">
+                                @if (stage.ProjectCount == 0)
+                                {
+                                    <p class="cw-stage-empty">No projects</p>
+                                }
+                                else
+                                {
+                                    @foreach (var category in stage.Categories)
+                                    {
+                                        <section class="cw-stage-category">
+                                            <h4><span data-category="@category.CategoryName"></span>@category.CategoryName <b>@category.ProjectCount</b></h4>
+                                            <ol>
+                                                @foreach (var project in category.Projects)
+                                                {
+                                                    <li>
+                                                        <a href="@project.OpenUrl">@project.ProjectName</a>
+                                                        <span><i class="bi bi-person"></i>@project.OfficerName</span>
+                                                    </li>
+                                                }
+                                            </ol>
+                                        </section>
+                                    }
+                                }
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+    else
+    {
+        <section class="cw-toolbar-card" aria-label="Officer workload filters">
+            <form method="get" class="cw-filter-grid cw-filter-grid--officers">
+                <input type="hidden" name="mode" value="command" />
+                <input type="hidden" name="view" value="officers" />
+                <label class="cw-field cw-field--search"><span>Officer search</span><div><i class="bi bi-search"></i><input type="search" name="OfficerSearch" value="@vm.OfficerSearch" placeholder="Search officer" /></div></label>
+                <label class="cw-field"><span>Project stage</span><select name="OfficerStageCode"><option value="">All stages</option>@foreach (var stageCode in ProjectManagement.Models.Stages.StageCodes.All){<option value="@stageCode" selected="@(string.Equals(vm.OfficerStageCode, stageCode, StringComparison.OrdinalIgnoreCase))">@ProjectManagement.Models.Stages.StageCodes.DisplayNameOf(stageCode)</option>}<option value="UNASSIGNED" selected="@(string.Equals(vm.OfficerStageCode, "UNASSIGNED", StringComparison.OrdinalIgnoreCase))">Unassigned</option></select></label>
+                <label class="cw-field"><span>Work type</span><select name="OfficerWorkType"><option value="all" selected="@(vm.OfficerWorkType == "all")">All work</option><option value="projects" selected="@(vm.OfficerWorkType == "projects")">Projects</option><option value="ideas" selected="@(vm.OfficerWorkType == "ideas")">Ideas</option><option value="tasks" selected="@(vm.OfficerWorkType == "tasks")">Other tasks</option></select></label>
+                <button class="cw-button cw-button--primary" type="submit"><i class="bi bi-funnel"></i>Apply filters</button>
+                <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="officers" class="cw-button cw-button--ghost">Reset</a>
+            </form>
+        </section>
+
+        <section class="cw-officer-intro">
+            <div><span class="cw-kicker">Project Officer-wise workload</span><h2>Assignments across projects, ideas and other tasks</h2><p>Each column gives a factual view of the work presently assigned to an officer.</p></div>
+            <span class="cw-result-count">@vm.Officers.Count officers shown</span>
+        </section>
+
+        @if (vm.Officers.Count == 0)
+        {
+            <div class="cw-panel cw-empty"><i class="bi bi-people"></i><strong>No matching officers</strong><span>Change or reset the current filters.</span></div>
+        }
+        else
+        {
+            <div class="cw-officer-board" tabindex="0" aria-label="Horizontally scrollable officer workload board">
+                @foreach (var officer in vm.Officers)
+                {
+                    <article class="cw-officer-card">
+                        <header class="cw-officer-card__header">
+                            <span class="cw-avatar">@((officer.OfficerName.FirstOrDefault()).ToString().ToUpperInvariant())</span>
+                            <div><span class="cw-kicker">Project Officer</span><h3>@(string.IsNullOrWhiteSpace(officer.Rank) ? officer.OfficerName : $"{officer.Rank} {officer.OfficerName}")</h3></div>
+                        </header>
+                        <div class="cw-officer-stats">
+                            <div><strong>@officer.ProjectCount</strong><span>Projects</span></div>
+                            <div><strong>@officer.IdeaCount</strong><span>Ideas</span></div>
+                            <div><strong>@officer.OtherTaskCount</strong><span>Other tasks</span></div>
+                        </div>
+                        <div class="cw-work-sections">
+                            <section>
+                                <h4><i class="bi bi-kanban"></i>Projects <b>@officer.ProjectCount</b></h4>
+                                @if (officer.Projects.Count == 0){<p class="cw-none">No assigned projects</p>}else{<ul>@foreach(var project in officer.Projects){<li><a href="@project.OpenUrl">@project.Name</a><span>@project.StageCode · @project.StageName</span></li>}</ul>}
+                            </section>
+                            <section>
+                                <h4><i class="bi bi-lightbulb"></i>Ideas <b>@officer.IdeaCount</b></h4>
+                                @if (officer.Ideas.Count == 0){<p class="cw-none">No assigned ideas</p>}else{<ul>@foreach(var idea in officer.Ideas){<li><a href="@idea.OpenUrl">@idea.Title</a><span>@idea.Status</span></li>}</ul>}
+                            </section>
+                            <section>
+                                <h4><i class="bi bi-list-check"></i>Other tasks <b>@officer.OtherTaskCount</b></h4>
+                                @if (officer.OtherTasks.Count == 0){<p class="cw-none">No other assigned tasks</p>}else{<ul>@foreach(var task in officer.OtherTasks){<li><a href="@task.OpenUrl">@task.Title</a><span>@task.Status · Due @task.DueDate.ToString("dd MMM")</span></li>}</ul>}
+                            </section>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    }
+</div>
