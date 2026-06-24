@@ -1,36 +1,28 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Sprint closure review and explicit disposition workflow. *@
 @if (Model.SelectedSprint is not null && Model.CanReviewSprintClosure)
 {
     var review = Model.SprintClosureReview;
     <section id="sprint-closure-review" class="at-panel at-closure-review" data-at-closure-review="true">
         <div class="at-panel-heading">
             <div>
-                <h2>Sprint Closure Review</h2>
-                <p class="at-panel-note">Review unfinished work before closing the sprint.</p>
+                <h2>Review sprint closure</h2>
+                <p class="at-panel-note">Choose what happens to each unfinished task.</p>
             </div>
             <span class="at-count-chip">@review.UnfinishedTasks.Count unfinished</span>
         </div>
 
-        <div class="at-closure-metrics" aria-label="Sprint closure review summary">
+        <div class="at-closure-metrics" aria-label="Sprint closure summary">
             <div><span>@review.CompletedTasks.Count</span><small>Completed</small></div>
             <div><span>@review.UnfinishedTasks.Count</span><small>Unfinished</small></div>
             <div><span>@review.BlockedTasks.Count</span><small>Blocked</small></div>
-            <div><span>@review.SubmittedPendingClosureTasks.Count</span><small>Submitted pending closure</small></div>
-        </div>
-
-        <div class="at-closure-recommendations">
-            <strong>Closure guidance:</strong>
-            <span>Choose one disposition for each unfinished task. Return to Backlog removes the responsible person.</span>
+            <div><span>@review.SubmittedPendingClosureTasks.Count</span><small>Awaiting closure</small></div>
         </div>
 
         @if (review.UnfinishedTasks.Any() && Model.ShouldShowCreateNextSprint)
         {
-            @* SECTION: Closure-context next Sprint creation when no later carry-forward target exists. *@
             <details class="at-next-sprint-panel" open="@Model.ShowCreateNextSprintPanel">
-                <summary class="btn btn-outline-primary btn-sm">Next Sprint</summary>
-                <div class="at-panel-note">Create a planned sprint after this one; it will then appear as a carry-forward target.</div>
+                <summary class="btn btn-outline-primary btn-sm">Create next sprint</summary>
                 <form method="post" asp-page-handler="CreateNextSprint" class="at-sprint-command-form">
                     <input type="hidden" name="ViewMode" value="Sprints" />
                     <input type="hidden" asp-for="NextSprintInput.SourceSprintId" value="@Model.SelectedSprint.Id" />
@@ -43,82 +35,83 @@
                     <input class="form-control" asp-for="NextSprintInput.EndDate" type="date" />
                     <label class="form-label" asp-for="NextSprintInput.Goal"></label>
                     <textarea class="form-control" asp-for="NextSprintInput.Goal" rows="2" maxlength="2000"></textarea>
-                    <button type="submit" class="btn btn-primary btn-sm">Create Next Sprint</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Create next sprint</button>
                 </form>
             </details>
         }
 
-        <form method="post" asp-page-handler="CloseSprintWithDisposition" class="at-closure-form">
+        <form method="post" asp-page-handler="CloseSprintWithDisposition" class="at-closure-form" data-at-closure-form="true">
             <input type="hidden" asp-for="ClosureInput.SprintId" value="@Model.SelectedSprint.Id" />
             <input type="hidden" asp-for="ClosureInput.RowVersion" value="@Convert.ToBase64String(Model.SelectedSprint.RowVersion)" />
 
             @if (review.UnfinishedTasks.Any())
             {
                 <div class="at-closure-target-row">
-                    <label class="form-label" asp-for="ClosureInput.TargetSprintId">Carry Forward Sprint</label>
-                    <select class="form-select" asp-for="ClosureInput.TargetSprintId">
-                        <option value="">Select next sprint when carrying tasks forward</option>
+                    <label class="form-label" asp-for="ClosureInput.TargetSprintId">Carry unfinished work to</label>
+                    <select class="form-select" asp-for="ClosureInput.TargetSprintId" data-at-closure-target="true">
+                        <option value="">Select a sprint when using Carry forward</option>
                         @foreach (var sprint in Model.ClosureTargetSprints)
                         {
-                            <option value="@sprint.Id">@Model.DisplaySprintName(sprint) (@sprint.Status) · @sprint.StartDate.ToString("dd MMM") – @sprint.EndDate.ToString("dd MMM yyyy")</option>
+                            <option value="@sprint.Id">@sprint.StartDate.ToString("dd")–@sprint.EndDate.ToString("dd MMM yyyy") · @sprint.Status</option>
                         }
                     </select>
                 </div>
 
+                <div class="at-disposition-legend" aria-label="Disposition guidance">
+                    <span><strong>Carry forward</strong> Move to the selected next sprint and keep the assignee.</span>
+                    <span><strong>Keep assigned</strong> Remove from this sprint but keep the assignee and due date.</span>
+                    <span><strong>Backlog</strong> Remove the sprint and assignee for replanning.</span>
+                </div>
 
-                <div class="at-closure-task-table" role="table" aria-label="Unfinished Sprint tasks requiring disposition">
+                <div class="at-closure-task-table" role="table" aria-label="Unfinished tasks requiring a decision">
                     <div class="at-closure-task-row at-closure-task-head" role="row">
                         <span>Task</span>
                         <span>Status</span>
-                        <span>Carry Forward</span>
-                        <span>Keep Outside Sprint</span>
-                        <span>Return to Backlog</span>
+                        <span>Decision</span>
                     </div>
                     @foreach (var task in review.UnfinishedTasks)
                     {
                         var mustReturnInvalidTaskToBacklog = Model.MustReturnInvalidTaskToBacklogDuringClosure(task);
                         <div class="at-closure-task-row" role="row">
                             <span>
-                                <strong>AT-@task.Id</strong> @task.Title
+                                <strong>AT-@task.Id · @task.Title</strong>
                                 <small>Due @task.DueDate.ToString("dd MMM yyyy")</small>
                                 @if (Model.IsInvalidTaskState(task))
                                 {
-                                    <small class="at-empty-inline">Invalid sprint assignment. Return to Backlog or correct the responsible person before closure.</small>
+                                    <small class="at-closure-warning">This task must return to backlog unless its assignee is corrected.</small>
                                 }
                             </span>
                             <span>
-                                <span class="@Model.GetStatusBadgeClass(task.Status)">@task.Status</span>
-                                @if (Model.IsInvalidTaskState(task))
+                                <span class="@Model.GetStatusBadgeClass(task.Status)">@(task.Status == ProjectManagement.Models.ActionTaskStatuses.Submitted ? "Awaiting Closure" : task.Status)</span>
+                            </span>
+                            <span>
+                                <select class="form-select form-select-sm at-disposition-select" name="ClosureInput.Dispositions[@task.Id]" data-at-closure-disposition="true" required disabled="@mustReturnInvalidTaskToBacklog">
+                                    <option value="">Choose action</option>
+                                    <option value="carry">Carry forward</option>
+                                    <option value="outside">Keep assigned</option>
+                                    <option value="backlog">Return to backlog</option>
+                                </select>
+                                @if (mustReturnInvalidTaskToBacklog)
                                 {
-                                    <span class="@Model.GetSprintBadgeClass(task)">@Model.GetSprintBadgeText(task)</span>
+                                    <input type="hidden" name="ClosureInput.Dispositions[@task.Id]" value="backlog" />
+                                    <span class="at-fixed-decision">Return to backlog</span>
                                 }
                             </span>
-                            <label class="at-closure-choice">
-                                <input type="radio" name="ClosureInput.Dispositions[@task.Id]" value="carry" data-at-closure-choice="carry" required disabled="@mustReturnInvalidTaskToBacklog" />
-                                <span>Carry Forward</span>
-                            </label>
-                            <label class="at-closure-choice">
-                                <input type="radio" name="ClosureInput.Dispositions[@task.Id]" value="outside" data-at-closure-choice="outside" required disabled="@mustReturnInvalidTaskToBacklog" />
-                                <span>Keep Outside Sprint</span>
-                            </label>
-                            <label class="at-closure-choice">
-                                <input type="radio" name="ClosureInput.Dispositions[@task.Id]" value="backlog" data-at-closure-choice="backlog" required checked="@mustReturnInvalidTaskToBacklog" />
-                                <span>Return to Backlog</span>
-                            </label>
                         </div>
                     }
                 </div>
             }
             else
             {
-                <div class="at-empty-state at-empty-state-compact">All tasks in this sprint are completed. Add closure remarks and close the sprint.</div>
+                <div class="at-empty-state at-empty-state-compact">All tasks are complete. Add closure remarks and close the sprint.</div>
             }
 
             <label class="form-label" asp-for="ClosureInput.Remarks">Closure remarks</label>
-            <textarea class="form-control" asp-for="ClosureInput.Remarks" rows="3" maxlength="2000" required placeholder="Summarise command decision and disposition rationale."></textarea>
+            <textarea class="form-control" asp-for="ClosureInput.Remarks" rows="3" maxlength="2000" required data-at-closure-remarks="true" placeholder="Record the closure decision and any follow-up required."></textarea>
 
+            <div class="at-closure-summary" data-at-closure-summary="true" aria-live="polite"></div>
             <div class="at-closure-actions">
-                <button type="submit" class="btn btn-danger">Close Sprint with Review</button>
+                <button type="submit" class="btn btn-danger" data-at-closure-submit="true" disabled>Close sprint</button>
             </div>
         </form>
     </section>
@@ -127,9 +120,9 @@ else if (Model.SelectedSprint?.Status == ProjectManagement.Models.ActionSprintSt
 {
     <section class="at-panel at-closure-review is-readonly">
         <div class="at-panel-heading">
-            <h2>Sprint Closure Review</h2>
+            <h2>Sprint closure</h2>
             <span class="at-sprint-status-pill">Closed</span>
         </div>
-        <p class="at-empty-inline">This sprint is closed and remains read-only in the normal workflow.</p>
+        <p class="at-empty-inline">This sprint is closed and read-only.</p>
     </section>
 }

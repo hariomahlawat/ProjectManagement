@@ -234,30 +234,75 @@
         });
     }
 
-    // SECTION: Keep closure disposition choices mutually exclusive per task.
+    // SECTION: Sprint closure remains unavailable until every task has a decision and remarks are recorded.
     function initSprintClosureReview() {
         const review = document.querySelector("[data-at-closure-review='true']");
         if (!review) {
             return;
         }
 
-        review.addEventListener("change", (event) => {
-            const input = event.target;
-            if (!input || input.getAttribute("data-at-closure-choice") === null || !input.checked) {
+        const form = review.querySelector("[data-at-closure-form='true']");
+        if (!form) {
+            return;
+        }
+
+        const dispositions = Array.from(form.querySelectorAll("[data-at-closure-disposition='true']"));
+        const target = form.querySelector("[data-at-closure-target='true']");
+        const remarks = form.querySelector("[data-at-closure-remarks='true']");
+        const submit = form.querySelector("[data-at-closure-submit='true']");
+        const summary = form.querySelector("[data-at-closure-summary='true']");
+
+        function syncClosureState() {
+            const activeDispositions = dispositions.filter((select) => !select.disabled);
+            const allChosen = activeDispositions.every((select) => select.value);
+            const carryCount = activeDispositions.filter((select) => select.value === "carry").length;
+            const assignedCount = activeDispositions.filter((select) => select.value === "outside").length;
+            const backlogCount = activeDispositions.filter((select) => select.value === "backlog").length
+                + form.querySelectorAll("input[type='hidden'][name^='ClosureInput.Dispositions'][value='backlog']").length;
+            const targetReady = carryCount === 0 || (target && target.value);
+            const remarksReady = remarks && remarks.value.trim().length > 0;
+            const ready = allChosen && targetReady && remarksReady;
+
+            if (submit) {
+                submit.disabled = !ready;
+            }
+
+            if (!summary) {
                 return;
             }
 
-            const row = input.closest(".at-closure-task-row");
-            if (!row) {
+            summary.classList.remove("is-warning", "is-ready");
+            if (!allChosen) {
+                summary.textContent = "Choose an action for every unfinished task.";
+                summary.classList.add("is-warning");
+                return;
+            }
+            if (!targetReady) {
+                summary.textContent = "Select the sprint that will receive carried-forward work.";
+                summary.classList.add("is-warning");
+                return;
+            }
+            if (!remarksReady) {
+                summary.textContent = "Add closure remarks to record the decision.";
+                summary.classList.add("is-warning");
                 return;
             }
 
-            row.querySelectorAll("input[data-at-closure-choice]").forEach((candidate) => {
-                if (candidate !== input) {
-                    candidate.checked = false;
-                }
-            });
-        });
+            const parts = [];
+            if (carryCount) parts.push(`${carryCount} carried forward`);
+            if (assignedCount) parts.push(`${assignedCount} kept assigned`);
+            if (backlogCount) parts.push(`${backlogCount} returned to backlog`);
+            summary.textContent = parts.length ? `Ready to close: ${parts.join(" · ")}.` : "Ready to close the sprint.";
+            summary.classList.add("is-ready");
+        }
+
+        dispositions.forEach((select) => select.addEventListener("change", syncClosureState));
+        if (target) target.addEventListener("change", syncClosureState);
+        if (remarks) {
+            remarks.addEventListener("input", syncClosureState);
+            remarks.addEventListener("change", syncClosureState);
+        }
+        syncClosureState();
     }
 
     // SECTION: Create modal segmented-control flow keeps one server-rendered form active at a time.

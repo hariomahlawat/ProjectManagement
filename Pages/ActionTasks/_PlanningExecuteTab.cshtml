@@ -1,7 +1,6 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 @using ProjectManagement.Models
 @{
-    // SECTION: Execute tab is the official sprint status board for active workflow states.
     var activeStatuses = new[]
     {
         ActionTaskStatuses.Assigned,
@@ -10,40 +9,38 @@
         ActionTaskStatuses.Submitted
     };
     var closedTasks = Model.GetSprintTasksByStatus(ActionTaskStatuses.Closed);
-    var attentionCount = Model.SprintAttentionOverdueTaskDisplays.Count + Model.SprintAttentionBlockedTaskDisplays.Count + Model.SprintAttentionSubmittedTaskDisplays.Count;
-    var hasExecutionAttention = attentionCount > 0;
 }
 
-@* SECTION: Execute tab opens directly into the selected sprint status board. *@
-<section class="at-planning-tab-panel at-sprint-execution-main at-planning-execute-panel" aria-label="Sprint Board Execute tab">
+<section class="at-planning-tab-panel at-sprint-execution-main at-planning-execute-panel" aria-label="Sprint board">
     @if (Model.SelectedSprint is null)
     {
-        <div class="at-panel at-empty-state at-empty-state-compact">Select or create a sprint in Plan before using Execute.</div>
+        <div class="at-panel at-empty-state at-empty-state-compact">Select or create a sprint in Plan sprint.</div>
     }
     else
     {
-        @* SECTION: Primary Sprint Board keeps active execution states visible without horizontal scrolling. *@
-        <section class="at-sprint-board-stack at-execute-status-board" aria-label="Selected Sprint Board task board">
-            <header class="at-panel at-execute-board-header" aria-label="Sprint Board header">
+        <section class="at-sprint-board-stack at-execute-status-board" aria-label="Current sprint board">
+            <header class="at-panel at-execute-board-header">
                 <div class="at-execute-board-title">
                     <h2>Current sprint</h2>
-                    <p class="at-panel-note">Open a task to update its status or add progress.</p>
+                    <p class="at-panel-note">Track work in the current sprint.</p>
                 </div>
-                <div class="at-execute-board-summary" aria-label="Selected sprint closed task count">
-                    <span>Closed</span>
-                    <strong>@closedTasks.Count</strong>
+                <div class="at-execute-board-summary" aria-label="Sprint completion summary">
+                    <strong>@Model.SprintSummary.OpenCount</strong><span>open</span>
+                    <span aria-hidden="true">·</span>
+                    <strong>@closedTasks.Count</strong><span>closed</span>
                 </div>
             </header>
-            <div class="at-execute-status-grid" aria-label="Sprint Board active status columns">
+            <div class="at-execute-status-grid" aria-label="Sprint task status columns">
                 @foreach (var status in activeStatuses)
                 {
                     var groupedTasks = Model.GetSprintTasksByStatus(status);
                     var statusSectionClass = status.ToLowerInvariant().Replace(" ", "-");
+                    var displayStatus = string.Equals(status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase) ? "Awaiting Closure" : status;
                     <article class="at-panel at-board-column at-sprint-board-column at-execute-status-section at-execute-status-@statusSectionClass @(groupedTasks.Any() ? string.Empty : "is-empty")">
-                        <div class="at-panel-heading"><h2>@status</h2><span class="at-count-chip">@groupedTasks.Count</span></div>
+                        <div class="at-panel-heading"><h2>@displayStatus</h2><span class="at-count-chip">@groupedTasks.Count</span></div>
                         @if (!groupedTasks.Any())
                         {
-                            <p class="at-empty-inline">No @status.ToLowerInvariant() tasks.</p>
+                            <p class="at-empty-inline">No tasks.</p>
                         }
                         else
                         {
@@ -59,54 +56,14 @@
             </div>
         </section>
 
-        @* SECTION: Closed tasks are secondary and collapsed so active work remains the visual priority. *@
         @if (closedTasks.Any())
         {
             <details class="at-panel at-secondary-panel at-execute-closed-section">
-                <summary>Closed Tasks <span class="at-count-chip">@closedTasks.Count</span></summary>
+                <summary>Closed tasks <span class="at-count-chip">@closedTasks.Count</span></summary>
                 <div class="at-task-cards mt-3">
                     @foreach (var item in closedTasks)
                     {
                         <partial name="_PlanningTaskCard" model='@Tuple.Create(Model, item, "Execute", false)' />
-                    }
-                </div>
-            </details>
-        }
-
-        @* SECTION: Attention renders only when there is something to review beyond the status grid counts. *@
-        @if (hasExecutionAttention)
-        {
-            <details class="at-panel at-sprint-attention-lane at-execute-attention">
-                <summary>
-                    <span>Execution Attention</span>
-                    <span class="at-execute-attention-summary" aria-label="Execution attention counts">
-                        <span>Overdue <strong>@Model.SprintAttentionOverdueTaskDisplays.Count</strong></span>
-                        <span>Blocked <strong>@Model.SprintAttentionBlockedTaskDisplays.Count</strong></span>
-                        <span>Awaiting Closure <strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></span>
-                    </span>
-                    <span class="at-count-chip">@attentionCount</span>
-                </summary>
-                <div class="at-attention-grid">
-                    @if (Model.SprintAttentionOverdueTaskDisplays.Any())
-                    {
-                        <div class="at-attention-group">
-                            <div class="at-attention-heading"><span>Overdue</span><strong>@Model.SprintAttentionOverdueTaskDisplays.Count</strong></div>
-                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionOverdueTaskDisplays, "No overdue planning tasks.")' />
-                        </div>
-                    }
-                    @if (Model.SprintAttentionBlockedTaskDisplays.Any())
-                    {
-                        <div class="at-attention-group">
-                            <div class="at-attention-heading"><span>Blocked</span><strong>@Model.SprintAttentionBlockedTaskDisplays.Count</strong></div>
-                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionBlockedTaskDisplays, "No blocked planning tasks.")' />
-                        </div>
-                    }
-                    @if (Model.SprintAttentionSubmittedTaskDisplays.Any())
-                    {
-                        <div class="at-attention-group">
-                            <div class="at-attention-heading"><span>Awaiting Closure</span><strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></div>
-                            <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionSubmittedTaskDisplays, "No submitted planning tasks.")' />
-                        </div>
                     }
                 </div>
             </details>

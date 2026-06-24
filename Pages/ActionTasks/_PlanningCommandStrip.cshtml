@@ -1,10 +1,8 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Compact selected sprint command strip keeps existing sprint handlers intact. *@
 <section class="at-panel at-sprint-command-strip at-planning-command-strip">
     @if (Model.SelectedSprint is null)
     {
-        @* SECTION: Empty command line points users back to the Plan tab where sprint creation lives. *@
         <div class="at-sprint-empty-command at-planning-empty-command">
             <div class="at-empty-state at-empty-state-compact">
                 @if (!Model.Sprints.Any())
@@ -22,25 +20,25 @@
     }
     else
     {
-        @* SECTION: Single-line command summary reduces visual load while retaining counts and actions. *@
         <div class="at-planning-command-main">
             <div class="at-planning-command-title">
                 <span class="at-section-eyebrow">Sprint</span>
-                <h2>@Model.DisplaySprintName(Model.SelectedSprint)</h2>
+                <h2>@Model.SelectedSprint.StartDate.ToString("dd")–@Model.SelectedSprint.EndDate.ToString("dd MMM yyyy")</h2>
                 <span class="at-sprint-status-pill">@Model.SelectedSprint.Status</span>
-                <span class="at-sprint-date-range">@Model.SelectedSprint.StartDate.ToString("dd MMM yyyy") – @Model.SelectedSprint.EndDate.ToString("dd MMM yyyy")</span>
             </div>
             <p class="at-planning-command-summary" aria-label="Sprint summary">
-                @Model.SprintSummary.OpenCount open · @Model.SelectedSprintOverdueCount overdue · @Model.SprintSummary.BlockedCount blocked · @Model.SprintAttentionSubmittedTaskDisplays.Count awaiting closure
+                @Model.SprintSummary.OpenCount open · @Model.SprintSummary.ClosedCount closed · @Model.SelectedSprintOverdueCount overdue · @Model.SprintSummary.BlockedCount blocked · @Model.SprintAttentionSubmittedTaskDisplays.Count awaiting closure
             </p>
-            <div class="at-command-focus-strip at-sprint-command-focus at-planning-command-focus">
-                <strong>Focus:</strong> @(string.IsNullOrWhiteSpace(Model.SelectedSprint.Goal) ? "No command focus recorded." : Model.SelectedSprint.Goal)
-            </div>
+            @if (!string.IsNullOrWhiteSpace(Model.SelectedSprint.Goal))
+            {
+                <div class="at-command-focus-strip at-sprint-command-focus at-planning-command-focus">
+                    <strong>Focus:</strong> @Model.SelectedSprint.Goal
+                </div>
+            }
         </div>
 
         @if (Model.CanEditSelectedSprint || Model.CanActivateSelectedSprint || (Model.CanReviewSprintClosure && Model.SprintClosureReview.UnfinishedTasks.Any()))
         {
-            @* SECTION: Lifecycle and edit actions continue to post to existing handlers. *@
             <div class="at-sprint-action-row at-sprint-action-row-strip at-planning-command-actions">
                 @if (Model.CanEditSelectedSprint)
                 {

@@ -1,20 +1,47 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
+@using ProjectManagement.Models
+@{
+    var attention = new List<(ProjectManagement.Pages.ActionTasks.IndexModel.TaskDisplayItem Item, string Label, string Tone, int Rank)>();
+    var seen = new HashSet<int>();
 
-<section class="at-overview-strip" aria-label="Task summary">
-    <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-TaskScope="Open" class="at-overview-metric @(Model.OverdueCount > 0 ? "is-danger" : string.Empty)">
-        <span>Overdue</span><strong>@Model.OverdueCount</strong>
-    </a>
-    <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-TaskScope="Open" asp-route-FilterStatus="Blocked" class="at-overview-metric @(Model.BlockedCount > 0 ? "is-warning" : string.Empty)">
-        <span>Blocked</span><strong>@Model.BlockedCount</strong>
-    </a>
-    <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-TaskScope="Open" asp-route-FilterStatus="Submitted" class="at-overview-metric @(Model.SubmittedPendingClosureCount > 0 ? "is-info" : string.Empty)">
-        <span>Awaiting closure</span><strong>@Model.SubmittedPendingClosureCount</strong>
-    </a>
-    <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-TaskScope="Open" asp-route-FilterPriority="Critical" class="at-overview-metric">
-        <span>Critical</span><strong>@Model.CriticalOpenCount</strong>
-    </a>
-    <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-TaskScope="Open" class="at-overview-metric">
-        <span>Open</span><strong>@Model.OpenTaskCount</strong>
+    void AddItems(IEnumerable<ProjectManagement.Pages.ActionTasks.IndexModel.TaskDisplayItem> items, string label, string tone, int rank)
+    {
+        foreach (var item in items)
+        {
+            if (seen.Add(item.Task.Id))
+            {
+                attention.Add((item, label, tone, rank));
+            }
+        }
+    }
+
+    AddItems(Model.CommandBlockedTaskDisplays.Where(x => string.Equals(x.Task.Priority, "Critical", StringComparison.OrdinalIgnoreCase)), "Blocked · Critical", "danger", 0);
+    AddItems(Model.CommandBlockedTaskDisplays, "Blocked", "warning", 1);
+    AddItems(Model.CommandPendingClosureTaskDisplays, "Awaiting closure", "info", 2);
+    AddItems(Model.CommandOverdueTaskDisplays.OrderBy(x => x.Task.DueDate), "Overdue", "danger", 3);
+    AddItems(Model.CommandCriticalOpenTaskDisplays, "Critical", "neutral", 4);
+    var orderedAttention = attention.OrderBy(x => x.Rank).ThenBy(x => x.Item.Task.DueDate).ToList();
+    var recentCount = Model.RecentlySubmittedTaskDisplays.Count + Model.RecentlyUpdatedTaskDisplays.Count;
+}
+
+<section class="at-overview-headline" aria-label="Task summary">
+    <div class="at-overview-strip">
+        <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-TaskScope="Open" class="at-overview-metric @(Model.OverdueCount > 0 ? "is-danger" : string.Empty)">
+            <span>Overdue</span><strong>@Model.OverdueCount</strong>
+        </a>
+        <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-TaskScope="Open" asp-route-FilterStatus="Blocked" class="at-overview-metric @(Model.BlockedCount > 0 ? "is-warning" : string.Empty)">
+            <span>Blocked</span><strong>@Model.BlockedCount</strong>
+        </a>
+        <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-TaskScope="Open" asp-route-FilterStatus="Submitted" class="at-overview-metric @(Model.SubmittedPendingClosureCount > 0 ? "is-info" : string.Empty)">
+            <span>Awaiting closure</span><strong>@Model.SubmittedPendingClosureCount</strong>
+        </a>
+        <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-TaskScope="Open" asp-route-FilterPriority="Critical" class="at-overview-metric">
+            <span>Critical</span><strong>@Model.CriticalOpenCount</strong>
+        </a>
+    </div>
+    <a asp-page="/ActionTasks/Index" asp-route-viewMode="Register" asp-route-TaskScope="Open" class="at-open-total-link">
+        <strong>@Model.OpenTaskCount</strong> open tasks
+        <i class="bi bi-arrow-right" aria-hidden="true"></i>
     </a>
 </section>
 
@@ -22,16 +49,16 @@
 {
     <section class="at-panel at-sprint-glance" aria-label="Active sprint">
         <div class="at-sprint-glance-main">
-            <div>
+            <div class="at-sprint-glance-title">
                 <span class="at-label">Active sprint</span>
-                <h2>@Model.DisplaySprintName(Model.ActiveSprint)</h2>
-                <p>@Model.ActiveSprintMetrics.ActiveSprintDateRange</p>
+                <h2>@Model.ActiveSprint.StartDate.ToString("dd")–@Model.ActiveSprint.EndDate.ToString("dd MMM yyyy")</h2>
+                <span class="at-sprint-status-pill">Active</span>
             </div>
             <div class="at-sprint-glance-counts" aria-label="Active sprint summary">
                 <span><strong>@Model.ActiveSprintMetrics.TotalTasks</strong> tasks</span>
                 <span><strong>@Model.ActiveSprintMetrics.InProgressTasks</strong> in progress</span>
-                <span><strong>@Model.ActiveSprintMetrics.OverdueTasks</strong> overdue</span>
-                <span><strong>@Model.ActiveSprintMetrics.BlockedTasks</strong> blocked</span>
+                <span class="@(Model.ActiveSprintMetrics.OverdueTasks > 0 ? "is-danger" : string.Empty)"><strong>@Model.ActiveSprintMetrics.OverdueTasks</strong> overdue</span>
+                <span class="@(Model.ActiveSprintMetrics.BlockedTasks > 0 ? "is-warning" : string.Empty)"><strong>@Model.ActiveSprintMetrics.BlockedTasks</strong> blocked</span>
             </div>
         </div>
         <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Execute" asp-route-SelectedSprintId="@Model.ActiveSprint.Id" class="btn btn-outline-primary btn-sm">Open board</a>
@@ -48,10 +75,10 @@ else if (Model.CanPlanSprints)
 <section class="at-panel at-attention-feed" aria-label="Needs attention">
     <div class="at-simple-section-heading">
         <h2>Needs attention</h2>
-        <span>@(Model.CommandPendingClosureTaskDisplays.Count + Model.CommandBlockedTaskDisplays.Count + Model.CommandOverdueTaskDisplays.Count + Model.CommandCriticalOpenTaskDisplays.Count)</span>
+        <span>@orderedAttention.Count</span>
     </div>
 
-    @if (!Model.HasCommandAttentionItems)
+    @if (!orderedAttention.Any())
     {
         <div class="at-empty-state at-empty-state-calm">
             <i class="bi bi-check2-circle" aria-hidden="true"></i>
@@ -60,34 +87,17 @@ else if (Model.CanPlanSprints)
     }
     else
     {
-        <div class="at-attention-feed-body">
-            @if (Model.CommandPendingClosureTaskDisplays.Any())
+        <div class="at-unified-attention-list">
+            @foreach (var entry in orderedAttention)
             {
-                <section class="at-attention-feed-group is-info">
-                    <header><span>Awaiting closure</span><strong>@Model.CommandPendingClosureTaskDisplays.Count</strong></header>
-                    <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.CommandPendingClosureTaskDisplays, string.Empty)' />
-                </section>
-            }
-            @if (Model.CommandBlockedTaskDisplays.Any())
-            {
-                <section class="at-attention-feed-group is-warning">
-                    <header><span>Blocked</span><strong>@Model.CommandBlockedTaskDisplays.Count</strong></header>
-                    <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.CommandBlockedTaskDisplays, string.Empty)' />
-                </section>
-            }
-            @if (Model.CommandOverdueTaskDisplays.Any())
-            {
-                <section class="at-attention-feed-group is-danger">
-                    <header><span>Overdue</span><strong>@Model.CommandOverdueTaskDisplays.Count</strong></header>
-                    <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.CommandOverdueTaskDisplays, string.Empty)' />
-                </section>
-            }
-            @if (Model.CommandCriticalOpenTaskDisplays.Any())
-            {
-                <section class="at-attention-feed-group">
-                    <header><span>Critical</span><strong>@Model.CommandCriticalOpenTaskDisplays.Count</strong></header>
-                    <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.CommandCriticalOpenTaskDisplays, string.Empty)' />
-                </section>
+                var task = entry.Item.Task;
+                <a class="at-unified-attention-row is-@entry.Tone @(Model.IsSelectedTask(task) ? "is-selected" : string.Empty)" asp-page="/ActionTasks/Index" asp-route-taskId="@task.Id" asp-route-viewMode="@Model.ResolvedViewMode">
+                    <span class="at-attention-reason">@entry.Label</span>
+                    <span class="at-attention-task">AT-@task.Id · @task.Title</span>
+                    <span class="at-attention-owner">@entry.Item.AssigneeName</span>
+                    <span class="at-attention-date">Due @task.DueDate.ToString("dd MMM yyyy")</span>
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                </a>
             }
         </div>
     }
@@ -96,7 +106,7 @@ else if (Model.CanPlanSprints)
 @if (Model.HasRecentActivityItems)
 {
     <details class="at-panel at-quiet-details">
-        <summary>Recent activity</summary>
+        <summary>Recent activity <span class="at-count-chip">@recentCount updates</span></summary>
         <div class="at-card-grid mt-3">
             @if (Model.RecentlySubmittedTaskDisplays.Any())
             {
