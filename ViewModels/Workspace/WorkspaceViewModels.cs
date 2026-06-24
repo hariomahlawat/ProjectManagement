@@ -442,7 +442,7 @@ public static class WorkspaceDisplayHelpers
     {
         if (row.HasBackfill)
         {
-            return "Stage dates missing";
+            return "Current-stage dates missing";
         }
 
         if (row.HasOverdueCurrentStage)
@@ -587,6 +587,20 @@ public static class WorkspaceDisplayHelpers
         }
 
         var localDue = dueAtUtc.Value.LocalDateTime;
+        var today = DateTime.Now.Date;
+        var dueDate = localDue.Date;
+
+        if (dueDate < today)
+        {
+            var days = (today - dueDate).Days;
+            return $"Overdue by {days} day{(days == 1 ? string.Empty : "s")}";
+        }
+
+        if (dueDate == today)
+        {
+            return "Due today";
+        }
+
         return localDue.Year == DateTime.Now.Year
             ? $"Due {localDue:dd MMM}"
             : $"Due {localDue:dd MMM yyyy}";

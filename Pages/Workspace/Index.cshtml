@@ -27,8 +27,8 @@
     var operationalSummaryParts = new List<string>();
     if (projectAttentionCount > 0) operationalSummaryParts.Add($"{projectAttentionCount} project{(projectAttentionCount == 1 ? "" : "s")} need attention");
     if (overdueProjectCount > 0) operationalSummaryParts.Add($"{overdueProjectCount} overdue");
-    if (incompleteTimelineCount > 0) operationalSummaryParts.Add($"{incompleteTimelineCount} timeline{(incompleteTimelineCount == 1 ? "" : "s")} incomplete");
-    if (reviewDocumentCount > 0) operationalSummaryParts.Add($"{reviewDocumentCount} document{(reviewDocumentCount == 1 ? "" : "s")} awaiting review");
+    if (incompleteTimelineCount > 0) operationalSummaryParts.Add($"{incompleteTimelineCount} current-stage timeline{(incompleteTimelineCount == 1 ? "" : "s")} incomplete");
+    if (reviewDocumentCount > 0) operationalSummaryParts.Add($"{reviewDocumentCount} AOTS document{(reviewDocumentCount == 1 ? "" : "s")} awaiting review");
     var operationalSummary = operationalSummaryParts.Count > 0
         ? string.Join(" · ", operationalSummaryParts)
         : "No overdue project actions or incomplete timelines";
@@ -59,16 +59,16 @@
             </div>
 
             <div class="po-command__actions">
-                <span class="po-date"><i class="bi bi-calendar3"></i>@DateTime.Now.ToString("dd MMM yyyy")</span>
-                <a class="po-btn po-btn--secondary" href="@WorkspaceRouteHelper.ActionTasksMyWork()"><i class="bi bi-list-check"></i><span>View all work</span></a>
-                <a class="po-btn po-btn--primary" href="@Model.Workspace.MyProjectsUrl"><i class="bi bi-kanban"></i><span>Open projects</span></a>
+                <span class="po-date" title="Workspace data refresh time"><i class="bi bi-arrow-clockwise"></i>Refreshed @Model.Workspace.GeneratedAtUtc.ToLocalTime().ToString("HH:mm")</span>
+                <a class="po-btn po-btn--secondary" href="@WorkspaceRouteHelper.ActionTasksMyWork()"><i class="bi bi-list-check"></i><span>View assigned work</span></a>
+                <a class="po-btn po-btn--primary" href="@Model.Workspace.MyProjectsUrl"><i class="bi bi-kanban"></i><span>Open my projects</span></a>
             </div>
         </div>
 
         <div class="po-command__metrics" aria-label="Workspace summary">
-            <a class="po-metric @(reviewDocumentCount > 0 ? "po-metric--attention" : "po-metric--clear")" href="#action-queue">
-                <span class="po-metric__icon"><i class="bi bi-file-earmark-text-fill"></i></span>
-                <span><strong>@reviewDocumentCount</strong><small>Documents to review</small></span>
+            <a class="po-metric @(actionCount > 0 ? "po-metric--attention" : "po-metric--clear")" href="#action-queue">
+                <span class="po-metric__icon"><i class="bi bi-lightning-charge-fill"></i></span>
+                <span><strong>@actionCount</strong><small>Actions pending</small></span>
                 <i class="bi bi-arrow-down-right po-metric__arrow"></i>
             </a>
             <a class="po-metric @(Model.Workspace.AssignedProjectCount > 0 ? "po-metric--primary" : "po-metric--clear")" href="#assigned-projects">
@@ -78,7 +78,7 @@
             </a>
             <a class="po-metric @(Model.Workspace.RecordGapCount > 0 ? "po-metric--danger" : "po-metric--clear")" href="#record-gaps">
                 <span class="po-metric__icon"><i class="bi bi-clipboard2-pulse-fill"></i></span>
-                <span><strong>@Model.Workspace.RecordGapCount</strong><small>Record gaps</small></span>
+                <span><strong>@Model.Workspace.RecordGapCount</strong><small>Pending fields</small></span>
                 <i class="bi bi-arrow-down-right po-metric__arrow"></i>
             </a>
         </div>
@@ -87,7 +87,7 @@
     <nav class="po-section-nav" aria-label="Workspace sections">
         <a href="#action-queue" class="active"><i class="bi bi-list-check"></i><span>Action queue</span><b>@actionCount</b></a>
         <a href="#assigned-projects"><i class="bi bi-kanban"></i><span>Assigned projects</span><b>@Model.Workspace.AssignedProjectCount</b></a>
-        <a href="#record-gaps"><i class="bi bi-clipboard2-pulse"></i><span>Record gaps</span><b>@Model.Workspace.ImproveProjectsTotalCount</b></a>
+        <a href="#record-gaps"><i class="bi bi-clipboard2-pulse"></i><span>Pending fields</span><b>@Model.Workspace.RecordGapCount</b></a>
         <a href="#follow-ups"><i class="bi bi-bell"></i><span>Follow-ups</span><b>@followUpCount</b></a>
     </nav>
 
@@ -208,7 +208,7 @@
                                                 <span class="po-project-indicator" aria-hidden="true"></span>
                                                 <div>
                                                     <a class="po-project-name" href="@row.OpenUrl" title="@row.ProjectName">@row.ProjectName</a>
-                                                    <small>@row.RecordGapCount record gap@(row.RecordGapCount == 1 ? "" : "s")</small>
+                                                    <small>@row.RecordGapCount pending field@(row.RecordGapCount == 1 ? "" : "s")</small>
                                                 </div>
                                             </div>
                                         </td>
@@ -221,7 +221,7 @@
                                                     data-bs-toggle="modal"
                                                     data-bs-target="#recordHealth-@row.ProjectId"
                                                     title="View exact pending fields for @row.ProjectName">
-                                                <span class="po-record__top"><strong>@row.RecordHealthPercent% complete</strong><small>@row.RecordGapCount pending field@(row.RecordGapCount == 1 ? "" : "s")</small></span>
+                                                <span class="po-record__top"><strong>@row.RecordHealthPercent% record completeness</strong><small>@row.RecordGapCount pending field@(row.RecordGapCount == 1 ? "" : "s")</small></span>
                                                 <span class="po-record__bar"><i style="width:@row.RecordHealthPercent%"></i></span>
                                                 <span class="po-record__view">View breakdown</span>
                                             </button>
@@ -319,20 +319,20 @@
                 <div class="po-readiness__head">
                     <div>
                         <span class="po-panel__kicker">Project readiness</span>
-                        <h2>Records to Complete</h2>
-                        <p>Highest-impact gaps across assigned projects.</p>
+                        <h2>Pending Fields</h2>
+                        <p>Fields that need to be completed in assigned projects.</p>
                     </div>
                     <span class="po-readiness__count">@Model.Workspace.RecordGapCount</span>
                 </div>
 
                 @if (!Model.Workspace.ImproveProjects.Any())
                 {
-                    <div class="po-readiness__empty"><i class="bi bi-check2-circle"></i><strong>Records complete</strong><span>No project data gaps require attention.</span></div>
+                    <div class="po-readiness__empty"><i class="bi bi-check2-circle"></i><strong>Records complete</strong><span>No applicable project fields are pending.</span></div>
                 }
                 else
                 {
                     <div class="po-gap-list">
-                        @foreach (var item in Model.Workspace.ImproveProjects.Take(2))
+                        @foreach (var item in Model.Workspace.ImproveProjects)
                         {
                             var gapSeverity = item.FixCount >= 6 ? "critical" : item.FixCount >= 4 ? "attention" : "standard";
                             <article class="po-gap-item po-gap-item--@gapSeverity">
@@ -356,7 +356,7 @@
                             </article>
                         }
                     </div>
-                    <a class="po-readiness__footer" href="@Model.Workspace.MyProjectsUrl">View all projects with gaps<i class="bi bi-arrow-right"></i></a>
+                    <a class="po-readiness__footer" href="@Model.Workspace.MyProjectsUrl">Open all assigned projects<i class="bi bi-arrow-right"></i></a>
                 }
             </section>
         </aside>

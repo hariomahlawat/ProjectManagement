@@ -965,3 +965,90 @@ button.po-record:focus-visible .po-record__view { opacity: 1; transform: none; }
     .po-record-modal__footer > span { margin-right: 0; }
     .po-record-modal__footer .po-btn { justify-content: center; width: 100%; }
 }
+
+/* Workspace semantic and visual refinement: pending-field clarity and calmer secondary rail. */
+.po-workspace {
+    max-width: 1560px;
+    padding-right: 32px;
+    padding-left: 32px;
+}
+
+.po-command__main {
+    background: linear-gradient(105deg, #fff 0%, #fff 84%, #f7f9fd 100%);
+}
+
+.po-date {
+    color: #66758c;
+    font-weight: 650;
+}
+
+.po-section-nav {
+    min-height: 40px;
+    border-bottom: 1px solid #e0e7f0;
+    background: rgba(255, 255, 255, .97);
+    backdrop-filter: blur(10px);
+}
+.po-section-nav a { min-height: 40px; }
+.po-section-nav.is-stuck {
+    border: 0;
+    border-bottom: 1px solid #dce4ee;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 3px 9px rgba(15, 31, 58, .055);
+}
+
+.po-action--recommended {
+    background: linear-gradient(90deg, #edf4ff 0%, #f7faff 34%, #fff 72%);
+}
+.po-action--recommended .po-action__title { color: #123d8d; }
+.po-recommended {
+    color: #2255b5;
+    font-weight: 780;
+}
+
+/* The pending-fields rail is important but remains visually secondary to the action queue. */
+.po-readiness {
+    border-color: #d9e2ee;
+    box-shadow: 0 7px 20px rgba(15, 31, 58, .055);
+}
+.po-readiness__head {
+    padding: 15px 16px;
+    color: var(--po-text);
+    border-bottom: 1px solid #dfe7f0;
+    background: linear-gradient(135deg, #f7f9fd 0%, #eef3fb 100%);
+}
+.po-readiness__head .po-panel__kicker { color: #667b9e; }
+.po-readiness__head h2 { color: var(--po-navy-950); }
+.po-readiness__head p { color: var(--po-muted); }
+.po-readiness__count {
+    color: #1f4fae;
+    border-color: #cddaf0;
+    background: #fff;
+    box-shadow: inset 0 0 0 1px rgba(46, 102, 212, .03);
+}
+.po-gap-item { padding-top: 12px; padding-bottom: 11px; }
+.po-gap-item--critical { border-left-color: var(--po-danger); }
+.po-gap-item--attention { border-left-color: #d48b19; }
+.po-gap-item--standard { border-left-color: #8ea0b7; }
+.po-readiness__footer {
+    background: #f9fbfd;
+}
+
+.po-record__top strong {
+    font-size: .67rem;
+    line-height: 1.25;
+}
+.po-record__top small { margin-top: 2px; }
+
+.po-projects-panel .po-panel__head p::after {
+    content: " Highest-priority project first.";
+}
+
+@media (max-width: 1200px) {
+    .po-workspace { padding-right: 24px; padding-left: 24px; }
+}
+
+@media (max-width: 760px) {
+    .po-workspace { padding-right: 14px; padding-left: 14px; }
+    .po-section-nav { min-height: 42px; }
+    .po-section-nav a { min-height: 42px; }
+}
