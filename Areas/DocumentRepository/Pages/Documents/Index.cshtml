@@ -1,7 +1,8 @@
 @page
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel
 @{
-    ViewData["Title"] = "Document repository";
+    ViewData["Title"] = "Document Repository";
+    ViewData["UseFullWidth"] = true;
     if (Model.IsPartial)
     {
         Layout = null;
@@ -28,14 +29,12 @@ else
 {
     <div class="container-fluid py-2">
 
-        <nav aria-label="breadcrumb" class="mb-2">
-            <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item">
-                    <a asp-area="" asp-page="/Index">Dashboard</a>
-                </li>
-                <li class="breadcrumb-item active" aria-current="page">Documents</li>
-            </ol>
-        </nav>
+        <header class="docrepo-pagehead">
+            <div>
+                <h1 class="docrepo-pagehead__title">Document Repository</h1>
+                <p class="docrepo-pagehead__subtitle">Search, organise and access institutional documents.</p>
+            </div>
+        </header>
 
         <!-- SECTION: Favourite toggle helpers -->
         <form id="docrepoFavouriteToken" method="post" class="d-none">
@@ -89,16 +88,17 @@ else
                     </a>
                 </nav>
 
-                <!-- SECTION: Filters panel -->
-                <aside class="docrepo-filters" id="docrepoFilters">
+                <!-- SECTION: Filters drawer -->
+                <button type="button" class="docrepo-filter-backdrop" id="docrepoFilterBackdrop" aria-label="Close filters"></button>
+                <aside class="docrepo-filters" id="docrepoFilters" aria-hidden="true">
                     <div class="docrepo-filters__header">
                         <div class="docrepo-filters__title">Filters</div>
                         <button type="button"
                                 class="btn btn-sm btn-light docrepo-filters__toggle"
                                 id="docrepoFiltersToggle"
-                                title="Collapse filters"
-                                aria-label="Collapse filters">
-                            <i class="bi bi-chevron-left"></i>
+                                title="Close filters"
+                                aria-label="Close filters">
+                            <i class="bi bi-x-lg"></i>
                         </button>
                     </div>
 
@@ -106,7 +106,7 @@ else
                           asp-page="./Index"
                           class="docrepo-facets"
                           id="docrepoFacetsForm"
-                          data-autoapply="true">
+                          data-autoapply="false">
                         <!-- SECTION: Apply-only params -->
                         <input type="hidden" name="q" value="@Model.Q" />
                         <input type="hidden" name="view" value="@Model.ViewMode" />
@@ -236,26 +236,18 @@ else
 
                         <!-- SECTION: Facet actions -->
                         <div class="docrepo-facet__actions">
-                            <a class="btn btn-outline-secondary btn-sm w-100"
+                            <button type="submit" class="btn btn-primary btn-sm">Apply filters</button>
+                            <a class="btn btn-link btn-sm text-decoration-none"
                                asp-page="./Index"
                                asp-route-scope="@Model.Scope"
                                asp-route-page="1"
                                asp-route-pageSize="@Model.PageSize"
                                asp-route-view="@Model.ViewMode">
-                                Clear filters
+                                Clear all
                             </a>
                         </div>
                     </form>
 
-                    <div class="docrepo-filters__collapsedHint">
-                        <button type="button"
-                                class="btn btn-sm btn-light"
-                                id="docrepoFiltersExpandBtn"
-                                title="Expand filters"
-                                aria-label="Expand filters">
-                            <i class="bi bi-funnel"></i>
-                        </button>
-                    </div>
                 </aside>
 
                 <!-- SECTION: Content -->
@@ -270,9 +262,6 @@ else
                                        value="@Model.Q"
                                        placeholder="Search documents (subject, sender, tags)…"
                                        aria-label="Search documents" />
-                            </div>
-                            <div class="docrepo-searchbar__actions">
-                                <button type="submit" class="btn btn-primary">Search</button>
                             </div>
 
                             <input type="hidden" name="page" value="1" />
@@ -293,6 +282,22 @@ else
                             <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
                             Updating…
                         </div>
+
+                        <button type="button" class="btn btn-sm btn-outline-secondary docrepo-filter-trigger" id="docrepoFiltersExpandBtn" aria-controls="docrepoFilters" aria-expanded="false">
+                            <i class="bi bi-funnel"></i>
+                            <span>Filters</span>
+                            @{
+                                var activeFacetCount = (!string.IsNullOrWhiteSpace(Model.Tag) ? 1 : 0) +
+                                    (Model.OfficeCategoryId.HasValue ? 1 : 0) +
+                                    (Model.DocumentCategoryId.HasValue ? 1 : 0) +
+                                    (Model.Year.HasValue ? 1 : 0) +
+                                    (Model.IncludeInactive ? 1 : 0);
+                            }
+                            @if (activeFacetCount > 0)
+                            {
+                                <span class="docrepo-filter-trigger__count">@activeFacetCount</span>
+                            }
+                        </button>
 
                         <div class="btn-group docrepo-view-toggle" role="group" aria-label="View mode">
                             <a class="btn btn-sm @(Model.IsListView ? "btn-primary" : "btn-outline-primary")"

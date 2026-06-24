@@ -28,8 +28,8 @@
     aria-label="Open document @Model.Subject">
     <!-- SECTION: Subject -->
     <td>
-        <div class="d-flex flex-column gap-1">
-            <div class="d-flex align-items-center gap-2">
+        <div class="docrepo-subjectcell">
+            <div class="docrepo-subjectcell__flags" data-no-row-nav>
                 <authorize policy="DocRepo.View">
                     <button type="button"
                             class="docrepo-star"
@@ -41,28 +41,28 @@
                         <i class="bi @(Model.IsFavourite ? "bi-star-fill" : "bi-star")"></i>
                     </button>
                 </authorize>
-                <!-- SECTION: AOTS indicator -->
                 @if (Model.IsAots)
                 {
                     <span class="docrepo-aots-badge" title="All officers to see">
                         <i class="bi bi-broadcast"></i>
                         <span>AOTS</span>
                     </span>
-                    @if (Model.IsAotsUnread)
-                    {
-                        <span class="docrepo-aots-dot" aria-label="Unread AOTS document" title="Unread AOTS document"></span>
-                    }
                 }
+                @if (Model.IsAotsUnread)
+                {
+                    <span class="docrepo-aots-dot" aria-label="Unread AOTS document" title="Unread AOTS document"></span>
+                }
+            </div>
+            <div class="docrepo-subjectcell__content">
                 @if (Model.IsActive)
                 {
-                    <a asp-page="./Reader" asp-route-id="@Model.Id" asp-route-returnUrl="@returnUrl" class="docrepo-subject-link">
+                    <a asp-page="./Reader" asp-route-id="@Model.Id" asp-route-returnUrl="@returnUrl" class="docrepo-subject-link" title="@Model.Subject">
                         @Model.Subject
                     </a>
                 }
                 else
                 {
-                    <span class="docrepo-subject-link text-muted"
-                          title="Inactive documents cannot be viewed. Download is available.">
+                    <span class="docrepo-subject-link text-muted" title="Inactive documents cannot be viewed. Download is available.">
                         @Model.Subject
                     </span>
                 }
@@ -91,15 +91,20 @@
                   ProjectManagement.Data.DocRepo.DocOcrStatus.Failed => "docrepo-ocr--fail",
                   ProjectManagement.Data.DocRepo.DocOcrStatus.Pending => "docrepo-ocr--pending",
                   _ => "docrepo-ocr--none"
-              })">
+              })"
+              title="OCR: @Model.OcrStatus"
+              aria-label="OCR status: @Model.OcrStatus">
             <i class="bi @(Model.OcrStatus switch
                  {
-                     ProjectManagement.Data.DocRepo.DocOcrStatus.Succeeded => "bi-check-circle",
-                     ProjectManagement.Data.DocRepo.DocOcrStatus.Failed => "bi-x-circle",
-                     ProjectManagement.Data.DocRepo.DocOcrStatus.Pending => "bi-clock",
+                     ProjectManagement.Data.DocRepo.DocOcrStatus.Succeeded => "bi-check-circle-fill",
+                     ProjectManagement.Data.DocRepo.DocOcrStatus.Failed => "bi-exclamation-circle-fill",
+                     ProjectManagement.Data.DocRepo.DocOcrStatus.Pending => "bi-clock-fill",
                      _ => "bi-dash-circle"
                  })"></i>
-            <span>@Model.OcrStatus</span>
+            @if (Model.OcrStatus != ProjectManagement.Data.DocRepo.DocOcrStatus.Succeeded)
+            {
+                <span>@Model.OcrStatus</span>
+            }
         </span>
     </td>
 

@@ -34,43 +34,39 @@
 
     @if (hasAnyFilter)
     {
-        <div class="docrepo-activefilters">
-            <div class="docrepo-activefilters__label">
-                <strong>Active filters:</strong>
+        <div class="docrepo-activefilters" aria-label="Active filters">
+            <div class="docrepo-activefilters__chips">
                 @if (!string.IsNullOrWhiteSpace(Model.Q))
                 {
-                    <span>Search = “@Model.Q”;</span>
+                    <span class="docrepo-filterchip"><i class="bi bi-search"></i>@Model.Q</span>
                 }
                 @if (Model.OfficeCategoryId.HasValue)
                 {
-                    <span>Office = @officeLabel;</span>
+                    <span class="docrepo-filterchip"><i class="bi bi-building"></i>@officeLabel</span>
                 }
                 @if (Model.DocumentCategoryId.HasValue)
                 {
-                    <span>Type = @typeLabel;</span>
+                    <span class="docrepo-filterchip"><i class="bi bi-file-earmark-text"></i>@typeLabel</span>
                 }
                 @if (Model.Year.HasValue)
                 {
-                    <span>Year = @Model.Year;</span>
+                    <span class="docrepo-filterchip"><i class="bi bi-calendar3"></i>@Model.Year</span>
                 }
                 @if (!string.IsNullOrWhiteSpace(Model.Tag))
                 {
-                    <span>Tag = @Model.Tag;</span>
+                    <span class="docrepo-filterchip"><i class="bi bi-tag"></i>@Model.Tag</span>
                 }
                 @if (Model.IncludeInactive)
                 {
-                    <span>Inactive = Included;</span>
+                    <span class="docrepo-filterchip"><i class="bi bi-archive"></i>Inactive included</span>
                 }
             </div>
-
             <a class="docrepo-activefilters__clear"
                asp-page="./Index"
                asp-route-scope="@Model.Scope"
                asp-route-view="@Model.ViewMode"
                asp-route-pageSize="@Model.PageSize"
-               asp-route-page="1">
-                Clear all
-            </a>
+               asp-route-page="1">Clear all</a>
         </div>
     }
 

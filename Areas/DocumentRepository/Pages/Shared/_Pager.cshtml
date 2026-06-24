@@ -1,37 +1,45 @@
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.PagerModel
 @{
-    if (Model.PageCount <= 1)
-    {
-        <div></div>
-        return;
-    }
-
-    int start = System.Math.Max(1, Model.Page - 2);
-    int end = System.Math.Min(Model.PageCount, Model.Page + 2);
+    var pageCount = Model.PageCount;
+    var startItem = Model.TotalCount == 0 ? 0 : ((Model.Page - 1) * Model.PageSize) + 1;
+    var endItem = System.Math.Min(Model.TotalCount, Model.Page * Model.PageSize);
+    var start = System.Math.Max(1, Model.Page - 2);
+    var end = System.Math.Min(pageCount, Model.Page + 2);
 }
 
-<nav aria-label="Documents pagination" class="my-3">
-    <ul class="pagination pagination-sm mb-0">
-        <li class="page-item @(Model.Page == 1 ? "disabled" : string.Empty)">
-            <a class="page-link" href="@Model.UrlForPage(1)" aria-label="First">&laquo;</a>
-        </li>
-        <li class="page-item @(Model.Page == 1 ? "disabled" : string.Empty)">
-            <a class="page-link" href="@Model.UrlForPage(Model.Page - 1)" aria-label="Previous">&lsaquo;</a>
-        </li>
-
-        @for (int p = start; p <= end; p++)
+<div class="docrepo-pager" aria-label="Documents pagination">
+    <div class="docrepo-pager__summary">
+        @if (Model.TotalCount == 0)
         {
-            <li class="page-item @(p == Model.Page ? "active" : string.Empty)">
-                <a class="page-link" href="@Model.UrlForPage(p)">@p</a>
-            </li>
+            <span>No documents</span>
         }
+        else
+        {
+            <span>Showing @startItem–@endItem of @Model.TotalCount</span>
+        }
+    </div>
 
-        <li class="page-item @(Model.Page >= Model.PageCount ? "disabled" : string.Empty)">
-            <a class="page-link" href="@Model.UrlForPage(Model.Page + 1)" aria-label="Next">&rsaquo;</a>
-        </li>
-        <li class="page-item @(Model.Page >= Model.PageCount ? "disabled" : string.Empty)">
-            <a class="page-link" href="@Model.UrlForPage(Model.PageCount)" aria-label="Last">&raquo;</a>
-        </li>
-    </ul>
-    <span class="ms-2 small text-muted">Page @Model.Page of @Model.PageCount · @Model.TotalCount items</span>
-</nav>
+    @if (pageCount > 1)
+    {
+        <nav aria-label="Page navigation">
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(Model.Page == 1 ? "disabled" : string.Empty)">
+                    <a class="page-link" href="@Model.UrlForPage(Model.Page - 1)" aria-label="Previous page">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                @for (var p = start; p <= end; p++)
+                {
+                    <li class="page-item @(p == Model.Page ? "active" : string.Empty)">
+                        <a class="page-link" href="@Model.UrlForPage(p)">@p</a>
+                    </li>
+                }
+                <li class="page-item @(Model.Page >= pageCount ? "disabled" : string.Empty)">
+                    <a class="page-link" href="@Model.UrlForPage(Model.Page + 1)" aria-label="Next page">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    }
+</div>
