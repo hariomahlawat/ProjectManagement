@@ -927,7 +927,7 @@ public sealed class ProjectOfficerWorkspaceService
         return new[]
         {
             new WorkspaceQuickActionVm { Text = "Open My Projects", Url = WorkspaceRouteHelper.MyProjects(userId), Icon = "bi-kanban" },
-            new WorkspaceQuickActionVm { Text = "View Other Assigned Tasks", Url = WorkspaceRouteHelper.ActionTasksMyWork(), Icon = "bi-list-check" },
+            new WorkspaceQuickActionVm { Text = "Open Task Management", Url = WorkspaceRouteHelper.ActionTasksMyWork(), Icon = "bi-list-check" },
             new WorkspaceQuickActionVm { Text = "Open My Project Ideas", Url = WorkspaceRouteHelper.ProjectIdeasMine(), Icon = "bi-lightbulb" },
             new WorkspaceQuickActionVm { Text = "Open AOTS Inbox", Url = WorkspaceRouteHelper.AotsInbox(), Icon = "bi-file-earmark-text" },
             new WorkspaceQuickActionVm { Text = "Open My Notebook", Url = WorkspaceRouteHelper.PersonalReminders(), Icon = "bi-journal-bookmark" }

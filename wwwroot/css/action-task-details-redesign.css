@@ -582,3 +582,159 @@
         text-align: left;
     }
 }
+
+/* SECTION: Task Management final task-detail refinement */
+:root {
+    --at-task-drawer-width: min(40rem, calc(100vw - 2rem));
+}
+
+.at-task-command-header {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+}
+
+.at-task-brief-section.is-compact {
+    padding-block: .6rem;
+}
+
+.at-task-brief-section.is-compact .at-task-brief-text {
+    max-width: 54ch;
+}
+
+.at-next-action-section {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+}
+
+.at-next-action-actions {
+    display: grid;
+    justify-items: end;
+    gap: .55rem;
+}
+
+.at-next-action-primary .btn {
+    min-width: 8rem;
+}
+
+.at-next-action-secondary {
+    display: grid;
+    justify-items: end;
+    gap: .3rem;
+}
+
+.at-next-action-secondary-label {
+    color: var(--at-muted);
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .045em;
+    text-transform: uppercase;
+}
+
+.at-update-body {
+    color: var(--at-text);
+    font-size: .86rem;
+    font-weight: 590;
+    line-height: 1.5;
+    white-space: pre-line;
+}
+
+.at-update-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .35rem .7rem;
+    margin-top: .48rem;
+    color: var(--at-muted);
+    font-size: .73rem;
+    font-weight: 600;
+}
+
+.at-attachments-section {
+    background: #fbfdff;
+}
+
+.at-attachment-list {
+    display: grid;
+    gap: .45rem;
+}
+
+.at-attachment-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .6rem;
+    padding: .5rem .58rem;
+    border: 1px solid var(--at-border);
+    border-radius: 11px;
+    background: #fff;
+}
+
+.at-attachment-main {
+    display: grid;
+    min-width: 0;
+    gap: .08rem;
+}
+
+.at-attachment-main .at-file-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .8rem;
+    font-weight: 700;
+}
+
+.at-attachment-meta {
+    color: var(--at-muted);
+    font-size: .7rem;
+}
+
+.at-manage-task-grid .at-action-more-group {
+    padding: .7rem;
+}
+
+.at-manage-task-grid .at-action-replanning-group {
+    border-color: #fde68a;
+    background: #fffbeb;
+}
+
+.at-manage-action-button {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: auto !important;
+    min-height: 32px;
+    margin-top: .2rem;
+    padding-inline: .65rem !important;
+    text-align: center !important;
+    text-decoration: none !important;
+}
+
+.at-manage-task-grid .at-card-action-form {
+    display: grid;
+    gap: .35rem;
+}
+
+.at-closed-task-summary {
+    background: #fbfdfb;
+    border-color: #d8eadc;
+}
+
+@media (max-width: 991px) {
+    .at-next-action-actions,
+    .at-next-action-secondary {
+        justify-items: start;
+    }
+}
+
+@media (max-width: 575px) {
+    .at-attachment-row {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .at-attachment-row .btn {
+        grid-column: 2;
+        justify-self: start;
+    }
+}

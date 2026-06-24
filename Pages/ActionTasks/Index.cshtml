@@ -1,7 +1,7 @@
 @page
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 @{
-    ViewData["Title"] = "Action Tracker";
+    ViewData["Title"] = "Task Management";
     ViewData["UseFullWidth"] = true;
 }
 @section Styles {
@@ -14,7 +14,7 @@
 }
 
 <div class="at-shell at-simple-shell @(Model.TaskId.HasValue ? "has-selection" : string.Empty) @(Model.IsPlanningView ? "is-planning-board" : string.Empty)">
-    <aside class="at-rail at-simple-rail" aria-label="Action Tracker navigation">
+    <aside class="at-rail at-simple-rail" aria-label="Task Management navigation">
         <nav class="at-nav">
             <a title="Overview" asp-page="/ActionTasks/Index" asp-route-viewMode="CommandCentre" class="@(Model.IsCommandCentreView ? "active" : string.Empty)" aria-current="@(Model.IsCommandCentreView ? "page" : null)"><i class="bi bi-grid-1x2" aria-hidden="true"></i><span>Overview</span></a>
             <a title="My Tasks" asp-page="/ActionTasks/Index" asp-route-viewMode="MyWork" class="@(Model.IsMyWorkView ? "active" : string.Empty)" aria-current="@(Model.IsMyWorkView ? "page" : null)"><i class="bi bi-check2-circle" aria-hidden="true"></i><span>My Tasks</span></a>

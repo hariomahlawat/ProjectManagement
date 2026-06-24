@@ -15,6 +15,11 @@
     var selectedTaskIsBlocked = string.Equals(selectedTaskStatus, ProjectManagement.Models.ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
     var selectedTaskIsCritical = string.Equals(Model.SelectedTask?.Priority, "Critical", StringComparison.OrdinalIgnoreCase);
     var selectedTaskIsOverdue = Model.SelectedTask is not null && !selectedTaskIsClosed && Model.SelectedTask.DueDate.Date < Model.IstToday;
+    var selectedTaskOverdueDays = selectedTaskIsOverdue && Model.SelectedTask is not null
+        ? Math.Max(1, (Model.IstToday - Model.SelectedTask.DueDate.Date).Days)
+        : 0;
+    var selectedTaskStatusLabel = selectedTaskIsSubmitted ? "Awaiting Closure" : selectedTaskStatus;
+    var selectedTaskAttachmentCount = Model.UpdateAttachments.Sum(entry => entry.Value.Count);
     var selectedTaskDateLabel = selectedTaskIsBacklog ? "Target" : "Due";
     var minimumChangeDate = Model.IstToday;
     var changeDateInputValue = Model.SelectedTask is not null && Model.SelectedTask.DueDate.Date >= minimumChangeDate
@@ -37,7 +42,7 @@
         ? canOpenCloseAction
             ? selectedTaskIsSubmitted
                 ? "Review the submission and record closure remarks before accepting it."
-                : "Command close is an exceptional action and requires closure remarks."
+                : "Closing an active task requires closure remarks."
             : selectedTaskIsSubmitted
                 ? "This task is submitted for closure review."
                 : null
@@ -50,12 +55,12 @@
         : selectedTaskIsClosed
             ? "This task is closed. No further action is required."
             : selectedTaskIsSubmitted
-                ? "This task is awaiting closure review. Command authorities may close it directly after recording remarks."
+                ? "Review the submission, then accept and close it or return it for further action."
                 : selectedTaskIsBlocked
-                    ? "This task is blocked. Record blocker details or change status once the issue is resolved."
+                    ? "Record the blocker, or resume work when the issue is resolved."
                     : selectedTaskIsInProgress
-                        ? "Work is in progress. Add progress, or submit it for closure once complete."
-                        : "This task is assigned. Record progress when work starts or update the status to In Progress.";
+                        ? "Add a progress update, or submit the task for closure when complete."
+                        : "Start work by adding an update or changing the status to In Progress.";
 }
 
 <section id="task-details" class="at-panel at-task-details-panel at-task-command-drawer" tabindex="-1" data-at-task-drawer data-at-task-details>
@@ -70,14 +75,14 @@
                         <div class="at-detail-assignee">@Model.ResolveAssigneeName(Model.SelectedTask.AssignedToUserId)</div>
                     }
                     <div class="at-command-meta-line">
-                        <span class="@Model.GetStatusBadgeClass(Model.SelectedTask.Status)">@Model.SelectedTask.Status</span>
+                        <span class="@Model.GetStatusBadgeClass(Model.SelectedTask.Status)">@selectedTaskStatusLabel</span>
                         @if (selectedTaskIsCritical)
                         {
                             <span class="@Model.GetPriorityBadgeClass(Model.SelectedTask.Priority)">@Model.SelectedTask.Priority</span>
                         }
                         @if (selectedTaskIsOverdue)
                         {
-                            <span class="at-date-warning">Overdue since @Model.SelectedTask.DueDate.ToString("dd MMM yyyy")</span>
+                            <span class="at-date-warning">Overdue by @selectedTaskOverdueDays @(selectedTaskOverdueDays == 1 ? "day" : "days")</span>
                         }
                         @if (!selectedTaskIsClosed)
                         {
@@ -85,9 +90,9 @@
                         }
                     </div>
                     <div class="at-inspector-snapshot at-command-snapshot">
-                        <span>Last update: @TimeFmt.ToIst(Model.GetSelectedTaskLastActivityUtc())</span>
+                        <span>Updated @TimeFmt.ToIst(Model.GetSelectedTaskLastActivityUtc())</span>
                         <span>@Model.SelectedTaskUpdates.Count() @(Model.SelectedTaskUpdates.Count == 1 ? "update" : "updates")</span>
-                        <span>@Model.UpdateAttachments.Sum(entry => entry.Value.Count) @(Model.UpdateAttachments.Sum(entry => entry.Value.Count) == 1 ? "attachment" : "attachments")</span>
+                        <span>@selectedTaskAttachmentCount @(selectedTaskAttachmentCount == 1 ? "attachment" : "attachments")</span>
                     </div>
                 }
             </div>
@@ -97,7 +102,7 @@
         @if (Model.SelectedTask is not null)
         {
             <div class="at-inspector-body at-task-command-body">
-                <section class="at-command-section at-task-brief-section" aria-label="Task brief">
+                <section class="at-command-section at-task-brief-section @(taskBrief.Length <= 180 ? "is-compact" : string.Empty)" aria-label="Task brief">
                     <div class="at-command-section-heading">Task brief</div>
                     <div class="at-task-brief-text @(string.IsNullOrWhiteSpace(Model.SelectedTask.Description) ? "is-muted" : string.Empty)">@taskBrief</div>
                 </section>
@@ -167,7 +172,7 @@
                                         }
                                         @if (canOpenCloseAction)
                                         {
-                                            <button type="button" class="btn btn-outline-danger btn-sm" data-at-open-action="close" data-at-close-task>@(selectedTaskIsSubmitted ? "Accept and close" : "Command close")</button>
+                                            <button type="button" class="btn btn-outline-danger btn-sm" data-at-open-action="close" data-at-close-task>@(selectedTaskIsSubmitted ? "Accept and close" : "Close")</button>
                                         }
                                     </div>
                                 </div>
@@ -316,13 +321,13 @@
                                 <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" />
-                                <div class="at-action-title">@(selectedTaskIsSubmitted ? "Accept and close" : "Command close")</div>
+                                <div class="at-action-title">@(selectedTaskIsSubmitted ? "Accept and close" : "Close")</div>
                                 <div class="mb-2">
                                     <label class="form-label at-small" for="closureRemarks-@Model.SelectedTask.Id">Closure remarks</label>
-                                    <textarea id="closureRemarks-@Model.SelectedTask.Id" name="remarks" rows="4" class="form-control form-control-sm" maxlength="2000" required data-at-direct-close-remarks="true" placeholder="Enter closure decision, completion confirmation, or command rationale."></textarea>
+                                    <textarea id="closureRemarks-@Model.SelectedTask.Id" name="remarks" rows="4" class="form-control form-control-sm" maxlength="2000" required data-at-direct-close-remarks="true" placeholder="Record the completion decision and any necessary remarks."></textarea>
                                 </div>
                                 <div class="at-action-buttons">
-                                    <button type="submit" class="btn btn-danger btn-sm" data-at-direct-close-submit="true" disabled>@(selectedTaskIsSubmitted ? "Accept and close" : "Command close")</button>
+                                    <button type="submit" class="btn btn-danger btn-sm" data-at-direct-close-submit="true" disabled>@(selectedTaskIsSubmitted ? "Accept and close" : "Close")</button>
                                     <button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="close">Cancel</button>
                                 </div>
                             </form>
@@ -347,38 +352,61 @@
                             @foreach (var update in Model.SelectedTaskUpdates.OrderByDescending(update => update.CreatedAtUtc))
                             {
                                 <article class="at-activity-update-card">
-                                    <div class="d-flex justify-content-between gap-2 flex-wrap">
-                                        <div><strong>@Model.ResolveActorName(update.CreatedByUserId)</strong></div>
-                                        <div class="text-muted small">@TimeFmt.ToIst(update.CreatedAtUtc)</div>
+                                    <div class="at-update-body at-remarks-text">@update.Body</div>
+                                    <div class="at-update-meta">
+                                        <span>@Model.ResolveActorName(update.CreatedByUserId)</span>
+                                        <span>@TimeFmt.ToIst(update.CreatedAtUtc)</span>
                                     </div>
-                                    <div class="at-audit-remarks at-remarks-text">@update.Body</div>
-                                    @if (Model.UpdateAttachments.TryGetValue(update.Id, out var files) && files.Count > 0)
-                                    {
-                                        <div class="at-update-files mt-2">
-                                            @foreach (var file in files)
-                                            {
-                                                var typeLabel = file.ContentType switch
-                                                {
-                                                    "application/pdf" => "PDF",
-                                                    "application/msword" => "DOC",
-                                                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "DOCX",
-                                                    "application/vnd.ms-excel" => "XLS",
-                                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "XLSX",
-                                                    "image/jpeg" => "JPG",
-                                                    "image/png" => "PNG",
-                                                    "text/plain" => "TXT",
-                                                    _ => "FILE"
-                                                };
-                                                <div class="at-update-file-item">
-                                                    <span class="at-file-type">@typeLabel</span>
-                                                    <a class="at-file-name" href="@file.DownloadUrl" title="@file.FileName">@file.FileName</a>
-                                                    <span class="at-file-size">@ProjectManagement.Helpers.FileSizeFormatter.FormatFileSize(file.FileSize)</span>
-                                                    <a class="btn btn-outline-secondary btn-sm" href="@file.DownloadUrl">Download</a>
-                                                </div>
-                                            }
-                                        </div>
-                                    }
                                 </article>
+                            }
+                        </div>
+                    }
+                </section>
+
+                <section class="at-command-section at-attachments-section" aria-label="Attachments">
+                    <div class="at-inspector-section-heading">
+                        <h3>Attachments</h3>
+                        <span class="at-count-chip">@selectedTaskAttachmentCount</span>
+                    </div>
+                    @if (selectedTaskAttachmentCount == 0)
+                    {
+                        <div class="at-empty-inline mt-2">No attachments added.</div>
+                    }
+                    else
+                    {
+                        <div class="at-attachment-list mt-2">
+                            @foreach (var entry in Model.UpdateAttachments.Where(entry => entry.Value.Count > 0))
+                            {
+                                var sourceUpdate = Model.SelectedTaskUpdates.FirstOrDefault(update => update.Id == entry.Key);
+                                @foreach (var file in entry.Value)
+                                {
+                                    var typeLabel = file.ContentType switch
+                                    {
+                                        "application/pdf" => "PDF",
+                                        "application/msword" => "DOC",
+                                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "DOCX",
+                                        "application/vnd.ms-excel" => "XLS",
+                                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "XLSX",
+                                        "image/jpeg" => "JPG",
+                                        "image/png" => "PNG",
+                                        "text/plain" => "TXT",
+                                        _ => "FILE"
+                                    };
+                                    <div class="at-attachment-row">
+                                        <span class="at-file-type">@typeLabel</span>
+                                        <div class="at-attachment-main">
+                                            <a class="at-file-name" href="@file.DownloadUrl" title="@file.FileName">@file.FileName</a>
+                                            <span class="at-attachment-meta">
+                                                @ProjectManagement.Helpers.FileSizeFormatter.FormatFileSize(file.FileSize)
+                                                @if (sourceUpdate is not null)
+                                                {
+                                                    <text> · @TimeFmt.ToIst(sourceUpdate.CreatedAtUtc)</text>
+                                                }
+                                            </span>
+                                        </div>
+                                        <a class="btn btn-outline-secondary btn-sm" href="@file.DownloadUrl">Download</a>
+                                    </div>
+                                }
                             }
                         </div>
                     }
@@ -426,7 +454,7 @@
                             {
                                 <div class="at-action-more-group" role="group" aria-label="Schedule">
                                     <div class="at-action-more-heading">Schedule</div>
-                                    <button type="button" class="btn btn-link btn-sm" data-at-open-action="change-date" data-at-change-due-date>Change @selectedTaskDateLabel.ToLowerInvariant() date</button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm at-manage-action-button" data-at-open-action="change-date" data-at-change-due-date>Change @selectedTaskDateLabel.ToLowerInvariant() date</button>
                                 </div>
                             }
                             @if (canRemoveFromSprintKeepAssignedAction)
@@ -442,13 +470,13 @@
                                         <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
                                         <label class="form-label at-small" for="removeSprintRemarks">Reason for removal</label>
                                         <input id="removeSprintRemarks" name="remarks" class="form-control form-control-sm mb-1" maxlength="1000" required placeholder="Add a short reason" />
-                                        <button type="submit" class="btn btn-link btn-sm" data-at-confirm="true" data-at-confirm-title="Remove task from Sprint?" data-at-confirm-body="This will keep the assignee but remove the task from the selected sprint." data-at-confirm-cancel-label="Cancel" data-at-confirm-accept-label="Remove from Sprint" data-at-remove-from-sprint>Remove from sprint, keep assigned</button>
+                                        <button type="submit" class="btn btn-outline-secondary btn-sm at-manage-action-button" data-at-confirm="true" data-at-confirm-title="Remove task from Sprint?" data-at-confirm-body="This will keep the assignee but remove the task from the selected sprint." data-at-confirm-cancel-label="Cancel" data-at-confirm-accept-label="Remove from Sprint" data-at-remove-from-sprint>Remove from sprint, keep assigned</button>
                                     </form>
                                 </div>
                             }
                             @if (hasDangerActions)
                             {
-                                <div class="at-action-more-group at-action-danger-group" role="group" aria-label="Replanning">
+                                <div class="at-action-more-group at-action-replanning-group" role="group" aria-label="Replanning">
                                     <div class="at-action-more-heading">Replanning</div>
                                     <form method="post" asp-page-handler="MoveToBacklogRemoveAssignee" class="at-card-action-form">
                                         <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
@@ -458,7 +486,7 @@
                                         <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                         <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
                                         <label class="form-label at-small" for="moveBacklogRemarks">Reason for replanning</label><input id="moveBacklogRemarks" name="remarks" class="form-control form-control-sm mb-1" maxlength="1000" required placeholder="Add a short reason" />
-                                        <button type="submit" class="btn btn-link btn-sm at-action-more-destructive" data-at-confirm="true" data-at-confirm-title="Return task to Backlog?" data-at-confirm-body="This will remove the assignee and return the task to Backlog." data-at-confirm-cancel-label="Cancel" data-at-confirm-accept-label="Return to Backlog" data-at-move-to-backlog>Move to backlog, remove assignee</button>
+                                        <button type="submit" class="btn btn-outline-warning btn-sm at-manage-action-button" data-at-confirm="true" data-at-confirm-title="Return task to Backlog?" data-at-confirm-body="This will remove the assignee and return the task to Backlog." data-at-confirm-cancel-label="Cancel" data-at-confirm-accept-label="Return to Backlog" data-at-move-to-backlog>Move to backlog, remove assignee</button>
                                     </form>
                                 </div>
                             }

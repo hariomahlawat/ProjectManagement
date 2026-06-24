@@ -71,7 +71,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
-                Text = "Action tracker",
+                Text = "Task Management",
                 Page = "/ActionTasks/Index",
                 AuthorizationPolicy = "ActionTracker.Access",
                 Icon = "bi-list-task"
