@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Data;
-using ProjectManagement.Configuration;
+using ProjectManagement.Services.Navigation;
 
 namespace ProjectManagement.Areas.Identity.Pages.Account
 {
@@ -22,13 +22,19 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
         private readonly ILogger<LoginModel> _logger;
         private readonly ApplicationDbContext _db;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly DefaultLandingPageResolver _landingPageResolver;
 
-        public LoginModel(SignInManager<ApplicationUser> signInManager, ILogger<LoginModel> logger, ApplicationDbContext db)
+        public LoginModel(
+            SignInManager<ApplicationUser> signInManager,
+            ILogger<LoginModel> logger,
+            ApplicationDbContext db,
+            DefaultLandingPageResolver landingPageResolver)
         {
             _signInManager = signInManager;
             _logger = logger;
             _db = db;
             _userManager = signInManager.UserManager;
+            _landingPageResolver = landingPageResolver;
         }
 
         [BindProperty]
@@ -51,17 +57,6 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
         public void OnGet() { }
 
         private const string GenericLoginError = "Invalid username or password.";
-
-        // SECTION: Role-aware landing keeps Project Officer daily work front-and-center.
-        private async Task<string> GetDefaultLandingUrlAsync(ApplicationUser user)
-        {
-            if (await _userManager.IsInRoleAsync(user, RoleNames.ProjectOfficer))
-            {
-                return Url.Content("~/Workspace");
-            }
-
-            return Url.Content("~/Dashboard/Index");
-        }
 
         public async Task<IActionResult> OnPostAsync(string? returnUrl = null)
         {
@@ -96,7 +91,7 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
                 }
                 if (user is not null && (string.IsNullOrWhiteSpace(returnUrl) || !Url.IsLocalUrl(returnUrl)))
                 {
-                    returnUrl = await GetDefaultLandingUrlAsync(user);
+                    returnUrl = Url.Content(await _landingPageResolver.ResolveAsync(user));
                 }
 
                 if (string.IsNullOrWhiteSpace(returnUrl) || !Url.IsLocalUrl(returnUrl))

@@ -2,8 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using ProjectManagement.Configuration;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Navigation;
 
 namespace ProjectManagement.Pages
 {
@@ -11,13 +11,17 @@ namespace ProjectManagement.Pages
     public class IndexModel : PageModel
     {
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly DefaultLandingPageResolver _landingPageResolver;
 
-        public IndexModel(UserManager<ApplicationUser> userManager)
+        public IndexModel(
+            UserManager<ApplicationUser> userManager,
+            DefaultLandingPageResolver landingPageResolver)
         {
             _userManager = userManager;
+            _landingPageResolver = landingPageResolver;
         }
 
-        // SECTION: Authenticated users skip the public landing page and enter their daily workspace.
+        // SECTION: Authenticated users skip the public landing page and enter the role-appropriate application home.
         public async Task<IActionResult> OnGetAsync()
         {
             if (User.Identity?.IsAuthenticated != true)
@@ -31,12 +35,8 @@ namespace ProjectManagement.Pages
                 return Page();
             }
 
-            if (await _userManager.IsInRoleAsync(user, RoleNames.ProjectOfficer))
-            {
-                return RedirectToPage("/Workspace/Index");
-            }
-
-            return RedirectToPage("/Dashboard/Index");
+            var landingPage = await _landingPageResolver.ResolveAsync(user);
+            return RedirectToPage(landingPage);
         }
     }
 }
