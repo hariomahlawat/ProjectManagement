@@ -8,6 +8,7 @@
 @{
     ViewData["Title"] = "Dashboard";
     ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "wide";
 
     var pulse = Model.ProjectPulse;
     ProjectManagement.Areas.Dashboard.Components.ProjectPulse.OngoingBucketSetVm? totalBucket = null;

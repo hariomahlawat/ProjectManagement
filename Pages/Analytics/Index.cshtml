@@ -7,6 +7,7 @@
 @{ 
     ViewData["Title"] = "Analytics";
     ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "analytics";
     var categories = Model.Categories ?? Array.Empty<ProjectManagement.Pages.Analytics.IndexModel.CategoryOption>();
     var technicalCategories = Model.TechnicalCategories ?? Array.Empty<ProjectManagement.Pages.Analytics.IndexModel.TechnicalCategoryOption>();
     ViewData["AnalyticsCategories"] = categories;

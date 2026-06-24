@@ -35,9 +35,25 @@
             && !string.IsNullOrWhiteSpace(currentPage)
             && currentPage.StartsWith("/FFC", StringComparison.OrdinalIgnoreCase);
         var useFullWidth = (ViewData["UseFullWidth"] as bool?) == true;
-        var mainContainerClass = useFullWidth
-            ? "container-fluid analytics-shell px-3 px-lg-4 px-xxl-5"
-            : "container";
+        var requestedShell = ViewData["PageShell"]?.ToString()?.Trim().ToLowerInvariant();
+        var shellVariant = requestedShell switch
+        {
+            "focused" => "focused",
+            "standard" => "standard",
+            "wide" => "wide",
+            "analytics" => "analytics",
+            "landing" => "landing",
+            _ when !signedIn && string.Equals(currentPage, "/Index", StringComparison.OrdinalIgnoreCase) => "landing",
+            _ when string.Equals(currentPage, "/Dashboard/Index", StringComparison.OrdinalIgnoreCase) => "wide",
+            _ when string.Equals(currentPage, "/Analytics/Index", StringComparison.OrdinalIgnoreCase) => "analytics",
+            _ when string.Equals(currentPage, "/ActionTasks/Index", StringComparison.OrdinalIgnoreCase) => "wide",
+            _ when string.Equals(currentPage, "/Workspace/Index", StringComparison.OrdinalIgnoreCase) => "wide",
+            _ when string.Equals(currentPage, "/Projects/Ongoing/Index", StringComparison.OrdinalIgnoreCase) => "analytics",
+            _ when string.Equals(currentArea, "DocumentRepository", StringComparison.OrdinalIgnoreCase) => "analytics",
+            _ when useFullWidth => "wide",
+            _ => "standard"
+        };
+        var mainContainerClass = $"pm-page-shell pm-page-shell--{shellVariant}";
         var breadcrumbModel = ViewData["Breadcrumb"] as BreadcrumbModel;
         var publicHeaderMode = ViewData["PublicHeaderMode"]?.ToString();
         var isPublicAuthPage = !signedIn && string.Equals(publicHeaderMode, "Auth", StringComparison.OrdinalIgnoreCase);
@@ -48,7 +64,7 @@
     @if (signedIn)
     {
         <header class="pm-topbar">
-            <div class="container-fluid px-3 px-md-4 px-lg-5 pm-topbar__inner">
+            <div class="pm-chrome-shell pm-topbar__inner">
                 <div class="pm-topbar__left">
                     @await Component.InvokeAsync("NavigationDrawer")
 
@@ -154,7 +170,7 @@
     @if (signedIn)
     {
         <div class="pm-module-subnav-wrap">
-            <div class="container-fluid px-3 px-md-4 px-lg-5">
+            <div class="pm-chrome-shell">
                 @await Component.InvokeAsync("ModuleSubNav")
             </div>
         </div>
@@ -180,7 +196,7 @@
     @if (signedIn)
     {
         <footer class="pm-footer border-top py-2 mt-auto">
-            <div class="container-xxl">
+            <div class="pm-chrome-shell">
                 <div class="d-flex flex-column flex-md-row align-items-center justify-content-between gap-2 small">
                     <div class="text-muted">© @DateTime.UtcNow.Year — PRISM ERP</div>
                     <div class="d-flex align-items-center gap-2 fw-semibold">

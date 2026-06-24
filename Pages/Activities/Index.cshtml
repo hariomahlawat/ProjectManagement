@@ -5,6 +5,7 @@
 @{
     ViewData["Title"] = "Institutional Activities";
     ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "wide";
     var vm = Model.ViewModel;
     var hasRows = vm is not null && vm.Rows.Count > 0;
     var currentPage = vm?.Page ?? Model.Page;

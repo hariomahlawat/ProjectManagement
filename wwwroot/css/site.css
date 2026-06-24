@@ -9147,41 +9147,57 @@ body {
     visibility: hidden;
 }
 
-
-/* SECTION: Compact floating application notifications. */
-.app-toast-container {
-    z-index: 2000;
-    margin-top: 4.5rem;
+/* ============================================================
+   Responsive application canvas
+   Keeps PRISM dense and composed on laptops while preventing
+   full-width pages from becoming visually stretched on wide displays.
+   ============================================================ */
+:root {
+    --pm-shell-focused: 76rem;   /* 1216px */
+    --pm-shell-standard: 90rem;  /* 1440px */
+    --pm-shell-wide: 100rem;     /* 1600px */
+    --pm-shell-analytics: 108rem;/* 1728px */
+    --pm-shell-landing: 96rem;   /* 1536px */
+    --pm-shell-gutter: clamp(1rem, 2.15vw, 2.5rem);
 }
 
-.app-toast {
-    min-width: min(22rem, calc(100vw - 2rem));
-    max-width: 26rem;
-    border: 1px solid rgba(148, 163, 184, .35);
-    border-radius: .8rem;
-    box-shadow: 0 18px 45px rgba(15, 23, 42, .18);
-    overflow: hidden;
+.pm-chrome-shell {
+    width: min(calc(100% - (2 * var(--pm-shell-gutter))), var(--pm-shell-analytics));
+    margin-inline: auto;
 }
 
-.app-toast .toast-header {
-    border-bottom: 1px solid rgba(226, 232, 240, .85);
-    background: #fff;
+.pm-page-shell {
+    width: min(calc(100% - (2 * var(--pm-shell-gutter))), var(--pm-shell-standard));
+    margin-inline: auto;
+    padding-inline: 0;
 }
 
-.app-toast .toast-body {
-    background: #fff;
-    color: #334155;
-    font-weight: 550;
+.pm-page-shell--focused { max-width: var(--pm-shell-focused); }
+.pm-page-shell--standard { max-width: var(--pm-shell-standard); }
+.pm-page-shell--wide { max-width: var(--pm-shell-wide); }
+.pm-page-shell--analytics { max-width: var(--pm-shell-analytics); }
+.pm-page-shell--landing { max-width: none; width: 100%; }
+
+main[role="main"].analytics-main {
+    width: 100%;
+    max-width: none;
+    padding-inline: 0 !important;
 }
 
-.app-toast-indicator {
-    width: .55rem;
-    height: .55rem;
-    border-radius: 999px;
-    margin-right: .55rem;
-    background: #3b82f6;
+main[role="main"].analytics-main > .pm-page-shell {
+    padding-top: 8px;
+    padding-bottom: 28px;
 }
 
-.app-toast-success .app-toast-indicator { background: #16a34a; }
-.app-toast-danger .app-toast-indicator { background: #dc2626; }
-.app-toast-warning .app-toast-indicator { background: #d97706; }
+@media (min-width: 1800px) {
+    :root { --pm-shell-gutter: 2.75rem; }
+}
+
+@media (max-width: 767.98px) {
+    :root { --pm-shell-gutter: .75rem; }
+
+    .pm-chrome-shell,
+    .pm-page-shell {
+        width: calc(100% - (2 * var(--pm-shell-gutter)));
+    }
+}

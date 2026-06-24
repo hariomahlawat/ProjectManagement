@@ -18,7 +18,8 @@ body:has(.landing-page) main {
     padding-bottom: 0 !important;
 }
 
-body:has(.landing-page) main > .container-fluid {
+body:has(.landing-page) main > .pm-page-shell--landing {
+    width: 100% !important;
     padding: 0 !important;
     max-width: none !important;
 }
@@ -29,7 +30,7 @@ body:has(.landing-page) main > .container-fluid {
 }
 
 .landing-shell {
-    width: min(1440px, calc(100% - 48px));
+    width: min(1536px, calc(100% - clamp(40px, 5vw, 88px)));
     margin-inline: auto;
 }
 
@@ -822,7 +823,7 @@ body:has(.landing-page) main > .container-fluid {
 
 .public-topbar__inner,
 .public-footer__inner {
-    width: min(1440px, calc(100% - 48px));
+    width: min(1536px, calc(100% - clamp(40px, 5vw, 88px)));
     margin-inline: auto;
 }
 
