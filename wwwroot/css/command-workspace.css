@@ -1,4 +1,7 @@
 :root {
+    --category-dcd:#3c68e8;
+    --category-coe:#52c653;
+    --category-rnd:#ef7a00;
     --cw-ink:#12213f;
     --cw-muted:#64748b;
     --cw-line:#dbe3ef;
@@ -165,7 +168,10 @@
 .cw-stage-column.is-empty .cw-stage-column__body { min-height:42px; }
 .cw-stage-category+.cw-stage-category { margin-top:7px; padding-top:7px; border-top:1px solid #e1e7ef; }
 .cw-stage-category h4 { min-height:21px; margin:0 0 2px; display:flex; align-items:center; gap:5px; font-size:.67rem; color:#596980; }
-.cw-stage-category h4>span:first-child { width:7px; height:7px; border-radius:50%; background:#3b6ee8; }
+.cw-stage-category h4>span:first-child { width:7px; height:7px; border-radius:50%; background:#94a3b8; }
+.cw-stage-category h4>span:first-child[data-category="DCD Projects"] { background:var(--category-dcd); }
+.cw-stage-category h4>span:first-child[data-category="CoE"] { background:var(--category-coe); }
+.cw-stage-category h4>span:first-child[data-category="Other R&D Projects"] { background:var(--category-rnd); }
 .cw-category-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cw-stage-category h4 b { margin-left:auto; }
 .cw-stage-category ol { margin:0; padding-left:18px; }
@@ -188,10 +194,33 @@
 .cw-officer-board-shell.can-scroll-right .cw-edge-fade--right { opacity:1; }
 
 .cw-officer-panel { overflow:visible; }
-.cw-officer-board { grid-auto-columns:minmax(285px,320px); gap:8px; padding:8px; }
-.cw-officer-card { align-self:start; background:#fff; border:1px solid var(--cw-line); border-radius:9px; overflow:hidden; box-shadow:0 5px 14px rgba(25,45,85,.045); scroll-snap-align:start; }
-.cw-officer-card__header { display:flex; gap:9px; align-items:center; padding:9px 10px; border-bottom:1px solid #e4eaf2; background:linear-gradient(135deg,#fff,#f7f9fd); }
-.cw-avatar { width:32px; height:32px; display:grid; place-items:center; border-radius:8px; background:#193b75; color:#fff; font-size:.84rem; font-weight:900; }
+.cw-officer-grid {
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(315px,1fr));
+    gap:10px;
+    align-items:start;
+    padding:8px;
+}
+.cw-officer-card {
+    --officer-accent:#4969a8;
+    --officer-tint:#f7f9fd;
+    align-self:start;
+    min-width:0;
+    background:#fff;
+    border:1px solid var(--cw-line);
+    border-top:3px solid var(--officer-accent);
+    border-radius:9px;
+    overflow:hidden;
+    box-shadow:0 5px 14px rgba(25,45,85,.045);
+}
+.cw-officer-card--accent-0 { --officer-accent:#4169a8; --officer-tint:#f5f8fd; }
+.cw-officer-card--accent-1 { --officer-accent:#397d78; --officer-tint:#f4faf9; }
+.cw-officer-card--accent-2 { --officer-accent:#6c5a9c; --officer-tint:#f8f6fc; }
+.cw-officer-card--accent-3 { --officer-accent:#536b85; --officer-tint:#f6f8fa; }
+.cw-officer-card--accent-4 { --officer-accent:#6f7d45; --officer-tint:#f8faf4; }
+.cw-officer-card--accent-5 { --officer-accent:#8a5f6f; --officer-tint:#fbf6f8; }
+.cw-officer-card__header { display:flex; gap:9px; align-items:center; padding:9px 10px; border-bottom:1px solid #e4eaf2; background:linear-gradient(135deg,#fff,var(--officer-tint)); }
+.cw-avatar { width:32px; height:32px; display:grid; place-items:center; border-radius:8px; background:var(--officer-accent); color:#fff; font-size:.84rem; font-weight:900; }
 .cw-officer-identity { min-width:0; }
 .cw-officer-card h3 { margin:0; font-size:.86rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cw-officer-identity p { display:flex; flex-wrap:wrap; gap:3px 8px; margin:2px 0 0; color:#718096; font-size:.64rem; }
@@ -214,6 +243,16 @@
 .cw-empty strong { color:#344863; }
 .cw-empty span { font-size:.75rem; }
 
+
+@media (min-width:1500px) {
+    .cw-officer-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
+}
+@media (min-width:1050px) and (max-width:1499px) {
+    .cw-officer-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+@media (min-width:700px) and (max-width:1049px) {
+    .cw-officer-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
 @media (max-width:1100px) {
     .cw-command-bar { flex-wrap:wrap; }
     .cw-command-bar__action { margin-left:auto; }
@@ -222,6 +261,7 @@
     .cw-filter-result,.cw-filter-status { justify-self:start; }
 }
 @media (max-width:720px) {
+    .cw-officer-grid { grid-template-columns:1fr; padding:6px; }
     .command-workspace,.workspace-mode-switcher { width:calc(100% - 12px); }
     .workspace-mode-switcher__label,.cw-workspace-segment__label { display:none; }
     .cw-command-bar { gap:4px; }
@@ -234,7 +274,6 @@
     .cw-filter-grid,.cw-filter-grid--officers { grid-template-columns:1fr; padding-inline:8px; }
     .cw-field--search { grid-column:auto; }
     .cw-stage-board { grid-auto-columns:minmax(260px,88vw); }
-    .cw-officer-board { grid-auto-columns:minmax(275px,88vw); }
     .cw-panel__header { padding:7px 9px; }
     .cw-chart-wrap { height:220px; padding-inline:4px; }
     .cw-filter-result,.cw-filter-status { justify-self:start; }

@@ -167,10 +167,6 @@
                 <h2>Officer workload</h2>
                 <div class="cw-panel__actions">
                     <span class="cw-result-count">@vm.Officers.Count officers</span>
-                    <div class="cw-scroll-controls" aria-label="Officer navigation">
-                        <button type="button" data-scroll-target="officer-board" data-scroll-direction="previous" aria-label="Previous officers" title="Previous officers"><i class="bi bi-chevron-left"></i></button>
-                        <button type="button" data-scroll-target="officer-board" data-scroll-direction="next" aria-label="Next officers" title="Next officers"><i class="bi bi-chevron-right"></i></button>
-                    </div>
                 </div>
             </header>
 
@@ -190,12 +186,12 @@
             }
             else
             {
-                <div class="cw-officer-board-shell">
-                    <div class="cw-edge-fade cw-edge-fade--left" aria-hidden="true"></div>
-                    <div class="cw-officer-board" id="officer-board" data-horizontal-board tabindex="0" aria-label="Horizontally scrollable officer workload board. Press and drag to move horizontally.">
-                        @foreach (var officer in vm.Officers)
-                        {
-                            <article class="cw-officer-card">
+                <div class="cw-officer-grid" aria-label="Project Officer workload cards">
+                    @foreach (var officer in vm.Officers)
+                    {
+                        var accentSeed = (officer.UserId ?? officer.OfficerName).Aggregate(0, (total, character) => total + character);
+                        var accentIndex = Math.Abs(accentSeed) % 6;
+                        <article class="cw-officer-card cw-officer-card--accent-@accentIndex">
                                 <header class="cw-officer-card__header">
                                     <span class="cw-avatar">@((officer.OfficerName.FirstOrDefault()).ToString().ToUpperInvariant())</span>
                                     <div class="cw-officer-identity">
@@ -227,7 +223,7 @@
                                     </details>
                                     @if (officer.IdeaCount > 0)
                                     {
-                                        <details>
+                                        <details open>
                                             <summary><span><i class="bi bi-lightbulb"></i>Ideas</span><b>@officer.IdeaCount</b></summary>
                                             <ul>@foreach(var idea in officer.Ideas){<li><a href="@idea.OpenUrl" title="@idea.Title">@idea.Title</a><span>@idea.Status</span></li>}</ul>
                                         </details>
@@ -238,7 +234,7 @@
                                     }
                                     @if (officer.OtherTaskCount > 0)
                                     {
-                                        <details>
+                                        <details open>
                                             <summary><span><i class="bi bi-list-check"></i>Other tasks</span><b>@officer.OtherTaskCount</b></summary>
                                             <ul>@foreach(var task in officer.OtherTasks){<li><a href="@task.OpenUrl" title="@task.Title">@task.Title</a><span>@task.Status · Due @task.DueDate.ToString("dd MMM")</span></li>}</ul>
                                         </details>
@@ -249,9 +245,7 @@
                                     }
                                 </div>
                             </article>
-                        }
-                    </div>
-                    <div class="cw-edge-fade cw-edge-fade--right" aria-hidden="true"></div>
+                    }
                 </div>
             }
         </section>

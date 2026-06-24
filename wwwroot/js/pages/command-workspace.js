@@ -170,10 +170,11 @@
     try { rows = JSON.parse(canvas.dataset.series || '[]'); } catch { rows = []; }
     const stageNames = [...new Map(rows.map(row => [row.stageCode, row.stageName])).entries()];
     const categories = [...new Set(rows.map(row => row.categoryName))];
+    const rootStyles = getComputedStyle(document.documentElement);
     const categoryColors = {
-        'DCD Projects': '#3c68e8',
-        'Other R&D Projects': '#ef7a00',
-        'CoE': '#52c653'
+        'DCD Projects': rootStyles.getPropertyValue('--category-dcd').trim() || '#3c68e8',
+        'CoE': rootStyles.getPropertyValue('--category-coe').trim() || '#52c653',
+        'Other R&D Projects': rootStyles.getPropertyValue('--category-rnd').trim() || '#ef7a00'
     };
     const fallbackPalette = ['#8f4cf0', '#15a6a6', '#d94b68'];
     const datasets = categories.map((category, index) => ({
