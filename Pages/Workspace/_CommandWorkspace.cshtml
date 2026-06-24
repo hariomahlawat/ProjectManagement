@@ -4,8 +4,6 @@
     var vm = Model.CommandWorkspace;
     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     var isPortfolio = vm.ActiveView == "portfolio";
-    const int initialProjectsPerStage = 6;
-    const int initialOfficerItems = 5;
     var selectedCategoryCount = vm.SelectedParentCategoryIds.Count;
     var categoryTriggerText = selectedCategoryCount switch
     {
@@ -30,8 +28,8 @@
                 </a>
                 <div class="cw-local-rail__separator" aria-hidden="true"></div>
             }
-            <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="portfolio" class="@(isPortfolio ? "is-active" : null)" title="Portfolio by stage">
-                <i class="bi bi-diagram-3"></i><span>Portfolio by stage</span><b>@vm.TotalOngoingProjects</b>
+            <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="portfolio" class="@(isPortfolio ? "is-active" : null)" title="Project Portfolio">
+                <i class="bi bi-diagram-3"></i><span>Project Portfolio</span><b>@vm.TotalOngoingProjects</b>
             </a>
             <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="officers" class="@(!isPortfolio ? "is-active" : null)" title="Officer workload">
                 <i class="bi bi-people"></i><span>Officer workload</span><b>@vm.ProjectOfficerCount</b>
@@ -79,8 +77,11 @@
                         </div>
                     </div>
                 </div>
-                <label class="cw-check"><input type="checkbox" name="PopulatedStagesOnly" value="true" checked="@vm.PopulatedStagesOnly" /><input type="hidden" name="PopulatedStagesOnly" value="false" /><span>Populated stages only</span></label>
-                <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="portfolio" class="cw-reset-link">Reset</a>
+                <input type="hidden" name="PopulatedStagesOnly" value="true" />
+                @if (!string.IsNullOrWhiteSpace(vm.ProjectSearch) || selectedCategoryCount > 0)
+                {
+                    <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="portfolio" class="cw-reset-link">Reset</a>
+                }
                 <span class="cw-filter-result">@(filteredProjectCount == vm.TotalOngoingProjects ? $"{vm.TotalOngoingProjects} projects" : $"{filteredProjectCount} of {vm.TotalOngoingProjects} projects")</span>
                 <span class="cw-filter-status" data-cw-filter-status aria-live="polite"></span>
             </form>
@@ -112,8 +113,6 @@
                     <div class="cw-stage-board" id="stage-board" data-horizontal-board tabindex="0" aria-label="Horizontally scrollable stage-wise project list. Press and drag to move horizontally.">
                         @foreach (var stage in vm.StageColumns)
                         {
-                            var stageItemIndex = 0;
-                            var hiddenProjectCount = Math.Max(0, stage.ProjectCount - initialProjectsPerStage);
                             <article class="cw-stage-column @(stage.ProjectCount == 0 ? "is-empty" : null)" data-stage-code="@stage.StageCode">
                                 <header>
                                     <div class="cw-stage-heading"><strong>@stage.StageCode</strong><h3>@stage.StageName</h3></div>
@@ -133,19 +132,13 @@
                                                 <ol>
                                                     @foreach (var project in category.Projects)
                                                     {
-                                                        stageItemIndex++;
-                                                        var isInitiallyHidden = stageItemIndex > initialProjectsPerStage;
-                                                        <li class="@(isInitiallyHidden ? "cw-collapsible-item" : null)" hidden="@isInitiallyHidden">
+                                                        <li>
                                                             <a href="@project.OpenUrl" title="@project.ProjectName">@project.ProjectName</a>
                                                             <span>@project.OfficerName</span>
                                                         </li>
                                                     }
                                                 </ol>
                                             </section>
-                                        }
-                                        @if (hiddenProjectCount > 0)
-                                        {
-                                            <button type="button" class="cw-expand-button" data-expand-projects data-collapsed-label="Show @hiddenProjectCount more" data-expanded-label="Show fewer">Show @hiddenProjectCount more</button>
                                         }
                                     }
                                 </div>
@@ -164,7 +157,6 @@
                 <h2>Officer workload</h2>
                 <div class="cw-panel__actions">
                     <span class="cw-result-count">@vm.Officers.Count officers</span>
-                    <button type="button" class="cw-reset-order" data-reset-officer-order title="Restore rank and name order">Reset order</button>
                 </div>
             </header>
 
@@ -193,7 +185,7 @@
                                 </div>
                             </header>
                             <div class="cw-work-sections">
-                                <section class="cw-work-section">
+                                <section class="cw-work-section cw-work-section--projects">
                                     <div class="cw-work-section__heading"><span><i class="bi bi-kanban"></i>Projects</span><b>@officer.ProjectCount</b></div>
                                     @if (officer.Projects.Count == 0)
                                     {
@@ -202,19 +194,14 @@
                                     else
                                     {
                                         <ul>
-                                            @for (var i = 0; i < officer.Projects.Count; i++)
+                                            @foreach (var project in officer.Projects)
                                             {
-                                                var project = officer.Projects[i];
-                                                <li class="@(i >= initialOfficerItems ? "cw-collapsible-item" : null)" hidden="@(i >= initialOfficerItems)"><a href="@project.OpenUrl" title="@project.Name">@project.Name</a><span>@project.StageCode · @project.StageName</span></li>
+                                                <li><a href="@project.OpenUrl" title="@project.Name">@project.Name</a><span>@project.StageCode · @project.StageName</span></li>
                                             }
                                         </ul>
-                                        @if (officer.Projects.Count > initialOfficerItems)
-                                        {
-                                            <button type="button" class="cw-expand-button" data-expand-projects data-collapsed-label="Show @(officer.Projects.Count - initialOfficerItems) more" data-expanded-label="Show fewer">Show @(officer.Projects.Count - initialOfficerItems) more</button>
-                                        }
                                     }
                                 </section>
-                                <section class="cw-work-section">
+                                <section class="cw-work-section cw-work-section--ideas">
                                     <div class="cw-work-section__heading"><span><i class="bi bi-lightbulb"></i>Ideas</span><b>@officer.IdeaCount</b></div>
                                     @if (officer.Ideas.Count == 0)
                                     {
@@ -225,7 +212,7 @@
                                         <ul>@foreach(var idea in officer.Ideas){<li><a href="@idea.OpenUrl" title="@idea.Title">@idea.Title</a><span>@idea.Status</span></li>}</ul>
                                     }
                                 </section>
-                                <section class="cw-work-section">
+                                <section class="cw-work-section cw-work-section--tasks">
                                     <div class="cw-work-section__heading"><span><i class="bi bi-list-check"></i>Other tasks</span><b>@officer.OtherTaskCount</b></div>
                                     @if (officer.OtherTasks.Count == 0)
                                     {

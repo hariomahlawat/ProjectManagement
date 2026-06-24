@@ -150,23 +150,9 @@
         });
     });
 
-    document.querySelectorAll('[data-expand-projects]').forEach((button) => {
-        button.setAttribute('aria-expanded', 'false');
-        button.addEventListener('click', () => {
-            const container = button.closest('.cw-stage-column__body, details');
-            if (!container) return;
-            const items = container.querySelectorAll('.cw-collapsible-item');
-            const expanded = button.getAttribute('aria-expanded') === 'true';
-            items.forEach((item) => { item.hidden = expanded; });
-            button.setAttribute('aria-expanded', String(!expanded));
-            button.textContent = expanded ? button.dataset.collapsedLabel : button.dataset.expandedLabel;
-        });
-    });
-
     const officerGrid = document.querySelector('[data-officer-grid]');
     const orderForm = document.querySelector('[data-officer-order-form]');
     const orderFeedback = document.querySelector('[data-officer-order-feedback]');
-    const resetOrderButton = document.querySelector('[data-reset-officer-order]');
 
     const saveOfficerOrder = async (officerUserIds, successMessage = 'Order saved') => {
         if (!orderForm) return false;
@@ -240,12 +226,6 @@
         });
     }
 
-    resetOrderButton?.addEventListener('click', async () => {
-        resetOrderButton.disabled = true;
-        const saved = await saveOfficerOrder([], 'Default order restored');
-        if (saved) window.location.reload();
-        else resetOrderButton.disabled = false;
-    });
 
     const canvas = document.getElementById('command-stage-chart');
     if (!canvas || !window.Chart) return;
