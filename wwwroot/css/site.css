@@ -9146,3 +9146,42 @@ body {
     top: -90px;
     visibility: hidden;
 }
+
+
+/* SECTION: Compact floating application notifications. */
+.app-toast-container {
+    z-index: 2000;
+    margin-top: 4.5rem;
+}
+
+.app-toast {
+    min-width: min(22rem, calc(100vw - 2rem));
+    max-width: 26rem;
+    border: 1px solid rgba(148, 163, 184, .35);
+    border-radius: .8rem;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, .18);
+    overflow: hidden;
+}
+
+.app-toast .toast-header {
+    border-bottom: 1px solid rgba(226, 232, 240, .85);
+    background: #fff;
+}
+
+.app-toast .toast-body {
+    background: #fff;
+    color: #334155;
+    font-weight: 550;
+}
+
+.app-toast-indicator {
+    width: .55rem;
+    height: .55rem;
+    border-radius: 999px;
+    margin-right: .55rem;
+    background: #3b82f6;
+}
+
+.app-toast-success .app-toast-indicator { background: #16a34a; }
+.app-toast-danger .app-toast-indicator { background: #dc2626; }
+.app-toast-warning .app-toast-indicator { background: #d97706; }

@@ -125,7 +125,7 @@
 
 .at-next-action-section {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(12rem, auto);
     gap: 0.65rem;
     align-items: center;
     border-color: #bfdbfe;
@@ -529,4 +529,56 @@
 
 .at-task-closure-list dd {
     margin: 0;
+}
+
+
+/* SECTION: Wider, clearer inspector hierarchy. */
+.at-task-command-header {
+    position: sticky;
+    top: 0;
+    z-index: 8;
+}
+
+.at-next-action-actions {
+    align-self: stretch;
+    display: grid;
+    gap: .55rem;
+    justify-items: end;
+}
+
+.at-next-action-primary,
+.at-next-action-secondary {
+    width: 100%;
+}
+
+.at-next-action-primary {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.at-next-action-secondary {
+    border-top: 1px solid #dbeafe;
+    padding-top: .45rem;
+}
+
+.at-next-action-secondary-label {
+    display: block;
+    margin-bottom: .25rem;
+    text-align: right;
+}
+
+.at-action-danger-group {
+    border-color: #fed7aa !important;
+    background: #fffbeb !important;
+}
+
+@media (max-width: 991px) {
+    .at-next-action-primary,
+    .at-next-action-buttons {
+        justify-content: flex-start;
+    }
+
+    .at-next-action-secondary-label {
+        text-align: left;
+    }
 }

@@ -59,12 +59,23 @@
 
 @if (items.Count > 0)
 {
-    <div class="container-xxl mt-2" aria-live="polite" aria-atomic="true">
+    <div class="toast-container position-fixed top-0 end-0 p-3 app-toast-container" aria-live="polite" aria-atomic="true">
         @foreach (var item in items)
         {
-            <div class="alert alert-@item.Level d-flex align-items-center justify-content-between shadow-sm" role="alert">
-                <div class="me-3">@item.Text</div>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            var title = item.Level switch
+            {
+                "success" => "Success",
+                "danger" => "Action required",
+                "warning" => "Attention",
+                _ => "Update"
+            };
+            <div class="toast show app-toast app-toast-@item.Level" role="status" aria-live="polite" aria-atomic="true" data-bs-delay="4500">
+                <div class="toast-header">
+                    <span class="app-toast-indicator" aria-hidden="true"></span>
+                    <strong class="me-auto">@title</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+                <div class="toast-body">@item.Text</div>
             </div>
         }
     </div>
