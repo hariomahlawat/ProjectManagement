@@ -1,7 +1,7 @@
 @page "/Workspace"
 @model ProjectManagement.Pages.Workspace.IndexModel
 @{
-    ViewData["Title"] = Model.IsCommandMode ? "Command / HoD Workspace" : "My Workspace";
+    ViewData["Title"] = Model.IsCommandMode ? "Comdt / HoD Workspace" : "My Workspace";
     ViewData["UseFullWidth"] = true;
 }
 @section Styles {
@@ -14,7 +14,7 @@
     <nav class="workspace-mode-switcher" aria-label="Select workspace">
         <span class="workspace-mode-switcher__label">Workspace</span>
         <a asp-page="/Workspace/Index" asp-route-mode="command" class="@(Model.IsCommandMode ? "is-active" : null)">
-            <i class="bi bi-building"></i><span>Command / HoD</span>
+            <i class="bi bi-building"></i><span>Comdt / HoD</span>
         </a>
         <a asp-page="/Workspace/Index" asp-route-mode="project-officer" class="@(!Model.IsCommandMode ? "is-active" : null)">
             <i class="bi bi-person-workspace"></i><span>Project Officer</span>
