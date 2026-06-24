@@ -1,8 +1,16 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
-@* SECTION: Compact internal tabs expose the simplified Sprint Board workflow. *@
-<nav class="at-panel at-planning-tabs at-planning-tabs-compact" aria-label="Sprint Board tabs">
-    <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Plan" asp-route-SelectedSprintId="@Model.SelectedSprintId" asp-route-taskId="@Model.TaskId" class="@(Model.IsPlanningPlanTab ? "active" : string.Empty)" aria-current="@(Model.IsPlanningPlanTab ? "page" : null)"><span>Plan</span><small>Sprints & backlog</small></a>
-    <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Execute" asp-route-SelectedSprintId="@Model.SelectedSprintId" asp-route-taskId="@Model.TaskId" class="@(Model.IsPlanningExecuteTab ? "active" : string.Empty)" aria-current="@(Model.IsPlanningExecuteTab ? "page" : null)"><span>Execute</span><small>Status board</small></a>
-    <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Close" asp-route-SelectedSprintId="@Model.SelectedSprintId" asp-route-taskId="@Model.TaskId" class="@(Model.IsPlanningCloseTab ? "active" : string.Empty)" aria-current="@(Model.IsPlanningCloseTab ? "page" : null)"><span>Close</span><small>Review & history</small></a>
+<nav class="at-board-nav" aria-label="Board tools">
+    <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Execute" asp-route-SelectedSprintId="@Model.SelectedSprintId" asp-route-taskId="@Model.TaskId" class="@(Model.IsPlanningExecuteTab ? "active" : string.Empty)" aria-current="@(Model.IsPlanningExecuteTab ? "page" : null)">
+        <i class="bi bi-kanban" aria-hidden="true"></i><span>Board</span>
+    </a>
+    @if (Model.CanPlanSprints)
+    {
+        <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Plan" asp-route-SelectedSprintId="@Model.SelectedSprintId" asp-route-taskId="@Model.TaskId" class="@(Model.IsPlanningPlanTab ? "active" : string.Empty)" aria-current="@(Model.IsPlanningPlanTab ? "page" : null)">
+            <i class="bi bi-calendar-plus" aria-hidden="true"></i><span>Plan sprint</span>
+        </a>
+        <a asp-page="/ActionTasks/Index" asp-route-viewMode="Planning" asp-route-PlanningTab="Close" asp-route-SelectedSprintId="@Model.SelectedSprintId" asp-route-taskId="@Model.TaskId" class="@(Model.IsPlanningCloseTab ? "active" : string.Empty)" aria-current="@(Model.IsPlanningCloseTab ? "page" : null)">
+            <i class="bi bi-check2-square" aria-hidden="true"></i><span>Review closure</span>
+        </a>
+    }
 </nav>

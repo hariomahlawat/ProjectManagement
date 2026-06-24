@@ -13,7 +13,7 @@
         var isInProgress = string.Equals(task.Status, ProjectManagement.Models.ActionTaskStatuses.InProgress, StringComparison.OrdinalIgnoreCase);
         var isBlocked = string.Equals(task.Status, ProjectManagement.Models.ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
         var isSubmitted = string.Equals(task.Status, ProjectManagement.Models.ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase);
-        var detailsLabel = isSubmitted ? "View Details" : "Details";
+        var detailsLabel = isSubmitted ? "Open" : "Open";
 
         <article class="at-mywork-task-card @(pageModel.IsSelectedTask(task) ? "is-selected" : string.Empty)">
             <div class="at-mywork-row-main">
@@ -50,7 +50,7 @@
                         <input type="hidden" name="TaskId" value="@task.Id" />
                         <input type="hidden" name="id" value="@task.Id" />
                         <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
-                        <button type="submit" class="btn btn-warning btn-sm at-mywork-primary-action">Submit for Closure</button>
+                        <button type="submit" class="btn btn-warning btn-sm at-mywork-primary-action">Submit for closure</button>
                     </form>
                 }
                 else if (isBlocked)
@@ -58,14 +58,14 @@
                     <a class="btn btn-primary btn-sm at-mywork-primary-action"
                        asp-page="/ActionTasks/Index"
                        asp-route-taskId="@task.Id"
-                       asp-route-viewMode="@pageModel.ResolvedViewMode">Update Progress</a>
+                       asp-route-viewMode="@pageModel.ResolvedViewMode">Add update</a>
                 }
                 else if (isSubmitted)
                 {
                     <a class="btn btn-primary btn-sm at-mywork-primary-action"
                        asp-page="/ActionTasks/Index"
                        asp-route-taskId="@task.Id"
-                       asp-route-viewMode="@pageModel.ResolvedViewMode">View Details</a>
+                       asp-route-viewMode="@pageModel.ResolvedViewMode">Open</a>
                 }
 
                 @if (isBlocked && pageModel.CanUpdateTaskStatus(task))
@@ -77,7 +77,7 @@
                         <input type="hidden" name="id" value="@task.Id" />
                         <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(task.RowVersion)" />
                         <input type="hidden" name="status" value="@ProjectManagement.Models.ActionTaskStatuses.InProgress" />
-                        <button type="submit" class="btn btn-outline-primary btn-sm at-mywork-secondary-action">Mark In Progress</button>
+                        <button type="submit" class="btn btn-outline-primary btn-sm at-mywork-secondary-action">Resume</button>
                     </form>
                 }
                 else if (isInProgress)
@@ -85,7 +85,7 @@
                     <a class="btn btn-link btn-sm at-mywork-secondary-action"
                        asp-page="/ActionTasks/Index"
                        asp-route-taskId="@task.Id"
-                       asp-route-viewMode="@pageModel.ResolvedViewMode">Update Progress</a>
+                       asp-route-viewMode="@pageModel.ResolvedViewMode">Add update</a>
                 }
 
                 @if (!isSubmitted)

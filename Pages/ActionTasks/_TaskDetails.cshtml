@@ -20,8 +20,8 @@
     var changeDateInputValue = Model.SelectedTask is not null && Model.SelectedTask.DueDate.Date >= minimumChangeDate
         ? Model.SelectedTask.DueDate.Date
         : minimumChangeDate;
-    var updatePanelTitle = selectedTaskIsBacklog ? "Add Planning Note" : "Update Progress";
-    var updatePlaceholder = selectedTaskIsBacklog ? "Add planning note or clarification" : "Record progress, blocker details, completion notes, or status-change context";
+    var updatePanelTitle = selectedTaskIsBacklog ? "Add Planning Note" : "Add update";
+    var updatePlaceholder = selectedTaskIsBacklog ? "Add planning note or clarification" : "Write a clear update";
     var canOpenStatusAction = Model.SelectedTask is not null && !selectedTaskIsBacklog && Model.CanUpdateTaskStatus(Model.SelectedTask);
     var canOpenSubmitAction = Model.SelectedTask is not null && Model.CanSubmitTask(Model.SelectedTask);
     var canOpenCloseAction = Model.SelectedTask is not null && Model.CanCloseTaskDirectly(Model.SelectedTask);
@@ -35,9 +35,9 @@
     var canViewSystemHistory = Model.SelectedTask is not null && Model.CanViewSelectedTaskSystemHistory();
     var selectedTaskClosureHelper = Model.SelectedTask is not null && !selectedTaskIsClosed
         ? canOpenCloseAction
-            ? "Command authorities may close this task directly with mandatory closure remarks."
+            ? "Record closure remarks before closing this task."
             : selectedTaskIsSubmitted
-                ? "This task is submitted for closure review."
+                ? "This task is awaiting closure review."
                 : null
         : null;
     var taskBrief = string.IsNullOrWhiteSpace(Model.SelectedTask?.Description)
@@ -48,7 +48,7 @@
         : selectedTaskIsClosed
             ? "This task is closed. No further action is required."
             : selectedTaskIsSubmitted
-                ? "This task is awaiting closure review. Command authorities may close it directly after recording remarks."
+                ? "Review the submission, then accept and close it or add an update."
                 : selectedTaskIsBlocked
                     ? "This task is blocked. Record blocker details or change status once the issue is resolved."
                     : selectedTaskIsInProgress
@@ -93,14 +93,14 @@
         {
             <div class="at-inspector-body at-task-command-body">
                 <section class="at-command-section at-task-brief-section" aria-label="Task brief">
-                    <div class="at-command-section-heading">Task Brief</div>
+                    <div class="at-command-section-heading">Task brief</div>
                     <div class="at-task-brief-text @(string.IsNullOrWhiteSpace(Model.SelectedTask.Description) ? "is-muted" : string.Empty)">@taskBrief</div>
                 </section>
 
                 @if (selectedTaskIsClosed)
                 {
                     <section class="at-command-section at-closed-task-summary" aria-label="Closure details">
-                        <div class="at-command-section-heading">Closure Details</div>
+                        <div class="at-command-section-heading">Closure details</div>
                         <dl class="at-task-closure-list">
                             <div>
                                 <dt>Status</dt>
@@ -125,7 +125,7 @@
                 {
                     <section class="at-command-section at-next-action-section" aria-label="Next action">
                         <div class="at-next-action-copy">
-                            <div class="at-command-section-heading">Next Action</div>
+                            <div class="at-command-section-heading">Next action</div>
                             <p>@nextActionText</p>
                             @if (!string.IsNullOrWhiteSpace(selectedTaskClosureHelper))
                             {
@@ -144,26 +144,26 @@
                             else if (Model.CanAddOutsideSprintTaskToSprint(Model.SelectedTask))
                             {
                                 <button type="button" class="btn btn-primary btn-sm" data-at-open-action="add-outside-to-sprint">Add to Sprint</button>
-                                <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="update">Update Progress</button>
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="update">Add update</button>
                             }
                             else if (selectedTaskIsSubmitted)
                             {
                                 @if (canUseUpdateWorkflow)
                                 {
-                                    <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="update">Update Progress</button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" data-at-open-action="update">Add update</button>
                                 }
                                 else if (!canOpenCloseAction)
                                 {
-                                    <span class="text-muted small">Submitted for closure</span>
+                                    <span class="text-muted small">Awaiting closure</span>
                                 }
                             }
                             else
                             {
-                                <button type="button" class="btn btn-primary btn-sm" data-at-open-action="update">Update Progress</button>
+                                <button type="button" class="btn btn-primary btn-sm" data-at-open-action="update">Add update</button>
                             }
                             @if (canOpenCloseAction)
                             {
-                                <button type="button" class="btn btn-outline-danger btn-sm" data-at-open-action="close" data-at-close-task>Close Task</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" data-at-open-action="close" data-at-close-task>Accept and close</button>
                             }
                         </div>
                     </section>
@@ -184,7 +184,7 @@
                             <input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" />
                             <div class="at-action-title">@updatePanelTitle</div>
                             <div class="mb-2">
-                                <label class="form-label at-small" asp-for="UpdateInput.Body">Progress note</label>
+                                <label class="form-label at-small" asp-for="UpdateInput.Body">Update</label>
                                 <textarea class="form-control form-control-sm" rows="4" asp-for="UpdateInput.Body" maxlength="4000" placeholder="@updatePlaceholder"></textarea>
                             </div>
                             @if (!selectedTaskIsBacklog && Model.CanUpdateTaskStatus(Model.SelectedTask))
@@ -199,7 +199,7 @@
                                         }
                                         @if (canOpenSubmitAction)
                                         {
-                                            <option value="@ProjectManagement.Models.ActionTaskStatuses.Submitted">Submitted for Closure</option>
+                                            <option value="@ProjectManagement.Models.ActionTaskStatuses.Submitted">Awaiting Closure</option>
                                         }
                                     </select>
                                     <div class="form-text at-small">A note is required when blocking a task or submitting it for closure.</div>
@@ -210,7 +210,7 @@
                                 <input class="form-control form-control-sm" asp-for="UpdateInput.Files" type="file" multiple />
                                 <div class="form-text at-small">Allowed: PDF, Word, Excel, JPG, PNG, TXT.</div>
                             </div>
-                            <div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm" data-at-submit-update>Save Update</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="update" data-at-cancel-action>Cancel</button></div>
+                            <div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm" data-at-submit-update>Post update</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="update" data-at-cancel-action>Cancel</button></div>
                         </form>
                     </details>
 
@@ -309,13 +309,13 @@
                                 <input type="hidden" name="TaskId" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="id" value="@Model.SelectedTask.Id" />
                                 <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" />
-                                <div class="at-action-title">Close Task</div>
+                                <div class="at-action-title">Accept and close</div>
                                 <div class="mb-2">
                                     <label class="form-label at-small" for="closureRemarks-@Model.SelectedTask.Id">Closure remarks</label>
                                     <textarea id="closureRemarks-@Model.SelectedTask.Id" name="remarks" rows="4" class="form-control form-control-sm" maxlength="2000" required data-at-direct-close-remarks="true" placeholder="Enter closure decision, completion confirmation, or command rationale."></textarea>
                                 </div>
                                 <div class="at-action-buttons">
-                                    <button type="submit" class="btn btn-danger btn-sm" data-at-direct-close-submit="true" disabled>Close Task</button>
+                                    <button type="submit" class="btn btn-danger btn-sm" data-at-direct-close-submit="true" disabled>Accept and close</button>
                                     <button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="close">Cancel</button>
                                 </div>
                             </form>

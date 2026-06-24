@@ -1,62 +1,34 @@
 @model ProjectManagement.Pages.ActionTasks.IndexModel
 
 @{
-    // SECTION: My Work read-model aliases keep personal task presentation focused on actionable open work.
     var assignedTaskCount = Model.MyWorkQueue.OpenAssignedTaskCount;
     var actionRequiredTasks = Model.MyWorkActionRequiredDisplays;
     var currentWorkTasks = Model.MyWorkCurrentWorkDisplays;
     var submittedTasks = Model.MyWorkSubmittedAwaitingClosureDisplays;
     var otherAssignedWorkDisplays = Model.MyWorkAllMyTasksDisplays;
-    var actionRequiredCount = Model.MyWorkQueue.NeedsActionCount;
-    var overdueCount = Model.MyWorkQueue.OverdueCount;
-    var inProgressCount = Model.MyWorkQueue.InProgressCount;
-    var submittedCount = Model.MyWorkQueue.SubmittedCount;
 }
 
-@* SECTION: Compact personal execution count line. *@
-<section class="at-mywork-summary-line" aria-label="My work open assignment count">
-    <span>@assignedTaskCount open assigned tasks</span>
+<section class="at-personal-summary" aria-label="My task summary">
+    <span><strong>@assignedTaskCount</strong> open</span>
+    <span><strong>@Model.MyWorkQueue.OverdueCount</strong> overdue</span>
+    <span><strong>@Model.MyWorkQueue.InProgressCount</strong> in progress</span>
+    <span><strong>@Model.MyWorkQueue.SubmittedCount</strong> awaiting closure</span>
 </section>
 
 @if (assignedTaskCount == 0)
 {
-    @* SECTION: Single calm empty state replaces repeated empty My Work panels. *@
-    <section class="at-panel at-mywork-empty" aria-label="No open assigned work">
-        <h3>No open tasks assigned to you.</h3>
+    <section class="at-panel at-mywork-empty at-empty-state-calm" aria-label="No open assigned work">
+        <i class="bi bi-check2-circle" aria-hidden="true"></i>
+        <h2>You have no open tasks.</h2>
         <p>New assigned work will appear here.</p>
     </section>
 }
 else
 {
-    @* SECTION: Compact personal execution KPI strip appears only when open work exists. *@
-    <section class="at-kpis at-kpis-mywork at-mywork-kpis" aria-label="My work task summary">
-        <article>
-            <h3>Needs Action</h3>
-            <strong>@actionRequiredCount</strong>
-            <p>Tasks that need your attention.</p>
-        </article>
-        <article>
-            <h3>Overdue</h3>
-            <strong>@overdueCount</strong>
-            <p>Past due and still open.</p>
-        </article>
-        <article>
-            <h3>In Progress</h3>
-            <strong>@inProgressCount</strong>
-            <p>Currently underway.</p>
-        </article>
-        <article>
-            <h3>Submitted</h3>
-            <strong>@submittedCount</strong>
-            <p>Awaiting closure review.</p>
-        </article>
-    </section>
-
-    @* SECTION: Priority-based personal work queue avoids repeated tasks and hides empty groups. *@
-    <section class="at-mywork-queue" aria-label="Priority-based personal work queue">
-        <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, actionRequiredTasks, "Action Required", "Tasks that need your attention now.")' />
-        <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, currentWorkTasks, "Current Work", "Tasks currently in progress.")' />
-        <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, submittedTasks, "Submitted / Awaiting Closure", "Work submitted for closure review.")' />
-        <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, otherAssignedWorkDisplays, "Other Assigned Work", "Open assigned tasks not already shown above.")' />
+    <section class="at-mywork-queue at-simple-task-groups" aria-label="My tasks">
+        <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, actionRequiredTasks, "Needs attention", "")' />
+        <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, currentWorkTasks, "In progress", "")' />
+        <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, submittedTasks, "Awaiting closure", "")' />
+        <partial name="_TaskMyWorkQueueSection" model='@Tuple.Create(Model, otherAssignedWorkDisplays, "Later", "")' />
     </section>
 }

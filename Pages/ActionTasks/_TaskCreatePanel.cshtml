@@ -10,7 +10,7 @@
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title h5 mb-0" id="createTaskModalLabel">Create Action Tracker Work</h2>
+                <h2 class="modal-title h5 mb-0" id="createTaskModalLabel">Create task</h2>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -23,12 +23,12 @@
                 <div class="at-create-choice-grid" data-at-create-choice-group="true" aria-label="Choose work type">
                     <div class="at-create-mode-selector" role="tablist" aria-label="Create mode">
                         <button type="button" class="at-create-mode-button@(isBacklogCreateMode ? " is-active" : string.Empty)" id="at-create-mode-backlog-tab" role="tab" aria-selected="@(isBacklogCreateMode ? "true" : "false")" aria-controls="at-create-mode-backlog-panel" data-at-create-mode-button="backlog">Backlog Item</button>
-                        <button type="button" class="at-create-mode-button@(isDirectCreateMode ? " is-active" : string.Empty)" id="at-create-mode-direct-tab" role="tab" aria-selected="@(isDirectCreateMode ? "true" : "false")" aria-controls="at-create-mode-direct-panel" data-at-create-mode-button="direct">Direct Task</button>
+                        <button type="button" class="at-create-mode-button@(isDirectCreateMode ? " is-active" : string.Empty)" id="at-create-mode-direct-tab" role="tab" aria-selected="@(isDirectCreateMode ? "true" : "false")" aria-controls="at-create-mode-direct-panel" data-at-create-mode-button="direct">Assigned Task</button>
                     </div>
 
                     @* SECTION: Backlog item form intentionally has unique model-bound IDs and no assignee fields. *@
                     <section class="at-create-flow-panel" id="at-create-mode-backlog-panel" role="tabpanel" aria-labelledby="at-create-mode-backlog-tab" data-at-create-mode-panel="backlog" hidden="@(!isBacklogCreateMode)">
-                        <p class="at-panel-note">Capture future work without assigning it now.</p>
+                        <p class="at-panel-note">Save work for later planning. No assignee is required.</p>
                         <form method="post" asp-page-handler="CreateBacklogItem" class="at-create-flow-form">
                             <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                             <input type="hidden" name="CreateMode" value="backlog" />
@@ -40,7 +40,7 @@
                                 </div>
                                 <div class="col-md-7">
                                     <label asp-for="BacklogItemInput.Description" class="form-label"></label>
-                                    <textarea asp-for="BacklogItemInput.Description" class="form-control" rows="4" placeholder="Enter the work idea, context and planning notes"></textarea>
+                                    <textarea asp-for="BacklogItemInput.Description" class="form-control" rows="4" placeholder="Add a short brief or planning note"></textarea>
                                     <span asp-validation-for="BacklogItemInput.Description" class="text-danger small"></span>
                                 </div>
                                 <div class="col-md-3">
@@ -60,14 +60,14 @@
                                 </div>
                             </div>
                             <div class="at-create-flow-actions">
-                                <button type="submit" class="btn btn-primary">Save Backlog Item</button>
+                                <button type="submit" class="btn btn-primary">Save to backlog</button>
                             </div>
                         </form>
                     </section>
 
                     @* SECTION: Direct task form uses its own input model so generated HTML IDs are unique. *@
                     <section class="at-create-flow-panel" id="at-create-mode-direct-panel" role="tabpanel" aria-labelledby="at-create-mode-direct-tab" data-at-create-mode-panel="direct" hidden="@(!isDirectCreateMode)">
-                        <p class="at-panel-note">Assign work to a person now. It remains outside sprint until added to a sprint.</p>
+                        <p class="at-panel-note">Assign work now. It can be added to a sprint later.</p>
                         <form method="post" asp-page-handler="CreateDirectTask" class="at-create-flow-form">
                             <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                             <input type="hidden" name="CreateMode" value="direct" />
@@ -79,7 +79,7 @@
                                 </div>
                                 <div class="col-md-7">
                                     <label asp-for="DirectTaskInput.Description" class="form-label"></label>
-                                    <textarea asp-for="DirectTaskInput.Description" class="form-control" rows="4" placeholder="Enter task instructions, background and expected output"></textarea>
+                                    <textarea asp-for="DirectTaskInput.Description" class="form-control" rows="4" placeholder="What needs to be done?"></textarea>
                                     <span asp-validation-for="DirectTaskInput.Description" class="text-danger small"></span>
                                 </div>
                                 <div class="col-12">
@@ -110,7 +110,7 @@
                                 </div>
                             </div>
                             <div class="at-create-flow-actions">
-                                <button type="submit" class="btn btn-primary">Create Task</button>
+                                <button type="submit" class="btn btn-primary">Create task</button>
                             </div>
                         </form>
                     </section>

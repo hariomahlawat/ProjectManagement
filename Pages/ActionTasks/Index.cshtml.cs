@@ -176,7 +176,7 @@ public class IndexModel : PageModel
     public bool ShowCreateModal { get; private set; }
 
     [BindProperty]
-    public string CreateMode { get; set; } = "backlog";
+    public string CreateMode { get; set; } = "direct";
 
     public bool ShowCreateSprintPanel { get; private set; }
     public bool ShowEditSprintPanel { get; private set; }
@@ -231,19 +231,19 @@ public class IndexModel : PageModel
     public bool IsSprintsView => IsPlanningView;
     public string PageHeading => ResolvedViewMode switch
     {
-        "Planning" => "Sprint Board",
-        "MyWork" => "My Work",
-        "Register" => "Register",
+        "Planning" => "Board",
+        "MyWork" => "My Tasks",
+        "Register" => "All Tasks",
         "Reports" => "Reports",
-        _ => "Command Centre"
+        _ => "Overview"
     };
     public string PageSubtitle => ResolvedViewMode switch
     {
-        "Planning" => "Plan sprint work, monitor execution and review closure.",
-        "MyWork" => "Focus on the work assigned to you.",
-        "Register" => "Search, filter and review every task you can access.",
-        "Reports" => "Review workload, ageing and sprint performance.",
-        _ => "Monitor overdue, blocked, submitted and critical task action."
+        "Planning" => "See sprint work by status. Planning and closure tools appear only when needed.",
+        "MyWork" => "Your assigned work, ordered by what needs attention first.",
+        "Register" => "Find any task. Use filters only when you need them.",
+        "Reports" => "Workload, ageing and sprint performance.",
+        _ => "What needs attention now."
     };
 
     public IReadOnlyList<string> AssignmentRoles => ActionTaskRoleResolver.AllowedAssignmentRoles();
@@ -262,7 +262,7 @@ public class IndexModel : PageModel
     public IReadOnlyList<(string Value, string Label)> RegisterBucketOptions => new[]
     {
         (Value: "Backlog", Label: "Backlog"),
-        (Value: "OutsideSprint", Label: "Outside Sprint"),
+        (Value: "OutsideSprint", Label: "Assigned, not in sprint"),
         (Value: "Sprint", Label: "Sprint"),
         (Value: "Closed", Label: "Closed"),
         (Value: "Invalid", Label: "Invalid State")
@@ -308,7 +308,7 @@ public class IndexModel : PageModel
         => bucket switch
         {
             "Backlog" => "Backlog",
-            "OutsideSprint" => "Outside Sprint",
+            "OutsideSprint" => "Assigned, not in sprint",
             "Sprint" => "Sprint",
             "Closed" => "Closed",
             "Invalid" => "Invalid State",
@@ -435,7 +435,7 @@ public class IndexModel : PageModel
             "DueDateChanged" or "TaskDueDateChanged" => $"Due date changed from {FormatAuditDate(log.OldValue)} to {FormatAuditDate(log.NewValue)}.",
             "TargetDateChanged" => $"Target date changed from {FormatAuditDate(log.OldValue)} to {FormatAuditDate(log.NewValue)}.",
             "TaskAssignedToSprint" or "OutsideSprintTaskAssignedToSprint" => "Task added to sprint. Responsible person retained.",
-            "TaskRemovedFromSprintKeepAssigned" => "Task removed from sprint and kept assigned as Outside Sprint work.",
+            "TaskRemovedFromSprintKeepAssigned" => "Task removed from sprint and kept assigned outside a sprint.",
             "TaskMovedToBacklogRemoveAssignee" => "Task moved to backlog and assignee removed.",
             "BacklogItemCreated" => "Backlog item created.",
             "TaskCreated" => "Task created.",
@@ -503,12 +503,12 @@ public class IndexModel : PageModel
             : name;
     }
 
-    // SECTION: Task scope badges use official Sprint / Backlog / Outside Sprint bucket classification.
+    // SECTION: Task scope badges use official Sprint / Backlog / Assigned, not in sprint bucket classification.
     public string GetSprintBadgeText(ActionTaskItem task)
         => ActionTaskCategorization.ResolveCategory(task) switch
         {
             ActionTaskWorkCategory.Sprint => ResolveSprintName(task.SprintId),
-            ActionTaskWorkCategory.OutsideSprint => "Outside Sprint",
+            ActionTaskWorkCategory.OutsideSprint => "Assigned, not in sprint",
             ActionTaskWorkCategory.Closed => "Closed",
             ActionTaskWorkCategory.Invalid => "Invalid State",
             _ => "Backlog"
@@ -556,6 +556,12 @@ public class IndexModel : PageModel
 
     public async Task OnGetAsync()
     {
+        await ResolveIdentityAsync();
+        if (!Request.Query.ContainsKey("viewMode") && !_permission.CanViewAll(CurrentRole))
+        {
+            ViewMode = "MyWork";
+        }
+
         await LoadDataAsync();
     }
 
@@ -1039,7 +1045,7 @@ public class IndexModel : PageModel
         return RedirectToTaskPage(id, sprintId);
     }
 
-    // SECTION: Add Outside Sprint work to a sprint while retaining its responsible person.
+    // SECTION: Add Assigned, not in sprint work to a sprint while retaining its responsible person.
     public async Task<IActionResult> OnPostAddOutsideSprintTaskToSprintAsync(int id, int sprintId)
     {
         await ResolveIdentityAsync();
@@ -1047,7 +1053,7 @@ public class IndexModel : PageModel
         try
         {
             await _sprintService.AssignOutsideSprintTaskToSprintAsync(id, sprintId, CurrentUserId, CurrentRole);
-            TempData["ToastMessage"] = "Outside Sprint task added to sprint.";
+            TempData["ToastMessage"] = "Assigned task added to sprint.";
         }
         catch (InvalidOperationException ex)
         {

@@ -26,9 +26,8 @@
         <section class="at-sprint-board-stack at-execute-status-board" aria-label="Selected Sprint Board task board">
             <header class="at-panel at-execute-board-header" aria-label="Sprint Board header">
                 <div class="at-execute-board-title">
-                    <span class="at-section-eyebrow">Execute</span>
-                    <h2>Sprint Board</h2>
-                    <p class="at-panel-note">Move work through status columns.</p>
+                    <h2>Current sprint</h2>
+                    <p class="at-panel-note">Open a task to update its status or add progress.</p>
                 </div>
                 <div class="at-execute-board-summary" aria-label="Selected sprint closed task count">
                     <span>Closed</span>
@@ -83,7 +82,7 @@
                     <span class="at-execute-attention-summary" aria-label="Execution attention counts">
                         <span>Overdue <strong>@Model.SprintAttentionOverdueTaskDisplays.Count</strong></span>
                         <span>Blocked <strong>@Model.SprintAttentionBlockedTaskDisplays.Count</strong></span>
-                        <span>Pending Closure <strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></span>
+                        <span>Awaiting Closure <strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></span>
                     </span>
                     <span class="at-count-chip">@attentionCount</span>
                 </summary>
@@ -105,7 +104,7 @@
                     @if (Model.SprintAttentionSubmittedTaskDisplays.Any())
                     {
                         <div class="at-attention-group">
-                            <div class="at-attention-heading"><span>Pending Closure</span><strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></div>
+                            <div class="at-attention-heading"><span>Awaiting Closure</span><strong>@Model.SprintAttentionSubmittedTaskDisplays.Count</strong></div>
                             <partial name="_TaskMiniList" model='@Tuple.Create(Model, Model.SprintAttentionSubmittedTaskDisplays, "No submitted planning tasks.")' />
                         </div>
                     }
