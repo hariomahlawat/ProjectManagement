@@ -52,6 +52,10 @@ public class IndexModel : PageModel
         if (IsCommandMode)
         {
             View = string.Equals(View, "officers", StringComparison.OrdinalIgnoreCase) ? "officers" : "portfolio";
+            if (View == "portfolio" && !Request.Query.ContainsKey(nameof(PopulatedStagesOnly)))
+            {
+                PopulatedStagesOnly = true;
+            }
             CommandWorkspace = await _commandWorkspaceService.GetAsync(new CommandWorkspaceQuery
             {
                 View = View,

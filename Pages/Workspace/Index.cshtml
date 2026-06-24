@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="~/css/command-workspace.css" asp-append-version="true" />
 }
 
-@if (Model.CanSwitchWorkspace)
+@if (Model.CanSwitchWorkspace && !Model.IsCommandMode)
 {
     <nav class="workspace-mode-switcher" aria-label="Select workspace">
         <span class="workspace-mode-switcher__label">Workspace</span>
