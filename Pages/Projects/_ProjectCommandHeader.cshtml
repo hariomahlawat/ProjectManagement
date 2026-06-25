@@ -72,18 +72,33 @@
     <div class="project-intelligence-strip" aria-label="Project status summary">
         <button class="project-intelligence-card" type="button" data-scroll-target="#timeline">
             <span class="project-intelligence-card__label">Current stage</span>
-            <strong>@(portfolio.CurrentStage?.Name ?? "Not started")</strong>
-            <span>@(portfolio.CurrentStage?.Code ?? "—")</span>
+            <strong>@portfolio.CurrentStageDisplay</strong>
+            <span>@portfolio.CurrentStageDetail</span>
         </button>
         <div class="project-intelligence-card">
             <span class="project-intelligence-card__label">Lifecycle progress</span>
-            <strong>@portfolio.CompletedStages of @portfolio.TotalStages</strong>
-            <span>@portfolio.ProgressPercent% complete</span>
+            <strong>@portfolio.ResolvedStages of @portfolio.TotalStages</strong>
+            <span>@portfolio.CompletedStages completed@(portfolio.SkippedStages > 0 ? $" · {portfolio.SkippedStages} skipped" : string.Empty)</span>
         </div>
         <button class="project-intelligence-card" type="button" data-scroll-target="#timeline">
-            <span class="project-intelligence-card__label">Next stage</span>
-            <strong>@(portfolio.NextStage?.Name ?? "—")</strong>
-            <span>@(portfolio.DelayedStageCount > 0 ? $"{portfolio.DelayedStageCount} stage(s) need attention" : "On track")</span>
+            @if (portfolio.NextStage is not null)
+            {
+                <span class="project-intelligence-card__label">Next stage</span>
+                <strong>@portfolio.NextStage.Name</strong>
+                <span>@portfolio.NextStage.Code</span>
+            }
+            else if (portfolio.BackfillStageCount > 0)
+            {
+                <span class="project-intelligence-card__label">Attention required</span>
+                <strong>@portfolio.BackfillStageCount stage@(portfolio.BackfillStageCount == 1 ? string.Empty : "s")</strong>
+                <span>Complete missing stage details</span>
+            }
+            else
+            {
+                <span class="project-intelligence-card__label">Next stage</span>
+                <strong>No subsequent stage</strong>
+                <span>@(portfolio.IsWorkflowConcluded ? "Workflow sequence concluded" : "No next stage available")</span>
+            }
         </button>
         <div class="project-intelligence-card">
             <span class="project-intelligence-card__label">Profile completeness</span>

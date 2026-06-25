@@ -178,7 +178,7 @@ button.project-intelligence-card:hover {
 
 /* Project profile */
 .project-profile-card .project-photo-cover-frame {
-    min-height: 9rem;
+    min-height: 7rem;
     border-radius: .8rem;
     overflow: hidden;
     background: var(--portfolio-soft);
@@ -187,7 +187,7 @@ button.project-intelligence-card:hover {
 .project-profile-card .project-photo-cover-empty {
     display: grid;
     place-content: center;
-    min-height: 9rem;
+    min-height: 7rem;
     padding: 1rem;
 }
 
@@ -318,8 +318,8 @@ button.project-intelligence-card:hover {
 .project-files-empty {
     display: grid;
     place-items: center;
-    min-height: 8.5rem;
-    padding: 1.15rem;
+    min-height: 5.75rem;
+    padding: .9rem 1rem;
     border: 1px dashed var(--portfolio-border);
     border-radius: .8rem;
     background: var(--pm-surface-subtle, #f8fafc);
@@ -334,18 +334,23 @@ button.project-intelligence-card:hover {
 }
 .project-files-card .table > :not(caption) > * > * { padding: .65rem .7rem; }
 
-/* Lifecycle rail */
+/* Lifecycle rail: one natural page scroll; only the control header stays visible. */
 .project-lifecycle-panel {
+    position: relative;
+    max-height: none;
+    overflow: visible;
+}
+.project-lifecycle-panel > .card-header {
     position: sticky;
-    top: 9.2rem;
-    max-height: calc(100vh - 10rem);
-    overflow: hidden;
+    top: 9.15rem;
+    z-index: 12;
+    background: color-mix(in srgb, var(--pm-card, #fff) 96%, transparent);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 16px -16px rgba(15, 23, 42, .45);
 }
 .project-lifecycle-panel > .card-body {
-    max-height: calc(100vh - 16rem);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
+    max-height: none;
+    overflow: visible;
 }
 .project-lifecycle-panel .pm-timeline-grid { margin-top: .2rem; }
 .project-lifecycle-panel .pm-item { margin-bottom: .6rem; }
@@ -378,6 +383,37 @@ button.project-intelligence-card:hover {
     border-color: color-mix(in srgb, var(--pm-accent-blue, #3f6ff0) 30%, var(--portfolio-border));
     background: var(--portfolio-soft);
 }
+
+.project-lifecycle-panel .pm-item-compact-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: .38rem;
+    min-width: 0;
+    margin-left: auto;
+    color: var(--portfolio-muted);
+    font-size: .72rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.project-lifecycle-panel .pm-item-compact-meta > span {
+    display: inline-flex;
+    align-items: center;
+    gap: .24rem;
+}
+.project-lifecycle-panel .pm-item-compact-meta__separator { opacity: .65; }
+.project-lifecycle-panel .pm-item.is-expanded .pm-item-compact-meta { display: none; }
+.project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-header {
+    align-items: center;
+}
+.project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-heading {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-title {
+    flex: 1 1 auto;
+    min-width: 7rem;
+}
+
 .project-lifecycle-panel .pm-item-dates { gap: .5rem; }
 .project-lifecycle-panel .pm-date-block { padding: .65rem; }
 .project-lifecycle-panel .pm-date-value { font-size: .82rem; }
@@ -415,11 +451,8 @@ button.project-intelligence-card:hover {
 }
 
 @media (max-width: 1199.98px) {
-    .project-lifecycle-panel {
-        position: static;
-        max-height: none;
-    }
-    .project-lifecycle-panel > .card-body { max-height: none; }
+    .project-lifecycle-panel { position: relative; max-height: none; }
+    .project-lifecycle-panel > .card-body { max-height: none; overflow: visible; }
 }
 
 @media (max-width: 991.98px) {
@@ -473,4 +506,45 @@ button.project-intelligence-card:hover {
 
 .project-portfolio [data-timeline-stage].is-expanded .pm-item-expand-toggle {
     transform: rotate(180deg);
+}
+
+
+.project-lifecycle-summary__grid strong.project-lifecycle-summary__action {
+    display: -webkit-box;
+    overflow: hidden;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+.project-lifecycle-panel [data-panel-section="remarks"] .pm-remarks-filter .btn {
+    padding-inline: .55rem;
+}
+.project-lifecycle-panel [data-panel-section="remarks"] [role="toolbar"] {
+    row-gap: .45rem;
+}
+.project-lifecycle-panel .project-remark-launcher {
+    margin-bottom: .75rem;
+}
+@media (max-width: 1399.98px) {
+    .project-lifecycle-panel .pm-item-compact-meta {
+        flex-direction: column;
+        align-items: flex-end;
+        gap: .08rem;
+        line-height: 1.2;
+    }
+    .project-lifecycle-panel .pm-item-compact-meta__separator { display: none; }
+}
+@media (max-width: 1199.98px) {
+    .project-lifecycle-panel > .card-header {
+        position: static;
+        backdrop-filter: none;
+        box-shadow: none;
+    }
+}
+@media (max-width: 575.98px) {
+    .project-lifecycle-panel .pm-item-compact-meta {
+        width: 100%;
+        margin: .3rem 0 0;
+        align-items: flex-start;
+    }
 }

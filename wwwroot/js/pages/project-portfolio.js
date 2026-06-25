@@ -31,6 +31,11 @@
         else if (sessionStorage.getItem(expandedStageStorageKey) === stageCode) sessionStorage.removeItem(expandedStageStorageKey);
     }
 
+    function toggleCompletedStage(stage) {
+        if (!stage || !stage.classList.contains('is-complete')) return;
+        setStageExpanded(stage, !stage.classList.contains('is-expanded'));
+    }
+
     root.addEventListener('click', (event) => {
         const scrollButton = event.target.closest('[data-scroll-target]');
         if (scrollButton) {
@@ -40,10 +45,15 @@
         }
 
         const toggle = event.target.closest('[data-timeline-toggle]');
-        if (!toggle) return;
-        const stage = toggle.closest('[data-timeline-stage]');
-        if (!stage || !stage.classList.contains('is-complete')) return;
-        setStageExpanded(stage, !stage.classList.contains('is-expanded'));
+        if (toggle) {
+            toggleCompletedStage(toggle.closest('[data-timeline-stage]'));
+            return;
+        }
+
+        const stageCard = event.target.closest('[data-timeline-stage-card]');
+        if (!stageCard) return;
+        if (event.target.closest('button, a, input, select, textarea, [role="menu"], .dropdown-menu')) return;
+        toggleCompletedStage(stageCard.closest('[data-timeline-stage]'));
     });
 
     function initializeTimelineDensity() {
@@ -58,13 +68,28 @@
         if (stageToExpand) setStageExpanded(stageToExpand, true, false);
     }
 
+    function openRemarkComposer() {
+        const composer = root.querySelector('.remarks-composer');
+        const launcher = root.querySelector('[data-project-remark-launcher]');
+        if (!composer) return;
+        launcher?.setAttribute('hidden', 'hidden');
+        composer.classList.remove('is-collapsed');
+        composer.querySelector('[data-remarks-body]')?.focus();
+    }
+
+    function closeRemarkComposer() {
+        const composer = root.querySelector('.remarks-composer');
+        const launcher = root.querySelector('[data-project-remark-launcher]');
+        if (!composer) return;
+        composer.classList.add('is-collapsed');
+        launcher?.removeAttribute('hidden');
+    }
+
     function activateRemarksPanel() {
         const toggle = document.querySelector('[data-panel-target="remarks"]');
         toggle?.click();
         window.setTimeout(() => {
-            const launcher = root.querySelector('[data-project-remark-launcher]');
-            if (launcher) launcher.click();
-            else root.querySelector('[data-remarks-body]')?.focus();
+            openRemarkComposer();
             scrollToTarget('#remarks');
         }, 80);
     }
@@ -75,28 +100,16 @@
 
     function initializeRemarkComposer() {
         const composer = root.querySelector('.remarks-composer');
-        if (!composer || composer.dataset.portfolioEnhanced === 'true') return;
+        const launcher = root.querySelector('[data-project-remark-launcher]');
+        if (!composer || !launcher || composer.dataset.portfolioEnhanced === 'true') return;
+
         composer.dataset.portfolioEnhanced = 'true';
         composer.classList.add('is-collapsed');
+        launcher.removeAttribute('hidden');
 
-        const launcher = document.createElement('button');
-        launcher.type = 'button';
-        launcher.className = 'project-remark-launcher';
-        launcher.dataset.projectRemarkLauncher = 'true';
-        launcher.innerHTML = '<i class="bi bi-plus-circle me-2" aria-hidden="true"></i>Add a project remark…';
-        composer.before(launcher);
-
-        launcher.addEventListener('click', () => {
-            launcher.hidden = true;
-            composer.classList.remove('is-collapsed');
-            composer.querySelector('[data-remarks-body]')?.focus();
-        });
-
+        launcher.addEventListener('click', openRemarkComposer);
         composer.querySelector('[data-remarks-reset]')?.addEventListener('click', () => {
-            window.setTimeout(() => {
-                composer.classList.add('is-collapsed');
-                launcher.hidden = false;
-            }, 0);
+            window.setTimeout(closeRemarkComposer, 0);
         });
     }
 

@@ -1,3 +1,4 @@
+@using System.Linq
 @model ProjectManagement.Pages.Projects.OverviewModel
 @{
     var project = Model.Project;
@@ -46,9 +47,20 @@
 {
     <partial name="_ProjectModerationActions" model="Model" />
 }
-<div class="alert alert-warning d-flex align-items-center justify-content-between@(Model.HasBackfill ? string.Empty : " d-none")" role="alert" data-backfill-banner>
-    <div><strong>Action needed:</strong> Some earlier stages were auto-completed and need dates or costs.</div>
-    <button type="button" class="btn btn-sm btn-warning text-dark" data-action="open-backfill">Backfill now</button>
+<div class="alert alert-warning d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3@(Model.HasBackfill ? string.Empty : " d-none")" role="alert" data-backfill-banner>
+    <div>
+        <strong>Action needed:</strong>
+        @if (Model.Backfill.HasStages)
+        {
+            var stageNames = string.Join(", ", Model.Backfill.Stages.Select(stage => stage.StageName));
+            <span>@Model.Backfill.Stages.Count stage@(Model.Backfill.Stages.Count == 1 ? string.Empty : "s") require missing details: @stageNames.</span>
+        }
+        else
+        {
+            <span>Some earlier stages were auto-completed and need dates or costs.</span>
+        }
+    </div>
+    <button type="button" class="btn btn-sm btn-warning text-dark flex-shrink-0" data-action="open-backfill">Complete missing details</button>
 </div>
 @if (project?.HodUserId == null || project?.LeadPoUserId == null)
 {

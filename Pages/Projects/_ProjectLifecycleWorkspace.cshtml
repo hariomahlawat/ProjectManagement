@@ -12,7 +12,7 @@
     var pendingOwnedByCurrentUser = planState.PendingOwnedByCurrentUser;
     var canEditTimeline = access.CanEditTimeline;
     var submissionBlocked = planState.HasPendingSubmission && !pendingOwnedByCurrentUser;
-    var completedStages = portfolio.CompletedStages;
+    var completedStages = portfolio.ResolvedStages;
     var totalStages = portfolio.TotalStages;
     var progressMax = portfolio.ProgressMaximum;
     var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
@@ -218,7 +218,7 @@
                                       max="@progressMax"
                                       aria-label="Timeline stages completed">
                             </progress>
-                            <span class="text-muted small">@completedStages of @totalStages complete</span>
+                            <span class="text-muted small">@completedStages of @totalStages resolved</span>
                         </div>
                     </div>
                 </div>
@@ -236,7 +236,12 @@
                         <div class="remarks-panel" data-remarks-panel data-config='@remarksConfigJson'>
                             @if (Model.RemarksPanel.ShowComposer)
                             {
-                                <form class="remarks-composer" data-remarks-composer>
+                                <button type="button"
+                                        class="project-remark-launcher"
+                                        data-project-remark-launcher>
+                                    <i class="bi bi-plus-circle me-2" aria-hidden="true"></i>Add a project remark…
+                                </button>
+                                <form class="remarks-composer is-collapsed" data-remarks-composer>
                                     @Html.AntiForgeryToken()
                                     <div class="d-flex flex-column gap-3">
                                         <div>

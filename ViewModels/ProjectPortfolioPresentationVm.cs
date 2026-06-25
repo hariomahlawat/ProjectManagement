@@ -10,27 +10,42 @@ public sealed class ProjectPortfolioPresentationVm
     public string PageTitle { get; init; } = "Project";
     public TimelineItemVm? CurrentStage { get; init; }
     public TimelineItemVm? NextStage { get; init; }
+    public bool IsWorkflowConcluded { get; init; }
     public int CompletedStages { get; init; }
+    public int SkippedStages { get; init; }
+    public int ResolvedStages { get; init; }
     public int TotalStages { get; init; }
     public int ProgressMaximum => TotalStages == 0 ? 1 : TotalStages;
     public int ProgressPercent { get; init; }
     public int DelayedStageCount { get; init; }
+    public int BackfillStageCount { get; init; }
     public int CompletenessPercent { get; init; }
     public string PlanStatus { get; init; } = "Not approved";
     public string PlanHealth { get; init; } = "Stage records aligned";
+    public string CurrentStageDisplay => IsWorkflowConcluded ? "Lifecycle concluded" : CurrentStage?.Name ?? "Not started";
+    public string CurrentStageDetail => IsWorkflowConcluded ? "All applicable stages are complete or skipped" : CurrentStage?.Code ?? "No active stage";
+    public string NextAction { get; init; } = "Review project status";
 
     public static ProjectPortfolioPresentationVm Create(Project? project, TimelineVm timeline, bool hasBackfill)
     {
         ArgumentNullException.ThrowIfNull(timeline);
 
         var ordered = timeline.Items.OrderBy(item => item.SortOrder).ToArray();
-        var current = ordered.FirstOrDefault(item => item.Status == StageStatus.InProgress)
-            ?? ordered.FirstOrDefault(item => item.Status is not StageStatus.Completed and not StageStatus.Skipped)
-            ?? ordered.LastOrDefault();
+        var isWorkflowConcluded = ordered.Length > 0 && ordered.All(item => item.Status is StageStatus.Completed or StageStatus.Skipped);
+        var current = isWorkflowConcluded
+            ? null
+            : ordered.FirstOrDefault(item => item.Status == StageStatus.InProgress)
+                ?? ordered.FirstOrDefault(item => item.Status is not StageStatus.Completed and not StageStatus.Skipped);
         var next = current is null
             ? null
-            : ordered.FirstOrDefault(item => item.SortOrder > current.SortOrder && item.Status != StageStatus.Skipped);
+            : ordered.FirstOrDefault(item =>
+                item.SortOrder > current.SortOrder &&
+                item.Status is StageStatus.NotStarted or StageStatus.Blocked);
+        var completedCount = ordered.Count(item => item.Status == StageStatus.Completed);
+        var skippedCount = ordered.Count(item => item.Status == StageStatus.Skipped);
+        var resolvedCount = completedCount + skippedCount;
         var delayed = ordered.Count(item => item.IsOverdue || (item.StartVarianceDays ?? 0) > 0 || (item.FinishVarianceDays ?? 0) > 0);
+        var backfillCount = ordered.Count(item => item.RequiresBackfill);
         var completeness = new[]
         {
             !string.IsNullOrWhiteSpace(project?.Name),
@@ -43,18 +58,31 @@ public sealed class ProjectPortfolioPresentationVm
             !string.IsNullOrWhiteSpace(project?.Description)
         };
 
+        var nextAction = backfillCount > 0
+            ? $"Complete missing details for {backfillCount} stage{(backfillCount == 1 ? string.Empty : "s")}" 
+            : current is not null
+                ? $"Progress {current.Name}"
+                : isWorkflowConcluded
+                    ? "No further lifecycle action"
+                    : "Start the first applicable stage";
+
         return new ProjectPortfolioPresentationVm
         {
             PageTitle = project?.Name ?? "Project",
             CurrentStage = current,
             NextStage = next,
-            CompletedStages = timeline.CompletedCount,
+            IsWorkflowConcluded = isWorkflowConcluded,
+            CompletedStages = completedCount,
+            SkippedStages = skippedCount,
+            ResolvedStages = resolvedCount,
             TotalStages = timeline.TotalStages,
-            ProgressPercent = timeline.TotalStages == 0 ? 0 : (int)Math.Round(timeline.CompletedCount * 100d / timeline.TotalStages),
+            ProgressPercent = timeline.TotalStages == 0 ? 0 : (int)Math.Round(resolvedCount * 100d / timeline.TotalStages),
             DelayedStageCount = delayed,
+            BackfillStageCount = backfillCount,
             CompletenessPercent = (int)Math.Round(completeness.Count(value => value) * 100d / completeness.Length),
             PlanStatus = project?.PlanApprovedAt.HasValue == true ? "Approved" : timeline.PlanPendingApproval ? "Pending" : "Not approved",
-            PlanHealth = hasBackfill ? "Backfill required" : "Stage records aligned"
+            PlanHealth = hasBackfill ? "Backfill required" : "Stage records aligned",
+            NextAction = nextAction
         };
     }
 
@@ -77,9 +105,9 @@ public sealed class ProjectOverviewAccessVm
     public bool IsAssignedHoD { get; init; }
     public bool CanAssignRoles => IsAdmin || IsHoD;
     public bool CanEditTimeline { get; init; }
-    public bool CanReviewPlan => IsHoD;
-    public bool CanRequestStageChange => IsAssignedProjectOfficer || IsHoD;
-    public bool CanApplyStageChangeDirectly => IsHoD;
+    public bool CanReviewPlan => IsAdmin || IsHoD;
+    public bool CanRequestStageChange => IsAssignedProjectOfficer || IsHoD || IsAdmin;
+    public bool CanApplyStageChangeDirectly => IsAdmin || IsHoD;
 }
 
 public sealed class ProjectTimelinePanelVm

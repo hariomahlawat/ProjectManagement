@@ -107,6 +107,15 @@
               </span>
               @if (s.Status == StageStatus.Completed)
               {
+                var completionText = s.CompletedOn.HasValue ? D(s.CompletedOn) : "Completion date required";
+                var durationText = s.ActualDurationDays.HasValue
+                    ? $"{s.ActualDurationDays.Value} day{(s.ActualDurationDays.Value == 1 ? string.Empty : "s")}" 
+                    : "Duration unavailable";
+                <span class="pm-item-compact-meta" aria-label="Completed @completionText; duration @durationText">
+                  <span><i class="bi bi-calendar-check" aria-hidden="true"></i> @completionText</span>
+                  <span class="pm-item-compact-meta__separator" aria-hidden="true">·</span>
+                  <span><i class="bi bi-stopwatch" aria-hidden="true"></i> @durationText</span>
+                </span>
                 <button type="button"
                         class="pm-item-expand-toggle"
                         data-timeline-toggle
