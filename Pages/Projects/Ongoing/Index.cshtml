@@ -1,4 +1,4 @@
-﻿@page
+@page
 @using System.Text.RegularExpressions
 @using ProjectManagement.Models.Execution
 @using ProjectManagement.Models.Stages
@@ -24,6 +24,8 @@
         || !string.IsNullOrWhiteSpace(Model.StageBucket)
         || !string.IsNullOrWhiteSpace(Model.ProjectOfficerId)
         || !string.IsNullOrWhiteSpace(Model.Search);
+    var selectedOfficerLabel = Model.ProjectOfficerOptions
+        .FirstOrDefault(option => option.Selected)?.Text;
 
     // SECTION: Inline remark defaults
     var remarkType = RemarkType.External.ToString();
@@ -59,6 +61,9 @@
     string FormatValue(string? value)
         => string.IsNullOrWhiteSpace(value) ? "N/A" : value;
 
+    string StageNodeLabel(string code)
+        => string.Equals(code, "PAYMENT", StringComparison.OrdinalIgnoreCase) ? "₹" : code;
+
     // SECTION: Category accent helper
     string GetCategoryAccentClass(int? categoryId)
     {
@@ -87,7 +92,16 @@
     <!-- SECTION: Page header + KPI chips -->
     <div class="ongoing-top__header">
         <!-- SECTION: Page title -->
-        <h1 class="ongoing-top__title">Ongoing projects</h1>
+        <div class="ongoing-top__identity">
+            <h1 class="ongoing-top__title">Ongoing projects</h1>
+            <p class="ongoing-top__context mb-0">
+                <strong>@Model.FilteredTotal</strong> project@(Model.FilteredTotal == 1 ? "" : "s")
+                @if (!string.IsNullOrWhiteSpace(selectedOfficerLabel) && !string.Equals(selectedOfficerLabel, "All officers", StringComparison.OrdinalIgnoreCase))
+                {
+                    <span> · @selectedOfficerLabel</span>
+                }
+            </p>
+        </div>
 
         <!-- SECTION: Stage pipeline -->
         <div class="ongoing-top__pipeline" aria-label="Stage bucket distribution">
@@ -257,8 +271,8 @@
                 <label asp-for="Search" class="cmdbar__label">Search by project name</label>
                 <input asp-for="Search"
                        class="form-control form-control-sm"
-                       placeholder="Type and press Enter"
-                       title="Press Enter to search" />
+                       placeholder="Search projects"
+                       autocomplete="off" />
             </div>
         </div>
 
@@ -437,9 +451,11 @@ else
                                     </a>
                                 </h2>
                                 <p class="ongoing-card__meta mb-1">
-                                    @FormatValue(item.ProjectCategoryName)
+                                    <span>@FormatValue(item.ProjectCategoryName)</span>
                                     <span class="ongoing-card__meta-divider">•</span>
-                                    Cost: @item.CostLakhsText
+                                    <span>@(string.IsNullOrWhiteSpace(item.LeadPoName) ? "Project Officer not assigned" : item.LeadPoName)</span>
+                                    <span class="ongoing-card__meta-divider">•</span>
+                                    <span>Cost: @item.CostLakhsText</span>
                                 </p>
                                 <div class="ongoing-card__stage-summary">
                                     <p class="mb-0">
@@ -465,7 +481,7 @@ else
                                             }
                                             else
                                             {
-                                                <span class="text-muted">PDC: N/A</span>
+                                                <span class="text-muted">PDC not set</span>
                                             }
                                         }
 
@@ -498,7 +514,7 @@ else
                                             else
                                             {
                                                 <span class="ms-2 oc-pill oc-pill--neutral">
-                                                    no PDC set
+                                                    PDC not set
                                                 </span>
                                             }
                                         }
@@ -531,74 +547,80 @@ else
                         </header>
 
 
-                        <!-- SECTION: Timeline -->
-                        <div class="d-flex align-items-center flex-wrap gap-2 px-4 py-3 border-top">
-                            @{
-                                // show stages from start up to current stage
-                                for (var i = 0; i <= currentIdx; i++)
+                        <!-- SECTION: Complete lifecycle timeline -->
+                        <section class="briefing-timeline" aria-label="Project lifecycle timeline">
+                            <div class="briefing-timeline__legend" aria-label="Timeline legend">
+                                <span><i class="briefing-dot briefing-dot--complete"></i>Completed</span>
+                                <span><i class="briefing-dot briefing-dot--missing"></i>Passed · date missing</span>
+                                <span><i class="briefing-dot briefing-dot--current"></i>Current</span>
+                                <span><i class="briefing-dot briefing-dot--future"></i>Upcoming</span>
+                                @if (presentStage.DaysSinceStartOrLastCompletion.HasValue && presentStage.DaysSinceStartOrLastCompletion.Value >= 90)
+                                {
+                                    <span class="briefing-current-alert">Current stage prolonged</span>
+                                }
+                            </div>
+                            <div class="briefing-timeline__rail" role="list" data-auto-focus-current="true">
+                                @for (var i = 0; i < item.Stages.Count; i++)
                                 {
                                     var stage = item.Stages[i];
-                                    var isCompleted = stage.Status == StageStatus.Completed;
                                     var isCurrent = i == currentIdx;
+                                    var isCompleted = stage.Status == StageStatus.Completed;
+                                    var isPastMissing = i < currentIdx && !isCompleted;
+                                    var isFuture = i > currentIdx;
+                                    var historicalDuration = stage.ActualDurationDays;
+                                    var stageStateClass = isCompleted
+                                        ? "is-complete"
+                                        : isPastMissing
+                                            ? "is-past-missing"
+                                            : isCurrent
+                                                ? "is-current"
+                                                : "is-future";
+                                    var isCurrentProlonged = isCurrent && presentStage.DaysSinceStartOrLastCompletion.HasValue && presentStage.DaysSinceStartOrLastCompletion.Value >= 90;
 
-                                    if (isCompleted)
-                                    {
-                                        <div class="d-flex align-items-center gap-1">
-                                            <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center ongoing-timeline__stage-node">
-                                                @stage.Code
-                                            </div>
-                                            <div class="small">
-                                                @if (stage.ActualCompletedOn.HasValue)
-                                                {
-                                                    @stage.ActualCompletedOn.Value.ToString("dd-MMM-yyyy")
-                                                }
-                                                else
-                                                {
-                                                    <span class="text-muted">—</span>
-                                                }
-                                            </div>
+                                    <div class="briefing-stage @stageStateClass @(isCurrentProlonged ? "is-prolonged" : string.Empty)"
+                                         role="listitem"
+                                         data-current-stage="@(isCurrent ? "true" : "false")">
+                                        <div class="briefing-stage__node" title="@stage.Name">@StageNodeLabel(stage.Code)</div>
+                                        <div class="briefing-stage__detail">
+                                            <span class="briefing-stage__name" title="@stage.Name">@stage.Name</span>
+                                            @if (isCompleted)
+                                            {
+                                                <span class="briefing-stage__date">@(stage.ActualCompletedOn?.ToString("dd MMM yyyy") ?? "Date not recorded")</span>
+                                            }
+                                            else if (isPastMissing)
+                                            {
+                                                <span class="briefing-stage__date">Passed · date missing</span>
+                                            }
+                                            else if (isCurrent)
+                                            {
+                                                <span class="briefing-stage__date">
+                                                    @if (presentStage.DaysSinceStartOrLastCompletion.HasValue)
+                                                    {
+                                                        @($"{presentStage.DaysSinceStartOrLastCompletion.Value} days in stage")
+                                                    }
+                                                    else
+                                                    {
+                                                        @("Stage age not recorded")
+                                                    }
+                                                </span>
+                                                <span class="briefing-stage__pdc">@(stage.PlannedDue.HasValue ? $"PDC {stage.PlannedDue.Value:dd MMM yyyy}" : "PDC not set")</span>
+                                            }
                                         </div>
-                                    }
-                                    else if (isCurrent)
-                                    {
-                                        <div class="d-flex align-items-center gap-1">
-                                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center ongoing-timeline__stage-node">
-                                                @stage.Code
-                                            </div>
-                                            <div class="small">
-                                                @if (stage.PlannedDue.HasValue)
-                                                {
-                                                    <span>PDC: @stage.PlannedDue.Value.ToString("dd-MMM-yyyy")</span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="text-muted">PDC: N/A</span>
-                                                }
-                                            </div>
-                                        </div>
-                                    }
+                                    </div>
 
-                                    // connector + days between completed stages
-                                    if (i < currentIdx)
+                                    @if (i < item.Stages.Count - 1)
                                     {
-                                        var durationDays = stage.ActualDurationDays;
-
-                                        <div class="d-flex align-items-center gap-1 ongoing-timeline__connector">
-                                            <div class="ongoing-timeline__line"></div>
-                                            <div class="badge bg-light text-muted border small">
-                                                @(durationDays.HasValue ? $"{durationDays.Value} day{(durationDays.Value == 1 ? "" : "s")}" : "—")
-                                            </div>
-                                            <div class="ongoing-timeline__connector-gap"></div>
+                                        <div class="briefing-connector" aria-hidden="true">
+                                            <span class="briefing-connector__line"></span>
+                                            @if (isCompleted && historicalDuration.HasValue)
+                                            {
+                                                <span class="briefing-duration briefing-duration--normal">@historicalDuration.Value d</span>
+                                            }
                                         </div>
                                     }
                                 }
-
-                                if (currentIdx < item.Stages.Count - 1)
-                                {
-                                    <span class="text-muted small ms-1">… more stages</span>
-                                }
-                            }
-                        </div>
+                            </div>
+                        </section>
 
                         <!-- SECTION: Remarks -->
                         <section class="ongoing-remarks border-top"
@@ -616,9 +638,8 @@ else
                             <!-- SECTION: Remarks panel heading and toggle -->
                             <div class="ongoing-remarks__header">
                                 <div class="ongoing-remarks__title-wrap">
-                                    <span class="ongoing-remarks__title">Remarks summary</span>
-                                    <span class="ongoing-remarks__title-sep">·</span>
-                                    <span class="ongoing-remarks__subtitle">Internal remarks</span>
+                                    <span class="ongoing-remarks__title">Internal updates</span>
+                                    
                                 </div>
                                 @if (hasExpandableInternalRemarks)
                                 {
@@ -626,7 +647,7 @@ else
                                             class="ongoing-remarks__toggle btn btn-sm btn-link p-0 text-decoration-none"
                                             data-remarks-toggle
                                             aria-expanded="false">
-                                        <span data-remarks-toggle-label>Expand remarks</span>
+                                        <span data-remarks-toggle-label>View earlier updates</span>
                                         <span class="ongoing-remarks__toggle-chevron" data-remarks-toggle-chevron aria-hidden="true">▾</span>
                                     </button>
                                 }
@@ -638,7 +659,7 @@ else
                                 <div class="ongoing-remarks__column ongoing-remarks__column--internal">
                                     @if (item.RecentInternalRemarks.Count == 0)
                                     {
-                                        <p class="small text-muted mb-0">No internal remarks available.</p>
+                                        <p class="small text-muted mb-0">No internal update recorded.</p>
                                     }
                                     else
                                     {
@@ -679,12 +700,12 @@ else
                                     }
                                 </div>
 
-                                <!-- SECTION: Latest external remark (30%) -->
+                                <!-- SECTION: External status · Higher HQ (30%) -->
                                 <div class="ongoing-remarks__column ongoing-remarks__column--external">
-                                    <h3 class="ongoing-remarks__column-title">Latest external remark</h3>
+                                    <h3 class="ongoing-remarks__column-title">External status · Higher HQ</h3>
                                     @if (string.IsNullOrWhiteSpace(latestExternalRemark?.Body))
                                     {
-                                        <p class="small text-muted mb-0">No external remarks.</p>
+                                        <p class="small text-muted mb-0">No external status recorded.</p>
                                     }
                                     else
                                     {
@@ -736,30 +757,26 @@ else
                 <table class="table pm-table pm-table-sm align-middle mb-0 ongoing-table">
                     <colgroup>
                         <col class="col-project" />
-                        <col class="col-category" />
-                        <col class="col-cost" />
-                        <col class="col-date" />
-                        <col class="col-date" />
                         <col class="col-stage" />
+                        <col class="col-age" />
                         <col class="col-pdc" />
+                        <col class="col-internal" />
                         <col class="col-remarks" />
                     </colgroup>
                     <thead>
                         <tr>
-                            <th class="col-project">Project name</th>
-                            <th class="col-category">Category</th>
-                            <th class="col-cost">Cost (In Lakhs)</th>
-                            <th class="col-date">IPA date</th>
-                            <th class="col-date">AoN date</th>
-                            <th class="col-stage">Present stage</th>
-                            <th class="col-pdc">Present stage PDC</th>
-                            <th class="col-remarks">Remarks</th>
+                            <th class="col-project">Project</th>
+                            <th class="col-stage">Current stage</th>
+                            <th class="col-age">Stage age</th>
+                            <th class="col-pdc">PDC</th>
+                            <th class="col-internal">Internal update</th>
+                            <th class="col-remarks">External status</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var row in tableRows)
                         {
-                            // SECTION: Latest external remark metadata
+                            // SECTION: External status · Higher HQ metadata
                             var latestExternal = row.LatestExternalRemark;
                             var remarkBody = latestExternal?.Body ?? string.Empty;
                             var remarkEventDate = latestExternal?.EventDate.ToString("yyyy-MM-dd") ?? Model.TodayIstIso;
@@ -791,15 +808,45 @@ else
                                                class="project-link text-decoration-none fw-semibold">
                                                 @row.ProjectName
                                             </a>
+                                            <span class="ongoing-table__secondary">
+                                                @(string.IsNullOrWhiteSpace(row.LeadPoName) ? "Project Officer not assigned" : row.LeadPoName)
+                                                <span aria-hidden="true"> · </span>
+                                                @FormatValue(row.ProjectCategoryName)
+                                            </span>
                                         </div>
                                     </div>
                                 </td>
-                                <td class="col-category">@FormatValue(row.ProjectCategoryName)</td>
-                                <td class="col-cost" title="@row.CostLakhsFull">@row.CostLakhsShort</td>
-                                <td class="col-date">@FormatMilestoneDate(row.IpaDate)</td>
-                                <td class="col-date">@FormatMilestoneDate(row.AonDate)</td>
-                                <td class="col-stage">@FormatValue(row.PresentStage.CurrentStageName)</td>
-                                <td class="col-pdc">@FormatDate(row.PresentStagePdc)</td>
+                                <td class="col-stage">
+                                    <strong>@FormatValue(row.PresentStage.CurrentStageName)</strong>
+                                    @if (!string.IsNullOrWhiteSpace(row.LastCompletedStageName))
+                                    {
+                                        <span class="ongoing-table__secondary">Last: @row.LastCompletedStageName</span>
+                                    }
+                                </td>
+                                <td class="col-age">
+                                    @if (row.DaysInCurrentStage.HasValue)
+                                    {
+                                        var stageAgeClass = row.DaysInCurrentStage.Value >= 90 ? "is-danger" : row.DaysInCurrentStage.Value >= 45 ? "is-warning" : string.Empty;
+                                        <span class="stage-age @stageAgeClass">@row.DaysInCurrentStage d</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Not recorded</span>
+                                    }
+                                </td>
+                                <td class="col-pdc">@(row.PresentStagePdc.HasValue ? row.PresentStagePdc.Value.ToString("dd MMM yyyy") : "Not set")</td>
+                                <td class="col-internal">
+                                    @if (row.RecentInternalRemarks.Count > 0)
+                                    {
+                                        var latestInternal = row.RecentInternalRemarks[0];
+                                        <div class="pm-remark-text">@Html.Raw(RenderRemark(latestInternal.Text))</div>
+                                        <span class="ongoing-table__secondary">@latestInternal.AuthorDisplayName · @latestInternal.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">No update</span>
+                                    }
+                                </td>
                                 <td class="col-remarks js-ongoing-remark-cell"
                                     data-project-id="@row.ProjectId"
                                     data-remark-id="@remarkId"
@@ -837,6 +884,7 @@ else
 
 @section Styles {
     <link rel="stylesheet" href="~/css/components/pm-table.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/projects/ongoing-conference.css" asp-append-version="true" />
 }
 
 @section Scripts {

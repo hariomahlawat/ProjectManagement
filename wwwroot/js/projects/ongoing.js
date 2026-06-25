@@ -72,10 +72,17 @@
   officerSelect?.addEventListener('change', submitFilters);
   stageFlowSelect?.addEventListener('change', submitFilters);
 
-  // SECTION: Search submits only when Enter is pressed
+  // SECTION: Search auto-applies after a short pause; Enter remains immediate
+  let searchTimer = null;
+  searchInput?.addEventListener('input', () => {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(submitFilters, 450);
+  });
+
   searchInput?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
+      window.clearTimeout(searchTimer);
       submitFilters();
     }
   });
@@ -103,6 +110,56 @@
       toggleLabel.textContent = nextExpanded ? 'Collapse remarks' : 'Expand remarks';
       if (toggleChevron) {
         toggleChevron.textContent = nextExpanded ? '▴' : '▾';
+      }
+    });
+  });
+
+
+
+  // SECTION: Bring the current stage into view on first render
+  document.querySelectorAll('.briefing-timeline__rail[data-auto-focus-current="true"]').forEach((rail) => {
+    const current = rail.querySelector('[data-current-stage="true"]');
+    if (!current) return;
+
+    const desiredLeft = Math.max(0, current.offsetLeft - Math.round(rail.clientWidth * 0.32));
+    rail.scrollLeft = desiredLeft;
+  });
+
+  // SECTION: Mouse drag scrolling for complete lifecycle rails
+  document.querySelectorAll('.briefing-timeline__rail').forEach((rail) => {
+    let isDown = false;
+    let startX = 0;
+    let startScrollLeft = 0;
+
+    rail.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      isDown = true;
+      startX = event.clientX;
+      startScrollLeft = rail.scrollLeft;
+      rail.classList.add('is-dragging');
+      rail.setPointerCapture?.(event.pointerId);
+    });
+
+    rail.addEventListener('pointermove', (event) => {
+      if (!isDown) return;
+      rail.scrollLeft = startScrollLeft - (event.clientX - startX);
+    });
+
+    const endDrag = (event) => {
+      if (!isDown) return;
+      isDown = false;
+      rail.classList.remove('is-dragging');
+      if (rail.hasPointerCapture?.(event.pointerId)) {
+        rail.releasePointerCapture(event.pointerId);
+      }
+    };
+
+    rail.addEventListener('pointerup', endDrag);
+    rail.addEventListener('pointercancel', endDrag);
+    rail.addEventListener('mouseleave', () => {
+      if (isDown) {
+        isDown = false;
+        rail.classList.remove('is-dragging');
       }
     });
   });
